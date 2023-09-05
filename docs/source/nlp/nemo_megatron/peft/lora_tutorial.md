@@ -1,29 +1,29 @@
 # Introduction
 
-This notebook demonstrates how to use NeMo's implementation of LoRA (Low Rank Adaptation) for fine-tuning large 
+This notebook demonstrates how to use NeMo's implementation of LoRA (Low Rank Adaptation) for fine-tuning large
 language models. This implementation is based on the paper, [LORA:LOW-RANK ADAPTATION OFLARGE LANGUAGE MODELS](https://openreview.net/pdf?id=nZeVKeeFYf9) by Hu et al.
 
 This example demonstrates how to:
-    
+
     1. Train a LoRA model on a simple Extractive QA task.
     2. Inspect the trained LoRA model showing the parameters it contains.
     3. Run inference with the based model with the LoRA parameters.
 
-This tutorial focuses on LoRA, but the training and evaluation methods described here are applicable 
-for other Parameter-efficient finetuning (PEFT) methods in NeMo. 
+This tutorial focuses on LoRA, but the training and evaluation methods described here are applicable
+for other Parameter-efficient finetuning (PEFT) methods in NeMo.
 It also uses GPT as a base model to demonstrate the PEFT API, but the methods apply to T5 as well.
 
 # Data and Task preparation
 Use LoRA to teach the GPT model to do Extractive Question Answering.
 
-Using the [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) reading comprehension dataset, consisting of 
-questions posed by crowd workers on a set of Wikipedia articles, where the answer to every question is a segment of 
-text. More information on [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) can be found on their website or in 
-their paper by Rajpurkar et. al 
+Using the [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) reading comprehension dataset, consisting of
+questions posed by crowd workers on a set of Wikipedia articles, where the answer to every question is a segment of
+text. More information on [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) can be found on their website or in
+their paper by Rajpurkar et. al
 "[Know What You Don’t Know: Unanswerable Questions for SQuAD](https://arxiv.org/pdf/1806.03822.pdf)".
 
-LoRA (and all PEFT tuning) models expect at least two fields in the jsonl files. The `input` field should contain all 
-the tokens necessary for the model to generate the `output`. For example for extractive QA, the `input` should contain 
+LoRA (and all PEFT tuning) models expect at least two fields in the jsonl files. The `input` field should contain all
+the tokens necessary for the model to generate the `output`. For example for extractive QA, the `input` should contain
 the context text as well as the question.
 
 ```
@@ -33,12 +33,12 @@ the context text as well as the question.
     {"input": "User: Context: [CONTEXT_3] Question: [QUESTION_3]\n\nAssistant:", "output": [ANSWER_3]},
 ]
 ```
-Note the use of keywords in the input such as, `Context:`, `Question:` to separate the text representing the context and 
-question. The keyword `User:` is used and the end each input ends with `\n\nAssistant:` tokens. These are recommended 
+Note the use of keywords in the input such as, `Context:`, `Question:` to separate the text representing the context and
+question. The keyword `User:` is used and the end each input ends with `\n\nAssistant:` tokens. These are recommended
 because NeMo's instruction-tuned models are trained with a prefix of `User:` and suffix `\n\nAssistant:`.
 
-Download and preprocess the dataset. 
-For each dataset there are  preprocessing scripts pre-written in NeMo's example directory located in `examples/nlp`. 
+Download and preprocess the dataset.
+For each dataset there are  preprocessing scripts pre-written in NeMo's example directory located in `examples/nlp`.
 Download those scripts now.
 
 ```python
@@ -71,8 +71,8 @@ BRANCH = 'main'
 
 # Model Setup
 ## Model Config
-To begin setting up the config file needed for PEFT tuning, use a single config for all supported PEFT 
-methods (LoRA, Adapter, IA3 and P-Tuning, as well as combinations of these).  All PEFT methods use the GPT fine-tuning 
+To begin setting up the config file needed for PEFT tuning, use a single config for all supported PEFT
+methods (LoRA, Adapter, IA3 and P-Tuning, as well as combinations of these).  All PEFT methods use the GPT fine-tuning
 class `MegatronGPTSFTModel` as the frozen base and use the `add_adapter()` method to add weights for PEFT.
 
 Create a config object for LoRA training.
@@ -92,14 +92,14 @@ CONFIG_PATH = os.path.join(CONFIG_DIR, "megatron_gpt_peft_tuning_config.yaml")
 config = OmegaConf.load(CONFIG_PATH)
 ```
 
-The `config` contains several attributes required by the `MegatronGPTSFTModel`. First set the training data 
+The `config` contains several attributes required by the `MegatronGPTSFTModel`. First set the training data
 path and the validation data path in the config.
 
-The `config` allows you to set a list of `jsonl` files as training files and sample examples from each file with 
-different probabilities. For simplicity, you can use just one training file and thus the sampling probability 
+The `config` allows you to set a list of `jsonl` files as training files and sample examples from each file with
+different probabilities. For simplicity, you can use just one training file and thus the sampling probability
 is set to `1.0`
 
-You can also monitor validation loss from multiple validation files during training. For simplicity, you can use 
+You can also monitor validation loss from multiple validation files during training. For simplicity, you can use
 just one validation file.
 
 ```python
@@ -110,13 +110,13 @@ config.model.data.validation_ds.names=["squad_val"]
 ```
 
 ## PEFT Config
-The attribute [config.model.peft](https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/tuning/conf/megatron_gpt_peft_tuning_config.yaml#L79) 
-contains settings that control the PEFT training method and its related hyperpameters. 
-NeMO currently supports `lora`, `adapter`, `ptuning` and `ia3`. You can instruct the training script to use one of 
+The attribute [config.model.peft](https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/tuning/conf/megatron_gpt_peft_tuning_config.yaml#L79)
+contains settings that control the PEFT training method and its related hyperpameters.
+NeMO currently supports `lora`, `adapter`, `ptuning` and `ia3`. You can instruct the training script to use one of
 these methods by setting the config.model.peft.peft_scheme attribute.
 
-The other hyperparams associated with LoRA tuning are present in the 
-[config.model.peft.lora_tuning](https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/tuning/conf/megatron_gpt_peft_tuning_config.yaml#L96) 
+The other hyperparams associated with LoRA tuning are present in the
+[config.model.peft.lora_tuning](https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/tuning/conf/megatron_gpt_peft_tuning_config.yaml#L96)
 attribute.
 
 ```python
@@ -124,14 +124,14 @@ config.model.peft.peft_scheme="lora"  # You also set this to adapter or ptuning 
 print(OmegaConf.to_yaml(config.model.peft.lora_tuning))
 ```
 
-**Note:** In the original LoRA paper each attention projection (`K`, `Q`, `V` and `O`) can have their own Low-Rank 
-projections. However, NeMo's attention implementation fuses `KQV` into a single projection and thus our LoRA 
-implementation learns a single Low-Rank projection for `KQV` in a combined fashion. NeMO does not support LoRA for the 
+**Note:** In the original LoRA paper each attention projection (`K`, `Q`, `V` and `O`) can have their own Low-Rank
+projections. However, NeMo's attention implementation fuses `KQV` into a single projection and thus our LoRA
+implementation learns a single Low-Rank projection for `KQV` in a combined fashion. NeMO does not support LoRA for the
 `O` matrix at this point.
 
 ## Prompt Formatting
-The `config.model.data.train_ds.prompt_template` attribute allows you to further tweak the format of the input and output 
-if needed. This example shows  "encoding" the format inside the `jsonl` file directly. This keeps the 
+The `config.model.data.train_ds.prompt_template` attribute allows you to further tweak the format of the input and output
+if needed. This example shows  "encoding" the format inside the `jsonl` file directly. This keeps the
 `prompt_template` in the config simple.(See previous section on Data Preparation).
 
 ```python
@@ -139,8 +139,8 @@ config.model.data.train_ds.prompt_template ="{input} {output}"
 ```
 
 ## Pretrained GPT Model Setup
-Next set the "base language model" to perform LoRA tuning. Obviously, larger base models will 
-have better performance on downstream tasks but for the purposes of this tutorial a small 345M parameter 
+Next set the "base language model" to perform LoRA tuning. Obviously, larger base models will
+have better performance on downstream tasks but for the purposes of this tutorial a small 345M parameter
 GPT model is used.
 
 ```python
@@ -150,15 +150,15 @@ megatron_gpt_345m_nemo_url = MegatronGPTModel.list_available_models()[0].locatio
 print(megatron_gpt_345m_nemo_url) # should point to the 345m megatron gpt model '.nemo' file
 gpt_file_name = "megatron_gpt_345m.nemo"
 ```
-If you wanted to use the GPT model class directly,  instantiate a trainer then download the model by calling 
-running `gpt_model = MegatronGPTModel.from_pretrained(model_name="megatron_gpt_345m", trainer=trainer).cuda()`. 
-You need the `.nemo` file in our working NeMo directory in this tutorial, so download it using `wget`. 
+If you wanted to use the GPT model class directly,  instantiate a trainer then download the model by calling
+running `gpt_model = MegatronGPTModel.from_pretrained(model_name="megatron_gpt_345m", trainer=trainer).cuda()`.
+You need the `.nemo` file in our working NeMo directory in this tutorial, so download it using `wget`.
 ```bash
 !wget  -nc --content-disposition {megatron_gpt_345m_nemo_url} -O {NEMO_DIR}/{gpt_file_name}
 ```
 
-Next,  set where you want to save all the intermediate training logs and checkpoints. As well as other training 
-settings such as: number of training steps, batch size and validation check interval, and num_workers for data 
+Next,  set where you want to save all the intermediate training logs and checkpoints. As well as other training
+settings such as: number of training steps, batch size and validation check interval, and num_workers for data
 processing.
 
 ```python
@@ -176,7 +176,7 @@ print(OmegaConf.to_yaml(config.model))
 
 # Training Setup
 ## Building the PyTorch Lightning Trainer
-NeMo models are primarily PyTorch Lightning modules and therefore are entirely compatible with the PyTorch Lightning 
+NeMo models are primarily PyTorch Lightning modules and therefore are entirely compatible with the PyTorch Lightning
 ecosystem.
 Modify the trainer config and then instantiate a Trainer object with `MegatronTrainerBuilder`
 
@@ -207,7 +207,7 @@ NeMo has an experiment manager that handles logging and checkpointing for you.
 ```python
 from nemo.utils.exp_manager import exp_manager
 
-# Set name of the experiment 
+# Set name of the experiment
 config.name = 'lora_example_tuning'
 config.exp_manager.resume_if_exists = False
 print(OmegaConf.to_yaml(config.exp_manager))
@@ -218,9 +218,9 @@ print(exp_dir)
 ```
 
 # Training
-To set up the process for training a LoRA model, first require a config that contains details about the base 
-language model upon which we will train our LoRA model. First extract the `model_cfg` from the checkpoint and 
-update it with any new settings we employ in our current (LoRA) `config`. These are merged in the `merge_cfg_with` 
+To set up the process for training a LoRA model, first require a config that contains details about the base
+language model upon which we will train our LoRA model. First extract the `model_cfg` from the checkpoint and
+update it with any new settings we employ in our current (LoRA) `config`. These are merged in the `merge_cfg_with`
 function.
 
 ```python
@@ -230,7 +230,7 @@ model_cfg = MegatronGPTSFTModel.merge_cfg_with(config.model.restore_from_path, c
 ```
 
 Next, instantiate the GPT model class and add the LoRA adapter.
-When you call `add_adapter`, the model prints out the parameter count before and after the operation. 
+When you call `add_adapter`, the model prints out the parameter count before and after the operation.
 You can see the number of trainable parameters increase after adding the adapter.
 To print the parameter count manually, call `model.summarize()`.
 
@@ -252,13 +252,13 @@ You can now start training.
 trainer.fit(model)
 ```
 
-Once training is completed you should see a saved '.nemo' file in this folder 
-`{config.exp_manager.explicit_log_dir}/checkpoints`. 
+Once training is completed you should see a saved '.nemo' file in this folder
+`{config.exp_manager.explicit_log_dir}/checkpoints`.
 This checkpoint will only contain the trained adapter weights, and not the frozen base model weights.
 
 # Inference
-The model object from `trainer.fit(model)` is also capable of doing inference. For the tutorial, re-load the 
-saved `.nemo` lora model along with a `.nemo` base language model to simulate a more realistic scenario 
+The model object from `trainer.fit(model)` is also capable of doing inference. For the tutorial, re-load the
+saved `.nemo` lora model along with a `.nemo` base language model to simulate a more realistic scenario
 (where training does not happen right before inference).
 
 First, load and modify a config file that will be used for inference.
@@ -273,7 +273,7 @@ config_eval = OmegaConf.load(CONFIG_EVAL_PATH)
 Modify the `config_eval` object that you created above. Set the base language model as the `345m`
 model you downloaded earlier.
 
-Additionally, set the `model.peft.restore_from_path` with the LoRA model you just trained. 
+Additionally, set the `model.peft.restore_from_path` with the LoRA model you just trained.
 For the tutorial, use the validation data for inference as well.
 
 ```python
@@ -290,16 +290,16 @@ trainer_eval = MegatronTrainerBuilder(config_eval).create_trainer()
 
 ```
 
-The `config_eval` object is the hydra config at inference/test time. This means it should contain information relevant 
-for inference/test time. You still need to know some properties that were set at training time 
+The `config_eval` object is the hydra config at inference/test time. This means it should contain information relevant
+for inference/test time. You still need to know some properties that were set at training time
 for example, was the training done with `BOS` enabled or not, and other model specific attributes.
 
 Extract the `peft_model_cfg` from the '.nemo' file of the LoRA model you trained. Then load the base language model as well as the lora model you trained.
 
 ```python
-model_cfg = MegatronGPTSFTModel.merge_cfg_with(config_eval.model.restore_from_path, config_eval)
+model_cfg = MegatronGPTSFTModel.merge_inference_cfg(config_eval.model.peft.restore_from_path, config_eval)
 model_eval = MegatronGPTSFTModel.restore_from(config_eval.model.restore_from_path, model_cfg, trainer=trainer_eval)
-model_eval.load_adapters("./training_info/checkpoints/lora_example_tuning.nemo")  # TODO load_adapters need some change
+model_eval.load_adapters(config_eval.model.peft.restore_from_path, LoraPEFTConfig(model_cfg))
 model_eval.freeze()
 ```
 

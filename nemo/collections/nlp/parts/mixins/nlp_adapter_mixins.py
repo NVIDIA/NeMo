@@ -409,3 +409,25 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                 output.precision = cfg.trainer.precision
 
         return output
+
+    @classmethod
+    def merge_inference_cfg(cls, path: str, cfg: DictConfig) -> DictConfig:
+        output = cls.restore_from(path, return_config=True)
+
+        with open_dict(output):
+            # update the model config of the trained model with params we want to set at inference time.
+            output.precision = cfg.trainer.precision
+            output.data.test_ds = cfg.model.data.test_ds
+            output.activations_checkpoint_granularity = None
+            output.activations_checkpoint_method = None
+            output.activations_checkpoint_layers_per_pipeline = None
+            if output.get("use_flash_attention", False):
+                output.use_flash_attention = cfg.model.use_flash_attention
+            if cfg.model.get("seq_len_interpolation_factor", None) is not None:
+                output.seq_len_interpolation_factor = cfg.model.seq_len_interpolation_factor
+
+        with open_dict(cfg):
+            cfg.inference.add_BOS = output.data.test_ds.add_bos
+            cfg.inference.tokens_to_generate = output.data.test_ds.tokens_to_generate
+
+        return output
