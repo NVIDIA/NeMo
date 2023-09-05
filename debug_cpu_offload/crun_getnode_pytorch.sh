@@ -1,0 +1,1 @@
+crun -q "chip=ga100 and memory_capacity_gb=80" -i -t 04:00:00 -img nvcr.io/nvidia/pytorch:23.07-py3

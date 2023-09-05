@@ -179,3 +179,5 @@ examples/neural_graphs/*.yml
 .hydra/
 nemo_experiments/
 
+*.log
+*.nsys-rep
