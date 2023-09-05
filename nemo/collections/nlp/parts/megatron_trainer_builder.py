@@ -103,4 +103,9 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
     def create_trainer(self) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=[ModelSummary(max_depth=3), CustomProgressBar()])
+        return Trainer(
+            plugins=plugins,
+            strategy=strategy,
+            **self.cfg.trainer,
+            callbacks=[ModelSummary(max_depth=3), CustomProgressBar()]
+        )
