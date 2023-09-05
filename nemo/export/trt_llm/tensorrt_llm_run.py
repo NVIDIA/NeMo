@@ -146,6 +146,8 @@ def _forward(
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
+        prompt_table=None,
+        task_vocab_size=None,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
@@ -178,6 +180,23 @@ def _forward(
                 torch.nested.nested_tensor(input_tensors, dtype=torch.int32), pad_id
             ).cuda()
             input_lengths = torch.tensor(input_lengths, dtype=torch.int32).cuda()
+
+        if prompt_table is None:
+            ptuning_args = []
+        else:
+            if task_vocab_size is None:
+                raise Exception("task_vocab_size cannot be None")
+
+            task_vocab_size = torch.tensor([task_vocab_size], dtype=torch.int32, device="cuda")
+
+            if tasks is not None:
+                tasks = torch.tensor([int(t) for t in tasks.split(',')], dtype=torch.int32, device="cuda")
+                assert tasks.shape[0] == line_encoded.shape[0], "Number of supplied tasks must match input batch size"
+            else:
+                tasks = torch.zeros([line_encoded.size(0)]).cuda()
+
+            ptuning_args = [prompt_table, tasks, task_vocab_size]
+
         with torch.no_grad():
             sampling_config.top_k = top_k
             sampling_config.top_p = top_p
@@ -192,6 +211,7 @@ def _forward(
                     line_encoded,
                     input_lengths,
                     sampling_config,
+                    *ptuning_args,
                 )
 
             torch.cuda.synchronize()
@@ -249,6 +269,8 @@ def forward(
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
+        prompt_table=None,
+        task_vocab_size=None,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
     batch_size = len(input_tensors)
@@ -264,12 +286,12 @@ def forward(
 
     tensor_parallel = host_context.tensor_parallel
     if tensor_parallel == 1:
-        return _forward(input_tensors, max_output_len, top_k, top_p, temperature)
+        return _forward(input_tensors, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size)
     else:
         executor = host_context.executor
         futures = []
         for _ in range(tensor_parallel):
-            future = executor.submit(_forward, input_tensors, max_output_len, top_k, top_p, temperature)
+            future = executor.submit(_forward, input_tensors, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size)
             futures.append(future)
         for future in futures:
             result = future.result()
@@ -286,6 +308,8 @@ def generate(
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
+        prompt_table=None,
+        task_vocab_size=None,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
@@ -295,7 +319,7 @@ def generate(
     input_tensors = [
         torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
     ]
-    output_tensor = forward(input_tensors, max_output_len, host_context, top_k, top_p, temperature)
+    output_tensor = forward(input_tensors, max_output_len, host_context, top_k, top_p, temperature, prompt_table, task_vocab_size)
     assert output_tensor is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]

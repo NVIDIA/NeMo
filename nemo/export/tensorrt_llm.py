@@ -191,8 +191,7 @@ class TensorRTLLM(ITritonDeployable):
             max_input_len=max_input_token,
             max_output_len=max_output_token,
             max_batch_size=max_batch_size,
-            #max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-            #parallel_build=parallel_build
+            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )
 
         if prompt_checkpoint_path is not None:
@@ -232,6 +231,8 @@ class TensorRTLLM(ITritonDeployable):
                 top_k= top_k,
                 top_p= top_p,
                 temperature= temperature,
+                prompt_table=self.prompt_table,
+                task_vocab_size=self.task_vocab_size,
             )
 
     @property

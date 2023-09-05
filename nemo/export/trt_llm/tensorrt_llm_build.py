@@ -220,6 +220,7 @@ def build(
     max_input_len=200,
     max_output_len=200,
     max_beam_width=1,
+    max_prompt_embedding_table_size=0,
     parallel_build=False,
     gpus_per_node=1,
     quantization=None,
@@ -255,7 +256,7 @@ def build(
     args.int8_kv_cache = False
     args.random_seed = None
     args.paged_kv_cache = False
-    args.max_prompt_embedding_table_size = 0
+    args.max_prompt_embedding_table_size = max_prompt_embedding_table_size
     args.use_inflight_batching = False
     args.use_ib_gpt_attention_plugin = False
     args.use_parallel_embedding = False
