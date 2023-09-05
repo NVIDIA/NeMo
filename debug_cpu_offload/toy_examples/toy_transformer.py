@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+torch.manual_seed(1234)
 
 class ToyEncoder(nn.Module):
     def __init__(self, layer_id, hidden_size, num_head,):
@@ -35,6 +36,7 @@ class ToyEncoder(nn.Module):
         hidden = self.ffn2(hidden)
         hidden = residual + hidden
 
+        print(f"^^^^^ layer {self.layer_id} checksum {hidden.sum()}")
         return hidden
 
 class ToyGPT(nn.Module):
@@ -49,7 +51,7 @@ class ToyGPT(nn.Module):
             x = l(x)
         return x
 
-    
+
 seq = 8192
 batch = 1
 hidden_size = 2048
@@ -60,12 +62,20 @@ input = torch.randn(seq, batch, hidden_size).cuda()
 
 
 model = ToyGPT(layer, hidden_size, head)
+
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+
 model = model.cuda()
 
 
-for step in range(2):
+optimizer.zero_grad()
+for step in range(4):
+    print(f"===== Step {step} =====")
     logits = model(input)
     logits.sum().backward()
+    if step % 2 == 1:
+        optimizer.step()
+        optimizer.zero_grad()
 
 print(f"peak memory {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB")
 torch.cuda.reset_max_memory_allocated()

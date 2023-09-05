@@ -1,6 +1,7 @@
 import nemo.utils.cpu_offload as cpu_offload
 import torch.nn as nn
 import torch
+torch.manual_seed(1234)
 
 class ToyOffloadEncoder(nn.Module):
     def __init__(self, layer_id, hidden_size, num_head, offload_handler):
@@ -56,6 +57,7 @@ class ToyOffloadEncoder(nn.Module):
         hidden = self.ffn2(hidden)
         hidden = residual + hidden
 
+        print(f"^^^^^ layer {self.layer_id} checksum {hidden.sum()}")
         return hidden
 
 class ToyOffloadGPT(nn.Module):
@@ -71,7 +73,8 @@ class ToyOffloadGPT(nn.Module):
         for l in self.layers:
             x = l(x)
         return x
-    
+
+
 seq = 8192
 batch = 1
 hidden_size = 2048
@@ -81,16 +84,23 @@ layer = 8
 input = torch.randn(seq, batch, hidden_size).cuda()
 
 
-model = ToyOffloadGPT(layer, hidden_size, head, 4, 3).cuda()
+model = ToyOffloadGPT(layer, hidden_size, head, 5, 3).cuda()
 
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
-torch.cuda.cudart().cudaProfilerStart()
-torch.cuda.nvtx.range_push("toy_transformer")
-for step in range(2):
+# torch.cuda.cudart().cudaProfilerStart()
+# torch.cuda.nvtx.range_push("toy_transformer")
+optimizer.zero_grad()
+for step in range(4):
+    print(f"===== Step {step} =====")
     logits = model(input)
     logits.sum().backward()
-torch.cuda.nvtx.range_pop()
-torch.cuda.cudart().cudaProfilerStop()
+    if step % 2 == 1:
+        optimizer.step()
+        optimizer.zero_grad()
+        
+# torch.cuda.nvtx.range_pop()
+# torch.cuda.cudart().cudaProfilerStop()
 
 print(f"peak memory {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB")
 torch.cuda.reset_max_memory_allocated()
