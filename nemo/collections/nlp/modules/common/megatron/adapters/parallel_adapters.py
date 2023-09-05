@@ -467,6 +467,7 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             gather_output,
             dropout,
             model_parallel_config,
+            **kwargs,
         )
         if self.position_embedding_strategy:
             self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)
