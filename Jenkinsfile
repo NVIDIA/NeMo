@@ -3382,6 +3382,12 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
       failFast true
       steps {
+        sh '''python -c "import pandas as pd
+import torch
+if not (torch.cuda.is_available() and 'A100' in torch.cuda.get_device_name()):
+    import sys
+    sys.exit(0)
+"'''
         sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
