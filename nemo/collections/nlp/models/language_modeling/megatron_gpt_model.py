@@ -72,7 +72,7 @@ except (ImportError, ModuleNotFoundError):
 from nemo.collections.nlp.parts.microbatch_calculator import get_num_microbatches
 
 try:
-    from megatron.core import parallel_state
+    from megatron.core import InferenceParams, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
@@ -292,6 +292,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
 
+        self.inference_params = None
+
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
             return [
@@ -322,10 +324,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
                 position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
+                seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             )
         else:
-            assert (
-                self.cfg.get('num_query_groups', None) is None
+            assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
+                'num_query_groups', None
+            ) == self.cfg.get(
+                'num_attention_heads', None
             ), "Group Query Attention is only supported in Megatron Core. Set 'mcore_gpt' to use GQA."
 
             model = GPTModel(
@@ -896,9 +901,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if attention_mask is not None:
                     attention_mask = attention_mask.cuda()
                     attention_mask = attention_mask[0:1]
+            if self.mcore_gpt:
+                # if first step, then clear KV cache, otherwise reuse inference_paarms
+                if set_inference_key_value_memory[0].item():
+                    self.inference_params = InferenceParams(
+                        max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
+                    )
+                extra_arg['inference_params'] = self.inference_params
+            else:
                 extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                 extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
+
+            # Advance inference sequence offset.
+            if self.inference_params:
+                self.inference_params.sequence_len_offset += output_tensor.size(1)
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
@@ -914,8 +931,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
-        # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely when PP rank 1 reaches the end of dataloader_iter
-        dataloader_iter, done = self._prefetch(dataloader_iter)
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         if done:
             return
         mode = 'test' if self.trainer.testing else 'val'
@@ -972,6 +989,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss
 
     def build_train_valid_test_datasets(self):
+        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+        self._reconfigure_val_batches()
         logging.info('Building GPT datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
@@ -1364,11 +1383,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Reset model parameters.
         for module in self.get_gpt_module_list():
-            # TODO: @eharper how to update this for mcore
-            module.language_model.encoder.activations_checkpoint_granularity = None
-            module.language_model.encoder.activations_checkpoint_method = None
-            module.language_model.encoder.activations_checkpoint_num_layers = None
-            module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
+            if self.cfg.get('mcore_gpt', False):
+                module.decoder.config.recompute_granularity = None
+                module.decoder.config.recompute_method = None
+                module.decoder.config.recompute_num_layers = None
+            else:
+                module.language_model.encoder.activations_checkpoint_granularity = None
+                module.language_model.encoder.activations_checkpoint_method = None
+                module.language_model.encoder.activations_checkpoint_num_layers = None
+                module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
 
     def _restore_activation_checkpointing_args(self):
         """ Restores the activation checkpointing parameters using the values saved by
@@ -1376,7 +1399,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             _reset_activation_checkpointing_args.
         """
         # Restore config values.
-        # TODO: @eharper how to update this for mcore
         self.cfg.activations_checkpoint_granularity = self.last_activations_checkpoint_granularity
         self.cfg.activations_checkpoint_method = self.last_activations_checkpoint_method
         self.cfg.activations_checkpoint_num_layers = self.last_activations_checkpoint_num_layers
@@ -1384,16 +1406,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Restore model parameters.
         for module in self.get_gpt_module_list():
-            module.language_model.encoder.activations_checkpoint_granularity = (
-                self.last_activations_checkpoint_granularity
-            )
-            module.language_model.encoder.activations_checkpoint_method = self.last_activations_checkpoint_method
-            module.language_model.encoder.activations_checkpoint_num_layers = (
-                self.last_activations_checkpoint_num_layers
-            )
-            module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
-                self.last_activations_checkpoint_layers_per_pipeline
-            )
+            if self.cfg.get('mcore_gpt', False):
+                module.decoder.config.recompute_granularity = self.last_activations_checkpoint_granularity
+                module.decoder.config.recompute_method = self.last_activations_checkpoint_method
+                module.decoder.config.recompute_num_layers = self.last_activations_checkpoint_num_layers
+            else:
+                module.language_model.encoder.activations_checkpoint_granularity = (
+                    self.last_activations_checkpoint_granularity
+                )
+                module.language_model.encoder.activations_checkpoint_method = self.last_activations_checkpoint_method
+                module.language_model.encoder.activations_checkpoint_num_layers = (
+                    self.last_activations_checkpoint_num_layers
+                )
+                module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
+                    self.last_activations_checkpoint_layers_per_pipeline
+                )
 
     def _reset_sequence_parallelism_args(self):
         """ Disables sequence parallelism completely and saves the values so that
@@ -1450,7 +1477,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         activation = self.cfg.get('activation', 'gelu')
         # TODO: need to check which activation functions are supported in mcore
+        gated_linear_unit = activation.endswith('glu')
         activation_func = activation_to_func(activation)
+
+        normalization = self.cfg.get('normalization', 'layernorm')
+        if normalization == 'layernorm':
+            normalization = 'LayerNorm'
+        elif normalization == 'rmsnorm':
+            normalization = 'RMSNorm'
+        else:
+            logging.warning(
+                f"The normalization type: {normalization} might not be supported in megatron core."
+                f"Supported types are LayerNorm and RMSNorm."
+            )
 
         init_method_std = self.cfg.get('init_method_std', 0.02)
         # default used in mcore
@@ -1477,13 +1516,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         recompute_method = self.cfg.get('activations_checkpoint_method', None)
         recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
 
+        if not self.cfg.get('fp8', False):
+            fp8 = None
+        elif self.cfg.get('fp8_e4m3', False):
+            fp8 = 'e4m3'
+        elif self.cfg.get('fp8_hybrid', False):
+            fp8 = 'hybrid'
+        else:
+            raise ValueError(f"fp8 enabled but fp8_format (fp8_e4m3 | fp8_hybrid) is not set.")
+
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': False,  # not currently used in NeMo
             'add_bias_linear': add_bias_linear,
-            'gated_linear_unit': False,  # TODO: is this used in NeMo?
+            'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,
+            'normalization': normalization,
             'init_method': init_method,
             'output_layer_init_method': output_layer_init_method,
             'attention_softmax_in_fp32': attention_softmax_in_fp32,
@@ -1493,19 +1542,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'recompute_method': recompute_method,
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
+            'fp8': fp8,
         }
 
         # populate the transformer config dict
         for field in fields(TransformerConfig):
-            # model config has priority
-            if field.name in cfg:
+            # config mapping has priority
+            if field.name in config_mapping:
+                transformer_config_dict[field.name] = config_mapping[field.name]
+            # then config
+            elif field.name in cfg:
                 transformer_config_dict[field.name] = cfg[field.name]
             # then model parallel config
             elif field in fields(model_parallel_config):
                 transformer_config_dict[field.name] = getattr(model_parallel_config, field.name)
-            # then config mapping
-            elif field.name in config_mapping:
-                transformer_config_dict[field.name] = config_mapping[field.name]
             else:
                 logging.warning(
                     f"The model: {self} does not have field.name: {field.name} in its cfg. "
