@@ -40,6 +40,7 @@ from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, Switch
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts import utils_funcs
+from nemo.utils import cpu_offload
 from nemo.core import adapter_mixins
 from nemo.utils import logging
 
@@ -489,6 +490,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
+        cpu_offloading=False,
+        cpu_offload_handler=None,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -509,7 +512,16 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             residual = hidden_states
             # Layer norm at the beginning of the transformer layer.
             if self.transformer_block_type in ['pre_ln', 'normformer']:
-                hidden_states = self.input_layernorm(hidden_states)
+                if cpu_offloading:
+                    hidden_states = cpu_offload.bucket_prefetch_offload_saved_tensor(
+                        self.input_layernorm,
+                        [hidden_states],
+                        bucket_id=self.layer_number-1,
+                        offload_handler=cpu_offload_handler,
+                        # debug=True,
+                    )
+                else:
+                    hidden_states = self.input_layernorm(hidden_states)
 
             attention_output, attention_bias = self.self_attention(
                 hidden_states,
@@ -562,7 +574,16 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 layernorm_input = normalization_output
             elif self.transformer_block_type in ['pre_ln', 'normformer']:
                 # Layer norm post the self attention.
-                normalization_output = self.post_attention_layernorm(layernorm_input)
+                if cpu_offloading:
+                    normalization_output = cpu_offload.bucket_prefetch_offload_saved_tensor(
+                        self.post_attention_layernorm,
+                        [layernorm_input],
+                        bucket_id=self.layer_number-1,
+                        offload_handler=cpu_offload_handler,
+                        # debug=True,
+                    )
+                else:
+                    normalization_output = self.post_attention_layernorm(layernorm_input)
         else:
             layernorm_input, normalization_output = hidden_states
 
@@ -621,7 +642,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if self.transformer_block_type == 'post_ln':
                 layernorm_input = normalization_output
         # MLP.
-        mlp_output, mlp_bias = self.mlp(normalization_output)
+        mlp_output, mlp_bias = self.mlp(normalization_output, cpu_offloading, cpu_offload_handler, self.layer_number-1)
         if self.is_adapter_available():
             # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
             adapter_2 = self.get_adapter_module(AdapterName.POST_ATTN_ADAPTER)
@@ -752,6 +773,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
+        cpu_offloading=False,
+        cpu_offload_handler=None,
     ):
         if self.dtype == torch.float32:
             return super().forward(
@@ -767,6 +790,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
                 checkpoint_core_attention,
+                cpu_offloading,
+                cpu_offload_handler,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -782,6 +807,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
                 checkpoint_core_attention,
+                cpu_offloading,
+                cpu_offload_handler,
             )
 
 
@@ -1425,6 +1452,8 @@ class ParallelTransformer(MegatronModule):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_activations_all_layers=None,
+        cpu_offloading=False,
+        cpu_offload_handler=None,
     ):
         # Checks.
         if inference_max_sequence_len:
@@ -1555,6 +1584,8 @@ class ParallelTransformer(MegatronModule):
                                 self_attention_relative_position_bias=self_attention_relative_position_bias,
                                 cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                                 checkpoint_core_attention=checkpoint_core_attention,
+                                cpu_offloading=cpu_offloading,
+                                cpu_offload_handler=cpu_offload_handler,
                             )
                     # Update current sequence length outside of the loops
                     if self.transformer_engine:

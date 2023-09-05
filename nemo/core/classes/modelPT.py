@@ -1680,6 +1680,13 @@ class ModelPT(LightningModule, Model):
                         getattr(self, ml).unfreeze()
                         self._freeze_cfg['is_frozen'][ml] = False
 
+        # memory usage
+        logging.info("==== memory report ====")
+        mem = torch.cuda.memory_allocated()
+        peak = torch.cuda.max_memory_allocated()
+        logging.info(f"Memory {mem//1024//1024} MB; Peak memory {peak//1024//1024} MB;")
+
+
     def on_train_batch_end(self, outputs, batch: Any, batch_idx: int, unused: int = 0) -> None:
         """ PyTorch Lightning hook:
             https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end

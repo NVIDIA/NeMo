@@ -56,6 +56,7 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.utils import cpu_offload
 from nemo.utils import logging
 
 try:
@@ -360,6 +361,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
+            cpu_offloading=self.cfg.get('cpu_offloading', False),
+            cpu_offload_handler=( None if not self.cfg.get('cpu_offloading', False) else cpu_offload.BucketPrefetchOffloadHandler(
+                    self.cfg.get('num_cpu_offloading_layers', 8),
+                    self.cfg.get('num_cpu_offloading_prefetch', 3),
+                )
+            ),
         )
 
         return model

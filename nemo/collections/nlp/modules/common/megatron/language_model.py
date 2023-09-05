@@ -123,6 +123,8 @@ def get_language_model(
     use_emha=False,
     ub_tp_comm_overlap=False,
     use_flash_attention=False,
+    cpu_offloading=False,
+    cpu_offload_handler=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -200,6 +202,8 @@ def get_language_model(
         use_emha=use_emha,
         ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
+        cpu_offloading=cpu_offloading,
+        cpu_offload_handler=cpu_offload_handler,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -508,6 +512,8 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         use_emha=False,
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
+        cpu_offloading=False,
+        cpu_offload_handler=None,
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -529,6 +535,8 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.cpu_offloading = cpu_offloading
+        self.cpu_offload_handler = cpu_offload_handler
         if kv_channels is None:
 
             assert (
@@ -803,6 +811,8 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 if rotary_pos_emb is not None
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
                 self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
+                cpu_offloading=self.cpu_offloading,
+                cpu_offload_handler=self.cpu_offload_handler,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)

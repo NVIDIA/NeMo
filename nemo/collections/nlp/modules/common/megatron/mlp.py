@@ -27,6 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, erf_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
 from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
+from nemo.utils import cpu_offload
 from nemo.core import adapter_mixins
 
 try:
@@ -222,7 +223,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                     ffn_hidden_size // get_tensor_model_parallel_world_size(), layernorm_epsilon
                 )
 
-    def forward(self, hidden_states):
+    def forward(self, hidden_states, cpu_offloading=False, cpu_offload_handler=None, bucket_id=None):
 
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
@@ -236,7 +237,16 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         if self.bias_activation_fusion:
             if self.activation == 'gelu':
-                intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
+                if cpu_offload_handler:
+                    intermediate_parallel = cpu_offload.bucket_prefetch_offload_saved_tensor(
+                        fused_bias_gelu,
+                        [intermediate_parallel, bias_parallel],
+                        bucket_id=bucket_id,
+                        offload_handler=cpu_offload_handler,
+                        # debug=True,
+                    )
+                else:
+                    intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
             elif self.activation in ['geglu', 'fast-geglu']:
                 intermediate_parallel = fused_bias_geglu(
                     intermediate_parallel, bias_parallel, intermediate_parallel_2, bias_parallel_2

@@ -70,6 +70,17 @@ class CpuOffloadSavedTensorHook:
                                   "this class and implement your custom hooks")
 
 class JitCpuOffloadHook(CpuOffloadSavedTensorHook):
+    """Context-manager that just-in-time offloads/recovers a tensor. 
+    
+    To use this context, you can either directly warp your torch function in this context, 
+    or you can use the function `jit_cpu_offload_saved_tensor`. 
+
+    Example:
+        x = torch.linear(x, weight)
+        with JitCpuOffloadHook():
+            y = torch.nn.relu(x)
+        y.sum().backward()
+    """
     def __init__(self, debug=False) -> None:
         self.debug = debug
         super().__init__()
@@ -115,6 +126,11 @@ def jit_cpu_offload_saved_tensor(
     return ret
 
 class CpuOffloadHookWithOffloadHandler(CpuOffloadSavedTensorHook):
+    """Contex-manager that offloads/recovers tensors through an offload hander.
+    
+    The hook just offloads/recovers the tensor object to the handler through `tensor_push` and `tensor_pop` interface. 
+    How the offload-handler manages the offloading, recovering or prefetching timing is transparent to this hook. 
+    """
     def __init__(self, offload_handler, handler_extra_kwargs, debug=False) -> None:
         self.debug = debug
         self.offload_handler = offload_handler
@@ -140,6 +156,7 @@ class CpuOffloadHookWithOffloadHandler(CpuOffloadSavedTensorHook):
         return tensor
 
 class OffloadHandler:
+    """A base class for CPU offload-handler defining two methods."""
     def __init__(self) -> None:
         pass
 
