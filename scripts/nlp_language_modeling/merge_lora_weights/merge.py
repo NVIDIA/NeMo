@@ -75,8 +75,20 @@ def load_lora(lora_nemo, tp):
         return lora_state_dict
 
 
+def fix_for_O2(state_dict):
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        new_state_dict[k.replace('model.language_model', 'model.module.language_model')] = v
+    return new_state_dict
+
+
 def merge(
-    base_model_state_dict: Dict[str, Any], lora_state_dict: Dict[int, Any], tp: int, num_layers: int, curr_rank: int
+    base_model_state_dict: Dict[str, Any],
+    lora_state_dict: Dict[int, Any],
+    tp: int,
+    num_layers: int,
+    curr_rank: int,
+    mcore: bool,
 ):
     """ 
     Iterate through all the self_attention.query_key_value projection feedforward weights in all the layers.
@@ -88,21 +100,24 @@ def merge(
         tp: the tensor_model_parallel_size for the base_model (and the lora model)
         num_layers: the number of layers in the base_model to iterate over.
         curr_rank: current tp rank of the base model which is being merged with Lora.
+        mcore: whether the model uses megatron core.
     """
 
     for nl in range(num_layers):
-        key_self_attn_kqv = f'model.language_model.encoder.layers.{nl}.self_attention.query_key_value.weight'
-        key_lora_in = (
-            f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
-        )
-        key_lora_out = (
-            f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
-        )
+        if mcore:
+            key_self_attn_kqv = f'model.decoder.layers.{nl}.self_attention.linear_qkv.weight'
+            key_lora_in = f'model.decoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
+            key_lora_out = f'model.decoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
+        else:
+            key_self_attn_kqv = f'model.language_model.encoder.layers.{nl}.self_attention.query_key_value.weight'
+            key_lora_in = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
+            key_lora_out = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
         wt_lora_in = torch.cat([lora_state_dict[_tp][key_lora_in] for _tp in range(tp)], dim=0)
         wt_lora_out = lora_state_dict[curr_rank][key_lora_out]
         wt_self_attn = base_model_state_dict[key_self_attn_kqv]
         wt_lora = wt_lora_out @ wt_lora_in
         base_model_state_dict[key_self_attn_kqv] = wt_self_attn + wt_lora.type_as(wt_self_attn)
+        print("mergeing for weight", key_self_attn_kqv)
     return base_model_state_dict
 
 
@@ -148,8 +163,6 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
-            if trainer.precision == "16":
-                pretrained_cfg.megatron_amp_O2 = False
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
@@ -183,7 +196,7 @@ def main(cfg) -> None:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
     lora_model_cfg = MegatronGPTLoRAModel.restore_from(
-        restore_path=cfg.lora_model_path, trainer=trainer, return_config=True,
+        restore_path=cfg.lora_model_path, trainer=trainer, return_config=True, mcore=model.mcore_gpt,
     )
 
     # load the lora weights on cpu for all ranks of the lora model
@@ -199,6 +212,8 @@ def main(cfg) -> None:
     )
 
     # load the merged_weights back into the base model, for this current rank.
+    if model.cfg.megatron_amp_O2:
+        merged_weights = fix_for_O2(merged_weights)
     model.load_state_dict(merged_weights)
 
     # Going to go through the motions of inference to force PTL to run subprocess for loading all base model's ranks.
