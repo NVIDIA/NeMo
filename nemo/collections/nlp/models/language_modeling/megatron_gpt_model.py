@@ -552,7 +552,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
 
         input_shape = [
-            self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
+            self.cfg.get('encoder_seq_length')
+            * self.cfg.get('micro_batch_size')
+            // self.cfg.get('context_parallel_size', 1),
             self.cfg.get('hidden_size'),
         ]
 
