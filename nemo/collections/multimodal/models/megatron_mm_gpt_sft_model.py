@@ -18,6 +18,7 @@ from typing import Any, List, Optional, Union
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig
+from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
@@ -118,6 +119,66 @@ class MegatronMMGPTSFTModel(MegatronGPTSFTModel):
         else:
             return datasets
 
+
+    def setup_metric(self, data_cfg):
+        metric_name = "exact_string_match"
+        if not hasattr(data_cfg, "metric"):
+            metric = MetricStringToTorchMetric["exact_string_match"]
+        else:
+            if not hasattr(data_cfg.metric, "name"):
+                raise ValueError("Metric name is not provided in the metric config.")
+            if data_cfg.metric.name == "loss":
+                return None, "loss"
+            if data_cfg.metric.name not in MetricStringToTorchMetric:
+                raise KeyError(
+                    f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
+                )
+            if data_cfg.metric.name in self._metrics_require_string2category_map:
+                if data_cfg.metric.average is None:
+                    raise ValueError(
+                        f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
+                    )
+            if (
+                data_cfg.metric.get('labels_are_strings', False)
+                and data_cfg.metric.name in self._metrics_require_string2category_map
+            ):
+                if data_cfg.metric.num_classes is None:
+                    raise ValueError(
+                        "Number of classes is not provided in the metric section within the data config. "
+                        f"Please provide the number of classes in the data config to use the {data_cfg.metric.name} metric."
+                    )
+                if data_cfg.metric.get('class_labels', None) is None or not isinstance(
+                    data_cfg.metric.get('class_labels', None), ListConfig
+                ):
+                    raise ValueError(
+                        "Class labels are not provided properly in the metric section witnin the data config. "
+                        f"Please provide the class labels as a list of strings in the data config to use the {data_cfg.metric.name} metric."
+                    )
+                if len(data_cfg.metric.get('class_labels', None)) != data_cfg.metric.num_classes:
+                    raise ValueError(
+                        f"Number of class labels {len(data_cfg.metric.get('class_labels', None))} does not match `num_classes` : {data_cfg.metric.num_classes}"
+                    )
+
+            metric_name = data_cfg.metric.name
+            metric = MetricStringToTorchMetric[metric_name]
+
+            if isinstance(data_cfg.file_names, ListConfig):
+                if 'rouge' not in data_cfg.metric.name and 'wer' not in data_cfg.metric.name:
+                    metric = [
+                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        for _ in range(len(data_cfg.file_names))
+                    ]
+                else:
+                    metric = [metric() for _ in range(len(data_cfg.file_names))]
+            else:
+                if 'rouge' not in data_cfg.metric.name and 'wer' not in data_cfg.metric.name:
+                    metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
+                else:
+                    metric = [metric()]
+
+        return metric, metric_name
+    
+    
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         # generate either takes list of text prompts or a tuple of (context_ids, context_length)
         if isinstance(batch, list):
