@@ -157,6 +157,10 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
                 dropout=cfg.adapter_tuning.adapter_dropout,
             )
 
+        self.enable_autocast = (
+            True
+        )
+
         self.model.freeze()
         if cfg.adapter_tuning.pre_decoder is True:
             logging.info(f'Adding pre decoder adapters')

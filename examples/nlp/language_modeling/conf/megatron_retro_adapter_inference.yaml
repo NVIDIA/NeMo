@@ -25,7 +25,7 @@ retro_model_file: null  # GPT nemo file path
 virtual_prompt_model_file: ??? # path to a MegatronGPTPromptLearningModel model if you want to use soft prompts
 pred_file_path: /workspaces/research/results/adapter_eval/test_inference.jsonl # Path will model predictions will be written
 # data_paths: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # paths to .jsonl files you want to perform inference on
-data_paths: /workspaces/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
+data_paths: /data/test_n10_retro.jsonl
 num_workers: 4
 
 ########### Faiss service parameters ########
