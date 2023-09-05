@@ -192,6 +192,9 @@ class BertModel(MegatronModule):
         megatron_legacy=False,
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
+        num_moe_experts=1,
+        moe_frequency=1,
+        moe_dropout=0.0,
     ):
         super(BertModel, self).__init__(config=config)
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
@@ -238,6 +241,9 @@ class BertModel(MegatronModule):
             onnx_safe=onnx_safe,
             megatron_legacy=megatron_legacy,
             position_embedding_type=position_embedding_type,
+            num_moe_experts=num_moe_experts,
+            moe_frequency=moe_frequency,
+            moe_dropout=moe_dropout,
         )
 
         self.initialize_word_embeddings(

@@ -186,6 +186,9 @@ class MegatronBertModel(MegatronBaseModel):
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
             position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
+            num_moe_experts=self.cfg.get("num_moe_experts", 1),
+            moe_frequency=self.cfg.get("moe_frequency", 1),
+            moe_dropout=self.cfg.get("moe_dropout", 0.0),
         )
 
         return model
