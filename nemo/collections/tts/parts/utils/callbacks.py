@@ -64,6 +64,10 @@ def _load_vocoder(model_name: Optional[str], checkpoint_path: Optional[str], typ
         from nemo.collections.tts.models import UnivNetModel
 
         model_type = UnivNetModel
+    elif type == "audio_codec":
+        from nemo.collections.tts.models import AudioCodecModel
+
+        model_type = AudioCodecModel
     else:
         raise ValueError(f"Unknown vocoder type '{type}'")
 
@@ -432,7 +436,7 @@ class AudioCodecArtifactGenerator(ArtifactGenerator):
                 )
                 image_artifacts.append(encoded_artifact)
 
-        if not self.log_dequantized:
+        if not self.log_dequantized or not model.vector_quantizer:
             return image_artifacts
 
         with torch.no_grad():
@@ -513,10 +517,11 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
         else:
             self.log_audio = True
             self.log_audio_gta = audio_params.log_audio_gta
+            self.vocoder_type = audio_params.vocoder_type
             self.vocoder = _load_vocoder(
                 model_name=audio_params.vocoder_name,
                 checkpoint_path=audio_params.vocoder_checkpoint_path,
-                type=audio_params.vocoder_type,
+                type=self.vocoder_type,
                 device=audio_params.vocoder_device
             )
 
@@ -552,7 +557,10 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
     def _generate_audio(self, mels: Tensor, mels_len: Tensor, hop_length: int):
         voc_input = mels.to(self.vocoder.device)
         with torch.no_grad():
-            audio_pred = self.vocoder.convert_spectrogram_to_audio(spec=voc_input)
+            if self.vocoder_type == "audio_codec":
+                audio_pred, _ = self.vocoder.decode_audio(inputs=voc_input, input_len=mels_len)
+            else:
+                audio_pred = self.vocoder.convert_spectrogram_to_audio(spec=voc_input)
 
         mels_len_array = mels_len.cpu().numpy()
         audio_pred_lens = librosa.core.frames_to_samples(mels_len_array, hop_length=hop_length)

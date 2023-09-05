@@ -322,7 +322,7 @@ class SEANetDecoder(NeuralModule):
 
 
 class DiscriminatorSTFT(NeuralModule):
-    def __init__(self, resolution, lrelu_slope=0.1):
+    def __init__(self, resolution, lrelu_slope=0.1, filters=32):
         super().__init__()
 
         self.n_fft, self.hop_length, self.win_length = resolution
@@ -331,14 +331,14 @@ class DiscriminatorSTFT(NeuralModule):
 
         self.conv_layers = nn.ModuleList(
             [
-                Conv2dNorm(2, 32, kernel_size=(3, 9)),
-                Conv2dNorm(32, 32, kernel_size=(3, 9), dilation=(1, 1), stride=(1, 2)),
-                Conv2dNorm(32, 32, kernel_size=(3, 9), dilation=(2, 1), stride=(1, 2)),
-                Conv2dNorm(32, 32, kernel_size=(3, 9), dilation=(4, 1), stride=(1, 2)),
-                Conv2dNorm(32, 32, kernel_size=(3, 3)),
+                Conv2dNorm(2, filters, kernel_size=(3, 9)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 9), dilation=(1, 1), stride=(1, 2)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 9), dilation=(2, 1), stride=(1, 2)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 9), dilation=(4, 1), stride=(1, 2)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 3)),
             ]
         )
-        self.conv_post = Conv2dNorm(32, 1, kernel_size=(3, 3))
+        self.conv_post = Conv2dNorm(filters, 1, kernel_size=(3, 3))
 
     def stft(self, audio):
         # [B, fft, T_spec]
@@ -390,9 +390,9 @@ class DiscriminatorSTFT(NeuralModule):
 
 
 class MultiResolutionDiscriminatorSTFT(NeuralModule):
-    def __init__(self, resolutions):
+    def __init__(self, resolutions, filters=32):
         super().__init__()
-        self.discriminators = nn.ModuleList([DiscriminatorSTFT(res) for res in resolutions])
+        self.discriminators = nn.ModuleList([DiscriminatorSTFT(res, filters=filters) for res in resolutions])
 
     @property
     def input_types(self):
@@ -732,6 +732,9 @@ class ResidualVectorQuantizer(NeuralModule):
             ]
         )
 
+    def preprocess_input(self, inputs, input_len):
+        return inputs
+
     @property
     def input_types(self):
         return {
@@ -745,6 +748,7 @@ class ResidualVectorQuantizer(NeuralModule):
             "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
             "indices": NeuralType(('D', 'B', 'T'), Index()),
             "commit_loss": NeuralType((), LossType()),
+            "codebook_loss": NeuralType((), LossType()),
         }
 
     @typecheck()
@@ -778,7 +782,7 @@ class ResidualVectorQuantizer(NeuralModule):
         # [N, B, T], first dimension is number of codebooks
         indices = torch.stack(index_list)
         dequantized = rearrange(dequantized, "B T D -> B D T")
-        return dequantized, indices, commit_loss
+        return dequantized, indices, commit_loss, 0.0
 
     @typecheck(
         input_types={
@@ -888,6 +892,7 @@ class GroupResidualVectorQuantizer(NeuralModule):
             "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
             "indices": NeuralType(('D', 'B', 'T'), Index()),
             "commit_loss": NeuralType((), LossType()),
+            "codebook_loss": NeuralType((), LossType()),
         }
 
     @typecheck()
@@ -900,7 +905,7 @@ class GroupResidualVectorQuantizer(NeuralModule):
         commit_loss = 0
 
         for in_group, rvq_group in zip(inputs_grouped, self.rvqs):
-            dequantized_group, indices_group, commit_loss_group = rvq_group(inputs=in_group, input_len=input_len)
+            dequantized_group, indices_group, commit_loss_group, _ = rvq_group(inputs=in_group, input_len=input_len)
             dequantized.append(dequantized_group)
             indices.append(indices_group)
             commit_loss += commit_loss_group
@@ -911,7 +916,7 @@ class GroupResidualVectorQuantizer(NeuralModule):
         # concatente along the codebook dimension
         indices = torch.cat(indices, dim=0)
 
-        return dequantized, indices, commit_loss
+        return dequantized, indices, commit_loss, 0.0
 
     @typecheck(
         input_types={

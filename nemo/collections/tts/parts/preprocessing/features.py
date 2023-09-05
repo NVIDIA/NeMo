@@ -319,8 +319,13 @@ class AudioFeatureReader(FeatureReader):
         return bytes_io
 
     def deserialize(self, bytes_io: io.BytesIO) -> Dict[str, np.ndarray]:
-        audio, _ = sf.read(file=bytes_io, dtype='float32')
+        audio, sample_rate = sf.read(file=bytes_io, dtype='float32')
         audio_len = audio.shape[0]
+
+        if sample_rate != self.sample_rate:
+            raise ValueError(
+                f"Serialized audio has wrong sample rate. Expected {self.sample_rate}, found {sample_rate}"
+            )
 
         if self.volume_norm:
             audio = normalize_volume(audio)

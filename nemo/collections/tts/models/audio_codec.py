@@ -24,6 +24,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.tts.losses.audio_codec_loss import (
+    FeatureMatchingLoss,
     MultiResolutionMelLoss,
     MultiResolutionSTFTLoss,
     RelativeFeatureMatchingLoss,
@@ -36,7 +37,7 @@ from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
 from nemo.core import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, LengthsType, TokenIndex
+from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, LengthsType, TokenIndex, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
@@ -117,13 +118,27 @@ class AudioCodecModel(ModelPT):
         self.feature_loss_scale = cfg.get("feature_loss_scale", 1.0)
         self.gen_loss_fn = instantiate(cfg.generator_loss)
         self.disc_loss_fn = instantiate(cfg.discriminator_loss)
-        self.feature_loss_fn = RelativeFeatureMatchingLoss()
+
+        feature_loss_type = cfg.get("feature_loss_type", "relative")
+        if feature_loss_type == "relative":
+            self.feature_loss_fn = RelativeFeatureMatchingLoss()
+        elif feature_loss_type == "absolute":
+            self.feature_loss_fn = FeatureMatchingLoss()
+        else:
+            raise ValueError(f"Unknown feature matching loss: {feature_loss_type}")
+
+        self.disc_start_epoch = cfg.get("disc_start_epoch", 0)
+        self.disc_warmup_epochs = cfg.get("disc_warmup_epochs", 0)
 
         # Codebook loss setup
         if self.vector_quantizer:
             self.commit_loss_scale = cfg.get("commit_loss_scale", 1.0)
+            self.codebook_loss_scale = cfg.get("commit_loss_scale", 1.0)
+            self.quantizer_start_epoch = cfg.get("quantizer_start_epoch", 0)
         else:
             self.commit_loss_scale = 0.0
+            self.codebook_loss_scale = 0.0
+            self.quantizer_start_epoch = None
 
         # Log setup
         self.log_config = cfg.get("log_config", None)
@@ -155,11 +170,15 @@ class AudioCodecModel(ModelPT):
         """
         audio, audio_len = self.pad_audio(audio, audio_len)
         encoded, encoded_len = self.audio_encoder(audio=audio, audio_len=audio_len)
+
+        if self.vector_quantizer:
+            encoded = self.vector_quantizer.preprocess_input(inputs=encoded, input_len=encoded_len)
+
         return encoded, encoded_len
 
     @typecheck(
         input_types={
-            "inputs": NeuralType(('B', 'D', 'T_encoded'), EncodedRepresentation()),
+            "inputs": NeuralType(('B', 'D', 'T_encoded'), VoidType()),
             "input_len": NeuralType(tuple('B'), LengthsType()),
         },
         output_types={
@@ -354,20 +373,36 @@ class AudioCodecModel(ModelPT):
             encoded = self.encoder_noise(encoded)
 
         if self.vector_quantizer:
-            encoded, _, commit_loss = self.vector_quantizer(inputs=encoded, input_len=encoded_len)
+            encoded = self.vector_quantizer.preprocess_input(inputs=encoded, input_len=encoded_len)
+
+        if self.vector_quantizer and self.current_epoch >= self.quantizer_start_epoch:
+            encoded, _, commit_loss, codebook_loss = self.vector_quantizer(inputs=encoded, input_len=encoded_len)
         else:
             commit_loss = 0.0
+            codebook_loss = 0.0
 
         # [B, T]
         audio_gen, _ = self.audio_decoder(inputs=encoded, input_len=encoded_len)
 
-        return audio, audio_len, audio_gen, commit_loss
+        return audio, audio_len, audio_gen, commit_loss, codebook_loss
 
     @property
     def disc_update_prob(self) -> float:
         """Probability of updating the discriminator.
         """
         return self.disc_updates_per_period / self.disc_update_period
+
+    @property
+    def disc_loss_weight(self) -> float:
+        """Probability of updating the discriminator.
+        """
+        if self.current_epoch < self.disc_start_epoch:
+            return 0.0
+        elif self.current_epoch >= self.disc_warmup_epochs:
+            return 1.0
+
+        weight = (self.current_epoch - self.disc_start_epoch + 1) / (self.disc_warmup_epochs - self.disc_start_epoch + 1)
+        return weight
 
     def should_update_disc(self, batch_idx) -> bool:
         """Decide whether to update the descriminator based
@@ -379,23 +414,24 @@ class AudioCodecModel(ModelPT):
     def training_step(self, batch, batch_idx):
         optim_gen, optim_disc = self.optimizers()
 
-        audio, audio_len, audio_gen, commit_loss = self._process_batch(batch)
+        audio, audio_len, audio_gen, commit_loss, codebook_loss = self._process_batch(batch)
 
         metrics = {
             "global_step": self.global_step,
             "lr": optim_gen.param_groups[0]['lr'],
         }
 
-        if self.should_update_disc(batch_idx):
-            # Train discriminator
-            disc_scores_real, disc_scores_gen, _, _ = self.discriminator(
-                audio_real=audio, audio_gen=audio_gen.detach()
-            )
-            loss_disc = self.disc_loss_fn(disc_scores_real=disc_scores_real, disc_scores_gen=disc_scores_gen)
-            metrics["d_loss"] = loss_disc
+        # Train discriminator
+        disc_scores_real, disc_scores_gen, _, _ = self.discriminator(
+            audio_real=audio, audio_gen=audio_gen.detach()
+        )
+        loss_disc = self.disc_loss_fn(disc_scores_real=disc_scores_real, disc_scores_gen=disc_scores_gen)
+        metrics["d_loss"] = loss_disc
 
+        disc_loss_weight = self.disc_loss_weight
+        if disc_loss_weight and self.should_update_disc(batch_idx):
             optim_disc.zero_grad()
-            self.manual_backward(loss_disc)
+            self.manual_backward(disc_loss_weight * loss_disc)
             optim_disc.step()
 
         generator_losses = []
@@ -428,16 +464,22 @@ class AudioCodecModel(ModelPT):
         if self.gen_loss_scale:
             loss_gen = self.gen_loss_fn(disc_scores_gen=disc_scores_gen)
             metrics["g_loss_gen"] = loss_gen
-            generator_losses.append(self.gen_loss_scale * loss_gen)
+            if disc_loss_weight:
+                generator_losses.append(disc_loss_weight * self.gen_loss_scale * loss_gen)
 
         if self.feature_loss_scale:
             loss_feature = self.feature_loss_fn(fmaps_real=fmaps_real, fmaps_gen=fmaps_gen)
             metrics["g_loss_feature"] = loss_feature
-            generator_losses.append(self.feature_loss_scale * loss_feature)
+            if disc_loss_weight:
+                generator_losses.append(disc_loss_weight * self.feature_loss_scale * loss_feature)
 
         if self.commit_loss_scale:
             metrics["g_loss_commit"] = commit_loss
             generator_losses.append(self.commit_loss_scale * commit_loss)
+
+        if self.codebook_loss_scale:
+            metrics["g_loss_codebook"] = codebook_loss
+            generator_losses.append(self.codebook_loss_scale * codebook_loss)
 
         loss_gen_all = sum(generator_losses)
 
@@ -454,7 +496,7 @@ class AudioCodecModel(ModelPT):
         self.update_lr("epoch")
 
     def validation_step(self, batch, batch_idx):
-        audio, audio_len, audio_gen, _ = self._process_batch(batch)
+        audio, audio_len, audio_gen, _, _ = self._process_batch(batch)
 
         loss_mel_l1, loss_mel_l2 = self.mel_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
         loss_stft = self.stft_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)

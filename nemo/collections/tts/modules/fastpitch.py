@@ -240,7 +240,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
     def output_types(self):
         return {
             "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-            "num_frames": NeuralType(('B'), TokenDurationType()),
+            "num_frames": NeuralType(tuple('B'), LengthsType()),
             "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
             "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
             "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),
