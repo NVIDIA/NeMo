@@ -262,6 +262,7 @@ def main(cfg) -> None:
                         cur_line = original_lines[idx]
                         cur_line['pred'] = s
                         f.write(json.dumps(cur_line) + '\n')
+                        idx += 1
             print("predictions saved to {}".format(cfg.inference.output_file))
         else:
             print(response)
