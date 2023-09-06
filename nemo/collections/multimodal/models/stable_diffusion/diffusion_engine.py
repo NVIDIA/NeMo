@@ -450,6 +450,8 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
         else:
             loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
 
+        print(loss_mean)
+
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
@@ -532,9 +534,8 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
                     x = rearrange(x, "b h w c -> b c h w")
                     x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
                # x = batch[self.model.input_key].cuda(non_blocking=True)
-                x = self.model.encode_first_stage(x)
                 batch['global_step'] = self.trainer.global_step
-
+            x = self.model.encode_first_stage(x)
             return x, batch
 
         def fwd_output_and_loss_func(dataloader_iter, model):

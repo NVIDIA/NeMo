@@ -115,9 +115,12 @@ class ResnetBlock(nn.Module):
                 self.nin_shortcut = torch.nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x, temb):
+        print("res in", x)
         h = x
         h = self.norm1(h)
+        print("norm", h)
         h = self.conv1(h)
+        print("conv", h)
 
         if temb is not None:
             h = h + self.temb_proj(nonlinearity(temb))[:, :, None, None]
@@ -427,13 +430,18 @@ class Encoder(nn.Module):
         temb = None
 
         # downsampling
+        print("input",x)
         hs = [self.conv_in(x)]
+        print("conv in ", hs)
         for i_level in range(self.num_resolutions):
             for i_block in range(self.num_res_blocks):
+                print(i_level, i_block)
                 h = self.down[i_level].block[i_block](hs[-1], temb)
+                print("down block", h)
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)
                 hs.append(h)
+                print(h)
             if i_level != self.num_resolutions - 1:
                 hs.append(self.down[i_level].downsample(hs[-1]))
 

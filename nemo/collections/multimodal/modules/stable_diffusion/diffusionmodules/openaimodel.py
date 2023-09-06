@@ -1149,13 +1149,16 @@ class UNetModel(nn.Module):
             emb = emb + self.label_emb(y)
 
         h = x.type(emb.dtype)
+        print("111")
         for module in self.input_blocks:
             h = module(h, emb, context)
             hs.append(h)
         h = self.middle_block(h, emb, context)
+        print("222")
         for module in self.output_blocks:
             h = th.cat([h, hs.pop()], dim=1)
             h = module(h, emb, context)
+        print("333")
         if self.predict_codebook_ids:
             ## Not supported anymore?
             return self.id_predictor(h)

@@ -517,8 +517,11 @@ class AutoencoderKL(pl.LightningModule):
                 # warmup
                 self.stream.wait_stream(torch.cuda.current_stream())
                 with torch.cuda.stream(self.stream):
+                    print("before", self.static_x)
                     h = self.encoder(self.static_x)
+                    print("after", h)
                     self.static_moments = self.quant_conv(h)
+                    print(self.static_moments)
                 torch.cuda.current_stream().wait_stream(self.stream)
             self.encoder_iterations += 1
 

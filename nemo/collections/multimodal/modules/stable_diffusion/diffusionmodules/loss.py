@@ -52,7 +52,10 @@ class StandardDiffusionLoss(nn.Module):
             network, noised_input, sigmas, cond, **additional_model_inputs
         )
         w = append_dims(denoiser.w(sigmas), input.ndim)
-        return self.get_loss(model_output, input, w)
+        loss = self.get_loss(model_output, input, w)
+        print(loss)
+        print("????")
+        return loss
 
     def get_loss(self, model_output, target, w):
         if self.type == "l2":
