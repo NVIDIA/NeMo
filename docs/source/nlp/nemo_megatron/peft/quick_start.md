@@ -42,7 +42,7 @@ For example, a common workflow is to combine P-Tuning and Adapter, and this can 
 
 ## Base model classes
 PEFT in NeMo is built with a mix-in class that does not belong to any model in particular. This means that the same 
-interface is available to different NeMo models. Currently, NeMO supports GPT (`MegatronGPTSFTModel`) and 
+interface is available to different NeMo models. Currently, NeMo supports GPT (`MegatronGPTSFTModel`) and 
 T5 (`MegatronT5SFTModel`).
 
 

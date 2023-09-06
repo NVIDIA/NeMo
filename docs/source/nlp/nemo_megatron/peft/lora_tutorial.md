@@ -112,7 +112,7 @@ config.model.data.validation_ds.names=["squad_val"]
 ## PEFT Config
 The attribute [config.model.peft](https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/tuning/conf/megatron_gpt_peft_tuning_config.yaml#L79)
 contains settings that control the PEFT training method and its related hyperpameters.
-NeMO currently supports `lora`, `adapter`, `ptuning` and `ia3`. You can instruct the training script to use one of
+NeMo currently supports `lora`, `adapter`, `ptuning` and `ia3`. You can instruct the training script to use one of
 these methods by setting the config.model.peft.peft_scheme attribute.
 
 The other hyperparams associated with LoRA tuning are present in the
@@ -126,7 +126,7 @@ print(OmegaConf.to_yaml(config.model.peft.lora_tuning))
 
 **Note:** In the original LoRA paper each attention projection (`K`, `Q`, `V` and `O`) can have their own Low-Rank
 projections. However, NeMo's attention implementation fuses `KQV` into a single projection and thus our LoRA
-implementation learns a single Low-Rank projection for `KQV` in a combined fashion. NeMO does not support LoRA for the
+implementation learns a single Low-Rank projection for `KQV` in a combined fashion. NeMo does not support LoRA for the
 `O` matrix at this point.
 
 ## Prompt Formatting
