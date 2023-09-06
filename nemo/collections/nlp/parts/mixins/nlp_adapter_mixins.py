@@ -46,7 +46,7 @@ except (ImportError, ModuleNotFoundError):
 
 class NLPAdapterModelMixin(AdapterModelPTMixin):
     """ NLP Adapter Mixin that can augment any Encoder module with Adapter module support.
-    # Todo rewrite doc string
+
     This mixin class should be used only with a top level ModelPT subclass, that includes an `encoder` submodule.
     This mixin class adds several utility methods which are propagated to the `encoder`.
 
@@ -56,16 +56,8 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
     - The final layer of the Adapter module is zero-initialized, so that the residual connection to the adapter
         yields the original output.
 
-    This mixin adds the following instance variables to the class this inherits it:
-
-        -   `adapter_layer`: A torch.nn.ModuleDict(), whose keys are the names of the adapter (globally unique),
-                and values are the Adapter nn.Module().
-        -   `adapter_cfg`: A OmegaConf DictConfig object that holds the config of the adapters that are initialized.
-        -   `adapter_global_cfg_key`: A str representing a key in the model config that can be provided by the user.
-                The value resolves to `global_cfg`, and can be overridden via `model.cfg.adapters.global_cfg.*`.
-
-    **Note**: This module **is** responsible for maintaining its config. At the ModelPT level, it will access and
-        write Adapter config information to `self.cfg.adapters`.
+    This mixin class aims to integrate with PEFT, which is one or more adapters modules.
+    The two features of PEFT, layer selection and weight tying, are also supported in this mxixin class.
     """
 
     def __init__(self, *args, **kwargs):
@@ -413,7 +405,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         Notes:
             - The function resolves variables within the `cfg` dictionary using `OmegaConf.resolve`.
             - Keys in `cfg.model` will override the corresponding keys in the output dictionary.
-            - If "test_ds" exists in `cfg.model.data`, it updates `micro_batch_size` and `global_batch_size`.
+            - If "train_ds" exists in `cfg.model.data`, it updates `micro_batch_size` and `global_batch_size`.
             - If `cfg.trainer` contains a "precision" key, it updates `output.precision`.
 
         """
@@ -434,6 +426,30 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
 
     @classmethod
     def merge_inference_cfg(cls, path: str, cfg: DictConfig) -> DictConfig:
+        """
+        Generate a configuration dictionary by a given configuration dictionary `cfg` with
+        the configuration dictionary obtained from restoring a MegatronGPTSFTModel or MegatronT5SFTModel
+        at the specified `path` and modify `cfg` for inference
+
+        Args:
+            path (str): The path to the SFT model checkpoint to be restored.
+            cfg (DictConfig): The configuration dictionary to modify for inference.
+
+        Returns:
+            DictConfig: The configuration dictionary for inference.
+
+        Examples:
+            >>> path = "/path/to/model/checkpoint"
+            >>> cfg = DictConfig({"model": {"key": "value"}, "trainer": {"precision": 16}})
+            >>> merged_cfg = merge_inference_cfg(path, cfg)
+
+        Notes:
+            - "precision" and "test_ds" from `cfg` will override the the corresponding keys in the output dictionary
+            - "activations_checkpoint" will be ovrrided to None in the output dictionary
+            - "use_flash_attention" will be True if in one of the configuration dictionarys is True
+            - "seq_len_interpolation_factor" will be overrided from `cfg` if it's not None from checkpoint
+        """
+
         output = cls.restore_from(path, return_config=True)
 
         with open_dict(output):
