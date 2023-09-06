@@ -119,7 +119,10 @@ model:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
-    
+
+prompts: # prompts for GPT inference
+  - "Q: How are you?"
+
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
@@ -131,9 +134,12 @@ inference:
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
   outfile_path: output.txt
   compute_attention_mask: True
+  tokens_to_generate: 30 # The minimum length of the sequence to be generated.
+  add_BOS: True # add the bos token at the begining of the prompt
+  end_strings: ["<|endoftext|>"]  # generation will stop when one of these tokens is generated
 
 # server-related configs
-server: False  # whether launch the API server
+server: True  # whether launch the API server
 port: 5555 # the port number for the inference server
 web_server: False # whether launch the web inference server
 share: True  # whether create a public URL

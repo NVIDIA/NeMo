@@ -31,6 +31,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -140,8 +141,7 @@ def main(cfg) -> None:
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(peft_model_cfg):
         # update the model config of the trained model with params we want to set at inference time.
-        peft_model_cfg.precision = cfg.trainer.precision
-        peft_model_cfg.data.test_ds = cfg.model.data.test_ds
+        peft_model_cfg.precision = cfg.trainer.precision        
         peft_model_cfg.activations_checkpoint_granularity = None
         peft_model_cfg.activations_checkpoint_method = None
         peft_model_cfg.activations_checkpoint_layers_per_pipeline = None
@@ -150,11 +150,15 @@ def main(cfg) -> None:
         if cfg.model.get("seq_len_interpolation_factor", None) is not None:
             peft_model_cfg["seq_len_interpolation_factor"] = cfg.model.seq_len_interpolation_factor
 
-    with open_dict(cfg):
-        # update the config with the trained model config
-        # required for hydra interpolation to work inside cfg.inference
-        cfg.inference.add_BOS = peft_model_cfg.data.test_ds.add_bos
-        cfg.inference.tokens_to_generate = peft_model_cfg.data.test_ds.tokens_to_generate
+        if not cfg.server:
+            peft_model_cfg.data.test_ds = cfg.model.data.test_ds
+
+    if not cfg.server:
+        with open_dict(cfg):
+            # update the config with the trained model config
+            # required for hydra interpolation to work inside cfg.inference
+            cfg.inference.add_BOS = peft_model_cfg.data.test_ds.add_bos
+            cfg.inference.tokens_to_generate = peft_model_cfg.data.test_ds.tokens_to_generate
 
     if cfg.model.peft.restore_from_path:
         if cfg.model.peft.restore_from_path.endswith(".nemo"):
@@ -177,7 +181,7 @@ def main(cfg) -> None:
 
     if os.path.isdir(cfg.model.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-    model = MegatronGPTSFTModel.restore_from(
+    model = MegatronGPTPEFTModel.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
         override_config_path=peft_model_cfg,
@@ -190,6 +194,31 @@ def main(cfg) -> None:
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
 
+    length_params: LengthParam = {
+        "max_length": cfg.inference.tokens_to_generate,
+        "min_length": cfg.inference.min_tokens_to_generate,
+    }
+
+    sampling_params: SamplingParam = {
+        "use_greedy": cfg.inference.greedy,
+        "temperature": cfg.inference.temperature,
+        "top_k": cfg.inference.top_k,
+        "top_p": cfg.inference.top_p,
+        "repetition_penalty": cfg.inference.repetition_penalty,
+        "add_BOS": cfg.inference.add_BOS,
+        "all_probs": cfg.inference.all_probs,
+        "compute_logprob": cfg.inference.compute_logprob,
+        "end_strings": cfg.inference.end_strings,
+    }
+    # First method of running text generation, call model.generate method
+    response = model.generate(
+        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
+    )
+
+    print("***************************")
+    print(response)
+    print("***************************")
+
     if not cfg.server:
         trainer.test(model)
     else:
@@ -197,8 +226,6 @@ def main(cfg) -> None:
             raise ValueError('Megatron-core needs to be installed to use this feature!')
 
         from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
-
-        trainer.test(model, dataloaders=None)
 
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             if cfg.web_server:
