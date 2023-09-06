@@ -155,8 +155,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if self.contiguous_grad_buffer:
             for param in self.parameters():
                 with _disable_pre_forward_hook(param):
-                    bucket_id = self.state[param]["fragments"][0].bucket_id
-                    bucket = self.state["buckets"][bucket_id]
                     param.main_grad = self.grad_buffer_view(param)
 
     def grad_norm(
