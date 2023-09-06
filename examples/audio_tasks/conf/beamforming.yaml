@@ -1,6 +1,6 @@
-# This configuration contains the default values for training a multichannel speech enhancement model.
+# This configuration contains the exemplary values for training a multichannel speech enhancement model with a mask-based beamformer.
 #
-name: "multichannel_enhancement"
+name: "beamforming"
 
 model:
   sample_rate: 16000
@@ -78,10 +78,10 @@ model:
     
   optim:
     name: adamw
-    lr: 1e-3
+    lr: 1e-4
     # optimizer arguments
     betas: [0.9, 0.98]
-    weight_decay: 0
+    weight_decay: 1e-3
 
 trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs
@@ -96,7 +96,6 @@ trainer:
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   log_every_n_steps: 25  # Interval of logging.
   enable_progress_bar: true
-  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
   sync_batchnorm: true
@@ -115,6 +114,7 @@ exp_manager:
     save_top_k: 5
     always_save_nemo: true # saves the checkpoints as nemo files instead of PTL checkpoints
 
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   # you need to set these two to true to continue the training
   resume_if_exists: false
   resume_ignore_no_checkpoint: false

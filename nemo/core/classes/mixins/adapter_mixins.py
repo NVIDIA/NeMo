@@ -153,7 +153,7 @@ class AdapterModuleMixin(ABC):
     adapter_global_cfg_key = "global_cfg"
     adapter_metadata_cfg_key = "adapter_meta_cfg"
 
-    def add_adapter(self, name: str, cfg: DictConfig):
+    def add_adapter(self, name: str, cfg: DictConfig, **kwargs):
         """
         Add an Adapter module to this module.
 
@@ -216,7 +216,7 @@ class AdapterModuleMixin(ABC):
         # Update internal config and instantiate the Adapter module
         with open_dict(cfg), open_dict(self.adapter_cfg):
             adapter_enabled = cfg.pop('enabled', True)
-            self.adapter_layer[adapter_name] = instantiate(cfg)
+            self.adapter_layer[adapter_name] = instantiate(cfg, **kwargs)
 
             cfg['enabled'] = adapter_enabled
             self.adapter_cfg[adapter_name] = cfg
@@ -409,12 +409,12 @@ class AdapterModuleMixin(ABC):
 
                     # Check if adapter is enabled or not
                     if self.adapter_cfg[name]['enabled'] and name in module.adapter_layer:
+
                         # Recursively set training mode of submodules
                         module.adapter_layer[name].train()
 
                         # Recursively set grad required for submodules
-                        for pname, param in module.adapter_layer[name].named_parameters():
-                            param.requires_grad_(True)
+                        module.adapter_layer[name].adapter_unfreeze()
 
                         # unfreeze batch norm if any in the adapter submodules
                         for mname, module_ in module.adapter_layer[name].named_modules():

@@ -1,3 +1,6 @@
+defaults:
+  - optional tp_overlap@model.ub_tp_comm_overlap_cfg:
+
 name: megatron_gpt
 restore_from_path: null # used when starting from a .nemo file
 
@@ -8,7 +11,7 @@ trainer:
   precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first. 
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
@@ -30,6 +33,7 @@ exp_manager:
     name: null
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
+  resume_from_checkpoint: ${model.resume_from_checkpoint} 
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: val_loss
@@ -41,6 +45,9 @@ exp_manager:
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
+  # use GPTModel from megatron.core
+  mcore_gpt: False
+
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 4 # limited by GPU memory
@@ -84,6 +91,7 @@ model:
   overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
+  num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
 
   tokenizer:
     library: 'megatron'
