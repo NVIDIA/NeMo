@@ -136,7 +136,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
-        self.autocast_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None

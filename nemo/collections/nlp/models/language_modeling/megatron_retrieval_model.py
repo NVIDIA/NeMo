@@ -97,7 +97,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             )
 
         # self.setup_optimizer_param_groups()
-        self.autocast_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)
         self.model.model_type = ModelType.encoder_and_decoder
 
         self.enable_autocast = (

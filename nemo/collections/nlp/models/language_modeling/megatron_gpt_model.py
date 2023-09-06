@@ -253,8 +253,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             self._wrap_model_for_O2()
 
-        self.autocast_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)
-
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )

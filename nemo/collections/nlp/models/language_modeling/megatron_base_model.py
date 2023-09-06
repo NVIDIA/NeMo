@@ -106,7 +106,9 @@ class MegatronBaseModel(NLPModel):
 
         with open_dict(self.cfg):
             self.cfg.precision = trainer.precision
-            self.torch_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)
+        # TODO: @maanug-nv consolidate into one attribute (requires lots of changes in subclasses)
+        self.torch_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)  # Mixed precision datatype
+        self.autocast_dtype = self.torch_dtype  # Mixed precision datatype
 
         # set the megatron core model parallel config
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
@@ -761,9 +763,6 @@ class MegatronBaseModel(NLPModel):
         # dtype used in p2p communication
         pipeline_dtype = self.torch_dtype
 
-        # same as pipeline_dtype when not using megatron amp O2
-        autocast_dtype = pipeline_dtype if not megatron_amp_O2 else None
-
         # maps NeMo model configs to ModelParallelConfig from megatron core
         config_mapping = {
             "perform_initialization": True,  # initailize weights when constructing the module
@@ -778,7 +777,7 @@ class MegatronBaseModel(NLPModel):
             if self.torch_dtype == torch.float16
             else None,
             "enable_autocast": not megatron_amp_O2 and self.torch_dtype in [torch.bfloat16, torch.float16],
-            "autocast_dtype": autocast_dtype,
+            "autocast_dtype": self.autocast_dtype,
             "variable_seq_lengths": False,  # set dynamically during training
             "num_microbatches_with_partial_activation_checkpoints": self.cfg.get(
                 'num_micro_batches_with_partial_activation_checkpoints', None
