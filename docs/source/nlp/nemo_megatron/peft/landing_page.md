@@ -10,7 +10,7 @@ NeMo supports four PEFT methods which can be used with two transformer-based net
 
 |     | GPT | T5  |
 |-----|-----|-----|
-| Attn Adapter    | ✅   | ✅    |
+| Adapter    | ✅   | ✅    |
 | LoRA    | ✅   |  ✅   |
 | IA3    |  ✅   |  ✅   |
 | P-Tuning    | ✅    | ✅    |
