@@ -8,12 +8,12 @@ at a fraction of the computational and storage costs.
 
 NeMo supports four PEFT methods which can be used with two transformer-based networks.
 
-|     | GPT | T5  |
-|-----|-----|-----|
-| Adapter    | ✅   | ✅    |
-| LoRA    | ✅   |  ✅   |
-| IA3    |  ✅   |  ✅   |
-| P-Tuning    | ✅    | ✅    |
+|                      | GPT | T5  |
+|----------------------|-----|-----|
+| Adapters (Canonical) | ✅   | ✅   |
+| LoRA                 | ✅   | ✅   |
+| IA3                  | ✅   | ✅   |
+| P-Tuning             | ✅   | ✅   |
 
 Learn more about PEFT in NeMo with the 
 [Quick Start Guide](quick_start.md) which provides an overview on how PEFT works in NeMo.

@@ -6,9 +6,9 @@ The quick start guide provides an overview of a PEFT workflow in NeMo.
 This tutorial uses "PEFT" to describe the overall parameter efficient finetuning method, and "adapter"
 to describe the additional module injected to a frozen base model. Each PEFT model can use one or more types of adapters.
 
-One of the PEFT methods is sometimes referred to as "adapter", 
-because it was one of the first proposed usage of adapter modules. 
-This PEFT method will be called "Attention Adapter" or the "Canonical Adapter" to distinguish the two. 
+One of the PEFT methods is sometimes referred to as "adapters", 
+because it was one of the first proposed usage of adapter modules for NLP. 
+This PEFT method will be called the "canonical" adapters to distinguish the two usages. 
 
 
 ## How PEFT work in NeMo models 
@@ -26,7 +26,7 @@ during fine-tuning, hence achieving efficiency in the number of parameters finet
 ## PEFT config classes 
 Each PEFT method is specified by a `PEFTConfig` class which stores the types of adapters applicable to the PEFT method,
 as well as hyperparameters required to initialize these adapter modules. These four PEFT methods are currently supported:
-1. Attention (Canonical) Adapter: `AttentionAdapterPEFTConfig`
+1. Adapters (canonical): `CanonicalAdaptersPEFTConfig`
 2. LoRA: `LoraPEFTConfig`
 3. IA3: `IA3PEFTConfig`
 4. P-Tuning: `PtuningPEFTConfig`
@@ -37,12 +37,12 @@ Moreover, it is possible to use a combination of the PEFT methods in NeMo since 
 This can be easily done by passing in a list of 
 `PEFTConfig` objects to `add_adapter` instead of a single one. 
 For example, a common workflow is to combine P-Tuning and Adapter, and this can be achieved with 
-`model.add_adapter([PtuningPEFTConfig(model_cfg), AttentionAdapterPEFTConfig(model_cfg)])`
+`model.add_adapter([PtuningPEFTConfig(model_cfg), CanonicalAdaptersPEFTConfig(model_cfg)])`
 
 
 ## Base model classes
 PEFT in NeMo is built with a mix-in class that does not belong to any model in particular. This means that the same 
-interface is available to different NeMo models. Currently, NeMo supports GPT (`MegatronGPTSFTModel`) and 
+interface is available to different NeMo models. Currently, NeMo supports PEFT for GPT (`MegatronGPTSFTModel`) and 
 T5 (`MegatronT5SFTModel`).
 
 

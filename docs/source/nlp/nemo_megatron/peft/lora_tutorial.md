@@ -1,7 +1,8 @@
 # Introduction
 
-This notebook demonstrates how to use NeMo's implementation of LoRA (Low Rank Adaptation) for fine-tuning large
-language models. This implementation is based on the paper, [LORA:LOW-RANK ADAPTATION OFLARGE LANGUAGE MODELS](https://openreview.net/pdf?id=nZeVKeeFYf9) by Hu et al.
+This notebook demonstrates how to apply PEFT in NeMo. For brevity, we have chosen LoRA as the PEFT technique and GPT as the language model, but the same recipe can be used for other PEFT techniques and language models, as described in the [Training](#training) section.
+
+ The implementation of LoRA is based on the paper, [LoRA: Low-Rank Adaptation of Large Language Models](https://openreview.net/pdf?id=nZeVKeeFYf9) by Hu et al.
 
 This example demonstrates how to:
 
@@ -9,9 +10,6 @@ This example demonstrates how to:
     2. Inspect the trained LoRA model showing the parameters it contains.
     3. Run inference with the based model with the LoRA parameters.
 
-This tutorial focuses on LoRA, but the training and evaluation methods described here are applicable
-for other Parameter-efficient finetuning (PEFT) methods in NeMo.
-It also uses GPT as a base model to demonstrate the PEFT API, but the methods apply to T5 as well.
 
 # Data and Task preparation
 Use LoRA to teach the GPT model to do Extractive Question Answering.
@@ -244,7 +242,7 @@ print("Parameter count manually:\n", model.summarize())
 ```
 Simply substitute with the `MegatronT5SFTModel` class to use T5 instead of GPT.
 
-To use a different PEFT method, you can use a different config class in place of `LoraPEFTConfig`, such as `AttentionAdapterPEFTConfig`, `IA3PEFTConfig`, `PtuningPEFTConfig`. You can also use a combination of the methods by passing in a list:
+To use a different PEFT method, you can use a different config class in place of `LoraPEFTConfig`, such as `CanonicalAdaptersPEFTConfig`, `IA3PEFTConfig`, `PtuningPEFTConfig`. You can also use a combination of the methods by passing in a list:
 `model.add_adapter([LoraPEFTConfig(model_cfg), PtuningPEFTConfig(model_cfg)])`
 
 You can now start training.

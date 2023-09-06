@@ -26,7 +26,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.collections.nlp.parts.nlp_overrides import PEFTSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import (
-    AttentionAdapterPEFTConfig,
+    CanonicalAdaptersPEFTConfig,
     LoraPEFTConfig,
     PEFTConfig,
     PtuningPEFTConfig,
@@ -286,7 +286,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
 
         if isinstance(peft_cfg, LoraPEFTConfig):
             layer0 = layers[0].self_attention
-        elif isinstance(peft_cfg, AttentionAdapterPEFTConfig):
+        elif isinstance(peft_cfg, CanonicalAdaptersPEFTConfig):
             layer0 = layers[0]
         else:
             raise RuntimeError(f"{peft_cfg} is not supported for tied weights")
