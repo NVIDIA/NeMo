@@ -57,6 +57,16 @@ pipeline {
       }
     }
 
+    stage('Apex installation') {
+      steps {
+        // pinned Apex https://github.com/NVIDIA/apex/commit/52e18c894223800cb611682dce27d88050edf1de
+        sh 'git clone https://github.com/NVIDIA/apex.git && \
+            cd apex && \
+            git checkout 52e18c894223800cb611682dce27d88050edf1de && \
+            pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" .'
+      }
+    }
+
     stage('Megatron Core installation') {
       steps {
         // pinned MCore https://github.com/NVIDIA/Megatron-LM/commit/01c8704453af7e26134441224c8a351746ca0349
@@ -67,7 +77,7 @@ pipeline {
             pip install -e .'
       }
     }
-      
+
 
     stage('PyTorch Lightning version') {
       steps {
@@ -839,7 +849,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('L2: Speech Transcription') {
       when {
         anyOf {
@@ -3374,7 +3384,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
        }
      }
-    
+
     // This test requires Ampere but some of the test GPUs are Volta
     // Need to add a check for compute capability before uncommenting this test
     // stage('L2: Megatron GPT with Rope Pretraining using Flash Attention and Resume Training TP=2') {
@@ -3937,7 +3947,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             rm -rf examples/nlp/language_modeling/out.jsonl"
       }
     }
-   
+
     // TODO: Add this test back. Test was failing on CI machines due to HW error
     // stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
     //   when {
