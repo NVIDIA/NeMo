@@ -1,6 +1,17 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
 
-"""Referrence impl https://gitlab-master.nvidia.com/ftp/tekit/-/blob/main/examples/gpt/summarize.py"""
+"""Defines the tensorrt_llm inference API that can support both single and multiple GPU LLM inferences.
+
+Referrence impl in tensorrt_llm: examples/llama/summarize.py.
+"""
 
 import json
 import os
@@ -42,64 +53,80 @@ class TensorrtLLMWorkerContext:
 tensorrt_llm_worker_context = TensorrtLLMWorkerContext()
 
 
-def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1):
+def _read_config(config_path: Path):
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    use_gpt_attention_plugin = config["plugin_config"]["gpt_attention_plugin"]
+    ib_gpt_attention_plugin = config["plugin_config"]["inflight_batching_gpt_attention_plugin"]
+    remove_input_padding = config["plugin_config"]["remove_input_padding"]
+    world_size = config["builder_config"]["tensor_parallel"]
+    assert (
+        world_size == tensorrt_llm.mpi_world_size()
+    ), f"Engine world size ({world_size}) != Runtime world size ({tensorrt_llm.mpi_world_size()})"
+
+    assert world_size <= torch.cuda.device_count(), f"Not enough GPUs, requesting {world_size}"
+
+    num_heads = config["builder_config"]["num_heads"]
+    num_kv_heads = config["builder_config"].get("num_kv_heads", num_heads)
+    hidden_size = config["builder_config"]["hidden_size"] // world_size
+    vocab_size = config["builder_config"]["vocab_size"]
+    num_layers = config["builder_config"]["num_layers"]
+    paged_kv_cache = config["plugin_config"]["paged_kv_cache"]
+    tokens_per_block = config["builder_config"]["tokens_per_block"]
+    use_prompt_tuning = config["builder_config"]["use_prompt_tuning"]
+
+    num_heads = num_heads // world_size
+    num_kv_heads = (num_kv_heads + world_size - 1) // world_size
+
+    model_config = ModelConfig(
+        num_heads=num_heads,
+        num_kv_heads=num_kv_heads,
+        hidden_size=hidden_size,
+        vocab_size=vocab_size,
+        num_layers=num_layers,
+        gpt_attention_plugin=use_gpt_attention_plugin,
+        ib_gpt_attention_plugin=ib_gpt_attention_plugin,
+        remove_input_padding=remove_input_padding,
+        paged_kv_cache=paged_kv_cache,
+        tokens_per_block=tokens_per_block,
+        use_prompt_tuning=use_prompt_tuning,
+    )
+
+    dtype = config["builder_config"]["precision"]
+    max_input_len = config["builder_config"]["max_input_len"]
+    max_batch_size = config["builder_config"]["max_batch_size"]
+
+    return model_config, world_size, dtype, max_input_len, max_batch_size
+
+
+def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
     """The impl of `load` API for on a single GPU worker."""
     try:
         tensorrt_llm.logger.set_level("info")
 
         engine_dir = Path(engine_dir)
         config_path = engine_dir / "config.json"
-        with open(config_path, "r") as f:
-            config = json.load(f)
-        use_gpt_attention_plugin = config["plugin_config"]["gpt_attention_plugin"]
-        inflight_batching_gpt_attention_plugin = config["plugin_config"]["inflight_batching_gpt_attention_plugin"]
-        remove_input_padding = config["plugin_config"]["remove_input_padding"]
-        dtype = config["builder_config"]["precision"]
-        world_size = config["builder_config"]["tensor_parallel"]
-        assert world_size == tensorrt_llm.mpi_world_size(), (
-            f"Engine world size ({world_size}) != Runtime world size" f" ({tensorrt_llm.mpi_world_size()})"
-        )
-        num_heads = config["builder_config"]["num_heads"] // world_size
-        hidden_size = config["builder_config"]["hidden_size"] // world_size
-        vocab_size = config["builder_config"]["vocab_size"]
-        num_layers = config["builder_config"]["num_layers"]
-        multi_query_mode = config["builder_config"]["multi_query_mode"]
-        paged_kv_cache = config["builder_config"]["paged_kv_cache"]
-        tokens_per_block = config["builder_config"]["tokens_per_block"]
-        use_prompt_tuning = config["builder_config"]["use_prompt_tuning"]
-
-        max_batch_size = config["builder_config"]["max_batch_size"]
-        max_input_len = config["builder_config"]["max_input_len"]
+        model_config, world_size, dtype, max_input_len, max_batch_size = _read_config(config_path)
 
         runtime_rank = tensorrt_llm.mpi_rank()
+
+        assert runtime_rank < torch.cuda.device_count(), f"Rank {runtime_rank} out of bound"
+
         runtime_mapping = tensorrt_llm.Mapping(world_size, runtime_rank)
         torch.cuda.set_device(runtime_rank % runtime_mapping.gpus_per_node)
+
         engine_name = get_engine_name(MODEL_NAME, dtype, world_size, runtime_rank)
         serialize_path = os.path.join(engine_dir, engine_name)
 
-        model_config = ModelConfig(
-            num_heads=num_heads,
-            hidden_size=hidden_size,
-            vocab_size=vocab_size,
-            num_layers=num_layers,
-            gpt_attention_plugin=use_gpt_attention_plugin,
-            inflight_batching_gpt_attention_plugin=inflight_batching_gpt_attention_plugin,
-            multi_query_mode=multi_query_mode,
-            remove_input_padding=remove_input_padding,
-            paged_kv_cache=paged_kv_cache,
-            tokens_per_block=tokens_per_block,
-            use_prompt_tuning=use_prompt_tuning,
-        )
-
         with open(serialize_path, "rb") as f:
             engine_buffer = f.read()
-        decoder = tensorrt_llm.runtime.GenerationSession(model_config, engine_buffer, runtime_mapping)
+        decoder = tensorrt_llm.runtime.GenerationSession(
+            model_config, engine_buffer, runtime_mapping, debug_mode=False
+        )
 
-        tokenizer.pad_token = tokenizer.eos_token
-        pad_id = tokenizer.encode(tokenizer.pad_token, add_special_tokens=False)[0]
-        end_id = tokenizer.encode(tokenizer.eos_token, add_special_tokens=False)[0]
-
-        sampling_config = SamplingConfig(end_id=end_id, pad_id=pad_id, num_beams=num_beams)
+        sampling_config = SamplingConfig(
+            end_id=tokenizer.eos_token_id, pad_id=tokenizer.eos_token_id, num_beams=num_beams
+        )
 
         # Initialize the global context so it can be used during `run` API.
         global tensorrt_llm_worker_context
@@ -114,21 +141,19 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1):
 
 
 def _forward(
-    input_tensors: List[torch.IntTensor],
-    tasks=None,
-    max_output_len: int = 200,
-    top_k: int = 1,
-    top_p: float = 0.0,
-    temperature: float = 0.0,
-    prompt_table=None,
-    task_vocab_size=None,
+        input_tensors: List[torch.IntTensor],
+        max_output_len: int,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        temperature: float = 1.0,
+        prompt_table=None,
+        task_vocab_size=None,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
     Returns:
         the output tokens tensor with shape [batch_size, num_beams, output_len].
     """
-
     try:
         # Loading the global context initialized from the `load` API.
         global tensorrt_llm_worker_context
@@ -138,19 +163,23 @@ def _forward(
         max_input_len = tensorrt_llm_worker_context.max_input_len
 
         batch_size = len(input_tensors)
-        assert batch_size <= max_batch_size, f"batch size {batch_size} exceedng max batch size {max_batch_size}"
+        assert (
+            batch_size <= max_batch_size
+        ), f"batch size {batch_size} exceedng max batch size {max_batch_size}"
         input_lengths = [t.shape[0] for t in input_tensors]
         max_length = max(input_lengths)
-        assert max_length <= max_input_len, f"input length {max_length} exceedng max input length {max_input_len}"
+        assert (
+            max_length <= max_input_len
+        ), f"input length {max_length} exceedng max input length {max_input_len}"
         pad_id = sampling_config.pad_id
 
         if decoder.remove_input_padding:
-            line_encoded = [torch.IntTensor(t).cuda() for t in input_tensors]
+            line_encoded = [torch.tensor(t, dtype=torch.int32).cuda() for t in input_tensors]
         else:
             line_encoded = torch.nested.to_padded_tensor(
                 torch.nested.nested_tensor(input_tensors, dtype=torch.int32), pad_id
             ).cuda()
-            input_lengths = torch.IntTensor(input_lengths).cuda()
+            input_lengths = torch.tensor(input_lengths, dtype=torch.int32).cuda()
 
         if prompt_table is None:
             ptuning_args = []
@@ -173,7 +202,7 @@ def _forward(
             sampling_config.top_p = top_p
             sampling_config.temperature = temperature
 
-            decoder.setup(batch_size, max_input_length=max_length, max_new_tokens=max_output_len)
+            decoder.setup(batch_size, max_context_length=max_length, max_new_tokens=max_output_len)
 
             if decoder.remove_input_padding:
                 output_ids = decoder.decode_batch(line_encoded, sampling_config)
@@ -199,9 +228,7 @@ def _forward(
 
 
 def load(
-    tokenizer: PreTrainedTokenizer,
-    engine_dir: str = "/tmp/ammo",
-    num_beams: int = 1,
+    tokenizer: PreTrainedTokenizer, engine_dir: str, num_beams: int = 1
 ) -> TensorrtLLMHostContext:
     """Loaded the compiled LLM model and run it.
 
@@ -210,7 +237,6 @@ def load(
     config_path = os.path.join(engine_dir, "config.json")
     with open(config_path, "r") as f:
         config = json.load(f)
-
     tensor_parallel = config["builder_config"]["tensor_parallel"]
     if tensor_parallel == 1:
         _load(tokenizer, engine_dir, num_beams)
@@ -237,43 +263,35 @@ def load(
 
 
 def forward(
-    host_context: TensorrtLLMHostContext,
-    input_tensors: List[torch.IntTensor],
-    tasks=None,
-    max_output_len: int = 200,
-    top_k: int = 1,
-    top_p: float = 0.0,
-    temperature: float = 0.0,
-    prompt_table=None,
-    task_vocab_size=None,
+        input_tensors: List[torch.IntTensor],
+        max_output_len: int,
+        host_context: TensorrtLLMHostContext,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        temperature: float = 1.0,
+        prompt_table=None,
+        task_vocab_size=None,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
-
     batch_size = len(input_tensors)
     max_batch_size = host_context.max_batch_size
-    assert batch_size <= max_batch_size, f"batch size {batch_size} exceedng max batch size {max_batch_size}"
+    assert (
+        batch_size <= max_batch_size
+    ), f"batch size {batch_size} exceedng max batch size {max_batch_size}"
     max_length = max([t.shape[0] for t in input_tensors])
     max_input_len = host_context.max_input_len
-    assert max_length <= max_input_len, f"input length {max_length} exceedng max input length {max_input_len}"
+    assert (
+        max_length <= max_input_len
+    ), f"input length {max_length} exceedng max input length {max_input_len}"
 
     tensor_parallel = host_context.tensor_parallel
     if tensor_parallel == 1:
-        return _forward(input_tensors, tasks, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size)
+        return _forward(input_tensors, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size)
     else:
         executor = host_context.executor
         futures = []
         for _ in range(tensor_parallel):
-            future = executor.submit(
-                _forward,
-                input_tensors,
-                tasks,
-                max_output_len,
-                top_k,
-                top_p,
-                temperature,
-                prompt_table,
-                task_vocab_size,
-            )
+            future = executor.submit(_forward, input_tensors, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size)
             futures.append(future)
         for future in futures:
             result = future.result()
@@ -284,25 +302,24 @@ def forward(
 
 
 def generate(
-    host_context: TensorrtLLMHostContext,
-    input_texts: List[torch.IntTensor],
-    tasks=None,
-    max_output_len: int = 200,
-    top_k: int = 1,
-    top_p: float = 0.0,
-    temperature: float = 0.0,
-    prompt_table=None,
-    task_vocab_size=None,
+        input_texts: List[torch.IntTensor],
+        max_output_len: int,
+        host_context: TensorrtLLMHostContext,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        temperature: float = 1.0,
+        prompt_table=None,
+        task_vocab_size=None,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
     Returns a 2D string list with shape [batch_size, num_beams].
     """
     tokenizer = host_context.tokenizer
-    input_tensors = [torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts]
-    output_tensor = forward(
-        host_context, input_tensors, tasks, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size
-    )
+    input_tensors = [
+        torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
+    ]
+    output_tensor = forward(input_tensors, max_output_len, host_context, top_k, top_p, temperature, prompt_table, task_vocab_size)
     assert output_tensor is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]

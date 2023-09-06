@@ -1,4 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+"""The APIs to convert a nemo model checkpoint to tensorrt_llm."""
+
 import argparse
+import ast
 import configparser
 import copy
 import datetime
@@ -8,10 +21,10 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
-from tensorrt_llm._utils import str_dtype_to_trt
+from tensorrt_llm import str_dtype_to_trt
 from transformers import GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
 
 from .model_config import (
@@ -26,7 +39,7 @@ from .model_config import (
 )
 from .nemo.nemo import UnpackedNemoCheckpointDir, unpack_nemo_ckpt
 from .nemo.nemo_ckpt_convert import build_tokenizer, convert_checkpoint
-from .tensor_utils import get_tensor_from_file, split
+from .tensor_utils import get_tensor_from_dict, split
 
 LOGGER = logging.getLogger(__name__)
 
@@ -39,8 +52,8 @@ def _nemo_decode(
     storage_type: str = "bfloat16",
     load_checkpoints_on_gpu: bool = False,
     decoder_type: str = "gptnext",
-) -> Tuple[PretrainedConfig, PreTrainedTokenizer]:
-    """Decodes the NEMO file and save the weights to out_dir."""
+) -> Tuple[Dict[str, np.ndarray], PretrainedConfig, PreTrainedTokenizer]:
+    """Decodes the NEMO file and returns the weights dict, llm config and tokenizer."""
     args = argparse.Namespace()
     args.in_file = in_file
     args.out_dir = out_dir
@@ -66,17 +79,19 @@ def _nemo_decode(
             start_time = datetime.datetime.now()
             checkpoint_dir_path = temp_dir / "unpacked"
             nemo_dir = unpack_nemo_ckpt(args.in_file, checkpoint_dir_path)
-            LOGGER.info("Spent %s (h:m:s) to unpack NeMo archive", datetime.datetime.now() - start_time)
+            LOGGER.info(
+                "Spent %s (h:m:s) to unpack NeMo archive", datetime.datetime.now() - start_time
+            )
 
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(
             nemo_dir, load_checkpoints_to_cpu=not args.load_checkpoints_on_gpu
         )
 
         start_time = datetime.datetime.now()
-        llm_config, tokenizer = convert_checkpoint(unpacked_checkpoint_dir, args)
+        weights_dict, llm_config, tokenizer = convert_checkpoint(unpacked_checkpoint_dir, args)
         LOGGER.info("Spent %s (h:m:s) to convert the model", datetime.datetime.now() - start_time)
 
-        return llm_config, tokenizer
+        return weights_dict, llm_config, tokenizer
 
 
 def get_model_config(weights_dir: Path) -> GPT2Config:
@@ -89,7 +104,7 @@ def get_model_config(weights_dir: Path) -> GPT2Config:
     # Parse the config to dict.
     for k, v in config_dict.items():
         try:
-            config_dict[k] = eval(v)
+            config_dict[k] = ast.literal_eval(v)
         except Exception:
             pass
     return GPT2Config(**config_dict)
@@ -97,13 +112,17 @@ def get_model_config(weights_dir: Path) -> GPT2Config:
 
 def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     """Loads the tokenizer from the decoded NEMO weights dir."""
-    model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
+    model_path = (
+        tokenizer_dir_or_path / "tokenizer.model"
+        if tokenizer_dir_or_path.is_dir()
+        else tokenizer_dir_or_path
+    )
     tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
     return build_tokenizer(tokenizer_config)
 
 
 def nemo_to_model_config(
-    in_file: str, decoder_type: str, gpus: int = 1, nemo_export_dir: str = "/tmp/nemo"
+    in_file: str, decoder_type: str, nemo_export_dir: str, gpus: int = 1
 ) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
     """Converts the NEMO file and construct the `ModelConfig` before tensorrt_llm deployment."""
     dtype_str = "bfloat16"
@@ -111,7 +130,7 @@ def nemo_to_model_config(
     if os.path.exists(nemo_export_dir):
         shutil.rmtree(nemo_export_dir)
 
-    llm_model_config, tokenizer = _nemo_decode(
+    weights_dict, llm_model_config, tokenizer = _nemo_decode(
         in_file=in_file,
         out_dir=nemo_export_dir,
         tensor_parallelism=gpus,
@@ -121,54 +140,50 @@ def nemo_to_model_config(
         decoder_type=decoder_type,
     )
 
-    weights_dir = Path(nemo_export_dir)
-
     model_config_template = ModelConfig()
     model_config_template.dtype = dtype_str
 
     model_config_template.tensor_parallel = gpus
 
-    dtype = str_dtype_to_trt(dtype_str)
-
-    vocab_size = llm_model_config.vocab_size
-    hidden_size = llm_model_config.n_embd
-    model_config_template.vocab_embedding = EmbeddingConfig(
-        weight=get_tensor_from_file(weights_dir, "wte", shape=[vocab_size, hidden_size], dtype=dtype)
-    )
-
-    model_config_template.final_layernorm = LayernormConfig(
-        weight=get_tensor_from_file(weights_dir, "final_layernorm.weight", dtype=dtype),
-        bias=get_tensor_from_file(weights_dir, "final_layernorm.bias", dtype=dtype),
-    )
-
-    model_config_template.final_layernorm.layernorm_type = (
-        LAYERNORM_RMS if isinstance(llm_model_config, LlamaConfig) else LAYERNORM_DEFAULT
-    )
+    str_dtype_to_trt(dtype_str)
 
     model_configs = []
     for i in range(gpus):
         model_configs.append(copy.deepcopy(model_config_template))
         model_configs[i].rank = i
 
+        model_configs[i].vocab_embedding = EmbeddingConfig(
+            weight=get_tensor_from_dict(weights_dict, "wte")
+        )
+
+        model_configs[i].final_layernorm = LayernormConfig(
+            weight=get_tensor_from_dict(weights_dict, "final_layernorm.weight"),
+            bias=get_tensor_from_dict(weights_dict, "final_layernorm.bias"),
+        )
+        model_configs[i].final_layernorm.layernorm_type = (
+            LAYERNORM_RMS if isinstance(llm_model_config, LlamaConfig) else LAYERNORM_DEFAULT
+        )
+
     for i in range(llm_model_config.n_layer):
         for j in range(gpus):
             model_configs[j].layers.append(
                 DecoderLayerConfig.from_nemo(
-                    weights_dir=weights_dir,
+                    weights_dict=weights_dict,
                     llm_config=llm_model_config,
                     decoder_type=decoder_type,
                     layer_id=i,
                     rank=j,
-                    tensor_parallel=gpus,
-                    dtype=dtype,
+                    is_mcore=llm_model_config.is_mcore,
                 )
             )
 
-    lm_head_weight = get_tensor_from_file(weights_dir, "lm_head.weight", shape=[vocab_size, hidden_size], dtype=dtype)
+    lm_head_weight = get_tensor_from_dict(weights_dict, "lm_head.weight")
 
     if model_configs[0].vocab_size_padded != model_configs[0].vocab_size:
         pad_width = model_configs[0].vocab_size_padded - model_configs[0].vocab_size
-        lm_head_weight = np.pad(lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0)
+        lm_head_weight = np.pad(
+            lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
+        )
 
     for i in range(gpus):
         model_configs[i].lm_head = LinearConfig(linear_type=LINEAR_COLUMN)

@@ -1,13 +1,21 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
 
-from pathlib import Path
-from typing import List
+"""Utils for tensor conversions between tensorrt, torch and numpy."""
+
+from typing import Dict
 
 import numpy as np
 import tensorrt as trt
 import tensorrt_llm
 import torch
-from tensorrt_llm._utils import np_bfloat16
 
 
 def torch_to_numpy_with_dtype(tensor, dtype=trt.float16):
@@ -24,6 +32,7 @@ def torch_to_numpy_with_dtype(tensor, dtype=trt.float16):
 
 
 def trt_dtype_to_str(dtype: trt.DataType):
+    """Converts a trt dtype to string."""
     str_map = {
         trt.float16: "float16",
         trt.bfloat16: "bfloat16",
@@ -48,22 +57,6 @@ def get_tensor_parallel_group(tensor_parallel: int):
     return None if tensor_parallel == 1 else list(range(tensor_parallel))
 
 
-def get_tensor_from_file(dir_path: Path, name: str, dtype, shape: List = None) -> np.array:
-    """Loads tensor saved in a file to a numpy array."""
-    if dtype == trt.float16:
-        np_dtype = np.float16
-    elif dtype == trt.float32:
-        np_dtype = np.float32
-    elif dtype == trt.bfloat16:
-        np_dtype = np_bfloat16
-    else:
-        assert False, f"{dtype} not supported"
-
-    p = dir_path / f"model.{name}.bin"
-    if not Path(p).exists():
-        return None
-
-    t = np.fromfile(p, dtype=np_dtype)
-    if shape is not None:
-        t = t.reshape(shape)
-    return t
+def get_tensor_from_dict(weights_dict: Dict[str, np.ndarray], name: str) -> np.array:
+    """Loads tensor from the weights_dict."""
+    return weights_dict.get(f"model.{name}.bin", None)

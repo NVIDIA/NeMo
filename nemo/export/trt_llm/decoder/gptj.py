@@ -1,24 +1,52 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+"""The GPTJ decoder implementation."""
+
 from typing import Optional
 
-from tensorrt_llm.models.gptj.model import GPTJAttention
+from tensorrt_llm.models.gptj.model import GPTJDecoderLayer
+from typing_extensions import override
 
-from ..model_config import LINEAR_COLUMN, LINEAR_ROW, AttentionConfig, LayernormConfig, LinearConfig, MLPConfig
-from .decoder import DecoderLayer, DecoderLayerConfigBuilder
+from ..model_config import (
+    LINEAR_COLUMN,
+    LINEAR_ROW,
+    AttentionConfig,
+    LayernormConfig,
+    LinearConfig,
+    MLPConfig,
+)
+from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
 
 
 class GPTJDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
+    """The GPTJ implementation of the DecoderLayerConfigBuilder."""
+
+    @override
     def hidden_act_fn(self, layer):
+        """Returns the hidden act fn in the MLP layer, e.g. SiLUActivation or NewGELUActivation."""
         return layer.mlp.act
 
+    @override
     def infer_num_attention_heads(self, layer):
         return layer.attn.num_attention_heads
 
+    @override
     def infer_max_position_embeddings(self, layer):
         return layer.attn.bias.shape[2]
 
+    @override
     def build_input_layernorm(self, layer) -> LayernormConfig:
         return LayernormConfig.from_nn_module(layer.ln_1, dtype=self.dtype)
 
+    @override
     def build_attention(self, layer) -> AttentionConfig:
         config = AttentionConfig()
         config.qkv = LinearConfig.from_qkv_nn_modules(
@@ -40,6 +68,7 @@ class GPTJDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
 
         return config
 
+    @override
     def build_mlp(self, layer) -> MLPConfig:
         config = MLPConfig()
         config.fc = LinearConfig.from_nn_module(
@@ -59,26 +88,26 @@ class GPTJDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
 
         return config
 
+    @override
     def build_post_layernorm(self, layer) -> Optional[LayernormConfig]:
         # GPTJ do not have post layer_norm
         return None
 
 
-class GPTJDecoderLayer(DecoderLayer):
-    def build_attention(self, layer):
+class GPTJDecoderLayerBuilder(DecoderLayerBuilder):
+    """The GPTJ implementation of the DecoderLayer."""
+
+    @override
+    def build_decoder(self, layer):
         assert self.tensor_parallel == 1 and self.rank == 0, "Only single GPU is supported for GPTJ"
 
-        attention = GPTJAttention(
+        return GPTJDecoderLayer(
             hidden_size=self.hidden_size,
             num_attention_heads=self.num_attention_heads,
-            rotary_dim=layer.attention.rotary_dim,
             max_position_embeddings=self.max_position_embeddings,
+            rotary_dim=layer.attention.rotary_dim,
             dtype=self.dtype,
+            hidden_act=self.hidden_act,
+            tp_group=self.tp_group,
+            tp_size=self.tensor_parallel,
         )
-
-        return attention
-
-    def post_attention_forward(self, residual, hidden_states, attention_output):
-        feed_forward_hidden_states = self.mlp(hidden_states)
-        hidden_states = attention_output + feed_forward_hidden_states + residual
-        return hidden_states

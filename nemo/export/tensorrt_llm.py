@@ -134,8 +134,8 @@ class TensorRTLLM(ITritonDeployable):
         prompt_checkpoint_path: str = None,
         delete_existing_files: bool = True,
         n_gpus: int = 1,
-        max_input_len: int = 200,
-        max_output_len: int = 200,
+        max_input_token: int = 512,
+        max_output_token: int = 512,
         max_prompt_embedding_table_size: int = 100,
         max_batch_size: int = 32,
         quantization: bool = None,
@@ -150,8 +150,8 @@ class TensorRTLLM(ITritonDeployable):
             prompt_checkpoint_path (str): path for the nemo checkpoint that includes prompt table.
             delete_existing_files (bool): if Truen, deletes all the files in model_dir.
             n_gpus (int): number of GPUs to use for inference.
-            max_input_len (int): max input length.
-            max_output_len (int): max output length.
+            max_input_token (int): max input length.
+            max_output_token (int): max output length.
             max_prompt_embedding_table_size (int): max prompt embedding table size.
             max_batch_size (int): max batch size.
             quantization (bool): if True, applies naive quantization.
@@ -181,10 +181,6 @@ class TensorRTLLM(ITritonDeployable):
             in_file=nemo_checkpoint_path, decoder_type=model_type, gpus=n_gpus, nemo_export_dir=nemo_export_dir
         )
 
-        for model_config in model_configs:
-            if quantization is not None:
-                naive_quantization(model_config, quantization)
-
         if prompt_checkpoint_path is None:
             max_prompt_embedding_table_size = 0
 
@@ -192,11 +188,10 @@ class TensorRTLLM(ITritonDeployable):
             model_configs,
             self.model_dir,
             n_gpus,
-            max_input_len=max_input_len,
-            max_output_len=max_output_len,
+            max_input_len=max_input_token,
+            max_output_len=max_output_token,
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-            parallel_build=parallel_build
         )
 
         if prompt_checkpoint_path is not None:
@@ -209,19 +204,17 @@ class TensorRTLLM(ITritonDeployable):
     def forward(
         self,
         input_texts,
-        tasks=None,
-        max_output_len=200,
+        max_output_token=512,
         top_k: int = 1,
         top_p: float = 0.0,
-        temperature: float = 0.0,
+        temperature: float = 1.0,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
 
         Args:
             input_texts (List(str)): list of sentences.
-            tasks (str): task type. Currently not used and added for later use.
-            max_output_len (int): max generated tokens.
+            max_output_token (int): max generated tokens.
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
@@ -232,13 +225,12 @@ class TensorRTLLM(ITritonDeployable):
             )
         else:
             return generate(
-                host_context=self.model,
                 input_texts=input_texts,
-                tasks=tasks,
-                max_output_len=max_output_len,
-                top_k=top_k,
-                top_p=top_p,
-                temperature=temperature,
+                max_output_len=max_output_token,
+                host_context=self.model,
+                top_k= top_k,
+                top_p= top_p,
+                temperature= temperature,
                 prompt_table=self.prompt_table,
                 task_vocab_size=self.task_vocab_size,
             )
@@ -247,7 +239,7 @@ class TensorRTLLM(ITritonDeployable):
     def get_triton_input(self):
         inputs = (
             Tensor(name="prompts", shape=(1,), dtype=bytes),
-            Tensor(name="max_output_len", shape=(1,), dtype=np.int_),
+            Tensor(name="max_output_token", shape=(1,), dtype=np.int_),
             Tensor(name="top_k", shape=(1,), dtype=np.int_),
             Tensor(name="top_p", shape=(1,), dtype=np.single),
             Tensor(name="temperature", shape=(1,), dtype=np.single),
@@ -263,14 +255,14 @@ class TensorRTLLM(ITritonDeployable):
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
             input_texts = str_ndarray2list(inputs.pop("prompts"))
-            max_output_len = inputs.pop("max_output_len")
+            max_output_token = inputs.pop("max_output_token")
             top_k = inputs.pop("top_k")
             top_p = inputs.pop("top_p")
             temperature = inputs.pop("temperature")
 
             output_texts = self.forward(
                 input_texts=input_texts,
-                max_output_len=max_output_len[0][0],
+                max_output_token=max_output_token[0][0],
                 top_k=top_k[0][0],
                 top_p=top_p[0][0],
                 temperature=temperature[0][0],

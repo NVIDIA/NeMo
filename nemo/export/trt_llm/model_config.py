@@ -1,20 +1,32 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+"""This module defines the model_config format.
+
+This format can be converted from huggingface, nemo or ammo quantized model.
+And we will build tensorrt_llm engine from the context saved with this format.
+"""
+
 import dataclasses
-import json
-import re
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import List, Union, get_args, get_origin
+from typing import Dict, List, get_args, get_origin
 
 import numpy as np
 import tensorrt as trt
-import torch
 import torch.nn as nn
 from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import is_gated_activation
 from transformers import LlamaConfig, PretrainedConfig
 from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
-from .tensor_utils import get_tensor_from_file, split, torch_to_numpy_with_dtype
+from .tensor_utils import get_tensor_from_dict, split, torch_to_numpy_with_dtype
 
 DECODER_GPT2 = "gpt2"
 DECODER_GPTJ = "gptj"
@@ -31,12 +43,17 @@ LINEAR_ROW = "row"
 LAYERNORM_DEFAULT = ""
 LAYERNORM_RMS = "rms"
 
+LAYER_DEFAULT = ""
+LAYER_QKV = "qkv"
+
 
 @dataclass
 class EmbeddingConfig:
     """The embedding layer config."""
 
     weight: np.array = None
+    # Whether the embedding weights are local
+    is_local: bool = False
 
     @staticmethod
     def from_nn_module(module: nn.Module, dtype=trt.float16):
@@ -44,7 +61,7 @@ class EmbeddingConfig:
         return EmbeddingConfig(weight=torch_to_numpy_with_dtype(module.weight, dtype))
 
     @property
-    def vocab_size(self):
+    def local_vocab_size(self):
         """Infers the vocab_size from the embedding layer weights shape."""
         return self.weight.shape[0]
 
@@ -67,7 +84,9 @@ class LayernormConfig:
         """Converts an nn.Module to an LayernormConfig."""
         layernorm_type = LAYERNORM_RMS if type(module) == LlamaRMSNorm else LAYERNORM_DEFAULT
 
-        config = LayernormConfig(weight=torch_to_numpy_with_dtype(module.weight, dtype), layernorm_type=layernorm_type)
+        config = LayernormConfig(
+            weight=torch_to_numpy_with_dtype(module.weight, dtype), layernorm_type=layernorm_type
+        )
         if layernorm_type == LAYERNORM_DEFAULT:
             config.bias = torch_to_numpy_with_dtype(module.bias, dtype)
 
@@ -84,9 +103,12 @@ class LinearConfig:
     activation_scaling_factor: np.array = None
     weights_scaling_factor: np.array = None
     prequant_scaling_factor: np.array = None
+    layer_type: str = LAYER_DEFAULT
 
     @staticmethod
-    def from_nn_module(module: nn.Module, linear_type: str, rank=0, tensor_parallel=1, dtype=trt.float16):
+    def from_nn_module(
+        module: nn.Module, linear_type: str, rank=0, tensor_parallel=1, dtype=trt.float16
+    ):
         """Converts an nn.Module to an LinearConfig."""
         weight = torch_to_numpy_with_dtype(module.weight, dtype)
         if "Conv1D" in type(module).__name__:
@@ -115,10 +137,13 @@ class LinearConfig:
         return config
 
     @staticmethod
-    def from_qkv_nn_modules(qkv_modules: List[nn.Module], rank=0, tensor_parallel=1, dtype=trt.float16):
+    def from_qkv_nn_modules(
+        qkv_modules: List[nn.Module], rank=0, tensor_parallel=1, dtype=trt.float16
+    ):
         """Converts the qkv modules to an LinearConfig."""
         config = LinearConfig()
         config.linear_type = LINEAR_COLUMN
+        config.layer_type = LAYER_QKV
         if len(qkv_modules) == 1:
             # QKV layers combined as a single module, e.g. GPT2
             qkv_module = qkv_modules[0]
@@ -140,7 +165,9 @@ class LinearConfig:
             )
             config.bias = np.ascontiguousarray(
                 split(
-                    torch_to_numpy_with_dtype(qkv_module.bias, dtype=dtype).reshape(3, qkv_shape[-1] // 3),
+                    torch_to_numpy_with_dtype(qkv_module.bias, dtype=dtype).reshape(
+                        3, qkv_shape[-1] // 3
+                    ),
                     tensor_parallel,
                     rank,
                     dim=-1,
@@ -153,16 +180,16 @@ class LinearConfig:
                 assert type(m) == nn.Linear
                 assert not (hasattr(m, "bias") and m.bias is not None)
 
-            q_weight = qkv_modules[0].weight
-            k_weight = qkv_modules[1].weight
-            v_weight = qkv_modules[2].weight
-
-            qkv_weight = torch_to_numpy_with_dtype(torch.stack([q_weight, k_weight, v_weight]), dtype)
-
-            q_emb = qkv_weight.shape[1]
-            model_emb = qkv_weight.shape[2]
-            split_v = split(qkv_weight, tensor_parallel, rank, dim=1)
-            split_v = split_v.reshape(3 * (q_emb // tensor_parallel), model_emb)
+            q_weight = split(
+                torch_to_numpy_with_dtype(qkv_modules[0].weight), tensor_parallel, rank
+            )
+            k_weight = split(
+                torch_to_numpy_with_dtype(qkv_modules[1].weight), tensor_parallel, rank
+            )
+            v_weight = split(
+                torch_to_numpy_with_dtype(qkv_modules[2].weight), tensor_parallel, rank
+            )
+            split_v = np.concatenate((q_weight, k_weight, v_weight))
             config.weight = np.ascontiguousarray(split_v)
 
         else:
@@ -182,52 +209,28 @@ class AttentionConfig:
 
     @staticmethod
     def from_nemo(
-        weights_dir: Path,
-        llm_config: PretrainedConfig,
+        weights_dict: Dict[str, np.ndarray],
         layer_id: int,
         rank: int = 0,
-        tensor_parallel: int = 1,
-        dtype: trt.DataType = trt.bfloat16,
     ):
         """Converts the nemo weights and config to `AttentionConfig`."""
-
         attention = AttentionConfig()
-        attention.qkv = LinearConfig(linear_type=LINEAR_COLUMN)
-        n_embd = llm_config.n_embd
-        c_attn_out_dim = 3 * n_embd // tensor_parallel
-        attention.qkv.weight = np.ascontiguousarray(
-            np.transpose(
-                get_tensor_from_file(
-                    weights_dir,
-                    f"layers.{layer_id}.attention.query_key_value.weight.{rank}",
-                    shape=[n_embd, c_attn_out_dim],
-                    dtype=dtype,
-                ),
-                [1, 0],
-            )
+        attention.qkv = LinearConfig(linear_type=LINEAR_COLUMN, layer_type=LAYER_QKV)
+        attention.qkv.weight = get_tensor_from_dict(
+            weights_dict, f"layers.{layer_id}.attention.query_key_value.weight.{rank}"
         )
-        attention.qkv.bias = get_tensor_from_file(
-            weights_dir,
+        attention.qkv.bias = get_tensor_from_dict(
+            weights_dict,
             f"layers.{layer_id}.attention.query_key_value.bias.{rank}",
-            dtype=dtype,
         )
 
         attention.dense = LinearConfig(linear_type=LINEAR_ROW)
-        attention.dense.weight = np.ascontiguousarray(
-            np.transpose(
-                get_tensor_from_file(
-                    weights_dir,
-                    f"layers.{layer_id}.attention.dense.weight.{rank}",
-                    shape=[n_embd // tensor_parallel, n_embd],
-                    dtype=dtype,
-                ),
-                [1, 0],
-            )
+        attention.dense.weight = get_tensor_from_dict(
+            weights_dict, f"layers.{layer_id}.attention.dense.weight.{rank}"
         )
-        attention.dense.bias = get_tensor_from_file(
-            weights_dir,
+        attention.dense.bias = get_tensor_from_dict(
+            weights_dict,
             f"layers.{layer_id}.attention.dense.bias",
-            dtype=dtype,
         )
         return attention
 
@@ -243,34 +246,21 @@ class MLPConfig:
 
     @staticmethod
     def from_nemo(
-        weights_dir: Path,
+        weights_dict: Dict[str, np.ndarray],
         llm_config: PretrainedConfig,
         layer_id: int,
         rank: int = 0,
-        tensor_parallel: int = 1,
-        dtype: trt.DataType = trt.bfloat16,
+        is_mcore: bool = False,
     ):
         """Converts the nemo weights and config to `MLPConfig`."""
-        n_embd = llm_config.n_embd
-        inter_size = llm_config.intermediate_size
-
         mlp = MLPConfig(hidden_act=llm_config.activation_function)
         mlp.fc = LinearConfig(linear_type=LINEAR_COLUMN)
-        mlp.fc.weight = np.ascontiguousarray(
-            np.transpose(
-                get_tensor_from_file(
-                    weights_dir,
-                    f"layers.{layer_id}.mlp.dense_h_to_4h.weight.{rank}",
-                    shape=[n_embd, inter_size // tensor_parallel],
-                    dtype=dtype,
-                ),
-                [1, 0],
-            )
+        mlp.fc.weight = get_tensor_from_dict(
+            weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.weight.{rank}"
         )
-        mlp.fc.bias = get_tensor_from_file(
-            weights_dir,
+        mlp.fc.bias = get_tensor_from_dict(
+            weights_dict,
             f"layers.{layer_id}.mlp.dense_h_to_4h.bias.{rank}",
-            dtype=dtype,
         )
 
         gated = is_gated_activation(mlp.hidden_act)
@@ -278,40 +268,25 @@ class MLPConfig:
             mlp.gate = LinearConfig(linear_type=LINEAR_COLUMN)
             layer_name = (
                 f"layers.{layer_id}.mlp.dense_h_to_4h_2.weight.{rank}"
-                if isinstance(llm_config, LlamaConfig)
+                if isinstance(llm_config, LlamaConfig) and not is_mcore
                 else f"layers.{layer_id}.mlp.dense_h_to_4h.gate.weight.{rank}"
             )
-
-            mlp.gate.weight = np.ascontiguousarray(
-                np.transpose(
-                    get_tensor_from_file(
-                        weights_dir,
-                        layer_name,
-                        shape=[n_embd, inter_size // tensor_parallel],
-                        dtype=dtype,
-                    ),
-                    [1, 0],
-                )
+            mlp.gate.weight = get_tensor_from_dict(
+                weights_dict,
+                layer_name,
             )
-            mlp.gate.bias = get_tensor_from_file(
-                weights_dir,
+            mlp.gate.bias = get_tensor_from_dict(
+                weights_dict,
                 f"layers.{layer_id}.mlp.dense_h_to_4h.gate.bias.{rank}",
-                dtype=dtype,
             )
 
         mlp.proj = LinearConfig(linear_type=LINEAR_ROW)
-        mlp.proj.weight = np.ascontiguousarray(
-            np.transpose(
-                get_tensor_from_file(
-                    weights_dir,
-                    f"layers.{layer_id}.mlp.dense_4h_to_h.weight.{rank}",
-                    shape=[inter_size // tensor_parallel, n_embd],
-                    dtype=dtype,
-                ),
-                [1, 0],
-            )
+        mlp.proj.weight = get_tensor_from_dict(
+            weights_dict, f"layers.{layer_id}.mlp.dense_4h_to_h.weight.{rank}"
         )
-        mlp.proj.bias = get_tensor_from_file(weights_dir, f"layers.{layer_id}.mlp.dense_4h_to_h.bias", dtype=dtype)
+        mlp.proj.bias = get_tensor_from_dict(
+            weights_dict, f"layers.{layer_id}.mlp.dense_4h_to_h.bias"
+        )
         return mlp
 
 
@@ -326,26 +301,29 @@ class DecoderLayerConfig:
     mlp: MLPConfig = None
 
     num_attention_heads: int = 0
+
+    num_kv_heads: int = 0
     max_position_embeddings: int = 0
     rotary_pct: float = 0
 
     @property
     def hidden_size(self):
+        """Returns the hidden size of the transformer model."""
         return self.mlp.fc.weight.shape[1]
 
     @property
     def ffn_hidden_size_local(self):
+        """Returns the ffn hidden size of the transformer model."""
         return self.mlp.fc.weight.shape[0]
 
     @staticmethod
     def from_nemo(
-        weights_dir: Path,
+        weights_dict: Dict[str, np.ndarray],
         llm_config: PretrainedConfig,
         decoder_type: str,
         layer_id: int,
         rank: int = 0,
-        tensor_parallel: int = 1,
-        dtype: trt.DataType = trt.bfloat16,
+        is_mcore: bool = False,
     ):
         """Converts the nemo weights and config to `DecoderLayerConfig`."""
         layer_config = DecoderLayerConfig(
@@ -353,40 +331,40 @@ class DecoderLayerConfig:
             num_attention_heads=llm_config.n_head,
             max_position_embeddings=llm_config.n_positions,
             rotary_pct=llm_config.rotary_pct if hasattr(llm_config, "rotary_pct") else 0,
+            num_kv_heads=(llm_config.num_kv_heads if hasattr(llm_config, "num_kv_heads") else 0),
         )
         layer_config.input_layernorm = LayernormConfig()
         layer_config.input_layernorm.layernorm_type = (
             LAYERNORM_RMS if isinstance(llm_config, LlamaConfig) else LAYERNORM_DEFAULT
         )
-        layer_config.input_layernorm.weight = get_tensor_from_file(
-            weights_dir,
+        layer_config.input_layernorm.weight = get_tensor_from_dict(
+            weights_dict,
             f"layers.{layer_id}.input_layernorm.weight",
-            dtype=dtype,
         )
-        layer_config.input_layernorm.bias = get_tensor_from_file(
-            weights_dir,
+        layer_config.input_layernorm.bias = get_tensor_from_dict(
+            weights_dict,
             f"layers.{layer_id}.input_layernorm.bias",
-            dtype=dtype,
         )
         layer_config.post_layernorm = LayernormConfig()
         layer_config.post_layernorm.layernorm_type = (
             LAYERNORM_RMS if isinstance(llm_config, LlamaConfig) else LAYERNORM_DEFAULT
         )
-        layer_config.post_layernorm.weight = get_tensor_from_file(
-            weights_dir,
+
+        layer_config.post_layernorm.weight = get_tensor_from_dict(
+            weights_dict,
             f"layers.{layer_id}.post_attention_layernorm.weight",
-            dtype=dtype,
         )
-        layer_config.post_layernorm.bias = get_tensor_from_file(
-            weights_dir,
+        layer_config.post_layernorm.bias = get_tensor_from_dict(
+            weights_dict,
             f"layers.{layer_id}.post_attention_layernorm.bias",
-            dtype=dtype,
         )
 
         layer_config.attention = AttentionConfig.from_nemo(
-            weights_dir, llm_config, layer_id, rank, tensor_parallel, dtype
+            weights_dict,
+            layer_id,
+            rank,
         )
-        layer_config.mlp = MLPConfig.from_nemo(weights_dir, llm_config, layer_id, rank, tensor_parallel, dtype)
+        layer_config.mlp = MLPConfig.from_nemo(weights_dict, llm_config, layer_id, rank, is_mcore)
 
         return layer_config
 
@@ -432,7 +410,7 @@ class ModelConfig:
     lm_head: LinearConfig = None
 
     def to_dict(self) -> dict:
-        """Converts the instance to a python dict"""
+        """Converts the instance to a python dict."""
         return dataclasses.asdict(self)
 
     @staticmethod
@@ -443,7 +421,11 @@ class ModelConfig:
     @property
     def vocab_size(self):
         """Returns the vocab_size of the model."""
-        return self.vocab_embedding.vocab_size
+        return (
+            self.vocab_embedding.local_vocab_size * self.tensor_parallel
+            if self.vocab_embedding.is_local
+            else self.vocab_embedding.local_vocab_size
+        )
 
     @property
     def vocab_size_padded(self):
@@ -466,69 +448,15 @@ class ModelConfig:
         return self.layers[0].num_attention_heads
 
     @property
+    def num_kv_heads(self):
+        """Returns the num_key_value_heads of the model."""
+        return (
+            self.layers[0].num_kv_heads
+            if self.layers[0].num_kv_heads > 0
+            else self.num_attention_heads
+        )
+
+    @property
     def hidden_act(self):
         """Returns the hidden_act of the model."""
         return self.layers[0].mlp.hidden_act
-
-
-def _restore_model_config(model_config, weights):
-    """Recursively restores the model_config from json and loads np.ndarray weights from weights."""
-    if isinstance(model_config, dict):
-        for k, v in model_config.items():
-            if isinstance(v, str) and v.startswith("_np:"):
-                model_config[k] = weights[v]
-            else:
-                _restore_model_config(v, weights)
-    if isinstance(model_config, list):
-        for i, v in enumerate(model_config):
-            if isinstance(v, str) and v.startswith("_np:"):
-                model_config[i] = weights[v]
-            else:
-                _restore_model_config(v, weights)
-
-
-def load_model_configs(model_config_dir: Union[str, Path]) -> List[ModelConfig]:
-    """Loads the model_config saved from ammo export.
-
-    Args:
-        model_config_dir: The directory where ammo exports the optimized model.
-            Inside the directory, each gpu rank will have its own json and npz file.
-            The json file represents the general ModelConfig structure while the detailed
-            weights are stored in the npz file.
-    Returns:
-        The list of `ModelConfig` loaded and constructed.
-    """
-    model_config_dir = Path(model_config_dir)
-    assert model_config_dir.is_dir()
-
-    model_configs = []
-    tensor_parallel = 0
-
-    def _valid_json_filename(filename):
-        pattern = r"^\w+_tp\d+_rank\d+\.json$"
-        return bool(re.match(pattern, filename))
-
-    for file_name in model_config_dir.iterdir():
-        if file_name.suffix == ".json" and _valid_json_filename(file_name.name):
-            with open(file_name, "r") as f:
-                model_config = json.load(f)
-                config_tensor_parallel = model_config["tensor_parallel"]
-                config_rank = model_config["rank"]
-
-                if tensor_parallel == 0:
-                    tensor_parallel = config_tensor_parallel
-                    model_configs = [{}] * tensor_parallel
-                else:
-                    assert tensor_parallel == config_tensor_parallel, "tensor_parallel not aligned between configs"
-
-                model_configs[config_rank] = model_config
-
-    for i, model_config in enumerate(model_configs):
-        assert model_config, f"Failed to load model_config for rank {i}"
-        decoder_type = model_config["layers"][0]["decoder_type"]
-        weights_file = f"{decoder_type}_tp{tensor_parallel}_rank{i}.npz"
-        weights = dict(np.load(model_config_dir / weights_file))
-        _restore_model_config(model_config, weights)
-        model_configs[i] = ModelConfig.from_dict(model_config)
-
-    return model_configs

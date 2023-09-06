@@ -1,20 +1,14 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
 
-"""Reference impl: https://gitlab-master.nvidia.com/ftp/tekit/-/blob/main/examples/utils/nemo.py"""
-
-
+"""Referrence impl in tensorrt_llm: examples/gpt/utils/nemo.py."""
 import functools
 import logging
 import os
@@ -42,9 +36,14 @@ def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_ty
         "rotary_pct": "rotary_percentage",
         "bias": "bias",
         "intermediate_size": "ffn_hidden_size",
+        "num_kv_heads": "num_query_groups",
     }
 
-    kwargs = {key: nemo_model_config[value] for key, value in convertion_dict.items() if value in nemo_model_config}
+    kwargs = {
+        key: nemo_model_config[value]
+        for key, value in convertion_dict.items()
+        if value in nemo_model_config
+    }
     kwargs["vocab_size"] = vocab_size
     kwargs["eos_token_id"] = eos_id
     kwargs["bos_token_id"] = bos_id
@@ -90,6 +89,7 @@ def add_special_tokens_to_tokenizer(tokenizer):
         tokenizer.add_special_tokens({"eos_token": "</s>"})
 
 
+# TODO: remove tar.extractall usage before releasing with KitMaker
 def unpack_nemo_ckpt(
     nemo_archive_path: typing.Union[str, pathlib.Path],
     out_dir_path: typing.Union[str, pathlib.Path],
@@ -110,15 +110,19 @@ def unpack_nemo_ckpt(
 
                     return prefix == abs_directory
 
-                def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-                    for member in tar.getmembers():
-                        member_path = os.path.join(path, member.name)
-                        if not is_within_directory(path, member_path):
+                def safe_members(tar_file):
+                    members = []
+                    for member in tar_file.getmembers():
+                        member_path = os.path.join(out_dir_path, member.name)
+                        if not is_within_directory(out_dir_path, member_path):
                             raise Exception("Attempted Path Traversal in Tar File")
+                        members.append(member)
+                    return members
 
-                    tar.extractall(path, members, numeric_owner=numeric_owner)
+                tar_file.extractall(
+                    out_dir_path, members=safe_members(tar_file), numeric_owner=False
+                )  # nosec - tar path has been validated.
 
-                safe_extract(tar_file, path=out_dir_path)
             return out_dir_path
         except tarfile.ReadError:
             pass
@@ -168,7 +172,9 @@ class UnpackedNemoCheckpointDir:
                 # assume that parallel ranks 0 checkpoint should have model config embedded
                 checkpoint_path = checkpoints_paths[0]
 
-                map_location_fn = cpu_map_location if self._load_checkpoints_to_cpu else gpu_map_location
+                map_location_fn = (
+                    cpu_map_location if self._load_checkpoints_to_cpu else gpu_map_location
+                )
 
                 model_00 = torch.load(checkpoint_path, map_location=map_location_fn)
                 if "hyper_parameters" in model_00 and "cfg" in model_00["hyper_parameters"]:
@@ -180,7 +186,9 @@ class UnpackedNemoCheckpointDir:
                 del model_00
 
         if model_config is None:
-            LOGGER.warning("Could not find checkpoint with NeMo model config in %s", self._checkpoints_dir)
+            LOGGER.warning(
+                "Could not find checkpoint with NeMo model config in %s", self._checkpoints_dir
+            )
 
         LOGGER.debug("Loaded model config %s", model_config)
 
@@ -191,11 +199,9 @@ class UnpackedNemoCheckpointDir:
         return self._checkpoints_dir
 
     def get_checkpoints_paths(self, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
-        """
-        Injects tensor/pipeline model parallel ranks into the filepath.
+        """Injects tensor/pipeline model parallel ranks into the filepath.
         Does nothing if not using model parallelism.
         """
-
         checkpoint_path_without_rank = self.checkpoints_dir / self.checkpoint_name
 
         def _inject_parallel_ranks(tp_rank, pp_rank):
