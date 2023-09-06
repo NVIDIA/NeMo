@@ -689,8 +689,13 @@ def sample_sequence_batch(
         all_generated_indices = None  # used to track all generated indices
         # Generate enough tokens for the longest sequence
         maxlen = tokens_to_generate + context_lengths.max().item()
-
+        max_len_before = maxlen
+        
         maxlen = inference_strategy.clip_max_len(maxlen)
+        if max_len_before != maxlen:
+            import pdb; pdb.set_trace()
+            raise ValueError(f"maxlen {max_len_before} reduced to {maxlen}")
+
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
