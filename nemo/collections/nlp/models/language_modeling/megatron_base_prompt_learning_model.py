@@ -35,7 +35,6 @@ from nemo.collections.nlp.modules.common import (
 )
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
-from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
 
