@@ -33,6 +33,7 @@ from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -985,3 +986,31 @@ class GlobalBatchDataFetcher(_DataFetcher):
             assert isinstance(dataloader, Sized)  # `_has_len` is True
             self.done = self.fetched >= len(dataloader)
         self.on_fetch_end(batch, start_output)
+
+class CustomProgressBar(TQDMProgressBar):
+    """
+    Add a CustomProgressBar to remove 's/it' and add train_step_timing for megatron models
+    """
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+
+    def init_train_tqdm(self):
+        """
+        Override progress bar total to reflect total microbatches and bar format to remove 's/it' from the
+        progress bar for megatron models
+        """
+        self.bar = super().init_train_tqdm()
+        self.bar.total = self.cfg.trainer.max_steps * get_num_microbatches()
+        self.bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
+        return self.bar
+    
+    def on_train_epoch_start(self, trainer: "pl.Trainer", *_: Any) -> None:
+        """
+        Override the parent on_train_epoch_start to reset train_progress_bar with the total number of microbatches
+        instead of total global batches.
+        #TODO athitten: Remove this hook once PTL fixes the logic for progress bar with dataloader_iter
+        """
+        self.train_progress_bar.reset(self.bar.total)
+        self.train_progress_bar.initial = 0
+        self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
