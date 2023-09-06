@@ -176,8 +176,14 @@ SFSpeech Chinese/English Bilingual Speech
 
 .. code-block:: bash
 
+    # [prerequisite] Install and setup 'ngc' cli tool by following document https://docs.ngc.nvidia.com/cli/cmd.html
+
+    $ ngc registry resource download-version "nvidia/sf_bilingual_speech_zh_en:v1"
+
+    $ unzip sf_bilingual_speech_zh_en_vv1/SF_bilingual.zip -d <your_local_dataset_root>
+
     $ python scripts/dataset_processing/tts/sfbilingual/get_data.py \
-        --data-root <your_local_dataset_root> \
+        --data-root <your_local_dataset_root>/SF_bilingual \
         --val-size 0.1 \
         --test-size 0.2 \
         --seed-for-ds-split 100
