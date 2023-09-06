@@ -446,7 +446,7 @@ class MegatronBaseModel(NLPModel):
 
             # Make sure embedding grad reductions are in FP32
             for name, param in self.named_parameters():
-                if 'word_embedding' in name or 'position_embedding' in name:
+                if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
                     param._with_fp32_optimizer = True
 
             # Match param allgather with model dtype
@@ -771,7 +771,9 @@ class MegatronBaseModel(NLPModel):
             "async_tensor_model_parallel_allreduce": self.cfg.get('tensor_model_parallel_world_size', 1) > 1
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
-            "grad_scale_func": self.trainer.precision_plugin.scaler.scale if precision in [16, '16'] else None,
+            "grad_scale_func": self.trainer.precision_plugin.scaler.scale
+            if precision in [16, '16', '16-mixed']
+            else None,
             "enable_autocast": not megatron_amp_O2 and precision in [16, '16', 'bf16'],
             "autocast_dtype": autocast_dtype,
             "variable_seq_lengths": False,  # set dynamically during training
