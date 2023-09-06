@@ -89,6 +89,8 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
     def add_adapter(self, peft_cfgs: Union[PEFTConfig, List[PEFTConfig]]):
         """
         High level API to add one or more adapter modules to the model, and freeze the base weights
+        This method supports adding adapter modules from PEFTConfig or list of PEFTConfig. It would add
+        corresponding adapter modules. Layer selection and weight tying would be applied if it's in PEFTConfig
 
         Args:
             peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
