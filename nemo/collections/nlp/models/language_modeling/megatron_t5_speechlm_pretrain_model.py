@@ -61,7 +61,7 @@ try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-
+    from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -118,8 +118,21 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 list_of_speech_heads.append(MegatronTokenLevelHead(_speech_head_embedding.weight.size(0), False))
             elif speech_head_type == 'linear':
                 # Linear layer that maps from hidden size to speech codebook size
+                # print("Parallel Output", self.frozen_model.enc_dec_model.parallel_output)
+                # import ipdb; ipdb.set_trace()
                 hidden_size = self.frozen_model.enc_dec_model.decoder_cfg.hidden_size
-                list_of_speech_heads.append(torch.nn.Linear(hidden_size, speech_codebook_size))
+                init_method_std = self.frozen_model.enc_dec_model.decoder_cfg.init_method_std
+                _speech_head = tensor_parallel.ColumnParallelLinear(
+                    input_size=hidden_size,
+                    output_size=speech_codebook_size,
+                    bias=True,
+                    gather_output=not self.frozen_model.enc_dec_model.parallel_output,
+                    init_method=init_method_normal(init_method_std),
+                    use_cpu_initialization=False,
+                    params_dtype=self.frozen_model.enc_dec_model.dtype,
+                )
+                # list_of_speech_heads.append(torch.nn.Linear(hidden_size, speech_codebook_size))
+                list_of_speech_heads.append(_speech_head)
 
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
         self.frozen_model.enc_dec_model.speech_tokens_embeddings = torch.nn.ModuleList(
@@ -401,7 +414,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 with torch.no_grad():
                     with torch.cuda.amp.autocast(enabled=False):
                         # Encodec does not work with fp16, so we disable autocast for logging audio
-                        if speech_mask[0].sum() != 0:
+                        if False and speech_mask[0].sum() != 0:
                             if self.cfg.seq_pattern in ["delay_parallel", "parallel"]:
                                 enc_input_example = self.convert_tokens_to_range(enc_input[0])
                                 dec_input_example = self.convert_tokens_to_range(dec_input[0], token_type="decoder")
@@ -628,6 +641,8 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         self._reconfigure_and_process_inference_batch(enc_input_ids.size(0), gbs)
         loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
         metrics = {'loss': loss_mean}
+        
+        
         with torch.no_grad():
             labels_original = batch['labels'].clone()
             loss_mask = batch['loss_mask']
@@ -693,7 +708,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 metrics[f'speech_loss_{i+1}'] = loss_i
                 speech_loss += loss_i
             metrics['speech_loss_total'] = speech_loss
-
+        
         self.train(mode=mode)
         self.frozen_model.train()
         return metrics
@@ -716,7 +731,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             averaged_loss = torch.stack([item['loss'] for item in outputs]).mean()
             logging.info(f'Validation loss: {averaged_loss}')
             self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
-
+            
             averaged_first_layer_accuracy = torch.stack([item['first_layer_accuracy'] for item in outputs]).mean()
             logging.info(f'Validation first_layer_accuracy: {averaged_first_layer_accuracy}')
             self.log(
@@ -766,6 +781,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 self.log(
                     f'val_speech_loss_{i}', averaged_speech_loss, prog_bar=True, rank_zero_only=True, batch_size=1
                 )
+            
 
         if self.cfg.get("report_validation_metric", False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]

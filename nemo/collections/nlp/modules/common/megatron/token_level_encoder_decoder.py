@@ -408,7 +408,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         if add_decoder and post_process:
             if share_decoder_tokens_head_embeddings:
                 self.tokens_head = MegatronTokenLevelHead(
-                    self.word_embeddings_weight().size(0), False, bias=tokens_head_bias
+                    self.word_embeddings_weight().size(0), parallel_output, bias=tokens_head_bias
                 )
                 # Need to subtract 1024*7, the last 7 heads of encodec
                 # self.tokens_head = MegatronTokenLevelHead(
@@ -646,6 +646,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         self.speech_offset + self.speech_codebook_size
                     )  # variables set in __init__ of speechlm model
                     token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())  # s, b, vocab
+                    # print("Token Logits", token_logits.shape)
+                    # print("Token logits gathered", tensor_parallel.gather_from_tensor_model_parallel_region(token_logits).shape)
                     if self.seq_pattern in ["parallel", "delay_parallel"]:
                         # For flat seq_pattern we need all the logits
                         token_logits = token_logits[:, :, :first_layer_vocabsize]
@@ -660,6 +662,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         [*token_logits.shape[:-1], self.speech_codebook_size, speech_layers],
                         device=token_logits.device,
                     )
+                    speech_logits_list = []
                     if self.seq_pattern in ["parallel", "delay_parallel"]:
                         for i in range(speech_layers):
                             if self.speech_head_type == "token_level":
@@ -673,10 +676,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                                     last_layer_output, self.speech_tokens_embeddings[i].weight
                                 )
                             elif self.speech_head_type == "linear":
-                                last_layer_logits = self.speech_tokens_heads[i](dec_output)
+                                last_layer_logits = self.speech_tokens_heads[i](dec_output)[0]
                             else:
                                 raise ValueError(f"Speech head type {self.speech_head_type} not supported")
-                            speech_logits[:, :, :, i] = last_layer_logits
+                            speech_logits_list.append(last_layer_logits)
+                            speech_logits[:, :, :, i] = tensor_parallel.gather_from_tensor_model_parallel_region(last_layer_logits)
                 else:
                     token_logits = self.tokens_head(dec_output)[0]  # T, B, WordEmbSize
 
@@ -705,6 +709,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         elif labels.dim() == 3:
                             # print("first layer labels", labels[0, :, :].shape, labels[0, :, :].min(), labels[0, :, :].max(), labels[0, 0, :5])
                             # print("token logits", token_logits.shape, token_logits[0,0].argmax())
+                            # print("Token Logits", token_logits.shape)
+                            # print("Labels", labels.shape, labels.min(), labels.max())
                             tokens_loss = _cross_entropy_function(
                                 token_logits.float(), labels[0, :, :], label_smoothing
                             )
@@ -713,9 +719,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                             if self.seq_pattern in ["parallel", "delay_parallel"]:
                                 for i in range(speech_layers):
                                     # What is labels[:7, :, :] if this is text? (It is all zeros)
+                                    # print("Speech layer", i)
+                                    # print("Speech logits", speech_logits_list[i].shape)
+                                    # print("Speech Logits Gathered", tensor_parallel.gather_from_tensor_model_parallel_region(speech_logits_list[i]).shape)
+                                    # print("Speech labels", labels[i + 1, :, :].shape, labels[i + 1, :, :].min(), labels[i + 1, :, :].max())
                                     curr_codebook_loss = (
                                         _cross_entropy_function(
-                                            speech_logits[:, :, :, i].float(), labels[i + 1, :, :], label_smoothing
+                                            speech_logits_list[i].float(), labels[i + 1, :, :], label_smoothing
                                         )
                                         * speech_mask.T
                                     )
@@ -725,8 +735,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
+                    token_logits_gathered = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
 
-                    return tokens_loss, [token_logits, speech_logits]
+                    return tokens_loss, [token_logits_gathered, speech_logits]
                 else:
                     # [s, b, h] -> [b, s, h]
                     token_logits = token_logits.transpose(0, 1).contiguous()  # (b, s, 30208)
