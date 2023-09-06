@@ -414,7 +414,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 with torch.no_grad():
                     with torch.cuda.amp.autocast(enabled=False):
                         # Encodec does not work with fp16, so we disable autocast for logging audio
-                        if False and speech_mask[0].sum() != 0:
+                        if speech_mask[0].sum() != 0:
                             if self.cfg.seq_pattern in ["delay_parallel", "parallel"]:
                                 enc_input_example = self.convert_tokens_to_range(enc_input[0])
                                 dec_input_example = self.convert_tokens_to_range(dec_input[0], token_type="decoder")
