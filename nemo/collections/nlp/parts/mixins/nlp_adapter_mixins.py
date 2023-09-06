@@ -222,19 +222,41 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             finally:
                 os.chdir(cwd)
 
-    def save_adapters(self, filepath: str, name: str = None):
+    def save_adapters(self, filepath: str):
+        """
+        Utility method that saves only the adapter module(s), and not the entire model itself.
+        This allows the sharing of adapters which are often just a fraction of the size of the full model,
+        enabling easier deliver.
+
+        .. note::
+
+            The saved file is a pytorch compatible pickle file, containing the state dicts of the adapter(s).
+
+        Args:
+            filepath: A str filepath where the .ckpt file that will contain the adapter state dict.
+        """
         # override save_adapters for consistency
         checkpoint = {}
         checkpoint['state_dict'] = self.get_peft_state_dict()
         torch.save(checkpoint, filepath)
 
     def load_adapters(
-        self,
-        filepath: str,
-        peft_cfgs: Union[PEFTConfig, List[PEFTConfig]],
-        map_location: str = None,
-        strict: bool = True,
+        self, filepath: str, peft_cfgs: Union[PEFTConfig, List[PEFTConfig]], map_location: str = None,
     ):
+        """
+        Utility method that restores only the adapter module(s), and not the entire model itself.
+        This allows the sharing of adapters which are often just a fraction of the size of the full model,
+        enabling easier deliver.
+
+        .. note::
+
+            During restoration, assumes that the model does not currently already have one or more adapter modules.
+
+        Args:
+            filepath: Filepath of the .ckpt or .nemo file.
+            peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
+            map_location: Pytorch flag, where to place the adapter(s) state dict(s).
+        """
         self.add_adapter(peft_cfgs)
 
         # Determine device
