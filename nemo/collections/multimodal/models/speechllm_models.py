@@ -540,6 +540,9 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         OmegaConf.set_struct(gpt_cfg, True)
         OmegaConf.resolve(cfg)
         with open_dict(gpt_cfg):
+            gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
+            gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
+            gpt_cfg.freeze_matcher = cfg.model.get('freeze_matcher', False)
             gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
             gpt_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
             gpt_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
