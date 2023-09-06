@@ -141,7 +141,7 @@ def main(cfg) -> None:
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(peft_model_cfg):
         # update the model config of the trained model with params we want to set at inference time.
-        peft_model_cfg.precision = cfg.trainer.precision        
+        peft_model_cfg.precision = cfg.trainer.precision
         peft_model_cfg.activations_checkpoint_granularity = None
         peft_model_cfg.activations_checkpoint_method = None
         peft_model_cfg.activations_checkpoint_layers_per_pipeline = None
