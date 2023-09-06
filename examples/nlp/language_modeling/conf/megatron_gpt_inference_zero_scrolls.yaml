@@ -15,6 +15,7 @@ inference:
   data_dir: null  # Zero-Scrolls data directory
   batch_size: 1  # batch size for inference
   max_seq_length: null # max sequence length for inference, use model's pretraining seq length if not set
+  n_jobs: -1 # number of jobs to process input data, -1 means using all the cores
 
 trainer:
   devices: 1

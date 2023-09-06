@@ -40,5 +40,3 @@ TASKS = {"qasper":
                 "subset": "SQuALITY/validation.jsonl"}
         }
 
-EXTRA_TOKENS = 10
-

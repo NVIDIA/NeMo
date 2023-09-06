@@ -45,100 +45,37 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 """
-This is the script to run GPT text generation.
+This is the script to Zero-Scrolls evaluation with base GPT models (FA is enabled).
+
+Supported tasks:
+    'book_sum_sort' 'gov_report' 'narrative_qa' 'qasper' 'qmsum' 'summ_screen_fd' 'quality' 'squality' 'musique' 'space_digest' 
+
+See NeMo/examples/nlp/language_modeling/constants.py for the exact subset used for each task. We use "test" if labeled data is available, otherwise "validation".
+DATA_DIR - is the path to the folder with subsets for all scrolls tasks.
 
 Usage:
-    Assume the model has TP=1, PP=1 in the following use cases.
-    a. run greedy inference from a nemo file:
-        python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[prompt1,prompt2]
+    python ${NEMO_DIR}/examples/nlp/language_modeling/megatron_gpt_eval_zero_scrolls.py \
+        gpt_model_file=${NEMO_FILE} \
+        server=False \
+        tensor_model_parallel_size=${TP} \
+        pipeline_model_parallel_size=${PP} \
+        trainer.devices=${TP} \
+        trainer.num_nodes=1 \
+        trainer.precision=bf16 \
+        inference.output_file=${PREDICTIONS}.jsonl \
+        inference.task=${TASK} \
+        inference.data_dir=${DATA_DIR} \
+        inference.batch_size=1 \
+        inference.greedy=True \
+        inference.add_BOS=False \
+        inference.max_seq_length=${MAX_SEQ_LENGTH} 
 
-    b. run greedy inference from a PTL checkpoint file:
-        python megatron_gpt_eval.py \
-            checkpoint_dir=PATH_TO_CHECKPOINT_FILE \
-            checkpoint_name=CHECKPOINT_FILE_NAME \
-            hparams_file=HPARAMS_FILE \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[prompt1,prompt2]
+The output of this script is a jsonl file with original fields and the generated output stored at "pred" field.
 
-    c. run top_p inference from a nemo file:
-        python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
-            inference.greedy=False \
-            inference.top_k=0 \
-            inference.top_p=0.9 \
-            inference.repetition_penalty=1.2 \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[prompt1,prompt2]
-
-    d. If you don't need to generate tokens and need model to compute logprobs:
-         python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
-            inference.compute_logprob=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[text to get logprob]
-
-    e. Launch the inference server
-         python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            server=True
-        
-        To send a request to the server, here is one example code:
-        ```python
-        import json
-        import requests
-
-        batch_size = 8
-        port_num = 5555
-        headers = {"Content-Type": "application/json"}
-
-
-        def request_data(data):
-            resp = requests.put('http://localhost:{}/generate'.format(port_num),
-                                data=json.dumps(data),
-                                headers=headers)
-            sentences = resp.json()['sentences']
-            return sentences
-
-
-        data = {
-            "sentences": [""] * batch_size,
-            "tokens_to_generate": 300,
-            "temperature": 1.0,
-            "add_BOS": True,
-            "top_k": 0,
-            "top_p": 0.9,
-            "greedy": False,
-            "all_probs": False,
-            "repetition_penalty": 1.2,
-            "min_tokens_to_generate": 2,
-        }
-
-        sentences = request_data(data)
-        ```
+To evaluate the generated predictions, run (https://gitlab-master.nvidia.com/yangzhang/llm_long_context):
+    python llm_long_context/gpt_zero-shot/zero_scrolls/metrics_zero_scrolls.py \
+        --predictions_file=${PREDICTIONS}.jsonl \
+        --task=${TASK} 
 """
 
 if not torch.cuda.is_available():
@@ -300,8 +237,9 @@ def main(cfg) -> None:
                          prompt=None,
                          task=cfg.inference.task,
                          max_seq_length=cfg.inference.max_seq_length,
-                         data_dir=cfg.inference.data_dir)
-   
+                         data_dir=cfg.inference.data_dir,
+                         n_jobs=cfg.inference.n_jobs)
+
     print("Running inference...")
     bs = cfg.inference.batch_size
     ds = RequestDataSet(truncated_input)
