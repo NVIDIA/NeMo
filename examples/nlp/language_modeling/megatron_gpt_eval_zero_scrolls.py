@@ -162,9 +162,9 @@ def main(cfg) -> None:
             except:
                 pretrained_cfg["use_flash_attention"] = True
 
-            if cfg.inference.max_seq_length is not None:
-                pretrained_cfg.encoder_seq_length = cfg.inference.max_seq_length
-                pretrained_cfg.max_position_embeddings = cfg.inference.max_seq_length
+            # if cfg.inference.max_seq_length is not None:
+            #     pretrained_cfg.encoder_seq_length = cfg.inference.max_seq_length
+            #     pretrained_cfg.max_position_embeddings = cfg.inference.max_seq_length
             
             pretrained_cfg.apply_query_key_layer_scaling = False
         model = MegatronGPTModel.restore_from(
