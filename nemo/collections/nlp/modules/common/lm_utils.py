@@ -43,12 +43,8 @@ def pad_batch(batch, pad_id, max_len):
     max_context_length = max([len(tokens) for tokens in batch])
     for tokens in batch:
         context_length = len(tokens)
-        try:
-            if context_length < max_context_length + max_len:
-                tokens.extend([pad_id] * (max_context_length + max_len - context_length))
-        except:
-            import pdb; pdb.set_trace()
-            print()
+        if context_length < max_context_length + max_len:
+            tokens.extend([pad_id] * (max_context_length + max_len - context_length))
         context_lengths.append(context_length)
     return batch, context_lengths
 
