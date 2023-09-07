@@ -363,6 +363,8 @@ class T5Dataset(Dataset):
             max_seq_length_dec=max_seq_length_dec,
         )
 
+        # print("enc", len(tokens_enc), "labels", len(labels))
+
         train_sample = {
             'text_enc': tokens_enc,
             'text_dec': tokens_dec_in,
@@ -455,17 +457,17 @@ class T5Dataset(Dataset):
 
     @classmethod
     def pad_and_convert_to_numpy_v2(
-            cls,
-            output_tokens,
-            masked_positions,
-            masked_labels,
-            sentinel_tokens,
-            bos_id,
-            eos_id,
-            pad_id,
-            max_seq_length,
-            max_seq_length_dec,
-            masked_spans=None,
+        cls,
+        output_tokens,
+        masked_positions,
+        masked_labels,
+        sentinel_tokens,
+        bos_id,
+        eos_id,
+        pad_id,
+        max_seq_length,
+        max_seq_length_dec,
+        masked_spans=None,
     ):
         """Pad sequences and convert them to numpy.
         Only consider decoder-only models. We will keep corrupting the spans until the maximum length is met.
@@ -501,7 +503,7 @@ class T5Dataset(Dataset):
         # Add the remaining tokens to the t5 input
         # Minus one to append bos in the end.
         delta = max_seq_length - (len(t5_input) + len(t5_decoder_out)) - 1
-        t5_input.extend(output_tokens[start_index: start_index + delta])
+        t5_input.extend(output_tokens[start_index : start_index + delta])
         t5_input.append(bos_id)
 
         # Encoder-side padding mask.
