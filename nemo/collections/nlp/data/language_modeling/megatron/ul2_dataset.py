@@ -20,9 +20,9 @@ import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import create_extreme_masked_lm_predictions
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import GPTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
 from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import GPTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
 
@@ -372,7 +372,7 @@ class UL2Dataset(T5Dataset):
         # Later this will be consumed when we make autoregressive predictions.
         if masking_type == 'causal':
             s2s_token = self.tokenizer.text_to_ids('<extra_id_s>')
-            example = {'text_enc': np.array(s2s_token, ), 'labels': sample[0]}
+            example = {'text_enc': np.array(s2s_token,), 'labels': sample[0]}
             return example
 
         elif masking_type == 'r-masking':
@@ -784,13 +784,15 @@ class UGPTDataset(GPTDataset):
         self.masked_lm_prob = masked_lm_prob
         self.short_seq_prob = short_seq_prob
         self.max_ngram_size = max_ngram_size
-        self.permutation=permutation
+        self.permutation = permutation
         self.whole_word_masking = whole_word_masking
         self.favor_long_ngrams = favor_long_ngrams
         self.respect_document_boundaries = respect_document_boundaries
 
         self.extreme_masked_lm_prob = extreme_masked_lm_prob
-        self.mean_ngram_size = None  # TODO: Determine if we want to actually pass mean ngram as an override to max here.
+        self.mean_ngram_size = (
+            None  # TODO: Determine if we want to actually pass mean ngram as an override to max here.
+        )
         self.min_ngram_size = min_ngram_size
         self.extreme_max_ngram_size = extreme_max_ngram_size
         self.extreme_min_ngram_size = extreme_min_ngram_size
@@ -879,7 +881,7 @@ class UGPTDataset(GPTDataset):
         # Later this will be consumed when we make autoregressive predictions.
         if masking_type == 'causal':
             s2s_token = self.tokenizer.text_to_ids('<extra_id_s>')
-            example = {'text_enc': np.array(s2s_token, ), 'labels': sample[0]}
+            example = {'text_enc': np.array(s2s_token,), 'labels': sample[0]}
             example['is_skipped_batch'] = is_skipped_batch
             return example
 
