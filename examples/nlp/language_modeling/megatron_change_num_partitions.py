@@ -903,10 +903,16 @@ def main():
     if args.model_file is None and args.model_extracted_dir is None:
         raise ValueError("Cannot pass model_file and model_extracted_dir as None at the same time.")
 
+    save_restore_connector = NLPSaveRestoreConnector()
+    if args.model_extracted_dir is not None:
+        logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
+        save_restore_connector.model_extracted_dir = args.model_extracted_dir
+
     tmp_cfg = cls.restore_from(
         restore_path=args.model_file,
         trainer=Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision),
         map_location=torch.device("cpu"),
+        save_restore_connector=save_restore_connector,
         return_config=True,
     )
     plugins = []
