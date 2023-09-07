@@ -233,7 +233,7 @@ def compute_tp_splits(
             for i in range(tp_size):
                 tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 2, tp_size)])
                 split.append(tp_qkv)
-        elif ('dense_h_to_4h.weight' in param_name or 'linear_fc1.weight' in param_name) and fast_glu_activation:
+        elif ('dense_h_to_4h' in param_name or 'linear_fc1' in param_name) and fast_glu_activation:
             # For Megatron GPT model with Fast Glu activation
             # Handle gated linear units
             # concat all the first halves ('W's) and all the second halves ('V's)
@@ -275,7 +275,7 @@ def compute_tp_merge(idx, name, param, partitions_pp, model_cfg):
         concated = torch.cat([partitions_pp[i][idx].data for i in range(len(partitions_pp))], dim=0)
 
     # Logic for Fast Glu activation
-    if 'dense_h_to_4h.weight' in name and fast_glu_activation:
+    if 'dense_h_to_4h' in name and fast_glu_activation:
         # concat all the first halves ('W's) and all the second halves ('V's)
         wk_splits = []
         for tpr in range(len(partitions_pp)):
