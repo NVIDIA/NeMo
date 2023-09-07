@@ -275,14 +275,14 @@ def send_queries(args):
         input_data = test_input_200
  
     inputs = input_data * args.batch_size
-    print(inputs)
+    # print(inputs)
  
     # warm up
     if args.warm_up:
-        print("[INFO] sending requests to warm up")
+        #print("[INFO] sending requests to warm up")
         output = nq.query_llm(prompts=inputs, max_output_token=args.start_len)
-        print("----------output-----------")
-        print(output)
+        #print("----------output-----------")
+        #print(output)
  
     latencies = []
     for i in range(args.num_runs):
