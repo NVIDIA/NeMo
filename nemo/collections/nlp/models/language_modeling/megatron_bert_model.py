@@ -124,12 +124,12 @@ class MegatronBertModel(MegatronBaseModel):
                 converted_model = []
                 for module in self.model:
                     converted_model.append(
-                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                        Float16Module(config=self.model_parallel_config, module=module, precision=self.cfg.precision)
                     )
                 self.model = converted_model
             else:
                 self.model = Float16Module(
-                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                    config=self.model_parallel_config, module=self.model, precision=self.cfg.precision
                 )
 
         if hasattr(self, '_nsys_profile_enabled'):
