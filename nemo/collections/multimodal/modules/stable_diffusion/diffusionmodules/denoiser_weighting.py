@@ -11,7 +11,7 @@ class EDMWeighting:
         self.sigma_data = sigma_data
 
     def __call__(self, sigma):
-        return (sigma**2 + self.sigma_data**2) / (sigma * self.sigma_data) ** 2
+        return (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
 
 
 class VWeighting(EDMWeighting):
@@ -21,4 +21,4 @@ class VWeighting(EDMWeighting):
 
 class EpsWeighting:
     def __call__(self, sigma):
-        return sigma**-2.0
+        return sigma ** -2.0

@@ -1,5 +1,6 @@
-from typing import List, Optional, Tuple, Union
 from abc import ABC
+from typing import List, Optional, Tuple, Union
+
 import numpy as np
 import torch
 
@@ -60,7 +61,8 @@ class DDIMScheduler(ABC):
             [`--offset_noise`](https://github.com/huggingface/diffusers/blob/74fd735eb073eb1d774b1ab4154a0876eb82f055/examples/dreambooth/train_dreambooth.py#L506).
     """
 
-    order=1
+    order = 1
+
     def __init__(
         self,
         num_train_timesteps: int = 1000,
@@ -100,7 +102,7 @@ class DDIMScheduler(ABC):
         elif beta_schedule == "scaled_linear":
             # this schedule is very specific to the latent diffusion model.
             self.betas = (
-                torch.linspace(beta_start**0.5, beta_end**0.5, num_train_timesteps, dtype=torch.float32) ** 2
+                torch.linspace(beta_start ** 0.5, beta_end ** 0.5, num_train_timesteps, dtype=torch.float32) ** 2
             )
         elif beta_schedule == "squaredcos_cap_v2":
             # Glide cosine schedule
@@ -208,10 +210,7 @@ class DDIMScheduler(ABC):
         # "linspace", "leading", "trailing" corresponds to annotation of Table 2. of https://arxiv.org/abs/2305.08891
         if self.timestep_spacing == "linspace":
             timesteps = (
-                np.linspace(0, self.num_train_timesteps - 1, num_inference_steps)
-                .round()[::-1]
-                .copy()
-                .astype(np.int64)
+                np.linspace(0, self.num_train_timesteps - 1, num_inference_steps).round()[::-1].copy().astype(np.int64)
             )
         elif self.timestep_spacing == "leading":
             step_ratio = self.num_train_timesteps // self.num_inference_steps
@@ -302,8 +301,8 @@ class DDIMScheduler(ABC):
             pred_original_sample = model_output
             pred_epsilon = (sample - alpha_prod_t ** (0.5) * pred_original_sample) / beta_prod_t ** (0.5)
         elif self.prediction_type == "v_prediction":
-            pred_original_sample = (alpha_prod_t**0.5) * sample - (beta_prod_t**0.5) * model_output
-            pred_epsilon = (alpha_prod_t**0.5) * model_output + (beta_prod_t**0.5) * sample
+            pred_original_sample = (alpha_prod_t ** 0.5) * sample - (beta_prod_t ** 0.5) * model_output
+            pred_epsilon = (alpha_prod_t ** 0.5) * model_output + (beta_prod_t ** 0.5) * sample
         else:
             raise ValueError(
                 f"prediction_type given as {self.prediction_type} must be one of `epsilon`, `sample`, or"
@@ -314,9 +313,7 @@ class DDIMScheduler(ABC):
         if self.thresholding:
             pred_original_sample = self._threshold_sample(pred_original_sample)
         elif self.clip_sample:
-            pred_original_sample = pred_original_sample.clamp(
-                -self.clip_sample_range, self.clip_sample_range
-            )
+            pred_original_sample = pred_original_sample.clamp(-self.clip_sample_range, self.clip_sample_range)
 
         # 5. compute variance: "sigma_t(η)" -> see formula (16)
         # σ_t = sqrt((1 − α_t−1)/(1 − α_t)) * sqrt(1 − α_t/α_t−1)
@@ -328,7 +325,7 @@ class DDIMScheduler(ABC):
             pred_epsilon = (sample - alpha_prod_t ** (0.5) * pred_original_sample) / beta_prod_t ** (0.5)
 
         # 6. compute "direction pointing to x_t" of formula (12) from https://arxiv.org/pdf/2010.02502.pdf
-        pred_sample_direction = (1 - alpha_prod_t_prev - std_dev_t**2) ** (0.5) * pred_epsilon
+        pred_sample_direction = (1 - alpha_prod_t_prev - std_dev_t ** 2) ** (0.5) * pred_epsilon
 
         # 7. compute x_t without "random noise" of formula (12) from https://arxiv.org/pdf/2010.02502.pdf
         prev_sample = alpha_prod_t_prev ** (0.5) * pred_original_sample + pred_sample_direction
@@ -350,13 +347,9 @@ class DDIMScheduler(ABC):
 
         return (prev_sample,)
 
-
     # Copied from diffusers.schedulers.scheduling_ddpm.DDPMScheduler.add_noise
     def add_noise(
-        self,
-        original_samples: torch.FloatTensor,
-        noise: torch.FloatTensor,
-        timesteps: torch.IntTensor,
+        self, original_samples: torch.FloatTensor, noise: torch.FloatTensor, timesteps: torch.IntTensor,
     ) -> torch.FloatTensor:
         # Make sure alphas_cumprod and timestep have same device and dtype as original_samples
         alphas_cumprod = self.alphas_cumprod.to(device=original_samples.device, dtype=original_samples.dtype)

@@ -1,9 +1,8 @@
 from omegaconf.omegaconf import OmegaConf
-from nemo.core.config import hydra_runner
 
-from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import SamplingPipeline
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally
-
+from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import SamplingPipeline
+from nemo.core.config import hydra_runner
 
 '''
 SD_XL_BASE_RATIOS = {
@@ -66,10 +65,11 @@ def main(cfg):
             image=samples_z,
             prompt=cfg.infer.prompt,
             negative_prompt=cfg.infer.negative_prompt,
-            samples=cfg.infer.num_samples
+            samples=cfg.infer.num_samples,
         )
 
     perform_save_locally(cfg.out_path, samples)
+
 
 if __name__ == "__main__":
     main()

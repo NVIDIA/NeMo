@@ -1,38 +1,35 @@
-from nemo.core.classes.common import Serialization
-from nemo.core.config import hydra_runner
-from typing import List, Optional, Tuple, Union
-from omegaconf import OmegaConf
-import torch
 import pathlib
+from enum import Enum
+from typing import List, Optional, Tuple, Union
+
 import numpy
+import torch
+from omegaconf import OmegaConf
 from PIL import Image
 from tqdm import tqdm
-from enum import Enum
+
 from nemo.collections.multimodal.models.stable_diffusion.diffusion_engine import DiffusionEngine
-from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import (
-    do_img2img,
-    do_sample,
-    Img2ImgDiscretizationWrapper
-)
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling import (
+    DPMPP2MSampler,
+    DPMPP2SAncestralSampler,
+    EulerAncestralSampler,
     EulerEDMSampler,
     HeunEDMSampler,
-    EulerAncestralSampler,
-    DPMPP2SAncestralSampler,
-    DPMPP2MSampler,
     LinearMultistepSampler,
 )
-from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally, get_input_image_tensor
-
+from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import (
+    Img2ImgDiscretizationWrapper,
+    do_img2img,
+    do_sample,
+    get_input_image_tensor,
+    perform_save_locally,
+)
+from nemo.core.classes.common import Serialization
+from nemo.core.config import hydra_runner
 
 
 class SamplingPipeline:
-    def __init__(
-        self,
-        config_path,
-        device="cuda",
-        use_fp16=True,
-    ) -> None:
+    def __init__(self, config_path, device="cuda", use_fp16=True,) -> None:
         self.config = config_path
         self.device = device
         self.config = OmegaConf.load(self.config)
@@ -42,14 +39,8 @@ class SamplingPipeline:
             model.model.half()
         self.vae_scale_factor = 2 ** (len(self.config.model.first_stage_config.ddconfig.ch_mult) - 1)
 
-
     def text_to_image(
-        self,
-        params,
-        prompt: str,
-        negative_prompt: str = "",
-        samples: int = 1,
-        return_latents: bool = False,
+        self, params, prompt: str, negative_prompt: str = "", samples: int = 1, return_latents: bool = False,
     ):
         sampler = get_sampler_config(params)
         value_dict = OmegaConf.to_container(params, resolve=True)
@@ -72,20 +63,13 @@ class SamplingPipeline:
         )
 
     def image_to_image(
-        self,
-        params,
-        image,
-        prompt: str,
-        negative_prompt: str = "",
-        samples: int = 1,
-        return_latents: bool = False,
+        self, params, image, prompt: str, negative_prompt: str = "", samples: int = 1, return_latents: bool = False,
     ):
         sampler = get_sampler_config(params)
 
         if params.img2img_strength < 1.0:
             sampler.discretization = Img2ImgDiscretizationWrapper(
-                sampler.discretization,
-                strength=params.img2img_strength,
+                sampler.discretization, strength=params.img2img_strength,
             )
         height, width = image.shape[2], image.shape[3]
         value_dict = OmegaConf.to_container(params, resolve=True)
@@ -116,8 +100,7 @@ class SamplingPipeline:
         sampler = get_sampler_config(params)
         if params.img2img_strength < 1.0:
             sampler.discretization = Img2ImgDiscretizationWrapper(
-                sampler.discretization,
-                strength=params.img2img_strength,
+                sampler.discretization, strength=params.img2img_strength,
             )
         value_dict = {
             "orig_width": image.shape[3] * 8,
@@ -178,16 +161,11 @@ def get_discretization_config(params):
     elif params.discretization == "EDMDiscretization":
         discretization_config = {
             "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.discretizer.EDMDiscretization",
-            "params": {
-                "sigma_min": params.sigma_min,
-                "sigma_max": params.sigma_max,
-                "rho": params.rho,
-            },
+            "params": {"sigma_min": params.sigma_min, "sigma_max": params.sigma_max, "rho": params.rho,},
         }
     else:
         raise ValueError(f"unknown discretization {params.discretization}")
     return discretization_config
-
 
 
 def get_sampler_config(params):
@@ -251,5 +229,3 @@ def get_sampler_config(params):
         )
 
     raise ValueError(f"unknown sampler {params.sampler}!")
-
-

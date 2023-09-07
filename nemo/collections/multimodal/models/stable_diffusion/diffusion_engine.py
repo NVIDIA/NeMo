@@ -1,32 +1,31 @@
+from abc import ABC, abstractclassmethod
 from contextlib import contextmanager
 from typing import Any, Dict, List, Tuple, Union
 
+import hydra
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from pytorch_lightning import Trainer
-from omegaconf import ListConfig, OmegaConf, DictConfig
-from safetensors.torch import load_file as load_safetensors
-from torch.optim.lr_scheduler import LambdaLR
 from einops import rearrange
-import hydra
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from omegaconf import DictConfig, ListConfig, OmegaConf
+from pytorch_lightning import Trainer
+from pytorch_lightning.utilities.distributed import rank_zero_only
+from safetensors.torch import load_file as load_safetensors
 from torch._dynamo import optimize
+from torch.optim.lr_scheduler import LambdaLR
 
+from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import build_sdxl_train_valid_datasets
+from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.wrappers import OPENAIUNETWRAPPER
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     default,
     disabled_train,
-    log_txt_as_img,
     get_obj_from_str,
     instantiate_from_config,
+    log_txt_as_img,
 )
-
-from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import build_sdxl_train_valid_datasets
-from pytorch_lightning.utilities.distributed import rank_zero_only
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import ModelPT, Serialization
-from abc import ABC, abstractclassmethod
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.wrappers import OPENAIUNETWRAPPER
-from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
 from nemo.utils import logging
 
 try:
@@ -53,10 +52,9 @@ UNCONDITIONAL_CONFIG = {
     "params": {"emb_models": []},
 }
 
+
 class DiffusionEngine(nn.Module, Serialization):
-    def __init__(
-        self, cfg
-    ):
+    def __init__(self, cfg):
         super().__init__()
         unet_config = cfg.unet_config
         denoiser_config = cfg.denoiser_config
@@ -69,42 +67,28 @@ class DiffusionEngine(nn.Module, Serialization):
         network_wrapper = cfg.get('network_wrapper', None)
         compile_model = cfg.get('compile_model', False)
 
-
         self.channels_last = cfg.get('channels_last', False)
         self.log_keys = cfg.get('log_keys', None)
         self.input_key = cfg.get('input_key', 'images')
 
-        self.loss_fn = (
-            DiffusionEngine.from_config_dict(loss_fn_config)
-            if loss_fn_config is not None
-            else None
-        )
+        self.loss_fn = DiffusionEngine.from_config_dict(loss_fn_config) if loss_fn_config is not None else None
 
         model = DiffusionEngine.from_config_dict(unet_config)
-        self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(
-            model, compile_model=compile_model
-        )
+        self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(model, compile_model=compile_model)
         if cfg.get('inductor', False):
             self.model = optimize("inductor")(self.model)
 
-
         self.denoiser = DiffusionEngine.from_config_dict(denoiser_config)
-        self.sampler = (
-            instantiate_from_config(sampler_config)
-            if sampler_config is not None
-            else None
-        )
+        self.sampler = instantiate_from_config(sampler_config) if sampler_config is not None else None
 
-        self.conditioner = DiffusionEngine.from_config_dict(
-            default(conditioner_config, UNCONDITIONAL_CONFIG)
-        )
+        self.conditioner = DiffusionEngine.from_config_dict(default(conditioner_config, UNCONDITIONAL_CONFIG))
         self.scheduler_config = scheduler_config
         self._init_first_stage(first_stage_config)
         self.model_type = None
 
-        self.rng=torch.Generator(device=torch.cuda.current_device(),)
+        self.rng = torch.Generator(device=torch.cuda.current_device(),)
 
-        self.use_ema = False # TODO use_ema need to switch to NeMo style
+        self.use_ema = False  # TODO use_ema need to switch to NeMo style
         if self.use_ema:
             self.model_ema = LitEma(self.model, decay=ema_decay_rate)
             print(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
@@ -160,24 +144,15 @@ class DiffusionEngine(nn.Module, Serialization):
     def training_step(self, batch, batch_idx):
         loss, loss_dict = self.shared_step(batch)
 
-        self.log_dict(
-            loss_dict, prog_bar=True, logger=True, on_step=True, on_epoch=False
-        )
+        self.log_dict(loss_dict, prog_bar=True, logger=True, on_step=True, on_epoch=False)
 
         self.log(
-            "global_step",
-            self.global_step,
-            prog_bar=True,
-            logger=True,
-            on_step=True,
-            on_epoch=False,
+            "global_step", self.global_step, prog_bar=True, logger=True, on_step=True, on_epoch=False,
         )
 
         if self.scheduler_config is not None:
             lr = self.optimizers().param_groups[0]["lr"]
-            self.log(
-                "lr_abs", lr, prog_bar=True, logger=True, on_step=True, on_epoch=False
-            )
+            self.log("lr_abs", lr, prog_bar=True, logger=True, on_step=True, on_epoch=False)
 
         return loss
 
@@ -205,9 +180,7 @@ class DiffusionEngine(nn.Module, Serialization):
                     print(f"{context}: Restored training weights")
 
     def instantiate_optimizer_from_config(self, params, lr, cfg):
-        return get_obj_from_str(cfg["target"])(
-            params, lr=lr, **cfg.get("params", dict())
-        )
+        return get_obj_from_str(cfg["target"])(params, lr=lr, **cfg.get("params", dict()))
 
     def configure_optimizers(self):
         lr = self.learning_rate
@@ -220,11 +193,7 @@ class DiffusionEngine(nn.Module, Serialization):
             scheduler = DiffusionEngine.from_config_dict(self.scheduler_config)
             print("Setting up LambdaLR scheduler...")
             scheduler = [
-                {
-                    "scheduler": LambdaLR(opt, lr_lambda=scheduler.schedule),
-                    "interval": "step",
-                    "frequency": 1,
-                }
+                {"scheduler": LambdaLR(opt, lr_lambda=scheduler.schedule), "interval": "step", "frequency": 1,}
             ]
             return [opt], scheduler
         return opt
@@ -240,9 +209,7 @@ class DiffusionEngine(nn.Module, Serialization):
     ):
         randn = torch.randn(batch_size, *shape).to(self.device)
 
-        denoiser = lambda input, sigma, c: self.denoiser(
-            self.model, input, sigma, c, **kwargs
-        )
+        denoiser = lambda input, sigma, c: self.denoiser(self.model, input, sigma, c, **kwargs)
         samples = self.sampler(denoiser, randn, cond, uc=uc)
         return samples
 
@@ -256,9 +223,7 @@ class DiffusionEngine(nn.Module, Serialization):
         log = dict()
 
         for embedder in self.conditioner.embedders:
-            if (
-                (self.log_keys is None) or (embedder.input_key in self.log_keys)
-            ) and not self.no_cond_log:
+            if ((self.log_keys is None) or (embedder.input_key in self.log_keys)) and not self.no_cond_log:
                 x = batch[embedder.input_key][:n]
                 if isinstance(x, torch.Tensor):
                     if x.dim() == 1:
@@ -267,10 +232,7 @@ class DiffusionEngine(nn.Module, Serialization):
                         xc = log_txt_as_img((image_h, image_w), x, size=image_h // 4)
                     elif x.dim() == 2:
                         # size and crop cond and the like
-                        x = [
-                            "x".join([str(xx) for xx in x[i].tolist()])
-                            for i in range(x.shape[0])
-                        ]
+                        x = ["x".join([str(xx) for xx in x[i].tolist()]) for i in range(x.shape[0])]
                         xc = log_txt_as_img((image_h, image_w), x, size=image_h // 20)
                     else:
                         raise NotImplementedError()
@@ -285,21 +247,13 @@ class DiffusionEngine(nn.Module, Serialization):
                 log[embedder.input_key] = xc
         return log
 
-
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
         # only required for pipeline parallelism
         pass
 
     @torch.no_grad()
-    def log_images(
-        self,
-        batch: Dict,
-        N: int = 8,
-        sample: bool = True,
-        ucg_keys: List[str] = None,
-        **kwargs,
-    ) -> Dict:
+    def log_images(self, batch: Dict, N: int = 8, sample: bool = True, ucg_keys: List[str] = None, **kwargs,) -> Dict:
         conditioner_input_keys = [e.input_key for e in self.conditioner.embedders]
         if ucg_keys:
             assert all(map(lambda x: x in conditioner_input_keys, ucg_keys)), (
@@ -313,10 +267,7 @@ class DiffusionEngine(nn.Module, Serialization):
         x = self.get_input(batch)
 
         c, uc = self.conditioner.get_unconditional_conditioning(
-            batch,
-            force_uc_zero_embeddings=ucg_keys
-            if len(self.conditioner.embedders) > 0
-            else [],
+            batch, force_uc_zero_embeddings=ucg_keys if len(self.conditioner.embedders) > 0 else [],
         )
 
         sampling_kwargs = {}
@@ -334,13 +285,10 @@ class DiffusionEngine(nn.Module, Serialization):
 
         if sample:
             with self.ema_scope("Plotting"):
-                samples = self.sample(
-                    c, shape=z.shape[1:], uc=uc, batch_size=N, **sampling_kwargs
-                )
+                samples = self.sample(c, shape=z.shape[1:], uc=uc, batch_size=N, **sampling_kwargs)
             samples = self.decode_first_stage(samples)
             log["samples"] = samples
         return log
-
 
 
 class MegatronDiffusionEngine(MegatronMultimodalModel):
@@ -531,7 +479,7 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
                 else:
                     x = rearrange(x, "b h w c -> b c h w")
                     x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
-               # x = batch[self.model.input_key].cuda(non_blocking=True)
+                # x = batch[self.model.input_key].cuda(non_blocking=True)
                 x = self.model.encode_first_stage(x)
                 batch['global_step'] = self.trainer.global_step
 
@@ -540,7 +488,6 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             x, batch = process_batch(batch)
-
 
             loss, loss_dict = model(x, batch)
 
@@ -637,7 +584,6 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
         logging.info('Building datasets for Stable Diffusion...')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
-
 
         self._train_ds, self._validation_ds = build_sdxl_train_valid_datasets(
             model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0)

@@ -21,27 +21,27 @@ import open_clip
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
-from omegaconf import OmegaConf, ListConfig
+from omegaconf import ListConfig, OmegaConf
 from torch.utils.checkpoint import checkpoint
 from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 from transformers.models.clip.modeling_clip import CLIPTextTransformer
-from nemo.collections.multimodal.parts.stable_diffusion.utils import (
-    disabled_train,
-    instantiate_from_config,
-    count_params,
-    expand_dims_like
-)
 
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
 from nemo.collections.multimodal.models.clip.megatron_clip_models import CLIPModel
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import Timestep
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import (
     TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 )
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
+from nemo.collections.multimodal.parts.stable_diffusion.utils import (
+    count_params,
+    disabled_train,
+    expand_dims_like,
+    instantiate_from_config,
+)
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import Timestep
 from nemo.utils import logging
 
 
@@ -97,7 +97,6 @@ class AbstractEmbModel(nn.Module):
         del self._input_key
 
 
-
 class GeneralConditioner(nn.Module):
     OUTPUT_DIM2KEYS = {2: "vector", 3: "crossattn", 4: "concat", 5: "concat"}
     KEY2CATDIM = {"vector": 1, "crossattn": 2, "concat": 1}
@@ -128,9 +127,7 @@ class GeneralConditioner(nn.Module):
             elif "input_keys" in embconfig:
                 embedder.input_keys = embconfig["input_keys"]
             else:
-                raise KeyError(
-                    f"need either 'input_key' or 'input_keys' for embedder {embedder.__class__.__name__}"
-                )
+                raise KeyError(f"need either 'input_key' or 'input_keys' for embedder {embedder.__class__.__name__}")
 
             embedder.legacy_ucg_val = embconfig.get("legacy_ucg_value", None)
             if embedder.legacy_ucg_val is not None:
@@ -148,9 +145,7 @@ class GeneralConditioner(nn.Module):
                 batch[embedder.input_key][i] = val
         return batch
 
-    def forward(
-        self, batch: Dict, force_zero_embeddings: Optional[List] = None
-    ) -> Dict:
+    def forward(self, batch: Dict, force_zero_embeddings: Optional[List] = None) -> Dict:
         output = dict()
         if force_zero_embeddings is None:
             force_zero_embeddings = []
@@ -173,30 +168,20 @@ class GeneralConditioner(nn.Module):
                 if embedder.ucg_rate > 0.0 and embedder.legacy_ucg_val is None:
                     emb = (
                         expand_dims_like(
-                            torch.bernoulli(
-                                (1.0 - embedder.ucg_rate)
-                                * torch.ones(emb.shape[0], device=emb.device)
-                            ),
+                            torch.bernoulli((1.0 - embedder.ucg_rate) * torch.ones(emb.shape[0], device=emb.device)),
                             emb,
                         )
                         * emb
                     )
-                if (
-                    hasattr(embedder, "input_key")
-                    and embedder.input_key in force_zero_embeddings
-                ):
+                if hasattr(embedder, "input_key") and embedder.input_key in force_zero_embeddings:
                     emb = torch.zeros_like(emb)
                 if out_key in output:
-                    output[out_key] = torch.cat(
-                        (output[out_key], emb), self.KEY2CATDIM[out_key]
-                    )
+                    output[out_key] = torch.cat((output[out_key], emb), self.KEY2CATDIM[out_key])
                 else:
                     output[out_key] = emb
         return output
 
-    def get_unconditional_conditioning(
-        self, batch_c, batch_uc=None, force_uc_zero_embeddings=None
-    ):
+    def get_unconditional_conditioning(self, batch_c, batch_uc=None, force_uc_zero_embeddings=None):
         if force_uc_zero_embeddings is None:
             force_uc_zero_embeddings = []
         ucg_rates = list()
@@ -209,11 +194,6 @@ class GeneralConditioner(nn.Module):
         for embedder, rate in zip(self.embedders, ucg_rates):
             embedder.ucg_rate = rate
         return c, uc
-
-
-
-
-
 
 
 class ClassEmbedder(nn.Module):
@@ -355,7 +335,14 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
     LAYERS = ["last", "pooled", "hidden"]
 
     def __init__(
-        self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77, capture_cudagraph_iters: int = -1, layer="last", layer_idx=None, always_return_pooled=False
+        self,
+        version="openai/clip-vit-large-patch14",
+        device="cuda",
+        max_length=77,
+        capture_cudagraph_iters: int = -1,
+        layer="last",
+        layer_idx=None,
+        always_return_pooled=False,
     ):
         super().__init__()
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
@@ -470,7 +457,6 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
         model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'), pretrained=version)
         del model.visual
         self.model = model
-
 
         self.max_length = max_length
         if freeze:
@@ -665,12 +651,8 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
     ):
         super().__init__()
         assert layer in self.LAYERS
-        self.projection_dim=1280
-        model, _, _ = open_clip.create_model_and_transforms(
-            arch,
-            device=torch.device("cpu"),
-            pretrained=version,
-        )
+        self.projection_dim = 1280
+        model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device("cpu"), pretrained=version,)
         del model.visual
         self.model = model
 
@@ -726,10 +708,7 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
 
     def pool(self, x, text):
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        x = (
-            x[torch.arange(x.shape[0]), text.argmax(dim=-1)]
-            @ self.model.text_projection
-        )
+        x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.model.text_projection
         return x
 
     def text_transformer_forward(self, x: torch.Tensor, attn_mask=None):
@@ -737,10 +716,7 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
         for i, r in enumerate(self.model.transformer.resblocks):
             if i == len(self.model.transformer.resblocks) - 1:
                 outputs["penultimate"] = x.permute(1, 0, 2)  # LND -> NLD
-            if (
-                self.model.transformer.grad_checkpointing
-                and not torch.jit.is_scripting()
-            ):
+            if self.model.transformer.grad_checkpointing and not torch.jit.is_scripting():
                 x = checkpoint(r, x, attn_mask)
             else:
                 x = r(x, attn_mask=attn_mask)
@@ -749,7 +725,6 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
 
     def encode(self, text):
         return self(text)
-
 
 
 class ConcatTimestepEmbedderND(AbstractEmbModel):
@@ -772,7 +747,6 @@ class ConcatTimestepEmbedderND(AbstractEmbModel):
         if self.device == 'cuda':
             return emb.to(torch.cuda.current_device())
         return emb
-
 
 
 if __name__ == "__main__":

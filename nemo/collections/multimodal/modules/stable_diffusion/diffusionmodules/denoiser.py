@@ -3,6 +3,7 @@ import torch.nn as nn
 from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims, instantiate_from_config
 from nemo.core.classes import Serialization
 
+
 class Denoiser(nn.Module, Serialization):
     def __init__(self, weighting_config, scaling_config):
         super().__init__()
@@ -39,9 +40,7 @@ class DiscreteDenoiser(Denoiser):
         flip=True,
     ):
         super().__init__(weighting_config, scaling_config)
-        sigmas = discretization_config(
-            num_idx, do_append_zero=do_append_zero, flip=flip
-        )
+        sigmas = discretization_config(num_idx, do_append_zero=do_append_zero, flip=flip)
         self.register_buffer("sigmas", sigmas)
         self.quantize_c_noise = quantize_c_noise
 

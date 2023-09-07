@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
-import numpy as np
-import torchvision.transforms as TT
 from functools import partial
 
+import numpy as np
+import torch
+import torchvision.transforms as TT
 
 from nemo.collections.multimodal.data.common.webdataset import WebDatasetCommon
 from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentations import (
@@ -156,7 +156,6 @@ def build_sdxl_train_valid_datasets(
             ).permute(1, 2, 0)
             out_dict["crop_coords_top_left"] = torch.tensor([top, left])
             yield out_dict
-
 
     def transform_fn(sample):
         image, text = sample["jpg"], sample["txt"]

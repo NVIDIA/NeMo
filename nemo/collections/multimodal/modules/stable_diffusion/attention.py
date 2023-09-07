@@ -225,12 +225,8 @@ class CrossAttention(nn.Module):
             # reprogramming cross-frame attention as in https://arxiv.org/abs/2303.13439
             assert x.shape[0] % n_times_crossframe_attn_in_self == 0
             n_cp = x.shape[0] // n_times_crossframe_attn_in_self
-            k = repeat(
-                k[::n_times_crossframe_attn_in_self], "b ... -> (b n) ...", n=n_cp
-            )
-            v = repeat(
-                v[::n_times_crossframe_attn_in_self], "b ... -> (b n) ...", n=n_cp
-            )
+            k = repeat(k[::n_times_crossframe_attn_in_self], "b ... -> (b n) ...", n=n_cp)
+            v = repeat(v[::n_times_crossframe_attn_in_self], "b ... -> (b n) ...", n=n_cp)
 
         out = self._attention(q, k, v, mask, additional_tokens=None)
 
@@ -246,8 +242,6 @@ class CrossAttention(nn.Module):
             or (self.dim_head > 128 or (self.dim_head % 8) != 0)
             or mask is not None
         ):
-
-
 
             # original implementation
             # b n (h d) -> (b h) n d
@@ -268,7 +262,6 @@ class CrossAttention(nn.Module):
             attn = sim.softmax(dim=-1)
 
             out = einsum('b i j, b j d -> b i d', attn, v)
-
 
             # (b h) n d -> b n (h d)
             out = rearrange_heads_inner(out, h)
@@ -316,7 +309,7 @@ class BasicTransformerBlock(nn.Module):
         use_checkpoint=False,
         use_flash_attention=False,
         disable_self_attn=False,
-        attn_mode="softmax", #we use flash attn, and softmax points to CrossAttention Block
+        attn_mode="softmax",  # we use flash attn, and softmax points to CrossAttention Block
     ):
         super().__init__()
         self.disable_self_attn = disable_self_attn
@@ -354,17 +347,19 @@ class BasicTransformerBlock(nn.Module):
             kwargs.update({"additional_tokens": additional_tokens})
 
         if n_times_crossframe_attn_in_self:
-            kwargs.update(
-                {"n_times_crossframe_attn_in_self": n_times_crossframe_attn_in_self}
-            )
+            kwargs.update({"n_times_crossframe_attn_in_self": n_times_crossframe_attn_in_self})
         return checkpoint(self._forward, (x, context), self.parameters(), self.use_checkpoint)
 
     def _forward(self, x, context=None, additional_tokens=None, n_times_crossframe_attn_in_self=0):
-        x = self.attn1(
-            self.norm1(x),
-            context=context if self.disable_self_attn else None,
-            additional_tokens=additional_tokens,
-            n_times_crossframe_attn_in_self=n_times_crossframe_attn_in_self if not self.disable_self_attn else 0) + x
+        x = (
+            self.attn1(
+                self.norm1(x),
+                context=context if self.disable_self_attn else None,
+                additional_tokens=additional_tokens,
+                n_times_crossframe_attn_in_self=n_times_crossframe_attn_in_self if not self.disable_self_attn else 0,
+            )
+            + x
+        )
         x = self.attn2(self.norm2(x), context=context, additional_tokens=additional_tokens) + x
         x = self.ff(self.norm3(x)) + x
         return x
@@ -394,10 +389,9 @@ class SpatialTransformer(nn.Module):
         use_flash_attention=False,
     ):
         super().__init__()
-        print(
-            f"constructing {self.__class__.__name__} of depth {depth} w/ {in_channels} channels and {n_heads} heads"
-        )
+        print(f"constructing {self.__class__.__name__} of depth {depth} w/ {in_channels} channels and {n_heads} heads")
         from omegaconf import ListConfig
+
         if exists(context_dim) and not isinstance(context_dim, (list, ListConfig)):
             context_dim = [context_dim]
         if exists(context_dim) and isinstance(context_dim, list):
@@ -468,4 +462,4 @@ class SpatialTransformer(nn.Module):
         x = x.transpose(1, 2).view(b, c, h, w)  # b (h w) c -> b c h w
         if not self.use_linear:
             x = self.proj_out(x)
-        return x + x_in
+        return x_in + x

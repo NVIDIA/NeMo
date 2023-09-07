@@ -37,9 +37,7 @@ class StandardDiffusionLoss(nn.Module):
 
     def __call__(self, network, denoiser, conditioner, input, batch):
         cond = conditioner(batch)
-        additional_model_inputs = {
-            key: batch[key] for key in self.batch2model_keys.intersection(batch)
-        }
+        additional_model_inputs = {key: batch[key] for key in self.batch2model_keys.intersection(batch)}
 
         sigmas = self.sigma_sampler(input.shape[0]).to(input.device)
         noise = torch.randn_like(input)
@@ -48,19 +46,12 @@ class StandardDiffusionLoss(nn.Module):
                 torch.randn(input.shape[0], device=input.device), input.ndim
             )
         noised_input = input + noise * append_dims(sigmas, input.ndim)
-        model_output = denoiser(
-            network, noised_input, sigmas, cond, **additional_model_inputs
-        )
+        model_output = denoiser(network, noised_input, sigmas, cond, **additional_model_inputs)
         w = append_dims(denoiser.w(sigmas), input.ndim)
         return self.get_loss(model_output, input, w)
 
     def get_loss(self, model_output, target, w):
         if self.type == "l2":
-            return torch.mean(
-                (w * (model_output - target) ** 2).reshape(target.shape[0], -1), 1
-            )
+            return torch.mean((w * (model_output - target) ** 2).reshape(target.shape[0], -1), 1)
         elif self.type == "l1":
-            return torch.mean(
-                (w * (model_output - target).abs()).reshape(target.shape[0], -1), 1
-            )
-
+            return torch.mean((w * (model_output - target).abs()).reshape(target.shape[0], -1), 1)

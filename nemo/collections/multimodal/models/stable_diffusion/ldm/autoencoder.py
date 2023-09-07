@@ -337,6 +337,7 @@ class AutoencoderKL(pl.LightningModule):
         if from_pretrained is not None:
             if from_pretrained.endswith('safetensors'):
                 from safetensors.torch import load_file as load_safetensors
+
                 state_dict = load_safetensors(from_pretrained)
             else:
                 state_dict = load_state_dict(from_pretrained)
@@ -431,7 +432,9 @@ class AutoencoderKL(pl.LightningModule):
                         del state_dict[checkpoint_key]
             return mismatched_keys
 
-        if 'encoder.mid.attn_1.q.weight' in loaded_keys and (state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512])):
+        if 'encoder.mid.attn_1.q.weight' in loaded_keys and (
+            state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512])
+        ):
             for key in [
                 'encoder.mid.attn_1.q.weight',
                 'decoder.mid.attn_1.q.weight',
@@ -678,6 +681,7 @@ class AutoencoderKL(pl.LightningModule):
 class AutoencoderKLInferenceWrapper(AutoencoderKL):
     def encode(self, x):
         return super().encode(x).sample()
+
 
 class IdentityFirstStage(torch.nn.Module):
     def __init__(self, *args, vq_interface=False, **kwargs):

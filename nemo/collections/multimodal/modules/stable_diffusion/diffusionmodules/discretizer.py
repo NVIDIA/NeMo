@@ -8,9 +8,7 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
 from nemo.collections.multimodal.parts.stable_diffusion.utils import append_zero
 
 
-def generate_roughly_equally_spaced_steps(
-    num_substeps: int, max_step: int
-) -> np.ndarray:
+def generate_roughly_equally_spaced_steps(num_substeps: int, max_step: int) -> np.ndarray:
     return np.linspace(max_step - 1, 0, num_substeps, endpoint=False).astype(int)[::-1]
 
 
@@ -41,16 +39,11 @@ class EDMDiscretization(Discretization):
 
 class LegacyDDPMDiscretization(Discretization):
     def __init__(
-        self,
-        linear_start=0.00085,
-        linear_end=0.0120,
-        num_timesteps=1000,
+        self, linear_start=0.00085, linear_end=0.0120, num_timesteps=1000,
     ):
         super().__init__()
         self.num_timesteps = num_timesteps
-        betas = make_beta_schedule(
-            "linear", num_timesteps, linear_start=linear_start, linear_end=linear_end
-        )
+        betas = make_beta_schedule("linear", num_timesteps, linear_start=linear_start, linear_end=linear_end)
         alphas = 1.0 - betas
         self.alphas_cumprod = np.cumprod(alphas, axis=0)
         self.to_torch = partial(torch.tensor, dtype=torch.float32)
