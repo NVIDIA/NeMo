@@ -557,7 +557,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             state_dict = new_state_dict
 
         return state_dict
-    
+
     def _load_state_dict_from_disk(self, model_weights, map_location=None):
         # if model_weights with the extension removed is a directory, we assume it is a distributed checkpoint
         # we need to defer loading the state dict so we return None
@@ -565,7 +565,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             return None
         else:
             return super()._load_state_dict_from_disk(model_weights, map_location)
-    
+
     def restore_from(
         self,
         calling_cls,
@@ -632,7 +632,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
                 dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=tmp_model_weights_dir)
-        
+
         else:
             state_dict = self.modify_state_dict(conf, state_dict)
             super().load_instance_with_state_dict(instance, state_dict, strict)
