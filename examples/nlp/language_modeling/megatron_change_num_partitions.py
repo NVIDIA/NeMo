@@ -16,6 +16,7 @@ import os
 import tempfile
 from argparse import ArgumentParser
 from typing import Dict, List
+import tarfile
 
 import torch
 import torch.nn as nn
@@ -1383,6 +1384,37 @@ def main():
             if args.tokenizer_model_path is not None:
                 with open_dict(model.cfg):
                     model.cfg.tokenizer.model = args.tokenizer_model_path
+
+            else:
+                # Extract all artifacts that are not binary files
+                # and save them to the model directory
+                print("Extracting artifact from NeMo file...")
+                temp_dir = tempfile.mkdtemp()
+                tokenizer_model_path = None
+                with tarfile.open(args.model_file, "r") as tar:
+                    for member in tar.getmembers():
+                        if member.name == '.':
+                            continue
+
+                        if member.type not in ['ckpt', 'pt']:
+                            if 'mp_rank' in member.name:
+                                continue
+
+                            extracted_file = tar.extractfile(member)
+                            extracted_file_path = os.path.join(temp_dir, member.name)
+
+                            if '.model' in member.name:
+                                tokenizer_model_path = extracted_file_path
+
+                            with open(extracted_file_path, "wb") as f:
+                                f.write(extracted_file.read())
+
+                if tokenizer_model_path is None:
+                    raise ValueError("Could not extract tokenizer model file from checkpoint.")
+
+                # Extract tokenizer info
+                with open_dict(model.cfg):
+                    model.cfg.tokenizer.model = tokenizer_model_path
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
 
