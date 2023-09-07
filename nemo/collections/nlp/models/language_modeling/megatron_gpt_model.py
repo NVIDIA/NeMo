@@ -231,11 +231,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
             )
         else:
-            self.model = build_model(
-                model_provider_func=self.model_provider_func,
-                wrap_with_ddp=False,
-                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-            )
+            fp8_enabled = cfg.get('fp8', False)
+            fp8_recipe = None
+            if fp8_enabled and HAVE_TE:
+                fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
+                    margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3
+                )
+            with transformer_engine.pytorch.fp8_autocast(
+                enabled=fp8_enabled, fp8_recipe=fp8_recipe
+            ):
+                self.model = build_model(
+                    model_provider_func=self.model_provider_func,
+                    wrap_with_ddp=False,
+                    virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                )
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
@@ -295,8 +304,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
+            from megatron.core.models.gpt.gpt_decoder_spec import get_gpt_decoder_spec
             model = MCoreGPTModel(
                 config=self.transformer_config,
+                spec=get_gpt_decoder_spec(),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
