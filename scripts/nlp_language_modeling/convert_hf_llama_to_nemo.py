@@ -253,19 +253,12 @@ def convert(args):
         # MLP
         mlp_down_weight = model.state_dict()[f'model.layers.{l}.mlp.gate_proj.weight']
         mlp_gate_weight = model.state_dict()[f'model.layers.{l}.mlp.up_proj.weight']
-        if args.fast_swiglu:
-            if mcore_gpt:
-                mlp_down_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.weight'
-            else:
-                mlp_down_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h.weight'
-            mlp_down_weight = torch.cat((mlp_down_weight, mlp_gate_weight), axis=0)
-            checkpoint['state_dict'][mlp_down_base_name] = param_to_weights(mlp_down_weight)
+        if mcore_gpt:
+            mlp_down_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.weight'
         else:
             mlp_down_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h.weight'
-            checkpoint['state_dict'][mlp_down_base_name] = param_to_weights(mlp_down_weight)
-
-            mlp_gate_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h_2.weight'
-            checkpoint['state_dict'][mlp_gate_base_name] = param_to_weights(mlp_gate_weight)
+        mlp_down_weight = torch.cat((mlp_down_weight, mlp_gate_weight), axis=0)
+        checkpoint['state_dict'][mlp_down_base_name] = param_to_weights(mlp_down_weight)
 
         mlp_up_weight = model.state_dict()[f'model.layers.{l}.mlp.down_proj.weight']
         if mcore_gpt:
