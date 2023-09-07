@@ -8,7 +8,7 @@ TASKS = {"qasper":
                 "subset": "NarrativeQA/test.jsonl"},
         "quality":
                 {"response": "Answer:",
-                "tokens_to_generate": 1,
+                "tokens_to_generate": 8,
                 "subset": "QuALITY/validation.jsonl"},
         "musique":
                 {"response": "Answer:",
