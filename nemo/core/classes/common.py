@@ -458,8 +458,6 @@ class Serialization(ABC):
 
             config = maybe_update_config_version(config)
 
-
-
         # Hydra 0.x API
         if ('cls' in config or 'target' in config) and 'params' in config and _HAS_HYDRA:
             # regular hydra-based instantiation

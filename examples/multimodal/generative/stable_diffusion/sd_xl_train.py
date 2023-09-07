@@ -16,7 +16,7 @@ import os
 from datetime import timedelta
 
 import torch
-from omegaconf.omegaconf import OmegaConf, open_dict, DictConfig
+from omegaconf.omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.strategies.ddp import DDPStrategy
@@ -27,8 +27,8 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
-    PipelineMixedPrecisionPlugin,
     NLPFSDPStrategy,
+    PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -116,7 +116,6 @@ def main(cfg) -> None:
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
-
 
     model = MegatronDiffusionEngine(cfg.model, trainer)
     trainer.fit(model)

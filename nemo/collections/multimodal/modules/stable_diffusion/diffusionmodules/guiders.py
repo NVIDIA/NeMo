@@ -15,10 +15,7 @@ class VanillaCFG:
         self.scale_schedule = partial(scale_schedule, scale)
         self.dyn_thresh = instantiate_from_config(
             default(
-                dyn_thresh_config,
-                {
-                    "target": "sgm.modules.diffusionmodules.sampling_utils.NoDynamicThresholding"
-                },
+                dyn_thresh_config, {"target": "sgm.modules.diffusionmodules.sampling_utils.NoDynamicThresholding"},
             )
         )
 

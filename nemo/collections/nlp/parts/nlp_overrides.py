@@ -47,9 +47,9 @@ from torch.distributed.fsdp.api import FullOptimStateDictConfig
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
 
+from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock, SpatialTransformer
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
-from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock, SpatialTransformer
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
@@ -250,7 +250,6 @@ class NLPDDPStrategy(DDPStrategy, ModelParallelCheckpointMethods):
             else:
                 super().configure_ddp()
 
-
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
@@ -362,7 +361,7 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy, ModelParallelCheckpointMeth
         # Use the default FSDP backward-prefetch policy for proper communication overlap.
         kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
         # Set FSDP wrapping policy: use Transformer layer module as the FSDP sharding granularity.
-        #self.fsdp_wrap_module = AutocastTransformerLayer if use_transformer_engine else ParallelTransformerLayer
+        # self.fsdp_wrap_module = AutocastTransformerLayer if use_transformer_engine else ParallelTransformerLayer
         ## TODO: MMY this is just a trial and will merge back with original when work
         self.fsdp_wrap_module = BasicTransformerBlock
         kwargs['auto_wrap_policy'] = functools.partial(
@@ -377,18 +376,21 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy, ModelParallelCheckpointMeth
         assert kwargs['sharding_strategy'] in list(fsdp_sharding_strategy.keys()), "Not a supported sharding strategy."
         assert kwargs['sharding_strategy'] != 'hybrid', "Hybrid sharding is currrently not supported."
         kwargs['sharding_strategy'] = fsdp_sharding_strategy[kwargs['sharding_strategy']]
-        kwargs['use_orig_params']=False ### Dynamo_ requires this part, but has some issue with retrieveing parameters to optimizer
+        kwargs[
+            'use_orig_params'
+        ] = False  ### Dynamo_ requires this part, but has some issue with retrieveing parameters to optimizer
 
         super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
-
 
     def _setup_model(self, model: torch.nn.Module):
         def find_frozen_submodules(model):
             frozen_submodules = []
             frozen_submodule_names = []
             for name, module in model.named_modules():
-                if isinstance(module, nn.Module) and list(module.parameters()) and all(
-                        not param.requires_grad for param in module.parameters()
+                if (
+                    isinstance(module, nn.Module)
+                    and list(module.parameters())
+                    and all(not param.requires_grad for param in module.parameters())
                 ):
                     frozen_submodule_names.append(name)
                     frozen_submodules.append(module)

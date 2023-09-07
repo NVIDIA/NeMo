@@ -22,6 +22,7 @@
 
 
 import math
+from inspect import isfunction
 
 import numpy as np
 import torch
@@ -29,8 +30,7 @@ import torch.nn as nn
 from einops import repeat
 from group_norm import GroupNormOpt
 from torch._dynamo import disable
-from inspect import isfunction
-from torch.cuda.amp import custom_fwd, custom_bwd
+from torch.cuda.amp import custom_bwd, custom_fwd
 
 
 def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
@@ -308,6 +308,7 @@ def expand_dims(v, dims):
     """
     return v[(...,) + (None,) * (dims - 1)]
 
+
 def exists(x):
     return x is not None
 
@@ -316,5 +317,3 @@ def default(val, d):
     if exists(val):
         return val
     return d() if isfunction(d) else d
-
-

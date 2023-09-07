@@ -27,12 +27,12 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
     avg_pool_nd,
     checkpoint,
     conv_nd,
+    default,
+    exists,
     linear,
     normalization,
     timestep_embedding,
     zero_module,
-    default,
-    exists
 )
 
 
@@ -231,7 +231,8 @@ class ResBlock(TimestepBlock):
             padding = kernel_size // 2
 
         self.in_layers = nn.Sequential(
-            normalization(channels, act="silu"), conv_nd(dims, channels, self.out_channels, kernel_size, padding=padding),
+            normalization(channels, act="silu"),
+            conv_nd(dims, channels, self.out_channels, kernel_size, padding=padding),
         )
 
         self.updown = up or down
@@ -246,18 +247,14 @@ class ResBlock(TimestepBlock):
             self.h_upd = self.x_upd = nn.Identity()
 
         self.skip_t_emb = skip_t_emb
-        self.emb_out_channels = (
-            2 * self.out_channels if use_scale_shift_norm else self.out_channels
-        )
+        self.emb_out_channels = 2 * self.out_channels if use_scale_shift_norm else self.out_channels
         if self.skip_t_emb:
             print(f"Skipping timestep embedding in {self.__class__.__name__}")
             assert not self.use_scale_shift_norm
             self.emb_layers = None
             self.exchange_temb_dims = False
         else:
-            self.emb_layers = nn.Sequential(
-                nn.SiLU(), linear(emb_channels, self.emb_out_channels),
-            )
+            self.emb_layers = nn.Sequential(nn.SiLU(), linear(emb_channels, self.emb_out_channels),)
         self.out_layers = nn.Sequential(
             normalization(self.out_channels, act="silu"),
             nn.Dropout(p=dropout),
@@ -550,9 +547,7 @@ class UNetModel(nn.Module):
             transformer_depth = len(channel_mult) * [transformer_depth]
         elif isinstance(transformer_depth, ListConfig):
             transformer_depth = list(transformer_depth)
-        transformer_depth_middle = default(
-            transformer_depth_middle, transformer_depth[-1]
-        )
+        transformer_depth_middle = default(transformer_depth_middle, transformer_depth[-1])
 
         if isinstance(num_res_blocks, int):
             self.num_res_blocks = len(channel_mult) * [num_res_blocks]
@@ -570,10 +565,7 @@ class UNetModel(nn.Module):
         if num_attention_blocks is not None:
             assert len(num_attention_blocks) == len(self.num_res_blocks)
             assert all(
-                map(
-                    lambda i: self.num_res_blocks[i] >= num_attention_blocks[i],
-                    range(len(num_attention_blocks)),
-                )
+                map(lambda i: self.num_res_blocks[i] >= num_attention_blocks[i], range(len(num_attention_blocks)),)
             )
             print(
                 f"Constructor of UNetModel received num_attention_blocks={num_attention_blocks}. "
@@ -593,9 +585,7 @@ class UNetModel(nn.Module):
         self.num_heads_upsample = num_heads_upsample
         self.predict_codebook_ids = n_embed is not None
 
-        assert use_fairscale_checkpoint != use_checkpoint or not (
-            use_checkpoint or use_fairscale_checkpoint
-        )
+        assert use_fairscale_checkpoint != use_checkpoint or not (use_checkpoint or use_fairscale_checkpoint)
 
         self.use_fairscale_checkpoint = False
         # Always used false here so no need of this
@@ -618,20 +608,16 @@ class UNetModel(nn.Module):
                 self.label_emb = nn.Linear(1, time_embed_dim)
             elif self.num_classes == "timestep":
                 self.label_emb = nn.Sequential(
-                        Timestep(model_channels),
-                        nn.Sequential(
-                            linear(model_channels, time_embed_dim),
-                            nn.SiLU(),
-                            linear(time_embed_dim, time_embed_dim),
-                        ),
-                    )
+                    Timestep(model_channels),
+                    nn.Sequential(
+                        linear(model_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
+                    ),
+                )
             elif self.num_classes == "sequential":
                 assert adm_in_channels is not None
                 self.label_emb = nn.Sequential(
                     nn.Sequential(
-                        linear(adm_in_channels, time_embed_dim),
-                        nn.SiLU(),
-                        linear(time_embed_dim, time_embed_dim),
+                        linear(adm_in_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
                     )
                 )
             else:
@@ -671,10 +657,7 @@ class UNetModel(nn.Module):
                     else:
                         disabled_sa = False
 
-                    if (
-                        not exists(num_attention_blocks)
-                        or nr < num_attention_blocks[level]
-                    ):
+                    if not exists(num_attention_blocks) or nr < num_attention_blocks[level]:
                         layers.append(
                             AttentionBlock(
                                 ch,
@@ -801,10 +784,7 @@ class UNetModel(nn.Module):
                     else:
                         disabled_sa = False
 
-                    if (
-                        not exists(num_attention_blocks)
-                        or i < num_attention_blocks[level]
-                    ):
+                    if not exists(num_attention_blocks) or i < num_attention_blocks[level]:
                         layers.append(
                             AttentionBlock(
                                 ch,
@@ -865,6 +845,7 @@ class UNetModel(nn.Module):
             else:
                 if from_pretrained.endswith('safetensors'):
                     from safetensors.torch import load_file as load_safetensors
+
                     state_dict = load_safetensors(from_pretrained)
                 else:
                     state_dict = load_state_dict(from_pretrained)
@@ -968,10 +949,11 @@ class UNetModel(nn.Module):
     def _sdxl_embedding_mapping(self, sdxl_dict):
         res_dict = {}
         for key_, value_ in sdxl_dict.items():
-            new_key_ = key_.replace('add_embedding.', 'label_emb.').replace('linear_1.', '0.0.').replace('linear_2.', '0.2.')
+            new_key_ = (
+                key_.replace('add_embedding.', 'label_emb.').replace('linear_1.', '0.0.').replace('linear_2.', '0.2.')
+            )
             res_dict[new_key_] = value_
         return res_dict
-
 
     def _state_key_mapping(self, state_dict: dict):
         import re
@@ -990,7 +972,7 @@ class UNetModel(nn.Module):
             elif "mid_block" in key_:
                 mid_dict[key_.replace('mid_block', 'middle_block')] = value_
             elif "add_embedding" in key_:
-                #SDXL related mapping
+                # SDXL related mapping
                 sdxl_dict[key_] = value_
             else:
                 other_dict[key_] = value_
@@ -1027,11 +1009,10 @@ class UNetModel(nn.Module):
         missing_keys = list(set(expected_keys) - set(loaded_keys))
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
-        #SDXL specific mapping
+        # SDXL specific mapping
         if 'output_blocks.2.2.conv.bias' in missing_keys and 'output_blocks.2.1.conv.bias' in loaded_keys:
             state_dict['output_blocks.2.2.conv.bias'] = state_dict['output_blocks.2.1.conv.bias']
             state_dict['output_blocks.2.2.conv.weight'] = state_dict['output_blocks.2.1.conv.weight']
-
 
         if (
             'input_blocks.1.0.in_layers.2.weight' in loaded_keys
