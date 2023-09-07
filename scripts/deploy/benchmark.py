@@ -187,6 +187,15 @@ def get_args(argv):
         help='Specify input length'
     )
 
+    parser.add_argument(
+        '-nr',
+        '--num_runs',
+        type=int,
+        default=8,
+        required=False,
+        help='Specify input length'
+    )
+
     args = parser.parse_args(argv)
     return args
 
