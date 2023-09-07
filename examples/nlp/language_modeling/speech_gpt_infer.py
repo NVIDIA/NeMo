@@ -45,7 +45,7 @@ print(OmegaConf.to_yaml(config.trainer))
 # checkpoint_path = "/mnt/drive1/experiments/selene_sgpt_2b_pretrain_11/megatron_sgpt_2b/megatron_gpt--val_loss=4.61-step=46005-consumed_samples=5888000.0-last.ckpt"
 checkpoint_path = "/home/jasoli/experiments/nemo_experiments/megatron_sgpt_843m_linear/checkpoints/megatron_gpt--val_loss=5.74-step=111000-consumed_samples=887984.0.ckpt"
 gpt_cfg = MegatronSpeechGPTModel.restore_from(
-#     restore_path="/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo",
+    #     restore_path="/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo",
     restore_path="/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo",
     trainer=trainer,
     return_config=True,
@@ -60,22 +60,22 @@ def load_from_checkpoint_dir(cls, cfg, trainer, checkpoint):
     cfg.cfg = cfg
     cfg.cfg.tokenizer.model = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/2053796188904e679f7e2754a2a1f280_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model"
     cfg.cfg.tokenizer.tokenizer_model = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/2053796188904e679f7e2754a2a1f280_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model"
-    cfg.cfg.override_vocab_size = 256000+1024*8
-    cfg.cfg.output_size = 256000+1024
+    cfg.cfg.override_vocab_size = 256000 + 1024 * 8
+    cfg.cfg.output_size = 256000 + 1024
     # cfg.cfg.speech_residual_model = "conv"
     with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
         OmegaConf.save(config=cfg, f=f.name)
         model = cls.load_from_checkpoint(checkpoint_path=checkpoint, trainer=trainer, hparams_file=f.name)
         return model
 
+
 model = load_from_checkpoint_dir(MegatronSpeechGPTModel, gpt_cfg, trainer, checkpoint_path)
 
 
+import librosa
+import torch
 from encodec import EncodecModel
 from encodec.utils import convert_audio
-
-import torch
-import librosa
 
 # Instantiate a pretrained EnCodec model
 encodec_model = EncodecModel.encodec_model_24khz()
@@ -87,7 +87,9 @@ encodec_model = EncodecModel.encodec_model_24khz()
 encodec_model.set_target_bandwidth(6)
 
 # Load and pre-process the audio waveform
-y, sr = librosa.load("/mnt/drive1/data/HiFiTTS/wav/8051_clean/14468/whomweshallwelcome_09_commission_0001.wav", sr=24000)
+y, sr = librosa.load(
+    "/mnt/drive1/data/HiFiTTS/wav/8051_clean/14468/whomweshallwelcome_09_commission_0001.wav", sr=24000
+)
 y = torch.unsqueeze(torch.tensor(y), 0)
 
 wav = convert_audio(y, sr, encodec_model.sample_rate, encodec_model.channels)
@@ -116,7 +118,7 @@ context_length = torch.tensor([context_length], device=model.device).contiguous(
 
 context_codes = codes[:,:,:context_length].detach().clone()
 for i in range(context_codes.shape[1]):
-    context_codes[:,i,:] += 256000 + 1024*i
+    context_codes[:, i, :] += 256000 + 1024 * i
 
 input_codes = torch.cat((context_codes, torch.zeros([*codes.shape[:-1], max_length], dtype=codes.dtype)), dim=-1)
 lengths = LengthParam(min_length=min_length, max_length=max_length)
@@ -130,4 +132,4 @@ with torch.no_grad():
     output = model.generate((input_codes.to(model.device), context_length), lengths, mode="multinomial")
 
 predicted_tensors = torch.tensor(output['token_ids'], device=model.device)
-print(input_codes[:,:,5:20].to(model.device) == predicted_tensors[:,:,5:20])
+print(input_codes[:, :, 5:20].to(model.device) == predicted_tensors[:, :, 5:20])
