@@ -610,6 +610,16 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
         # if we're using dist checkpointing then state_dict will be None
         if state_dict is None:
+            # dist checkpointing needs torch.distributed to load the checkpoint
+            if parallel_state.is_unitialized():
+
+                def dummy():
+                    return
+
+                if trainer.strategy.launcher is not None:
+                    trainer.strategy.launcher.launch(dummy, trainer=trainer)
+                trainer.strategy.setup_environment()
+
             with tempfile.TemporaryDirectory() as tmpdir:
                 # Check if self.model_extracted_dir is set, and is a valid path
                 if self.model_extracted_dir is not None and os.path.isdir(self.model_extracted_dir):
