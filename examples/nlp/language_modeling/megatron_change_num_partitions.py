@@ -1410,12 +1410,13 @@ def main():
                                 f.write(extracted_file.read())
 
                 if tokenizer_model_path is None:
-                    raise ValueError("Could not extract tokenizer model file from checkpoint.")
+                    logging.warning("Could not extract tokenizer model file from checkpoint.")
 
-                # Extract tokenizer info
-                with open_dict(model.cfg):
-                    model.cfg.tokenizer.model = tokenizer_model_path
-                    logging.info(f"Tokenizer model path: {model.cfg.tokenizer.model}")
+                else:
+                    # Extract tokenizer info
+                    with open_dict(model.cfg):
+                        model.cfg.tokenizer.model = tokenizer_model_path
+                        logging.info(f"Tokenizer model path: {model.cfg.tokenizer.model}")
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
 
