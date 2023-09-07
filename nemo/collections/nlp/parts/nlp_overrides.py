@@ -557,7 +557,15 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             state_dict = new_state_dict
 
         return state_dict
-
+    
+    def _load_state_dict_from_disk(self, model_weights, map_location=None):
+        # if model_weights with the extension removed is a directory, we assume it is a distributed checkpoint
+        # we need to defer loading the state dict so we return None
+        if os.path.isdir(os.path.splitext(model_weights)[0]):
+            return None
+        else:
+            return super()._load_state_dict_from_disk(model_weights, map_location)
+    
     def restore_from(
         self,
         calling_cls,
@@ -590,6 +598,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
+
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         loaded_params = super().load_config_and_state_dict(
@@ -598,8 +607,35 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
         conf, instance, state_dict = loaded_params
-        state_dict = self.modify_state_dict(conf, state_dict)
-        super().load_instance_with_state_dict(instance, state_dict, strict)
+
+        # if we're using dist checkpointing then state_dict will be None
+        if state_dict is None:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Check if self.model_extracted_dir is set, and is a valid path
+                if self.model_extracted_dir is not None and os.path.isdir(self.model_extracted_dir):
+                    # Log that NeMo will use the provided `model_extracted_dir`
+                    logging.info(
+                        f"Restoration will occur within pre-extracted directory : " f"`{self.model_extracted_dir}`."
+                    )
+
+                    # Override `tmpdir` above with the pre-extracted `model_extracted_dir`
+                    tmpdir = self.model_extracted_dir
+
+                else:
+                    # Extract the nemo file into the temporary directory
+                    self._unpack_nemo_file(
+                        path2file=restore_path, out_folder=tmpdir, extract_config_only=return_config is True
+                    )
+                sharded_state_dict = instance.sharded_state_dict()
+                # remove model weights extension
+                tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
+                tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
+                assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
+                dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=tmp_model_weights_dir)
+        
+        else:
+            state_dict = self.modify_state_dict(conf, state_dict)
+            super().load_instance_with_state_dict(instance, state_dict, strict)
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
 
