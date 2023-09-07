@@ -38,6 +38,7 @@ from nemo.utils import logging, model_utils
 
 try:
     from megatron.core import parallel_state
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
