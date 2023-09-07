@@ -42,7 +42,7 @@ model:
   
   global_batch_size: 1
   micro_batch_size: 1
-  restore_from_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
+  restore_from_path: /data/megatron_converted_2b_tp1_pp1.nemo # Path to an existing .nemo model you wish to add new tasks to or run inference with
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
   sync_batch_comm: False
@@ -68,8 +68,8 @@ model:
   ffn_dropout: 0.0
 
   peft:
-    peft_scheme: "adapter"  # can be either adapter,ia3, or ptuning
-    restore_from_path: null
+    peft_scheme: "lora"  # can be either adapter,ia3, or ptuning
+    restore_from_path: /data/megatron_gpt_peft_tuning.nemo
     
     # Used for adapter peft training
     adapter_tuning:
@@ -90,10 +90,11 @@ model:
 
   data:
     test_ds:
-      file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
-      names: ??? # Names of the corresponding datasets used to log metrics.
-      global_batch_size: ???
-      micro_batch_size: ???
+      file_names: 
+        - /data/test.jsonl # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
+      names: assist # Names of the corresponding datasets used to log metrics.
+      global_batch_size: 2
+      micro_batch_size: 1
       shuffle: False
       num_workers: 0
       pin_memory: True
@@ -111,7 +112,7 @@ model:
       truncation_field: ${data.train_ds.truncation_field} # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${data.train_ds.prompt_template}
-      tokens_to_generate: ???
+      tokens_to_generate: 10
 
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
@@ -128,3 +129,67 @@ inference:
   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
   outfile_path: /home/adithyare/exp/foo.txt
+
+# server-related configs
+server: True  # whether launch the API server
+port: 5555 # the port number for the inference server
+web_server: False # whether launch the web inference server
+share: True  # whether create a public URL
+username: test # user name for web client
+password: test2  # password for web client
+web_port: 9889 # the port number of the web server 1058
+chat: False # use the chat interface
+chatbot_config:
+  value: False   # whether to inject the value attributes
+  attributes:
+    - name: Quality
+      min: 0
+      max: 4
+      key: quality
+      type: int
+      default: 4
+    - name: Toxicity
+      min: 0
+      max: 4
+      key: toxcity
+      type: int
+      default: 0
+    - name: Humor
+      min: 0
+      max: 4
+      key: humor
+      type: int
+      default: 0
+    - name: Creativity
+      min: 0
+      max: 4
+      key: creativity
+      type: int
+      default: 0
+    - name: Violence
+      min: 0
+      max: 4
+      key: violence
+      type: int
+      default: 0
+    - name: Helpfulness
+      min: 0
+      max: 4
+      key: helpfulness
+      type: int
+      default: 4
+    - name: Not_Appropriate
+      min: 0
+      max: 4
+      key: not_appropriate
+      type: int
+      default: 0
+    - name: Language
+      choices: ['ar', 'bg', 'bn', 'ca', 'cs', 'da', 'de', 'el', 'en', 'eo', 'es', 'eu', 'fa', 'fi', 'fr', 'gl', 'he', 'hu', 'id', 'it', 'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'ro', 'ru', 'sk', 'sv', 'th', 'tr', 'uk', 'vi', 'zh']
+      key: lang
+      type: list
+      default: en
+   
+  user: User
+  assistant: Assistant
+  system: "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n"

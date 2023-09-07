@@ -14,7 +14,11 @@
 
 
 import json
+import asyncio
+import threading
 import os
+from functools import partial
+import torch
 
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -35,6 +39,15 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.modules.common.text_generation_utils import generate
+
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+except:
+    pass
 
 mp.set_start_method("spawn", force=True)
 """
@@ -153,28 +166,45 @@ def main(cfg) -> None:
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
 
-    if model.global_rank == 0:
-        print("***************************")
-        if cfg.inference.outfile_path is not None:
-            with open(cfg.inference.outfile_path, "w", encoding="utf-8") as f:
-                for batch in response:
-                    batch_sentences = [s for s in batch['sentences']]
-                    batch_tokens = [s for s in batch['tokens']]
-                    batch_logprob = [s.tolist() for s in batch['logprob']]
-                    for s, t, l in zip(batch_sentences, batch_tokens, batch_logprob):
-                        if cfg.inference.get("verbose", False):
-                            d = {
-                                'sentence': s,
-                                'tokens_with_logprobs': ', '.join([f"{_t} {_l:.4f}" for _t, _l in zip(t, l)]),
-                            }
-                            f.write(json.dumps(d, sort_keys=True, indent=2) + '\n')
-                        else:
-                            d = {'sentence': s}
-                            f.write(json.dumps(d) + '\n')
-            print("predictions saved to {}".format(cfg.inference.outfile_path))
-        else:
-            print(response)
-    print("***************************")
+    if not cfg.server:
+        trainer.test(model)
+    else:
+        from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
+
+        trainer.test(model, dataloaders=None)
+
+        if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
+            if cfg.web_server:
+                if cfg.chat:
+                    defaults = {
+                        'user': cfg.chatbot_config.user,
+                        'assistant': cfg.chatbot_config.assistant,
+                        'system': cfg.chatbot_config.system,
+                    }
+                    web_ui = partial(
+                        get_chatbot_demo,
+                        defaults=defaults,
+                        value=cfg.chatbot_config.value,
+                        attributes=cfg.chatbot_config.attributes,
+                    )
+                else:
+                    web_ui = get_demo
+                loop = asyncio.new_event_loop()
+                thread = threading.Thread(
+                    target=web_ui,
+                    daemon=True,
+                    args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+                )
+                thread.start()
+            server = MegatronServer(model.cuda())
+            server.run("0.0.0.0", port=cfg.port)
+
+        while True:
+            choice = torch.cuda.LongTensor(1)
+            torch.distributed.broadcast(choice, 0)
+            if choice[0].item() == 0:
+                generate(model.cuda())
+
 
 
 if __name__ == "__main__":
