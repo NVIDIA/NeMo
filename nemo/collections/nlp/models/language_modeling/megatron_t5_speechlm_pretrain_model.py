@@ -38,6 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder im
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
+    init_method_normal,
 )
 from nemo.collections.nlp.modules.common.speech_residual_networks import SimplestModule
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
@@ -61,7 +62,6 @@ try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -118,10 +118,9 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 list_of_speech_heads.append(MegatronTokenLevelHead(_speech_head_embedding.weight.size(0), False))
             elif speech_head_type == 'linear':
                 # Linear layer that maps from hidden size to speech codebook size
-                # print("Parallel Output", self.frozen_model.enc_dec_model.parallel_output)
-                # import ipdb; ipdb.set_trace()
                 hidden_size = self.frozen_model.enc_dec_model.decoder_cfg.hidden_size
                 init_method_std = self.frozen_model.enc_dec_model.decoder_cfg.init_method_std
+                # Changing to ColumnParallelLinear instead of Linear to support 3b Tensor Parallelism
                 _speech_head = tensor_parallel.ColumnParallelLinear(
                     input_size=hidden_size,
                     output_size=speech_codebook_size,
@@ -131,7 +130,6 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                     use_cpu_initialization=False,
                     params_dtype=self.frozen_model.enc_dec_model.dtype,
                 )
-                # list_of_speech_heads.append(torch.nn.Linear(hidden_size, speech_codebook_size))
                 list_of_speech_heads.append(_speech_head)
 
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)

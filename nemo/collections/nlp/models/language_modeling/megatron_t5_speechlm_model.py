@@ -33,6 +33,7 @@ from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder im
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
+    init_method_normal,
 )
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -109,7 +110,18 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             elif speech_head_type == 'linear':
                 # Linear layer that maps from hidden size to speech codebook size
                 hidden_size = self.frozen_model.enc_dec_model.decoder_cfg.hidden_size
-                list_of_speech_heads.append(torch.nn.Linear(hidden_size, speech_codebook_size))
+                init_method_std = self.frozen_model.enc_dec_model.decoder_cfg.init_method_std
+                # Changing to ColumnParallelLinear instead of Linear to support 3b Tensor Parallelism
+                _speech_head = tensor_parallel.ColumnParallelLinear(
+                    input_size=hidden_size,
+                    output_size=speech_codebook_size,
+                    bias=True,
+                    gather_output=not self.frozen_model.enc_dec_model.parallel_output,
+                    init_method=init_method_normal(init_method_std),
+                    use_cpu_initialization=False,
+                    params_dtype=self.frozen_model.enc_dec_model.dtype,
+                )
+                list_of_speech_heads.append(_speech_head)
 
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
         self.frozen_model.enc_dec_model.speech_tokens_embeddings = torch.nn.ModuleList(
