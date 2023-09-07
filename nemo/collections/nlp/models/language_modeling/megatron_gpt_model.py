@@ -60,15 +60,7 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 
-try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
+from nemo.collections.nlp.parts.microbatch_calculator import get_num_microbatches
 
 try:
     from megatron.core import InferenceParams, parallel_state
@@ -198,13 +190,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
-
         if not HAVE_MEGATRON_CORE:
-            raise ImportError(
+            logging.warning(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         # this prevents base constructor from initializing tokenizer
