@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import os
+import tarfile
 import tempfile
 from argparse import ArgumentParser
 from typing import Dict, List
-import tarfile
 
 import torch
 import torch.nn as nn
