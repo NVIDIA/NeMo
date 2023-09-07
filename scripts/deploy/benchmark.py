@@ -22,6 +22,11 @@ from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
 from nemo.utils import logging
 
+from builtins import range
+from datetime import datetime
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
 import statistics
 
 try:
@@ -275,7 +280,7 @@ def send_queries(args):
     # warm up
     if args.warm_up:
         print("[INFO] sending requests to warm up")
-        output = nq.query_llm(prompts=inputs, max_output_len=args.output_len)
+        output = nq.query_llm(prompts=inputs, max_output_token=args.start_len)
         print("----------output-----------")
         print(output)
  
@@ -283,7 +288,7 @@ def send_queries(args):
     for i in range(args.num_runs):
         start_time = datetime.now()
  
-        output = nq.query_llm(prompts=input_data, max_output_len=args.output_len)
+        output = nq.query_llm(prompts=input_data, max_output_token=args.start_len)
  
         stop_time = datetime.now()
         latencies.append((stop_time - start_time).total_seconds() * 1000.0)
@@ -297,7 +302,7 @@ def send_queries(args):
     latency = round(latency, 3)
     throughput = round(1000 / latency * args.batch_size, 3)
     print(
-        f"[INFO] Batch size: {args.batch_size}, Start len: {args.start_len}, Output len: {args.output_len}"
+        f"[INFO] Batch size: {args.batch_size}, Start len: {args.start_len}, Output len: {args.start_len}"
     )
     print(f"[INFO] Latency: {latency} ms")
     print(f"[INFO] Throughput: {throughput} sentences / sec")
