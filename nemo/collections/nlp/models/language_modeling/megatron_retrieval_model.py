@@ -17,7 +17,6 @@ from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -36,7 +35,6 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_
     MegatronRetrievalTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     build_position_ids,
     get_params_for_weight_decay_optimization,
@@ -60,13 +58,14 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer import parallel_state
-    from apex.transformer.enums import ModelType
+    from megatron.core import parallel_state
+    from megatron.core.enums import ModelType
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
-    ModelType = ApexGuardDefaults()
-    HAVE_APEX = False
+
+    HAVE_MEGATRON_CORE = False
 
 
 __all__ = ["MegatronRetrievalModel"]
@@ -92,18 +91,16 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 self.model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            self.model = Float16Module(module=self.model, precision=self.cfg.precision)
+            self.model = Float16Module(
+                config=self.model_parallel_config, module=self.model, precision=self.cfg.precision
+            )
 
         # self.setup_optimizer_param_groups()
-        if self.cfg.precision == 'bf16':
-            self.autocast_dtype = torch.bfloat16
-        elif int(self.cfg.precision) == 32:
-            self.autocast_dtype = torch.float
-        elif int(self.cfg.precision) == 16:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
         self.model.model_type = ModelType.encoder_and_decoder
+
+        self.enable_autocast = (
+            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
 
         if hasattr(self.cfg, "shape_file"):
             set_base_shapes(self, self.register_artifact("shape_file", self.cfg.shape_file), rescale_params=False)
@@ -168,6 +165,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
 
         model = MegatronRetrievalTokenLevelEncoderDecoderModule(
+            config=self.model_parallel_config,
             vocab_size=self.padded_vocab_size,
             hidden_size=self.cfg.hidden_size,
             max_position_embeddings=self.cfg.max_position_embeddings,
@@ -181,7 +179,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             post_process=post_process,
             init_method_std=self.cfg.get('init_method_std', 0.02),
             fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
             attention_dropout=self.cfg.get('attention_dropout', 0.1),
             precision=self.cfg.get('precision', 16),
@@ -268,7 +265,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
         if self.with_distributed_adam:
             # gradients are reduced internally in distributed optimizer
@@ -292,56 +289,18 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
             average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
+            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True, batch_size=1)
             lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr)
-            self.log('global_step', self.trainer.global_step, prog_bar=True)
+            self.log('lr', lr, batch_size=1)
+            self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
             self.log(
-                'consumed_samples',
-                self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-                prog_bar=True,
+                'consumed_samples', self._compute_consumed_samples_after_training_step(), prog_bar=True, batch_size=1,
             )
             self._reduced_loss_buffer = []
         return lm_loss
 
-    def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
-        super().on_train_batch_end(outputs, batch, batch_idx)
-
-        # TODO: Replace with newer override for scheduler.step() instead of
-        # search for plugins for fp16 GradScalar
-        if self.trainer.precision_plugin is not None and isinstance(
-            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
-        ):
-            precision_plugin = self.trainer.precision_plugin
-
-            if (
-                hasattr(precision_plugin, 'scaler')
-                and precision_plugin.scaler is not None
-                and isinstance(precision_plugin.scaler, GradScaler)
-            ):
-                grad_scaler = precision_plugin.scaler
-
-                # If the grad scaler skipped its optimizer step due to infs/nans,
-                # decrement the step of all schedulers.
-                if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
-                    scheduler_cfgs = self.trainer.lr_scheduler_configs
-
-                    if not scheduler_cfgs or not self.trainer.lightning_module.automatic_optimization:
-                        return
-
-                    for scheduler_cfg in scheduler_cfgs:
-                        # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
-                        # as well as update the optimizer lr in all param groups
-                        scheduler_cfg.scheduler.last_epoch -= 2
-                        scheduler_cfg.scheduler.step()
-
-                    # Increase the max step count by 1
-
-                    # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
-                    # accumulated gradient updates.
-                    grad_scaler.optimizer_update_skipped = None
-
     def validation_step(self, batch, batch_idx):
+        prefix = "test" if self.trainer.testing else "val"
         input_tokens_id = batch['tokens']
         input_attn_mask = batch['tokens_mask']
         loss_mask = batch['loss_mask']
@@ -363,26 +322,32 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         loss_mask = loss_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
+        if prefix == 'val':
+            self.validation_step_outputs.append(reduced_loss)
+        else:
+            self.test_step_outputs.apped(reduced_loss)
         return reduced_loss
 
-    def validation_epoch_end(self, outputs):
-        if len(outputs) == 0:
-            return
-        averaged_loss = torch.stack(outputs).mean()
-        self.log('val_loss', averaged_loss, prog_bar=True)
+    def on_validation_epoch_end(self):
+        if len(self.validation_step_outputs) == 0:
+            return None
+        averaged_loss = torch.stack(self.validation_step_outputs).mean()
+        self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
         # formula to compute the perplexity
         # https://towardsdatascience.com/the-relationship-between-perplexity-and-entropy-in-nlp-f81888775ccc
-        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
+        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True, batch_size=1)
+        self.validation_step_outputs.clear()  # free memory
         return averaged_loss
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def test_epoch_end(self, outputs):
-        averaged_loss = torch.stack(outputs).mean()
-        self.log('test_loss', averaged_loss, prog_bar=True)
+    def on_test_epoch_end(self):
+        averaged_loss = torch.stack(self.test_step_outputs).mean()
+        self.log('test_loss', averaged_loss, prog_bar=True, batch_size=1)
         logging.info(f'test_loss: {averaged_loss} ')
-        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
+        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True, batch_size=1)
+        self.test_step_outputs.clear()  # free memory
         return averaged_loss
 
     def build_train_valid_test_datasets(self):
@@ -466,7 +431,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         )
 
     def setup(self, stage=None):
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -496,7 +461,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             inference_config = inference_config.copy()
             compute_logprob = inference_config['compute_logprob']
             if compute_logprob:
-                del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
                 inference_config['tokens_to_generate'] = 1
                 inference_config['all_probs'] = True
@@ -506,7 +470,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
                 return compute_prob_response
             else:
-                del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
                 return generate(self, **inference_config, strategy=self.inference_strategy)
 
@@ -545,7 +508,8 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         Used for generate method only.
         """
 
-        def fwd_output_only_func(batch, model):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             extra_arg = {}
             (
                 tokens,

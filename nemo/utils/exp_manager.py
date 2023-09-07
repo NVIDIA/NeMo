@@ -33,7 +33,7 @@ from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
-from pytorch_lightning.loops import TrainingEpochLoop
+from pytorch_lightning.loops import _TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
 
 from nemo.collections.common.callbacks import EMA
@@ -139,6 +139,7 @@ class ExpManagerConfig:
     resume_if_exists: Optional[bool] = False
     resume_past_end: Optional[bool] = False
     resume_ignore_no_checkpoint: Optional[bool] = False
+    resume_from_checkpoint: Optional[str] = None
     # Logging parameters
     create_tensorboard_logger: Optional[bool] = True
     summary_writer_kwargs: Optional[Dict[Any, Any]] = None
@@ -197,16 +198,16 @@ class TimingCallback(Callback):
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self._on_batch_end("train_step_timing", pl_module)
 
-    def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+    def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx=0):
         self._on_batch_start("validation_step_timing")
 
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         self._on_batch_end("validation_step_timing", pl_module)
 
-    def on_test_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+    def on_test_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx=0):
         self._on_batch_start("test_step_timing")
 
-    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         self._on_batch_end("test_step_timing", pl_module)
 
     def on_before_backward(self, trainer, pl_module, loss):
@@ -248,7 +249,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 lightning's TensorboardLogger system of using version_{int}.
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
             - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True, it sets
-                trainer._checkpoint_connector.resume_from_checkpoint_fit_path so that the trainer should auto-resume. exp_manager will move files
+                trainer._checkpoint_connector._ckpt_path so that the trainer should auto-resume. exp_manager will move files
                 under log_dir to log_dir/run_{int}. Defaults to False. From v1.0.0, when resume_if_exists is True,
                 we would not create version folders to make it easier to find the log folder for next runs.
             - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint matching
@@ -257,6 +258,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - resume_ignore_no_checkpoint (bool): exp_manager errors out if resume_if_exists is True and no checkpoint
                 could be found. This behaviour can be disabled, in which case exp_manager will print a message and
                 continue without restoring, by setting resume_ignore_no_checkpoint to True. Defaults to False.
+            - resume_from_checkpoint (str): Can be used to specify a path to a specific checkpoint file to load from. This will
+                override any checkpoint found when resume_if_exists is True. Defaults to None.
             - create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch
                 lightning trainer. Defaults to True.
             - summary_writer_kwargs (dict): A dictionary of kwargs that can be passed to lightning's TensorboardLogger
@@ -330,18 +333,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         resume_if_exists=cfg.resume_if_exists,
     )
 
-    if cfg.resume_if_exists:
-        # Check for existing checkpoints in `dirpath` if it's specified, use <log_dir>/checkpoints otherwise
-        if cfg.checkpoint_callback_params.dirpath:
-            check_resume(
-                trainer,
-                log_dir,
-                cfg.resume_past_end,
-                cfg.resume_ignore_no_checkpoint,
-                cfg.checkpoint_callback_params.dirpath,
-            )
-        else:
-            check_resume(trainer, log_dir, cfg.resume_past_end, cfg.resume_ignore_no_checkpoint)
+    check_resume(
+        trainer,
+        log_dir,
+        cfg.resume_if_exists,
+        cfg.resume_past_end,
+        cfg.resume_ignore_no_checkpoint,
+        cfg.checkpoint_callback_params.dirpath,
+        cfg.resume_from_checkpoint,
+    )
 
     checkpoint_name = name
     # If name returned from get_log_dir is "", use cfg.name for checkpointing
@@ -453,7 +453,6 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if cfg.disable_validation_on_resume:
         # extend training loop to skip initial validation when resuming from checkpoint
         configure_no_restart_validation_training_loop(trainer)
-
     # Setup a stateless timer for use on clusters.
     if cfg.max_time_per_run is not None:
         found_ptl_timer = False
@@ -536,12 +535,14 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
 def check_resume(
     trainer: 'pytorch_lightning.Trainer',
     log_dir: str,
+    resume_if_exists: bool = False,
     resume_past_end: bool = False,
     resume_ignore_no_checkpoint: bool = False,
     dirpath: str = None,
+    resume_from_checkpoint: str = None,
 ):
     """Checks that resume=True was used correctly with the arguments pass to exp_manager. Sets
-    trainer._checkpoint_connector.resume_from_checkpoint_fit_path as necessary.
+    trainer._checkpoint_connector._ckpt_path as necessary.
 
     Returns:
         log_dir (Path): The log_dir
@@ -557,56 +558,66 @@ def check_resume(
     if not log_dir:
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
 
-    # Use <log_dir>/checkpoints/ unless `dirpath` is set
-    checkpoint_dir = Path(dirpath) if dirpath else Path(Path(log_dir) / "checkpoints")
-
     checkpoint = None
-    end_checkpoints = list(checkpoint_dir.rglob("*end.ckpt"))
-    last_checkpoints = list(checkpoint_dir.rglob("*last.ckpt"))
-    if not checkpoint_dir.exists():
-        if resume_ignore_no_checkpoint:
-            logging.warning(
-                f"There was no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Training from scratch."
-            )
-            return
-        else:
-            raise NotFoundError(f"There was no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume.")
-    elif len(end_checkpoints) > 0:
-        if resume_past_end:
-            if len(end_checkpoints) > 1:
-                if 'mp_rank' in str(end_checkpoints[0]):
-                    checkpoint = end_checkpoints[0]
-                else:
-                    raise ValueError(f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
-            logging.info(f"Resuming from {end_checkpoints[0]}")
-        else:
-            raise ValueError(
-                f"Found {end_checkpoints[0]} indicating that the last training run has already completed."
-            )
-    elif not len(last_checkpoints) > 0:
-        if resume_ignore_no_checkpoint:
-            logging.warning(f"There were no checkpoints found in {checkpoint_dir}. Training from scratch.")
-            return
-        else:
-            raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
-    elif len(last_checkpoints) > 1:
-        if 'mp_rank' in str(last_checkpoints[0]) or 'tp_rank' in str(last_checkpoints[0]):
-            checkpoint = last_checkpoints[0]
-            checkpoint = uninject_model_parallel_rank(checkpoint)
-        else:
-            raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
-    else:
-        logging.info(f"Resuming from {last_checkpoints[0]}")
-        checkpoint = last_checkpoints[0]
+    if resume_from_checkpoint:
+        checkpoint = resume_from_checkpoint
+    if resume_if_exists:
+        # Use <log_dir>/checkpoints/ unless `dirpath` is set
+        checkpoint_dir = Path(dirpath) if dirpath else Path(Path(log_dir) / "checkpoints")
 
-    trainer._checkpoint_connector.resume_from_checkpoint_fit_path = str(checkpoint)
+        # when using distributed checkpointing, checkpoint_dir is a directory of directories
+        # we check for this here
+        dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
+        end_dist_checkpoints = [d for d in dist_checkpoints if d.match("*end")]
+        last_dist_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
+
+        end_checkpoints = end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.glob("*end.ckpt"))
+        last_checkpoints = last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.glob("*last.ckpt"))
+
+        if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
+            if resume_ignore_no_checkpoint:
+                warn = f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. "
+                if checkpoint is None:
+                    warn += "Training from scratch."
+                elif checkpoint == resume_from_checkpoint:
+                    warn += f"Training from {resume_from_checkpoint}."
+                logging.warning(warn)
+            else:
+                raise NotFoundError(
+                    f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume."
+                )
+        elif len(end_checkpoints) > 0:
+            if resume_past_end:
+                if len(end_checkpoints) > 1:
+                    if 'mp_rank' in str(end_checkpoints[0]):
+                        checkpoint = end_checkpoints[0]
+                    else:
+                        raise ValueError(f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
+            else:
+                raise ValueError(
+                    f"Found {end_checkpoints[0]} indicating that the last training run has already completed."
+                )
+        elif len(last_checkpoints) > 1:
+            if 'mp_rank' in str(last_checkpoints[0]) or 'tp_rank' in str(last_checkpoints[0]):
+                checkpoint = last_checkpoints[0]
+                checkpoint = uninject_model_parallel_rank(checkpoint)
+            else:
+                raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
+        else:
+            checkpoint = last_checkpoints[0]
+
+    # PTL 2.0 supports ckpt_path instead of resume_from_checkpoint as the trainer flag
+    if checkpoint is not None:
+        trainer.ckpt_path = str(checkpoint)
+        logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
         files_to_move = []
-        for child in Path(log_dir).iterdir():
-            if child.is_file():
-                files_to_move.append(child)
+        if Path(log_dir).exists():
+            for child in Path(log_dir).iterdir():
+                if child.is_file():
+                    files_to_move.append(child)
 
         if len(files_to_move) > 0:
             # Move old files to a new folder
@@ -897,7 +908,7 @@ def configure_checkpointing(
             )
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
-    checkpoint_callback.last_model_path = trainer._checkpoint_connector.resume_from_checkpoint_fit_path or ""
+    checkpoint_callback.last_model_path = trainer.ckpt_path or ""
     if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
         checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
     trainer.callbacks.append(checkpoint_callback)
@@ -934,15 +945,15 @@ class StatelessTimer(Timer):
 
 
 def configure_no_restart_validation_training_loop(trainer: pytorch_lightning.Trainer) -> None:
-    if type(trainer.fit_loop.epoch_loop) != TrainingEpochLoop:
+    if type(trainer.fit_loop.epoch_loop) != _TrainingEpochLoop:
         warnings.warn("Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
         return
-    loop = SkipResumeTrainingValidationLoop(trainer.min_steps, trainer.max_steps)
-    loop.trainer = trainer
+    ## Pass trainer object to avoid trainer getting overwritten as None
+    loop = SkipResumeTrainingValidationLoop(trainer, trainer.min_steps, trainer.max_steps)
     trainer.fit_loop.epoch_loop = loop
 
 
-class SkipResumeTrainingValidationLoop(TrainingEpochLoop):
+class SkipResumeTrainingValidationLoop(_TrainingEpochLoop):
     """
     Extend the PTL Epoch loop to skip validating when resuming.
     This happens when resuming a checkpoint that has already run validation, but loading restores

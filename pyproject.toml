@@ -16,12 +16,18 @@
 profile = "black"  # black-compatible
 line_length = 119  # should match black parameters
 ignore_whitespace = true  # ignore whitespace for compatibility with the initial style
-py_version = 38  # python 3.8 as a target version
+py_version = 310  # python 3.10 as a target version
 known_first_party = ["nemo"]  # FIRSTPARTY section
 known_third_party = ["nemo_text_processing", "examples", "scripts"]  # THIRDPARTY section
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 default_section = "THIRDPARTY"
 extend_skip = ["setup.py", "docs/source/conf.py"]
+
+
+[tool.black]
+line_length = 119
+skip_string_normalization = true
+required_version = "19.10b0"  # recongized by future versions, disallows to reformat code with incompatible versions
 
 
 [tool.pytest.ini_options]

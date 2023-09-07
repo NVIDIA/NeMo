@@ -27,12 +27,23 @@ from nemo.collections.nlp.models.language_modeling.megatron_finetune_model impor
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
+
+
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = ['MegatronT0Model']
 
@@ -46,7 +57,7 @@ class MegatronT0Model(MegatronT5FinetuneModel):
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
         # We then set things up for real only once setup() of this class is called.
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -142,8 +153,8 @@ class MegatronT0Model(MegatronT5FinetuneModel):
         else:
             return datasets
 
-    def training_step(self, batch, batch_idx):
-        return super(MegatronT5FinetuneModel, self).training_step(batch, batch_idx)
+    def training_step(self, dataloader_iter, batch_idx):
+        return super(MegatronT5FinetuneModel, self).training_step(dataloader_iter, batch_idx)
 
     # Override the parent batch reconfiguring logic.
     def _reconfigure_and_process_inference_batch(self, batch):

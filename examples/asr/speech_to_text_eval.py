@@ -66,7 +66,7 @@ import transcribe_speech
 from omegaconf import MISSING, OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization
+from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -76,14 +76,19 @@ class EvaluationConfig(transcribe_speech.TranscriptionConfig):
     dataset_manifest: str = MISSING
     output_filename: Optional[str] = "evaluation_transcripts.json"
 
+    # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Joint RNNT/CTC models
+    decoder_type: Optional[str] = None
+    # att_context_size can be set for cache-aware streaming models with multiple look-aheads
+    att_context_size: Optional[list] = None
+
     use_cer: bool = False
     tolerance: Optional[float] = None
 
     only_score_manifest: bool = False
 
-    separate_punctuation: bool = True
-    do_lowercase: bool = False
-    rm_punctuation: bool = False
+    text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
+        punctuation_marks=".,?", separate_punctuation=False, do_lowercase=False, rm_punctuation=False,
+    )
 
 
 @hydra_runner(config_name="EvaluationConfig", schema=EvaluationConfig)
@@ -131,13 +136,14 @@ def main(cfg: EvaluationConfig):
 
             predicted_text.append(data['pred_text'])
 
-    pc = PunctuationCapitalization('.,?')
-    if cfg.separate_punctuation:
+    pc = PunctuationCapitalization(cfg.text_processing.punctuation_marks)
+    if cfg.text_processing.separate_punctuation:
         ground_truth_text = pc.separate_punctuation(ground_truth_text)
-    if cfg.do_lowercase:
+        predicted_text = pc.separate_punctuation(predicted_text)
+    if cfg.text_processing.do_lowercase:
         ground_truth_text = pc.do_lowercase(ground_truth_text)
         predicted_text = pc.do_lowercase(predicted_text)
-    if cfg.rm_punctuation:
+    if cfg.text_processing.rm_punctuation:
         ground_truth_text = pc.rm_punctuation(ground_truth_text)
         predicted_text = pc.rm_punctuation(predicted_text)
 
@@ -164,8 +170,6 @@ def main(cfg: EvaluationConfig):
             raise ValueError(f"Got {metric_name} of {metric_value}, which was higher than tolerance={cfg.tolerance}")
 
         logging.info(f'Got {metric_name} of {metric_value}. Tolerance was {cfg.tolerance}')
-    else:
-        logging.info(f'Got {metric_name} of {metric_value}')
 
     logging.info(f'Dataset WER/CER ' + str(round(100 * wer, 2)) + "%/" + str(round(100 * cer, 2)) + "%")
 

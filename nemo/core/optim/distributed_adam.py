@@ -19,9 +19,17 @@ import torch
 from apex.contrib.optimizers.distributed_fused_adam import (
     DistributedFusedAdam,
     _coalescing_manager,
+    _coalescing_manager_append_work,
     _disable_pre_forward_hook,
 )
-from apex.transformer import parallel_state
+from megatron.core import parallel_state
+from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
+from megatron.core.dist_checkpointing.mapping import ShardedTensor
+from megatron.core.dist_checkpointing.optimizer import (
+    get_param_id_to_sharded_param_map,
+    make_sharded_optimizer_tensor,
+    optim_state_to_sharding_state,
+)
 
 
 def _str_to_dtype(dtype):
@@ -76,30 +84,36 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         distopt_param_groups = param_groups
         dtype = kwargs['dtype'] if 'dtype' in kwargs else torch.float32
         grad_sync_dtype = kwargs['grad_sync_dtype'] if 'grad_sync_dtype' in kwargs else dtype
-        needs_fp32_optimizer = any(
-            getattr(param, '_with_fp32_optimizer', False)
-            for param in itertools.chain.from_iterable(param_group['params'] for param_group in param_groups)
-        )
-        if (dtype != torch.float32 or grad_sync_dtype != torch.float32) and needs_fp32_optimizer:
+        needs_fp32_optimizer = dtype != torch.float32 or grad_sync_dtype != torch.float32
+        if needs_fp32_optimizer:
+            needs_fp32_optimizer = any(
+                any(getattr(param, '_with_fp32_optimizer', False) for param in param_group['params'])
+                for param_group in param_groups
+            )
+        if needs_fp32_optimizer:
 
             # Find params that require explicit FP32 optimizer
             distopt_param_groups = []
             fp32_param_groups = []
             self._fp32_optim_main_params = collections.OrderedDict()
             for param_group in param_groups:
-                distopt_param_group = {key: val for key, val in param_group.items() if key != 'params'}
+                distopt_param_group = param_group.copy()
                 distopt_param_group['params'] = []
-                fp32_param_group = {key: val for key, val in param_group.items() if key != 'params'}
+                fp32_param_group = param_group.copy()
                 fp32_param_group['params'] = []
                 for model_param in param_group['params']:
                     if getattr(model_param, '_with_fp32_optimizer', False):
                         main_param = model_param.detach().clone().float()
+                        model_param.main_grad = main_param.grad
                         fp32_param_group['params'].append(main_param)
                         self._fp32_optim_main_params[model_param] = main_param
                     else:
                         distopt_param_group['params'].append(model_param)
                 distopt_param_groups.append(distopt_param_group)
                 fp32_param_groups.append(fp32_param_group)
+
+            # Add callback hook so grads accumulate into FP32 buffer
+            self._fp32_register_post_backward_hooks()
 
             # Construct explicit FP32 optimizer
             adamw_kwargs = {}
@@ -111,6 +125,30 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         # Construct distributed optimizer
         super().__init__(distopt_param_groups, **kwargs)
+
+    def _fp32_register_post_backward_hooks(self):
+        """Attach hooks for FP32 gradients"""
+
+        # Helper function to avoid issues with late binding closures
+        def make_post_backward_hook(param):
+            def post_backward_hook(*unused):
+                self._fp32_optim_grad_sync_needed = True
+                if hasattr(param, 'main_grad'):
+                    with torch.no_grad():
+                        if param.grad is not None:
+                            param.main_grad += param.grad
+                        param.grad = None
+
+            return post_backward_hook
+
+        # Construct hooks and register with params
+        self._fp32_grad_accs = []
+        for param in self._fp32_optim_main_params.keys():
+            param_tmp = param.expand_as(param)
+            grad_acc = param_tmp.grad_fn.next_functions[0][0]
+            hook = make_post_backward_hook(param)
+            grad_acc.register_hook(hook)
+            self._fp32_grad_accs.append(grad_acc)
 
     def _make_post_backward_hook(self, param, param_group_id, param_id):
         def hook(*unused):
@@ -173,16 +211,15 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         for model_param, main_param in self._fp32_optim_main_params.items():
             if model_param.grad is not None:
                 main_param.grad += model_param.grad.detach()
-        sync_requests = []
-        with _coalescing_manager(self.process_group, self.device, sync_requests):
+        with _coalescing_manager(self.process_group, self.device, async_ops=True) as cm:
             for main_param in self._fp32_optim_main_params.values():
-                sync_requests.append(
+                _coalescing_manager_append_work(
+                    cm,
                     torch.distributed.all_reduce(
                         main_param.grad, op=torch.distributed.ReduceOp.AVG, group=self.process_group, async_op=True,
-                    )
+                    ),
                 )
-        for req in sync_requests:
-            req.wait()
+        cm.wait()
         self._fp32_optim_grad_sync_needed = False
 
     def zero_grad(self, *args, **kwargs):
@@ -288,3 +325,24 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 old_main_param.copy_(new_main_param.detach())
             del state_dict['fp32_optim_fp32_params']
         return super().load_state_dict(state_dict)
+
+    def sharded_state_dict(self, model_sharded_state_dict):
+        optimizer_state_dict = self.state_dict()
+
+        id_to_sharded_param_map = get_param_id_to_sharded_param_map(
+            model_sharded_state_dict=model_sharded_state_dict,
+            optim_params_iter=self.parameters(with_fp32_optim_params=True),
+        )
+        # Convert state
+        step = optimizer_state_dict['state'].pop('step')
+        optim_state_to_sharding_state(optimizer_state_dict, id_to_sharded_param_map)
+        optimizer_state_dict['state']['step'] = step
+
+        def rename_fp32_params(x):
+            if isinstance(x, ShardedTensor) and x.key.startswith('optimizer.state.param'):
+                x.key = x.key.replace('optimizer.state.param', 'optimizer.state.fp32_param')
+            return x
+
+        dict_list_map_inplace(rename_fp32_params, optimizer_state_dict)
+
+        return optimizer_state_dict

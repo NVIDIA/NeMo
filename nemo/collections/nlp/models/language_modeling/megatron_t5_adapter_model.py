@@ -35,6 +35,9 @@ from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
+    LoraKQVAdapterConfig,
+    LoraKVAdapterConfig,
+    LoraQAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
@@ -43,12 +46,12 @@ from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+    HAVE_MEGATRON_CORE = False
 
 
 class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
@@ -143,14 +146,19 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             'enc_inputs': processed_inputs,
         }
 
-    def validation_step(self, batch, batch_idx, inference=False):
+    def validation_step(self, dataloader_iter, batch_idx, inference=False):
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
+            return
+        batch = next(dataloader_iter)
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
         mode = self.training
         self.eval()
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(enc_input.size(0), gbs)
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
 
         if self.cfg.get('report_validation_metric', False):
             metrics = self.compute_accuracy(enc_input, enc_mask, labels)
@@ -158,6 +166,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         else:
             metrics = {'loss': loss_mean}
 
+        self.validation_step_outputs.append(metrics)
         self.train(mode=mode)
         return metrics
 
@@ -214,7 +223,8 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         Used for generate method only for now.
         """
 
-        def fwd_output_only_func(batch, model):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             extra_arg = {}
             (
                 tokens,
@@ -272,30 +282,30 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss
-                averaged_loss = torch.stack([i['loss'] for i in outputs]).mean()
+                averaged_loss = torch.stack([i['loss'] for i in self.validation_step_outputs]).mean()
             else:
                 averaged_loss = torch.tensor(0.0).cuda()
 
             # we can only log on one rank if it is rank zero so we broadcast from last rank
             torch.distributed.broadcast(averaged_loss, get_last_rank())
 
-            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
             logging.info(f'Validation loss: {averaged_loss}')
 
         else:
-            averaged_loss = torch.stack([item['loss'] for item in outputs]).mean()
+            averaged_loss = torch.stack([item['loss'] for item in self.validation_step_outputs]).mean()
             logging.info(f'Validation loss: {averaged_loss}')
-            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         if self.cfg.get('report_validation_accuracy', False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
-            all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
-            all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
-            all_inputs = list(itertools.chain(*[item['enc_inputs'] for item in outputs]))
+            all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in self.validation_step_outputs]))
+            all_labels = list(itertools.chain(*[item['labels'] for item in self.validation_step_outputs]))
+            all_inputs = list(itertools.chain(*[item['enc_inputs'] for item in self.validation_step_outputs]))
 
             assert len(all_preds) == len(all_labels)
             assert len(all_preds) == len(all_inputs)
@@ -324,11 +334,12 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             else:
                 val_acc = torch.tensor(0.0).cuda()
 
-            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
+            self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
+        self.validation_step_outputs.clear()  # free memory
 
 
 class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
@@ -396,6 +407,7 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
         if component_cfg.adapter_tuning.type == "parallel_adapter":
             adapter_cfg = ParallelLinearAdapterConfig(
                 in_features=component_cfg.hidden_size,
+                out_features=component_cfg.hidden_size,
                 dim=component_cfg.adapter_tuning.adapter_dim,
                 norm_position=component_cfg.adapter_tuning.get('norm_position', 'pre'),
                 norm_type=component_cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
@@ -410,6 +422,132 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
                 norm_position=component_cfg.adapter_tuning.get('norm_position', 'pre'),
                 dropout=component_cfg.adapter_tuning.adapter_dropout,
             )
+        return adapter_cfg
+
+    @classmethod
+    def list_available_models(cls):
+        pass
+
+
+class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
+    """
+    TODO  (@adithyare)
+    """
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        super().__init__(cfg, trainer)
+        # assert cfg.lora_tuning.get('adapter_dim', 0) > 0, "adapter_dim has not been set."
+        # assert (
+        #     cfg.lora_tuning.adapter_dim % cfg.tensor_model_parallel_size == 0
+        # ), "The adapter dim should be divisible by tensor_model_parallel_size."
+
+        encoder_adapter_name_keys = [AdapterName.LORA_KQV_ADAPTER]
+        decoder_adapter_name_keys = [
+            AdapterName.LORA_KQV_ADAPTER,
+            AdapterName.LORA_KV_ADAPTER,
+            AdapterName.LORA_Q_ADAPTER,
+        ]
+
+        # add adapter keys to the list -> to update state dict
+        self.adapter_name_keys = encoder_adapter_name_keys + decoder_adapter_name_keys
+
+        frozen_model_cfg = MegatronT5Model.restore_from(
+            cfg.get('language_model_path'), trainer=trainer, return_config=True
+        )
+        for _, layer in self.frozen_model.named_modules():
+            if hasattr(layer, 'activations_checkpoint_method'):
+                layer.activations_checkpoint_method = (
+                    None  # (@adithyare) adapter learning does not support activations checkpointing atm.
+                )
+
+        self.frozen_model.freeze()
+        logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
+        encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
+        decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
+
+        if encoder:
+            encoder_cfg = self._get_component_cfg('encoder', frozen_model_cfg, cfg)
+            self._add_adapters_to_component(encoder, encoder_cfg, encoder_adapter_name_keys)
+            logging.info(f'Adding encoder adapters:\n{self.frozen_model.summarize()}')
+
+        if decoder:
+            decoder_cfg = self._get_component_cfg('decoder', frozen_model_cfg, cfg)
+            self._add_adapters_to_component(decoder, decoder_cfg, decoder_adapter_name_keys)
+            logging.info(f'Adding decoder adapters:\n{self.frozen_model.summarize()}')
+
+    def _add_adapters_to_component(self, component, component_cfg, adapter_name_keys):
+        for _, module in component.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in adapter_name_keys:
+                    adapter_cfg = self._get_adapter_cfg(component_cfg, adapter_key)
+                    if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
+                        module.add_adapter(name=adapter_key, cfg=adapter_cfg)
+                        print(f"in adding {adapter_key}")
+
+    def _get_component_cfg(self, component_name, frozen_model_cfg, cfg):
+        if component_name in frozen_model_cfg:
+            component_cfg = frozen_model_cfg.get(component_name)
+            with open_dict(component_cfg):
+                component_cfg.tensor_model_parallel_size = frozen_model_cfg.tensor_model_parallel_size
+                component_cfg.lora_tuning = cfg.lora_tuning
+        else:
+            component_cfg = frozen_model_cfg
+            with open_dict(component_cfg):
+                component_cfg.lora_tuning = cfg.lora_tuning
+        return component_cfg
+
+    def _get_adapter_cfg(self, component_cfg, adapter_key):
+        if component_cfg.kv_channels is None:
+            assert (
+                component_cfg.hidden_size % component_cfg.num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = component_cfg.hidden_size // component_cfg.num_attention_heads
+        else:
+            kv_channels = component_cfg.kv_channels
+        projection_size = kv_channels * component_cfg.num_attention_heads
+
+        if adapter_key == AdapterName.LORA_KQV_ADAPTER:
+            adapter_cfg = LoraKQVAdapterConfig(
+                in_features=component_cfg.hidden_size,
+                out_features=3 * projection_size,
+                dim=component_cfg.lora_tuning.kqv_adapter_dim,
+                norm_position="none",
+                norm_type="none",
+                activation="identity",
+                column_init_method=component_cfg.lora_tuning.get("column_init_method", "normal"),
+                row_init_method=component_cfg.lora_tuning.get("row_init_method", "zero"),
+                gather_output=False,
+                dropout=0.0,
+            )
+        elif adapter_key == AdapterName.LORA_KV_ADAPTER:
+            adapter_cfg = LoraKVAdapterConfig(
+                in_features=component_cfg.hidden_size,
+                out_features=2 * projection_size,
+                dim=component_cfg.lora_tuning.kv_adapter_dim,
+                norm_position="none",
+                norm_type="none",
+                activation="identity",
+                column_init_method=component_cfg.lora_tuning.get("column_init_method", "normal"),
+                row_init_method=component_cfg.lora_tuning.get("row_init_method", "zero"),
+                gather_output=False,
+                dropout=0.0,
+            )
+        elif adapter_key == AdapterName.LORA_Q_ADAPTER:
+            adapter_cfg = LoraQAdapterConfig(
+                in_features=component_cfg.hidden_size,
+                out_features=1 * projection_size,
+                dim=component_cfg.lora_tuning.q_adapter_dim,
+                norm_position="none",
+                norm_type="none",
+                activation="identity",
+                column_init_method=component_cfg.lora_tuning.get("column_init_method", "normal"),
+                row_init_method=component_cfg.lora_tuning.get("row_init_method", "zero"),
+                gather_output=False,
+                dropout=0.0,
+            )
+        else:
+            raise RuntimeError("Unexpected adapter key name..")
+
         return adapter_cfg
 
     @classmethod

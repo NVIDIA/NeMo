@@ -27,6 +27,7 @@ from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.parts.utils.helpers import (
+    g2p_backward_compatible_support,
     get_mask_from_lengths,
     tacotron2_log_to_tb_func,
     tacotron2_log_to_wandb_func,
@@ -279,7 +280,7 @@ class Tacotron2Model(SpectrogramGenerator):
             spec_target_len=spec_target_len,
             pad_value=self.pad_value,
         )
-        return {
+        loss = {
             "val_loss": loss,
             "mel_target": spec_target,
             "mel_postnet": spec_pred_postnet,
@@ -287,8 +288,10 @@ class Tacotron2Model(SpectrogramGenerator):
             "gate_target": gate_target,
             "alignments": alignments,
         }
+        self.validation_step_outputs.append(loss)
+        return loss
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         if self.logger is not None and self.logger.experiment is not None:
             logger = self.logger.experiment
             for logger in self.trainer.loggers:
@@ -297,14 +300,27 @@ class Tacotron2Model(SpectrogramGenerator):
                     break
             if isinstance(logger, TensorBoardLogger):
                 tacotron2_log_to_tb_func(
-                    logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
+                    logger,
+                    self.validation_step_outputs[0].values(),
+                    self.global_step,
+                    tag="val",
+                    log_images=True,
+                    add_audio=False,
                 )
             elif isinstance(logger, WandbLogger):
                 tacotron2_log_to_wandb_func(
-                    logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
+                    logger,
+                    self.validation_step_outputs[0].values(),
+                    self.global_step,
+                    tag="val",
+                    log_images=True,
+                    add_audio=False,
                 )
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
+        avg_loss = torch.stack(
+            [x['val_loss'] for x in self.validation_step_outputs]
+        ).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss)
+        self.validation_step_outputs.clear()  # free memory
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -333,11 +349,14 @@ class Tacotron2Model(SpectrogramGenerator):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer and cfg.text_tokenizer.g2p is not None:
             # for backward compatibility
-            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
-                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
-                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+            if (
+                self._is_model_being_restored()
+                and (cfg.text_tokenizer.g2p.get('_target_', None) is not None)
+                and cfg.text_tokenizer.g2p["_target_"].startswith("nemo_text_processing.g2p")
+            ):
+                cfg.text_tokenizer.g2p["_target_"] = g2p_backward_compatible_support(
+                    cfg.text_tokenizer.g2p["_target_"]
                 )
-                logging.warning("This checkpoint support will be dropped after r1.18.0.")
 
             g2p_kwargs = {}
 

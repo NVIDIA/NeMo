@@ -16,22 +16,23 @@ import itertools
 import os
 import shutil
 import tempfile
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union
+from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
 
 import pytorch_lightning as pl
 import torch
+from lightning_fabric.utilities.cloud_io import get_filesystem
 from omegaconf import OmegaConf
-from pytorch_lightning.overrides import LightningDistributedModule
+from pytorch_lightning.loops.fetchers import _DataFetcher
+from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.utilities.exceptions import MisconfigurationException
-from pytorch_lightning.utilities.fetching import DataFetcher
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -39,20 +40,33 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
-from nemo.utils.model_utils import inject_model_parallel_rank
+from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank
 
 try:
-    from apex.transformer import parallel_state
-    from apex.transformer.enums import ModelType
-    from apex.transformer.pipeline_parallel.schedules.common import _calc_number_of_params
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-    from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+
+try:
+    from megatron.core import dist_checkpointing, parallel_state
+    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
+    from megatron.core.dist_checkpointing.optimizer import (
+        get_param_id_to_sharded_param_map,
+        make_sharded_optimizer_tensor,
+        optim_state_to_sharding_state,
+    )
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
@@ -78,16 +92,38 @@ class NLPDDPStrategy(DDPStrategy):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
+
+    def setup(self, trainer: "pl.Trainer") -> None:
+        """
+        Override setup() of DDPStrategy to avoid _sync_module_states(self.model) during eval as it can cause PP > 1 to hang
+        due to assumption in DDPStrategy class that the same model is replicated across GPUs
+        """
+        trainer_fn = trainer.state.fn
+        if trainer_fn == TrainerFn.FITTING:
+            super().setup(trainer)
+        else:
+            assert self.accelerator is not None
+            self.accelerator.setup(trainer)
+
+            # move the model to the correct device
+            self.model_to_device()
+            self.setup_precision_plugin()
+            assert self.model is not None
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
         super().setup_distributed()
 
         # init model parallel if needed
-        if parallel_state.is_unitialized():
+        if not parallel_state.model_parallel_is_initialized():
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
@@ -102,7 +138,7 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer
-            self._model = LightningDistributedModule(self.model)
+            self._model = _LightningModuleWrapperBase(self.model)
         else:
             app_state = AppState()
 
@@ -114,10 +150,12 @@ class NLPDDPStrategy(DDPStrategy):
                 # this means that data parallel groups span multiple GPUs
                 # and are non-trivial
                 # TODO: for megatron-lm self.model is a list
-                self.pre_configure_ddp()
+                # Removing self.pre_configure_ddp() as DDP's 'find_unused_parameters' now defaults
+                # to False in PTL 2.0 and hence pre_configure_ddp() is removed in ddp.py
+                # self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
                 self._model = DistributedDataParallel(
-                    LightningDistributedModule(self.model),
+                    _LightningModuleWrapperBase(self.model),
                     process_group=parallel_state.get_data_parallel_group(),
                     **self._ddp_kwargs,
                 )
@@ -151,11 +189,11 @@ class NLPDDPStrategy(DDPStrategy):
             parallel_state.destroy_model_parallel()
             if torch.distributed.is_initialized():
                 parallel_state.initialize_model_parallel(
-                    tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
-                    pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
-                    pipeline_model_parallel_split_rank_=app_state.pipeline_model_parallel_split_rank,
-                    virtual_pipeline_model_parallel_size_=app_state.virtual_pipeline_model_parallel_size,
-                    use_fp8_=app_state.use_fp8,
+                    tensor_model_parallel_size=app_state.tensor_model_parallel_size,
+                    pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+                    virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
+                    pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                    use_fp8=app_state.use_fp8,
                 )
 
                 # assert that fake tp and pp rank match after model parallel init
@@ -168,51 +206,205 @@ class NLPDDPStrategy(DDPStrategy):
                 app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
                 app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
+                # create MPI process group for UCX-based communication APIs
+                if app_state.init_mpi_proc_group:
+                    torch.distributed.new_group(backend='mpi')
+
+    def optimizer_sharded_state_dict(self):
+        """
+        Sharded state dictionary for an MainParamsOptimizerWrapper.
+        Used to save and load the optimizer state when training with distributed_checkpoint.
+        Returns:
+            dict: The sharded state dictionary for the optimizer
+        Raises:
+            ValueError: If a parameter ID does not match any model sharded parameter.
+        """
+
+        optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)  # MainParamsOptimizerWrapper
+
+        model_sharded_state_dict = self.lightning_module.sharded_state_dict()
+
+        # remove _extra_state
+        model_sharded_state_dict = {
+            key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
+        }
+
+        if not isinstance(optimizer, MainParamsOptimizerWrapper):
+            return optimizer.sharded_state_dict(model_sharded_state_dict)
+
+        optimizer_state_dict = optimizer.state_dict()
+
+        id_to_sharded_param_map = get_param_id_to_sharded_param_map(
+            model_sharded_state_dict=model_sharded_state_dict,
+            optim_params_iter=itertools.chain.from_iterable(g for g in optimizer.float16_groups),
+        )
+
+        # Convert fp32_from_fp16_params
+        assert len(optimizer_state_dict['fp32_from_fp16_params']) == len(
+            optimizer_state_dict['optimizer']['param_groups']
+        )
+
+        def get_safe(param_id):
+            try:
+                return id_to_sharded_param_map[param_id]
+            except KeyError as e:
+                raise ValueError(f'Param id {param_id} does not match any model sharded param') from e
+
+        optimizer_state_dict['fp32_from_fp16_params'] = [
+            [
+                make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_param')
+                for param_id, fp32_param in zip(state_group['params'], fp32_group)
+            ]
+            for fp32_group, state_group in zip(
+                optimizer_state_dict['fp32_from_fp16_params'], optimizer_state_dict['optimizer']['param_groups']
+            )
+        ]
+
+        # Convert state
+        optim_state_to_sharding_state(optimizer_state_dict['optimizer'], id_to_sharded_param_map)
+
+        return optimizer_state_dict
+
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         app_state = AppState()
-        # PTL override to accomodate model parallel checkpoints
-        filepath = inject_model_parallel_rank(filepath)
-        if self.is_global_zero or app_state.data_parallel_rank == 0:
-            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        """ PTL method which we override to accomodate distributed checkpoints and 
+            the legacy model parallel checkpoints.
+
+            When using megatron core, the distributed checkpointing library expects save functions to be
+            called on every rank and internally does the rank checking.
+        """
+
+        # check if using distributed checkpointing
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
+            # converts the optimizer states to their sharded equivalents
+            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+
+            # dist_checkpointing expects a directory so we will name the directory
+            # using the path with the file extension removed
+            checkpoint_dir = ckpt_to_dir(filepath)
+
+            fs = get_filesystem(checkpoint_dir)
+            if is_global_rank_zero():
+                fs.makedirs(checkpoint_dir, exist_ok=True)
+
+            # remove device state_dict
+            checkpoint['state_dict'] = OrderedDict([])
+
+            dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
+        else:
+            # PTL override to accomodate model parallel checkpoints
+            filepath = inject_model_parallel_rank(filepath)
+            if self.is_global_zero or app_state.data_parallel_rank == 0:
+                self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
-        # Release strict state dict matching when using Megatron AMP-O2 to skip matching
-        # half-precision module wrapper module.
-        # TODO: Refactor this to be more generic.
-        model_key = None
-        model_attr = None
-        if hasattr(self.lightning_module, 'model'):
-            model_key = 'model'
-            model_attr = self.lightning_module.model
-        elif hasattr(self.lightning_module, 'enc_dec_model'):
-            model_key = 'enc_dec_model'
-            model_attr = self.lightning_module.enc_dec_model
-        if model_key is not None:
-            if isinstance(model_attr, Float16Module):
-                new_state_dict = {}
-                for key in checkpoint['state_dict'].keys():
-                    new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
-                    new_state_dict[new_key] = checkpoint['state_dict'][key]
-                checkpoint['state_dict'] = new_state_dict
+        # if using distributed checkpointing, the state dict logic is at the model level
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
+            return
 
-        self.lightning_module.load_state_dict(checkpoint["state_dict"])
+        # legacy state dict logic, does not use megatron core
+        else:
+
+            # Release strict state dict matching when using Megatron AMP-O2 to skip matching
+            # half-precision module wrapper module.
+            # TODO: Refactor this to be more generic.
+            model_key = None
+            model_attr = None
+            if hasattr(self.lightning_module, 'model'):
+                model_key = 'model'
+                model_attr = self.lightning_module.model
+            elif hasattr(self.lightning_module, 'enc_dec_model'):
+                model_key = 'enc_dec_model'
+                model_attr = self.lightning_module.enc_dec_model
+            if model_key is not None:
+                if isinstance(model_attr, Float16Module) or isinstance(model_attr, MCoreFloat16Module):
+                    new_state_dict = {}
+                    for key in checkpoint['state_dict'].keys():
+                        new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
+                        new_state_dict[new_key] = checkpoint['state_dict'][key]
+                    checkpoint['state_dict'] = new_state_dict
+
+            self.lightning_module.load_state_dict(checkpoint["state_dict"])
+
+    def _fix_tensors_device(self, ckpt: Dict) -> Dict:
+        """ Ensure checkpoint tensors are on the correct device."""
+        assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
+        cur_dev = torch.device("cuda", index=torch.cuda.current_device())
+
+        def _fix_device(t):
+            if isinstance(t, torch.Tensor) and t.is_cuda and t.device != cur_dev:
+                t = t.to(cur_dev)
+            return t
+
+        return dict_list_map_outplace(_fix_device, ckpt)
 
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
-        """ PTL override to accomodate model parallel checkpoints """
-        # TODO: move to CheckpointIO
-        torch.cuda.empty_cache()
-        checkpoint_path = inject_model_parallel_rank(checkpoint_path)
-        return self.checkpoint_io.load_checkpoint(checkpoint_path)
+        """ PTL method which we override to integrate distributed checkpoints for model parallel models.
+            In order to load distributed checkpoints we need to provide the sharded_state_dict to 
+            the distributed load function. We get the sharded_state_dict from self.lightning_module
+            which makes it convenient to have the loading logic happen at the strategy level.
+        """
+
+        fs = get_filesystem(checkpoint_path)
+
+        # Check if using distributed checkpointing
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
+
+            # Distributed checkpoints must be directories.
+            if not fs.isdir(checkpoint_path):
+                raise ValueError(f'Distributed checkpoints should be a directory. Found: {checkpoint_path}.')
+
+            sharded_state_dict = self.lightning_module.sharded_state_dict()
+
+            checkpoint = {}
+
+            # after dist_checkpointing.load, sharded tensors will be replaced with tensors
+            checkpoint['state_dict'] = sharded_state_dict
+            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+
+            checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_path)
+
+            checkpoint = self._fix_tensors_device(checkpoint)
+
+            return checkpoint
+
+        # Legacy model parallel checkpointing logic, does not use megatron core
+        else:
+            # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+            checkpoint_path = inject_model_parallel_rank(checkpoint_path)
+            if not fs.exists(checkpoint_path):
+                raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
+            torch.cuda.empty_cache()
+            return self.checkpoint_io.load_checkpoint(checkpoint_path)
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
-        app_state = AppState()
-        # PTL override to accomodate model parallel checkpoints
-        filepath = inject_model_parallel_rank(filepath)
-        if self.is_global_zero or app_state.data_parallel_rank == 0:
-            logging.info(f'Removing checkpoint: {filepath}')
-            self.checkpoint_io.remove_checkpoint(filepath)
+        # check if filepath is a distributed checkpoint
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
+            if self.is_global_zero:
+                shutil.rmtree(ckpt_to_dir(filepath))
+
+        # legacy checkpoint logic, does not use megatron core
+        else:
+            app_state = AppState()
+            # PTL override to accomodate model parallel checkpoints
+            filepath = inject_model_parallel_rank(filepath)
+            if self.is_global_zero or app_state.data_parallel_rank == 0:
+                logging.info(f'Removing checkpoint: {filepath}')
+                self.checkpoint_io.remove_checkpoint(filepath)
 
     @property
     def distributed_sampler_kwargs(self):
@@ -229,6 +421,14 @@ class NLPDDPStrategy(DDPStrategy):
         else:
             return super(NLPDDPStrategy, self).distributed_sampler_kwargs
 
+    @property
+    def restore_checkpoint_after_setup(self) -> bool:
+        """ This needs to be True for distributed checkpointing because
+            we require the model to have configured the optimizer before 
+            deserializing the checkpoint.
+        """
+        return True
+
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
@@ -240,6 +440,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             # raise ImportError(
             #    "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             # )
+        if not HAVE_MEGATRON_CORE:
+            logging.warning(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__()
 
     def save_to(self, model, save_path: str):
@@ -381,19 +585,131 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         return instance
 
 
-class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
-    """ Overrides PTL autocasting to not wrap training/val/test_step.
-        We do this because we have the Apex fwd/bwd functions in training_step.
-        This means .backward is being called in training_step so we do not want the whole
-        step wrapped in autocast.
+class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
+    """
+    PEFT models require the ability to load/save a small subset of the full model (once PEFT params have been infused into the base model.)
+    The PEFTSaveRestoreConnector is used to allow loading and saving only the PEFT params while not saving the entire model.
 
-        We instead wrap the fwd_output_and_loss_func that is passed to the Apex fwd/bwd functions.
+    Args:
+        peft_model_nemo_path: Used to provide the .nemo file corresponding to a PEFT model (which will only contain a small set of params)
+        peft_model_ckpt_path: Used to provide the path to .ckpt files of a PEFT model. This is required when no .nemo is available (yet) such as during resumed training.
+        peft_model_ckpt_name: The filename of the ckpt file inside the peft_model_ckpt_path folder
+    If both are provided the peft_model_ckpt_path takes precedence.
+    If neither are provided, PEFT params are initialized at random (not loaded from any external source).
     """
 
     def __init__(
-        self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
+        self,
+        peft_model_nemo_path: Optional[str] = None,
+        peft_model_ckpt_path: Optional[str] = None,
+        peft_model_ckpt_name: Optional[str] = "model_weights.ckpt",
+    ) -> None:
+        super().__init__()
+        self.peft_model_ckpt_name = peft_model_ckpt_name
+        if peft_model_ckpt_path:
+            # First we will try to load a adapter ckpt path
+            # this is given priority over loading from nemo path to make resumption of training possible
+            ckpt_name = os.path.basename(peft_model_ckpt_path)
+            if not ckpt_name.strip() == '':
+                # update the weights file name inside the ckpt path rank folders
+                self.peft_model_ckpt_name = ckpt_name
+            self.peft_model_ckpt_dir = os.path.dirname(peft_model_ckpt_path)
+            assert os.path.isdir(self.peft_model_ckpt_dir)
+            self.peft_model_nemo_path = None
+        elif peft_model_nemo_path:
+            # If resumption is not possible we will try to load a adapter nemo path
+            self.peft_model_nemo_path = peft_model_nemo_path
+            assert os.path.exists(self.peft_model_nemo_path)
+            self.peft_model_ckpt_dir = None
+        else:
+            # We are not resuming training from a nemo file or a ckpt
+            # We are training the adapter from randomly initialization
+            self.peft_model_nemo_path = None
+            self.peft_model_ckpt_dir = None
+
+    def _load_state_dict_from_disk(self, model_weights, map_location=None):
+        """
+        Infuse the state_dict of the base model with PEFT params from either a peft_model_nemo_path or peft_model_ckpt_path
+        """
+        # first load based model weights
+        base_model_state_dict = super()._load_state_dict_from_disk(model_weights, map_location)
+        # Next, We want to load PEFT model's weights
+        if self.peft_model_nemo_path:
+            # if the PEFT weights are provided in a .nemo file
+            # we need to untar the .nemo if its still tarred
+            with tempfile.TemporaryDirectory() as tmpdir:
+                self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir)
+                model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.peft_model_ckpt_name)
+                peft_state_dict = torch.load(model_weights_path, map_location)
+        elif self.peft_model_ckpt_dir:
+            # if the PEFT weights are provided in a ckpt path file
+            # we don't need to untar
+            model_weights_path = self._inject_model_parallel_rank_for_ckpt(
+                self.peft_model_ckpt_dir, self.peft_model_ckpt_name
+            )
+            peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
+        else:
+            peft_state_dict = {}
+        base_model_state_dict.update(peft_state_dict)  # add the PEFT state_dict into the base model's state_dict
+        return base_model_state_dict
+
+    def restore_from(
+        self,
+        calling_cls,
+        restore_path: str,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = True,
+        return_config: bool = False,
+        trainer: Trainer = None,
+    ):
+        """
+        Extends the restore_from method of the `NLPSaveRestoreConnector` so that PEFT params are inserted into the state_dict which is required when training a PEFT model from scratch.
+        """
+        # Get path where the command is executed - the artifacts will be "retrieved" there
+        # (original .nemo behavior)
+        loaded_params = super().load_config_and_state_dict(
+            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+        )
+        if not isinstance(loaded_params, tuple) or return_config is True:
+            return loaded_params
+        conf, instance, state_dict = loaded_params
+
+        if (
+            self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
+        ):  # we have this check only for training PEFT from scratch
+            peft_state_dict = instance.get_peft_state_dict()
+            state_dict.update(peft_state_dict)
+        state_dict = self.modify_state_dict(conf, state_dict)
+        self.load_instance_with_state_dict(instance, state_dict, strict)
+        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+        return instance
+
+
+class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin):
+    """ Overrides PTL autocasting to not wrap training/val/test_step.
+        We do this because we have the megatron-core fwd/bwd functions in training_step.
+        This means .backward is being called in training_step so we do not want the whole
+        step wrapped in autocast.
+
+        We instead wrap the fwd_output_and_loss_func that is passed to the megatron-core fwd/bwd functions.
+    """
+
+    def __init__(
+        self,
+        precision: Literal["16-mixed", "bf16-mixed"],
+        device: str,
+        scaler: Optional[torch.cuda.amp.GradScaler] = None,
     ) -> None:
         super().__init__(precision, device, scaler=scaler)
+        dtype = None
+        # MixedPrecisionPlugin class in PTL >= 2.0 takes only "16-mixed" or "bf16-mixed" for precision arg
+        if precision == '16-mixed':
+            dtype = torch.float16
+        elif precision == 'bf16-mixed':
+            dtype = torch.bfloat16
+
+        torch.set_autocast_gpu_dtype(dtype)
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
@@ -577,7 +893,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
             self._hysteresis_tracker = 1
 
 
-class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
+class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
     """
     Plugin for Half (FP16 and BF16) precision training.
     This plugin assumes the use of the optimizer with master parameters (fp32).
@@ -594,12 +910,19 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler)
+        dtype = None
+        # MixedPrecisionPlugin class in PTL >= 2.0 takes only "16-mixed" or "bf16-mixed" for precision arg
+        if precision == "16-mixed":
+            dtype = torch.float16
+        elif precision == "bf16-mixed":
+            dtype = torch.bfloat16
+
+        torch.set_autocast_gpu_dtype(dtype)
 
     def optimizer_step(
         self,
         optimizer: torch.optim.Optimizer,
         model: Union["pl.LightningModule", torch.nn.Module],
-        optimizer_idx: int,
         closure: Callable[[], Any],
         **kwargs: Any,
     ) -> None:
@@ -610,13 +933,9 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         if self.scaler is None:
             assert optimizer.fp32_grad_accumulation, "BF16 uses FP32 grad accumulation"
             _ = closure()
-            self._after_closure(model, optimizer, optimizer_idx)
+            self._after_closure(model, optimizer)
             return optimizer.step(**kwargs)
 
-        if isinstance(optimizer, torch.optim.LBFGS):
-            raise MisconfigurationException(
-                f"Native AMP and the LBFGS optimizer are not compatible (optimizer {optimizer_idx})."
-            )
         assert not optimizer.fp32_grad_accumulation, "FP16 uses FP16 grad accumulation"
         closure_result = closure()
 
@@ -627,7 +946,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         # `unscale` after the closure is executed but before the `on_before_optimizer_step` hook.
         # unscale main (fp32) gradients
         self.scaler.unscale_(optimizer)
-        self._after_closure(model, optimizer, optimizer_idx)
+        self._after_closure(model, optimizer)
         skipped_backward = closure_result is None
         # in manual optimization, the closure does not return a value
         if not isinstance(model, pl.LightningModule) or not model.automatic_optimization or not skipped_backward:
@@ -644,13 +963,15 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
             pass
 
 
-class GlobalBatchDataFetcher(DataFetcher):
+class GlobalBatchDataFetcher(_DataFetcher):
     """ Overrides PTL DataFetcher. Used to fetch global batches."""
 
     def __init__(self, prefetch_batches: int = 0, store_on_device: bool = False) -> None:
 
         if not HAVE_APEX:
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+        if not HAVE_MEGATRON_CORE:
+            logging.warning("Megatron-core was not found. Using model parallel or megatron models will error out..")
 
         super().__init__(prefetch_batches=prefetch_batches, store_on_device=store_on_device)
 
@@ -664,130 +985,3 @@ class GlobalBatchDataFetcher(DataFetcher):
             assert isinstance(dataloader, Sized)  # `_has_len` is True
             self.done = self.fetched >= len(dataloader)
         self.on_fetch_end(batch, start_output)
-
-
-def build_model_cpu(
-    model_provider_func: Callable[[Any, Dict[str, Any]], torch.nn.Module],
-    wrap_with_ddp: bool = True,
-    virtual_pipeline_model_parallel_size: Optional[int] = None,
-    model_type: 'ModelType' = None,  # Default of ModelType.encoder_or_decoder
-    *args: Any,
-    **kwargs: Any,
-) -> List[torch.nn.Module]:
-    """Build the model satisfying pipeline model parallel requirements on CPU.
-
-    NOTE: This function is a duplicate of the Apex `build_model` function with the only difference
-    being that it removes an explicit forced cast of the model onto the GPU. This is necessary
-    because in certain cases the model is simply too large to fit on the GPU, and the user
-    should be responsible for casting the model to the GPU if they wish to do so.
-
-    Specifically, this function is used when constructing a dummy model containing the union of parameters
-    from all TP and PP ranks, which is then sharded across a new TP PP configuration.
-
-    This function sets `pre_process` and `post_process` to `**kwargs` and pass `*args` and `**kwargs` to
-    `model_provider_func`.
-
-    Args:
-        model_provider_func: A function which takes `*args` and `**kwargs` and returns a `nn.Module`.
-        wrap_with_ddp: If :obj:`True`, wrap the instantiated model
-            with `torch.nn.parallel.distributed.DistributedDataParallel`, a.k.a. `DDP`.
-        virtual_pipeline_model_parallel_size: Specify when using interleaving scheduling pipeline model parallel.
-        model_type:
-        *args: arguments for model provider func
-        **kwargs: Keyword arguments for model provider func
-
-    Returns:
-        a list of `nn.Module`(s). If `virtual_pipeline_model_parallel_size` is not None,
-        the list has multiple models, otherwise one.
-    """
-    if not HAVE_APEX:
-        raise ValueError("Apex is required for pipeline parallelism.")
-
-    if model_type is None:
-        model_type = ModelType.encoder_or_decoder
-
-    if (
-        parallel_state.get_pipeline_model_parallel_world_size() > 1
-        and virtual_pipeline_model_parallel_size is not None
-    ):
-        model = []
-        for i in range(virtual_pipeline_model_parallel_size):
-            cur_args = args
-            cur_kwargs = kwargs
-            parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-            # Set pre_process and post_process only after virtual rank is set.
-            pre_process = parallel_state.is_pipeline_first_stage()
-            post_process = parallel_state.is_pipeline_last_stage()
-            cur_kwargs.update(
-                {"pre_process": pre_process, "post_process": post_process,}
-            )
-            this_model = model_provider_func(*cur_args, **cur_kwargs)
-            model.append(this_model)
-    else:
-        cur_args = args
-        cur_kwargs = kwargs
-        model = None
-        if model_type == ModelType.encoder_or_decoder:
-            pre_process = parallel_state.is_pipeline_first_stage()
-            post_process = parallel_state.is_pipeline_last_stage()
-            cur_kwargs.update(
-                {"pre_process": pre_process, "post_process": post_process,}
-            )
-            model = model_provider_func(*cur_args, **cur_kwargs)
-        elif model_type == ModelType.encoder_and_decoder:
-            pre_process = parallel_state.is_pipeline_first_stage()
-            post_process = parallel_state.is_pipeline_last_stage()
-            # `add_encoder` & `add_decoder` logic.
-            add_encoder, add_decoder = True, True
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
-                if split_rank is None:
-                    raise RuntimeError("Split rank needs to be specified for model with both encoder and decoder.")
-                rank = parallel_state.get_pipeline_model_parallel_rank()
-                world_size = parallel_state.get_pipeline_model_parallel_world_size()
-                pre_process = rank == 0 or rank == split_rank
-                post_process = rank == (split_rank - 1) or rank == (world_size - 1)
-                add_encoder = parallel_state.is_pipeline_stage_before_split()
-                add_decoder = parallel_state.is_pipeline_stage_after_split()
-            cur_kwargs.update(
-                {
-                    "pre_process": pre_process,
-                    "post_process": post_process,
-                    "add_encoder": add_encoder,
-                    "add_decoder": add_decoder,
-                }
-            )
-            model = model_provider_func(*cur_args, **cur_kwargs)
-
-        if model is not None:
-            model.model_type = model_type
-
-    if not isinstance(model, list):
-        model = [model]
-
-    # Set tensor model parallel attributes if not set.
-    # Only parameters that are already tensor model parallel have these
-    # attributes set for them. We should make sure the default attributes
-    # are set for all params so the optimizer can use them.
-    for model_module in model:
-        for param in model_module.parameters():
-            set_defaults_if_not_set_tensor_model_parallel_attributes(param)
-
-    # Print number of parameters.
-    if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
-        msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
-            parallel_state.get_tensor_model_parallel_rank(),
-            parallel_state.get_pipeline_model_parallel_rank(),
-            _calc_number_of_params(model),
-        )
-        print(msg, flush=True)
-
-    if wrap_with_ddp:
-        i = torch.cuda.current_device()
-        model = [
-            torch.nn.parallel.distributed.DistributedDataParallel(
-                model_module, device_ids=[i], output_device=i, process_group=parallel_state.get_data_parallel_group(),
-            )
-            for model_module in model
-        ]
-    return model

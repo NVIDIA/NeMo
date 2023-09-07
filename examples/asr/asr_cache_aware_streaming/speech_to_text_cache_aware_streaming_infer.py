@@ -42,8 +42,17 @@ python speech_to_text_streaming_infer.py \
 
 You may drop the '--debug_mode' and '--compare_vs_offline' to speedup the streaming evaluation.
 If compare_vs_offline is not used, then significantly larger batch_size can be used.
+Setting `--pad_and_drop_preencoded` would perform the caching for all steps including the first step.
+It may result in slightly different outputs from the sub-sampling module compared to offline mode for some techniques like striding and sw_striding.
+Enabling it would make it easier to export the model to ONNX.
 
-To best compare output with offline output (i.e. `--compare_vs_offline` is set) `--pad-and-drop-preencoded` should also be set.
+## Hybrid ASR models
+For Hybrid ASR models which have two decoders, you may select the decoder by --set_decoder DECODER_TYPE, where DECODER_TYPE can be "ctc" or "rnnt".
+If decoder is not set, then the default decoder would be used which is the RNNT decoder for Hybrid ASR models.
+
+## Multi-lookahead models
+For models which support multiple lookaheads, the default is the first one in the list of model.encoder.att_context_size. To change it, you may use --att_context_size, for example --att_context_size [70,1].
+
 
 ## Evaluate a model trained with full context for offline mode
 
@@ -52,7 +61,7 @@ But the accuracy would not be very good with small chunks as there is inconsiste
 The accuracy of the model on the borders of chunks would not be very good.
 
 To use a model trained with full context, you need to pass the chunk_size and shift_size arguments.
-If shift_size is not passed, chunk_size would be use as the shift_size too.
+If shift_size is not passed, chunk_size would be used as the shift_size too.
 Also argument online_normalization should be enabled to simulate a realistic streaming.
 The following command would simulate cache-aware streaming on a pretrained model from NGC with chunk_size of 100, shift_size of 50 and 2 left chunks as left context.
 The chunk_size of 100 would be 100*4*10=4000ms for a model with 4x downsampling and 10ms shift in feature extraction.
@@ -126,6 +135,7 @@ def perform_streaming(
                         transcribed_texts,
                         cache_last_channel_next,
                         cache_last_time_next,
+                        cache_last_channel_len,
                         best_hyp,
                     ) = asr_model.conformer_stream_step(
                         processed_signal=processed_signal,
@@ -254,9 +264,23 @@ def main():
         "--output_path", type=str, help="path to output file when manifest is used as input", default=None
     )
     parser.add_argument(
-        "--pad-and-drop-preencoded",
+        "--pad_and_drop_preencoded",
         action="store_true",
-        help="Enables padding the audio input and then dropping the extra steps after the pre-encoding for the first step. It makes the outputs of the downsampling exactly as the offline mode for some techniques like striding.",
+        help="Enables padding the audio input and then dropping the extra steps after the pre-encoding for all the steps including the the first step. It may make the outputs of the downsampling slightly different from offline mode for some techniques like striding or sw_striding.",
+    )
+
+    parser.add_argument(
+        "--set_decoder",
+        choices=["ctc", "rnnt"],
+        default=None,
+        help="Selects the decoder for Hybrid ASR models which has both the CTC and RNNT decoder. Supported decoders are ['ctc', 'rnnt']",
+    )
+
+    parser.add_argument(
+        "--att_context_size",
+        type=str,
+        default=None,
+        help="Sets the att_context_size for the models which support multiple lookaheads",
     )
 
     args = parser.parse_args()
@@ -273,6 +297,17 @@ def main():
         asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=args.asr_model)
 
     logging.info(asr_model.encoder.streaming_cfg)
+    if args.set_decoder is not None:
+        if hasattr(asr_model, "cur_decoder"):
+            asr_model.change_decoding_strategy(decoder_type=args.set_decoder)
+        else:
+            raise ValueError("Decoder cannot get changed for non-Hybrid ASR models.")
+
+    if args.att_context_size is not None:
+        if hasattr(asr_model.encoder, "set_default_att_context_size"):
+            asr_model.encoder.set_default_att_context_size(att_context_size=json.loads(args.att_context_size))
+        else:
+            raise ValueError("Model does not support multiple lookaheads.")
 
     global autocast
     if (

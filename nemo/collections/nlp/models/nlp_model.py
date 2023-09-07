@@ -16,14 +16,14 @@ import copy
 import hashlib
 import json
 import os
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
+from lightning_fabric.utilities.cloud_io import _load as pl_load
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.utilities import rank_zero_only
-from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
 from transformers import TRANSFORMERS_CACHE
 
@@ -385,3 +385,14 @@ class NLPModel(ModelPT, Exportable):
         finally:
             cls._set_model_restore_state(is_being_restored=False)
         return checkpoint
+
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
+        # starting with trasformers v4.31.0, buffer for position_ids is persistent=False
+        if (
+            self.bert_model is not None
+            and "position_ids" not in self.bert_model.embeddings._modules
+            and "bert_model.embeddings.position_ids" in state_dict
+        ):
+            del state_dict["bert_model.embeddings.position_ids"]
+        results = super(NLPModel, self).load_state_dict(state_dict, strict=strict)
+        return results

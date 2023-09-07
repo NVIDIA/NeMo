@@ -18,8 +18,6 @@ from pathlib import Path
 from typing import Tuple
 
 from omegaconf import DictConfig, OmegaConf, open_dict
-
-from nemo.collections.asr.metrics.wer import word_error_rate_detail
 from nemo.utils import logging
 
 
@@ -29,6 +27,9 @@ def run_asr_inference(cfg: DictConfig) -> DictConfig:
     """
     if (cfg.model_path and cfg.pretrained_name) or (not cfg.model_path and not cfg.pretrained_name):
         raise ValueError("Please specify either cfg.model_path or cfg.pretrained_name!")
+
+    if cfg.inference.decoder_type not in [None, 'ctc', 'rnnt']:
+        raise ValueError("decoder_type could only be null, ctc or rnnt")
 
     if cfg.inference.mode == "offline":
         cfg = run_offline_inference(cfg)
@@ -69,6 +70,7 @@ def run_asr_inference(cfg: DictConfig) -> DictConfig:
 
 
 def run_chunked_inference(cfg: DictConfig) -> DictConfig:
+
     if "output_filename" not in cfg or not cfg.output_filename:
         if cfg.model_path:
             model_name = Path(cfg.model_path).stem
@@ -95,10 +97,43 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
         / "ctc"
         / "speech_to_text_buffered_infer_ctc.py"
     )
-
-    if (cfg.pretrained_name and 'transducer' in cfg.pretrained_name) or (
-        cfg.model_path and 'transducer' in cfg.model_path
+    use_rnnt_scrpit = False
+    # hybrid model
+    if (cfg.pretrained_name and 'hybrid' in cfg.pretrained_name.lower()) or (
+        cfg.model_path and 'hybrid' in cfg.model_path.lower()
     ):
+        if cfg.inference.decoder_type != 'ctc':
+            use_rnnt_scrpit = True
+    # rnnt model
+    elif (
+        (cfg.pretrained_name and 'rnnt' in cfg.pretrained_name.lower())
+        or (cfg.pretrained_name and 'transducer' in cfg.pretrained_name.lower())
+        or (cfg.model_path and 'rnnt' in cfg.model_path.lower())
+        or (cfg.model_path and 'transducer' in cfg.model_path.lower())
+    ):
+        if cfg.inference.decoder_type and cfg.inference.decoder_type != 'rnnt':
+            raise ValueError(
+                f"rnnt models only support rnnt deocoding! Current decoder_type: {cfg.inference.decoder_type}! Change it to null or rnnt for rnnt models"
+            )
+        use_rnnt_scrpit = True
+
+    # ctc model
+    elif (cfg.pretrained_name and 'ctc' in cfg.pretrained_name.lower()) or (
+        cfg.model_path and 'ctc' in cfg.model_path.lower()
+    ):
+        if cfg.inference.decoder_type and cfg.inference.decoder_type != 'ctc':
+            raise ValueError(
+                f"ctc models only support ctc deocoding! Current decoder_type: {cfg.inference.decoder_type}! Change it to null or ctc for ctc models"
+            )
+    else:
+        raise ValueError(
+            "Please make sure your pretrained_name or model_path contains \n\
+            'hybrid' for EncDecHybridRNNTCTCModel model, \n\
+            'transducer/rnnt' for EncDecRNNTModel model  or \n\
+            'ctc' for EncDecCTCModel."
+        )
+
+    if use_rnnt_scrpit:
         script_path = (
             Path(__file__).parents[2]
             / "examples"
@@ -108,19 +143,25 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
             / "speech_to_text_buffered_infer_rnnt.py"
         )
 
+    # If need to change other config such as decoding strategy, could either:
+    # 1) change TranscriptionConfig on top of the executed scripts such as speech_to_text_buffered_infer_rnnt.py, or
+    # 2) add command as "decoding.strategy=greedy_batch " to below script
+
+    base_cmd = f"python {script_path} \
+    calculate_wer=False \
+    model_path={cfg.model_path} \
+    pretrained_name={cfg.pretrained_name} \
+    dataset_manifest={cfg.test_ds.manifest_filepath} \
+    output_filename={cfg.output_filename} \
+    random_seed={cfg.random_seed} \
+    batch_size={cfg.test_ds.batch_size} \
+    num_workers={cfg.test_ds.num_workers} \
+    chunk_len_in_secs={cfg.inference.chunk_len_in_secs} \
+    total_buffer_in_secs={cfg.inference.total_buffer_in_secs} \
+    model_stride={cfg.inference.model_stride} "
+
     subprocess.run(
-        f"python {script_path} "
-        f"model_path={cfg.model_path} "
-        f"pretrained_name={cfg.pretrained_name} "
-        f"dataset_manifest={cfg.test_ds.manifest_filepath} "
-        f"output_filename={cfg.output_filename} "
-        f"random_seed={cfg.random_seed} "
-        f"batch_size={cfg.test_ds.batch_size} "
-        f"chunk_len_in_secs={cfg.inference.chunk_len_in_secs} "
-        f"total_buffer_in_secs={cfg.inference.total_buffer_in_secs} "
-        f"model_stride={cfg.inference.model_stride} ",
-        shell=True,
-        check=True,
+        base_cmd, shell=True, check=True,
     )
     return cfg
 
@@ -143,156 +184,26 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
         f.seek(0)  # reset file pointer
         script_path = Path(__file__).parents[2] / "examples" / "asr" / "transcribe_speech.py"
 
-        # If need to move other config such as decoding strategy, could either:
+        # If need to change other config such as decoding strategy, could either:
         # 1) change TranscriptionConfig on top of the executed scripts such as transcribe_speech.py in examples/asr, or
         # 2) add command as "rnnt_decoding.strategy=greedy_batch " to below script
         subprocess.run(
             f"python {script_path} "
+            f"calculate_wer=False "
             f"model_path={cfg.model_path} "
             f"pretrained_name={cfg.pretrained_name} "
             f"dataset_manifest={cfg.test_ds.manifest_filepath} "
             f"output_filename={cfg.output_filename} "
             f"batch_size={cfg.test_ds.batch_size} "
+            f"num_workers={cfg.test_ds.num_workers} "
             f"random_seed={cfg.random_seed} "
-            f"eval_config_yaml={f.name} ",
+            f"eval_config_yaml={f.name} "
+            f"decoder_type={cfg.inference.decoder_type} ",
             shell=True,
             check=True,
         )
 
     return cfg
-
-
-def clean_label(_str: str, num_to_words: bool = True, langid="en") -> str:
-    """
-    Remove unauthorized characters in a string, lower it and remove unneeded spaces
-    """
-    replace_with_space = [char for char in '/?*\",.:=?_{|}~¨«·»¡¿„…‧‹›≪≫!:;ː→']
-    replace_with_blank = [char for char in '`¨´‘’“”`ʻ‘’“"‘”']
-    replace_with_apos = [char for char in '‘’ʻ‘’‘']
-    _str = _str.strip()
-    _str = _str.lower()
-    for i in replace_with_blank:
-        _str = _str.replace(i, "")
-    for i in replace_with_space:
-        _str = _str.replace(i, " ")
-    for i in replace_with_apos:
-        _str = _str.replace(i, "'")
-    if num_to_words:
-        if langid == "en":
-            _str = convert_num_to_words(_str, langid="en")
-        else:
-            logging.info(
-                "Currently support basic num_to_words in English only. Please use Text Normalization to convert other languages! Skipping!"
-            )
-
-    ret = " ".join(_str.split())
-    return ret
-
-
-def convert_num_to_words(_str: str, langid: str = "en") -> str:
-    """
-    Convert digits to corresponding words. Note this is a naive approach and could be replaced with text normalization.
-    """
-    if langid == "en":
-        num_to_words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
-        _str = _str.strip()
-        words = _str.split()
-        out_str = ""
-        num_word = []
-        for word in words:
-            if word.isdigit():
-                num = int(word)
-                while num:
-                    digit = num % 10
-                    digit_word = num_to_words[digit]
-                    num_word.append(digit_word)
-                    num = int(num / 10)
-                    if not (num):
-                        num_str = ""
-                        num_word = num_word[::-1]
-                        for ele in num_word:
-                            num_str += ele + " "
-                        out_str += num_str + " "
-                        num_word.clear()
-            else:
-                out_str += word + " "
-        out_str = out_str.strip()
-    else:
-        raise ValueError(
-            "Currently support basic num_to_words in English only. Please use Text Normalization to convert other languages!"
-        )
-    return out_str
-
-
-def cal_write_wer(cfg: DictConfig, pred_text_attr_name: str = None) -> Tuple[DictConfig, dict]:
-    """ 
-    Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text) 
-    We use WER in function name as a convention, but it currently Error Rate (ER) support Word Error Rate (WER) and Character Error Rate (CER)
-    """
-    samples = []
-    hyps = []
-    refs = []
-
-    with open(cfg.engine.output_filename, 'r') as fp:
-        for line in fp:
-            sample = json.loads(line)
-
-            if 'text' not in sample:
-                raise ValueError(
-                    "ground-truth text does not present in manifest! Cannot calculate Word Error Rate. Exiting!"
-                )
-
-            if not pred_text_attr_name:
-                pred_text_attr_name = "pred_text"
-
-            hyp = sample[pred_text_attr_name]
-            ref = sample['text']
-
-            if cfg.analyst.metric_calculator.clean_groundtruth_text:
-                ref = clean_label(ref, langid=cfg.analyst.metric_calculator.langid)
-
-            wer, tokens, ins_rate, del_rate, sub_rate = word_error_rate_detail(
-                hypotheses=[hyp], references=[ref], use_cer=cfg.analyst.metric_calculator.use_cer
-            )
-            eval_metric = "wer"
-            if cfg.analyst.metric_calculator.use_cer:
-                eval_metric = "cer"
-
-            sample[eval_metric] = wer  # evaluatin metric, could be word error rate of character error rate
-            sample['tokens'] = tokens  # number of word/characters/tokens
-            sample['ins_rate'] = ins_rate  # insertion error rate
-            sample['del_rate'] = del_rate  # deletion error rate
-            sample['sub_rate'] = sub_rate  # substitution error rate
-
-            samples.append(sample)
-            hyps.append(hyp)
-            refs.append(ref)
-
-    total_wer, total_tokens, total_ins_rate, total_del_rate, total_sub_rate = word_error_rate_detail(
-        hypotheses=hyps, references=refs, use_cer=cfg.analyst.metric_calculator.use_cer
-    )
-
-    if "output_filename" not in cfg.analyst.metric_calculator or not cfg.analyst.metric_calculator.output_filename:
-        # overwrite the current generated manifest
-        OmegaConf.set_struct(cfg, True)
-        with open_dict(cfg):
-            cfg.analyst.metric_calculator.output_filename = cfg.engine.output_filename
-
-    with open(cfg.analyst.metric_calculator.output_filename, 'w') as fout:
-        for sample in samples:
-            json.dump(sample, fout)
-            fout.write('\n')
-            fout.flush()
-
-    total_res = {
-        "samples": len(samples),
-        "tokens": total_tokens,
-        eval_metric: total_wer,
-        "ins_rate": total_ins_rate,
-        "del_rate": total_del_rate,
-        "sub_rate": total_sub_rate,
-    }
-    return cfg, total_res, eval_metric
 
 
 def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_metric: str = "wer",) -> dict:
@@ -313,7 +224,6 @@ def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, ev
     Return: 
         ret (dict): Generated dictionary containing all results regarding the target metadata. 
     """
-
     if eval_metric not in ['wer', 'cer']:
         raise ValueError(
             "Currently support wer and cer as eval_metric. Please implement it in cal_target_metadata_wer if using different eval_metric"

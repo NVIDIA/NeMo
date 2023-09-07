@@ -111,9 +111,8 @@ extras_require['slu'] = list(chain([extras_require['slu'], extras_require['asr']
 
 
 class StyleCommand(distutils_cmd.Command):
-    __LINE_WIDTH = 119
-    __ISORT_BASE = 'isort '
-    __BLACK_BASE = f'black --skip-string-normalization --line-length={__LINE_WIDTH}'
+    __ISORT_BASE = 'isort'
+    __BLACK_BASE = 'black'
     description = 'Checks overall project code style.'
     user_options = [
         ('scope=', None, 'Folder of file to operate within.'),
@@ -216,8 +215,8 @@ setuptools.setup(
         'License :: OSI Approved :: Apache Software License',
         # Supported python versions
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
         # Additional Setting
         'Environment :: Console',
         'Natural Language :: English',

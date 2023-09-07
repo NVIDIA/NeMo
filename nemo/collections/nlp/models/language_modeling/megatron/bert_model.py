@@ -31,15 +31,27 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
     from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
+
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
+
+try:
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
+
+    HAVE_MEGATRON_CORE = False
 
 
 def bert_extended_attention_mask(attention_mask):
@@ -72,6 +84,7 @@ class BertLMHead(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         mpu_vocab_size,
         hidden_size,
         init_method,
@@ -79,15 +92,14 @@ class BertLMHead(MegatronModule):
         parallel_output,
         use_openai_gelu,
         onnx_safe,
-        sequence_parallel=False,
     ):
 
-        super(BertLMHead, self).__init__()
+        super(BertLMHead, self).__init__(config=config)
 
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
         set_tensor_model_parallel_attributes(self.bias, True, 0, 1)
         self.parallel_output = parallel_output
-        self.sequence_parallel = sequence_parallel
+        self.sequence_parallel = config.sequence_parallel
 
         self.dense = get_linear_layer(hidden_size, hidden_size, init_method)
         self.layernorm = get_layer_norm(hidden_size, eps=layernorm_epsilon)
@@ -101,7 +113,7 @@ class BertLMHead(MegatronModule):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.gelu(hidden_states)
         hidden_states = self.layernorm(hidden_states)
-        async_tensor_model_parallel_allreduce = parallel_state.get_tensor_model_parallel_world_size() > 1
+        async_tensor_model_parallel_allreduce = self.config.async_tensor_model_parallel_allreduce
         output = parallel_lm_logits(
             hidden_states,
             word_embeddings_weight,
@@ -147,6 +159,7 @@ class BertModel(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         vocab_size,
         hidden_size,
         max_position_embeddings,
@@ -161,7 +174,7 @@ class BertModel(MegatronModule):
         post_process=True,
         init_method_std=0.02,
         fp16_lm_cross_entropy=False,
-        use_cpu_initialization=False,
+        megatron_amp_O2=False,
         hidden_dropout=0.1,
         precision=16,
         fp32_residual_connection=False,
@@ -172,14 +185,15 @@ class BertModel(MegatronModule):
         layernorm_epsilon=1e-5,
         masked_softmax_fusion=False,
         bias_gelu_fusion=True,
+        bias_dropout_add_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
         add_binary_head=True,
         megatron_legacy=False,
         sequence_parallel=False,
+        position_embedding_type='learned_absolute',
     ):
-        super(BertModel, self).__init__()
-        # args = get_args()
+        super(BertModel, self).__init__(config=config)
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.add_binary_head = add_binary_head
         self.parallel_output = parallel_output
@@ -191,6 +205,7 @@ class BertModel(MegatronModule):
         scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
 
         self.language_model, self._language_model_key = get_language_model(
+            config=config,
             vocab_size=vocab_size,
             hidden_size=hidden_size,
             hidden_dropout=hidden_dropout,
@@ -208,7 +223,7 @@ class BertModel(MegatronModule):
             pre_process=self.pre_process,
             post_process=self.post_process,
             init_method_std=init_method_std,
-            use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
@@ -218,10 +233,11 @@ class BertModel(MegatronModule):
             layernorm_epsilon=layernorm_epsilon,
             masked_softmax_fusion=masked_softmax_fusion,
             bias_activation_fusion=bias_gelu_fusion,
+            bias_dropout_add_fusion=bias_dropout_add_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             megatron_legacy=megatron_legacy,
-            sequence_parallel=sequence_parallel,
+            position_embedding_type=position_embedding_type,
         )
 
         self.initialize_word_embeddings(
@@ -230,6 +246,7 @@ class BertModel(MegatronModule):
 
         if self.post_process:
             self.lm_head = BertLMHead(
+                config,
                 self.word_embeddings_weight().size(0),
                 hidden_size,
                 init_method,
@@ -237,7 +254,6 @@ class BertModel(MegatronModule):
                 parallel_output,
                 openai_gelu,
                 onnx_safe,
-                sequence_parallel,
             )
             self._lm_head_key = 'lm_head'
             self.binary_head = None

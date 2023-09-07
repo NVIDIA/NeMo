@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import re
 from collections import OrderedDict
+from typing import Any, Optional
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -31,8 +33,30 @@ from nemo.collections.nlp.modules.common import (
     VirtualPromptSource,
     VirtualPromptStyle,
 )
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
-from nemo.utils import logging
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.utils import AppState, logging
+
+try:
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+try:
+    from megatron.core import ModelParallelConfig, parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
+
+    HAVE_MEGATRON_CORE = False
+
 
 __all__ = ['MegatronBasePromptLearningModel']
 
@@ -59,10 +83,8 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.init_model(cfg, trainer)
 
-    def init_model(self, cfg: DictConfig, trainer: Trainer):
-        self.cfg = cfg
+        self.config: ModelParallelConfig = self.model_parallel_config
 
         self.load_frozen_model(cfg, trainer)
         self.prompt_encoder = None
@@ -72,8 +94,10 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             self.hidden_size = (
                 self.frozen_model.cfg.encoder.hidden_size
             )  # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
+            self.config.hidden_size = self.hidden_size
         else:
             self.hidden_size = self.frozen_model.cfg.hidden_size
+            self.config.hidden_size = self.hidden_size
 
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
@@ -111,18 +135,14 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
-        if self.trainer.precision == 'bf16':
-            self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
-            self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
         self.prompt_encoder = None
+
+        self.enable_autocast = (
+            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
 
         # define validation metric
         if self.cfg.get('report_validation_metric', False):
@@ -183,6 +203,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
         self.prompt_encoder = PromptEncoder(
+            config=self.model_parallel_config,
             encoder_type=encoder_type,
             total_virtual_tokens=total_virtual_tokens,
             token_dim=self.hidden_size,
@@ -354,6 +375,29 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
             )
+
+    def _reconfigure_and_process_inference_batch(self, global_batch_size_per_gpu, gbs):
+        # This should happen only on the last batch of the dataset.
+        if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():
+            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_size_per_gpu,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
+    def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config

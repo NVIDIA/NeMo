@@ -143,7 +143,9 @@ class AdapterModuleMixin(ABC):
         -   `adapter_metadata_cfg_key`: A str representing a key in the model config that is used to preserve the
                 metadata of the adapter config.
 
-    **Note**: This module is **not** responsible for maintaining its config. Subclasses must ensure config is updated
+    .. note::
+    
+        This module is **not** responsible for maintaining its config. Subclasses must ensure config is updated 
         or preserved as needed. It is the responsibility of the subclasses to propagate the most up to date config to
         lower layers.
     """
@@ -151,7 +153,7 @@ class AdapterModuleMixin(ABC):
     adapter_global_cfg_key = "global_cfg"
     adapter_metadata_cfg_key = "adapter_meta_cfg"
 
-    def add_adapter(self, name: str, cfg: DictConfig):
+    def add_adapter(self, name: str, cfg: DictConfig, **kwargs):
         """
         Add an Adapter module to this module.
 
@@ -214,7 +216,7 @@ class AdapterModuleMixin(ABC):
         # Update internal config and instantiate the Adapter module
         with open_dict(cfg), open_dict(self.adapter_cfg):
             adapter_enabled = cfg.pop('enabled', True)
-            self.adapter_layer[adapter_name] = instantiate(cfg)
+            self.adapter_layer[adapter_name] = instantiate(cfg, **kwargs)
 
             cfg['enabled'] = adapter_enabled
             self.adapter_cfg[adapter_name] = cfg
@@ -407,12 +409,12 @@ class AdapterModuleMixin(ABC):
 
                     # Check if adapter is enabled or not
                     if self.adapter_cfg[name]['enabled'] and name in module.adapter_layer:
+
                         # Recursively set training mode of submodules
                         module.adapter_layer[name].train()
 
                         # Recursively set grad required for submodules
-                        for pname, param in module.adapter_layer[name].named_parameters():
-                            param.requires_grad_(True)
+                        module.adapter_layer[name].adapter_unfreeze()
 
                         # unfreeze batch norm if any in the adapter submodules
                         for mname, module_ in module.adapter_layer[name].named_modules():
@@ -434,8 +436,6 @@ class AdapterModuleMixin(ABC):
 
         Utilizes the implicit merge strategy of each adapter when computing the adapter's output, and
         how that output will be merged back with the original input.
-
-        **Note**:
 
         Args:
             input: The output tensor of the calling module is the input to the first adapter, whose output
@@ -519,7 +519,9 @@ class AdapterModuleMixin(ABC):
         """
         Perform the forward step of a single adapter module on some input data.
 
-        **Note**: Subclasses can override this method to accommodate more complicate adapter forward steps.
+        .. note::
+        
+            Subclasses can override this method to accommodate more complicate adapter forward steps.
 
         Args:
             input: input: The output tensor of the calling module is the input to the first adapter, whose output
@@ -756,8 +758,10 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         Utility method that saves only the adapter module(s), and not the entire model itself.
         This allows the sharing of adapters which are often just a fraction of the size of the full model,
         enabling easier deliver.
+        
+        .. note::
 
-        Note: The saved file is a pytorch compatible pickle file, containing the state dicts of the adapter(s),
+            The saved file is a pytorch compatible pickle file, containing the state dicts of the adapter(s),
             as well as a binary representation of the adapter config.
 
         Args:
@@ -835,7 +839,9 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         This allows the sharing of adapters which are often just a fraction of the size of the full model,
         enabling easier deliver.
 
-        Note: During restoration, assumes that the model does not currently already have an adapter with
+        .. note::
+        
+            During restoration, assumes that the model does not currently already have an adapter with
             the name (if provided), or any adapter that shares a name with the state dict's modules
             (if name is not provided). This is to ensure that each adapter name is globally unique
             in a model.
@@ -964,7 +970,9 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         """
         List of valid adapter modules that are supported by the model.
 
-        **Note**: Subclasses should override this property and return a list of str names, of all the modules
+        .. note::
+        
+            Subclasses should override this property and return a list of str names, of all the modules
             that they support, which will enable users to determine where to place the adapter modules.
 
         Returns:

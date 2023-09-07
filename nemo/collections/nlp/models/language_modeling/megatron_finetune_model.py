@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import itertools
 import json
+from typing import Dict, List
 
 import torch
 from omegaconf import DictConfig, ListConfig
@@ -22,17 +24,31 @@ from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
-from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
+from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator,
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+try:
+    from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = ['MegatronT5FinetuneModel']
 
@@ -90,24 +106,36 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         )
 
             metric_name = data_cfg.metric.name
-            metric = MetricStringToTorchMetric[metric_name]
+            metric_class = MetricStringToTorchMetric[metric_name]
+
             # GLUE will not have a "src_file_name" attribute and will always have only a single metric.
             if hasattr(data_cfg, "src_file_name") or hasattr(data_cfg, "file_names"):
-                if hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
-                    # We pass average and num_classes to the metric constructor via kwargs even if they don't exist for each metric.
+                if (
+                    hasattr(data_cfg, "src_file_name")
+                    and isinstance(data_cfg.src_file_name, ListConfig)
+                    and metric_name != 'rouge'
+                ):
                     metric = [
-                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
                         for _ in range(len(data_cfg.src_file_name))
                     ]
-                elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names, ListConfig):
+                elif (
+                    hasattr(data_cfg, "file_names")
+                    and isinstance(data_cfg.file_names, ListConfig)
+                    and metric_name != 'rouge'
+                ):
                     metric = [
-                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
                         for _ in range(len(data_cfg.file_names))
                     ]
+                elif hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
+                    metric = [metric_class() for _ in range(len(data_cfg.src_file_name))]
+                elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names, ListConfig):
+                    metric = [metric_class() for _ in range(len(data_cfg.file_names))]
                 else:
-                    metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
+                    metric = [metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
             else:
-                metric = [metric()]  # GLUE does need to specify average or num_classes.
+                metric = [metric_class()]  # GLUE does need to specify average or num_classes.
 
         return metric, metric_name
 
@@ -131,11 +159,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         if hasattr(self, '_train_ds'):
             self.setup_training_data()
 
-    def _process_global_batch(self, global_batch):
-        """Optionally processes a global batch."""
-        # TODO: maybe remove this now that we've refactored data batch sizes.
-        return global_batch
-
     def on_validation_epoch_start(self):
         app_state = AppState()
         _reconfigure_microbatch_calculator(
@@ -158,61 +181,14 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         )
         return super().on_test_epoch_start()
 
-    def on_test_epoch_end(self):
-        self.on_inference_epoch_end(self.cfg.data.test_ds)
-        return super().on_test_epoch_end()
-
-    def on_validation_epoch_end(self):
-        self.on_inference_epoch_end(self.cfg.data.validation_ds)
-        return super().on_validation_epoch_end()
-
-    def on_inference_epoch_end(self, ds):
-        app_state = AppState()
-        if hasattr(self, "_train_ds"):
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=self.cfg.data.train_ds.global_batch_size,
-                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
-        # When running `trainer.validate()`, the training dataset is not available.
-        else:
-            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=ds.global_batch_size,
-                micro_batch_size=ds.micro_batch_size,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
-
     def on_train_epoch_start(self) -> None:
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
-        self.on_validation_epoch_end()
+        # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
+        # self.on_validation_epoch_end()
         return super().on_train_epoch_start()
 
-    def training_step(self, batch, batch_idx):
-        global_batch_size_per_gpu = batch['text_enc'].size(0)
-        # This should happen only on the last batch of the dataset.
-        if (
-            global_batch_size_per_gpu
-            != self.cfg.data.train_ds.global_batch_size // parallel_state.get_data_parallel_world_size()
-        ):
-            # NOTE: This should never really be called since `drop_last=True` is required for training datasets.
-            app_state = AppState()
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-                micro_batch_size=global_batch_size_per_gpu // get_num_microbatches(),
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
-        batch = self._process_global_batch(batch)
-        return super().training_step(batch, batch_idx)
-
     def cast_for_metric(self, pred, label, metric_name, class_labels=None, labels_are_strings=False):
-        if metric_name == 'exact_string_match':
+        if metric_name == 'exact_string_match' or 'rouge':
             return pred, label
         pred = pred.replace(' ', '')
         label = label.replace(' ', '')
@@ -257,7 +233,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             else:
                 pred = class_labels.index(pred)
             if label not in class_labels:
-                raise ValueError(f"Ground truth labe; {label} is not in the class labels list : {class_labels}")
+                raise ValueError(f"Ground truth label {label} is not in the class labels list : {class_labels}")
             label = class_labels.index(label)
             pred = torch.LongTensor([pred]).to(self.device)
             label = torch.LongTensor([label]).to(self.device)
@@ -269,47 +245,91 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def _reconfigure_and_process_inference_batch(self, batch, ds_config):
         global_batch_size_per_gpu = batch['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
-        if global_batch_size_per_gpu != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size():
+        if (
+            global_batch_size_per_gpu
+            != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
+        ):
             # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
-            app_state = AppState()
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-                micro_batch_size=global_batch_size_per_gpu,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
+            if (
+                global_batch_size_per_gpu
+                != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size()
+            ):
+                app_state = AppState()
+                _reconfigure_microbatch_calculator(
+                    rank=app_state.global_rank,
+                    rampup_batch_size=None,
+                    global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                    micro_batch_size=global_batch_size_per_gpu,
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                )
+            # NOTE: need to explicitly handle resetting for multi-validation
+            else:
+                app_state = AppState()
+                _reconfigure_microbatch_calculator(
+                    rank=app_state.global_rank,
+                    rampup_batch_size=None,
+                    global_batch_size=ds_config.global_batch_size,
+                    micro_batch_size=ds_config.micro_batch_size,
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                )
 
-        processed_batch = self._process_global_batch(batch)
-        return processed_batch
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+        """
+            Dataloader produces a global batch which is turned into a list of microbatches.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
+        batch = next(dataloader_iter)
+        if isinstance(batch, dict):
+            # convert to list if not already converted.
+            batch = self._process_batch(batch)
 
-    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
-        # Regular finetuning datasets will return a list of dicts for each microbatch. But T0 datasets will return a single dict for the global batch.
+        # Get seq length of batch
+        encoder_seq_length = batch[0].size(1)
+        decoder_seq_length = batch[1].size(1)
+
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
+        data_iter = get_iterator_k_split(batch, get_num_microbatches())
+
+        return self._execute_fwd_bwd_function(
+            data_iterator=data_iter,
+            forward_only=forward_only,
+            tensor_shape=tensor_shape,
+            decoder_seq_length=decoder_seq_length,
+        )
+
+    def inference_step(self, dataloader_iter, batch_idx: int, mode: str, dataloader_idx=0):
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
+            return
+        # Regular finetuning datasets will return a list of dicts for each microbatch.
+        # But T0 datasets will return a single dict for the global batch.
+        batch = next(dataloader_iter)
         batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
 
-        processed_batch = self._reconfigure_and_process_inference_batch(batch, data_cfg)
+        self._reconfigure_and_process_inference_batch(batch, data_cfg)
 
-        # Call parent validation step to get the loss.
-        # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI, this will be ignored in the parent class.
-        loss = super().validation_step(processed_batch, batch_idx)
+        # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI,
+        # this will be ignored.
+        loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
 
         predicted_token_ids, _ = self.decode(
-            tokens_enc=processed_batch['text_enc'],
-            enc_mask=processed_batch['enc_mask'],
+            tokens_enc=batch['text_enc'],
+            enc_mask=batch['enc_mask'],
             num_tokens_to_generate=30,
-            bos_id=self.tokenizer.pad_id if data_cfg.replace_bos_with_pad else self.tokenizer.bos_id,
+            bos_id=self.tokenizer.pad_id if data_cfg.get('replace_bos_with_pad', False) else self.tokenizer.bos_id,
         )
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-        labels_text = MegatronT5FinetuneModel.ids_to_text(processed_batch['labels'], self.tokenizer)
-        input_text = MegatronT5FinetuneModel.ids_to_text(processed_batch['text_enc'], self.tokenizer)
+        labels_text = MegatronT5FinetuneModel.ids_to_text(batch['labels'], self.tokenizer)
+        input_text = MegatronT5FinetuneModel.ids_to_text(batch['text_enc'], self.tokenizer)
 
         if not batch_has_lang_information:
             categories = [None] * len(preds_text)
         else:
-            categories = processed_batch['lang']
+            categories = batch['lang']
 
         metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
         assert len(categories) == len(preds_text) == len(labels_text)
@@ -327,13 +347,28 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             else:
                 _ = metric(pred, label)
 
-        return {
-            'loss': loss,
+        outputs = {
             'preds': preds_text,
             'labels': labels_text,
             'categories': categories,
             'inputs': input_text,
         }
+
+        if isinstance(loss, dict):
+            outputs.update(loss)
+        else:
+            outputs['loss'] = loss
+        if mode == 'validation':
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(outputs)
+            else:
+                self.validation_step_outputs.append(outputs)
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(outputs)
+            else:
+                self.test_step_outputs.append(outputs)
+        return outputs
 
     @classmethod
     def ids_to_text(cls, batch_ids, tokenizer):
@@ -383,32 +418,52 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
-            loss = super().validation_epoch_end([x['loss'] for x in output])
+            # Expand on_validation_epoch_end from parent class MegatronLMEncoderDecoderModel as it doesnt take arg outputs
+            # loss = super().validation_epoch_end([x['loss'] for x in output])
+            loss_vals = [x['loss'] for x in output]
+            # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
+            if len(loss_vals) == 0:
+                logging.warning("validation_epoch_end: outputs is empty")
+                return
+            if parallel_state.is_pipeline_last_stage():
+                # only the last pipeline parallel stages return loss
+                loss = torch.stack(loss_vals).mean()
+            else:
+                loss = torch.tensor(0.0).cuda()
+
+            # we can only log on one rank if it is rank zero so we broadcast from last rank
+            torch.distributed.broadcast(loss, get_last_rank())
+            self.log('val_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+            self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
+
             # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
             metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-            self.log(loss_log_key, loss)
+            self.log(loss_log_key, loss, batch_size=1)
             metric_object = (
                 self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
             )
             metric = metric_object.compute()
+            if metric_name == 'rouge':
+                metric = metric['rouge1_fmeasure']
             # Handle logging of GLUE/XNLI separately here. XNLI has a separate metric per language.
             if isinstance(metric, dict):
                 # GLUE case:
                 if len(metric) == 1 and 'acc' in metric:
                     metric = metric['acc']
-                    self.log(metric_log_key, metric)
+                    self.log(metric_log_key, metric, batch_size=1)
                     logging.info(f"{mode} {metric_name}: {metric}")
                 # XNLI case where the metric dictionary contains the language and the computed metric as values.
                 else:
                     for k, v in metric.items():
                         if k != 'acc' and 'total' not in k:
-                            self.log(metric_log_key + f'_{k}', v)
+                            self.log(metric_log_key + f'_{k}', v, batch_size=1)
                             logging.info(f"{mode} {metric_name} lang {k} : {v}")
-                    metric = metric['acc']
+                    if metric_name != 'rouge':
+                        metric = metric['acc']
             else:
-                self.log(metric_log_key, metric)
+                self.log(metric_log_key, metric, batch_size=1)
                 logging.info(f"{metric_log_key}: {metric}")
             metric_object.reset()
 
@@ -468,6 +523,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
                     )
                 torch.distributed.barrier()
+            outputs[dataloader_idx].clear()  # free memory
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
@@ -481,11 +537,31 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
 
         if mode == 'validation':
-            self.log("validation_loss", averaged_loss)
-            self.log(f"validation_{self.val_metric_name}", averaged_metric)
+            self.log("validation_loss", averaged_loss, batch_size=1)
+            self.log(f"validation_{self.val_metric_name}", averaged_metric, batch_size=1)
         elif mode == 'test':
-            self.log("test_loss", averaged_loss)
-            self.log(f"test_{self.test_metric_name}", averaged_metric)
+            self.log("test_loss", averaged_loss, batch_size=1)
+            self.log(f"test_{self.test_metric_name}", averaged_metric, batch_size=1)
+
+        app_state = AppState()
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        # When running `trainer.validate()`, the training dataset is not available.
+        else:
+            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=data_cfg.global_batch_size,
+                micro_batch_size=data_cfg.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
 
         return averaged_loss, averaged_metric
 
@@ -495,17 +571,21 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             for i, p, l in zip(outputs['inputs'], outputs['preds'], outputs['labels']):
                 f_json.write(json.dumps({'input': i, 'pred': p, 'label': l}) + '\n')
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)
+    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
 
-    def validation_epoch_end(self, outputs):
-        _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
+    def on_validation_epoch_end(self):
+        _ = self.inference_epoch_end(self.validation_step_outputs, 'validation', self.cfg.data.validation_ds)
+        # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
+        # return super().on_validation_epoch_end()
 
-    def test_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.inference_step(batch, batch_idx, 'test', dataloader_idx)
+    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
 
-    def test_epoch_end(self, outputs):
-        _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
+    def on_test_epoch_end(self):
+        _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
+        # Commenting as on_test_epoch_end was a no-op in PTL 1.9
+        # return super().on_test_epoch_end()
 
     def build_data_loader(
         self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,
@@ -536,6 +616,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         )
 
     def setup_training_data(self):
+        if not self.cfg.data.train_ds.drop_last:
+            raise AttributeError(
+                "`drop_last` is required for the training dataset to ensure each batch is the same micro-batch size."
+                "To set this, set the variable `data.train_ds.drop_last=True` in the config."
+            )
         self._train_dl = self.build_data_loader(
             self._train_ds,
             global_batch_size=self.cfg.data.train_ds.global_batch_size,
@@ -550,7 +635,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         for dataset in datasets:
             eval_dl = self.build_data_loader(
                 dataset,
-                global_batch_size=data_cfg.global_batch_size,
+                global_batch_size=self.cfg.data.train_ds.global_batch_size,
                 shuffle=data_cfg.shuffle,
                 num_workers=data_cfg.num_workers,
                 pin_memory=data_cfg.pin_memory,

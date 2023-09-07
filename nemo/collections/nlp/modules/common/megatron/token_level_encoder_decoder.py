@@ -15,9 +15,7 @@
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
-    ALiBiRelativePositionEmbedding,
-)
+from nemo.collections.nlp.modules.common.megatron.hiddens import get_hiddens_module
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
@@ -26,7 +24,11 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.position_embedding import (
+    ALiBiRelativePositionEmbedding,
+    KERPLERelativePositionEmbedding,
+    T5RelativePositionEmbedding,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -35,17 +37,31 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
+from nemo.collections.nlp.parts import utils_funcs
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
     ModelType = ApexGuardDefaults()
+
+    HAVE_APEX = False
+
+try:
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = ["MegatronTokenLevelHead", "MegatronTokenLevelEncoderDecoderModule"]
 
@@ -91,6 +107,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         encoder_cfg: DictConfig,
         decoder_cfg: DictConfig,
         vocab_size: int,  # TODO: This should eventually go inside encoder_cfg and decoder_cfg when separate enc/dec tokenizers are supported.
@@ -100,7 +117,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         pre_process=True,
         post_process=True,
         fp16_cross_entropy=False,
-        use_cpu_initialization=False,
+        megatron_amp_O2=False,
         precision=16,
         embedding_init_method_std=0.02,
         embedding_dropout=0.1,
@@ -110,8 +127,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         share_token_embeddings=True,
         share_decoder_tokens_head_embeddings=True,
         tokens_head_bias=True,
+        hiddens_cfg: DictConfig = None,  # allows for hidden state transformations before the decoder
     ):
-        super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
+        super(MegatronTokenLevelEncoderDecoderModule, self).__init__(config=config)
 
         self.encoder_cfg = encoder_cfg
         self.decoder_cfg = decoder_cfg
@@ -126,19 +144,23 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
         self.tokens_head_bias = tokens_head_bias
+        self.hiddens_cfg = hiddens_cfg
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
+
+        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
         encoder, decoder = None, None
         if add_encoder:
             if pre_process:
                 self.encoder_embedding = Embedding(
+                    config=self.config,
                     hidden_size=encoder_cfg.hidden_size,
                     vocab_size=vocab_size,
                     max_sequence_length=max_position_embeddings,
                     init_method=init_method_normal(embedding_init_method_std),
                     num_tokentypes=num_tokentypes,
-                    use_cpu_initialization=use_cpu_initialization,
+                    dtype=self.dtype,
                     embedding_dropout_prob=embedding_dropout,
                     position_embedding_type=encoder_cfg.get('position_embedding_type', 'learned_absolute'),
                 )
@@ -165,11 +187,26 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     num_attention_heads_alibi=None,
                     max_seq_len=max_position_embeddings,
                 )
-                self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
+                self._encoder_relative_position_embedding_key = "encoder_alibi_position_embedding"
+            elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'kerple':
+                self.encoder_relative_position_embedding = KERPLERelativePositionEmbedding(
+                    bidirectional=True,
+                    num_attention_heads=encoder_cfg.num_attention_heads,
+                    layer_type=LayerType.encoder,
+                    num_attention_heads_kerple=None,
+                    max_seq_len=max_position_embeddings,
+                )
+                self._encoder_relative_position_embedding_key = "encoder_kerple_position_embedding"
             else:
                 self.encoder_relative_position_embedding = None
 
+            if encoder_cfg.get('use_flash_attention', False) and encoder_cfg.get(
+                'position_embedding_type', 'learned_absolute'
+            ) in ['relative', 'kerple']:
+                raise ValueError('flash-attention not supported with relative or kerple at this point')
+
             encoder = get_encoder_model(
+                config=config,
                 arch=encoder_cfg.arch,
                 hidden_size=encoder_cfg.hidden_size,
                 ffn_hidden_size=encoder_cfg.ffn_hidden_size,
@@ -185,7 +222,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 pre_process=pre_process,
                 post_process=post_process,
                 init_method_std=encoder_cfg.get('init_method_std', 0.02),
-                use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 hidden_dropout=encoder_cfg.get('hidden_dropout', 0.1),
                 attention_dropout=encoder_cfg.get('attention_dropout', 0.1),
                 ffn_dropout=encoder_cfg.get('ffn_dropout', 0.0),
@@ -214,6 +251,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 num_moe_experts=encoder_cfg.get('num_moe_experts', 1),
                 moe_frequency=encoder_cfg.get('moe_frequency', 1),
                 moe_dropout=encoder_cfg.get('moe_dropout', 0.0),
+                position_embedding_type=encoder_cfg.get('position_embedding_type', 'learned_absolute'),
+                use_flash_attention=encoder_cfg.get('use_flash_attention', False),
             )
 
         if add_decoder:
@@ -225,12 +264,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 else:
                     # This is the case where PP > 1 and first decoder first stage, or when not sharing embeddings with encoder
                     self.decoder_embedding = Embedding(
+                        config=self.config,
                         hidden_size=decoder_cfg.hidden_size,
                         vocab_size=vocab_size,
                         max_sequence_length=max_position_embeddings,
                         init_method=init_method_normal(embedding_init_method_std),
                         num_tokentypes=num_tokentypes,
-                        use_cpu_initialization=use_cpu_initialization,
+                        dtype=self.dtype,
                         embedding_dropout_prob=embedding_dropout,
                         position_embedding_type=decoder_cfg.get('position_embedding_type', 'learned_absolute'),
                     )
@@ -277,6 +317,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     ):
                         self.decoder_cross_attention_relative_position_embeddings_weight().data.fill_(0)
                         self.decoder_cross_attention_relative_position_embeddings_weight().shared = True
+
             elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'alibi':
                 self.decoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
                     bidirectional=False,
@@ -285,11 +326,26 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     num_attention_heads_alibi=None,
                     max_seq_len=max_position_embeddings,
                 )
-                self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
+                self._decoder_relative_position_embedding_key = "decoder_alibi_position_embedding"
+            elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'kerple':
+                self.decoder_relative_position_embedding = KERPLERelativePositionEmbedding(
+                    bidirectional=False,
+                    num_attention_heads=decoder_cfg.num_attention_heads,
+                    layer_type=LayerType.decoder,
+                    num_attention_heads_kerple=None,
+                    max_seq_len=max_position_embeddings,
+                )
+                self._decoder_relative_position_embedding_key = "decoder_kerple_position_embedding"
             else:
                 self.decoder_relative_position_embedding = None
 
+            if decoder_cfg.get('use_flash_attention', False) and decoder_cfg.get(
+                'position_embedding_type', 'learned_absolute'
+            ) in ['relative', 'kerple']:
+                raise ValueError('flash-attention not supported with relative or kerple at this point')
+
             decoder = get_decoder_model(
+                config=config,
                 arch=decoder_cfg.arch,
                 hidden_size=decoder_cfg.hidden_size,
                 ffn_hidden_size=decoder_cfg.ffn_hidden_size,
@@ -305,7 +361,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 pre_process=pre_process,
                 post_process=post_process,
                 init_method_std=decoder_cfg.get('init_method_std', 0.02),
-                use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 hidden_dropout=decoder_cfg.get('hidden_dropout', 0.1),
                 attention_dropout=decoder_cfg.get('attention_dropout', 0.1),
                 ffn_dropout=decoder_cfg.get('ffn_dropout', 0.0),
@@ -333,10 +389,17 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 num_moe_experts=decoder_cfg.get('num_moe_experts', 1),
                 moe_frequency=decoder_cfg.get('moe_frequency', 1),
                 moe_dropout=decoder_cfg.get('moe_dropout', 0.0),
+                position_embedding_type=decoder_cfg.get('position_embedding_type', 'learned_absolute'),
+                use_flash_attention=decoder_cfg.get('use_flash_attention', False),
             )
 
+        hiddens_module = get_hiddens_module(hiddens_cfg, model_parallel_cfg=config)
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
-            encoder=encoder, decoder=decoder, hidden_steps=encoder_cfg.get('hidden_steps', -1),
+            config=config,
+            encoder=encoder,
+            decoder=decoder,
+            hidden_steps=encoder_cfg.get('hidden_steps', -1),
+            hiddens_module=hiddens_module,
         )
         self._enc_dec_model_key = "enc_dec_model"
 
@@ -357,10 +420,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 self.tokens_head = tensor_parallel.ColumnParallelLinear(
                     input_size=decoder_cfg.hidden_size,
                     output_size=vocab_size,
+                    config=config,
                     bias=tokens_head_bias,
                     gather_output=not self.parallel_output,
                     init_method=init_method_normal(decoder_cfg.init_method_std),
-                    use_cpu_initialization=use_cpu_initialization,
                 )
 
             self._tokens_head_key = 'tokens_head'
@@ -401,6 +464,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             assert (
                 self.share_decoder_tokens_head_embeddings
             ), "Decoder token embeddings and the outputlayer must be shared when using pipeline model parallel size > 1"
+            assert (
+                self.hiddens_cfg is None
+            ), "Hiddens module must not be enabled when using pipeline model parallel size > 1"
+
         return encoder_kv_channels, decoder_kv_channels
 
     def set_input_tensor(self, input_tensor):
@@ -439,6 +506,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         dec_attn_mask=None,
         token_type_ids=None,
         labels=None,
+        batch_data=None,  # additional data to be passed to hiddens module
         enc_output=None,  # Result of running the entire encoder
         enc_output_attn_mask=None,
         enc_input=None,  # Result of running encoder embedding only
@@ -500,9 +568,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     enc_layer_past=None,
                     enc_get_key_value=False,
                     enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
+                    batch_data=batch_data,
                 )
             else:
                 enc_output = self.enc_dec_model.encoder_hidden_state
+
             return enc_output
         else:
             if enc_output_attn_mask is None:
@@ -544,10 +614,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
                 dec_self_attention_relative_position_bias=decoder_self_attention_relative_position_bias,
                 dec_cross_attention_relative_position_bias=decoder_cross_attention_relative_position_bias,
+                batch_data=batch_data,
             )
 
             if self.post_process and self.add_decoder:
-                dec_output, enc_output = output  # [s, b, h]
+                dec_output, enc_output = output  # [s, b, h], enc_output might be a dict if hiddens_module is used
                 # project decoder output to vocabulary-size dimensions
                 if self.share_decoder_tokens_head_embeddings:
                     token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
@@ -555,6 +626,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     token_logits = self.tokens_head(dec_output)[0]
 
                 if labels is not None:
+                    # compute loss here
                     # [b, s] -> [s, b]
                     labels = labels.transpose(0, 1).contiguous()
 
@@ -571,11 +643,30 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
 
-                    return tokens_loss
+                    # check if hiddens is used
+                    if self.hiddens_cfg is not None:
+                        loss_dict = self.enc_dec_model.hiddens_module.apply_loss_transforms(
+                            outputs=enc_output, batch_data=batch_data,
+                        )
+                        loss_dict["tokens_loss"] = tokens_loss
+                        # We need to store default output in a known key, so that we can mimic default behaviour
+                        loss_dict["output"] = tokens_loss
+                        return loss_dict
+                    else:
+                        return tokens_loss
                 else:
+                    # else return token logits (and hiddens if needed)
                     # [s, b, h] -> [b, s, h]
                     token_logits = token_logits.transpose(0, 1).contiguous()
-                    return token_logits
+                    if self.hiddens_cfg is not None:
+                        # return all hiddens and token logits
+                        hiddens_dict = enc_output
+                        hiddens_dict["token_logits"] = token_logits
+                        # We need to store default output in a known key, so that we can mimic default behaviour
+                        hiddens_dict["output"] = token_logits
+                        return hiddens_dict
+                    else:
+                        return token_logits
 
             elif self.add_decoder and not self.add_encoder:
                 decoder_output, _ = output

@@ -337,6 +337,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             dist_sync_on_step=True,
         )
 
+        self.decoder.temperature = decoding_cfg.get('temperature', 1.0)
+
         # Update config
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
@@ -363,7 +365,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             return dataset
 
         shuffle = config['shuffle']
-        if config.get('is_tarred', False):
+        if isinstance(dataset, torch.utils.data.IterableDataset):
             shuffle = False
 
         if hasattr(dataset, 'collate_fn'):
@@ -411,7 +413,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+        if (
+            self._train_dl is not None
+            and hasattr(self._train_dl, 'dataset')
+            and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
+        ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
@@ -620,7 +626,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         sample_id = sample_id.cpu().detach().numpy()
         return list(zip(sample_id, transcribed_texts))
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def validation_pass(self, batch, batch_idx, dataloader_idx=0):
         if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True)
 
@@ -654,6 +660,14 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         return metrics
 
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        metrics = self.validation_pass(batch, batch_idx, dataloader_idx)
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
+        return metrics
+
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         metrics = super().multi_validation_epoch_end(outputs, dataloader_idx)
         self.finalize_interctc_metrics(metrics, outputs, prefix="val_")
@@ -665,8 +679,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         return metrics
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
+        logs = self.validation_pass(batch, batch_idx, dataloader_idx=dataloader_idx)
         test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
+        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            self.test_step_outputs[dataloader_idx].append(test_logs)
+        else:
+            self.test_step_outputs.append(test_logs)
         return test_logs
 
     def test_dataloader(self):

@@ -106,6 +106,15 @@ To run a tutorial:
    * - ASR
      - Multi-lingual ASR
      - `Multi-lingual ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Multilang_ASR.ipynb>`_
+   * - ASR
+     - Hybrid ASR-TTS Models
+     - `Hybrid ASR-TTS Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_TTS_Tutorial.ipynb>`_
+   * - ASR
+     - ASR Confidence Estimation
+     - `ASR Confidence Estimation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_Confidence_Estimation.ipynb>`_
+   * - ASR
+     - Confidence-based Ensembles
+     - `Confidence-based Ensembles <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Confidence_Ensembles.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
      - `Pretrained Language Models for Downstream Tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
@@ -131,6 +140,9 @@ To run a tutorial:
      - Punctuation and Capitalization
      - `Punctuation and Capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
    * - NLP
+     - Spellchecking ASR Customization - SpellMapper
+     - `Spellchecking ASR Customization - SpellMapper <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/SpellMapper_English_ASR_Customization.ipynb>`_
+   * - NLP
      - Entity Linking
      - `Entity Linking <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Entity_Linking_Medical.ipynb>`_
    * - NLP
@@ -143,38 +155,41 @@ To run a tutorial:
      - P-Tuning/Prompt-Tuning
      - `P-Tuning/Prompt-Tuning <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Multitask_Prompt_and_PTuning.ipynb>`_
    * - NLP
-     - Synthetic Tabular Data Generation 
+     - Synthetic Tabular Data Generation
      - `Synthetic Tabular Data Generation <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Megatron_Synthetic_Tabular_Data_Generation.ipynb>`_
    * - TTS
      - NeMo TTS Primer
-     - `NeMo TTS Primer <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/NeMo_TTS_Primer.ipynb>`_
+     - `NeMo TTS Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/NeMo_TTS_Primer.ipynb>`_
    * - TTS
      - TTS Speech/Text Aligner Inference
-     - `TTS Speech/Text Aligner Inference <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/Aligner_Inference_Examples.ipynb>`_
+     - `TTS Speech/Text Aligner Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Aligner_Inference_Examples.ipynb>`_
    * - TTS
      - FastPitch and MixerTTS Model Training
-     - `FastPitch and MixerTTS Model Training <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/FastPitch_MixerTTS_Training.ipynb>`_
+     - `FastPitch and MixerTTS Model Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/FastPitch_MixerTTS_Training.ipynb>`_
    * - TTS
      - FastPitch Finetuning
-     - `FastPitch Finetuning <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/FastPitch_Finetuning.ipynb>`_
+     - `FastPitch Finetuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/FastPitch_Finetuning.ipynb>`_
    * - TTS
      - FastPitch and HiFiGAN Model Training for German
-     - `FastPitch and HiFiGAN Model Training for German <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/FastPitch_GermanTTS_Training.ipynb>`_
+     - `FastPitch and HiFiGAN Model Training for German <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/FastPitch_GermanTTS_Training.ipynb>`_
    * - TTS
      - Tacotron2 Model Training
-     - `Tacotron2 Model Training <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/Tacotron2_Training.ipynb>`_
+     - `Tacotron2 Model Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Tacotron2_Training.ipynb>`_
    * - TTS
      - FastPitch Duration and Pitch Control
-     - `FastPitch Duration and Pitch Control <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/Inference_DurationPitchControl.ipynb>`_
+     - `FastPitch Duration and Pitch Control <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Inference_DurationPitchControl.ipynb>`_
    * - TTS
      - FastPitch Speaker Interpolation
-     - `FastPitch Speaker Interpolation <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/FastPitch_Speaker_Interpolation.ipynb>`_
+     - `FastPitch Speaker Interpolation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/FastPitch_Speaker_Interpolation.ipynb>`_
    * - TTS
      - Inference and Model Selection
-     - `TTS Inference and Model Selection <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/Inference_ModelSelect.ipynb>`_
+     - `TTS Inference and Model Selection <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Inference_ModelSelect.ipynb>`_
    * - TTS
      - Pronunciation_customization
-     - `TTS Pronunciation_customization <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/Pronunciation_customization.ipynb>`_
+     - `TTS Pronunciation_customization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Pronunciation_customization.ipynb>`_
+   * - Tools
+     - NeMo Forced Aligner
+     - `NeMo Forced Aligner <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tools/NeMo_Forced_Aligner_Tutorial.ipynb>`_
    * - Tools
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_

@@ -50,7 +50,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
 
         # question = example['question']  # @kpuvvada: remove hardcoded key
         question = "[ Transcribe in English ] "
-        context = example[self.context_key]
+        context = example['audio_codes']
         output = example[self.label_key]
 
         if context.endswith('.npz'):
@@ -116,11 +116,17 @@ class MMGPTSFTDataset(GPTSFTDataset):
         if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
             input_ids = input_ids[: self.max_seq_length]
 
+        # store metadata in dataset, in case user may have keys required in the prediction json files
+        # metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
+        metadata = {}       # @kpuvvada: temporary placeholder
+        
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
             'context_ids': context_ids,
             'context_length': len(context_ids),
+            'answer_ids': answer_ids,
+            'metadata': metadata,
         }
 
         return processed_example

@@ -181,6 +181,7 @@ class WaveformFeaturizer(object):
         trim_hop_length=512,
         orig_sr=None,
         channel_selector=None,
+        normalize_db=None,
     ):
         audio = AudioSegment.from_file(
             file_path,
@@ -195,6 +196,7 @@ class WaveformFeaturizer(object):
             trim_hop_length=trim_hop_length,
             orig_sr=orig_sr,
             channel_selector=channel_selector,
+            normalize_db=normalize_db,
         )
         return self.process_segment(audio)
 
@@ -388,7 +390,7 @@ class FilterbankFeatures(nn.Module):
     def get_seq_len(self, seq_len):
         # Assuming that center is True is stft_pad_amount = 0
         pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount is not None else self.n_fft // 2 * 2
-        seq_len = torch.floor((seq_len + pad_amount - self.n_fft) / self.hop_length) + 1
+        seq_len = torch.floor_divide((seq_len + pad_amount - self.n_fft), self.hop_length) + 1
         return seq_len.to(dtype=torch.long)
 
     @property
@@ -396,7 +398,7 @@ class FilterbankFeatures(nn.Module):
         return self.fb
 
     def forward(self, x, seq_len, linear_spec=False):
-        seq_len = self.get_seq_len(seq_len.float())
+        seq_len = self.get_seq_len(seq_len)
 
         if self.stft_pad_amount is not None:
             x = torch.nn.functional.pad(

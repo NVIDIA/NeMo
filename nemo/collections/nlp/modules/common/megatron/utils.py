@@ -13,24 +13,34 @@
 # limitations under the License.
 
 """Utilities for models."""
-
+import itertools
 import math
-from typing import Dict, List, Tuple, Union
+from typing import Dict, Iterator, List, Tuple, Union
 
 import torch
 
 try:
     from apex.normalization import MixedFusedRMSNorm
     from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
     from apex.transformer.layers.layer_norm import FastLayerNorm
     from apex.transformer.pipeline_parallel.schedules.common import listify_model
-    from apex.transformer.tensor_parallel.layers import linear_with_grad_accumulation_and_async_allreduce
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.tensor_parallel.layers import linear_with_grad_accumulation_and_async_allreduce
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 class ApexGuardDefaults(object):
@@ -61,7 +71,7 @@ def parallel_lm_logits(
         word_embeddings_weight (torch.Tensor): [(padded) vocab size, h]
         parallel_output (bool): False will gather logits from tensor model parallel region
         bias (torch.Tensor, optional): bias tensor. Defaults to None.
-        async_tensor_model_parallel_allreduce (bool, optional): TODO: understand this flag. Defaults to False.
+        async_tensor_model_parallel_allreduce (bool, optional): Defaults to False.
         sequence_parallel (bool, optional): If True will use sequence parallelism. Defaults to False.
         gradient_accumulation_fusioa (bool, optional): If True fuse gradient accumulation to WGRAD GEMM
 
@@ -88,7 +98,7 @@ def parallel_lm_logits(
         bias=bias,
         gradient_accumulation_fusion=gradient_accumulation_fusion,
         async_grad_allreduce=async_grad_allreduce,
-        sequence_parallel_enabled=sequence_parallel,
+        sequence_parallel=sequence_parallel,
     )
 
     # Gather if needed.
@@ -169,7 +179,9 @@ def average_losses_across_data_parallel_group(losses):
     return averaged_losses
 
 
-def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_attention_mask, eod_mask_loss):
+def get_ltor_masks_and_position_ids(
+    data, eod_token, reset_position_ids, reset_attention_mask, eod_mask_loss, compute_attention_mask=True
+):
     """Build masks and position id for left to right model."""
 
     # Extract batch size and sequence length.
@@ -180,9 +192,12 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
         att_mask_batch = micro_batch_size
     else:
         att_mask_batch = 1
-    attention_mask = torch.tril(torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)).view(
-        att_mask_batch, 1, seq_length, seq_length
-    )
+
+    attention_mask = None
+    if compute_attention_mask:
+        attention_mask = torch.tril(torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)).view(
+            att_mask_batch, 1, seq_length, seq_length
+        )
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
@@ -218,8 +233,9 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
                     position_ids[b, (i + 1) :] -= i + 1 - prev_index
                     prev_index = i + 1
 
-    # Convert attention mask to binary:
-    attention_mask = attention_mask < 0.5
+    if compute_attention_mask:
+        # Convert attention mask to binary:
+        attention_mask = attention_mask < 0.5
 
     return attention_mask, loss_mask, position_ids
 
@@ -356,3 +372,35 @@ def get_all_params_for_weight_decay_optimization(
     ]
 
     return ({'params': weight_decay_params},)
+
+
+def get_iterator_k_split(batch: List[torch.Tensor], num_microbatches: int) -> Iterator:
+    if isinstance(batch, dict):
+        items = list(batch.items())
+        assert items[0][1].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
+        split_batch = [torch.tensor_split(item[1], num_microbatches, dim=0) for item in items]
+        microbatches = [[(items[i][0], split_batch[i][j]) for i in range(len(items))] for j in range(num_microbatches)]
+        microbatches = [dict(elem) for elem in microbatches]
+    else:
+        assert batch[0].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
+        split_batch = [
+            torch.tensor_split(item, num_microbatches, dim=0) if torch.is_tensor(item) else item for item in batch
+        ]
+        microbatches = [
+            [elem[i] if elem is not None else elem for elem in split_batch] for i in range(num_microbatches)
+        ]
+
+    return itertools.chain(microbatches)
+
+
+def _cast_if_autocast_enabled(tensor):
+    if torch.is_autocast_enabled():
+        if isinstance(tensor, torch.Tensor):
+            if tensor.device.type == 'cuda':
+                dtype = torch.get_autocast_gpu_dtype()
+            elif tensor.device.type == 'cpu':
+                dtype = torch.get_autocast_cpu_dtype()
+            else:
+                raise NotImplementedError()
+            return tensor.to(dtype=dtype)
+    return tensor

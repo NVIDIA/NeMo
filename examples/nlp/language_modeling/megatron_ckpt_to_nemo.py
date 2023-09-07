@@ -28,7 +28,8 @@ import os
 from argparse import ArgumentParser
 
 import torch
-from apex.transformer import parallel_state
+from megatron.core import parallel_state
+from omegaconf import open_dict
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -36,6 +37,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_u_gpt_model import M
 from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
@@ -81,7 +83,11 @@ def get_args():
         help="If pipeline parallel size > 1, this is the rank at which the encoder ends and the decoder begins.",
     )
     parser.add_argument(
-        "--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert", "nmt", "bart", "retro", "ul2"]
+        "--model_type",
+        type=str,
+        required=True,
+        default="gpt",
+        choices=["gpt", "sft", "t5", "bert", "nmt", "bart", "retro"],
     )
     parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
@@ -122,9 +128,9 @@ def convert(local_rank, rank, world_size, args):
     app_state.model_parallel_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
 
     parallel_state.initialize_model_parallel(
-        tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
-        pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
-        pipeline_model_parallel_split_rank_=app_state.pipeline_model_parallel_split_rank,
+        tensor_model_parallel_size=app_state.tensor_model_parallel_size,
+        pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+        pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
     )
 
     app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
@@ -139,6 +145,15 @@ def convert(local_rank, rank, world_size, args):
 
     if args.model_type == 'gpt':
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+    elif args.model_type == 'sft':
+        model = MegatronGPTSFTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
+        # we force the target for the loaded model to have the correct target
+        # because the hparams.yaml sometimes contains MegatronGPTModel as the target.
+        with open_dict(model.cfg):
+            model.cfg.target = f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
+
     elif args.model_type == 'ul2':
         model = MegatronUGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
     elif args.model_type == 'bert':

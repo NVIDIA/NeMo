@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import re
 from abc import abstractmethod
 from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -99,32 +100,33 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     from the `token_confidence`.
                 aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
                     Valid options are `mean`, `min`, `max`, `prod`.
-                method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+                measure_cfg: A dict-like object which contains the measure name and settings to compute per-frame
                     confidence scores.
 
-                    name: The method name (str).
+                    name: The measure name (str).
                         Supported values:
                             - 'max_prob' for using the maximum token probability as a confidence.
                             - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
-                        Used if confidence_method_cfg.name is set to `entropy`.
+                        Used if confidence_measure_cfg.name is set to `entropy`.
                         Supported values:
-                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                                Note that for this entropy, the temperature should comply the following inequality:
-                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
-                            - 'renui' for the Rényi entropy.
+                            - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                        When the temperature equals one, scaling is not applied to 'max_prob',
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
@@ -138,7 +140,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     timestep during greedy decoding. Setting to larger values allows longer sentences
                     to be decoded, at the cost of increased execution time.
                 preserve_frame_confidence: Same as above, overrides above value.
-                confidence_method: Same as above, overrides confidence_cfg.method.
+                confidence_measure_cfg: Same as above, overrides confidence_cfg.measure_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -203,6 +205,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.blank_id = blank_id
         self.num_extra_outputs = joint.num_extra_outputs
         self.big_blank_durations = self.cfg.get("big_blank_durations", None)
+        self.durations = self.cfg.get("durations", None)
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.compute_langs = decoding_cfg.get('compute_langs', False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
@@ -210,9 +213,21 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
 
-        if self.big_blank_durations is not None:
+        if self.durations is not None:  # this means it's a TDT model.
+            if blank_id == 0:
+                raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
+            if self.big_blank_durations is not None:
+                raise ValueError("duration and big_blank_durations can't both be not None")
+            if self.cfg.strategy not in ['greedy', 'greedy_batch']:
+                raise ValueError("currently only greedy and greedy_batch inference is supported for TDT models")
+
+        if self.big_blank_durations is not None:  # this means it's a multi-blank model.
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(vocabs) for multi-blank RNN-T models")
+            if self.cfg.strategy not in ['greedy', 'greedy_batch']:
+                raise ValueError(
+                    "currently only greedy and greedy_batch inference is supported for multi-blank models"
+                )
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
         if self.cfg.strategy not in possible_strategies:
@@ -241,29 +256,43 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
-        # Update preserve frame confidence
-        if self.preserve_frame_confidence is False:
-            if self.cfg.strategy in ['greedy', 'greedy_batch']:
-                self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
-                self.confidence_method_cfg = self.cfg.greedy.get('confidence_method_cfg', None)
-
-            elif self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']:
-                # Not implemented
-                pass
+        # Confidence estimation is not implemented for these strategies
+        if (
+            not self.preserve_frame_confidence
+            and self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']
+            and self.cfg.beam.get('preserve_frame_confidence', False)
+        ):
+            raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
 
         if self.cfg.strategy == 'greedy':
             if self.big_blank_durations is None:
-                self.decoding = greedy_decode.GreedyRNNTInfer(
-                    decoder_model=decoder,
-                    joint_model=joint,
-                    blank_index=self.blank_id,
-                    max_symbols_per_step=(
-                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                    ),
-                    preserve_alignments=self.preserve_alignments,
-                    preserve_frame_confidence=self.preserve_frame_confidence,
-                    confidence_method_cfg=self.confidence_method_cfg,
-                )
+                if self.durations is None:
+                    self.decoding = greedy_decode.GreedyRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        max_symbols_per_step=(
+                            self.cfg.greedy.get('max_symbols', None)
+                            or self.cfg.greedy.get('max_symbols_per_step', None)
+                        ),
+                        preserve_alignments=self.preserve_alignments,
+                        preserve_frame_confidence=self.preserve_frame_confidence,
+                        confidence_measure_cfg=self.confidence_measure_cfg,
+                    )
+                else:
+                    self.decoding = greedy_decode.GreedyTDTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        durations=self.durations,
+                        max_symbols_per_step=(
+                            self.cfg.greedy.get('max_symbols', None)
+                            or self.cfg.greedy.get('max_symbols_per_step', None)
+                        ),
+                        preserve_alignments=self.preserve_alignments,
+                        preserve_frame_confidence=self.preserve_frame_confidence,
+                        confidence_measure_cfg=self.confidence_measure_cfg,
+                    )
             else:
                 self.decoding = greedy_decode.GreedyMultiblankRNNTInfer(
                     decoder_model=decoder,
@@ -275,22 +304,39 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     ),
                     preserve_alignments=self.preserve_alignments,
                     preserve_frame_confidence=self.preserve_frame_confidence,
-                    confidence_method_cfg=self.confidence_method_cfg,
+                    confidence_measure_cfg=self.confidence_measure_cfg,
                 )
 
         elif self.cfg.strategy == 'greedy_batch':
             if self.big_blank_durations is None:
-                self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
-                    decoder_model=decoder,
-                    joint_model=joint,
-                    blank_index=self.blank_id,
-                    max_symbols_per_step=(
-                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                    ),
-                    preserve_alignments=self.preserve_alignments,
-                    preserve_frame_confidence=self.preserve_frame_confidence,
-                    confidence_method_cfg=self.confidence_method_cfg,
-                )
+                if self.durations is None:
+                    self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        max_symbols_per_step=(
+                            self.cfg.greedy.get('max_symbols', None)
+                            or self.cfg.greedy.get('max_symbols_per_step', None)
+                        ),
+                        preserve_alignments=self.preserve_alignments,
+                        preserve_frame_confidence=self.preserve_frame_confidence,
+                        confidence_measure_cfg=self.confidence_measure_cfg,
+                    )
+                else:
+                    self.decoding = greedy_decode.GreedyBatchedTDTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        durations=self.durations,
+                        max_symbols_per_step=(
+                            self.cfg.greedy.get('max_symbols', None)
+                            or self.cfg.greedy.get('max_symbols_per_step', None)
+                        ),
+                        preserve_alignments=self.preserve_alignments,
+                        preserve_frame_confidence=self.preserve_frame_confidence,
+                        confidence_measure_cfg=self.confidence_measure_cfg,
+                    )
+
             else:
                 self.decoding = greedy_decode.GreedyBatchedMultiblankRNNTInfer(
                     decoder_model=decoder,
@@ -302,7 +348,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     ),
                     preserve_alignments=self.preserve_alignments,
                     preserve_frame_confidence=self.preserve_frame_confidence,
-                    confidence_method_cfg=self.confidence_method_cfg,
+                    confidence_measure_cfg=self.confidence_measure_cfg,
                 )
 
         elif self.cfg.strategy == 'beam':
@@ -480,12 +526,12 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
             # RNN-T sample level is already preprocessed by implicit RNNT decoding
             # Simply remove any blank and possibly big blank tokens
-            if self.blank_id != 0:
-                num_extra_outputs = 0
-                if self.big_blank_durations is not None:
-                    num_extra_outputs += len(self.big_blank_durations)
+            if self.big_blank_durations is not None:  # multi-blank RNNT
+                num_extra_outputs = len(self.big_blank_durations)
                 prediction = [p for p in prediction if p < self.blank_id - num_extra_outputs]
-            else:
+            elif self.durations is not None:  # TDT model.
+                prediction = [p for p in prediction if p < self.blank_id]
+            else:  # standard RNN-T
                 prediction = [p for p in prediction if p != self.blank_id]
 
             # De-tokenize the integer tokens; if not computing timestamps
@@ -498,6 +544,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 hypothesis = (prediction, alignments, token_repetitions)
             else:
                 hypothesis = self.decode_tokens_to_str(prediction)
+
+                # TODO: remove
+                # collapse leading spaces before . , ? for PC models
+                hypothesis = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis)
 
                 if self.compute_hypothesis_token_set:
                     hypotheses_list[ind].tokens = self.decode_ids_to_tokens(prediction)
@@ -955,32 +1005,33 @@ class RNNTDecoding(AbstractRNNTDecoding):
                     from the `token_confidence`.
                 aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
                     Valid options are `mean`, `min`, `max`, `prod`.
-                method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+                measure_cfg: A dict-like object which contains the measure name and settings to compute per-frame
                     confidence scores.
 
-                    name: The method name (str).
+                    name: The measure name (str).
                         Supported values:
                             - 'max_prob' for using the maximum token probability as a confidence.
                             - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
-                        Used if confidence_method_cfg.name is set to `entropy`.
+                        Used if confidence_measure_cfg.name is set to `entropy`.
                         Supported values:
-                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                                Note that for this entropy, the temperature should comply the following inequality:
-                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
-                            - 'renui' for the Rényi entropy.
+                            - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                        When the temperature equals one, scaling is not applied to 'max_prob',
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
@@ -996,7 +1047,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
 
                 preserve_frame_confidence: Same as above, overrides above value.
 
-                confidence_method: Same as above, overrides confidence_cfg.method.
+                confidence_measure_cfg: Same as above, overrides confidence_cfg.measure_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -1053,9 +1104,12 @@ class RNNTDecoding(AbstractRNNTDecoding):
     def __init__(
         self, decoding_cfg, decoder, joint, vocabulary,
     ):
-        blank_id = (
-            len(vocabulary) + joint.num_extra_outputs
-        )  # we need to ensure blank is the last token in the vocab. This is needed for multi-blank RNN-T models.
+        # we need to ensure blank is the last token in the vocab for the case of RNNT and Multi-blank RNNT.
+        blank_id = len(vocabulary) + joint.num_extra_outputs
+
+        if hasattr(decoding_cfg, 'model_type') and decoding_cfg.model_type == 'tdt':
+            blank_id = len(vocabulary)
+
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
         super(RNNTDecoding, self).__init__(
@@ -1145,13 +1199,15 @@ class RNNTWER(Metric):
         def validation_step(self, batch, batch_idx):
             ...
             wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
-            return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            self.val_outputs = {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            return self.val_outputs
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self):
             ...
-            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            wer_num = torch.stack([x['val_wer_num'] for x in self.val_outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in self.val_outputs]).sum()
             tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+            self.val_outputs.clear()  # free memory
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
@@ -1170,7 +1226,7 @@ class RNNTWER(Metric):
     def __init__(
         self, decoding: RNNTDecoding, batch_dim_index=0, use_cer=False, log_prediction=True, dist_sync_on_step=False
     ):
-        super(RNNTWER, self).__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=False)
+        super(RNNTWER, self).__init__(dist_sync_on_step=dist_sync_on_step)
         self.decoding = decoding
         self.batch_dim_index = batch_dim_index
         self.use_cer = use_cer
@@ -1234,7 +1290,9 @@ class RNNTWER(Metric):
 
 @dataclass
 class RNNTDecodingConfig:
+    model_type: str = "rnnt"  # one of "rnnt", "multiblank" or "tdt"
     strategy: str = "greedy_batch"
+
     compute_hypothesis_token_set: bool = False
 
     # preserve decoding alignments
@@ -1263,3 +1321,6 @@ class RNNTDecodingConfig:
 
     # beam decoding config
     beam: beam_decode.BeamRNNTInferConfig = beam_decode.BeamRNNTInferConfig(beam_size=4)
+
+    # can be used to change temperature for decoding
+    temperature: float = 1.0
