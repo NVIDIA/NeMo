@@ -12,11 +12,11 @@ TASKS = {"qasper":
                 "subset": "QuALITY/validation.jsonl"},
         "musique":
                 {"response": "Answer:",
-                "tokens_to_generate": 12,
+                "tokens_to_generate": 24,
                 "subset": "MuSiQue/validation.jsonl"},
         "space_digest":
                 {"response": "Percentage of Positive Reviews:",
-                "tokens_to_generate": 8,
+                "tokens_to_generate": 24,
                 "subset": "SpaceDigest/test.jsonl"},
         "book_sum_sort":
                 {"response": "Summary IDs in Correct Order:",
