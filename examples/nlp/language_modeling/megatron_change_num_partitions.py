@@ -1388,7 +1388,7 @@ def main():
             else:
                 # Extract all artifacts that are not binary files
                 # and save them to the model directory
-                print("Extracting artifact from NeMo file...")
+                logging.info("Extracting artifact from NeMo file...")
                 temp_dir = tempfile.mkdtemp()
                 tokenizer_model_path = None
                 with tarfile.open(args.model_file, "r") as tar:
@@ -1415,6 +1415,7 @@ def main():
                 # Extract tokenizer info
                 with open_dict(model.cfg):
                     model.cfg.tokenizer.model = tokenizer_model_path
+                    logging.info(f"Tokenizer model path: {model.cfg.tokenizer.model}")
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
 
