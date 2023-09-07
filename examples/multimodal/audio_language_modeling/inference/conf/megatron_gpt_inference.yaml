@@ -1,7 +1,7 @@
 evaluate_metric: False # only run trainer.test(model) and exit
 
 inference:
-  greedy: False # Whether or not to use sampling ; use greedy decoding otherwise
+  greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
   top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
   temperature: 1.0 # sampling temperature
