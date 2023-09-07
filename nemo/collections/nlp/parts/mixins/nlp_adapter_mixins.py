@@ -18,8 +18,13 @@ from typing import List, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
+try:
+    from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
+    HAVE_MEGATRON_CORE = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_MEGATRON_CORE = False
 
-from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
+
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     PromptEncoderAdapterConfig,
@@ -119,6 +124,8 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
         use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
+        if use_mcore_gpt:
+            assert HAVE_MEGATRON_CORE, "You set `mcore_gpt` as True but megatron core is not found."
 
         for peft_cfg in peft_cfgs:
             if isinstance(peft_cfg, PtuningPEFTConfig) and not self.first_stage_of_pipeline():
