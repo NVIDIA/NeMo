@@ -30,17 +30,12 @@ from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModel
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
-try:
-    from apex.transformer.pipeline_parallel.utils import (
+from nemo.collections.nlp.parts.microbatch_calculator import (
         _reconfigure_microbatch_calculator,
         get_current_global_batch_size,
         get_micro_batch_size,
         get_num_microbatches,
     )
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 try:
     from megatron.core import parallel_state
