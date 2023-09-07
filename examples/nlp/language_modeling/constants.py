@@ -26,6 +26,18 @@ TASKS = {"qasper":
                 {"response": "Summary:",
                 "tokens_to_generate": 1024,
                 "subset": "GovReport/test.jsonl"},
+        "gov_report-0":
+                {"response": "Summary:",
+                "tokens_to_generate": 1024,
+                "subset": "GovReport/test_0.jsonl"},
+        "gov_report-1":
+                {"response": "Summary:",
+                "tokens_to_generate": 1024,
+                "subset": "GovReport/test_1.jsonl"},
+        "gov_report-2":
+                {"response": "Summary:",
+                "tokens_to_generate": 1024,
+                "subset": "GovReport/test_2.jsonl"},
         "summ_screen_fd":
                 {"response": "Summary:",
                 "tokens_to_generate": 640,
