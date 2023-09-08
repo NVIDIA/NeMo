@@ -128,9 +128,11 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             assert HAVE_MEGATRON_CORE, "You set `mcore_gpt` as True but megatron core is not found."
 
         for peft_cfg in peft_cfgs:
-            if isinstance(peft_cfg, PtuningPEFTConfig) and not self.first_stage_of_pipeline():
-                # There are no params to add if we are not in the first state of the pipeline
-                continue
+            if isinstance(peft_cfg, PtuningPEFTConfig):
+                if not self.first_stage_of_pipeline():
+                    # There are no params to add if we are not in the first state of the pipeline
+                    continue
+                self.virtual_tokens = peft_cfg.virtual_tokens
 
             layer_selection = peft_cfg.layer_selection
 

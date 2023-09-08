@@ -138,6 +138,7 @@ class PtuningPEFTConfig(PEFTConfig):
         )
         name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
         self.name_key_to_mcore_mixins = {AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)]}
+        self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
 
         super().__init__(cfg, cfg.peft.p_tuning, name_key_to_cfg)
 
