@@ -169,27 +169,28 @@ def main(cfg) -> None:
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
-    if (
-        cfg.tensor_model_parallel_size < 0
-        or cfg.pipeline_model_parallel_size < 0
-        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
-    ):
-        save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.gpt_model_file):
-            save_restore_connector.model_extracted_dir = cfg.gpt_model_file
-        model_config = MegatronGPTModel.restore_from(
-            restore_path=cfg.gpt_model_file,
-            trainer=trainer,
-            return_config=True,
-            save_restore_connector=save_restore_connector,
-        )
+    if cfg.gpt_model_file is not None:
+        if (
+            cfg.tensor_model_parallel_size < 0
+            or cfg.pipeline_model_parallel_size < 0
+            or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+        ):
+            save_restore_connector = NLPSaveRestoreConnector()
+            if os.path.isdir(cfg.gpt_model_file):
+                save_restore_connector.model_extracted_dir = cfg.gpt_model_file
+            model_config = MegatronGPTModel.restore_from(
+                restore_path=cfg.gpt_model_file,
+                trainer=trainer,
+                return_config=True,
+                save_restore_connector=save_restore_connector,
+            )
 
-        # with dist checkpointing we don't need to set this
-        if not model_config.get('mcore_gpt', False):
-            with open_dict(cfg):
-                cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
-                cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
-                cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
+            # with dist checkpointing we don't need to set this
+            if not model_config.get('mcore_gpt', False):
+                with open_dict(cfg):
+                    cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
+                    cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
+                    cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
 
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
@@ -244,7 +245,11 @@ def main(cfg) -> None:
                 pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
             )
-        checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+        checkpoint_path = os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
+        # checkpoint_path is a dir in case of distributed checkpointing
+        if not os.path.isdir(checkpoint_path):
+            # legacy checkpoint needs model parallel rank injection
+            checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
