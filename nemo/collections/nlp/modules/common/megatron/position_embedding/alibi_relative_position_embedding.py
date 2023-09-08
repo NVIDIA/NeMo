@@ -126,8 +126,12 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
 
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
+        slopes = self.slopes
+
         if self.use_FA and HAVE_OCEAN:
-            return self.slopes.unsqueeze(0)
+            if self.seq_len_interpolation_factor is not None:
+                slopes *= 1 / self.seq_len_interpolation_factor
+            return slopes.unsqueeze(0)
         
         max_seq_len = max(query_seq_length, key_seq_length)
         if max_seq_len > self.max_seq_len:
@@ -137,6 +141,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
                 .expand(self.num_attention_heads, -1, -1)
             )
             self.slopes = self.slopes.to(relative_position.device)
+            slopes = self.slopes
         else:
             relative_position = self.relative_position
 
@@ -144,9 +149,9 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         relative_position = relative_position[:, -query_seq_length:, -key_seq_length:]
         # if not bidirectional, mask out the future positions
         # shape (1, num_heads, query_length, key_length)
+
         if self.seq_len_interpolation_factor is not None:
-            relative_position = relative_position.type_as(self.slopes)
-            relative_position *= 1 / self.seq_len_interpolation_factor
+            slopes *= 1 / self.seq_len_interpolation_factor
         
-        return -relative_position.unsqueeze(0) * self.slopes
+        return -relative_position.unsqueeze(0) * slopes
             
