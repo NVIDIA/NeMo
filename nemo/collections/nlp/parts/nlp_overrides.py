@@ -14,6 +14,7 @@
 
 import itertools
 import os
+from pyexpat import model
 import shutil
 import tempfile
 from collections import OrderedDict, defaultdict
@@ -41,7 +42,7 @@ from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank
+from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -570,10 +571,18 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
     def _load_state_dict_from_disk(self, model_weights, map_location=None):
         # if model_weights with the extension removed is a directory, we assume it is a distributed checkpoint
         # we need to defer loading the state dict so we return None
-        if os.path.isdir(os.path.splitext(model_weights)[0]):
+        uninject_model_weights = uninject_model_parallel_rank(model_weights)
+
+        # legacy model_weights will have mp rank injected
+        if os.path.isfile(model_weights):
+            return super()._load_state_dict_from_disk(model_weights, map_location)
+        
+        # dist checkpoint will be a dir
+        elif os.path.isdir(os.path.splitext(uninject_model_weights)[0]):
             return None
         else:
-            return super()._load_state_dict_from_disk(model_weights, map_location)
+            raise ValueError(f'Expected {model_weights} to be a file or directory.')
+        
 
     def restore_from(
         self,
@@ -656,6 +665,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir
                 )
                 instance.on_load_checkpoint(checkpoint)
+                if hasattr(instance, 'setup_transformer_engine_tp_groups'):
+                    instance.setup_transformer_engine_tp_groups()
 
         else:
             state_dict = self.modify_state_dict(conf, state_dict)
