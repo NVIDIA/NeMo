@@ -26,7 +26,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
-from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.multimodal.data.audio_text_qa_dataset import (
@@ -604,12 +604,23 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             save_restore_connector=base_model_save_restore_connector,
         )
         pretrained_audio_model = cfg.model.pretrained_audio_model
-        if pretrained_audio_model.endswith('.nemo'):
-            logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
-            audio_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
-        else:
-            logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
-            audio_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
+        try:
+            if pretrained_audio_model.endswith('.nemo'):
+                logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+                audio_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
+            else:
+                logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+                audio_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
+        except:
+            logging.info(f'Fail in loading it with ASRModel. Try again with SpeechEncDecSelfSupervisedModel.')
+            if pretrained_audio_model.endswith('.nemo'):
+                logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+                audio_model = SpeechEncDecSelfSupervisedModel.restore_from(pretrained_audio_model, map_location='cpu')
+            else:
+                logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+                audio_model = SpeechEncDecSelfSupervisedModel.from_pretrained(
+                    pretrained_audio_model, map_location='cpu'
+                )
 
         model_cfg = cls._modify_config(base_model_cfg, cfg, audio_model.cfg, add_cfg_to_tree=False)
         resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
