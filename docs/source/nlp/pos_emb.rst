@@ -109,6 +109,7 @@ Flash attention
 GPT
 ^^^
 To enable Flash Attention while Megatron GPT model training or fine-tuning, modify the following configuration: 
+
 .. code::
 
    model.use_flash_attention=True
@@ -116,6 +117,7 @@ To enable Flash Attention while Megatron GPT model training or fine-tuning, modi
 T5
 ^^
 To enable Flash Attention while Megatron T5 model training, modify the following configuration: 
+
 .. code::
 
    model.use_flash_attention=True
