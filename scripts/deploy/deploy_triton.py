@@ -96,8 +96,8 @@ def nemo_deploy(argv):
             nemo_checkpoint_path=args.nemo_checkpoint,
             model_type=args.model_type,
             n_gpus=args.num_gpus,
-            max_input_len=args.max_input_len,
-            max_output_len=args.max_output_len,
+            max_input_token=args.max_input_len,
+            max_output_token=args.max_output_len,
             max_batch_size=args.max_batch_size,
         )
 
