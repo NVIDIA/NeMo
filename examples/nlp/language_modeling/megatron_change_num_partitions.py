@@ -978,6 +978,30 @@ def main():
     if vp_size > 1:
         set_virtual_parallel_rank_safely(0)
 
+    # Extract tokenizer artifact from the model to temp directory
+    logging.info("Extracting tokenizer artifact from NeMo file...")
+    temp_dir = tempfile.mkdtemp()
+    tokenizer_model_path = None
+    with tarfile.open(args.model_file, "r") as tar:
+        for member in tar.getmembers():
+            if '.model' in member.name:
+                extracted_file = tar.extractfile(member)
+                extracted_file_path = os.path.join(temp_dir, member.name)
+
+                if tokenizer_model_path is None:
+                    logging.info(f"Found tokenizer. Extracting {member.name} to {extracted_file_path}")
+
+                    tokenizer_model_path = extracted_file_path
+                    with open(extracted_file_path, "wb") as f:
+                        f.write(extracted_file.read())
+                else:
+                    logging.warning(
+                        f"\n\nFound multiple tokenizer artifacts in the model file.\n"
+                        f"Using only {tokenizer_model_path}.\n"
+                        f"If this is incorrect, manually pass the correct tokenizer using "
+                        f"`--tokenizer_model_path`.\n\n"
+                    )
+
     # If input model has TP > 1 or PP > 1
     # Reconstruct the model to have TP = 1 and PP = 1
     # Note that this is a forward loop that will process PP [0..N] TP [0..M] in sequential order.
@@ -1386,29 +1410,6 @@ def main():
                     model.cfg.tokenizer.model = args.tokenizer_model_path
 
             else:
-                # Extract all artifacts that are not binary files
-                # and save them to the model directory
-                logging.info("Extracting artifact from NeMo file...")
-                temp_dir = tempfile.mkdtemp()
-                tokenizer_model_path = None
-                with tarfile.open(args.model_file, "r") as tar:
-                    for member in tar.getmembers():
-                        if member.name == '.':
-                            continue
-
-                        if member.type not in ['ckpt', 'pt']:
-                            if 'mp_rank' in member.name:
-                                continue
-
-                            extracted_file = tar.extractfile(member)
-                            extracted_file_path = os.path.join(temp_dir, member.name)
-
-                            if '.model' in member.name:
-                                tokenizer_model_path = extracted_file_path
-
-                            with open(extracted_file_path, "wb") as f:
-                                f.write(extracted_file.read())
-
                 if tokenizer_model_path is None:
                     logging.warning("Could not extract tokenizer model file from checkpoint.")
 
@@ -1416,7 +1417,6 @@ def main():
                     # Extract tokenizer info
                     with open_dict(model.cfg):
                         model.cfg.tokenizer.model = tokenizer_model_path
-                        logging.info(f"Tokenizer model path: {model.cfg.tokenizer.model}")
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
 
