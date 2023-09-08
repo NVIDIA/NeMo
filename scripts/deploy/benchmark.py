@@ -272,13 +272,13 @@ def send_queries(args):
     
     for inpt, ol in input_data.items():
         for batch_size in [1, 2, 4, 8]:
-            inputs = inpt * batch_size
+            inputs = ol["input"] * batch_size
             # print(inputs)
         
             # warm up
             if args.warm_up:
                 #print("[INFO] sending requests to warm up")
-                output = nq.query_llm(prompts=ol["input"], max_output_token=ol["output_len"])
+                output = nq.query_llm(prompts=inputs, max_output_token=ol["output_len"])
                 #print("----------output-----------")
                 #print(output)
         
@@ -287,7 +287,7 @@ def send_queries(args):
             for i in range(args.num_runs):
                 start_time = datetime.now()
         
-                output = nq.query_llm(prompts=ol["input"], max_output_token=ol["output_len"])
+                output = nq.query_llm(prompts=inputs, max_output_token=ol["output_len"])
         
                 stop_time = datetime.now()
                 latencies.append((stop_time - start_time).total_seconds() * 1000.0)
