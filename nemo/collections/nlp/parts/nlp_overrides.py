@@ -34,6 +34,7 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
+from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -989,28 +990,22 @@ class GlobalBatchDataFetcher(_DataFetcher):
 
 class CustomProgressBar(TQDMProgressBar):
     """
-    Add a CustomProgressBar to remove 's/it' and add train_step_timing for megatron models
+    Add CustomProgressBar to remove 's/it' and display progress per step instead of per microbatch
+    for megatron models
     """
-    def __init__(self, cfg):
-        super().__init__()
-        self.cfg = cfg
-
     def init_train_tqdm(self):
         """
-        Override progress bar total to reflect total microbatches and bar format to remove 's/it' from the
-        progress bar for megatron models
+        Override bar_format to not have 's/it'
         """
         self.bar = super().init_train_tqdm()
-        self.bar.total = self.cfg.trainer.max_steps * get_num_microbatches()
         self.bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
         return self.bar
     
-    def on_train_epoch_start(self, trainer: "pl.Trainer", *_: Any) -> None:
+    def on_train_batch_end(self, trainer, pl_module, *_, **__):
         """
-        Override the parent on_train_epoch_start to reset train_progress_bar with the total number of microbatches
-        instead of total global batches.
-        #TODO athitten: Remove this hook once PTL fixes the logic for progress bar with dataloader_iter
+        Override parent class on_train_batch_end to update progress bar per global_step instead of per microbatch
         """
-        self.train_progress_bar.reset(self.bar.total)
-        self.train_progress_bar.initial = 0
-        self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
+        n = trainer.global_step
+        if self._should_update(n, self.train_progress_bar.total):
+            _update_n(self.train_progress_bar, n)
+            self.train_progress_bar.set_postfix(self.get_metrics(trainer, pl_module))
