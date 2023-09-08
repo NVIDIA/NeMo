@@ -67,7 +67,7 @@ T5
           
           model.encoder.position_embedding_type='learned_absolute'
           model.decoder.position_embedding_type='learned_absolute'
-     - `Absolute Position Encodings <https://arxiv.org/pdf/1706.03762.pdf>`_
+     - `Absolute Position Encodings <https://arxiv.org/pdf/1706.03762.pdf>`_ are position embeddings used in Transformer-based models, added to input embeddings in the encoder and decoder sections. These encodings match the dimension of embeddings and are created using sine and cosine functions of various frequencies. Each dimension in the encoding corresponds to a sinusoid with wavelengths forming a geometric progression. 
 
    * - **relative**
      - .. code::
