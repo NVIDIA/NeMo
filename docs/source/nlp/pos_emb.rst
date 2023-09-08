@@ -52,7 +52,7 @@ GPT
      - `Sandwich <https://arxiv.org/pdf/2212.10356v2.pdf>`_
 
 T5
-^^^
+^^
 
 .. list-table:: *Supported positional embeddings in T5 models*
    :widths: 10 30 60
@@ -89,3 +89,33 @@ T5
           model.encoder.position_embedding_type='kerple'
           model.decoder.position_embedding_type='kerple'
      - `Kernelized Relative Positional Embedding for Length Extrapolation (KERPLE) <https://arxiv.org/pdf/2205.09921.pdf>`_ generalizes relative positional embeddings (RPE) by kernelizing positional differences using conditionally positive definite (CPD) kernels known for generalizing distance metrics. They transform CPD kernels into positive definite (PD) kernels by adding a constant offset, which is absorbed during softmax normalization in the self-attention mechanism of transformers. This approach allows for a variety of RPEs that facilitate length extrapolation in a principled manner. 
+
+Positional interpolation
+------------------------
+`Position Interpolation (PI) <https://arxiv.org/pdf/2306.15595.pdf>`_  is a method introduced to extend the context window sizes of Rotary Position Embedding (RoPE)-based pretrained large language models (LLMs). The central principle of PI is to reduce the position indices so that they align with the initial context window size through interpolation.
+
+Positional Interpolation is supported in Megatron GPT SFT models. Set RoPE Interpolation factor for sequence length :code:`seq_len_interpolation_factor` to enable it.  
+
+.. code::
+   
+   model.position_embedding_type='rope'
+   model.rotary_percentage=1.0
+   model.seq_len_interpolation_factor: null 
+
+Flash attention
+---------------
+`FlashAttention <https://arxiv.org/pdf/2205.14135.pdf>`_ is a method designed to enhance the efficiency of Transformer models, which are widely utilized in applications such as natural language processing. Traditional Transformers are slow and consume a lot of memory, especially with long sequences, due to the quadratic time and memory complexity of self-attention. FlashAttention, an IO-aware exact attention algorithm that leverages tiling to minimize the number of memory reads/writes between the GPU's high bandwidth memory (HBM) and on-chip SRAM. This approach is designed to be more efficient in terms of IO complexity compared to standard attention mechanisms.
+
+GPT
+^^^
+To enable Flash Attention while Megatron GPT model training or fine-tuning, modify the following configuration: 
+.. code::
+
+   model.use_flash_attention=True
+
+T5
+^^
+To enable Flash Attention while Megatron T5 model training, modify the following configuration: 
+.. code::
+
+   model.use_flash_attention=True
