@@ -1,5 +1,11 @@
-Supported positional embedding types 
------------------------------------- 
+Positional embedding
+--------------------
+
+Positional embeddings are used to give the model information about the position of each element in a sequence.  Megatron LLM supports the following positional embedding types:
+
+GPT
+^^^
+
 .. list-table:: *Supported positional embeddings in GPT models*
    :widths: 10 30 60
    :header-rows: 1
@@ -44,6 +50,9 @@ Supported positional embedding types
 
           model.position_embedding_type='sandwich'
      - `Sandwich <https://arxiv.org/pdf/2212.10356v2.pdf>`_
+
+T5
+^^^
 
 .. list-table:: *Supported positional embeddings in T5 models*
    :widths: 10 30 60
