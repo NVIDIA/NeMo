@@ -67,7 +67,7 @@ pipeline {
             pip install -e .'
       }
     }
-      
+
 
     stage('PyTorch Lightning version') {
       steps {
@@ -120,7 +120,6 @@ pipeline {
         sh 'CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py \
         --in-file=/home/TestData/nlp/megatron_llama/llama-ci-hf \
         --out-file=/home/TestData/nlp/megatron_llama/ci.nemo \
-        --fast-swiglu \
         --precision=16'
         sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
       }
@@ -839,7 +838,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('L2: Speech Transcription') {
       when {
         anyOf {
@@ -3374,7 +3373,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
        }
      }
-    
+
     // This test requires Ampere but some of the test GPUs are Volta
     // Need to add a check for compute capability before uncommenting this test
     // stage('L2: Megatron GPT with Rope Pretraining using Flash Attention and Resume Training TP=2') {
@@ -3937,7 +3936,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             rm -rf examples/nlp/language_modeling/out.jsonl"
       }
     }
-   
+
     // TODO: Add this test back. Test was failing on CI machines due to HW error
     // stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
     //   when {

@@ -54,6 +54,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
@@ -114,15 +115,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
                 margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3
             )
 
-        self.dtype = None
-        if model.cfg['precision'] == 'bf16':
-            self.dtype = torch.bfloat16
-        elif int(model.cfg['precision']) == 32:
-            self.dtype = torch.float
-        elif int(model.cfg['precision']) == 16:
-            self.dtype = torch.float16
-        else:
-            raise ValueError(f"precision: {model.cfg['precision']} is not supported.")
+        self.dtype = utils_funcs.torch_dtype_from_precision(model.cfg.precision)
 
     def forward(self, tokens, position_ids, attention_mask):
         if self.fp8_enabled and HAVE_TE:
@@ -259,15 +252,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     self.model.cuda(torch.cuda.current_device())
 
             self._wrap_model_for_O2()
-
-        if self.trainer.precision in ['bf16', 'bf16-mixed']:
-            self.autocast_dtype = torch.bfloat16
-        elif self.trainer.precision in [32, '32', '32-true']:
-            self.autocast_dtype = torch.float
-        elif self.trainer.precision in [16, '16', '16-mixed']:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
@@ -477,7 +461,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             used_params = set()
             for bucket in buckets:
                 used_params.update(bucket)
-            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
+            remaining_params = [p for p in self.parameters() if p not in used_params]
+            if remaining_params:
+                buckets.append(remaining_params)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
@@ -1328,7 +1314,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
         """
         Creates the sharded state dict which is used by dist_checkpoint to save the sharded tensors to disk.
-        When given the sharded_stated_dict, dist_checkpoint.load will load the tensors corresponding to 
+        When given the sharded_stated_dict, dist_checkpoint.load will load the tensors corresponding to
         self.state_dict().
         The sharded tensor mapping is defined in the GPTModel class from mcore.
         """
@@ -1460,7 +1446,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def build_transformer_config(self) -> TransformerConfig:
         """ Builds the megatron core gpt transformer config for the model.
-            For attributes in the nemo model config that are the same 
+            For attributes in the nemo model config that are the same
             as the megatron core TransformerConfig, we will use the value from the nemo model config.
             For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
