@@ -18,6 +18,7 @@ import os
 import re
 from dataclasses import fields
 from typing import Any, Dict, Optional, Union
+import math
 
 import omegaconf
 import torch
@@ -476,6 +477,23 @@ class MegatronBaseModel(NLPModel):
                 optim_kwargs['store_param_remainders'] = True
             else:
                 optim_kwargs['store_params'] = True
+
+            # Find the appropriate bucket_cap_mb, if it is auto
+            if optim_config.get('bucket_cap_mb', 'auto') == 'auto':
+                assert hasattr(self, 'distributed_adam_buckets'), \
+                    "The bucket_cap_mb calculation depends on the " \
+                    "distributed_adam_buckets parameter, please make sure " \
+                    "it is configured correctly."
+
+                max_bucket_size = 0
+                for bucket in self.distributed_adam_buckets:
+                    bucket_size = sum(p.numel() for p in bucket)
+                    max_bucket_size = max(max_bucket_size, bucket_size)
+                grad_sync_dtype = optim_config.get("grad_sync_dtype", optim_dtype)
+                dtype_size = torch.finfo(grad_sync_dtype).bits // 8
+
+                max_bucket_mb = max_bucket_size * dtype_size
+                optim_config['bucket_cap_mb'] = math.ceil(max_bucket_mb + 0.1)
 
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
