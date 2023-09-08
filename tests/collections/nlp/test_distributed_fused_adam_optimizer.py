@@ -1,9 +1,9 @@
-import os
-import pytest
-import torch
 import gc
+import os
 import time
 
+import pytest
+import torch
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import Callback
@@ -14,7 +14,6 @@ from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerB
 
 @pytest.mark.run_only_on('GPU')
 class TestDistributedFusedAdam:
-
     @pytest.mark.unit
     def test_auto_config_bucket_cap_mb(self, gpt_127m_cfg, trainer_cfg):
         cfg = DictConfig({"model": gpt_127m_cfg, "trainer": trainer_cfg})
@@ -38,13 +37,13 @@ class TestDistributedFusedAdam:
         print("memory_with_cap_auto", memory_with_cap_auto, step_time_with_cap_auto)
 
         # bucket_cap_mb=auto saves far more memory than 125mb bucket cap
-        assert memory_with_cap_125m/memory_with_cap_auto > 1.5
+        assert memory_with_cap_125m / memory_with_cap_auto > 1.5
 
         # bucket_cap_mb=auto saves more memory than 10mb bucket cap
-        assert memory_with_cap_10m/memory_with_cap_auto > 1.0
+        assert memory_with_cap_10m / memory_with_cap_auto > 1.0
 
         # bucket_cap_mb=auto is more efficient than 10mb bucket cap
-        assert step_time_with_cap_auto/step_time_with_cap_10m < 1.0
+        assert step_time_with_cap_auto / step_time_with_cap_10m < 1.0
 
 
 def benchmark(cfg):
@@ -55,14 +54,7 @@ def benchmark(cfg):
     strategy = builder._training_strategy()
     plugins = builder._plugins()
     metrics = MetricsCallback()
-    trainer = Trainer(
-        **cfg.trainer,
-        strategy=strategy,
-        plugins=plugins,
-        callbacks=[
-            metrics,
-        ],
-    )
+    trainer = Trainer(**cfg.trainer, strategy=strategy, plugins=plugins, callbacks=[metrics,],)
     gpt = MegatronGPTModel(cfg.model, trainer)
     trainer.fit(gpt)
     torch.cuda.synchronize()
@@ -73,8 +65,8 @@ def benchmark(cfg):
 
     return avg_step_time, max_memory_allocated
 
-class MetricsCallback(Callback):
 
+class MetricsCallback(Callback):
     def __init__(self):
         super().__init__()
 
@@ -85,7 +77,7 @@ class MetricsCallback(Callback):
         if self.last_train_ts is None:
             self.last_train_ts = time.time()
             return
-        
+
         self.step_time.append(time.time() - self.last_train_ts)
         self.last_train_ts = time.time()
 
