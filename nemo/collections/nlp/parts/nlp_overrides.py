@@ -652,7 +652,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
-                checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir)
+                checkpoint = dist_checkpointing.load(
+                    sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir
+                )
                 instance.on_load_checkpoint(checkpoint)
 
         else:
