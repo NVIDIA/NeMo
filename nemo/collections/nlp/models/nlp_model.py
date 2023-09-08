@@ -328,11 +328,10 @@ class NLPModel(ModelPT, Exportable):
 
                 # metadata is stored in common.pt
                 checkpoint_path = os.path.join(checkpoint_path, 'common.pt')
-                
+
                 # we defer loading the state_dict until the class has been initialized
                 # we need to set this for ptl_load_state
                 strict = False
-
 
             # TODO: replace with proper PTL API
             with pl_legacy_patch():
@@ -378,7 +377,7 @@ class NLPModel(ModelPT, Exportable):
             else:
                 model = ptl_load_state(cls, checkpoint, strict=strict, cfg=cfg, **kwargs)
                 # cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
-            
+
             # if the checkpoint is distributed, we deferred loading the state_dict until now
             if checkpoint_dir is not None:
                 sharded_state_dict = model.sharded_state_dict()
