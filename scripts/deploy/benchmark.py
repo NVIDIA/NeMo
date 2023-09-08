@@ -274,38 +274,40 @@ def send_queries(args):
     if args.start_len==200:
         input_data = test_input_200
  
-    inputs = input_data * args.batch_size
-    # print(inputs)
- 
-    # warm up
-    if args.warm_up:
-        #print("[INFO] sending requests to warm up")
-        output = nq.query_llm(prompts=inputs, max_output_token=args.max_output_len)
-        #print("----------output-----------")
-        #print(output)
- 
-    latencies = []
-    for i in range(args.num_runs):
-        start_time = datetime.now()
- 
-        output = nq.query_llm(prompts=inputs, max_output_token=args.max_output_len)
- 
-        stop_time = datetime.now()
-        latencies.append((stop_time - start_time).total_seconds() * 1000.0)
- 
-     
-    if args.num_runs > 1:
-        latency = statistics.mean(latencies)
-    else:
-        latency = latencies[0]
+    for batch_size in [1, 2, 4, 8]:
+        inputs = input_data * batch_size
+        # print(inputs)
+    
+        # warm up
+        if args.warm_up:
+            #print("[INFO] sending requests to warm up")
+            output = nq.query_llm(prompts=inputs, max_output_token=args.max_output_len)
+            #print("----------output-----------")
+            #print(output)
+    
+        
+        latencies = []
+        for i in range(args.num_runs):
+            start_time = datetime.now()
+    
+            output = nq.query_llm(prompts=inputs, max_output_token=args.max_output_len)
+    
+            stop_time = datetime.now()
+            latencies.append((stop_time - start_time).total_seconds() * 1000.0)
+    
+        
+        if args.num_runs > 1:
+            latency = statistics.mean(latencies)
+        else:
+            latency = latencies[0]
 
-    latency = round(latency, 3)
-    throughput = round(1000 / latency * args.batch_size, 3)
-    print(
-        f"[INFO] Batch size: {args.batch_size}, Start len: {args.start_len}, Output len: {args.start_len}"
-    )
-    print(f"[INFO] Latency: {latency} ms")
-    print(f"[INFO] Throughput: {throughput} sentences / sec")
+        latency = round(latency, 3)
+        throughput = round(1000 / latency * batch_size, 3)
+        print(
+            f"[INFO] Batch size: {batch_size}, Start len: {args.start_len}, Output len: {args.start_len}"
+        )
+        print(f"[INFO] Latency: {latency} ms")
+        print(f"[INFO] Throughput: {throughput} sentences / sec")
 
 
 if __name__ == '__main__':
