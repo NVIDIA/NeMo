@@ -15,6 +15,7 @@
 import os
 import tarfile
 import tempfile
+import shutil
 from argparse import ArgumentParser
 from typing import Dict, List
 
@@ -995,12 +996,13 @@ def main():
                     with open(extracted_file_path, "wb") as f:
                         f.write(extracted_file.read())
                 else:
-                    logging.warning(
-                        f"\n\nFound multiple tokenizer artifacts in the model file.\n"
-                        f"Using only {tokenizer_model_path}.\n"
-                        f"If this is incorrect, manually pass the correct tokenizer using "
-                        f"`--tokenizer_model_path`.\n\n"
-                    )
+                    if args.tokenizer_model_path is None:
+                        logging.warning(
+                            f"\n\nFound multiple tokenizer artifacts in the model file.\n"
+                            f"Using only {tokenizer_model_path}.\n"
+                            f"If this is incorrect, manually pass the correct tokenizer using "
+                            f"`--tokenizer_model_path`.\n\n"
+                        )
 
     # If input model has TP > 1 or PP > 1
     # Reconstruct the model to have TP = 1 and PP = 1
@@ -1491,6 +1493,9 @@ def main():
             )
 
     logging.info("Successfully finished changing partitions!")
+
+    if temp_dir is not None:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 if __name__ == '__main__':
