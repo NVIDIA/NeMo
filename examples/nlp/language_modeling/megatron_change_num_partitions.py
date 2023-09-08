@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import os
+import shutil
 import tarfile
 import tempfile
-import shutil
 from argparse import ArgumentParser
 from typing import Dict, List
 
