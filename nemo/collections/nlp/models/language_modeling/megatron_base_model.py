@@ -103,8 +103,8 @@ class MegatronBaseModel(NLPModel):
         self.tokenizer = None
 
         with open_dict(cfg):
-            if cfg.get('precision', None) is None:
-                cfg.precision = self.trainer.precision
+            if cfg.get('precision', None) is None and trainer is not None:
+                cfg.precision = trainer.precision
 
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
