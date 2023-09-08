@@ -11,3 +11,4 @@ sphinxcontrib-bibtex
 sphinxext-opengraph
 urllib3<2.0.0
 wrapt
+lightning_fabric
