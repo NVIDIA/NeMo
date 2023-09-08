@@ -140,18 +140,20 @@ Datasets
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset.UL2Dataset
     :show-inheritance: 
 
+
+Adapter Mixin Class
+-------------------------
+
+.. autoclass:: nemo.collections.nlp.parts.mixins.nlp_adapter_mixins.NLPAdapterModelMixin
+    :show-inheritance:
+    :members: add_adapter, save_adapters, load_adapters, merge_cfg_with, merge_inference_cfg
+
+
 Exportable Model Classes
 -------------------------
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTExportableModel
     :show-inheritance:
-
-Adapter Mixin Class
--------------------------
-
-.. autoclass:: nemo.collections.nlp.parts.mixins.NLPAdapterModelMixin
-    :show-inheritance:
-    :members: add_adapter, save_adapters, load_adapters, merge_cfg_with, merge_inference_cfg
 
 .. toctree::
    :maxdepth: 1
