@@ -443,7 +443,7 @@ class GPTDataset(Dataset):
                     text[l, :l] = 0
                 labels = text[:, 1:].clone().contiguous()
                 for l in range(1, text.shape[0]):
-                    text[l] += self.vocab_size + 1024 * l
+                    text[l] += self.vocab_size + 1024 * l  # TODO: fix hardcode
                 tokens = text[:, :-1].contiguous()
             else:
                 tokens = text[:-1].contiguous()

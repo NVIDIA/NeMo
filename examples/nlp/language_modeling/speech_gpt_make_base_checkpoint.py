@@ -42,8 +42,9 @@ trainer = pl.Trainer(plugins=plugins, strategy=strategy, **config.trainer)
 print("Trainer config - \n")
 print(OmegaConf.to_yaml(config.trainer))
 
-checkpoint_path = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo"
-# checkpoint_path = "/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo"
+# checkpoint_path = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo"
+checkpoint_path = "/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo"
+# checkpoint_path = "/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo"
 gpt_cfg = MegatronGPTModel.restore_from(
     restore_path=checkpoint_path,
     trainer=trainer,
@@ -59,6 +60,8 @@ def load_from_checkpoint_dir(cls, cfg, trainer, checkpoint):
     cfg.cfg = cfg
     cfg.cfg.tokenizer.model = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/2053796188904e679f7e2754a2a1f280_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model"
     cfg.cfg.tokenizer.tokenizer_model = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/2053796188904e679f7e2754a2a1f280_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model"
+    # cfg.cfg.tokenizer.model = "/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256/b11cee03bc8940fa86cb2da19e99fd4e_t5_tokenizer.model"
+    # cfg.cfg.tokenizer.tokenizer_model = "/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256/b11cee03bc8940fa86cb2da19e99fd4e_t5_tokenizer.model"
     with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
         OmegaConf.save(config=cfg, f=f.name)
         model = cls.load_from_checkpoint(checkpoint_path=checkpoint, trainer=trainer, hparams_file=f.name,)
@@ -77,5 +80,9 @@ def load_from_nemo(cls, cfg, trainer, checkpoint):
 
 
 model = load_from_nemo(MegatronGPTModel, gpt_cfg, trainer, checkpoint_path)
-model.update_for_speech()
-model.save_to("/home/jasoli/models/speechllm_sgpt_base_2b_tp1_pp1_linear.nemo")
+model.update_for_speech("linear")
+print("embedding weight")
+print(model.model.module.language_model.embedding.word_embeddings.weight.shape)
+print("output weight")
+print(model.model.module.language_model.output_layer.weight.shape)
+model.save_to("/home/jasoli/models/speechllm_sgpt_base_843m_tp1_pp1_linearv2.nemo")

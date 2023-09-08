@@ -755,7 +755,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                         encoder_input = cur
                     else:
                         include_channel_flag = (torch.sum(enc_input_ids[:, i, :], dim=1) > 0).float()
-                        encoder_input = encoder_input + cur * include_channel_flag.unsqueeze(-1).unsqueeze(0) * 0.125
+                        encoder_input = encoder_input + cur * include_channel_flag.unsqueeze(-1).unsqueeze(0) * 0.33
                         # encoder_input = encoder_input + cur * include_channel_flag.unsqueeze(-1).unsqueeze(0)
             else:
                 # Should be text tokens
