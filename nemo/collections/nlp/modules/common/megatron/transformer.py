@@ -988,7 +988,7 @@ class ParallelTransformer(MegatronModule):
                     raise ValueError(
                         f'activations_checkpoint_method should be "uniform" or "block" when using granularity selective.'
                     )
-                self.activations_checkpoint_num_layers = num_layers # forcing all layers
+                self.activations_checkpoint_num_layers = num_layers  # forcing all layers
             elif self.activations_checkpoint_granularity == 'full':
                 if self.activations_checkpoint_method in ['uniform', 'block']:
                     if not self.activations_checkpoint_num_layers:
@@ -998,7 +998,7 @@ class ParallelTransformer(MegatronModule):
                                 f'Got: {self.activations_checkpoint_num_layers}. Setting to 1 by default.'
                             )
                         )
-                        self.activations_checkpoint_num_layers = 1 # keeping the old default
+                        self.activations_checkpoint_num_layers = 1  # keeping the old default
                 else:
                     raise ValueError(
                         f'activations_checkpoint_method should be "uniform" or "block" when using granularity full.'
