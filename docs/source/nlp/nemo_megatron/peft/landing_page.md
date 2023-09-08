@@ -6,14 +6,14 @@ into the model, resulting in a very small number (<< 1%) of trainble weights.
 With carefully chosen adapter modules and injection points, PEFT achieves comparable performance to full finetuning 
 at a fraction of the computational and storage costs.
 
-NeMo supports four PEFT methods which can be used with two transformer-based networks.
+NeMo supports four PEFT methods which can be used with various transformer-based models.
 
-|                      | GPT | T5  |
-|----------------------|-----|-----|
-| Adapters (Canonical) | ✅   | ✅   |
-| LoRA                 | ✅   | ✅   |
-| IA3                  | ✅   | ✅   |
-| P-Tuning             | ✅   | ✅   |
+|                      | GPT 3 | NvGPT | LLaMa 1/2 | T5  |
+|----------------------|-------|-------|-----------|-----|
+| Adapters (Canonical) | ✅    |  ✅  |   ✅     | ✅   |
+| LoRA                 | ✅    |  ✅  |   ✅     | ✅   |
+| IA3                  | ✅    |  ✅  |   ✅     | ✅   |
+| P-Tuning             | ✅    |  ✅  |   ✅     | ✅   |
 
 Learn more about PEFT in NeMo with the 
 [Quick Start Guide](quick_start.md) which provides an overview on how PEFT works in NeMo.
