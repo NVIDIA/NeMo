@@ -123,7 +123,7 @@ class ConstantNumMicroBatches(NumMicroBatchesCalculator):
     def update(self, consumed_samples, consistency_check):
         pass
 
-    
+
 def build_num_microbatches_calculator(
     rank: int,
     rampup_batch_size: Optional[List[int]],
@@ -181,7 +181,6 @@ def _reconfigure_microbatch_calculator(
         micro_batch_size: int,
         data_parallel_size: int,
 ) -> None:
-    import pdb; pdb.set_trace()
     global _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
     _GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
