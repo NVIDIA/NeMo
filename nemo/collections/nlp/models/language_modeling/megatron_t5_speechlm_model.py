@@ -96,6 +96,17 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         speech_offset = cfg.data.get('speech_offset', 30000)
         speech_head_type = cfg.get('speech_head_type', 'token_level')  # token_level, linear
 
+        self.speech_offset = speech_offset
+        self.speech_codebook_size = speech_codebook_size
+        self.frozen_model.enc_dec_model.speech_offset = speech_offset
+        self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
+        self.frozen_model.enc_dec_model.cross_entropy_type = cfg.get('cross_entropy_type', 'regular')
+        self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
+        self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
+
+        # Parallel output is used only for vocab parallel cross entropy.
+        self.frozen_model.enc_dec_model.parallel_output = self.frozen_model.enc_dec_model.cross_entropy_type == 'vocab_parallel'
+
         list_of_speech_heads = []
         list_of_speech_tokens_embeddings = []
         for _ in range(7):
@@ -135,15 +146,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(
                 self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size
             )
-
-        self.speech_offset = speech_offset
-        self.speech_codebook_size = speech_codebook_size
-        self.frozen_model.enc_dec_model.speech_offset = speech_offset
-        self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
-        self.frozen_model.enc_dec_model.cross_entropy_type = cfg.get('cross_entropy_type', 'regular')
-        self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
-        self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
-
+        
         encodec_model = EncodecModel.encodec_model_24khz()
         encodec_model.set_target_bandwidth(6.0)
         encodec_model.cuda()

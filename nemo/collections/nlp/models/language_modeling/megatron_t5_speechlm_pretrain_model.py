@@ -105,6 +105,17 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         speech_offset = cfg.data.get('speech_offset', 30000)
         speech_head_type = cfg.get('speech_head_type', 'token_level')  # token_level, linear
 
+        self.speech_offset = speech_offset
+        self.speech_codebook_size = speech_codebook_size
+        self.frozen_model.enc_dec_model.speech_offset = speech_offset
+        self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
+        self.frozen_model.enc_dec_model.cross_entropy_type = cfg.get('cross_entropy_type', 'regular')
+        self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
+        self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
+
+        # Parallel output is used only for vocab parallel cross entropy.
+        self.frozen_model.enc_dec_model.parallel_output = self.frozen_model.enc_dec_model.cross_entropy_type == 'vocab_parallel'
+
         list_of_speech_heads = []
         list_of_speech_tokens_embeddings = []
         for _ in range(7):
@@ -144,15 +155,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(
                 self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size
             )
-
-        self.speech_offset = speech_offset
-        self.speech_codebook_size = speech_codebook_size
-        self.frozen_model.enc_dec_model.speech_offset = speech_offset
-        self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
-        self.frozen_model.enc_dec_model.cross_entropy_type = cfg.get('cross_entropy_type', 'regular')
-        self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
-        self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
-
+        
         encodec_model = EncodecModel.encodec_model_24khz()
         encodec_model.set_target_bandwidth(6.0)
         encodec_model.cuda()
@@ -586,6 +589,11 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
         print(f'global_step {self.trainer.global_step}')
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
+        consumed_samples = self.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
+        # TODO: make sure compute_consumed_samples works for pipeline parallelism
+        self.log(
+            'consumed_samples', consumed_samples, prog_bar=True, rank_zero_only=True, batch_size=1,
+        )
         return loss_mean
 
     def get_predictions(self, input_ids, enc_mask, encoder_input, labels):
@@ -872,8 +880,8 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
             # TODO: look at this
-            # consumed_samples = self.compute_consumed_samples(0)
-            consumed_samples = 0
+            consumed_samples = self.compute_consumed_samples(0)
+            # consumed_samples = 0
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
@@ -908,6 +916,15 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
     def setup(self, stage=None):
+        
+        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        if resume_checkpoint_path:
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+        self.init_global_step = self.trainer.global_step
+
         if stage == 'predict' and self.first_stage_of_pipeline():
             return
 
