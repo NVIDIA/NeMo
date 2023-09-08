@@ -395,6 +395,8 @@ class NLPModel(ModelPT, Exportable):
                 checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
                 # restore the weights
                 model.on_load_checkpoint(checkpoint)
+                if hasattr(model, 'setup_transformer_engine_tp_groups'):
+                    model.setup_transformer_engine_tp_groups()
 
             # NMT models do not have a `tokenizer` attribute, they instead have an encoder_tokenizer and decoder_tokenizer attribute.
             if hasattr(cfg, "tokenizer"):
