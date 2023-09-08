@@ -1,5 +1,5 @@
-Positional embedding
---------------------
+Positional embeddings
+---------------------
 
 Positional embeddings are used to give the model information about the position of each element in a sequence.  Megatron LLM supports the following positional embedding types:
 
