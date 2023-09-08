@@ -270,7 +270,7 @@ def send_queries(args):
  
     input_info = {"input_128": {"output_len": 20, "input": test_input_128}, "input_200": {"output_len": 200, "input": test_input_200}}
     
-    for inpt, ol in input_data.items():
+    for inpt, ol in input_info.items():
         for batch_size in [1, 2, 4, 8]:
             inputs = ol["input"] * batch_size
             # print(inputs)
