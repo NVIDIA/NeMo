@@ -30,6 +30,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+
 def _mask_encoder_input(enc_input, mask_id, seq_pattern="parallel", mask_prob=0.5):
     mask_length_poisson_lambda = 5.0
     mask_context_prob = mask_prob

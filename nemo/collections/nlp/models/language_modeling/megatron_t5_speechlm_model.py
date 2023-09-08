@@ -105,7 +105,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
 
         # Parallel output is used only for vocab parallel cross entropy.
-        self.frozen_model.enc_dec_model.parallel_output = self.frozen_model.enc_dec_model.cross_entropy_type == 'vocab_parallel'
+        self.frozen_model.enc_dec_model.parallel_output = (
+            self.frozen_model.enc_dec_model.cross_entropy_type == 'vocab_parallel'
+        )
         # Need to explicitly set this since it is already initialiazed
         self.frozen_model.enc_dec_model.tokens_head.parallel_output = self.frozen_model.enc_dec_model.parallel_output
 
@@ -148,7 +150,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(
                 self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size
             )
-        
+
         encodec_model = EncodecModel.encodec_model_24khz()
         encodec_model.set_target_bandwidth(6.0)
         encodec_model.cuda()

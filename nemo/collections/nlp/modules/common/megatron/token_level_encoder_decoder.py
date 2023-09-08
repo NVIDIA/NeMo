@@ -674,7 +674,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                                 raise ValueError(f"Speech head type {self.speech_head_type} not supported")
                             speech_logits_list.append(last_layer_logits)
                             if self.parallel_output:
-                                speech_logits[:, :, :, i] = tensor_parallel.gather_from_tensor_model_parallel_region(last_layer_logits)
+                                speech_logits[:, :, :, i] = tensor_parallel.gather_from_tensor_model_parallel_region(
+                                    last_layer_logits
+                                )
                             else:
                                 speech_logits[:, :, :, i] = last_layer_logits
                 else:
@@ -723,7 +725,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
-                    
+
                     if self.parallel_output:
                         token_logits_gathered = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
                     else:

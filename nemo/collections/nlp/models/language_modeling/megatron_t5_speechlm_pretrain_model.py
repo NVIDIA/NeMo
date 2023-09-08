@@ -62,6 +62,7 @@ try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -114,7 +115,9 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
 
         # Parallel output is used only for vocab parallel cross entropy.
-        self.frozen_model.enc_dec_model.parallel_output = self.frozen_model.enc_dec_model.cross_entropy_type == 'vocab_parallel'
+        self.frozen_model.enc_dec_model.parallel_output = (
+            self.frozen_model.enc_dec_model.cross_entropy_type == 'vocab_parallel'
+        )
         # Need to explicitly set this since it is already initialiazed
         self.frozen_model.enc_dec_model.tokens_head.parallel_output = self.frozen_model.enc_dec_model.parallel_output
 
@@ -157,7 +160,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(
                 self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size
             )
-        
+
         encodec_model = EncodecModel.encodec_model_24khz()
         encodec_model.set_target_bandwidth(6.0)
         encodec_model.cuda()
@@ -649,8 +652,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         self._reconfigure_and_process_inference_batch(enc_input_ids.size(0), gbs)
         loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
         metrics = {'loss': loss_mean}
-        
-        
+
         with torch.no_grad():
             labels_original = batch['labels'].clone()
             loss_mask = batch['loss_mask']
@@ -716,7 +718,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 metrics[f'speech_loss_{i+1}'] = loss_i
                 speech_loss += loss_i
             metrics['speech_loss_total'] = speech_loss
-        
+
         self.train(mode=mode)
         self.frozen_model.train()
         return metrics
@@ -739,7 +741,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             averaged_loss = torch.stack([item['loss'] for item in outputs]).mean()
             logging.info(f'Validation loss: {averaged_loss}')
             self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
-            
+
             averaged_first_layer_accuracy = torch.stack([item['first_layer_accuracy'] for item in outputs]).mean()
             logging.info(f'Validation first_layer_accuracy: {averaged_first_layer_accuracy}')
             self.log(
@@ -789,7 +791,6 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 self.log(
                     f'val_speech_loss_{i}', averaged_speech_loss, prog_bar=True, rank_zero_only=True, batch_size=1
                 )
-            
 
         if self.cfg.get("report_validation_metric", False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
@@ -918,7 +919,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
     def setup(self, stage=None):
-        
+
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
