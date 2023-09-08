@@ -287,7 +287,7 @@ def send_queries(args):
             for i in range(args.num_runs):
                 start_time = datetime.now()
         
-                output = nq.query_llm(prompts=prompts=ol["input"], max_output_token=ol["output_len"])
+                output = nq.query_llm(prompts=ol["input"], max_output_token=ol["output_len"])
         
                 stop_time = datetime.now()
                 latencies.append((stop_time - start_time).total_seconds() * 1000.0)
