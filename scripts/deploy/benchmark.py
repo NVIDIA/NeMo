@@ -280,7 +280,7 @@ def send_queries(args):
     # warm up
     if args.warm_up:
         #print("[INFO] sending requests to warm up")
-        output = nq.query_llm(prompts=inputs, max_output_token=args.start_len)
+        output = nq.query_llm(prompts=inputs, max_output_token=args.max_output_len)
         #print("----------output-----------")
         #print(output)
  
@@ -288,7 +288,7 @@ def send_queries(args):
     for i in range(args.num_runs):
         start_time = datetime.now()
  
-        output = nq.query_llm(prompts=input_data, max_output_token=args.start_len)
+        output = nq.query_llm(prompts=input_data, max_output_token=args.max_output_len)
  
         stop_time = datetime.now()
         latencies.append((stop_time - start_time).total_seconds() * 1000.0)
