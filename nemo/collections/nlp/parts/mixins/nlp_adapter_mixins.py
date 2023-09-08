@@ -18,8 +18,10 @@ from typing import List, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
+
 try:
     from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
+
     HAVE_MEGATRON_CORE = True
 except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
@@ -90,7 +92,9 @@ yields the original output.
         Returns all the keys in the model
         """
         k = [n for n, p in self.named_parameters()]
-        return set(k)
+        b = [n for n, p in self.named_buffers() if n.replace("model.module.", "model.", 1) in self.state_dict().keys()]
+        # we include buffers because ptuning representations are cached in a buffer and saved to state_dict for inference time use.
+        return set(k + b)
 
     def add_adapter(self, peft_cfgs: Union[PEFTConfig, List[PEFTConfig]]):
         """
