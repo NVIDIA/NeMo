@@ -479,21 +479,21 @@ class MegatronBaseModel(NLPModel):
                 optim_kwargs['store_params'] = True
 
             # Find the appropriate bucket_cap_mb, if it is auto
-            if optim_config.get('bucket_cap_mb', 'auto') == 'auto':
+            cfg = optim_config if optim_config else self._cfg.optim
+            if type(cfg) is dict:
+                cfg = OmegaConf.create(cfg)
+            if cfg.get('bucket_cap_mb', 'auto') == 'auto':
                 assert hasattr(self, 'distributed_adam_buckets'), \
                     "The bucket_cap_mb calculation depends on the " \
-                    "distributed_adam_buckets parameter, please make sure " \
+                    "distributed_adam_buckets parameter, make sure " \
                     "it is configured correctly."
-
-                max_bucket_size = 0
-                for bucket in self.distributed_adam_buckets:
-                    bucket_size = sum(p.numel() for p in bucket)
-                    max_bucket_size = max(max_bucket_size, bucket_size)
-                grad_sync_dtype = optim_config.get("grad_sync_dtype", optim_dtype)
-                dtype_size = torch.finfo(grad_sync_dtype).bits // 8
-
-                max_bucket_mb = max_bucket_size * dtype_size
-                optim_config['bucket_cap_mb'] = math.ceil(max_bucket_mb + 0.1)
+                
+                grad_sync_dtype = cfg.get("grad_sync_dtype", optim_dtype)
+                optim_kwargs['bucket_cap_mb'] = search_best_bucket_cap_mb(
+                    self.distributed_adam_buckets, grad_sync_dtype)
+                logging.info("Check that you have set bucket_cap_mb=auto, "
+                             "search and set bucket_cap_mb to "
+                             f"{optim_kwargs['bucket_cap_mb']}.")
 
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
@@ -850,3 +850,45 @@ class MegatronBaseModel(NLPModel):
             return iterator, True
         # reinsert the element back to the iterator
         return itertools.chain([element], iterator), False
+
+
+def search_best_bucket_cap_mb(distributed_adam_buckets, grad_sync_dtype):
+    """Search the best bucket_cap_mb for distributed fused adam.
+
+    Args:
+        distributed_adam_buckets: list of buckets
+        grad_sync_dtype: dtype of grad sync in `apex.distributed_fused_adam`
+    """
+    dtype_size = torch.finfo(grad_sync_dtype).bits // 8
+
+    total_params_mb = sum([
+        sum(p.numel() for p in bucket) for bucket in distributed_adam_buckets
+    ]) * dtype_size / 1024**2
+
+    # Test bucket_cap_mb in the range of 1 to 500 and find the size with
+    # the smallest loss. When multiple sizes have similar losses, the largest
+    # size is considered for computation efficiency.
+    candidate_results = []
+    max_loss = 0
+    for bucket_cap_mb in range(1, 501):
+        total_bucket_size_mb = 0
+        for bucket in distributed_adam_buckets:
+            n_params = sum(p.numel() for p in bucket)
+            n_bucket = math.ceil(n_params*dtype_size / (bucket_cap_mb*1024**2))
+            total_bucket_size_mb += n_bucket * bucket_cap_mb
+
+        loss = abs(total_bucket_size_mb - total_params_mb) / total_params_mb
+
+        candidate_results.append((bucket_cap_mb, loss * 100))
+        max_loss = max(max_loss, loss * 10)
+
+    result = None
+    for loss_limit in range(5, int(max_loss)+10, 2):
+        for bucket_cap_mb, loss in reversed(candidate_results):
+            if loss <= loss_limit:
+                result = bucket_cap_mb
+                break
+        if result:
+            break
+
+    return result
