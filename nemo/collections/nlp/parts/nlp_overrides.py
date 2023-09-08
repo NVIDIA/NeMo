@@ -466,6 +466,15 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 if is_global_rank_zero():
                     fs.makedirs(dist_ckpt_dir, exist_ok=True)
                 sharded_state_dict = model.sharded_state_dict()
+                # dist checkpoint needs torch.distributed to save the checkpoint
+                if parallel_state.is_unitialized():
+
+                    def dummy():
+                        return
+
+                    if model.trainer.strategy.launcher is not None:
+                        model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
+                    model.trainer.strategy.setup_environment()
                 dist_checkpointing.save(sharded_state_dict=sharded_state_dict, checkpoint_dir=dist_ckpt_dir)
 
             else:
