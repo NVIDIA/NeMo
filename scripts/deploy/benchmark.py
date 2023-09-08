@@ -268,46 +268,43 @@ def send_queries(args):
     test_input_128 = ["Who designed the Gold State Coach? Adjacent to the palace is the Royal Mews, also designed by Nash, where the royal carriages, including the Gold State Coach, are housed. This rococo gilt coach, designed by Sir William Chambers in 1760, has painted panels by G. B. Cipriani. It was first used for the State Opening of Parliament by George III in 1762 and has been used by the monarch for every coronation since George IV. It was last used for the Golden Jubilee of Elizabeth II. Also housed in the mews are the coach horses used at royal ceremonial processions."]
     test_input_200 = ["The Princess Theatre, Regent Theatre, and Forum Theatre are members of which of Melbourne's theater districts? Melbourne's live performance institutions date from the foundation of the city, with the first theatre, the Pavilion, opening in 1841. The city's East End Theatre District includes theatres that similarly date from 1850s to the 1920s, including the Princess Theatre, Regent Theatre, Her Majesty's Theatre, Forum Theatre, Comedy Theatre, and the Athenaeum Theatre. The Melbourne Arts Precinct in Southbank is home to Arts Centre Melbourne, which includes the State Theatre, Hamer Hall, the Playhouse and the Fairfax Studio. The Melbourne Recital Centre and Southbank Theatre (principal home of the MTC, which includes the Sumner and Lawler performance spaces) are also located in Southbank. The Sidney Myer Music Bowl, which dates from 1955, is located in the gardens of Kings Domain; and the Palais Theatre is"]
  
-    input_data= ""
-    if args.start_len==128:
-        input_data = test_input_128
-    if args.start_len==200:
-        input_data = test_input_200
- 
-    for batch_size in [1, 2, 4, 8]:
-        inputs = input_data * batch_size
-        # print(inputs)
+    input_info = {"input_128": {"output_len": 20, "input": test_input_128}, "input_200": {"output_len": 200, "input": test_input_200}}
     
-        # warm up
-        if args.warm_up:
-            #print("[INFO] sending requests to warm up")
-            output = nq.query_llm(prompts=inputs, max_output_token=args.max_output_len)
-            #print("----------output-----------")
-            #print(output)
-    
+    for inpt, ol in input_data.items():
+        for batch_size in [1, 2, 4, 8]:
+            inputs = inpt * batch_size
+            # print(inputs)
         
-        latencies = []
-        for i in range(args.num_runs):
-            start_time = datetime.now()
-    
-            output = nq.query_llm(prompts=inputs, max_output_token=args.max_output_len)
-    
-            stop_time = datetime.now()
-            latencies.append((stop_time - start_time).total_seconds() * 1000.0)
-    
+            # warm up
+            if args.warm_up:
+                #print("[INFO] sending requests to warm up")
+                output = nq.query_llm(prompts=ol["input"], max_output_token=ol["output_len"])
+                #print("----------output-----------")
+                #print(output)
         
-        if args.num_runs > 1:
-            latency = statistics.mean(latencies)
-        else:
-            latency = latencies[0]
+            
+            latencies = []
+            for i in range(args.num_runs):
+                start_time = datetime.now()
+        
+                output = nq.query_llm(prompts=prompts=ol["input"], max_output_token=ol["output_len"])
+        
+                stop_time = datetime.now()
+                latencies.append((stop_time - start_time).total_seconds() * 1000.0)
+        
+            
+            if args.num_runs > 1:
+                latency = statistics.mean(latencies)
+            else:
+                latency = latencies[0]
 
-        latency = round(latency, 3)
-        throughput = round(1000 / latency * batch_size, 3)
-        print(
-            f"[INFO] Batch size: {batch_size}, Start len: {args.start_len}, Output len: {args.start_len}"
-        )
-        print(f"[INFO] Latency: {latency} ms")
-        print(f"[INFO] Throughput: {throughput} sentences / sec")
+            latency = round(latency, 3)
+            throughput = round(1000 / latency * batch_size, 3)
+            print(
+                f"[INFO] Dataset: {inpt} Batch size: {batch_size}, Output len: {ol['output_len']}"
+            )
+            print(f"[INFO] Latency: {latency} ms")
+            print(f"[INFO] Throughput: {throughput} sentences / sec")
 
 
 if __name__ == '__main__':
