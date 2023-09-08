@@ -33,7 +33,7 @@ exp_manager:
     save_top_k: 2
     mode: min
     save_nemo_on_train_end: False # Should be false, correct prompt learning model file is saved at model.nemo_path set below
-    filename: "megatron_t5_prompt_tune--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}"
+    filename: "megatron_t5_prompt_tune--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}"
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
   create_early_stopping_callback: False
