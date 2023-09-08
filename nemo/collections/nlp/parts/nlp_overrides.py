@@ -14,7 +14,6 @@
 
 import itertools
 import os
-from pyexpat import model
 import shutil
 import tempfile
 from collections import OrderedDict, defaultdict
@@ -26,6 +25,7 @@ import pytorch_lightning as pl
 import torch
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from omegaconf import OmegaConf
+from pyexpat import model
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.plugins import ClusterEnvironment
@@ -576,13 +576,12 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # legacy model_weights will have mp rank injected
         if os.path.isfile(model_weights):
             return super()._load_state_dict_from_disk(model_weights, map_location)
-        
+
         # dist checkpoint will be a dir
         elif os.path.isdir(os.path.splitext(uninject_model_weights)[0]):
             return None
         else:
             raise ValueError(f'Expected {model_weights} to be a file or directory.')
-        
 
     def restore_from(
         self,
