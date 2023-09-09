@@ -85,6 +85,19 @@ class TestNemoDeployment:
                 print("output: ", output)
                 print("")
 
+                hs = trt_llm_exporter.get_hidden_size()
+                prompt_embedding_table = np.random.rand(38, hs)
+                trt_llm_exporter.set_prompt_embeddings(prompt_embedding_table)
+
+                output = nq.query_llm(
+                    prompts=prompts,
+                    max_output_token=200,
+                )
+                print("prompts: ", prompts)
+                print("")
+                print("output: ", output)
+                print("")
+
                 nm.stop()
             else:
                 print("Model {0} could not be found at this location {1}".format(model_name, model_info["checkpoint"]))

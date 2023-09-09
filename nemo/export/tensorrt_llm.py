@@ -263,6 +263,7 @@ class TensorRTLLM(ITritonDeployable):
                 raise Exception("Model hidden size is {0} and prompt embedding table size has to match with model hidden size.".format(hd))
 
         np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings)
+        self._load_prompt_table()
 
     @property
     def get_hidden_size(self):
