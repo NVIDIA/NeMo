@@ -35,13 +35,13 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     NLPSaveRestoreConnector,
     PEFTSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
-    CustomProgressBar
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging

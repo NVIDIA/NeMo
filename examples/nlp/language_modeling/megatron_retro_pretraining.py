@@ -23,11 +23,11 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import _Checkpoin
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     NLPSaveRestoreConnector,
-    CustomProgressBar
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

@@ -26,12 +26,12 @@ from nemo.collections.nlp.models.language_modeling.megatron_glue_model import Me
 from nemo.collections.nlp.models.language_modeling.megatron_t0_model import MegatronT0Model
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
-    CustomProgressBar
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging

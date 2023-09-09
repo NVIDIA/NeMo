@@ -21,11 +21,11 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import _Checkpoin
 
 from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     PipelineMixedPrecisionPlugin,
-    CustomProgressBar
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -64,7 +64,9 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[ModelSummary(max_depth=3), CustomProgressBar()])
+    trainer = Trainer(
+        plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[ModelSummary(max_depth=3), CustomProgressBar()]
+    )
 
     exp_manager(trainer, cfg.exp_manager)
 

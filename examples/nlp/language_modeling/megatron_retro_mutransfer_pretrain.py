@@ -20,7 +20,12 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import _Checkpoin
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common.megatron.mup.optim import MuAdam, MuAdamW
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPStrategy, CustomProgressBar
+from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
+    NLPDDPStrategy,
+)
 from nemo.core.config import hydra_runner
 from nemo.core.config.optimizers import AdamParams, AdamWParams
 from nemo.core.optim.optimizers import register_optimizer
