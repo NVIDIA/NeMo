@@ -188,7 +188,12 @@ def _forward(
                 raise Exception("task_vocab_size cannot be None")
 
             task_vocab_size = torch.tensor([task_vocab_size], dtype=torch.int32, device="cuda")
-            tasks = torch.zeros([line_encoded.size(0)]).cuda()
+
+            if isinstance((line_encoded, list):
+                le_size = len(line_encoded)
+            else:
+                le_size = line_encoded.size(0)
+            tasks = torch.zeros([le_size]).cuda()
 
             ptuning_args = [prompt_table, tasks, task_vocab_size]
 
