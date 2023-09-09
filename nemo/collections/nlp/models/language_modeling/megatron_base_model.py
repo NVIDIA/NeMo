@@ -532,9 +532,11 @@ class MegatronBaseModel(NLPModel):
         if self.with_distributed_adam:
 
             # Initialize param buckets if explicitly provided
-            if hasattr(self, 'distributed_adam_buckets'):
+            if getattr(self, 'distributed_adam_buckets', None):
                 for bucket in self.distributed_adam_buckets:
                     self._optimizer.init_params_bucket(bucket)
+                self._optimizer.init_params_bucket(self.parameters())
+            if hasattr(self, 'distributed_adam_buckets'):
                 del self.distributed_adam_buckets
 
             # Make sure all params are initialized so main grads are
