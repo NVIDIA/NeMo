@@ -129,11 +129,13 @@ class NLPDDPStrategy(DDPStrategy):
                 # TODO: for megatron-lm self.model is a list
                 self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
-                self._model = DistributedDataParallel(
-                    LightningDistributedModule(self.model),
-                    process_group=parallel_state.get_data_parallel_group(),
-                    **self._ddp_kwargs,
-                )
+                # DDP has to be initialized on side stream for CUDA graph
+                with torch.cuda.stream(torch.cuda.Stream()):
+                    self._model = DistributedDataParallel(
+                        LightningDistributedModule(self.model),
+                        process_group=parallel_state.get_data_parallel_group(),
+                        **self._ddp_kwargs,
+                    )
 
                 if self.no_ddp_communication_hook:
                     # When using custom gradient accumulation and allreduce, disable
