@@ -41,6 +41,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPSaveRestoreConnector,
     PEFTSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
+    CustomProgressBar
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging
@@ -213,7 +214,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
     exp_manager(trainer, cfg.exp_manager)
     # update resume from checkpoint found by exp_manager
     if cfg.model.resume_from_checkpoint is not None:
