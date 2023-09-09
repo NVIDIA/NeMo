@@ -16,6 +16,7 @@ import urllib.request as req
 from pathlib import Path
 
 import pytest
+import numpy as np
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM

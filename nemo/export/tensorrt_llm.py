@@ -265,7 +265,6 @@ class TensorRTLLM(ITritonDeployable):
         np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings)
         self._load_prompt_table()
 
-    @property
     def get_hidden_size(self):
         if self.config is None:
             return None
