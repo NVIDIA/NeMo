@@ -283,7 +283,7 @@ def run_forward(trt_llm_exporter, args):
                 # warm up
                 if args.warm_up:
                     #print("[INFO] sending requests to warm up")
-                    output = trt_llm_exporter.forward(prompts=inputs, max_output_token=ol["output_len"])
+                    output = trt_llm_exporter.forward(input_texts=inputs, max_output_token=ol["output_len"])
                     #print("----------output-----------")
                     #print(output)
             
@@ -292,7 +292,7 @@ def run_forward(trt_llm_exporter, args):
                 for i in range(args.num_runs):
                     start_time = datetime.now()
             
-                    output = trt_llm_exporter.forward(prompts=inputs, max_output_token=ol["output_len"])
+                    output = trt_llm_exporter.forward(input_texts=inputs, max_output_token=ol["output_len"])
             
                     stop_time = datetime.now()
                     latencies.append((stop_time - start_time).total_seconds() * 1000.0)
