@@ -25,7 +25,6 @@ import pytorch_lightning as pl
 import torch
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from omegaconf import OmegaConf
-from pyexpat import model
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.plugins import ClusterEnvironment
