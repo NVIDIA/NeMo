@@ -38,10 +38,34 @@ TASKS = {"qasper":
                 {"response": "Summary:",
                 "tokens_to_generate": 1024,
                 "subset": "GovReport/test_2.jsonl"},
+        "gov_report-3":
+                {"response": "Summary:",
+                "tokens_to_generate": 1024,
+                "subset": "GovReport/test_3.jsonl"},
+        "gov_report-4":
+                {"response": "Summary:",
+                "tokens_to_generate": 1024,
+                "subset": "GovReport/test_4.jsonl"},
         "summ_screen_fd":
                 {"response": "Summary:",
                 "tokens_to_generate": 640,
                 "subset": "SummScreenFD/test.jsonl"},
+        "summ_screen_fd-0":
+                {"response": "Summary:",
+                "tokens_to_generate": 640,
+                "subset": "SummScreenFD/test_0.jsonl"},
+        "summ_screen_fd-1":
+                {"response": "Summary:",
+                "tokens_to_generate": 640,
+                "subset": "SummScreenFD/test_1.jsonl"},
+        "summ_screen_fd-2":
+                {"response": "Summary:",
+                "tokens_to_generate": 640,
+                "subset": "SummScreenFD/test_2.jsonl"},
+        "summ_screen_fd-3":
+                {"response": "Summary:",
+                "tokens_to_generate": 640,
+                "subset": "SummScreenFD/test_3.jsonl"},
         "qmsum":
                 {"response": "Answer:",
                 "tokens_to_generate": 256,
