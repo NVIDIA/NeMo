@@ -56,8 +56,6 @@ def main(cfg) -> None:
                 kwargs["cache_enabled"] = False
             return self.__orig_init__(*args, **kwargs)
 
-        torch.cuda.amp.autocast.__orig_init__ = torch.cuda.amp.autocast.__init__
-        torch.cuda.amp.autocast.__init__ = amp_autocast_init
         torch.autocast.__orig_init__ = torch.autocast.__init__
         torch.autocast.__init__ = amp_autocast_init
 
