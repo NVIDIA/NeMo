@@ -235,6 +235,28 @@ class TensorRTLLM(ITritonDeployable):
                 task_vocab_size=self.task_vocab_size,
             )
 
+    def set_prompt_embeddings(self, prompt_embeddings):
+        """
+        Adds prompt embeddings
+
+        Args:
+            prompt_embeddings (Torch tensor or numpy array): prompt embeddings table.
+        """
+
+        if not isinstance(prompt_embeddings, np.ndarray):
+            raise TypeError("Only numpy array and torch tensor are allowed.")
+
+        if torch.is_tensor(prompt_embeddings):
+            prompt_embeddings = torch_to_numpy(prompt_embeddings)
+
+        if self.model_dir is None:
+            raise Exception("A model dir cannot be None.")
+
+        if len(self.prompt_embeddings.shape) != 2:
+            raise Exception("A two dimensional table for a sinlge task is only supported.")
+
+        np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings)
+
     @property
     def get_triton_input(self):
         inputs = (
