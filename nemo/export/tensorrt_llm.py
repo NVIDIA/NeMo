@@ -110,6 +110,7 @@ class TensorRTLLM(ITritonDeployable):
                 )
         else:
             self.prompt_table = None
+            self.task_vocab_size = None
 
     def _load_config_file(self):
         engine_dir = Path(self.model_dir)
@@ -234,6 +235,42 @@ class TensorRTLLM(ITritonDeployable):
                 prompt_table=self.prompt_table,
                 task_vocab_size=self.task_vocab_size,
             )
+
+    def set_prompt_embeddings(self, prompt_embeddings):
+        """
+        Adds prompt embeddings
+
+        Args:
+            prompt_embeddings (Torch tensor or numpy array): prompt embeddings table.
+        """
+
+        if not isinstance(prompt_embeddings, np.ndarray):
+            raise TypeError("Only numpy array and torch tensor are allowed.")
+
+        if self.model_dir is None:
+            raise Exception("A model dir cannot be None.")
+
+        if len(prompt_embeddings.shape) != 2:
+            raise Exception("A two dimensional table for a sinlge task is only supported.")
+
+        if torch.is_tensor(prompt_embeddings):
+            prompt_embeddings = torch_to_numpy(prompt_embeddings)
+
+        hd = self.get_hidden_size() 
+        if hd is None:
+            raise Exception("Model config is not available. This means that no model has been loaded.")
+        else:
+            if hd != prompt_embeddings.shape[1]:
+                raise Exception("Model hidden size is {0} and prompt embedding table size has to match with model hidden size.".format(hd))
+
+        np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings)
+        self._load_prompt_table()
+
+    def get_hidden_size(self):
+        if self.config is None:
+            return None
+        else:
+            return self.config["builder_config"]["hidden_size"]
 
     @property
     def get_triton_input(self):

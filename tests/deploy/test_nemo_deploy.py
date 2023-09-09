@@ -16,6 +16,7 @@ import urllib.request as req
 from pathlib import Path
 
 import pytest
+import numpy as np
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
@@ -76,6 +77,19 @@ class TestNemoDeployment:
                 print("")
 
                 prompts = ["Give me some info about Paris", "Do you think Londan is a good city to visit?", "What do you think about Rome?"]
+                output = nq.query_llm(
+                    prompts=prompts,
+                    max_output_token=200,
+                )
+                print("prompts: ", prompts)
+                print("")
+                print("output: ", output)
+                print("")
+
+                hs = trt_llm_exporter.get_hidden_size()
+                prompt_embedding_table = np.random.rand(38, hs)
+                trt_llm_exporter.set_prompt_embeddings(prompt_embedding_table)
+
                 output = nq.query_llm(
                     prompts=prompts,
                     max_output_token=200,

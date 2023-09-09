@@ -16,6 +16,7 @@ import urllib.request as req
 from pathlib import Path
 
 import pytest
+import numpy as np
 
 from nemo.export import TensorRTLLM
 from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
@@ -66,6 +67,16 @@ class TestNemoExport:
                         max_output_token = 200,
                     )
                     print("output 2: ", output)
+
+                    hs = trt_llm_exporter2.get_hidden_size()
+                    prompt_embedding_table = np.random.rand(38, hs)
+                    trt_llm_exporter2.set_prompt_embeddings(prompt_embedding_table)
+
+                    output = trt_llm_exporter2.forward(
+                        input_texts=["Let's see how this works", "Did you get the result yet?"],
+                        max_output_token = 200,
+                    )
+                    print("output 3: ", output)
 
                 test_at_least_one = True
 
