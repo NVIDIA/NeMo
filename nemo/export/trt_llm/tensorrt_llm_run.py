@@ -189,7 +189,7 @@ def _forward(
 
             task_vocab_size = torch.tensor([task_vocab_size], dtype=torch.int32, device="cuda")
 
-            if isinstance((line_encoded, list):
+            if isinstance(line_encoded, list):
                 le_size = len(line_encoded)
             else:
                 le_size = line_encoded.size(0)
