@@ -249,7 +249,7 @@ class TensorRTLLM(ITritonDeployable):
         if self.model_dir is None:
             raise Exception("A model dir cannot be None.")
 
-        if len(self.prompt_embeddings.shape) != 2:
+        if len(prompt_embeddings.shape) != 2:
             raise Exception("A two dimensional table for a sinlge task is only supported.")
 
         if torch.is_tensor(prompt_embeddings):
