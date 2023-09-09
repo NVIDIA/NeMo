@@ -80,9 +80,9 @@ model:
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
 
   ## Activation Checkpointing
-  activations_checkpoint_granularity: null # 'selective' or 'full'
-  activations_checkpoint_method: null # 'uniform', 'block'
-  activations_checkpoint_num_layers: null 
+  activations_checkpoint_granularity: full # 'selective' or 'full'
+  activations_checkpoint_method: uniform # 'uniform', 'block'
+  activations_checkpoint_num_layers: 1
   num_micro_batches_with_partial_activation_checkpoints: null
   activations_checkpoint_layers_per_pipeline: null
 
@@ -129,13 +129,6 @@ model:
   use_cpu_initialization: False # Init weights on the CPU (slow for large models)
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
-
-  cpu_offloading: true                  # enable cpu_offloading
-  cpu_offloading_num_layers: 8          # should be smaller than num_layers.   
-  cpu_offloading_method: group_async    # group_async only
-  cpu_offloading_num_prefetch_layers: 1 # prefetch number of layer. Only useful when cpu_offloading_method = group_async
-  cpu_offloading_region: ln_and_ffn_act    # ['ln_and_ffn_act', 'encoder']
-
 
   # Nsys profiling options
   nsys_profile:

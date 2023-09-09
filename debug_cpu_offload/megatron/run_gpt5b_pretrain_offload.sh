@@ -16,4 +16,4 @@ model.data.data_impl="mock" model.data.data_prefix=[] \
 model.optim.name="fused_adam" \
 model.megatron_amp_O2=true \
 model.encoder_seq_length=${SEQ_LENGTH} \
-2>&1 | tee gpt_5b_offload_MBS_${MICRO_BATCH_SIZE}.log
+2>&1 | tee gpt_5b_offload_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}.log
