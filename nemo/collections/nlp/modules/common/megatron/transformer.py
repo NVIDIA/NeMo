@@ -1049,7 +1049,7 @@ class ParallelTransformer(MegatronModule):
 
         self.num_layers = self.get_num_layers(num_layers)
 
-        if self.activations_checkpoint_num_layers > self.num_layers:
+        if self.activations_checkpoint_num_layers is not None and self.activations_checkpoint_num_layers > self.num_layers:
             self.activations_checkpoint_num_layers = self.num_layers
 
         # Transformer layers.
