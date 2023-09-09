@@ -110,6 +110,7 @@ class TensorRTLLM(ITritonDeployable):
                 )
         else:
             self.prompt_table = None
+            self.task_vocab_size = None
 
     def _load_config_file(self):
         engine_dir = Path(self.model_dir)

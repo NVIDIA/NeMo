@@ -188,12 +188,7 @@ def _forward(
                 raise Exception("task_vocab_size cannot be None")
 
             task_vocab_size = torch.tensor([task_vocab_size], dtype=torch.int32, device="cuda")
-
-            if tasks is not None:
-                tasks = torch.tensor([int(t) for t in tasks.split(',')], dtype=torch.int32, device="cuda")
-                assert tasks.shape[0] == line_encoded.shape[0], "Number of supplied tasks must match input batch size"
-            else:
-                tasks = torch.zeros([line_encoded.size(0)]).cuda()
+            tasks = torch.zeros([line_encoded.size(0)]).cuda()
 
             ptuning_args = [prompt_table, tasks, task_vocab_size]
 
