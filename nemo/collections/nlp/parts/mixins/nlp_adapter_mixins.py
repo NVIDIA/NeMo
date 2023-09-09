@@ -71,6 +71,7 @@ yields the original output.
     def __init__(self, *args, **kwargs):
         self.use_peft = False
         self.setup_complete = False
+        self.use_ptuning_only = False
         super().__init__(*args, **kwargs)
         if hasattr(self, "enc_dec_model"):
             self.model_prefix = "enc_dec_model."  # for T5
@@ -116,10 +117,20 @@ yields the original output.
                     ]:  # simple string match for now
                         swap_mcore_mixin(module, mcore_mixin)
                         if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                            module.add_adapter(name=peft_name, cfg=peft_cfg)
+                            module.add_adapter(
+                                name=peft_name,
+                                cfg=peft_cfg,
+                                base_model_cfg=self.cfg,
+                                model_parallel_config=self.model_parallel_config,
+                            )
             elif isinstance(module, AdapterModuleMixin):
                 if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                    module.add_adapter(name=peft_name, cfg=peft_cfg)
+                    module.add_adapter(
+                        name=peft_name,
+                        cfg=peft_cfg,
+                        base_model_cfg=self.cfg,
+                        model_parallel_config=self.model_parallel_config,
+                    )
 
         if not isinstance(peft_cfgs, List):
             peft_cfgs = [peft_cfgs]
@@ -132,8 +143,10 @@ yields the original output.
         if use_mcore_gpt:
             assert HAVE_MEGATRON_CORE, "You set `mcore_gpt` as True but megatron core is not found."
 
+        self.use_ptuning_only = len(peft_cfgs) == 1 and isinstance(peft_cfgs[0], PtuningPEFTConfig)
+
         for peft_cfg in peft_cfgs:
-            if isinstance(peft_cfg, PtuningPEFTConfig):
+            if self.use_ptuning_only:
                 if not self.first_stage_of_pipeline():
                     # There are no params to add if we are not in the first state of the pipeline
                     continue
@@ -180,26 +193,6 @@ yields the original output.
                     for name, module in self.named_modules():
                         _check_and_add_adapter(name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins)
 
-                # Update the model.cfg with information about the new adapter from cfg
-                module_name, adapter_name = self.resolve_adapter_module_name_(adapter_name)
-                with open_dict(self.cfg):
-                    # Construct the minimum config required to be updated by adapter implementations
-                    if 'adapters' not in self.cfg:
-                        self.cfg.adapters = OmegaConf.create({})
-
-                    self.cfg.adapters = _prepare_default_adapter_config(
-                        global_key=self.adapter_global_cfg_key,
-                        meta_key=self.adapter_metadata_cfg_key,
-                        cfg=self.cfg.adapters,
-                    )
-
-                    # Inject the module name in the adapter metadata cfg
-                    gcfg = self.adapter_global_cfg_key
-                    mcfg = self.adapter_metadata_cfg_key
-                    self.cfg.adapters[gcfg][mcfg]['modules'][adapter_name] = module_name
-
-                    self.cfg.adapters[adapter_name] = OmegaConf.create(adapter_cfg)
-
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
 
@@ -229,6 +222,29 @@ yields the original output.
                 return conf, state_dict
             finally:
                 os.chdir(cwd)
+
+    def setup_optimizer_param_groups(self):
+        """
+        ModelPT override. Optimizer will get self._optimizer_param_groups.
+        Makes two optimizer param groups, one for the frozen model params
+        and one for the prompt-table/prompt-encoder params. The learning
+        rate for the frozen model's params will always be zero effectively
+        freezing the model's params but still allowing for the needed gradients
+        to be passed around in pipeline parallel models. The prompt-encoder
+        and/or prompt table will use the learning rate set by the user.
+        """
+        if self.use_peft:
+            self.freeze()  # Freeze the entire model
+            opt_params = []
+            for _, module in self.named_modules():
+                if isinstance(module, AdapterModuleMixin) and module.is_adapter_available():
+                    module.set_enabled_adapters(enabled=True)
+                    module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
+                    opt_params += [p for p in module.parameters() if p.requires_grad]
+            self._optimizer_param_groups = ({"params": opt_params},)
+            logging.info(f"Optimizer groups set:\n{self.summarize()}")
+        else:
+            super().setup_optimizer_param_groups()
 
     def save_adapters(self, filepath: str):
         """
@@ -369,7 +385,7 @@ yields the original output.
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
         """
         if self.use_peft and self.setup_complete:
-            if AdapterName.PTUNING_ADAPTER not in self.cfg.adapters.keys() or self.first_stage_of_pipeline():
+            if not self.use_ptuning_only or self.first_stage_of_pipeline():
                 # same as super().on_load_checkpoint() but strict=False and only check unexpected keys
                 # mcore uses distributed checkpointing
                 print('enter peft loading')
