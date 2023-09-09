@@ -58,10 +58,27 @@ def post_language_model_processing(
     parallel_output,
     forward_method_parallel_output,
     fp16_lm_cross_entropy,
+    loss_mask=None,
     return_logits=False,
     sequence_parallel=False,
     gradient_accumulation_fusion=False,
 ):
+    """Post processing for language model.
+
+    With notations:
+        b - batch size
+        s - sequence length
+        h - hidden size
+        vs - vocab size
+        tp - tensor parallel size
+
+    The input shape is as follows:
+        lm_output: [s, b, h] if not sequence_parallel else [s/tp, b, h]
+        labels: [b, s]
+        logit_weights: [vs, h]
+        loss_mask: [b, s]
+    """
+
     if get_key_value:
         lm_output, presents = lm_output
 
@@ -82,12 +99,22 @@ def post_language_model_processing(
 
     if get_key_value:
         output = [output, presents]
-
     if labels is None:
         # [s b h] -> [b s h]
         return output.transpose(0, 1).contiguous()
     else:
-        # [b s] -> [s b]
+        if loss_mask is not None:
+            assert parallel_output is True
+            # output_loss: [b, s]
+            output_loss = torch.zeros_like(labels)
+
+            # output: [s, b, vs] -> [masked_bs, 1, vs]
+            output = output.transpose(0, 1)[loss_mask == 1].unsqueeze(1)
+            # labels: [b, s] -> [1, masked_bs]
+            labels = labels[loss_mask == 1].unsqueeze(0)
+
+        # [b s] -> [s b] if not loss_mask
+        # else [1, masked_bs] -> [masked_bs, 1]
         labels = labels.transpose(0, 1).contiguous()
 
         if fp16_lm_cross_entropy:
@@ -96,8 +123,15 @@ def post_language_model_processing(
         else:
             loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
 
-        # [s b] -> [b, s]
+        # [s b] -> [b, s] if not loss_mask
+        # else [masked_bs, 1] -> [1, masked_bs]
         loss = loss.transpose(0, 1).contiguous()
+
+        if loss_mask is not None:
+            # The following operations result in [b, s] loss.
+            output_loss = output_loss.to(loss.dtype)
+            output_loss[loss_mask == 1] = loss
+            loss = output_loss
 
         if return_logits:
             return loss, output
@@ -295,15 +329,9 @@ class GPTModel(MegatronModule):
         )
 
         if self.post_process:
-            if loss_mask is not None:
-                loss_lm_output = lm_output.transpose(0, 1)[loss_mask == 1].unsqueeze(1)
-                loss_labels = labels[loss_mask == 1].unsqueeze(0)
-            else:
-                loss_lm_output = lm_output
-                loss_labels = labels
             post_process_result = post_language_model_processing(
-                loss_lm_output,
-                loss_labels,
+                lm_output,
+                labels,
                 self.language_model.output_layer.weight
                 if not self.share_embeddings_and_output_weights
                 else self.word_embeddings_weight(),
@@ -311,21 +339,12 @@ class GPTModel(MegatronModule):
                 self.parallel_output,
                 forward_method_parallel_output,
                 self.fp16_lm_cross_entropy,
+                loss_mask=loss_mask,
                 return_logits=encoder_input is not None,
                 sequence_parallel=self.sequence_parallel,
                 gradient_accumulation_fusion=self.config.gradient_accumulation_fusion,
             )
-            if loss_mask is not None:
-                if isinstance(post_process_result, tuple):
-                    loss, logits = post_process_result
-                else:
-                    loss, logits = post_process_result, None
-
-                res = torch.zeros_like(labels).type_as(loss)
-                res[loss_mask == 1] = loss
-                return res if logits is None else (res, logits)
-            else:
-                return post_process_result
+            return post_process_result
         else:
             return lm_output
 

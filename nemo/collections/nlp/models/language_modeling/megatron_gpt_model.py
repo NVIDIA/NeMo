@@ -964,6 +964,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
+        self._loss = averaged_loss
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.validation_step_outputs.clear()  # free memory

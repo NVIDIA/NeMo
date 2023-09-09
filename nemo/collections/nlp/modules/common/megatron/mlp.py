@@ -21,8 +21,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
-from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
-from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
+from nemo.collections.nlp.modules.common.megatron.layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, erf_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
@@ -30,7 +29,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
 from nemo.core import adapter_mixins
 
 try:
-    from apex.normalization import MixedFusedRMSNorm
     from apex.transformer import parallel_state, tensor_parallel
 
     HAVE_APEX = True
@@ -194,20 +192,13 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         # Normformer normalization
         if transformer_block_type == 'normformer':
-            if normalization == 'layernorm':
-                self.normalization = get_layer_norm(
-                    ffn_hidden_size // get_tensor_model_parallel_world_size(), layernorm_epsilon, persist_layer_norm
-                )
-            elif normalization == 'layernorm1p':
-                self.normalization = LayerNorm1P(
-                    ffn_hidden_size // get_tensor_model_parallel_world_size(),
-                    layernorm_epsilon,
-                    sequence_parallel_enabled=config.sequence_parallel,
-                )
-            else:
-                self.normalization = MixedFusedRMSNorm(
-                    ffn_hidden_size // get_tensor_model_parallel_world_size(), layernorm_epsilon
-                )
+            self.normalization = get_layer_norm(
+                ln_type=normalization,
+                hidden_size=ffn_hidden_size // get_tensor_model_parallel_world_size(),
+                eps=layernorm_epsilon,
+                persist=persist_layer_norm,
+                sequence_parallel=config.sequence_parallel,
+            )
 
     def forward(self, hidden_states):
 

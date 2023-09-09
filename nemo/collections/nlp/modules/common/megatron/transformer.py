@@ -34,8 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
     bias_dropout_add_fused_train,
     dropout_add,
 )
-from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
-from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P, LPLayerNorm
+from nemo.collections.nlp.modules.common.megatron.layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, SwitchMLP
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -45,7 +44,6 @@ from nemo.core import adapter_mixins
 from nemo.utils import logging
 
 try:
-    from apex.normalization import MixedFusedRMSNorm
     from apex.transformer.enums import AttnMaskType, AttnType, ModelType
 
     HAVE_APEX = True
@@ -221,18 +219,13 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         # retrieval_decoder_after_self_attn skips the self attention
         if self.layer_type != LayerType.retrieval_decoder_after_self_attn:
             # Layernorm on the input data.
-            if normalization == 'layernorm':
-                self.input_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
-                )
-            elif normalization == 'layernorm1p':
-                self.input_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
-                )
-            elif normalization == 'low_precision_layernorm':
-                self.input_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
-            else:
-                self.input_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            self.input_layernorm = get_layer_norm(
+                ln_type=normalization,
+                hidden_size=hidden_size,
+                eps=layernorm_epsilon,
+                persist=persist_layer_norm,
+                sequence_parallel=config.sequence_parallel,
+            )
             # for architectures such as MPT, there is no bias term even on the layernorms
             # this code allows us to remove the bias terms from the layernorm module
             # so that we can support MPT. However, certain apex-based LNs don't support
@@ -266,28 +259,24 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             )
 
             if transformer_block_type == 'normformer':
-                if normalization == 'layernorm':
-                    self.post_attention_normformer_norm = get_layer_norm(
-                        hidden_size, layernorm_epsilon, persist_layer_norm
-                    )
-                else:
-                    self.post_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+                self.post_attention_normformer_norm = get_layer_norm(
+                    ln_type=normalization,
+                    hidden_size=hidden_size,
+                    eps=layernorm_epsilon,
+                    persist=persist_layer_norm,
+                    sequence_parallel=config.sequence_parallel,
+                )
 
             if self.layer_type != LayerType.decoder_pre_mlp or self.transformer_block_type != 'post_ln':
                 #  the post_attention_layernorm is used for layermorm after mlp
                 # don't need it for decoder_pre_mlp and post_ln
-                if normalization == 'layernorm':
-                    self.post_attention_layernorm = get_layer_norm(
-                        hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
-                    )
-                elif normalization == 'layernorm1p':
-                    self.post_attention_layernorm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
-                    )
-                elif normalization == 'low_precision_layernorm':
-                    self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
-                else:
-                    self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+                self.post_attention_layernorm = get_layer_norm(
+                    ln_type=normalization,
+                    hidden_size=hidden_size,
+                    eps=layernorm_epsilon,
+                    persist=persist_layer_norm,
+                    sequence_parallel=config.sequence_parallel,
+                )
                 if not bias and normalization not in ['layernorm', 'layernorm1p']:
                     remove_bias_from_layernorm(self.post_attention_layernorm)
 
@@ -299,18 +288,13 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         # need it for post_ln
         if self.layer_type == LayerType.retrieval_decoder_after_self_attn and self.transformer_block_type == 'post_ln':
             # Layernorm on the attention output
-            if normalization == 'layernorm':
-                self.post_attention_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
-                )
-            elif normalization == 'layernorm1p':
-                self.post_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
-                )
-            elif normalization == 'low_precision_layernorm':
-                self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
-            else:
-                self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            self.post_attention_layernorm = get_layer_norm(
+                ln_type=normalization,
+                hidden_size=hidden_size,
+                eps=layernorm_epsilon,
+                persist=persist_layer_norm,
+                sequence_parallel=config.sequence_parallel,
+            )
             if not bias and normalization not in ['layernorm', 'layernorm1p']:
                 remove_bias_from_layernorm(self.post_attention_layernorm)
 
@@ -338,28 +322,22 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
-                if normalization == 'layernorm':
-                    self.post_inter_attention_normformer_norm = get_layer_norm(
-                        hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
-                    )
-                elif normalization == 'layernorm1p':
-                    self.post_inter_attention_normformer_norm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
-                    )
-                else:
-                    self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+                self.post_inter_attention_normformer_norm = get_layer_norm(
+                    ln_type=normalization,
+                    hidden_size=hidden_size,
+                    eps=layernorm_epsilon,
+                    persist=persist_layer_norm,
+                    sequence_parallel=config.sequence_parallel,
+                )
 
             # Layernorm on the attention output.
-            if normalization == 'layernorm':
-                self.post_inter_attention_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
-                )
-            elif normalization == 'layernorm1p':
-                self.post_inter_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
-                )
-            else:
-                self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            self.post_inter_attention_layernorm = get_layer_norm(
+                ln_type=normalization,
+                hidden_size=hidden_size,
+                eps=layernorm_epsilon,
+                persist=persist_layer_norm,
+                sequence_parallel=config.sequence_parallel,
+            )
         elif (
             self.layer_type == LayerType.retrieval_decoder
             or self.layer_type == LayerType.retrieval_decoder_after_self_attn
@@ -384,28 +362,22 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
-                if normalization == 'layernorm':
-                    self.post_inter_attention_normformer_norm = get_layer_norm(
-                        hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
-                    )
-                elif normalization == 'layernorm1p':
-                    self.post_inter_attention_normformer_norm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
-                    )
-                else:
-                    self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+                self.post_inter_attention_normformer_norm = get_layer_norm(
+                    ln_type=normalization,
+                    hidden_size=hidden_size,
+                    eps=layernorm_epsilon,
+                    persist=persist_layer_norm,
+                    sequence_parallel=config.sequence_parallel,
+                )
 
             # Layernorm on the attention output.
-            if normalization == 'layernorm':
-                self.post_inter_attention_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
-                )
-            elif normalization == 'layernorm1p':
-                self.post_inter_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
-                )
-            else:
-                self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            self.post_inter_attention_layernorm = get_layer_norm(
+                ln_type=normalization,
+                hidden_size=hidden_size,
+                eps=layernorm_epsilon,
+                persist=persist_layer_norm,
+                sequence_parallel=config.sequence_parallel,
+            )
 
         # MLP
         if num_moe_experts > 1 and self.layer_number % moe_frequency == 0:
@@ -1163,18 +1135,13 @@ class ParallelTransformer(MegatronModule):
 
         if self.post_process and self.transformer_block_type != 'post_ln':
             # Final layer norm before output.
-            if normalization == 'layernorm':
-                self.final_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel=config.sequence_parallel
-                )
-            elif normalization == 'layernorm1p':
-                self.final_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
-                )
-            elif normalization == 'low_precision_layernorm':
-                self.final_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
-            else:
-                self.final_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            self.final_layernorm = get_layer_norm(
+                ln_type=normalization,
+                hidden_size=hidden_size,
+                eps=layernorm_epsilon,
+                persist=persist_layer_norm,
+                sequence_parallel=config.sequence_parallel,
+            )
             # for architectures such as MPT, there is no bias term even on the layernorms
             # this code allows us to remove the bias terms from the layernorm module
             # so that we can support MPT. However, certain apex-based LNs don't support

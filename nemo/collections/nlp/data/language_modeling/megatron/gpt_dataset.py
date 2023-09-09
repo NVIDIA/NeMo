@@ -28,6 +28,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
+from nemo.collections.nlp.data.language_modeling.wikitext_dataset import WikitextDataset
 from nemo.core import Dataset
 from nemo.utils import logging
 
@@ -103,6 +104,15 @@ def build_train_valid_test_datasets(
         train_ds = MockGPTDataset(cfg, tokenizer, "train", int(train_valid_test_num_samples[0]), seq_length, seed,)
         valid_ds = MockGPTDataset(cfg, tokenizer, "valid", int(train_valid_test_num_samples[1]), seq_length, seed,)
         test_ds = MockGPTDataset(cfg, tokenizer, "test", int(train_valid_test_num_samples[2]), seq_length, seed,)
+        return train_ds, valid_ds, test_ds
+
+    if data_impl.startswith('hf_wikitext'):
+        _, config_name = data_impl.split(' ')
+        logging.info("Initializing Huggingface Wikitext dataset for train, validate, and test")
+        train_ds = WikitextDataset(tokenizer, seq_length, name=config_name, split="train")
+        valid_ds = WikitextDataset(tokenizer, seq_length, name=config_name, split="validation")
+        test_ds = WikitextDataset(tokenizer, seq_length, name=config_name, split="test")
+
         return train_ds, valid_ds, test_ds
 
     if isinstance(data_prefix, DictConfig):
