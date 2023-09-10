@@ -204,9 +204,10 @@ def get_args(argv):
     parser.add_argument(
         '-rt',
         '--run_trt_llm',
-        action="store_true",
+        choices=[0, 1]
+        type=int,
+        default=0,
         required=False,
-        default=False,
         help='Run TRT-LLM without PyTriton'
     )
 
@@ -281,12 +282,13 @@ def get_inputs():
 
 
 def run_forward(trt_llm_exporter, args):
-    if args.run_trt_llm:
+    if args.run_trt_llm == 1:
         input_info = get_inputs()
 
         for inpt, ol in input_info.items():
             for batch_size in args.batch_size:
-                inputs = ol["input"] * int(batch_size)
+                batch_size = int(batch_size)
+                inputs = ol["input"] * batch_size
                 # print(inputs)
             
                 # warm up
@@ -327,7 +329,8 @@ def send_queries(args):
     
     for inpt, ol in input_info.items():
         for batch_size in args.batch_size:
-            inputs = ol["input"] * int(batch_size)
+            batch_size = int(batch_size)
+            inputs = ol["input"] * batch_size
             # print(inputs)
         
             # warm up
