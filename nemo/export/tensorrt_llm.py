@@ -121,6 +121,13 @@ class TensorRTLLM(ITritonDeployable):
         else:
             raise FileNotFoundError("file: {0} could not be found.".format(config_path))
 
+    def _save_config_file(self):
+        engine_dir = Path(self.model_dir)
+        config_path = engine_dir / 'config.json'
+        with open(config_path, 'w') as f:
+            json.dump(self.config, f)
+        
+
     def _extract_prompt_embeddings(self, prompt_checkpoint_path):
         if is_nemo_file(prompt_checkpoint_path):
             vtokens_embeddings = get_prompt_embedding_table(prompt_checkpoint_path)
@@ -264,6 +271,9 @@ class TensorRTLLM(ITritonDeployable):
                 raise Exception("Model hidden size is {0} and prompt embedding table size has to match with model hidden size.".format(hd))
 
         np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings)
+
+        self.config["builder_config"]["use_prompt_tuning"] = True
+        self._save_config_file()
         self._load_prompt_table()
 
     def get_hidden_size(self):
