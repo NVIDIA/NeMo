@@ -329,7 +329,7 @@ group_prefetch_offload_commit = GroupCommitFunction.apply
 class GroupOffloadHandler(OffloadHandler):
     def __init__(self, 
                  num_offload_group, 
-                 num_prefetch_group, 
+                 num_prefetch_group=1, 
                  tensor_need_offloading_checker=(lambda t: True),
                  debug=False
                  ) -> None:
@@ -340,16 +340,7 @@ class GroupOffloadHandler(OffloadHandler):
         self.tensor_need_offloading_checker = tensor_need_offloading_checker
         self.debug = debug
 
-        # Data structures to label saved tensors and book-keep their cpu copies.
-        # Currently, on push, create a new cpu tensor and copies; on pop, copies the tensor back to gpu and deletes the cpu tensor
-        #
-        # In the future, we may support persistent buffer: The tensor_id_to_buffer will save the cpu tensor
-        # for a unique id, and every time a new push happens, as long as the size matches, we will reuse the old 
-        # cpu tensor; if size does not match, we will del the old cpu tensor and create a new cpu tensor. This can
-        # save alloc time and avoid occupying too much pinned memory.
-        self.current_group, self.tensor_count_current_group = (0, 0) # will increment whenever `group_commit()` is invoked
-        self.tensor_tag_to_state = dict()
-        self.next_group_to_fetch = -1 
+        self.reset()
 
         self.d2h_stream = torch.cuda.Stream()
         self.h2d_stream = torch.cuda.Stream()
@@ -362,7 +353,19 @@ class GroupOffloadHandler(OffloadHandler):
             self.h2d_finish_events.append(torch.cuda.Event())
             self.compute_stream_fwd_finish_events.append(torch.cuda.Event())
             self.compute_stream_bwd_start_events.append(torch.cuda.Event())
-    
+
+    def reset(self):
+        # Data structures to label saved tensors and book-keep their cpu copies.
+        # Currently, on push, create a new cpu tensor and copies; on pop, copies the tensor back to gpu and deletes the cpu tensor
+        #
+        # In the future, we may support persistent buffer: The tensor_id_to_buffer will save the cpu tensor
+        # for a unique id, and every time a new push happens, as long as the size matches, we will reuse the old 
+        # cpu tensor; if size does not match, we will del the old cpu tensor and create a new cpu tensor. This can
+        # save alloc time and avoid occupying too much pinned memory.
+        self.current_group, self.tensor_count_current_group = (0, 0) # will increment whenever `group_commit()` is invoked
+        self.tensor_tag_to_state = dict()
+        self.next_group_to_fetch = -1
+
     def bulk_offload_group(self, group_num):
         with torch.cuda.stream(self.d2h_stream):
             for tensor_tag, state in self.tensor_tag_to_state.items():
@@ -439,7 +442,9 @@ class GroupOffloadHandler(OffloadHandler):
             should_prefetch_until_group = 0
         
         # do prefetch
-        for group_num_to_prefetch in range(self.next_group_to_fetch, should_prefetch_until_group -1, -1):
+        if self.debug:
+            print(f"num_prefetch_group = {self.num_prefetch_group} num_offload_group = {self.num_offload_group} fetch from {self.next_group_to_fetch} to {should_prefetch_until_group}")
+        for group_num_to_prefetch in range(self.next_group_to_fetch, should_prefetch_until_group - 1, -1):
             # record the event in the compute stream, for h2d to wait
             torch.cuda.current_stream().record_event(self.compute_stream_bwd_start_events[group_num_to_prefetch])
             
@@ -453,7 +458,7 @@ class GroupOffloadHandler(OffloadHandler):
             # record an event for the backward of this layer to wait
             self.h2d_stream.record_event(self.h2d_finish_events[group_num_to_prefetch])
         
-        self.next_group_to_fetch = should_prefetch_until_group - 1 # always is set to -1 at the end of the backward
+        self.next_group_to_fetch = min(self.num_offload_group - 1, should_prefetch_until_group - 1) # always is set to -1 at the end of the backward
         
         # wait for the current group
         if self.current_group < self.num_offload_group:
@@ -463,7 +468,8 @@ class GroupOffloadHandler(OffloadHandler):
         # obtain a unique tensor tag
         tensor_tag = (self.current_group, self.tensor_count_current_group)
         if self.debug:
-            print("tensor_push", tensor_tag)
+            print("tensor_push", tensor_tag, tensor.shape, type(tensor), "need_offloading ?", self.tensor_need_offloading_checker(tensor))
+            # print("hasattr main_grad", hasattr(tensor, "main_grad"))
         self.tensor_count_current_group += 1
         assert not (tensor_tag in self.tensor_tag_to_state)
         self.tensor_tag_to_state[tensor_tag] = tensor # will be offloaded together after group commit
@@ -475,4 +481,6 @@ class GroupOffloadHandler(OffloadHandler):
             print("tensor_pop", tensor_tag)
         tensor = self.tensor_tag_to_state.pop(tensor_tag)
         assert not isinstance(tensor, tuple) # based on our commit sync mechanism, the tensor should have been copied back 
+        # if self.debug:
+        #     print("hasattr main_grad", hasattr(tensor, "main_grad"))
         return tensor  

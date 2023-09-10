@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from contextlib import nullcontext
 import torch
 import torch.nn.functional as F
 
@@ -223,48 +224,40 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                     ffn_hidden_size // get_tensor_model_parallel_world_size(), layernorm_epsilon
                 )
 
-    def forward(self, hidden_states, cpu_offloading=False, cpu_offload_handler=None, bucket_id=None):
+    def forward(self, hidden_states, cpu_offloading=False, cpu_offloading_region=None, cpu_offload_handler=None):
 
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        if self.fast_glu_activation:
-            intermediate_parallel, intermediate_parallel_2 = torch.chunk(intermediate_parallel, 2, dim=-1)
-            if bias_parallel is not None:
-                bias_parallel, bias_parallel_2 = torch.chunk(bias_parallel, 2, dim=-1)
-        elif self.glu_activation_family and not self.fast_glu_activation:
-            intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
+        with act_offloading_context:
+            if self.fast_glu_activation:
+                intermediate_parallel, intermediate_parallel_2 = torch.chunk(intermediate_parallel, 2, dim=-1)
+                if bias_parallel is not None:
+                    bias_parallel, bias_parallel_2 = torch.chunk(bias_parallel, 2, dim=-1)
+            elif self.glu_activation_family and not self.fast_glu_activation:
+                intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
 
-        if self.bias_activation_fusion:
-            if self.activation == 'gelu':
-                if cpu_offload_handler:
-                    intermediate_parallel = cpu_offload.bucket_prefetch_offload_saved_tensor(
-                        fused_bias_gelu,
-                        [intermediate_parallel, bias_parallel],
-                        bucket_id=bucket_id,
-                        offload_handler=cpu_offload_handler,
-                        # debug=True,
+            if self.bias_activation_fusion:
+                if self.activation == 'gelu':
+                    intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
+                elif self.activation in ['geglu', 'fast-geglu']:
+                    intermediate_parallel = fused_bias_geglu(
+                        intermediate_parallel, bias_parallel, intermediate_parallel_2, bias_parallel_2
+                    )
+
+            elif self.glu_activation_family and not self.bias_activation_fusion:
+                if bias_parallel is not None:
+                    intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel) * (
+                        intermediate_parallel_2 + bias_parallel_2
                     )
                 else:
-                    intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
-            elif self.activation in ['geglu', 'fast-geglu']:
-                intermediate_parallel = fused_bias_geglu(
-                    intermediate_parallel, bias_parallel, intermediate_parallel_2, bias_parallel_2
-                )
+                    intermediate_parallel = self.activation_func(intermediate_parallel) * intermediate_parallel_2
 
-        elif self.glu_activation_family and not self.bias_activation_fusion:
-            if bias_parallel is not None:
-                intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel) * (
-                    intermediate_parallel_2 + bias_parallel_2
-                )
             else:
-                intermediate_parallel = self.activation_func(intermediate_parallel) * intermediate_parallel_2
-
-        else:
-            if bias_parallel is not None:
-                intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
-            else:
-                intermediate_parallel = self.activation_func(intermediate_parallel)
+                if bias_parallel is not None:
+                    intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
+                else:
+                    intermediate_parallel = self.activation_func(intermediate_parallel)
 
         if self.dropout > 0:
             intermediate_parallel = F.dropout(intermediate_parallel, p=self.dropout, training=self.training)

@@ -25,6 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.parts import utils_funcs
+from nemo.utils import cpu_offload
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -167,7 +168,10 @@ class GPTModel(MegatronModule):
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         cpu_offloading=False,
-        cpu_offload_handler=None,
+        cpu_offloading_method=None,
+        cpu_offloading_num_layers=None,
+        cpu_offloading_num_prefetch_layers=1,
+        cpu_offloading_region=None,
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -191,6 +195,36 @@ class GPTModel(MegatronModule):
             if use_scaled_init_method
             else init_method_normal(init_method_std)
         )
+
+        # initialize cpu offload handler
+        if cpu_offloading:
+            if cpu_offloading_method == 'group_async':
+                assert (
+                    cpu_offloading_num_layers > 0 and cpu_offloading_num_layers <= num_layers
+                ), "cpu_offloading_num_layers should be in [0, num_layers] but got %d" % cpu_offloading_num_layers
+                assert (
+                    cpu_offloading_num_prefetch_layers >= 0
+                ), "cpu_offloading_num_prefetch_layers should be >= 0"
+                
+                # the function to check if a tensor is not a parameter
+                def tensor_need_offloading_checker(tensor):
+                    return (not isinstance(tensor, torch.nn.Parameter)) 
+                
+                # initialize the cpu offload handler
+                cpu_offload_handler = cpu_offload.GroupOffloadHandler(
+                    num_offload_group=cpu_offloading_num_layers,
+                    num_prefetch_group=cpu_offloading_num_prefetch_layers,
+                    tensor_need_offloading_checker=tensor_need_offloading_checker,
+                    # debug=True,
+                    )
+            else:
+                assert 0, "only group_async is the supported as the cpu_offloading_method."
+            
+            assert cpu_offloading_region in ['ln_and_ffn_act', ], \
+                "Only ln_and_ffn_act is supported as the cpu_offloading_region."
+        else:
+            cpu_offload_handler = None
+
         self.language_model, self._language_model_key = get_language_model(
             vocab_size=vocab_size,
             hidden_size=hidden_size,
@@ -253,6 +287,7 @@ class GPTModel(MegatronModule):
             use_flash_attention=use_flash_attention,
             cpu_offloading=cpu_offloading,
             cpu_offload_handler=cpu_offload_handler,
+            cpu_offloading_region=cpu_offloading_region,
         )
 
         if self.share_embeddings_and_output_weights:

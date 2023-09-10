@@ -362,11 +362,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
             cpu_offloading=self.cfg.get('cpu_offloading', False),
-            cpu_offload_handler=( None if not self.cfg.get('cpu_offloading', False) else cpu_offload.BucketPrefetchOffloadHandler(
-                    self.cfg.get('num_cpu_offloading_layers', 8),
-                    self.cfg.get('num_cpu_offloading_prefetch', 3),
-                )
-            ),
+            cpu_offloading_method=self.cfg.get('cpu_offloading_method', None),
+            cpu_offloading_num_layers=self.cfg.get('cpu_offloading_num_layers', None),
+            cpu_offloading_num_prefetch_layers=self.cfg.get('cpu_offloading_num_prefetch_layers', 1),
+            cpu_offloading_region=self.cfg.get('cpu_offloading_region', None),
         )
 
         return model

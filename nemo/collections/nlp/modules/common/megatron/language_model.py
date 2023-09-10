@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Transformer based language model."""
+from contextlib import nullcontext
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -36,6 +37,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
+from nemo.utils import cpu_offload
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -124,6 +126,7 @@ def get_language_model(
     ub_tp_comm_overlap=False,
     use_flash_attention=False,
     cpu_offloading=False,
+    cpu_offloading_region=None,
     cpu_offload_handler=None,
 ):
     """Build language model and return along with the key to save."""
@@ -203,6 +206,7 @@ def get_language_model(
         ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
         cpu_offloading=cpu_offloading,
+        cpu_offloading_region=cpu_offloading_region,
         cpu_offload_handler=cpu_offload_handler,
     )
     # key used for checkpoints.
@@ -514,6 +518,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         use_flash_attention=False,
         cpu_offloading=False,
         cpu_offload_handler=None,
+        cpu_offloading_region=None,
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -537,6 +542,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
         self.cpu_offloading = cpu_offloading
         self.cpu_offload_handler = cpu_offload_handler
+        self.cpu_offloading_region = cpu_offloading_region
         if kv_channels is None:
 
             assert (
@@ -812,6 +818,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
                 self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
                 cpu_offloading=self.cpu_offloading,
+                cpu_offloading_region=self.cpu_offloading_region,
                 cpu_offload_handler=self.cpu_offload_handler,
             )
         else:
