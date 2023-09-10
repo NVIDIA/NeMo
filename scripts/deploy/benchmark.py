@@ -150,11 +150,13 @@ def get_args(argv):
     parser.add_argument(
         '-b',
         '--batch_size',
-        type=int,
-        default=8,
+        nargs='+',
+        default=1,
         required=False,
         help='Specify batch size'
     )
+
+    parser.add_argument('-l','--list', nargs='+', help='<Required> Set flag', required=True)
 
     parser.add_argument(
         '-top_k',
