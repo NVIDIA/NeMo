@@ -24,6 +24,7 @@ from nemo.utils import logging
 
 from builtins import range
 from datetime import datetime
+import numpy as np
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -117,7 +118,7 @@ def get_args(argv):
     parser.add_argument(
         "-mil", 
         "--max_input_len", 
-        default=512, 
+        default=250, 
         type=int, 
         help="Max input length of the model"
     )
@@ -125,7 +126,7 @@ def get_args(argv):
     parser.add_argument(
         "-mol",
         "--max_output_len",
-        default=512, 
+        default=200, 
         type=int, 
         help="Max output length of the model"
     )
@@ -133,7 +134,7 @@ def get_args(argv):
     parser.add_argument(
         "-mbs", 
         "--max_batch_size", 
-        default=512, 
+        default=8, 
         type=int, 
         help="Max batch size of the model"
     )
@@ -150,8 +151,8 @@ def get_args(argv):
     parser.add_argument(
         '-b',
         '--batch_size',
-        type=int,
-        default=8,
+        nargs='+',
+        default=["1", "2", "4", "8"],
         required=False,
         help='Specify batch size'
     )
@@ -184,8 +185,8 @@ def get_args(argv):
     )
 
     parser.add_argument(
-        '-sl',
-        '--start_len',
+        '-nr',
+        '--num_runs',
         type=int,
         default=8,
         required=False,
@@ -193,12 +194,22 @@ def get_args(argv):
     )
 
     parser.add_argument(
-        '-nr',
-        '--num_runs',
+        '-rt',
+        '--run_trt_llm',
+        choices=[0, 1],
         type=int,
-        default=8,
+        default=0,
         required=False,
-        help='Specify input length'
+        help='Run TRT-LLM without PyTriton'
+    )
+
+    parser.add_argument(
+        '-ptl',
+        '--ptuning_table_len',
+        type=int,
+        default=0,
+        required=False,
+        help='Prompt embedding table len'
     )
 
     args = parser.parse_args(argv)
@@ -241,6 +252,11 @@ def nemo_deploy(args):
             max_batch_size=args.max_batch_size,
         )
 
+        if args.ptuning_table_len > 0:
+            hs = trt_llm_exporter.get_hidden_size()
+            prompt_embedding_table = np.random.rand(args.ptuning_table_len, hs)
+            trt_llm_exporter.set_prompt_embeddings(prompt_embedding_table)
+
         run_forward(trt_llm_exporter, args)
 
     nm = DeployPyTriton(
@@ -272,11 +288,12 @@ def get_inputs():
 
 
 def run_forward(trt_llm_exporter, args):
-    if True:
+    if args.run_trt_llm == 1:
         input_info = get_inputs()
 
         for inpt, ol in input_info.items():
-            for batch_size in [1, 2, 4, 8]:
+            for batch_size in args.batch_size:
+                batch_size = int(batch_size)
                 inputs = ol["input"] * batch_size
                 # print(inputs)
             
@@ -317,7 +334,8 @@ def send_queries(args):
     input_info = get_inputs()
     
     for inpt, ol in input_info.items():
-        for batch_size in [1, 2, 4, 8]:
+        for batch_size in args.batch_size:
+            batch_size = int(batch_size)
             inputs = ol["input"] * batch_size
             # print(inputs)
         
