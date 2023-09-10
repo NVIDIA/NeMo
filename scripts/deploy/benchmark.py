@@ -24,6 +24,7 @@ from nemo.utils import logging
 
 from builtins import range
 from datetime import datetime
+import numpy as np
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -202,6 +203,15 @@ def get_args(argv):
         help='Run TRT-LLM without PyTriton'
     )
 
+    parser.add_argument(
+        '-ptl',
+        '--ptuning_table_len',
+        type=int,
+        default=0,
+        required=False,
+        help='Prompt embedding table len'
+    )
+
     args = parser.parse_args(argv)
     return args
 
@@ -241,6 +251,11 @@ def nemo_deploy(args):
             max_output_token=args.max_output_len,
             max_batch_size=args.max_batch_size,
         )
+
+        if args.ptuning_table_len > 0:
+            hs = trt_llm_exporter.get_hidden_size()
+            prompt_embedding_table = np.random.rand(args.ptuning_table_len, hs)
+            trt_llm_exporter.set_prompt_embeddings(prompt_embedding_table)
 
         run_forward(trt_llm_exporter, args)
 
