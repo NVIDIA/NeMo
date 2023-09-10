@@ -117,7 +117,7 @@ def get_args(argv):
     parser.add_argument(
         "-mil", 
         "--max_input_len", 
-        default=512, 
+        default=250, 
         type=int, 
         help="Max input length of the model"
     )
@@ -125,7 +125,7 @@ def get_args(argv):
     parser.add_argument(
         "-mol",
         "--max_output_len",
-        default=512, 
+        default=200, 
         type=int, 
         help="Max output length of the model"
     )
@@ -133,7 +133,7 @@ def get_args(argv):
     parser.add_argument(
         "-mbs", 
         "--max_batch_size", 
-        default=512, 
+        default=8, 
         type=int, 
         help="Max batch size of the model"
     )
@@ -151,7 +151,7 @@ def get_args(argv):
         '-b',
         '--batch_size',
         nargs='+',
-        default=["1"],
+        default=["1", "2", "4", "8"],
         required=False,
         help='Specify batch size'
     )
@@ -181,15 +181,6 @@ def get_args(argv):
         default=0.0,
         required=False,
         help='top p for sampling'
-    )
-
-    parser.add_argument(
-        '-sl',
-        '--start_len',
-        type=int,
-        default=8,
-        required=False,
-        help='Specify input length'
     )
 
     parser.add_argument(
