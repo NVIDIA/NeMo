@@ -204,7 +204,7 @@ def get_args(argv):
     parser.add_argument(
         '-rt',
         '--run_trt_llm',
-        choices=[0, 1]
+        choices=[0, 1],
         type=int,
         default=0,
         required=False,
