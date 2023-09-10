@@ -151,7 +151,7 @@ def get_args(argv):
         '-b',
         '--batch_size',
         nargs='+',
-        default=1,
+        default=["1"],
         required=False,
         help='Specify batch size'
     )
@@ -286,7 +286,7 @@ def run_forward(trt_llm_exporter, args):
 
         for inpt, ol in input_info.items():
             for batch_size in args.batch_size:
-                inputs = ol["input"] * batch_size
+                inputs = ol["input"] * int(batch_size)
                 # print(inputs)
             
                 # warm up
@@ -327,7 +327,7 @@ def send_queries(args):
     
     for inpt, ol in input_info.items():
         for batch_size in args.batch_size:
-            inputs = ol["input"] * batch_size
+            inputs = ol["input"] * int(batch_size)
             # print(inputs)
         
             # warm up
