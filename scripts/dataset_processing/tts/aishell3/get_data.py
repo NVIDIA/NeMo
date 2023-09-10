@@ -14,17 +14,16 @@
 
 import argparse
 import json
-import tarfile
-import urllib.request
 import os
 import random
 import subprocess
+import tarfile
+import urllib.request
 from pathlib import Path
 
 import numpy as np
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from opencc import OpenCC
-
 
 URL = "https://www.openslr.org/resources/93/data_aishell3.tgz"
 
