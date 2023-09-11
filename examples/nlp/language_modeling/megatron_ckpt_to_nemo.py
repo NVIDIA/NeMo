@@ -24,6 +24,8 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
      --pipeline_model_parallel_size <pipeline_model_parallel_size>
 """
 
+import dis
+from genericpath import isdir
 import os
 from argparse import ArgumentParser
 
@@ -138,21 +140,22 @@ def convert(local_rank, rank, world_size, args):
 
     app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
     app_state.tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
-
-    # inject model parallel rank
-    checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
+    
+    # check for distributed checkpoint
+    dist_ckpt_dir = os.path.join(args.checkpoint_folder, args.checkpoint_name)
+    if os.path.isdir(dist_ckpt_dir):
+        checkpoint_path = dist_ckpt_dir
+    else:
+        # legacy checkpoint needs model parallel injection
+        checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
 
     logging.info(
         f'rank: {rank}, local_rank: {local_rank}, is loading checkpoint: {checkpoint_path} for tp_rank: {app_state.tensor_model_parallel_rank} and pp_rank: {app_state.pipeline_model_parallel_rank}'
     )
 
     if args.model_type == 'gpt':
-        # with distributed checkpoint
-        checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
     elif args.model_type == 'sft':
-        # with distributed checkpoint
-        checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
         model = MegatronGPTSFTModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
         )
