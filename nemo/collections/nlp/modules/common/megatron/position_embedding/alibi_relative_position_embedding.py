@@ -128,7 +128,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
 
     def forward(self, query_seq_length, key_seq_length):
         slopes = self.slopes
-        
+
         if self.seq_len_interpolation_factor is not None:
             slopes = self.slopes * 1.0 / self.seq_len_interpolation_factor
 
