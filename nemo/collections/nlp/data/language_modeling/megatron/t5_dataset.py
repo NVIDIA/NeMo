@@ -22,12 +22,13 @@ import torch
 
 from nemo.collections.common.tokenizers import SentencePieceTokenizer, YouTokenToMeTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
+    DSET_TYPE_UL2,
+    DSET_TYPE_UL2COLT5,
     create_masked_lm_predictions,
     get_samples_mapping,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings
 from nemo.core import Dataset
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import DSET_TYPE_UL2, DSET_TYPE_UL2COLT5
 
 
 class T5Dataset(Dataset):
@@ -313,7 +314,7 @@ class T5Dataset(Dataset):
             tokenizer_type=tokenizer_type,
             skip_masking_id=skip_masking_id,
         )
-        
+
         if masked_lm_prob == 0:
             (output_tokens, masked_positions, masked_labels, _) = lm_pred
             masked_spans = None
@@ -399,11 +400,11 @@ class T5Dataset(Dataset):
         # Tokens..
         filler = [pad_id] * padding_length
         tokens_enc = np.array(t5_input + filler, dtype=np.int64)
-        
+
         # Decoder-side padding mask.
         num_tokens_dec = len(t5_decoder_in)
         padding_length_dec = max_seq_length_dec - num_tokens_dec
-        
+
         assert padding_length_dec >= 0, (padding_length_dec, max_seq_length_dec, num_tokens_dec)
 
         filler_dec = [pad_id] * padding_length_dec

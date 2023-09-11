@@ -19,10 +19,11 @@ import torch
 
 try:
     import ocean
-    HAVE_OCEAN = True  
+
+    HAVE_OCEAN = True
 except (ImportError, ModuleNotFoundError):
     HAVE_OCEAN = False
-    
+
 __all__ = ['ALiBiRelativePositionEmbedding']
 
 
@@ -78,7 +79,14 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
     """
 
     def __init__(
-        self, bidirectional, num_attention_heads, layer_type, num_attention_heads_alibi=None, max_seq_len=512, use_FA=False, seq_len_interpolation_factor=1,
+        self,
+        bidirectional,
+        num_attention_heads,
+        layer_type,
+        num_attention_heads_alibi=None,
+        max_seq_len=512,
+        use_FA=False,
+        seq_len_interpolation_factor=1,
     ):
         """
         Args:
@@ -126,7 +134,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
             if self.seq_len_interpolation_factor is not None:
                 slopes *= 1 / self.seq_len_interpolation_factor
             return slopes.unsqueeze(0)
-        
+
         max_seq_len = max(query_seq_length, key_seq_length)
         if max_seq_len > self.max_seq_len:
             relative_position = (
@@ -146,6 +154,5 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
             slopes *= 1 / self.seq_len_interpolation_factor
 
         relative_position = relative_position.to(self.slopes.device)
-        
+
         return -relative_position.unsqueeze(0) * slopes
-            

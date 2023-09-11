@@ -196,10 +196,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             else:
                 self.encoder_relative_position_embedding = None
 
-#             if encoder_cfg.get('use_flash_attention', False) and encoder_cfg.get(
-#                 'position_embedding_type', 'learned_absolute'
-#             ) in ['relative', 'kerple']:
-#                 raise ValueError('flash-attention not supported with relative or kerple at this point')
+            #             if encoder_cfg.get('use_flash_attention', False) and encoder_cfg.get(
+            #                 'position_embedding_type', 'learned_absolute'
+            #             ) in ['relative', 'kerple']:
+            #                 raise ValueError('flash-attention not supported with relative or kerple at this point')
 
             encoder = get_encoder_model(
                 arch=encoder_cfg.arch,
@@ -336,10 +336,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             else:
                 self.decoder_relative_position_embedding = None
 
-#             if decoder_cfg.get('use_flash_attention', False) and decoder_cfg.get(
-#                 'position_embedding_type', 'learned_absolute'
-#             ) in ['relative', 'kerple']:
-#                 raise ValueError('flash-attention not supported with relative or kerple at this point')
+            #             if decoder_cfg.get('use_flash_attention', False) and decoder_cfg.get(
+            #                 'position_embedding_type', 'learned_absolute'
+            #             ) in ['relative', 'kerple']:
+            #                 raise ValueError('flash-attention not supported with relative or kerple at this point')
 
             decoder = get_decoder_model(
                 arch=decoder_cfg.arch,
