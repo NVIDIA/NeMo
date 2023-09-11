@@ -25,11 +25,11 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
 """
 
 import dis
-from genericpath import isdir
 import os
 from argparse import ArgumentParser
 
 import torch
+from genericpath import isdir
 from megatron.core import parallel_state
 from omegaconf import open_dict
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -140,7 +140,7 @@ def convert(local_rank, rank, world_size, args):
 
     app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
     app_state.tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
-    
+
     # check for distributed checkpoint
     dist_ckpt_dir = os.path.join(args.checkpoint_folder, args.checkpoint_name)
     if os.path.isdir(dist_ckpt_dir):
