@@ -152,6 +152,7 @@ def main(cfg) -> None:
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
             pretrained_cfg.use_yarn = cfg.get('use_yarn', False)
+            pretrained_cfg.seq_len_interpolation_factor = cfg.get('seq_len_interpolation_factor', None)
             pretrained_cfg.sequence_parallel = False
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
