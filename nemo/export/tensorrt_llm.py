@@ -178,13 +178,6 @@ class TensorRTLLM(ITritonDeployable):
             max_prompt_embedding_table_size = 0
         else:
             max_prompt_embedding_table_size = len(prompt_embeddings_table)
-            hd = self.get_hidden_size() 
-            if hd is None:
-                raise Exception("Model config is not available. This means that no model has been loaded.")
-            else:
-                if hd != prompt_embeddings_table.shape[1]:
-                    raise Exception("Model hidden size is {0} and prompt embedding table size has to match with model hidden size.".format(hd))
-
             np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings_table)
 
         model_config_to_tensorrt_llm(
