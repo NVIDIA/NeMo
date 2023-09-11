@@ -533,6 +533,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
                 checkpoint_core_attention=checkpoint_core_attention,
+                cpu_offloading=cpu_offloading,
+                cpu_offloading_region=cpu_offloading_region, 
+                cpu_offload_handler=cpu_offload_handler
             )
 
             if get_key_value:
@@ -565,7 +568,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                         adapter_1(attention_output) + attention_output
                     )  # simple adapter call with residual connection
 
-            layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
+            if cpu_offloading and ('dropout_add' in cpu_offloading_region):
+                layernorm_input = cpu_offload.offload_saved_tensor_with_handler(
+                    bias_dropout_add_func, 
+                    [attention_output, attention_bias, residual, self.hidden_dropout],
+                    cpu_offload_handler,
+                )
+            else:
+                layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
             # print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
 
             # Post-LN normalization after residual
@@ -657,7 +667,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             transformer_block_type=self.transformer_block_type, position_after='mlp'
         )
 
-        output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
+        if cpu_offloading and ('dropout_add' in cpu_offloading_region):
+            output = cpu_offload.offload_saved_tensor_with_handler(
+                bias_dropout_add_func,
+                [mlp_output, mlp_bias, residual, self.hidden_dropout],
+                cpu_offload_handler,
+            )
+        else:
+            output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
         # print(f"Layer: {self.layer_number} MLP + Dropout + Residual checksum {output.sum()}")
 
         if self.transformer_block_type == 'post_ln':

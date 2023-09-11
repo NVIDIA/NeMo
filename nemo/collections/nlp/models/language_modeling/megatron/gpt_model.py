@@ -208,7 +208,7 @@ class GPTModel(MegatronModule):
                 
                 # the function to check if a tensor is not a parameter
                 def tensor_need_offloading_checker(tensor):
-                    return (not isinstance(tensor, torch.nn.Parameter)) 
+                    return (not isinstance(tensor, torch.nn.Parameter)) and (len(tensor.shape) == 3) 
                 
                 # initialize the cpu offload handler
                 cpu_offload_handler = cpu_offload.GroupOffloadHandler(
@@ -220,8 +220,8 @@ class GPTModel(MegatronModule):
             else:
                 assert 0, "only group_async is the supported as the cpu_offloading_method."
             
-            assert cpu_offloading_region in ['ln_and_ffn_act', ], \
-                "Only ln_and_ffn_act is supported as the cpu_offloading_region."
+            # assert cpu_offloading_region in ['ln_and_ffn_act', 'ln_and_ffn_act_and_dropout_add'], \
+            #     "Only ln, ffn_act, dropout_add are supported as the cpu_offloading_region."
         else:
             cpu_offload_handler = None
 

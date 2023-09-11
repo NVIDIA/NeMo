@@ -229,6 +229,11 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
+        if cpu_offloading and 'ffn_act' in cpu_offloading_region:
+            act_offloading_context = cpu_offload.CpuOffloadHookWithOffloadHandler(cpu_offload_handler)
+        else:
+            act_offloading_context = nullcontext()
+
         with act_offloading_context:
             if self.fast_glu_activation:
                 intermediate_parallel, intermediate_parallel_2 = torch.chunk(intermediate_parallel, 2, dim=-1)

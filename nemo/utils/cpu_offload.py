@@ -69,6 +69,23 @@ class CpuOffloadSavedTensorHook:
                                   "is not implemented in CpuOffloadHook class. Inherit "
                                   "this class and implement your custom hooks")
 
+def dummy_pack(tensor):
+    print("Pack", tensor.shape)
+    return tensor
+def dummy_unpack(tensor):
+    print("Unpack", tensor.shape)
+    return tensor
+
+class DummyOffloadHook(CpuOffloadSavedTensorHook):
+    def __init__(self) -> None:
+        super().__init__()
+    
+    def on_save_for_backward(self, tensor: torch.Tensor) -> Any:
+        return tensor
+    
+    def on_get_saved_tensor(self, saved_state: Any) -> torch.Tensor:
+        return saved_state
+    
 class JitCpuOffloadHook(CpuOffloadSavedTensorHook):
     """Context-manager that just-in-time offloads/recovers a tensor. 
     
@@ -484,3 +501,65 @@ class GroupOffloadHandler(OffloadHandler):
         # if self.debug:
         #     print("hasattr main_grad", hasattr(tensor, "main_grad"))
         return tensor  
+
+
+class JitOffloadJitRecoverHandler(GroupOffloadHandler):
+    def __init__(self, num_offload_group, num_prefetch_group=1, tensor_need_offloading_checker=lambda t: True, debug=False) -> None:
+        super().__init__(num_offload_group, num_prefetch_group, tensor_need_offloading_checker, debug)
+    
+    def on_group_commit_forward(self):
+        pass
+        # if self.debug:
+        #     print(f"on_group_commit_forward current_group: {self.current_group}")
+        # if self.current_group < self.num_offload_group:
+        #     # insert an event in d2h for backward to sync on
+        #     self.d2h_stream.record_event(self.d2h_finish_events[self.current_group])
+        # # during forward, the next_group_to_fetch always points to the min between the last commited group, and the last offloaded group
+        # self.next_group_to_fetch = min(self.current_group, self.num_offload_group -1)
+
+        # # finishing up with updating current group and tensor count
+        # self.current_group += 1             # increment
+        # self.tensor_count_current_group = 0 # reset
+    
+    def on_group_commit_backward(self):
+        pass
+        # self.current_group -= 1
+        # assert self.current_group >= 0
+
+        # if self.debug:
+        #     print(f"on_group_commit_backward current_group: {self.current_group}")
+
+        # if self.current_group < self.num_offload_group:
+        #     torch.cuda.current_stream().wait_event(self.d2h_finish_events[self.current_group])
+
+    def tensor_push(self, tensor: torch.Tensor, **kwargs):
+        # obtain a unique tensor tag
+        tensor_tag = (self.current_group, self.tensor_count_current_group)
+        if self.debug:
+            print("tensor_push", tensor_tag, tensor.shape, type(tensor), "need_offloading ?", self.tensor_need_offloading_checker(tensor))
+        self.tensor_count_current_group += 1
+        assert not (tensor_tag in self.tensor_tag_to_state)
+        if self.current_group < self.num_offload_group and self.tensor_need_offloading_checker(tensor):
+            cpu_backup = torch.empty(tensor.size(), 
+                                        dtype=tensor.dtype,
+                                        layout=tensor.layout,
+                                        device="cpu",
+                                        pin_memory=True)
+            cpu_backup.copy_(tensor, non_blocking=True)
+            state = (tensor.device, cpu_backup)
+            self.tensor_tag_to_state[tensor_tag] = state
+        else:
+            self.tensor_tag_to_state[tensor_tag] = tensor # will be offloaded together after group commit
+        return tensor_tag
+    
+    def tensor_pop(self, tensor_tag, **kwargs):
+        assert tensor_tag in self.tensor_tag_to_state
+        if self.debug:
+            print("tensor_pop", tensor_tag)
+        state = self.tensor_tag_to_state.pop(tensor_tag)
+        if isinstance(state, tuple):
+            dev, cpu_backup = state
+            tensor = cpu_backup.to(dev)
+        else:
+            tensor = state
+        return tensor

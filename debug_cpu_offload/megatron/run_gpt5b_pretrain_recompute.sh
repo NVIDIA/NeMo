@@ -5,7 +5,7 @@ export PYTHONPATH=${NEMO}:${MLM}:${PYTHONPATH}
 
 MICRO_BATCH_SIZE=${1:-1}
 SEQ_LENGTH=${2:-512}
-MEGATRON_AMP_O2=${3:-"False"}
+MEGATRON_AMP_O2=${3:-"True"}
 
 python ${NEMO}/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
 --config-path ${NEMO}/debug_cpu_offload/megatron \

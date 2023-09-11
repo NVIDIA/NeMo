@@ -1,11 +1,12 @@
 NEMO=/home/scratch.guyueh_sw/2023su/cpu_offload/NeMo
 MLM=/home/scratch.guyueh_sw/2023su/cpu_offload/megatron-lm
+FLASH_ATTN=/home/scratch.guyueh_sw/2023su/cpu_offload/flash-attention
 
-export PYTHONPATH=${NEMO}:${MLM}:${PYTHONPATH}
+export PYTHONPATH=${NEMO}:${MLM}:${FLASH_ATTN}:${PYTHONPATH}
 
 MICRO_BATCH_SIZE=${1:-1}
 SEQ_LENGTH=${2:-512}
-MEGATRON_AMP_O2=${3:-"False"}
+MEGATRON_AMP_O2=${3:-"True"}
 OFFLOAD_REGION=${4:-"encoder"}
 OFFLOAD_NUM_LAYERS=${5:-15}
 
@@ -23,6 +24,5 @@ model.encoder_seq_length=${SEQ_LENGTH} \
 ++model.cpu_offloading=True \
 ++model.cpu_offloading_num_layers=${OFFLOAD_NUM_LAYERS} \
 ++model.cpu_offloading_method="group_async" \
-++model.activations_checkpoint_num_layers=1 \
 ++model.cpu_offloading_region=${OFFLOAD_REGION} \
 2>&1 | tee gpt_5b_offload_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}_amp_O2_${MEGATRON_AMP_O2}_offload_num_layers_${OFFLOAD_NUM_LAYERS}_region_${OFFLOAD_REGION}.log

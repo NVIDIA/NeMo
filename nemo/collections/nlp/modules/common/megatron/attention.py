@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from contextlib import nullcontext
 
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
+from nemo.utils import cpu_offload
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -63,7 +65,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from flash_attn.bert_padding import pad_input, unpad_input
+    from flash_attn.bert_padding import pad_input, unpad_input, dummpy_unpad_input, dummy_pad_input
     from flash_attn.flash_attn_interface import flash_attn_unpadded_func
     from flash_attn.flash_attn_triton import flash_attn_func
 
@@ -371,6 +373,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         rotary_pos_emb=None,  # rotary positional embedding
         relative_position_bias=None,
         checkpoint_core_attention=False,
+        cpu_offloading=False,
+        cpu_offloading_region=None,
+        cpu_offload_handler=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -525,6 +530,15 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 headscale_tensor=self.head_scale_tensor if self.headscale else None,
             )
         else:
+            # if cpu_offloading and ('core_attn' in cpu_offloading_region):
+            #     context_layer = cpu_offload.offload_saved_tensor_with_handler(
+            #         self.core_attention,
+            #         [query_layer, key_layer, value_layer, attention_mask, layer_past, get_key_value, rotary_pos_emb, relative_position_bias, (self.head_scale_tensor if self.headscale else None)],
+            #         cpu_offload_handler,
+            #     )
+            # else:
+            # with torch.autograd.graph.saved_tensors_hooks(cpu_offload.dummy_pack, cpu_offload.dummy_unpack):
+            # with torch.autograd.graph.save_on_cpu(pin_memory=True):
             context_layer = self.core_attention(
                 query_layer,
                 key_layer,
@@ -535,7 +549,11 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
                 headscale_tensor=self.head_scale_tensor if self.headscale else None,
+                cpu_offloading=cpu_offloading,
+                cpu_offloading_region=cpu_offloading_region,
+                cpu_offload_handler=cpu_offload_handler,
             )
+            # print("layer", self.layer_number, "context_layer.sum()", context_layer.sum())
 
         # =================
         # Output. [sq, b, h]
@@ -821,7 +839,14 @@ class CoreAttention(MegatronModule):
         rotary_pos_emb=None,
         relative_position_bias=None,
         headscale_tensor=None,
+        cpu_offloading=False,
+        cpu_offloading_region=None,
+        cpu_offload_handler=None,
     ):
+        if cpu_offloading and 'flash_attn' in cpu_offloading_region:
+            flash_attn_offload_context = cpu_offload.CpuOffloadHookWithOffloadHandler(cpu_offload_handler)
+        else:
+            flash_attn_offload_context = nullcontext()
         b, np, sq, sk, hn = (
             query_layer.size(1),
             query_layer.size(2),
@@ -878,7 +903,7 @@ class CoreAttention(MegatronModule):
         # relative_position_bias [b, np, sq, sk]
         # context_layer [b, np, sq, hn]
         # ==================================================
-        context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
+        context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias, flash_attn_offload_context=flash_attn_offload_context)
 
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
@@ -948,7 +973,7 @@ class CoreAttention(MegatronModule):
 
         return context_layer
 
-    def flash_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
+    def flash_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, flash_attn_offload_context=None):
         query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
         key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
         value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
@@ -963,9 +988,9 @@ class CoreAttention(MegatronModule):
         if attention_bias is not None:
             return self.flash_attention_triton(query_layer, key_layer, value_layer, attention_mask, attention_bias,)
         else:
-            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask,)
+            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, flash_attn_offload_context)
 
-    def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask):
+    def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask, flash_attn_offload_context=None):
         batch_size, seqlen, nheads, _ = query_layer.shape
 
         # True: attend / False: not attend
@@ -981,24 +1006,37 @@ class CoreAttention(MegatronModule):
             attention_mask_q = attention_mask
             attention_mask_kv = attention_mask
 
-        q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
-        k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
-        v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
-        is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
-        context_layer = flash_attn_unpadded_func(
-            q,
-            k,
-            v,
-            cu_seqlens_q,
-            cu_seqlens_k,
-            max_seqlen_q,
-            max_seqlen_k,
-            dropout_p=self.attention_dropout_p if self.training else 0.0,
-            causal=is_causal,
-        )
+        if attention_mask is None:
+            q, indices_q, cu_seqlens_q, max_seqlen_q = dummpy_unpad_input(query_layer, attention_mask_q)
+            k, _, cu_seqlens_k, max_seqlen_k = dummpy_unpad_input(key_layer, attention_mask_kv)
+            v, _, _, _ = dummpy_unpad_input(value_layer, attention_mask_kv)
+            is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
+        else:
+            q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
+            k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
+            v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
+            is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
+        
+        if flash_attn_offload_context is None:
+            flash_attn_offload_context = nullcontext()
+        with flash_attn_offload_context:
+            context_layer = flash_attn_unpadded_func(
+                q,
+                k,
+                v,
+                cu_seqlens_q,
+                cu_seqlens_k,
+                max_seqlen_q,
+                max_seqlen_k,
+                dropout_p=self.attention_dropout_p if self.training else 0.0,
+                causal=is_causal,
+            )
 
         # [b, sq, np, hn]
-        context_layer = pad_input(context_layer, indices_q, batch_size, seqlen)
+        if attention_mask is None:
+            context_layer = dummy_pad_input(context_layer, indices_q, batch_size, seqlen)
+        else:
+            context_layer = pad_input(context_layer, indices_q, batch_size, seqlen)
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
