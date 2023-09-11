@@ -45,7 +45,7 @@ Usage:
             model.restore_from_path="PATH TO BASE GPT MODEL .nemo FILE"
             name="NAME OF TRAINING RUN"
             exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
-Please see TODO for a step-by-step guide.
+Please see lora_tutorial.md for a step-by-step guide.
 """
 
 
@@ -63,8 +63,6 @@ def main(cfg) -> None:
     model.add_adapter(peft_cfg_cls(model_cfg))
 
     trainer.fit(model)
-    model.save_adapters(f"{trainer.default_root_dir}/checkpoints/gpt-{cfg.model.peft.peft_scheme}.ckpt")
-
 
 if __name__ == '__main__':
     main()

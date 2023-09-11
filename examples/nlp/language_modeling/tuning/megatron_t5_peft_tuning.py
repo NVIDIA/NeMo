@@ -30,22 +30,8 @@ A base T5 Model is required as a starting point. This script will then insert
 Adapters into each Transformer layer and will train/update only these adapters
 during training. The base T5 Model weights will remain frozen.
 
-During training this script will only save the newly trained Adapter weights
-in checkpoints. At the end of training a .nemo file of Adapter weights will 
-be saved.
-
-Usage:
-    Assuming the base model is a 125m GPT Model, with TP=1, PP=1:
-    a. run a training run for a base gpt nemo file:
-        python megatron_gpt_peft_tuning.py \
-            "model.data.train_ds.file_names=[PATH TO TRAINING JSONL FILE]",
-            "model.data.train_ds.concat_sampling_probabilities=[SAMPLING VAL]",
-            "model.data.validation_ds.file_names=[PATH TO VALIDATION JSONL FILE]",
-            "model.data.validation_ds.names=[NAME FOR METRIC LOGGING]",
-            model.restore_from_path="PATH TO BASE GPT MODEL .nemo FILE"
-            name="NAME OF TRAINING RUN"
-            exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
-Please see TODO for a step-by-step guide.
+This script is exactly the same as the peft tuning script for GPT. For more details
+please refer to the GPT script and docs.
 """
 
 

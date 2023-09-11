@@ -22,7 +22,7 @@ import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
@@ -44,7 +44,7 @@ This is the script to run inference with a PEFT model or an SFT Model.
 
 If you want to evaluate an SFT .nemo file:
 
-python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
+python examples/nlp/language_modeling/tuning/megatron_t5_peft_eval.py \
 	model.restore_from_path=<path_to_sft_nemo_file> \
 	model.peft.restore_from_path=null \
 	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
@@ -55,11 +55,11 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
 	inference.greedy=True \
 	inference.outfile_path=\'<path_to_jsonl_output_file>'  
 
-If you want to evaluate a PEFT Model, you should provide a base GPT model and a PEFT model .nemo file
+If you want to evaluate a PEFT Model, you should provide a base T5 model and a PEFT model .nemo file
 
-python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
+python examples/nlp/language_modeling/tuning/megatron_t5_peft_eval.py \
 	model.restore_from_path=<path_to_sft_nemo_file> \
-	model.peft.restore_from_path=<path_to_peft_nemo_file> \ # this will be created if you use `megatron_gpt_peft_tuning.py`
+	model.peft.restore_from_path=<path_to_peft_nemo_file> \ # this will be created if you use `megatron_t5_peft_tuning.py`
 	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
 	model.data.test_ds.names=\['name_for_test_file1', 'name_for_test_file2'] \  # this is not the filename just some identifier
 	model.data.test_ds.global_batch_size=4 \  # or some other value
@@ -110,15 +110,15 @@ def use_inference_server(cfg, model, trainer):
             generate(model.cuda())
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_peft_eval_config")
+@hydra_runner(config_path="conf", config_name="megatron_t5_peft_eval_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-    model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
+    model_cfg = MegatronT5SFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+    model = MegatronT5SFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
     model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
 
