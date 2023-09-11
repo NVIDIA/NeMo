@@ -13,18 +13,20 @@
 # limitations under the License.
 
 import itertools
+import os
 from typing import Any, List
 
-import torch
-import os
-import soundfile as sf
 import numpy as np
+import soundfile as sf
+import torch
 from encodec import EncodecModel
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
@@ -38,8 +40,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_iterator_k_split,
     init_method_normal,
 )
-from nemo.collections.asr.metrics.wer import word_error_rate
-import nemo.collections.asr as nemo_asr
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.tts.parts.utils.helpers import plot_encodec_to_numpy
@@ -839,11 +839,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
             output_tokens_combined = torch.stack(output_token_list)  # (T, B, 8)
             output_tokens_combined = output_tokens_combined.permute(1, 2, 0)  # (B, 8, T)
-            
+
             # Layerwise token error rate
-            ter_dict={}
+            ter_dict = {}
             for i in range(8):
-                ter_dict[i] = {'hypothesis': [], 'gt': []}           
+                ter_dict[i] = {'hypothesis': [], 'gt': []}
 
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -851,7 +851,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             nemo_sv_model = nemo_sv_model.to(device)
             nemo_sv_model.eval()
 
-            asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="stt_en_conformer_transducer_large")
+            asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(
+                model_name="stt_en_conformer_transducer_large"
+            )
             asr_model = asr_model.to(device)
             asr_model.eval()
             _exp_dir_path = self.logger.save_dir
@@ -885,9 +887,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 self.logger.experiment.add_image(
                     "Inf Dec Input Tokens", plot_encodec_to_numpy(dec_inp_img), step, dataformats="HWC",
                 )
-                
-                
-                #save predicted_wav and gt_wav to a wav files in dir_path
+
+                # save predicted_wav and gt_wav to a wav files in dir_path
                 audio_fp_pred = os.path.join(_exp_dir_path, f'predicted_wav_{step}.wav')
                 sf.write(audio_fp_pred, predicted_wav.cpu().numpy(), 24000)
                 audio_fp_gt = os.path.join(_exp_dir_path, f'dec_input_wav_{step}.wav')
@@ -897,12 +898,14 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 spk_embedding_pred = nemo_sv_model.get_embedding(audio_fp_pred)
                 spk_embedding_pred = spk_embedding_pred.cpu().detach().numpy().flatten()
                 spk_embedding_gt = nemo_sv_model.get_embedding(audio_fp_gt)
-                spk_embedding_gt = spk_embedding_gt.cpu().detach().numpy().flatten() 
-                similarity = np.dot(spk_embedding_pred, spk_embedding_gt) / (np.linalg.norm(spk_embedding_pred) * np.linalg.norm(spk_embedding_gt))
+                spk_embedding_gt = spk_embedding_gt.cpu().detach().numpy().flatten()
+                similarity = np.dot(spk_embedding_pred, spk_embedding_gt) / (
+                    np.linalg.norm(spk_embedding_pred) * np.linalg.norm(spk_embedding_gt)
+                )
                 self.logger.experiment.add_scalar(f'Inf SV Cossim Individual Sample', similarity, step)
                 similarity_list.append(similarity)
 
-                #transcribe predicted_wav and gt_wav using asr_model
+                # transcribe predicted_wav and gt_wav using asr_model
                 pred_transcript = asr_model.transcribe([audio_fp_pred])[0][0]
                 gt_transcript = asr_model.transcribe([audio_fp_gt])[0][0]
                 self.logger.experiment.add_text("Inf Predicted Text", pred_transcript, step)
@@ -910,23 +913,23 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 hyp_pred_transcript_list.append(pred_transcript)
                 gt_transcript_list.append(gt_transcript)
 
-                # store predicted_tokens for each layer to compute token error rate 
+                # store predicted_tokens for each layer to compute token error rate
                 for layer_idx in range(8):
                     ter_dict[layer_idx]['hypothesis'].append(predicted_tokens[layer_idx].cpu().numpy().tolist())
                     ter_dict[layer_idx]['gt'].append(dec_input_to_1024[layer_idx].cpu().numpy().tolist())
 
-            #compute token error rate for each layer
+            # compute token error rate for each layer
             for layer_idx in range(8):
                 wer = word_error_rate(ter_dict[layer_idx]['hypothesis'], ter_dict[layer_idx]['gt'], use_cer=True)
                 self.logger.experiment.add_scalar(f'Inf TER Layer {layer_idx}', wer, 0)
 
-            #compute character/word error rate for predicted transcript and gt transcript
+            # compute character/word error rate for predicted transcript and gt transcript
             cer_glob = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=True)
             self.logger.experiment.add_scalar(f'Inf CER Transcript', cer_glob, batch_idx)
             wer_glob = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=False)
             self.logger.experiment.add_scalar(f'Inf WER Transcript', wer_glob, batch_idx)
 
-            #compute average similarity
+            # compute average similarity
             similarity_avg = np.mean(similarity_list)
             self.logger.experiment.add_scalar(f'Inf SV Avg Cossim', similarity_avg, batch_idx)
 
