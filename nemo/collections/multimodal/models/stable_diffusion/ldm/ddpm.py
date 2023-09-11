@@ -2070,7 +2070,6 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
         # CUDA graph
         self.capture_cudagraph_iters = capture_cudagraph_iters
         self.iterations = 0
-        self.graphed_diffusion_model = None
 
     def forward(self, x, t, c_concat: list = None, c_crossattn: list = None):
         if self.conditioning_key is None:
@@ -2082,10 +2081,10 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
             cc = torch.cat(c_crossattn, 1)
             if self.iterations == self.capture_cudagraph_iters:
                 logging.info("Capturing CUDA graph for module: %s", self.diffusion_model.__class__.__name__)
-                self.graphed_diffusion_model = torch.cuda.make_graphed_callables(self.diffusion_model, (x, t, cc))
+                self.diffusion_model = torch.cuda.make_graphed_callables(self.diffusion_model, (x, t, cc))
 
             if 0 <= self.capture_cudagraph_iters <= self.iterations:
-                out = self.graphed_diffusion_model(x, t, cc)
+                out = self.diffusion_model(x, t, cc)
             else:
                 out = self.diffusion_model(x, t, context=cc)
             self.iterations += 1

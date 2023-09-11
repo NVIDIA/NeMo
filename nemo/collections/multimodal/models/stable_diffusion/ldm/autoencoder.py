@@ -348,7 +348,6 @@ class AutoencoderKL(pl.LightningModule):
         self.encoder_iterations = self.decoder_iterations = 0
         self.encoder_graph = torch.cuda.CUDAGraph()  # eval
         self.decoder_graph = torch.cuda.CUDAGraph()  # eval
-        self.graphed_encoder = self.graphed_decoder = None  # train
         self.static_x = self.static_moments = None
         self.static_z = self.static_dec = None
 
@@ -477,12 +476,9 @@ class AutoencoderKL(pl.LightningModule):
         if self.training:
             if self.encoder_iterations == self.capture_cudagraph_iters:
                 logging.info("Capturing CUDA graph for module: %s", self.encoder.__class__.__name__)
-                self.graphed_encoder = torch.cuda.make_graphed_callables(self.encoder, (x,))
+                self.encoder = torch.cuda.make_graphed_callables(self.encoder, (x,))
 
-            if 0 <= self.capture_cudagraph_iters <= self.encoder_iterations:
-                h = self.graphed_encoder(x)
-            else:
-                h = self.encoder(x)
+            h = self.encoder(x)
             self.encoder_iterations += 1
 
             moments = self.quant_conv(h)
@@ -520,13 +516,10 @@ class AutoencoderKL(pl.LightningModule):
         if self.training:
             if self.decoder_iterations == self.capture_cudagraph_iters:
                 logging.info("Capturing CUDA graph for module: %s", self.decoder.__class__.__name__)
-                self.graphed_decoder = torch.cuda.make_graphed_callables(self.decoder, (z,))
+                self.decoder = torch.cuda.make_graphed_callables(self.decoder, (z,))
 
             h = self.post_quant_conv(z)
-            if 0 <= self.capture_cudagraph_iters <= self.decoder_iterations:
-                dec = self.graphed_decoder(h)
-            else:
-                dec = self.decoder(h)
+            dec = self.decoder(h)
             self.decoder_iterations += 1
 
             return dec
