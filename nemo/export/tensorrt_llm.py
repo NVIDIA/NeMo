@@ -174,12 +174,6 @@ class TensorRTLLM(ITritonDeployable):
             in_file=nemo_checkpoint_path, decoder_type=model_type, gpus=n_gpus, nemo_export_dir=nemo_export_dir
         )
 
-        if prompt_embeddings_table is None:
-            max_prompt_embedding_table_size = 0
-        else:
-            max_prompt_embedding_table_size = len(prompt_embeddings_table)
-            np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings_table)
-
         model_config_to_tensorrt_llm(
             model_configs,
             self.model_dir,
@@ -189,6 +183,12 @@ class TensorRTLLM(ITritonDeployable):
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )
+
+        if prompt_embeddings_table is None:
+            max_prompt_embedding_table_size = 0
+        else:
+            max_prompt_embedding_table_size = len(prompt_embeddings_table)
+            np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings_table)
 
         shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         shutil.rmtree(nemo_export_dir)
