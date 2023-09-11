@@ -444,6 +444,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
                     # FP8 cast and amax
                     ### TODO Multi-tensor cast-amax
+                    ### TODO Use updated scale
                     fp32_fragment = param_bucket.params_shard[shard_range]
                     fp8_fragment = Float8Tensor.from_float32(
                         param_bucket.params_shard[shard_range],
@@ -453,7 +454,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     fp8_params_shards[bucket_id][shard_range].copy_(
                         fp8_fragment._data,
                     )
-                    amaxes[amax_pos:amax_pos+1].copy_(fp32_fragment.amax())
+                    amax = torch.maximum(amaxes[amax_pos:amax_pos+1], fp32_fragment.amax())
+                    amaxes[amax_pos:amax_pos+1].copy_(amax)
 
             # Update param shards with FP8 buffers
             for bucket_id, params_shard in fp8_params_shards.items():
