@@ -211,7 +211,7 @@ class MegatronBaseModel(NLPModel):
         """
         # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
         self.trainer.limit_val_batches *= get_num_microbatches()
-        # Override num sanity steps to be a multiple of num of microbatches 
+        # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
     def _enable_nvidia_optimizations(self):
