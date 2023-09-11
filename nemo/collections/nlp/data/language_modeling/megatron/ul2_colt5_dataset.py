@@ -26,6 +26,7 @@ class UL2CoLT5Dataset(UL2Dataset):
     """ 
     Modification of the UL2 dataset similar toCoLT5
     """
+
     def __getitem__(self, idx):
         """
         0. span corruption with noise rate 0.15 and average span 3 [R-denoiser]
@@ -120,4 +121,3 @@ class UL2CoLT5Dataset(UL2Dataset):
                 prefix_lm_pivot_mean=self.prefix_lm_pivot_mean,
                 pivot_distribution=self.extreme_ngram_span_length_distribution,
             )
-            

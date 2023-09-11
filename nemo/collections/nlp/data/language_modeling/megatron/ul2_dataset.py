@@ -312,7 +312,7 @@ class UL2Dataset(T5Dataset):
         eos_id,
         pad_id,
         skip_masking_id=None,
-        task_type: int=None,
+        task_type: int = None,
     ):
         """Build training sample.
         Arguments:
