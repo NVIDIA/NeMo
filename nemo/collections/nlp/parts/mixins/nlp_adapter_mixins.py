@@ -54,9 +54,8 @@ except (ImportError, ModuleNotFoundError):
 class NLPAdapterModelMixin(AdapterModelPTMixin):
     """ NLP Adapter Mixin that can augment any transformer-based model with Adapter module support.
 
-    This mixin class should be used only with a top level ModelPT subclass, that includes either a `model` or a
-`enc_dec_model` submodule.
-    This mixin class adds several utility methods.
+    This mixin class should be used only with a top level ModelPT subclass, that includes either a `model` or an `enc_dec_model` submodule.
+    This mixin class adds several utility methods to add, load and save adapters.
 
     An Adapter module is any Pytorch nn.Module that possess a few properties :
 
