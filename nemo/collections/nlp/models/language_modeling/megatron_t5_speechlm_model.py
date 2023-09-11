@@ -713,7 +713,19 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         return self.predict_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        self.validation_epoch_end(outputs)
+        average_metrics = {}
+        for output in outputs:
+            for key in output:
+                if key not in average_metrics:
+                    average_metrics[key] = []
+                if isinstance(output[key], torch.Tensor):
+                    average_metrics[key].append(output[key].item())
+                else:
+                    average_metrics[key].append(output[key])
+
+        for key in average_metrics:
+            average_metrics[key] = np.mean(average_metrics[key])
+            logging.info(f'Test {key}: {average_metrics[key]}')
 
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
@@ -828,9 +840,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             output_tokens_combined = torch.stack(output_token_list)  # (T, B, 8)
             output_tokens_combined = output_tokens_combined.permute(1, 2, 0)  # (B, 8, T)
             
-            wer_dict={}
+            # Layerwise token error rate
+            ter_dict={}
             for i in range(8):
-                wer_dict[i] = {'hypothesis': [], 'gt': []}           
+                ter_dict[i] = {'hypothesis': [], 'gt': []}           
 
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -853,7 +866,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             batch_size = output_tokens_combined.shape[0]
             for i in range(batch_size):
                 audio_len = (labels[i][0] != 0).sum().item()
-                step = batch_idx * batch_size + i
+                step = dataloader_idx + i
                 dec_input_to_1024 = self.convert_tokens_to_range(dec_input_raw[i, :, 0:audio_len])
                 dec_input_wav = self.additional_models['encodec'].decode([[dec_input_to_1024[None], None]])[0, 0]
                 self.logger.experiment.add_audio("Inf Dec Input Wav", dec_input_wav, step, 24000)
@@ -886,38 +899,42 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 spk_embedding_gt = nemo_sv_model.get_embedding(audio_fp_gt)
                 spk_embedding_gt = spk_embedding_gt.cpu().detach().numpy().flatten() 
                 similarity = np.dot(spk_embedding_pred, spk_embedding_gt) / (np.linalg.norm(spk_embedding_pred) * np.linalg.norm(spk_embedding_gt))
-                self.logger.experiment.add_scalar(f'Inf SV Cosine Similarity', similarity, step)
+                self.logger.experiment.add_scalar(f'Inf SV Cossim Individual Sample', similarity, step)
                 similarity_list.append(similarity)
 
                 #transcribe predicted_wav and gt_wav using asr_model
                 pred_transcript = asr_model.transcribe([audio_fp_pred])[0][0]
                 gt_transcript = asr_model.transcribe([audio_fp_gt])[0][0]
-                self.logger.experiment.add_text("Predicted Text", pred_transcript, step)
-                self.logger.experiment.add_text("GT Text", gt_transcript, step)
+                self.logger.experiment.add_text("Inf Predicted Text", pred_transcript, step)
+                self.logger.experiment.add_text("Inf GT Text", gt_transcript, step)
                 hyp_pred_transcript_list.append(pred_transcript)
                 gt_transcript_list.append(gt_transcript)
 
                 # store predicted_tokens for each layer to compute token error rate 
                 for layer_idx in range(8):
-                    wer_dict[layer_idx]['hypothesis'].append(predicted_tokens[layer_idx].cpu().numpy().tolist())
-                    wer_dict[layer_idx]['gt'].append(dec_input_to_1024[layer_idx].cpu().numpy().tolist())
+                    ter_dict[layer_idx]['hypothesis'].append(predicted_tokens[layer_idx].cpu().numpy().tolist())
+                    ter_dict[layer_idx]['gt'].append(dec_input_to_1024[layer_idx].cpu().numpy().tolist())
 
             #compute token error rate for each layer
             for layer_idx in range(8):
-                wer = word_error_rate(wer_dict[layer_idx]['hypothesis'], wer_dict[layer_idx]['gt'], use_cer=True)
-                self.logger.experiment.add_scalar(f'Inf TER Layer {layer_idx}', wer, self.trainer.global_step)
+                wer = word_error_rate(ter_dict[layer_idx]['hypothesis'], ter_dict[layer_idx]['gt'], use_cer=True)
+                self.logger.experiment.add_scalar(f'Inf TER Layer {layer_idx}', wer, 0)
 
             #compute character/word error rate for predicted transcript and gt transcript
             cer_glob = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=True)
-            self.logger.experiment.add_scalar(f'Inf CER Transcript', cer_glob, self.trainer.global_step)
+            self.logger.experiment.add_scalar(f'Inf CER Transcript', cer_glob, batch_idx)
             wer_glob = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=False)
-            self.logger.experiment.add_scalar(f'Inf WER Transcript', wer_glob, self.trainer.global_step)
+            self.logger.experiment.add_scalar(f'Inf WER Transcript', wer_glob, batch_idx)
 
             #compute average similarity
             similarity_avg = np.mean(similarity_list)
-            self.logger.experiment.add_scalar(f'Inf SV Avg Cosine Similarity', similarity_avg, self.trainer.global_step)
+            self.logger.experiment.add_scalar(f'Inf SV Avg Cossim', similarity_avg, batch_idx)
 
-            return {'loss': torch.tensor(0.0).to(self.device)}
+            return {
+                'sv_avg_cossim': similarity_avg,
+                'cer_transcript': cer_glob,
+                'wer_transcript': wer_glob,
+            }
 
     def predict_step_old(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
