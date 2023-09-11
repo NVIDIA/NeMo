@@ -15,6 +15,7 @@
 """GPT-2 model."""
 
 import torch
+from omegaconf import OmegaConf, ListConfig
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -208,20 +209,52 @@ class GPTModel(MegatronModule):
                 
                 # the function to check if a tensor is not a parameter
                 def tensor_need_offloading_checker(tensor):
-                    return (not isinstance(tensor, torch.nn.Parameter)) and (len(tensor.shape) == 3) 
+                    return (
+                        (not isinstance(tensor, torch.nn.Parameter))    # avoid parameters
+                        and (len(tensor.shape) == 3)                    # this is a hack to make sure only qkv 
+                                                                        # tensors are offloaded in flash attention. 
+                                                                        # otherwise flash attention throws device illegal access somehow
+                        )
                 
                 # initialize the cpu offload handler
-                cpu_offload_handler = cpu_offload.GroupOffloadHandler(
+                cpu_offload_handler = cpu_offload.GroupAsyncOffloadHandler(
                     num_offload_group=cpu_offloading_num_layers,
                     num_prefetch_group=cpu_offloading_num_prefetch_layers,
+                    tensor_need_offloading_checker=tensor_need_offloading_checker,
+                    # debug=True,
+                    )
+            elif cpu_offloading_method == "group_jit":
+                assert (
+                    cpu_offloading_num_layers > 0 and cpu_offloading_num_layers <= num_layers
+                ), "cpu_offloading_num_layers should be in [0, num_layers] but got %d" % cpu_offloading_num_layers
+                
+                # the function to check if a tensor is not a parameter
+                def tensor_need_offloading_checker(tensor):
+                    return (
+                        (not isinstance(tensor, torch.nn.Parameter))    # avoid parameters
+                        and (len(tensor.shape) == 3)                    # this is a hack to make sure only qkv 
+                                                                        # tensors are offloaded in flash attention. 
+                                                                        # otherwise flash attention throws device illegal access somehow
+                        )
+                
+                # initialize the cpu offload handler
+                cpu_offload_handler = cpu_offload.GroupJitOffloadHandler(
+                    num_offload_group=cpu_offloading_num_layers,
                     tensor_need_offloading_checker=tensor_need_offloading_checker,
                     # debug=True,
                     )
             else:
                 assert 0, "only group_async is the supported as the cpu_offloading_method."
             
-            # assert cpu_offloading_region in ['ln_and_ffn_act', 'ln_and_ffn_act_and_dropout_add'], \
-            #     "Only ln, ffn_act, dropout_add are supported as the cpu_offloading_region."
+            assert (cpu_offloading_region is not None ), \
+                "requires specifying cpu_offloading_region (comma separated choices from [ln, ffn_act, dropout_add, flash_attn])"
+            if isinstance(cpu_offloading_region, ListConfig):
+                cpu_offloading_region = OmegaConf.to_container(cpu_offloading_region)
+            assert isinstance(cpu_offloading_region, list), "cpu_offloading_region should be a list"
+
+            for region in cpu_offloading_region:
+                assert region in ['ln', 'ffn_act', 'bias_dropout_add', 'attn_fn'], \
+                f"Got region {region} but only [ln, ffn_act, bias_dropout_add, attn_fn] are supported."
         else:
             cpu_offload_handler = None
 
