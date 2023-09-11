@@ -7,7 +7,6 @@ from einops import rearrange, repeat
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.distributed import rank_zero_only
-from torch._dynamo import optimize
 from torch._inductor import config as inductor_config
 from torchvision.utils import make_grid
 
@@ -92,7 +91,7 @@ class ControlLDM(LatentDiffusion):
         if cfg.get("inductor", False):
             # TorchInductor with CUDA graph can lead to OOM
             inductor_config.triton.cudagraphs = cfg.get("inductor_cudagraphs", False)
-            self.control_model = optimize("inductor")(self.control_model)
+            self.control_model = torch.compile(self.control_model)
 
         if self.channels_last:
             self.control_model = self.control_model.to(memory_format=torch.channels_last)

@@ -26,7 +26,6 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.utilities.distributed import rank_zero_only
-from torch._dynamo import optimize
 from torch._inductor import config as inductor_config
 from torch.optim.lr_scheduler import LambdaLR
 from torchvision.utils import make_grid
@@ -2067,7 +2066,7 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
         if inductor:
             # TorchInductor with CUDA graph can lead to OOM
             inductor_config.triton.cudagraphs = inductor_cudagraphs
-            self.diffusion_model = optimize("inductor")(self.diffusion_model)
+            self.diffusion_model = torch.compile(self.diffusion_model)
         # CUDA graph
         self.capture_cudagraph_iters = capture_cudagraph_iters
         self.iterations = 0
