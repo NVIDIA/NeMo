@@ -65,7 +65,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from flash_attn.bert_padding import pad_input, unpad_input, dummpy_unpad_input, dummy_pad_input
+    from flash_attn.bert_padding import pad_input, unpad_input
     from flash_attn.flash_attn_interface import flash_attn_unpadded_func
     from flash_attn.flash_attn_triton import flash_attn_func
 
@@ -1007,9 +1007,9 @@ class CoreAttention(MegatronModule):
             attention_mask_kv = attention_mask
 
         if attention_mask is None:
-            q, indices_q, cu_seqlens_q, max_seqlen_q = dummpy_unpad_input(query_layer, attention_mask_q)
-            k, _, cu_seqlens_k, max_seqlen_k = dummpy_unpad_input(key_layer, attention_mask_kv)
-            v, _, _, _ = dummpy_unpad_input(value_layer, attention_mask_kv)
+            q, indices_q, cu_seqlens_q, max_seqlen_q = cpu_offload.dummpy_unpad_input(query_layer, attention_mask_q)
+            k, _, cu_seqlens_k, max_seqlen_k = cpu_offload.dummpy_unpad_input(key_layer, attention_mask_kv)
+            v, _, _, _ = cpu_offload.dummpy_unpad_input(value_layer, attention_mask_kv)
             is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
         else:
             q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
@@ -1034,7 +1034,7 @@ class CoreAttention(MegatronModule):
 
         # [b, sq, np, hn]
         if attention_mask is None:
-            context_layer = dummy_pad_input(context_layer, indices_q, batch_size, seqlen)
+            context_layer = cpu_offload.dummy_pad_input(context_layer, indices_q, batch_size, seqlen)
         else:
             context_layer = pad_input(context_layer, indices_q, batch_size, seqlen)
 

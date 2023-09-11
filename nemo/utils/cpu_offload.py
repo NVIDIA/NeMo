@@ -70,10 +70,12 @@ class CpuOffloadSavedTensorHook:
                                   "this class and implement your custom hooks")
 
 def dummy_pack(tensor):
-    print("Pack", tensor.shape)
+    # print("Pack", tensor.shape)
+    # print("hasattr main_grad", hasattr(tensor, 'main_grad'))
     return tensor
 def dummy_unpack(tensor):
-    print("Unpack", tensor.shape)
+    # print("Unpack", tensor.shape)
+    # print("hasattr main_grad", hasattr(tensor, 'main_grad'))
     return tensor
 
 class DummyOffloadHook(CpuOffloadSavedTensorHook):
@@ -563,3 +565,20 @@ class JitOffloadJitRecoverHandler(GroupOffloadHandler):
         else:
             tensor = state
         return tensor
+
+# mimic the unpad/pad functions in flash_attention 
+# but without using torch.nonzero and torch.item (both cause host-device synchronization).
+# only useful when attention_mask == None
+from einops import rearrange, repeat
+
+def dummpy_unpad_input(hidden_states, attention_mask):
+    seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+    max_seqlen_in_batch = hidden_states.shape[1]
+    cu_seqlens = torch.nn.functional.pad(torch.cumsum(seqlens_in_batch, dim=0, dtype=torch.torch.int32), (1, 0))
+    return (rearrange(hidden_states, 'b s ... -> (b s) ...'), 
+            None,
+            cu_seqlens,
+            max_seqlen_in_batch)
+
+def dummy_pad_input(hidden_states, unused, batch, seqlen):
+    return rearrange(hidden_states, '(b s) ... -> b s ...', b=batch)
