@@ -46,7 +46,6 @@ from nemo.utils.distributed import initialize_distributed
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 
-
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
@@ -107,9 +106,10 @@ def convert(local_rank, rank, world_size, args):
         plugins.append(TorchElasticEnvironment())
     if args.model_type == 'gpt':
         strategy = NLPDDPStrategy()
-    
 
-    trainer = Trainer(devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu', plugins=plugins, strategy=strategy)
+    trainer = Trainer(
+        devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu', plugins=plugins, strategy=strategy
+    )
 
     app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
     app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
