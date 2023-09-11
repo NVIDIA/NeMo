@@ -54,8 +54,8 @@ def build_slopes(num_attention_heads, num_attention_heads_alibi):
         .unsqueeze(-1)
     )
 
-    if torch.cuda.is_available():
-        slopes = slopes.to(torch.cuda.current_device())
+    # if torch.cuda.is_available():
+    #     slopes = slopes.to(torch.cuda.current_device())
 
     return slopes
 
@@ -71,8 +71,8 @@ def build_relative_position(max_seq_len, full=True):
         memory_position = torch.arange(1 - max_seq_len, 1)[:, None].mul(-1)
         relative_position = torch.abs(memory_position - relative_position)  # (max_seq_len, max_seq_len)
 
-    if torch.cuda.is_available():
-        relative_position = relative_position.to(torch.cuda.current_device())
+    # if torch.cuda.is_available():
+    #     relative_position = relative_position.to(torch.cuda.current_device())
 
     return relative_position
 
@@ -117,7 +117,8 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         self.use_FA = use_FA
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
         # cache the slopes
-        self.slopes = build_slopes(num_attention_heads, num_attention_heads_alibi)
+        slopes = build_slopes(num_attention_heads, num_attention_heads_alibi)
+        self.register_buffer('slopes', slopes)
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
         # if we use causal attention (not bidrectional), we can use singleton relative position
         self.relative_position = (
@@ -140,8 +141,6 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
                 .unsqueeze(0)
                 .expand(self.num_attention_heads, -1, -1)
             )
-            self.slopes = self.slopes.to(relative_position.device)
-            slopes = self.slopes
         else:
             relative_position = self.relative_position
 
@@ -152,6 +151,8 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
 
         if self.seq_len_interpolation_factor is not None:
             slopes *= 1 / self.seq_len_interpolation_factor
+
+        relative_position = relative_position.to(self.slopes.device)
         
         return -relative_position.unsqueeze(0) * slopes
             
