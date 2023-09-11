@@ -124,6 +124,14 @@ def get_language_model(
     ub_tp_comm_overlap=False,
     use_flash_attention=False,
     seq_len_interpolation_factor=None,
+    base=None,
+    pretrain_max_positional_embeddings=None,
+    extrapolation_factor=None,
+    attn_factor=None,
+    beta_fast=None,
+    beta_slow=None,
+    yarn_max_position_embeddings=None,
+    use_yarn=False
 ):
     """Build language model and return along with the key to save."""
 
@@ -202,6 +210,14 @@ def get_language_model(
         ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
         seq_len_interpolation_factor=seq_len_interpolation_factor,
+        base=base,
+        pretrain_max_positional_embeddings=pretrain_max_positional_embeddings,
+        extrapolation_factor=extrapolation_factor,
+        attn_factor=attn_factor,
+        beta_fast=beta_fast,
+        beta_slow=beta_slow,
+        yarn_max_position_embeddings=yarn_max_position_embeddings,
+        use_yarn=use_yarn
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -511,6 +527,14 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
+        base=None,
+        pretrain_max_positional_embeddings=None,
+        extrapolation_factor=None,
+        attn_factor=None,
+        beta_fast=None,
+        beta_slow=None,
+        yarn_max_position_embeddings=None,
+        use_yarn=False
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -563,7 +587,15 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             if rotary_percentage < 1:
                 rotary_dim = int(rotary_dim * rotary_percentage)
             self.rotary_pos_emb = RotaryEmbedding(
-                rotary_dim, seq_len_interpolation_factor=seq_len_interpolation_factor
+                rotary_dim, seq_len_interpolation_factor=seq_len_interpolation_factor,
+                base=base,
+                pretrain_max_positional_embeddings=pretrain_max_positional_embeddings,
+                extrapolation_factor=extrapolation_factor,
+                attn_factor=attn_factor,
+                beta_fast=beta_fast,
+                beta_slow=beta_slow,
+                max_position_embeddings=yarn_max_position_embeddings,
+                use_yarn=use_yarn
             )
 
         elif position_embedding_type == 'alibi':

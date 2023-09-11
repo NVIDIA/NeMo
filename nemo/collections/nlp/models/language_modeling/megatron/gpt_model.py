@@ -167,6 +167,14 @@ class GPTModel(MegatronModule):
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
+        base=None,
+        pretrain_max_positional_embeddings=None,
+        extrapolation_factor=None,
+        attn_factor=None,
+        beta_fast=None,
+        beta_slow=None,
+        yarn_max_position_embeddings=None,
+        use_yarn=False
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -251,6 +259,14 @@ class GPTModel(MegatronModule):
             ub_tp_comm_overlap=ub_tp_comm_overlap,
             use_flash_attention=use_flash_attention,
             seq_len_interpolation_factor=seq_len_interpolation_factor,
+            base=base,
+            pretrain_max_positional_embeddings=pretrain_max_positional_embeddings,
+            extrapolation_factor=extrapolation_factor,
+            attn_factor=attn_factor,
+            beta_fast=beta_fast,
+            beta_slow=beta_slow,
+            yarn_max_position_embeddings=yarn_max_position_embeddings,
+            use_yarn=use_yarn
         )
 
         if self.share_embeddings_and_output_weights:
