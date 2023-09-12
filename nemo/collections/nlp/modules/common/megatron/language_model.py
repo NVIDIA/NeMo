@@ -37,6 +37,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
+from nemo.utils import cpu_offload
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -539,6 +540,10 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.cpu_offloading = cpu_offloading
+        self.cpu_offloading_region = cpu_offloading_region
+        self.cpu_offload_handler = cpu_offload_handler
+
         if kv_channels is None:
 
             assert (
@@ -725,6 +730,12 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 self._output_layer_key = 'output_layer'
         self.set_accepted_adapter_types([PromptEncoderAdapterConfig._target_])
 
+    def _get_cpu_offload_context(self, region):
+        if self.cpu_offloading and (region in self.cpu_offloading_region):
+            return cpu_offload.CpuOffloadHookWithOffloadHandler(offload_handler=self.cpu_offload_handler)
+        else:
+            return nullcontext()
+    
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
         # This is usually handled in schedules.py but some inference code still
@@ -804,19 +815,20 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
 
         # encoder.
         if enc_hidden_states is None:
-            encoder_output = self.encoder(
-                encoder_input,
-                enc_attn_mask,
-                layer_past=layer_past,
-                get_key_value=get_key_value,
-                set_inference_key_value_memory=set_inference_key_value_memory,
-                inference_max_sequence_len=inference_max_sequence_len,
-                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-                rotary_pos_emb=(rotary_pos_emb, None, None)
-                if rotary_pos_emb is not None
-                else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
-                self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
-            )
+            with self._get_cpu_offload_context("encoder"):
+                encoder_output = self.encoder(
+                    encoder_input,
+                    enc_attn_mask,
+                    layer_past=layer_past,
+                    get_key_value=get_key_value,
+                    set_inference_key_value_memory=set_inference_key_value_memory,
+                    inference_max_sequence_len=inference_max_sequence_len,
+                    checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+                    rotary_pos_emb=(rotary_pos_emb, None, None)
+                    if rotary_pos_emb is not None
+                    else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
+                    self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
+                )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
 
