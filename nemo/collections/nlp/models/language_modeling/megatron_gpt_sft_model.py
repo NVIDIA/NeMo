@@ -829,6 +829,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         )
         return super().on_test_epoch_start()
 
+    def on_predict_epoch_start(self):
+        return self.on_test_epoch_start()
+
     def on_test_epoch_end(self):
         _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
         # Commenting as on_test_epoch_end was a no-op in PTL 1.9
