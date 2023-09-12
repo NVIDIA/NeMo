@@ -8,9 +8,9 @@ export PYTHONPATH=${NEMO}:${PYTHONPATH}
 MICRO_BATCH_SIZE=${1:-1}
 SEQ_LENGTH=${2:-512}
 MEGATRON_AMP_O2=${3:-"True"}
-OFFLOAD_REGION=${4:-"ln,ffn_act,bias_dropout_add,attn_fn,qkv_proj,out_proj,ffn1,ffn2"} # comma-separated list, choices in [ln,ffn_act,bias_dropout_add,attn_fn]
+OFFLOAD_REGION=${4:-"encoder"} # comma-separated list, choices in [ln,ffn_act,bias_dropout_add,attn_fn,qkv_proj,out_proj,ffn1,ffn2] or endocder
 OFFLOAD_NUM_LAYERS=${5:-15}
-OFFLOAD_METHOD=${6:-"group_jit"} # group_async or group_jit
+OFFLOAD_METHOD=${6:-"group_async"} # group_async or group_jit
 
 /home/scratch.svc_compute_arch/release/nsightSystems/x86_64/rel/2023.2.1.122/bin/nsys \
 profile -s none -o ./nsys_gpt_5b_offload_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}_amp_O2_${MEGATRON_AMP_O2}_offload_num_layers_${OFFLOAD_NUM_LAYERS}_region_${OFFLOAD_REGION}_method_${OFFLOAD_METHOD} \
@@ -34,5 +34,5 @@ model.encoder_seq_length=${SEQ_LENGTH} \
 model.nsys_profile.enabled=True \
 model.nsys_profile.gen_shape=True \
 model.nsys_profile.start_step=1 \
-model.nsys_profile.end_step=1 \
+model.nsys_profile.end_step=4 \
 2>&1 | tee nsys_gpt_5b_offload_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}_amp_O2_${MEGATRON_AMP_O2}_offload_num_layers_${OFFLOAD_NUM_LAYERS}_region_${OFFLOAD_REGION}_method_${OFFLOAD_METHOD}.log

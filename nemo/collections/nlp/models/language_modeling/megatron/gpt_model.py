@@ -203,9 +203,9 @@ class GPTModel(MegatronModule):
             def tensor_need_offloading_checker(tensor):
                 return (
                     (not isinstance(tensor, torch.nn.Parameter))    # avoid parameters
-                    # and (len(tensor.shape) == 3)                    # this is a hack to make sure only qkv 
-                    #                                                 # tensors are offloaded in flash attention. 
-                    #                                                 # otherwise flash attention throws device illegal access somehow
+                    and (len(tensor.shape) == 3)                    # this is a hack to make sure only qkv 
+                                                                    # tensors are offloaded in flash attention. 
+                                                                    # otherwise flash attention throws device illegal access somehow
                     )
             
             if cpu_offloading_method == 'group_async':

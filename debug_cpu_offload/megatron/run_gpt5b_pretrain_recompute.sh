@@ -18,7 +18,7 @@ python ${NEMO}/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
 trainer.devices=1 \
 trainer.num_nodes=1 \
 model.micro_batch_size=${MICRO_BATCH_SIZE} \
-model.global_batch_size=${MICRO_BATCH_SIZE} \
+model.global_batch_size=128 \
 model.data.data_impl="mock" model.data.data_prefix=[] \
 model.optim.name="fused_adam" \
 model.megatron_amp_O2=${MEGATRON_AMP_O2} \
