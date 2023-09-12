@@ -60,18 +60,18 @@ def process_data(tokenizer: TokenizerSpec, prompt:str, task: str, max_seq_length
     if not os.path.exists(data_dir) or not os.path.exists(task_file):
         raise ValueError(f"{data_dir} or {task_file} not found")
     
-    tokens_to_generate = TASKS[task]["tokens_to_generate"]
+    tokens_to_generate_extra = TASKS[task]["tokens_to_generate"]
     prompt = None if prompt in ["None", None, ""] else prompt
     if prompt is not None:
         # when passing via command line, "\n" is changed to "\n\n"
         prompt = prompt.replace("\\n", "\n")
         assert "{prompt}" in prompt, "prompt must contain {prompt} for replacement"
-        tokens_to_generate += len(tokenizer.text_to_tokens(prompt.replace("{prompt}", "")))
+        tokens_to_generate_extra += len(tokenizer.text_to_tokens(prompt.replace("{prompt}", "")))
        
     with open(task_file, 'r') as f_in:
         lines = [json.loads(line) for line in f_in]
 
-    truncated_texts = Parallel(n_jobs)(delayed(_process_line)(line, task, tokenizer, max_seq_length, tokens_to_generate, prompt) for line in tqdm(lines))
+    truncated_texts = Parallel(n_jobs)(delayed(_process_line)(line, task, tokenizer, max_seq_length, tokens_to_generate_extra, prompt) for line in tqdm(lines))
     return lines, truncated_texts
             
 

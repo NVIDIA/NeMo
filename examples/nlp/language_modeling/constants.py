@@ -24,27 +24,31 @@ TASKS = {"qasper":
                 "subset": "BookSumSort/validation.jsonl"},
         "gov_report":
                 {"response": "Summary:",
-                "tokens_to_generate": 10,
-                "subset": "gov_report_4096_predictions_empty.jsonl"},
+                "tokens_to_generate": 128,
+                "subset": "GovReport/test.json"},
+        # "gov_report":
+        #         {"response": "Summary:",
+        #         "tokens_to_generate": 10,
+        #         "subset": "gov_report_4096_predictions_empty.jsonl"},
         "gov_report-0":
                 {"response": "Summary:",
-                "tokens_to_generate": 1024,
+                "tokens_to_generate": 128,
                 "subset": "GovReport/test_0.jsonl"},
         "gov_report-1":
                 {"response": "Summary:",
-                "tokens_to_generate": 1024,
+                "tokens_to_generate": 128,
                 "subset": "GovReport/test_1.jsonl"},
         "gov_report-2":
                 {"response": "Summary:",
-                "tokens_to_generate": 1024,
+                "tokens_to_generate": 128,
                 "subset": "GovReport/test_2.jsonl"},
         "gov_report-3":
                 {"response": "Summary:",
-                "tokens_to_generate": 1024,
+                "tokens_to_generate": 128,
                 "subset": "GovReport/test_3.jsonl"},
         "gov_report-4":
                 {"response": "Summary:",
-                "tokens_to_generate": 1024,
+                "tokens_to_generate": 128,
                 "subset": "GovReport/test_4.jsonl"},
         "summ_screen_fd":
                 {"response": "Summary:",

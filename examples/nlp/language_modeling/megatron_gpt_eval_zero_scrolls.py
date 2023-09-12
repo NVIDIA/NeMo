@@ -16,6 +16,7 @@ import asyncio
 import os
 import threading
 from functools import partial
+import json
 
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -102,8 +103,11 @@ def remove_padded_prompts(response, nb_paddings):
     return result
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
+@hydra_runner(config_path="conf", config_name="megatron_gpt_inference_zero_scrolls")
 def main(cfg) -> None:
+    if cfg.inference.task not in TASKS:
+        raise NotImplementedError(f"{cfg.inference.task} not implemented. Choose from {TASKS.keys()}")
+    cfg.inference.tokens_to_generate = TASKS[cfg.inference.task]["tokens_to_generate"]
 
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer, callbacks=[CustomProgressBar()])
@@ -209,7 +213,7 @@ def main(cfg) -> None:
         model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
-
+    
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
         "min_length": cfg.inference.min_tokens_to_generate,
@@ -241,18 +245,9 @@ def main(cfg) -> None:
                          max_seq_length=cfg.inference.max_seq_length,
                          data_dir=cfg.inference.data_dir,
                          n_jobs=cfg.inference.n_jobs)
+
+    truncated_input = [s.replace("\n"," ").strip().replace("  ", " ") for s in truncated_input]
     
-    # First method of running text generation, call model.generate method
-    response = model.generate(
-        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
-    )
-
-    if fp8_enabled:
-        response = remove_padded_prompts(response, nb_paddings)
-    print("***************************")
-    print(response)
-    print("***************************")
-
     # Second method of running text generation, call trainer.predict [recommended]
     print("Running inference...")
     bs = cfg.inference.batch_size
