@@ -130,15 +130,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             )
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
-        if self.trainer.precision in ['bf16', 'bf16-mixed']:
-            self.autocast_dtype = torch.bfloat16
-        elif self.trainer.precision in [32, '32', '32-true']:
-            self.autocast_dtype = torch.float
-        elif self.trainer.precision in [16, '16', '16-mixed']:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
-
         if cfg.get('language_model_path', None):
             self.frozen_model = MegatronGPTModel.restore_from(
                 cfg.get('language_model_path'),
@@ -358,7 +349,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
+        if self.torch_dtype == torch.float16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
