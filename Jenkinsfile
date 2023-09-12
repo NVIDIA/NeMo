@@ -131,8 +131,8 @@ pipeline {
             sh 'CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_starcoder_hf_to_nemo.py \
             -c examples/nlp/language_modeling/conf/megatron_gpt_config.yaml \
             -i /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
-            -o /home/TestData/nlp/megatron_gpt/ci.nemo'
-            sh 'rm -f /home/TestData/nlp/megatron_gpt/ci.nemo'
+            -o /home/TestData/nlp/megatron_gpt/starcoder-ci-hf'
+            sh 'rm -f /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/megatron_starcoder_tp1_pp1.nemo'
           }
         }
       }
