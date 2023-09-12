@@ -42,7 +42,10 @@ try:
     from megatron.core import ModelParallelConfig, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = True
 
@@ -123,7 +126,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.num_chunked_cross_attention = len(dec_cross_attention)
         self.megatron_lm_compatible = megatron_lm_compatible
 
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
         if kv_channels is None:
             assert (

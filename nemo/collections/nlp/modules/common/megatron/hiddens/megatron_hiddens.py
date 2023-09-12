@@ -27,24 +27,40 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss import MegatronBaseHiddenLoss
-from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform import (
-    MegatronBaseHiddenTransform,
-)
+from nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_loss import MegatronBaseHiddenLoss
+from nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_transform import MegatronBaseHiddenTransform
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.utils import logging
 from nemo.utils.model_utils import import_class_by_path
 
-__all__ = ["MegatronHiddensModule"]
+try:
+    from megatron.core import ModelParallelConfig
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+    # fake missing classes with None attributes
+    ModelParallelConfig = ApexGuardDefaults()
+
+    HAVE_MEGATRON_CORE = False
+
+__all__ = [
+    "MegatronHiddensModule",
+    "get_registered_hiddens",
+    "register_hidden_loss",
+    "register_hidden_transform",
+    "get_hiddens_module",
+]
 
 # a registry of all hidden transforms (maps name to class path)
 _LOSS_CLASS_REGISTRY = {
-    "a_mim": "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronAMIMHiddenLoss",
-    "vae": "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronVAEHiddenLoss",
+    "a_mim": "nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_loss.MegatronAMIMHiddenLoss",
+    "vae": "nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_loss.MegatronVAEHiddenLoss",
 }
 
 # a registry of all hidden losses (maps name to class path)
 _TRANSFORM_CLASS_REGISTRY = {
-    "cond_gaussian": "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform.MegatronGaussianHiddenTransform",
+    "cond_gaussian": "nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_transform.MegatronGaussianHiddenTransform",
 }
 
 
@@ -55,7 +71,7 @@ def get_registered_hiddens():
 
     Example:
         {
-            "loss": ["a-mim", "vae"],
+            "loss": ["a_mim", "vae"],
             "transform": ["cond_gaussian"],
         }
     """
@@ -72,7 +88,7 @@ def register_hidden_loss(cls_name: str, class_path: str):
     
     Args:
         cls_name: name of the class
-        class_path: path to the class (e.g., "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform.MegatronGaussianHiddenTransform")
+        class_path: path to the class (e.g., "nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_transform.MegatronGaussianHiddenTransform")
     """
     if cls_name in _LOSS_CLASS_REGISTRY:
         raise ValueError(f"Cannot register duplicate hidden loss ({cls_name})")
@@ -86,7 +102,7 @@ def register_hidden_transform(cls_name: str, class_path: str):
     
     Args:
         cls_name: name of the class
-        class_path: path to the class (e.g., "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform.MegatronGaussianHiddenTransform")
+        class_path: path to the class (e.g., "nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_transform.MegatronGaussianHiddenTransform")
     """
     if cls_name in _TRANSFORM_CLASS_REGISTRY:
         raise ValueError(f"Cannot register duplicate hidden transform ({cls_name})")
@@ -94,7 +110,7 @@ def register_hidden_transform(cls_name: str, class_path: str):
     logging.info(f"Registered hidden transform {cls_name} at {class_path}")
 
 
-def get_hiddens_module(cfg=None):
+def get_hiddens_module(cfg=None, model_parallel_cfg: ModelParallelConfig = None):
     """Build a MegatronHiddensModule from a configuration cfg"""
     # Build a hiddens module if config is provided.
     if cfg is None:
@@ -111,6 +127,7 @@ def get_hiddens_module(cfg=None):
     for cur_list_cfg in transform_cfg:
         for name, cur_cfg in cur_list_cfg.items():
             cls_kwargs = OmegaConf.to_container(cur_cfg)
+            cls_kwargs["model_parallel_cfg"] = model_parallel_cfg
             if not "cls_name" in cls_kwargs:
                 raise KeyError(f"Missing 'cls_name' in hidden transform {name}")
 

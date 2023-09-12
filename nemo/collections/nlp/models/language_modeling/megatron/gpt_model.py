@@ -45,6 +45,8 @@ try:
 
 except (ImportError, ModuleNotFoundError):
 
+    ModelParallelConfig = ApexGuardDefaults
+
     HAVE_MEGATRON_CORE = False
 
 
@@ -174,7 +176,7 @@ class GPTModel(MegatronModule):
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.sequence_parallel = self.config.sequence_parallel
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
         if kv_channels is None:
             assert (
@@ -265,6 +267,7 @@ class GPTModel(MegatronModule):
         input_ids,
         position_ids,
         attention_mask,
+        loss_mask=None,
         labels=None,
         token_type_ids=None,
         layer_past=None,
@@ -292,9 +295,15 @@ class GPTModel(MegatronModule):
         )
 
         if self.post_process:
-            return post_language_model_processing(
-                lm_output,
-                labels,
+            if loss_mask is not None:
+                loss_lm_output = lm_output.transpose(0, 1)[loss_mask == 1].unsqueeze(1)
+                loss_labels = labels[loss_mask == 1].unsqueeze(0)
+            else:
+                loss_lm_output = lm_output
+                loss_labels = labels
+            post_process_result = post_language_model_processing(
+                loss_lm_output,
+                loss_labels,
                 self.language_model.output_layer.weight
                 if not self.share_embeddings_and_output_weights
                 else self.word_embeddings_weight(),
@@ -306,6 +315,17 @@ class GPTModel(MegatronModule):
                 sequence_parallel=self.sequence_parallel,
                 gradient_accumulation_fusion=self.config.gradient_accumulation_fusion,
             )
+            if loss_mask is not None:
+                if isinstance(post_process_result, tuple):
+                    loss, logits = post_process_result
+                else:
+                    loss, logits = post_process_result, None
+
+                res = torch.zeros_like(labels).type_as(loss)
+                res[loss_mask == 1] = loss
+                return res if logits is None else (res, logits)
+            else:
+                return post_process_result
         else:
             return lm_output
 
