@@ -55,11 +55,13 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
-        self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
+        self.val_metric = self.test_metric = None
+        if hasattr(self.cfg.data, "validation_ds"):
+            self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
+            self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
-            self.test_metric = torch.nn.ModuleList(self.test_metric)
+            self.test_metric = torch.nn.ModuleList(self.test_metric) if self.test_metric is not None else None
 
     def setup_metric(self, data_cfg):
         # XNLI is a special case.
@@ -334,7 +336,8 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         else:
             categories = batch['lang']
 
-        if self.val_metric is not None:
+        if self.val_metric is not None or self.test_metric is not None:
+            breakpoint()
             metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
             assert len(categories) == len(preds_text) == len(labels_text)
             for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
@@ -641,7 +644,8 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         for dataset in datasets:
             eval_dl = self.build_data_loader(
                 dataset,
-                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                global_batch_size=self.cfg.data.test_ds.global_batch_size if hasattr(self.cfg.data, "test_ds") else \
+                                  self.cfg.data.validation_ds.global_batch_size,
                 shuffle=data_cfg.shuffle,
                 num_workers=data_cfg.num_workers,
                 pin_memory=data_cfg.pin_memory,

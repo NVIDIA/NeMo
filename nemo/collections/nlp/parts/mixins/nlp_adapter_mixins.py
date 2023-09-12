@@ -486,13 +486,8 @@ yields the original output.
             # update the model config of the trained model with params we want to set at inference time.
             output.precision = cfg.trainer.precision
             output.data.test_ds = cfg.model.data.test_ds
-            output.activations_checkpoint_granularity = None
-            output.activations_checkpoint_method = None
-            output.activations_checkpoint_layers_per_pipeline = None
-            if output.get("use_flash_attention", False):
-                output.use_flash_attention = cfg.model.use_flash_attention
-            if cfg.model.get("seq_len_interpolation_factor", None) is not None:
-                output.seq_len_interpolation_factor = cfg.model.seq_len_interpolation_factor
+            for key, val in cfg.model.items():
+                output[key] = val
 
         with open_dict(cfg):
             cfg.inference.add_BOS = output.data.test_ds.add_bos

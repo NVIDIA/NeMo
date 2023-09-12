@@ -44,7 +44,7 @@ model:
   micro_batch_size: 1
   restore_from_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
-  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
+  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   sync_batch_comm: False
   megatron_amp_O2: False
 
@@ -53,8 +53,8 @@ model:
   # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
   sequence_parallel: False
 
-  ## Activation Checkpoint 
-  activations_checkpoint_granularity: null # 'selective' or 'full' 
+  ## Activation Checkpoint
+  activations_checkpoint_granularity: null # 'selective' or 'full'
   activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
   # 'uniform' divides the total number of transformer layers and checkpoints the input activation
   # of each chunk at the specified granularity
@@ -73,7 +73,7 @@ model:
     restore_from_path: null
     restore_from_ckpt_name: null
     restore_from_hparams_path: null
-    
+
     # Used for adapter peft training
     adapter_tuning:
       type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
@@ -110,8 +110,8 @@ model:
     test_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: ??? # Names of the corresponding datasets used to log metrics.
-      global_batch_size: ???
-      micro_batch_size: ???
+      global_batch_size: 1
+      micro_batch_size: 1
       shuffle: False
       num_workers: 0
       pin_memory: True
