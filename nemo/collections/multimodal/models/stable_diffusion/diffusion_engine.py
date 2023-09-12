@@ -14,7 +14,7 @@ from safetensors.torch import load_file as load_safetensors
 from torch._dynamo import optimize
 from torch.optim.lr_scheduler import LambdaLR
 
-from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import build_sdxl_train_valid_datasets
+from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import build_sdxl_precached_text_train_valid_datasets, build_train_valid_precached_datasets, build_sdxl_train_valid_datasets
 from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.wrappers import OPENAIUNETWRAPPER
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
@@ -98,10 +98,18 @@ class DiffusionEngine(nn.Module, Serialization):
         self.no_cond_log = cfg.get('no_cond_log', False)
 
         if self.channels_last:
-            self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
+            if self.first_stage_model:
+                self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
             self.model = self.model.to(memory_format=torch.channels_last)
 
+        # Precaching
+        self.precache_mode = cfg.get('precache_mode')
+        
     def _init_first_stage(self, config):
+        if self.precache_mode == 'both':
+            logging.info('Do not intialize VAE when caching image features.')
+            self.first_stage_model = None
+            return
         model = DiffusionEngine.from_config_dict(config).eval()
         model.train = disabled_train
         for param in model.parameters():
@@ -585,7 +593,15 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
 
-        self._train_ds, self._validation_ds = build_sdxl_train_valid_datasets(
+        if self.model.precache_mode == 'text':
+            logging.info('Precahing text only.')
+            build_dataset_cls = build_sdxl_precached_text_train_valid_datasets
+        elif self.model.precache_mode == 'both':
+            logging.info('Precaching text and image.')
+            build_dataset_cls = build_train_valid_precached_datasets
+        elif self.model.precache_mode is None:
+            build_dataset_cls = build_sdxl_train_valid_datasets
+        self._train_ds, self._validation_ds = build_dataset_cls(
             model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0)
         )
         self._test_ds = None

@@ -749,6 +749,16 @@ class ConcatTimestepEmbedderND(AbstractEmbModel):
         return emb
 
 
+class PrecachedEmbModel(AbstractEmbModel):
+    def __init__(self, device='cuda'):
+        super().__init__()
+        self.device = device
+    def forward(self, *args):
+        if self.device == 'cuda':
+            return [arg.to(torch.cuda.current_device()) for arg in args]
+        return list(args)
+
+
 if __name__ == "__main__":
     from ldm.util import count_params
 
