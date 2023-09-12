@@ -84,6 +84,9 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
         dropout=0.0,
+        cpu_offloading=False,
+        cpu_offloading_region=None,
+        cpu_offload_handler=None,
     ):
         super(ParallelMLP, self).__init__()
         self.activation = activation
@@ -96,7 +99,11 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.dropout = dropout
         self.dtype = dtype
         self.set_accepted_adapter_types([MLPInfusedAdapterConfig._target_])
-
+        
+        self.cpu_offloading_region = cpu_offloading_region
+        self.cpu_offloading = cpu_offloading
+        self.cpu_offload_handler = cpu_offload_handler
+        
         supported_activations = [
             'gelu',
             'geglu',
@@ -223,18 +230,20 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 self.normalization = MixedFusedRMSNorm(
                     ffn_hidden_size // get_tensor_model_parallel_world_size(), layernorm_epsilon
                 )
+    
+    def _get_cpu_offload_context(self, region):
+        if self.cpu_offloading and (region in self.cpu_offloading_region):
+            return cpu_offload.CpuOffloadHookWithOffloadHandler(offload_handler=self.cpu_offload_handler)
+        else:
+            return nullcontext()
 
-    def forward(self, hidden_states, cpu_offloading=False, cpu_offloading_region=None, cpu_offload_handler=None):
+    
+    def forward(self, hidden_states):
 
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        if cpu_offloading and 'ffn_act' in cpu_offloading_region:
-            act_offloading_context = cpu_offload.CpuOffloadHookWithOffloadHandler(cpu_offload_handler)
-        else:
-            act_offloading_context = nullcontext()
-
-        with act_offloading_context:
+        with self._get_cpu_offload_context("ffn_act"):
             if self.fast_glu_activation:
                 intermediate_parallel, intermediate_parallel_2 = torch.chunk(intermediate_parallel, 2, dim=-1)
                 if bias_parallel is not None:
@@ -273,7 +282,8 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         # Normformer normalization
         if self.transformer_block_type == 'normformer':
-            intermediate_parallel = self.normalization(intermediate_parallel)
+            with self._get_cpu_offload_context("ln"):
+                intermediate_parallel = self.normalization(intermediate_parallel)
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)

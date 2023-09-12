@@ -37,7 +37,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
-from nemo.utils import cpu_offload
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -540,9 +539,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
-        self.cpu_offloading = cpu_offloading
-        self.cpu_offload_handler = cpu_offload_handler
-        self.cpu_offloading_region = cpu_offloading_region
         if kv_channels is None:
 
             assert (
@@ -663,6 +659,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             ub_tp_comm_overlap=ub_tp_comm_overlap,
             position_embedding_type=position_embedding_type,
             use_flash_attention=use_flash_attention,
+            cpu_offloading=cpu_offloading,
+            cpu_offloading_region=cpu_offloading_region,
+            cpu_offload_handler=cpu_offload_handler,
         )
         self._encoder_key = 'encoder'
 
@@ -817,9 +816,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 if rotary_pos_emb is not None
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
                 self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
-                cpu_offloading=self.cpu_offloading,
-                cpu_offloading_region=self.cpu_offloading_region,
-                cpu_offload_handler=self.cpu_offload_handler,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)

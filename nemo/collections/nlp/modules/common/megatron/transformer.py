@@ -173,6 +173,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
+        cpu_offloading=False,
+        cpu_offload_handler=None,
+        cpu_offloading_region=None,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -188,6 +191,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.transformer_block_type = transformer_block_type
         self.position_embedding_type = position_embedding_type
         self.param_dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        
+        self.cpu_offloading_region = cpu_offloading_region
+        self.cpu_offloading = cpu_offloading
+        self.cpu_offload_handler = cpu_offload_handler
 
         self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
 
@@ -260,6 +267,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
                 normalize_attention_scores=normalize_attention_scores,
                 use_flash_attention=use_flash_attention,
+                cpu_offloading=cpu_offloading,
+                cpu_offloading_region=cpu_offloading_region,
+                cpu_offload_handler=cpu_offload_handler,
             )
 
             if transformer_block_type == 'normformer':
@@ -450,7 +460,16 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 sequence_parallel=sequence_parallel,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
                 dropout=ffn_dropout,
+                cpu_offloading=cpu_offloading,
+                cpu_offloading_region=cpu_offloading_region,
+                cpu_offload_handler=cpu_offload_handler,
             )
+    
+    def _get_cpu_offload_context(self, region):
+        if self.cpu_offloading and (region in self.cpu_offloading_region):
+            return cpu_offload.CpuOffloadHookWithOffloadHandler(offload_handler=self.cpu_offload_handler)
+        else:
+            return nullcontext()
 
     def _get_bias_droput_add_func(self, transformer_block_type='pre_ln', position_after='attention'):
         """
@@ -490,9 +509,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
-        cpu_offloading=False,
-        cpu_offloading_region=None,
-        cpu_offload_handler=None,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -513,14 +529,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             residual = hidden_states
             # Layer norm at the beginning of the transformer layer.
             if self.transformer_block_type in ['pre_ln', 'normformer']:
-                if cpu_offloading and ('ln' in cpu_offloading_region):
-                    hidden_states = cpu_offload.offload_saved_tensor_with_handler(
-                        self.input_layernorm,
-                        [hidden_states],
-                        offload_handler=cpu_offload_handler,
-                        # debug=True,
-                    )
-                else:
+                with self._get_cpu_offload_context("ln"):
                     hidden_states = self.input_layernorm(hidden_states)
 
             attention_output, attention_bias = self.self_attention(
@@ -533,9 +542,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
                 checkpoint_core_attention=checkpoint_core_attention,
-                cpu_offloading=cpu_offloading,
-                cpu_offloading_region=cpu_offloading_region, 
-                cpu_offload_handler=cpu_offload_handler
             )
 
             if get_key_value:
@@ -547,7 +553,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 attention_output = (
                     attention_output + attention_bias if attention_bias is not None else attention_output
                 )
-                attention_output = self.post_attention_normformer_norm(attention_output)
+                with self._get_cpu_offload_context("ln"):
+                    attention_output = self.post_attention_normformer_norm(attention_output)
                 attention_bias = None
 
             # jit scripting for a nn.module (with dropout) is not
@@ -568,30 +575,18 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                         adapter_1(attention_output) + attention_output
                     )  # simple adapter call with residual connection
 
-            if cpu_offloading and ('dropout_add' in cpu_offloading_region):
-                layernorm_input = cpu_offload.offload_saved_tensor_with_handler(
-                    bias_dropout_add_func, 
-                    [attention_output, attention_bias, residual, self.hidden_dropout],
-                    cpu_offload_handler,
-                )
-            else:
+            with self._get_cpu_offload_context("bias_dropout_add"):
                 layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
             # print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
 
             # Post-LN normalization after residual
             if self.transformer_block_type == 'post_ln':
-                normalization_output = self.input_layernorm(layernorm_input)
+                with self._get_cpu_offload_context("ln"):
+                    normalization_output = self.input_layernorm(layernorm_input)
                 layernorm_input = normalization_output
             elif self.transformer_block_type in ['pre_ln', 'normformer']:
                 # Layer norm post the self attention.
-                if cpu_offloading and ('ln' in cpu_offloading_region):
-                    normalization_output = cpu_offload.offload_saved_tensor_with_handler(
-                        self.post_attention_layernorm,
-                        [layernorm_input],
-                        offload_handler=cpu_offload_handler,
-                        # debug=True,
-                    )
-                else:
+                with self._get_cpu_offload_context("ln"):
                     normalization_output = self.post_attention_layernorm(layernorm_input)
         else:
             layernorm_input, normalization_output = hidden_states
@@ -651,10 +646,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if self.transformer_block_type == 'post_ln':
                 layernorm_input = normalization_output
         # MLP.
-        mlp_output, mlp_bias = self.mlp(normalization_output, 
-                                        cpu_offloading=cpu_offloading, 
-                                        cpu_offloading_region=cpu_offloading_region, 
-                                        cpu_offload_handler=cpu_offload_handler)
+        mlp_output, mlp_bias = self.mlp(normalization_output)
         if self.is_adapter_available():
             # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
             adapter_2 = self.get_adapter_module(AdapterName.POST_ATTN_ADAPTER)
@@ -667,25 +659,20 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             transformer_block_type=self.transformer_block_type, position_after='mlp'
         )
 
-        if cpu_offloading and ('dropout_add' in cpu_offloading_region):
-            output = cpu_offload.offload_saved_tensor_with_handler(
-                bias_dropout_add_func,
-                [mlp_output, mlp_bias, residual, self.hidden_dropout],
-                cpu_offload_handler,
-            )
-        else:
+        with self._get_cpu_offload_context("bias_dropout_add"):
             output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
         # print(f"Layer: {self.layer_number} MLP + Dropout + Residual checksum {output.sum()}")
 
         if self.transformer_block_type == 'post_ln':
-            output = self.post_attention_layernorm(output)
+            with self._get_cpu_offload_context("ln"):
+                output = self.post_attention_layernorm(output)
 
         if get_key_value:
             output = [output, presents]
 
         # commit for group_async cpu offloading
-        if torch.is_grad_enabled() and self.training and cpu_offloading:
-            output = cpu_offload.group_prefetch_offload_commit(output, cpu_offload_handler)
+        if torch.is_grad_enabled() and self.training and self.cpu_offloading:
+            output = cpu_offload.group_prefetch_offload_commit(output, self.cpu_offload_handler)
 
         return output
 
@@ -734,6 +721,9 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
+        cpu_offloading=False,
+        cpu_offload_handler=None,
+        cpu_offloading_region=None,
     ):
         super(ParallelTransformerLayer, self).__init__(
             init_method=init_method,
@@ -777,6 +767,9 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             moe_frequency=moe_frequency,
             moe_dropout=moe_dropout,
             use_flash_attention=use_flash_attention,
+            cpu_offloading=cpu_offloading,
+            cpu_offloading_region=cpu_offloading_region,
+            cpu_offload_handler=cpu_offload_handler,
         )
 
         # Dtype for forward pass - ignore amp O2
@@ -796,9 +789,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
-        cpu_offloading=False,
-        cpu_offloading_region=None,
-        cpu_offload_handler=None,
     ):
         if self.dtype == torch.float32:
             return super().forward(
@@ -814,9 +804,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
                 checkpoint_core_attention,
-                cpu_offloading,
-                cpu_offloading_region,
-                cpu_offload_handler,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -832,9 +819,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
                 checkpoint_core_attention,
-                cpu_offloading,
-                cpu_offloading_region,
-                cpu_offload_handler,
             )
 
 
@@ -1003,6 +987,9 @@ class ParallelTransformer(MegatronModule):
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
+        cpu_offloading=False,
+        cpu_offloading_region=None,
+        cpu_offload_handler=None,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1185,6 +1172,9 @@ class ParallelTransformer(MegatronModule):
                     moe_frequency=moe_frequency,
                     moe_dropout=moe_dropout,
                     use_flash_attention=use_flash_attention,
+                    cpu_offloading=cpu_offloading,
+                    cpu_offloading_region=cpu_offloading_region,
+                    cpu_offload_handler=cpu_offload_handler,
                 )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -1478,9 +1468,6 @@ class ParallelTransformer(MegatronModule):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_activations_all_layers=None,
-        cpu_offloading=False,
-        cpu_offloading_region=None,
-        cpu_offload_handler=None,
     ):
         # Checks.
         if inference_max_sequence_len:
@@ -1611,9 +1598,6 @@ class ParallelTransformer(MegatronModule):
                                 self_attention_relative_position_bias=self_attention_relative_position_bias,
                                 cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                                 checkpoint_core_attention=checkpoint_core_attention,
-                                cpu_offloading=cpu_offloading,
-                                cpu_offloading_region=cpu_offloading_region,
-                                cpu_offload_handler=cpu_offload_handler,
                             )
                     # Update current sequence length outside of the loops
                     if self.transformer_engine:
