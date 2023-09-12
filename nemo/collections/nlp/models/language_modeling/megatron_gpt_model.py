@@ -371,14 +371,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
             seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-            # base=self.cfg.get('base',None),
-            # pretrain_max_positional_embeddings=self.cfg.get('pretrain_max_positional_embeddings', None),
-            # extrapolation_factor=self.cfg.get('extrapolation_factor', None),
-            # attn_factor=self.cfg.get('attn_factor', None),
-            # beta_fast=self.cfg.get('beta_fast', None),
-            # beta_slow=self.cfg.get('beta_slow',None),
-            # yarn_max_position_embeddings=self.cfg.get('yarn_max_position_embeddings',  None),
-            use_yarn=self.cfg.get('use_yarn', False)
+            base=self.cfg.get('base', 10000),
+            extrapolation_factor=self.cfg.get('extrapolation_factor', 1),
+            attn_factor=self.cfg.get('attn_factor', 1),
+            beta_fast=self.cfg.get('beta_fast', 32),
+            beta_slow=self.cfg.get('beta_slow', 1),
+            use_yarn=self.cfg.get('use_yarn', False),
         )
 
         return model

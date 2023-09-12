@@ -29,10 +29,8 @@ def find_correction_dim(num_rotations, dim, base=10000, max_position_embeddings=
 
 # Find dim range bounds based on rotations
 def find_correction_range(low_rot, high_rot, dim, base=10000, max_position_embeddings=2048):
-    low = math.floor(find_correction_dim(
-        low_rot, dim, base, max_position_embeddings))
-    high = math.ceil(find_correction_dim(
-        high_rot, dim, base, max_position_embeddings))
+    low = math.floor(find_correction_dim(low_rot, dim, base, max_position_embeddings))
+    high = math.ceil(find_correction_dim(high_rot, dim, base, max_position_embeddings))
     return max(low, 0), min(high, dim - 1)  # Clamp values just in case
 
 
@@ -56,11 +54,18 @@ class RotaryEmbedding(nn.Module):
     Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
     """
 
-    def __init__(self, dim: int, seq_len_interpolation_factor: int = None, base: int = 10000,
-                 pretrain_max_positional_embeddings: int = 2048, extrapolation_factor: int = 1, attn_factor: int = 1,
-                 beta_fast: int = 32, beta_slow: int = 1,
-                 max_position_embeddings: int = 2048,
-                 use_yarn: bool = False):
+    def __init__(
+        self,
+        dim: int,
+        seq_len_interpolation_factor: int = None,
+        base: int = 10000,
+        max_positional_embeddings: int = 2048,
+        extrapolation_factor: int = 1,
+        attn_factor: int = 1,
+        beta_fast: int = 32,
+        beta_slow: int = 1,
+        use_yarn: bool = False,
+    ):
         """
         Args:
 
@@ -74,30 +79,35 @@ class RotaryEmbedding(nn.Module):
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
         if self.use_yarn:
             self.seq_len_interpolation_factor = seq_len_interpolation_factor  # scale
-            self.pretrain_max_positional_embeddings = pretrain_max_positional_embeddings
+            self.max_positional_embeddings = max_positional_embeddings
             self.extrapolation_factor = extrapolation_factor
             self.attn_factor = attn_factor
             self.beta_fast = beta_fast
             self.beta_slow = beta_slow
             self.dim = dim
+
             pos_freqs = self.base ** (torch.arange(0, self.dim, 2).float() / self.dim)
             inv_freq_extrapolation = 1.0 / pos_freqs
             inv_freq_interpolation = 1.0 / (self.seq_len_interpolation_factor * pos_freqs)
 
-            low, high = find_correction_range(self.beta_fast, self.beta_slow, self.dim, self.base,
-                                              self.pretrain_max_positional_embeddings)
-            inv_freq_mask = (1 - linear_ramp_mask(low, high, self.dim // 2).float()) * self.extrapolation_factor  # Get n-d rotational scaling corrected for extrapolation
+            low, high = find_correction_range(
+                self.beta_fast, self.beta_slow, self.dim, self.base, self.max_positional_embeddings
+            )
+            inv_freq_mask = (
+                1 - linear_ramp_mask(low, high, self.dim // 2).float()
+            ) * self.extrapolation_factor  # Get n-d rotational scaling corrected for extrapolation
             inv_freq = inv_freq_interpolation * (1 - inv_freq_mask) + inv_freq_extrapolation * inv_freq_mask
 
             self.register_buffer("inv_freq", inv_freq)
             self.mscale = float(
-                get_mscale(self.seq_len_interpolation_factor) * self.attn_factor)  # Get n-d magnitude scaling corrected for interpolation
+                get_mscale(self.seq_len_interpolation_factor) * self.attn_factor
+            )  # Get n-d magnitude scaling corrected for interpolation
 
-            self.max_seq_len_cached = max_position_embeddings
+            self.max_seq_len_cached = self.max_positional_embeddings * self.seq_len_interpolation_factor
             t = torch.arange(self.max_seq_len_cached, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
             freqs = torch.einsum("i , j -> i j", t, self.inv_freq)
             # Different from paper, but it uses a different permutation in order to obtain the same calculation
-            emb = torch.cat((freqs, freqs), dim=-1)
+            emb = torch.cat((freqs, freqs), dim=-1) * self.mscale
             self.register_buffer('emb', emb)
 
         else:
@@ -112,10 +122,10 @@ class RotaryEmbedding(nn.Module):
                 t = torch.arange(self.max_seq_len_cached, dtype=self.inv_freq.dtype).to(self.inv_freq.device)
                 freqs = torch.einsum("i , j -> i j", t, self.inv_freq)
                 # Different from paper, but it uses a different permutation in order to obtain the same calculation
-                emb = torch.cat((freqs, freqs), dim=-1).to(self.inv_freq.device)
+                emb = torch.cat((freqs, freqs), dim=-1).to(self.inv_freq.device) * self.mscale
                 self.register_buffer('emb', emb)
             return rearrange(self.emb, 'n d -> n 1 1 d')
-        
+
         seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
         if self.seq_len_interpolation_factor is not None:
             seq = seq.type_as(self.inv_freq)
