@@ -245,7 +245,7 @@ class GPTModel(MegatronModule):
             assert isinstance(cpu_offloading_region, list), "cpu_offloading_region should be a list"
 
             for region in cpu_offloading_region:
-                assert region in ['ln', 'ffn_act', 'bias_dropout_add', 'attn_fn'], \
+                assert region in ['ln', 'ffn_act', 'bias_dropout_add', 'attn_fn', 'qkv_proj', 'out_proj', 'ffn1', 'ffn2'], \
                 f"Got region {region} but only [ln, ffn_act, bias_dropout_add, attn_fn] are supported."
         else:
             cpu_offload_handler = None

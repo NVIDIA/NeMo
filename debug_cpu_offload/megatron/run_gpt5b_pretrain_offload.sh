@@ -8,13 +8,13 @@ export PYTHONPATH=${NEMO}:${PYTHONPATH}
 MICRO_BATCH_SIZE=${1:-1}
 SEQ_LENGTH=${2:-512}
 MEGATRON_AMP_O2=${3:-"True"}
-OFFLOAD_REGION=${4:-"ln,ffn_act,bias_dropout_add,attn_fn"} # comma-separated list, choices in [ln,ffn_act,bias_dropout_add,attn_fn]
+OFFLOAD_REGION=${4:-"ln,ffn_act,bias_dropout_add,attn_fn,qkv_proj,out_proj,ffn1,ffn2"} # comma-separated list, choices in [ln,ffn_act,bias_dropout_add,attn_fn]
 OFFLOAD_NUM_LAYERS=${5:-15}
 OFFLOAD_METHOD=${6:-"group_async"} # group_async or group_jit
 
 python ${NEMO}/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
 --config-path ${NEMO}/debug_cpu_offload/megatron \
---config-name gpt_5b.yaml \
+--config-name gpt_5b_no_grad_acc_fusion.yaml \
 trainer.devices=1 \
 trainer.num_nodes=1 \
 model.micro_batch_size=${MICRO_BATCH_SIZE} \
