@@ -231,13 +231,7 @@ class DDPM(torch.nn.Module):
         assert not torch.isnan(self.lvlb_weights).all()
 
     def init_from_ckpt(
-        self,
-        path,
-        ignore_keys=list(),
-        only_model=False,
-        load_vae=True,
-        load_unet=True,
-        load_encoder=True,
+        self, path, ignore_keys=list(), only_model=False, load_vae=True, load_unet=True, load_encoder=True,
     ):
         pl_sd = torch.load(path, map_location="cpu")
         if "state_dict" in list(pl_sd.keys()):
@@ -267,25 +261,31 @@ class DDPM(torch.nn.Module):
                     del sd[k]
 
         if not load_vae:
+            deleted = 0
             keys = list(sd.keys())
             for k in keys:
                 if k.startswith("first_stage_model"):
-                    logging.info("Deleting first_stage_model key {} from state_dict.".format(k))
+                    deleted += 1
                     del sd[k]
+            logging.info(f"Deleted {deleted} keys from `first_stage_model` state_dict.")
 
         if not load_encoder:
+            deleted = 0
             keys = list(sd.keys())
             for k in keys:
                 if k.startswith("cond_stage_model"):
-                    logging.info("Deleting cond_stage key {} from state_dict.".format(k))
+                    deleted += 1
                     del sd[k]
+            logging.info(f"Deleted {deleted} keys from `cond_stage_model` state_dict.")
 
         if not load_unet:
+            deleted = 0
             keys = list(sd.keys())
             for k in keys:
                 if k.startswith("model.diffusion_model"):
-                    logging.info("Deleting unet key {} from state_dict.".format(k))
+                    deleted += 1
                     del sd[k]
+            logging.info(f"Deleted {deleted} keys from `model.diffusion_model` state_dict.")
 
         missing, unexpected = (
             self.load_state_dict(sd, strict=False) if not only_model else self.model.load_state_dict(sd, strict=False)
@@ -552,11 +552,7 @@ class LatentDiffusion(DDPM, Serialization):
             load_encoder = True if cfg.load_encoder is None else cfg.load_encoder
 
             self.init_from_ckpt(
-                ckpt_path,
-                ignore_keys,
-                load_vae=load_vae,
-                load_unet=load_unet,
-                load_encoder=load_encoder,
+                ckpt_path, ignore_keys, load_vae=load_vae, load_unet=load_unet, load_encoder=load_encoder,
             )
             self.restarted_from_ckpt = True
 
