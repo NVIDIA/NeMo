@@ -104,23 +104,13 @@ if __name__ == "__main__":
         help="StarCoder from HuggingFace hub or local dir with downloaded model",
     )
     parser.add_argument(
-        "-c",
-        "--config",
-        type=str,
-        required=True,
-        help="Path to the megatron_gpt_config.yaml file",
+        "-c", "--config", type=str, required=True, help="Path to the megatron_gpt_config.yaml file",
     )
     parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default=".",
-        help="Path to dir where to store output .nemo file",
+        "-o", "--output", type=str, default=".", help="Path to dir where to store output .nemo file",
     )
     parser.add_argument(
-        "--cuda",
-        action="store_true",
-        help="Put Nemo model onto GPU prior to saving",
+        "--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving",
     )
     args = parser.parse_args()
 
