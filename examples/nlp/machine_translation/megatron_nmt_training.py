@@ -114,8 +114,9 @@ def main(cfg) -> None:
             pretrained_cfg.label_smoothing = cfg.model.label_smoothing
 
             # Set tokenizer paths:
-            pretrained_cfg.encoder_tokenizer = pretrained_cfg.tokenizer
-            pretrained_cfg.decoder_tokenizer = pretrained_cfg.tokenizer
+            if hasattr(pretrained_cfg, 'tokenizer'):
+                pretrained_cfg.encoder_tokenizer = pretrained_cfg.tokenizer
+                pretrained_cfg.decoder_tokenizer = pretrained_cfg.tokenizer
 
             # Pre-trained models should use the legacy sentencepiece tokenizer ex: mT5
             pretrained_cfg.encoder_tokenizer.sentencepiece_legacy = True
@@ -145,6 +146,9 @@ def main(cfg) -> None:
             pretrained_cfg.micro_batch_size = cfg.model.micro_batch_size
             pretrained_cfg.global_batch_size = cfg.model.global_batch_size
 
+            # override vocab size to correct embedding size before loading the weights
+            pretrained_cfg.make_vocab_size_divisible_by = cfg.model.make_vocab_size_divisible_by
+
             # O2 AMP
             pretrained_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
 
@@ -166,6 +170,10 @@ def main(cfg) -> None:
 
             # Optimizer overrides.
             pretrained_cfg.optim = cfg.model.optim
+            
+            # override hidden_size
+            if hasattr(pretrained_cfg.encoder, 'hidden_size'):
+                pretrained_cfg.hidden_size = pretrained_cfg.encoder.hidden_size
 
         model = MegatronNMTModel.restore_from(
             cfg.model.pretrained_model_path,
