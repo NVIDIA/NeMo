@@ -246,8 +246,8 @@ def main(cfg) -> None:
                          data_dir=cfg.inference.data_dir,
                          n_jobs=cfg.inference.n_jobs)
 
-    truncated_input = [s.replace("\n"," ").strip().replace("  ", " ") for s in truncated_input]
-    
+    truncated_input = [s.replace("\n"," ").replace("\t"," ").strip().replace("  ", " ") for s in truncated_input]
+  
     # Second method of running text generation, call trainer.predict [recommended]
     print("Running inference...")
     bs = cfg.inference.batch_size
