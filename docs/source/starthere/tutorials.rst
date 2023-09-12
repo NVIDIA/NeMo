@@ -188,6 +188,12 @@ To run a tutorial:
      - Pronunciation_customization
      - `TTS Pronunciation_customization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Pronunciation_customization.ipynb>`_
    * - Tools
+     - NeMo Forced Aligner
+     - `NeMo Forced Aligner <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tools/NeMo_Forced_Aligner_Tutorial.ipynb>`_
+   * - Tools
+     - Speech Data Explorer
+     - `Speech Data Explorer  <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/SDE_HowTo_v2.ipynb>`_   
+   * - Tools
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
    * - Text Processing (TN/ITN)

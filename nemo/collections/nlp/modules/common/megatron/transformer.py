@@ -25,6 +25,7 @@ from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     ParallelLinearAdapterConfig,
+    ParallelLinearAdapterWeightTyingConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention, ParallelChunkedCrossAttention
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
@@ -57,11 +58,13 @@ except (ImportError, ModuleNotFoundError):
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
@@ -131,6 +134,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         layer_number,
@@ -146,12 +150,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
         persist_layer_norm=False,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
-        gradient_accumulation_fusion=False,
         openai_gelu=False,
         onnx_safe=False,
         attention_dropout=0.1,
@@ -166,14 +168,13 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         multi_query_attention=False,
         headscale=False,
         activations_checkpoint_granularity=None,
-        sequence_parallel=False,
         normalize_attention_scores=True,
         num_moe_experts=1,
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
     ):
-        super(ParallelTransformerLayer_, self).__init__()
+        super(ParallelTransformerLayer_, self).__init__(config=config)
 
         if kv_channels is None:
             assert (
@@ -186,9 +187,15 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.bias = bias
         self.transformer_block_type = transformer_block_type
         self.position_embedding_type = position_embedding_type
-        self.param_dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.param_dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
-        self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
+        self.set_accepted_adapter_types(
+            [
+                LinearAdapterConfig._target_,
+                ParallelLinearAdapterConfig._target_,
+                ParallelLinearAdapterWeightTyingConfig._target_,
+            ]
+        )
 
         if not bias and bias_dropout_add_fusion:
             raise ValueError(
@@ -216,11 +223,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Layernorm on the input data.
             if normalization == 'layernorm':
                 self.input_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                 )
             elif normalization == 'layernorm1p':
                 self.input_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                 )
             elif normalization == 'low_precision_layernorm':
                 self.input_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
@@ -234,6 +241,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 remove_bias_from_layernorm(self.input_layernorm)
 
             self.self_attention = ParallelAttention(
+                config=config,
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 layer_number=layer_number,
@@ -244,7 +252,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 precision=precision,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
-                use_cpu_initialization=use_cpu_initialization,
                 megatron_amp_O2=megatron_amp_O2,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
@@ -253,10 +260,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 megatron_legacy=megatron_legacy,
                 bias=bias,
                 headscale=headscale,
-                activations_checkpoint_granularity=activations_checkpoint_granularity,
                 position_embedding_type=position_embedding_type,
-                sequence_parallel=sequence_parallel,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
                 normalize_attention_scores=normalize_attention_scores,
                 use_flash_attention=use_flash_attention,
             )
@@ -274,11 +278,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 # don't need it for decoder_pre_mlp and post_ln
                 if normalization == 'layernorm':
                     self.post_attention_layernorm = get_layer_norm(
-                        hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                        hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                     )
                 elif normalization == 'layernorm1p':
                     self.post_attention_layernorm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 elif normalization == 'low_precision_layernorm':
                     self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
@@ -297,11 +301,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Layernorm on the attention output
             if normalization == 'layernorm':
                 self.post_attention_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                 )
             elif normalization == 'layernorm1p':
                 self.post_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                 )
             elif normalization == 'low_precision_layernorm':
                 self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
@@ -312,6 +316,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
         if self.layer_type == LayerType.decoder or self.layer_type == LayerType.retrieval_encoder:
             self.inter_attention = ParallelAttention(
+                config=config,
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 layer_number=layer_number,
@@ -323,26 +328,23 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 multi_query_attention=multi_query_attention,
-                use_cpu_initialization=use_cpu_initialization,
                 megatron_amp_O2=megatron_amp_O2,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
                 megatron_legacy=megatron_legacy,
                 bias=bias,
                 headscale=headscale,
-                sequence_parallel=sequence_parallel,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
                 normalize_attention_scores=normalize_attention_scores,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
                 if normalization == 'layernorm':
                     self.post_inter_attention_normformer_norm = get_layer_norm(
-                        hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                        hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                     )
                 elif normalization == 'layernorm1p':
                     self.post_inter_attention_normformer_norm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 else:
                     self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -350,11 +352,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Layernorm on the attention output.
             if normalization == 'layernorm':
                 self.post_inter_attention_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                 )
             elif normalization == 'layernorm1p':
                 self.post_inter_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                 )
             else:
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -363,6 +365,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             or self.layer_type == LayerType.retrieval_decoder_after_self_attn
         ):
             self.inter_attention = ParallelChunkedCrossAttention(
+                config=config,
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 layer_number=layer_number,
@@ -371,7 +374,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 precision=precision,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
-                use_cpu_initialization=use_cpu_initialization,
                 megatron_amp_O2=megatron_amp_O2,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
@@ -379,17 +381,16 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 chunk_size=chunk_size,
                 bias=bias,
                 headscale=headscale,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
                 if normalization == 'layernorm':
                     self.post_inter_attention_normformer_norm = get_layer_norm(
-                        hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                        hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                     )
                 elif normalization == 'layernorm1p':
                     self.post_inter_attention_normformer_norm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 else:
                     self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -397,11 +398,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Layernorm on the attention output.
             if normalization == 'layernorm':
                 self.post_inter_attention_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                 )
             elif normalization == 'layernorm1p':
                 self.post_inter_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                 )
             else:
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -409,12 +410,12 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         # MLP
         if num_moe_experts > 1 and self.layer_number % moe_frequency == 0:
             self.mlp = SwitchMLP(
+                config=config,
                 num_experts=num_moe_experts,
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
-                use_cpu_initialization=use_cpu_initialization,
                 dtype=self.param_dtype,
                 bias_activation_fusion=bias_activation_fusion,
                 openai_gelu=openai_gelu,
@@ -425,17 +426,15 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 normalization=normalization,
                 layernorm_epsilon=layernorm_epsilon,
                 persist_layer_norm=persist_layer_norm,
-                sequence_parallel=sequence_parallel,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
                 dropout=moe_dropout,
             )
         else:
             self.mlp = ParallelMLP(
+                config=config,
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
-                use_cpu_initialization=use_cpu_initialization,
                 dtype=self.param_dtype,
                 bias_activation_fusion=bias_activation_fusion,
                 openai_gelu=openai_gelu,
@@ -446,8 +445,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 normalization=normalization,
                 layernorm_epsilon=layernorm_epsilon,
                 persist_layer_norm=persist_layer_norm,
-                sequence_parallel=sequence_parallel,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
                 dropout=ffn_dropout,
             )
 
@@ -649,6 +646,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 class ParallelTransformerLayer(ParallelTransformerLayer_):
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         layer_number,
@@ -665,7 +663,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         hidden_dropout=0.1,
         bias_dropout_add_fusion=True,
         persist_layer_norm=False,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         bias_activation_fusion=True,
         openai_gelu=False,
@@ -683,8 +680,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         multi_query_attention=False,
         headscale=False,
         activations_checkpoint_granularity=None,
-        sequence_parallel=False,
-        gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
         num_moe_experts=1,
         moe_frequency=1,
@@ -692,6 +687,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         use_flash_attention=False,
     ):
         super(ParallelTransformerLayer, self).__init__(
+            config=config,
             init_method=init_method,
             output_layer_init_method=output_layer_init_method,
             layer_number=layer_number,
@@ -708,7 +704,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             hidden_dropout=hidden_dropout,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
             persist_layer_norm=persist_layer_norm,
-            use_cpu_initialization=use_cpu_initialization,
             megatron_amp_O2=megatron_amp_O2,
             bias_activation_fusion=bias_activation_fusion,
             openai_gelu=openai_gelu,
@@ -726,8 +721,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             headscale=headscale,
             multi_query_attention=multi_query_attention,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
-            sequence_parallel=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
             normalize_attention_scores=normalize_attention_scores,
             num_moe_experts=num_moe_experts,
             moe_frequency=moe_frequency,
@@ -736,7 +729,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         )
 
         # Dtype for forward pass - ignore amp O2
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2=None)
+        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2=None)
 
     def forward(
         self,
@@ -852,7 +845,7 @@ class AutocastTransformerLayer(TransformerLayer):
         # use_emha=use_emha,
 
         # Dtype for forward pass - ignore amp O2
-        self.dtype = utils_funcs.dtype_from_precision(autocast_dtype, megatron_amp_O2=None)
+        self.dtype = utils_funcs.torch_dtype_from_precision(autocast_dtype, megatron_amp_O2=None)
 
     def forward(
         self,
@@ -891,6 +884,7 @@ class ParallelTransformer(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         num_layers,
@@ -911,12 +905,10 @@ class ParallelTransformer(MegatronModule):
         hidden_dropout=0.1,
         attention_dropout=0.1,
         ffn_dropout=0.0,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
-        gradient_accumulation_fusion=False,
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
@@ -932,7 +924,6 @@ class ParallelTransformer(MegatronModule):
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         activations_checkpoint_granularity=None,
         activations_checkpoint_layers_per_pipeline=None,
-        sequence_parallel=False,
         transformer_engine=False,
         fp8=False,
         fp8_e4m3=False,
@@ -951,7 +942,7 @@ class ParallelTransformer(MegatronModule):
         moe_dropout=0.0,
         use_flash_attention=False,
     ):
-        super(ParallelTransformer, self).__init__()
+        super(ParallelTransformer, self).__init__(config=config)
 
         if kv_channels is None:
             assert (
@@ -990,14 +981,14 @@ class ParallelTransformer(MegatronModule):
                 elif self.activations_checkpoint_method == 'block':
                     logging.info(
                         (
-                            f'Using block activation checkpointing requires activations_checkpoint_num_layers to be set.'
-                            f'Got: {self.activations_checkpoint_num_layers}. Setting to 1 by default.'
+                            f'Using block activation checkpointing with granularity selective forces all layers to use checkpointing.'
                         )
                     )
                 else:
                     raise ValueError(
                         f'activations_checkpoint_method should be "uniform" or "block" when using granularity selective.'
                     )
+                self.activations_checkpoint_num_layers = num_layers  # forcing all layers
             elif self.activations_checkpoint_granularity == 'full':
                 if self.activations_checkpoint_method in ['uniform', 'block']:
                     if not self.activations_checkpoint_num_layers:
@@ -1007,6 +998,7 @@ class ParallelTransformer(MegatronModule):
                                 f'Got: {self.activations_checkpoint_num_layers}. Setting to 1 by default.'
                             )
                         )
+                        self.activations_checkpoint_num_layers = 1  # keeping the old default
                 else:
                     raise ValueError(
                         f'activations_checkpoint_method should be "uniform" or "block" when using granularity full.'
@@ -1014,7 +1006,7 @@ class ParallelTransformer(MegatronModule):
             else:
                 raise ValueError(f'activations_checkpoint_granularity should be "selective" or "full".')
 
-        self.sequence_parallel = sequence_parallel
+        self.sequence_parallel = config.sequence_parallel
         self.transformer_engine = transformer_engine
         self.fp8 = fp8
         self.fp8_e4m3 = fp8_e4m3
@@ -1056,6 +1048,13 @@ class ParallelTransformer(MegatronModule):
         # TODO: Add similar assert for encoder-decoder.
 
         self.num_layers = self.get_num_layers(num_layers)
+
+        if (
+            self.activations_checkpoint_num_layers is not None
+            and self.activations_checkpoint_num_layers > self.num_layers
+        ):
+            self.activations_checkpoint_num_layers = self.num_layers
+
         # Transformer layers.
         def build_layer(layer_number):
             if isinstance(layer_type, list):
@@ -1079,11 +1078,11 @@ class ParallelTransformer(MegatronModule):
                     tp_size=parallel_state.get_tensor_model_parallel_world_size(),
                     params_dtype=torch.float32,  # dtype params are initialized in
                     get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
-                    fuse_wgrad_accumulation=gradient_accumulation_fusion,
+                    fuse_wgrad_accumulation=config.gradient_accumulation_fusion,
                     apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                     seq_length=None,  # used for jit warmup
                     micro_batch_size=None,  # used for jit warmup
-                    sequence_parallel=sequence_parallel,
+                    sequence_parallel=config.sequence_parallel,
                     apply_residual_connection_post_layernorm=False,
                     autocast_dtype=precision,
                     use_emha=use_emha,
@@ -1092,6 +1091,7 @@ class ParallelTransformer(MegatronModule):
                 )
             else:
                 return ParallelTransformerLayer(
+                    config=config,
                     init_method=init_method,
                     output_layer_init_method=output_layer_init_method,
                     layer_number=layer_number + layer_number_offset,
@@ -1108,12 +1108,10 @@ class ParallelTransformer(MegatronModule):
                     hidden_dropout=hidden_dropout,
                     attention_dropout=attention_dropout,
                     ffn_dropout=ffn_dropout,
-                    use_cpu_initialization=use_cpu_initialization,
                     megatron_amp_O2=megatron_amp_O2,
                     bias_activation_fusion=bias_activation_fusion,
                     bias_dropout_add_fusion=bias_dropout_add_fusion,
                     masked_softmax_fusion=masked_softmax_fusion,
-                    gradient_accumulation_fusion=gradient_accumulation_fusion,
                     persist_layer_norm=persist_layer_norm,
                     position_embedding_type=position_embedding_type,
                     openai_gelu=openai_gelu,
@@ -1126,7 +1124,6 @@ class ParallelTransformer(MegatronModule):
                     transformer_block_type=transformer_block_type,
                     headscale=headscale,
                     activations_checkpoint_granularity=activations_checkpoint_granularity,
-                    sequence_parallel=sequence_parallel,
                     normalize_attention_scores=normalize_attention_scores,
                     num_moe_experts=num_moe_experts,
                     moe_frequency=moe_frequency,
@@ -1176,11 +1173,11 @@ class ParallelTransformer(MegatronModule):
             # Final layer norm before output.
             if normalization == 'layernorm':
                 self.final_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel=sequence_parallel
+                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel=config.sequence_parallel
                 )
             elif normalization == 'layernorm1p':
                 self.final_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                 )
             elif normalization == 'low_precision_layernorm':
                 self.final_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)

@@ -90,12 +90,18 @@ def _mask_targets(
             # target[cur_idx + 1:cur_idx + tokenized_len] skip the turn token
             if not torch.equal(target[cur_idx + 1 : cur_idx + tokenized_len], s_id[1:]):
                 logging.warning("a sentence mismatches the corresponding piece " "in the conversation")
-        if i == 0:
+        if i == 0 and (gtype == 'VALUE_TO_TEXT' or gtype is None):
             # mask the first turn completely to provide at least one turn as context
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker == mask_role:
+        elif speaker == mask_role and i == 1 and gtype == 'TEXT_TO_VALUE':
             # leave the first human tag unmasked
             target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
+        elif speaker == mask_role and (i > 1):
+            # leave the first human tag unmasked
+            target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
+        elif speaker == mask_role and (i <= 1):
+            # mask out everything in the second turn
+            target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
         else:
             # mask up to the name end, need to remove one as skip name has an extra artifact empty token
             target[cur_idx : cur_idx + skip_name_len] = IGNORE_INDEX
@@ -109,6 +115,8 @@ def cannonical_form_formater(cannoical_form):
 def response_value_formater(label):
     if isinstance(label, str):
         return '<extra_id_2>' + label + '\n'
+    elif label is None:
+        return ''
     else:
         raise ValueError(f'Unknown label type {type(label)}, only str type is supported')
 
@@ -199,7 +207,6 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
     # not going to train on the header
     target[:header_len] = IGNORE_INDEX
     input_ids = torch.LongTensor(input_ids)
-
     _mask_targets(
         target,
         tokenized_lens,
@@ -214,7 +221,11 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
     )
     mask = (target != IGNORE_INDEX).bool()
     assert mask.sum().item() != 0, "mask is empty"
-    return dict(input_ids=input_ids, mask=mask)
+    # Choose the last conversation as answer other history are context
+    last_ignore_index_pos = torch.nonzero(target == IGNORE_INDEX)[-1].item() + 1
+    context_ids = input_ids[:last_ignore_index_pos]
+    answer_ids = input_ids[last_ignore_index_pos:]
+    return dict(input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids)
 
 
 def _check_token_in_vocab(tokenizer, token):
@@ -226,6 +237,9 @@ def _check_token_in_vocab(tokenizer, token):
 
 
 class GPTSFTChatDataset(GPTSFTDataset):
+    def _maybe_validate_prompt_template(self):
+        pass
+
     def _build_samples_mapping(self):
         super()._build_samples_mapping()
         assert hasattr(self.tokenizer, "vocab"), "tokenizer should have vocab property, not supported"
@@ -254,19 +268,28 @@ class GPTSFTChatDataset(GPTSFTDataset):
         """
         result = preprocess(example, self.tokenizer, self.extra_id_2_token_id, self.new_line_token_id)
 
+        # store metadata in dataset, in case user may have keys required in the prediction json files
+        metadata = {k: v for k, v in example.items() if k not in ['conversations']}
+        result['metadata'] = metadata
+
         return result
 
     def collate_fn(self, batch):
         input_ids = [item['input_ids'][:-1].tolist() for item in batch]
         labels = [item['input_ids'][1:].tolist() for item in batch]
+        contexts = [item['context_ids'].tolist() for item in batch]
+        answers = [item['answer_ids'].tolist() for item in batch]
         loss_mask = [item['mask'][1:].tolist() for item in batch]
+        metadata = [item['metadata'] for item in batch]
 
-        max_length = max([len(x) for x in input_ids])
+        max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
         if max_length > self.max_seq_length:
             # truncate the sequences if it is longer than max_seq_length
             input_ids = [x[: self.max_seq_length] for x in input_ids]
             labels = [x[: self.max_seq_length] for x in labels]
             loss_mask = [x[: self.max_seq_length] for x in loss_mask]
+            contexts = [x[: self.max_seq_length] for x in contexts]
+
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
             max_length = self.max_seq_length
@@ -283,6 +306,9 @@ class GPTSFTChatDataset(GPTSFTDataset):
         )
         labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
+        context_lengths = torch.LongTensor([len(x) for x in contexts])
+        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id))
 
         processed_batch = {
             'tokens': input_ids,
@@ -290,6 +316,10 @@ class GPTSFTChatDataset(GPTSFTDataset):
             'attention_mask': attention_mask,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
+            'contexts': contexts,
+            'context_lengths': context_lengths,
+            'answers': answers,
+            'metadata': metadata,
         }
 
         return processed_batch
