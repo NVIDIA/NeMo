@@ -89,7 +89,7 @@ def load_model(cls, checkpoint, strict, **kwargs):
                     module.data = checkpoint['state_dict'][name]
                     checkpoint['state_dict'].pop(name)
                 else:
-                    print(f"Unexpected key: {name} not in checkpoint but in model.")
+                    logging.info(f"Unexpected key: {name} not in checkpoint but in model.")
             if len(checkpoint['state_dict'].keys()) != 0:
                 raise RuntimeError(
                     f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model."
@@ -259,6 +259,8 @@ def convert(args):
     
     nemo_config.mcore_gpt = True
     nemo_config.transformer_engine = True
+    nemo_config.bias_activation_fusion = False
+    
     logging.info(f"nemo_config {nemo_config}")
     logging.info(f"mcore_gpt: {nemo_config.mcore_gpt}")
     logging.info(f"transformer_engine: {nemo_config.transformer_engine}")
@@ -271,20 +273,23 @@ def convert(args):
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
     
-    def add_to_checkpoint(source_prefix, target_prefix, weight_or_bias):
+    def add_to_checkpoint(source_prefix, target_prefix, weight_or_bias, is_layernorm=False):
         source_name = f"{source_prefix}.{weight_or_bias}"
         if source_name in model.state_dict():
-            target_name = f"{target_prefix}.{weight_or_bias}"
+            if is_layernorm:
+                target_name = f"{target_prefix}_{weight_or_bias}"
+            else:
+                target_name = f"{target_prefix}.{weight_or_bias}"
             checkpoint['state_dict'][target_name] = param_to_weights(model.state_dict()[source_name])
             
             # add debug remove mapped keys
             if source_name in hf_keys:
                 hf_keys.remove(source_name)
 
-    def add_weight_and_possible_bias(source_prefix, target_prefix):
-        add_to_checkpoint(source_prefix, target_prefix, 'weight')
+    def add_weight_and_possible_bias(source_prefix, target_prefix, is_layernorm=False):
+        add_to_checkpoint(source_prefix, target_prefix, 'weight', is_layernorm)
         if f"{source_prefix}.bias" in model.state_dict():
-            add_to_checkpoint(source_prefix, target_prefix, 'bias')
+            add_to_checkpoint(source_prefix, target_prefix, 'bias', is_layernorm)
     
     add_to_checkpoint('transformer.word_embeddings', 'model.embedding.word_embeddings', 'weight')
 
@@ -311,12 +316,12 @@ def convert(args):
         add_weight_and_possible_bias(f'{prefix}.mlp.dense_4h_to_h', f'model.decoder.layers.{l}.mlp.linear_fc2')
 
         if hf_config.new_decoder_architecture:
-            add_weight_and_possible_bias(f'{prefix}.ln_attn', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm')
-            add_weight_and_possible_bias(f'{prefix}.ln_mlp', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm')
+            add_weight_and_possible_bias(f'{prefix}.ln_attn', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True)
+            add_weight_and_possible_bias(f'{prefix}.ln_mlp', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True)
         else:
-            add_weight_and_possible_bias(f'{prefix}.input_layernorm', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm')
+            add_weight_and_possible_bias(f'{prefix}.input_layernorm', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True)
             if not hf_config.parallel_attn:
-                add_weight_and_possible_bias(f'{prefix}.post_attention_layernorm', f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm')
+                add_weight_and_possible_bias(f'{prefix}.post_attention_layernorm', f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm', is_layernorm=True)
 
         print(f"done layer {l}")
 
