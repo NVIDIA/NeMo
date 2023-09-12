@@ -266,6 +266,12 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # relative position embedding
         self.layer_type = layer_type
 
+    def _get_cpu_offload_context(self, region):
+        if self.cpu_offloading and (region in self.cpu_offloading_region):
+            return cpu_offload.CpuOffloadHookWithOffloadHandler(offload_handler=self.cpu_offload_handler)
+        else:
+            return nullcontext()
+    
     def _checkpointed_attention_forward(
         self,
         query_layer,
@@ -416,7 +422,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         if self.attention_type == AttnType.self_attn:
             # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
-            mixed_x_layer, _ = self.query_key_value(hidden_states)
+            with self._get_cpu_offload_context("qkv_proj"):
+                mixed_x_layer, _ = self.query_key_value(hidden_states)
             if self.is_adapter_available():
                 lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
                 if lora_kqv_adapter:
@@ -554,7 +561,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # Output. [sq, b, h]
         # =================
 
-        output, bias = self.dense(context_layer)
+        with self._get_cpu_offload_context("out_proj"):
+            output, bias = self.dense(context_layer)
 
         if get_key_value:
             output = [output, present]

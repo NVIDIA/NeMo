@@ -199,6 +199,15 @@ class GPTModel(MegatronModule):
 
         # initialize cpu offload handler
         if cpu_offloading:
+            # the function to check if a tensor is not a parameter
+            def tensor_need_offloading_checker(tensor):
+                return (
+                    (not isinstance(tensor, torch.nn.Parameter))    # avoid parameters
+                    # and (len(tensor.shape) == 3)                    # this is a hack to make sure only qkv 
+                    #                                                 # tensors are offloaded in flash attention. 
+                    #                                                 # otherwise flash attention throws device illegal access somehow
+                    )
+            
             if cpu_offloading_method == 'group_async':
                 assert (
                     cpu_offloading_num_layers > 0 and cpu_offloading_num_layers <= num_layers
@@ -207,14 +216,6 @@ class GPTModel(MegatronModule):
                     cpu_offloading_num_prefetch_layers >= 0
                 ), "cpu_offloading_num_prefetch_layers should be >= 0"
                 
-                # the function to check if a tensor is not a parameter
-                def tensor_need_offloading_checker(tensor):
-                    return (
-                        (not isinstance(tensor, torch.nn.Parameter))    # avoid parameters
-                        and (len(tensor.shape) == 3)                    # this is a hack to make sure only qkv 
-                                                                        # tensors are offloaded in flash attention. 
-                                                                        # otherwise flash attention throws device illegal access somehow
-                        )
                 
                 # initialize the cpu offload handler
                 cpu_offload_handler = cpu_offload.GroupAsyncOffloadHandler(
@@ -227,15 +228,6 @@ class GPTModel(MegatronModule):
                 assert (
                     cpu_offloading_num_layers > 0 and cpu_offloading_num_layers <= num_layers
                 ), "cpu_offloading_num_layers should be in [0, num_layers] but got %d" % cpu_offloading_num_layers
-                
-                # the function to check if a tensor is not a parameter
-                def tensor_need_offloading_checker(tensor):
-                    return (
-                        (not isinstance(tensor, torch.nn.Parameter))    # avoid parameters
-                        and (len(tensor.shape) == 3)                    # this is a hack to make sure only qkv 
-                                                                        # tensors are offloaded in flash attention. 
-                                                                        # otherwise flash attention throws device illegal access somehow
-                        )
                 
                 # initialize the cpu offload handler
                 cpu_offload_handler = cpu_offload.GroupJitOffloadHandler(

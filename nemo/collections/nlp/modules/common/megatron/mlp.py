@@ -241,9 +241,9 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
     def forward(self, hidden_states):
 
         # [s, b, 4hp]
-        intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
+        with self._get_cpu_offload_context("ffn1"):
+            intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        with self._get_cpu_offload_context("ffn_act"):
             if self.fast_glu_activation:
                 intermediate_parallel, intermediate_parallel_2 = torch.chunk(intermediate_parallel, 2, dim=-1)
                 if bias_parallel is not None:
@@ -251,6 +251,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             elif self.glu_activation_family and not self.fast_glu_activation:
                 intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
 
+        with self._get_cpu_offload_context("ffn_act"):
             if self.bias_activation_fusion:
                 if self.activation == 'gelu':
                     intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
@@ -286,7 +287,8 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 intermediate_parallel = self.normalization(intermediate_parallel)
 
         # [s, b, h]
-        output, output_bias = self.dense_4h_to_h(intermediate_parallel)
+        with self._get_cpu_offload_context("ffn2"):
+            output, output_bias = self.dense_4h_to_h(intermediate_parallel)
         return output, output_bias
 
 
