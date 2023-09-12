@@ -31,12 +31,12 @@ from nemo.utils import AppState
 
 try:
     from apex import amp
-
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
-    from nemo.collections.nlp.parts.microbatch_calculator import _reconfigure_microbatch_calculator
     HAVE_APEX = False
+
+from nemo.collections.nlp.parts.microbatch_calculator import _reconfigure_microbatch_calculator
 
 try:
     from megatron.core import parallel_state, tensor_parallel
