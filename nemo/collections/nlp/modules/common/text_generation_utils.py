@@ -30,13 +30,13 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.utils import AppState
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-
+    from apex import amp
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
-
     HAVE_APEX = False
+
+from nemo.collections.nlp.parts.microbatch_calculator import _reconfigure_microbatch_calculator
 
 try:
     from megatron.core import parallel_state, tensor_parallel

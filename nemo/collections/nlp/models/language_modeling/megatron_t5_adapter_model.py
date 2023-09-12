@@ -26,11 +26,11 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import (
     MegatronT5PromptLearningModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -147,28 +147,28 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         }
 
     def validation_step(self, dataloader_iter, batch_idx, inference=False):
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        try:
-            batch = next(dataloader_iter)
-            enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
-
-            mode = self.training
-            self.eval()
-            gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
-            self._reconfigure_and_process_inference_batch(enc_input.size(0), gbs)
-            loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
-
-            if self.cfg.get('report_validation_metric', False):
-                metrics = self.compute_accuracy(enc_input, enc_mask, labels)
-                metrics['loss'] = loss_mean
-            else:
-                metrics = {'loss': loss_mean}
-
-            self.validation_step_outputs.append(metrics)
-            self.train(mode=mode)
-            return metrics
-        except StopIteration:
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
             return
+        batch = next(dataloader_iter)
+        enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+
+        mode = self.training
+        self.eval()
+        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        self._reconfigure_and_process_inference_batch(enc_input.size(0), gbs)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
+
+        if self.cfg.get('report_validation_metric', False):
+            metrics = self.compute_accuracy(enc_input, enc_mask, labels)
+            metrics['loss'] = loss_mean
+        else:
+            metrics = {'loss': loss_mean}
+
+        self.validation_step_outputs.append(metrics)
+        self.train(mode=mode)
+        return metrics
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 

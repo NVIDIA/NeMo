@@ -26,7 +26,6 @@ from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
-from nemo.collections.nlp.modules.common.prompt_encoder import InferenceTable
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
@@ -54,7 +53,7 @@ except (ImportError, ModuleNotFoundError):
 
 class AdapterName(str, enum.Enum):
     """
-    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility. 
+    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility.
     """
 
     MLP_INFUSED = "mlp_infused_adapter"
@@ -96,7 +95,7 @@ class InfusedAdapter(nn.Module, AdapterModuleUtil):
 class MLPInfusedAdapter(InfusedAdapter):
     """
     MLPInfusedAdapter is basically a clone of InfusedAdapter. We do this to make the adapter_mixin agnostic to adapter names
-    and only check adapter class types. 
+    and only check adapter class types.
     """
 
     pass
@@ -243,7 +242,7 @@ class ParallelLinearAdapterConfig(AdapterConfig):
 
 class LoraKQVAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -252,7 +251,7 @@ class LoraKQVAdapter(ParallelLinearAdapter):
 
 class LoraKVAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -261,7 +260,7 @@ class LoraKVAdapter(ParallelLinearAdapter):
 
 class LoraQAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -285,7 +284,7 @@ class LoraKVAdapterConfig(ParallelLinearAdapterConfig):
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
-    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
+    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning. It only have two layers.
     TODO: (@adithyare) Need to add all the functionality from the PromptEncoder class
     """
@@ -306,7 +305,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
             virtual_tokens: the  number of vitural tokens
             hidden_size: hidden dimension
             output_size:  the output dimension
-            init_std: the MLP init std value 
+            init_std: the MLP init std value
         """
         super().__init__()
         self.bottleneck_dim = bottleneck_dim
@@ -323,7 +322,8 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         # (@adithyare) the persistent=False will not pollute the indices into the state_dict of this module.
         self.register_buffer("indices", torch.LongTensor(list(range(self.virtual_tokens))), persistent=False)
         self.embedding = torch.nn.Embedding(self.virtual_tokens, self.embedding_dim)
-        self.inference_table = InferenceTable("taskname", self.output_dim, self.virtual_tokens)
+        self.register_buffer("inference_table", torch.Tensor(self.virtual_tokens, self.output_dim), persistent=True)
+        self.is_inference_ready = False
         self.first = ColumnParallelLinear(
             self.embedding_dim,
             self.bottleneck_dim,
@@ -357,13 +357,16 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         This method caches the output representation from the Encoder and saves it inside `self.inference_table`.
         """
         prompt_representation = prompt_representation.detach().clone()
-        self.inference_table.set_prompt_table(prompt_representation)
+        self.inference_table.data = prompt_representation
+        self.is_inference_ready = True
+        return True
 
     def clear_inference_table(self,):
-        self.inference_table.clear_prompt_table()
+        self.inference_table.fill_(0.0)
+        self.is_inference_ready = False
 
     def get_inference_table(self,):
-        return self.inference_table.get_prompt_table()
+        return self.inference_table.data
 
     def inner_forward(self,):
         input_embeds = self.embedding(self.indices).unsqueeze(0)
@@ -375,18 +378,19 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         return output_embeds
 
     def forward(self, batch_size: int, use_cached_reps: bool = False) -> torch.Tensor:
-        """ 
+        """
         Forward pass through the encoder with caching of prompt representations
         """
         if use_cached_reps:
             output_embeds = self.get_inference_table().unsqueeze(1)
         else:
             if self.training:
-                if self.inference_table.is_inference_ready:
+                if self.is_inference_ready:
                     self.clear_inference_table()
                 output_embeds = self.inner_forward()
             else:
-                if not self.inference_table.is_inference_ready:
+                output_embeds = self.inner_forward()
+                if not self.is_inference_ready:
                     output_embeds = self.inner_forward()
                     self.set_inference_table(output_embeds.squeeze(1))
                 output_embeds = self.get_inference_table().unsqueeze(1)
@@ -544,7 +548,7 @@ class ParallelLinearAdapterWeightTyingConfig:
 
 class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
     """
-    TODO 
+    TODO
     """
 
     pass

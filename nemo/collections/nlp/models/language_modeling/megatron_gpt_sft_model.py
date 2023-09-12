@@ -17,7 +17,7 @@ from functools import partial
 from typing import Any, Optional
 
 import torch
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
@@ -43,17 +43,12 @@ from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModel
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
-try:
-    from apex.transformer.pipeline_parallel.utils import (
+from nemo.collections.nlp.parts.microbatch_calculator import (
         _reconfigure_microbatch_calculator,
         get_current_global_batch_size,
         get_micro_batch_size,
         get_num_microbatches,
     )
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 try:
     from megatron.core import parallel_state
@@ -69,16 +64,12 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronGPTSFTModel']
 
 
-class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
+class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
     """
     Megatron GPT Supervised Fine-Tuning
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
         super().__init__(cfg, trainer=trainer)
         self.sep_id = cfg.get('sep_id', 49704)
         if hasattr(self.cfg.data, "validation_ds"):
@@ -170,6 +161,7 @@ class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
         # We then set things up for real only once setup() of this class is called.
         resume_checkpoint_path = self.trainer.ckpt_path
+        self.setup_complete = True
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -187,7 +179,7 @@ class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
             self.setup_training_dataloader()
         if hasattr(self, '_validation_ds'):
             self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
-        if hasattr(self.cfg.data, 'test_ds'):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
         # Raise error if using multiple dataloaders
@@ -198,17 +190,19 @@ class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
             raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            if isinstance(self.model, list):
-                for i, module in enumerate(self.model):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    module.sync_initial_word_embeddings()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-            else:
-                self.model.sync_initial_word_embeddings()
+        if not self.cfg.get('mcore_gpt', False):
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                if isinstance(self.model, list):
+                    for i, module in enumerate(self.model):
+                        parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                        module.sync_initial_word_embeddings()
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+                else:
+                    self.model.sync_initial_word_embeddings()
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
+        self.setup_complete = True
 
     def _build_dataset(self, data_cfg, is_train=True):
         datasets = []
@@ -340,6 +334,10 @@ class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
+        self.model.config.no_sync_func = no_sync_func
+        self.model.config.grad_sync_func = grad_sync_func
+        self.model.config.param_sync_func = param_sync_func
+
         fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
@@ -382,20 +380,17 @@ class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
         return loss_mean
 
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        try:
-            return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
-        except StopIteration:
-            return
+        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        try:
-            return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
-        except StopIteration:
-            return
+        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
 
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
+            return
         batch = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
@@ -755,7 +750,7 @@ class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
             logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
         if stage != 'validate':
-            if hasattr(self.cfg.data, 'test_ds'):
+            if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
                 logging.info('Building GPT SFT test datasets.')
                 # Wrap this in a list since the general finetuning parent class supports multi-validation.
                 self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
@@ -833,6 +828,9 @@ class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         return super().on_test_epoch_start()
+
+    def on_predict_epoch_start(self):
+        return self.on_test_epoch_start()
 
     def on_test_epoch_end(self):
         _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)

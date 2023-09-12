@@ -22,6 +22,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPDDPStrategy,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.utils import logging
 
 
 class MegatronTrainerBuilder:
@@ -59,7 +60,9 @@ class MegatronTrainerBuilder:
             plugins: list of plugins passed to Trainer.plugins including precision plugins.
         """
         megatron_amp_o2 = self.cfg.model.get('megatron_amp_O2', False)
-        with_distributed_adam = self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+        with_distributed_adam = (
+            self.cfg.model.optim.get('name') == 'distributed_fused_adam' if self.cfg.model.get('optim') else False
+        )
 
         plugins = []
         if self.cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
@@ -83,7 +86,13 @@ class MegatronTrainerBuilder:
     def create_trainer(self) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer)
+        trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer)
+
+        if self.cfg.model.resume_from_checkpoint is not None:
+            trainer.ckpt_path = self.cfg.model.resume_from_checkpoint
+            logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
+
+        return trainer
 
 
 class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
