@@ -170,7 +170,7 @@ def main(cfg) -> None:
 
             # Optimizer overrides.
             pretrained_cfg.optim = cfg.model.optim
-            
+
             # override hidden_size
             if hasattr(pretrained_cfg.encoder, 'hidden_size'):
                 pretrained_cfg.hidden_size = pretrained_cfg.encoder.hidden_size
