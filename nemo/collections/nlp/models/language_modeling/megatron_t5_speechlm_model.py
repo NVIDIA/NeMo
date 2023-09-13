@@ -812,20 +812,23 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 taskname_ids,
                 speech_mask,
             ) = batch
-            dec_input = dec_input_raw * 1
-            dec_input_mask = dec_input_mask_raw * 1
+            dec_input = dec_input_raw * 1 # (B, 8, T)
+            dec_input_mask = dec_input_mask_raw * 1 # (B, T)
             dec_input_mask[:, :] = 1  # Does not really matter
             output_token_list = []
-
-            for t in range(labels.shape[2] - 1):
-                print("Batch:{} Timestep:{}".format(batch_idx, t))
-                dec_input[:, :, t + 1 :] = self.tokenizer.pad_id  # Not necessary, but just to be safe
-                output_logits, _, _ = self.forward(
+            
+            end_indices = {}
+            # pad dec_input (B, 8, T) to 1000 timesteps
+            dec_input = torch.nn.functional.pad(dec_input, (0, 1500 - dec_input.shape[2]), value=0)
+            dec_input_mask = torch.nn.functional.pad(dec_input_mask, (0, 1500 - dec_input_mask.shape[1]), value=1)
+            
+            for t in range(dec_input.shape[2]-1):
+                output_logits, _, token_and_speech_logits = self.forward(
                     virtual_tokens,
                     context_and_question_tokens,
                     enc_mask,
-                    dec_input,
-                    dec_input_mask,
+                    dec_input[:, :, : t + 1], # Slice until the current timestep
+                    dec_input_mask[:, : t + 1],
                     position_ids,
                     taskname_ids,
                     labels=None,
@@ -833,6 +836,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     inference=True,
                 )
                 # output_logits (B, T, V, 8)
+                token_logits = token_and_speech_logits[0]  # (B, T, V)
+                token_logits_currtimestep = token_logits[:, t, :]  # (B, V)
+                token_preds = token_logits_currtimestep.argmax(dim=1)  # (B,)
+                # print("Token preds", token_preds)
+
                 output_logits_currtimestep = (
                     output_logits[:, t, :, :].permute(0, 2, 1).contiguous().view(-1, self.speech_codebook_size)
                 )  # (B*8, V)
@@ -842,6 +850,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 output_tokens_curr_timestep = torch.multinomial(output_logits_currtimestep, num_samples=1)  # (B*8, 1)
                 # Convert back to (B, 8)
                 output_tokens_curr_timestep = output_tokens_curr_timestep.view(output_logits.shape[0], 8)
+
+                for _b in range(token_preds.shape[0]):
+                    if t > 10 and token_preds[_b] == self.tokenizer.eos_id:
+                        if _b not in end_indices:
+                            print("End detected for item {}".format(_b) + " at timestep {}".format(t))
+                            end_indices[_b] = t
 
                 # output_tokens = output_logits.argmax(dim=2)  # (B,T,8)
                 # output_tokens_curr_timestep = output_tokens[:, t]
@@ -890,7 +904,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 self.logger.experiment.add_audio("Inf Dec Input Wav", dec_input_wav, step, 24000)
 
                 predicted_tokens = output_tokens_combined[i]
-                # predicted_tokens = predicted_tokens[:, 0:audio_len] # trim to audio length
+                if i in end_indices:
+                    print("Clipping until end index for audio", i)
+                    predicted_tokens = predicted_tokens[:, 0:end_indices[i]+1] # trim to audio length
+
                 pred_img = predicted_tokens.data.cpu().float().numpy()
                 dec_inp_img = dec_input_to_1024.data.cpu().float().numpy()
 
