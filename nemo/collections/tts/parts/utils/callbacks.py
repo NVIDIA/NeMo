@@ -29,6 +29,7 @@ from pytorch_lightning.loggers.logger import Logger
 from pytorch_lightning.loggers.wandb import WandbLogger
 
 from nemo.collections.tts.parts.utils.helpers import create_plot
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 HAVE_WANDB = True
@@ -109,7 +110,7 @@ def create_id(filepath: Path) -> str:
 class ArtifactGenerator(ABC):
     @abstractmethod
     def generate_artifacts(
-        self, model: LightningModule, batch_dict: Dict
+        self, model: LightningModule, batch_dict: Dict, initial_log: bool = False
     ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
         """
         Create artifacts for the input model and test batch.
@@ -117,6 +118,8 @@ class ArtifactGenerator(ABC):
         Args:
             model: Model instance being trained to use for inference.
             batch_dict: Test batch to generate artifacts for.
+            initial_log: Flag to denote if this is the initial log, can
+                         be used to save ground-truth data only once.
 
         Returns:
             List of audio and image artifacts to log.
@@ -160,16 +163,27 @@ class LoggingCallback(Callback):
         self.log_wandb = log_wandb
 
         if log_tensorboard:
+            logging.info('Creating tensorboard logger')
             self.tensorboard_logger = _get_logger(self.loggers, TensorBoardLogger)
         else:
+            logging.debug('Not using tensorbord logger')
             self.tensorboard_logger = None
 
         if log_wandb:
             if not HAVE_WANDB:
                 raise ValueError("Wandb not installed.")
+            logging.info('Creating wandb logger')
             self.wandb_logger = _get_logger(self.loggers, WandbLogger)
         else:
+            logging.debug('Not using wandb logger')
             self.wandb_logger = None
+
+        logging.debug('Initialized %s with', self.__class__.__name__)
+        logging.debug('\tlog_epochs:      %s', self.log_epochs)
+        logging.debug('\tepoch_frequency: %s', self.epoch_frequency)
+        logging.debug('\toutput_dir:      %s', self.output_dir)
+        logging.debug('\tlog_tensorboard: %s', self.log_tensorboard)
+        logging.debug('\tlog_wandb:       %s', self.log_wandb)
 
     def _log_audio(self, audio: AudioArtifact, log_dir: Path, step: int):
         if log_dir:
@@ -202,16 +216,47 @@ class LoggingCallback(Callback):
             wandb_image = (wandb.Image(image_plot, caption=image.id),)
             self.wandb_logger.log({image.id: wandb_image})
 
+    def _log_artifacts(self, audio_list: list, image_list: list, log_dir: Optional[Path] = None, global_step: int = 0):
+        """Log audio and image artifacts.
+        """
+        if log_dir is not None:
+            log_dir.mkdir(parents=True, exist_ok=True)
+
+        for audio in audio_list:
+            self._log_audio(audio=audio, log_dir=log_dir, step=global_step)
+
+        for image in image_list:
+            self._log_image(image=image, log_dir=log_dir, step=global_step)
+
+    def on_fit_start(self, trainer: Trainer, model: LightningModule):
+        """Log initial data artifacts.
+        """
+        audio_list = []
+        image_list = []
+        for batch_dict in self.data_loader:
+            for key, value in batch_dict.items():
+                if isinstance(value, torch.Tensor):
+                    batch_dict[key] = value.to(model.device)
+
+            for generator in self.generators:
+                audio, images = generator.generate_artifacts(model=model, batch_dict=batch_dict, initial_log=True)
+                audio_list += audio
+                image_list += images
+
+        if len(audio_list) == len(image_list) == 0:
+            logging.debug('List are empty, no initial artifacts to log.')
+            return
+
+        log_dir = self.output_dir / f"initial" if self.output_dir else None
+
+        self._log_artifacts(audio_list=audio_list, image_list=image_list, log_dir=log_dir)
+
     def on_train_epoch_end(self, trainer: Trainer, model: LightningModule):
+        """Log artifacts at the end of an epoch.
+        """
         epoch = 1 + model.current_epoch
         if (epoch not in self.log_epochs) and (epoch % self.epoch_frequency != 0):
             return
-
-        if self.output_dir:
-            log_dir = self.output_dir / f"epoch_{epoch}"
-            log_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            log_dir = None
 
         audio_list = []
         image_list = []
@@ -225,11 +270,13 @@ class LoggingCallback(Callback):
                 audio_list += audio
                 image_list += images
 
-        for audio in audio_list:
-            self._log_audio(audio=audio, log_dir=log_dir, step=model.global_step)
+        if len(audio_list) == len(image_list) == 0:
+            logging.debug('List are empty, no artifacts to log at epoch %d.', epoch)
+            return
 
-        for image in image_list:
-            self._log_image(image=image, log_dir=log_dir, step=model.global_step)
+        log_dir = self.output_dir / f"epoch_{epoch}" if self.output_dir else None
+
+        self._log_artifacts(audio_list=audio_list, image_list=image_list, log_dir=log_dir)
 
 
 class VocoderArtifactGenerator(ArtifactGenerator):
@@ -238,8 +285,11 @@ class VocoderArtifactGenerator(ArtifactGenerator):
     """
 
     def generate_artifacts(
-        self, model: LightningModule, batch_dict: Dict
+        self, model: LightningModule, batch_dict: Dict, initial_log: bool = False
     ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
+        if initial_log:
+            # Currently, nothing to log before training starts
+            return [], []
 
         audio_artifacts = []
 
@@ -270,12 +320,31 @@ class AudioCodecArtifactGenerator(ArtifactGenerator):
     Generator for logging Audio Codec model outputs.
     """
 
-    def __init__(self, log_audio: bool = True, log_encoding: bool = False, log_quantized: bool = False):
+    def __init__(self, log_audio: bool = True, log_encoding: bool = False, log_dequantized: bool = False):
+        # Log reconstructed audio (decoder output)
         self.log_audio = log_audio
+        # Log encoded representation of the input audio (encoder output)
         self.log_encoding = log_encoding
-        self.log_quantized = log_quantized
+        # Log dequantized encoded representation of the input audio (decoder input)
+        self.log_dequantized = log_dequantized
+        # Input audio will be logged only once
+        self.input_audio_logged = False
 
-    def _generate_audio(self, model, audio_ids, audio, audio_len):
+        logging.debug('Initialized %s with', self.__class__.__name__)
+        logging.debug('\tlog_audio:       %s', self.log_audio)
+        logging.debug('\tlog_encoding:    %s', self.log_encoding)
+        logging.debug('\tlog_dequantized: %s', self.log_dequantized)
+
+    def _generate_audio(self, model, audio_ids, audio, audio_len, save_input: bool = False):
+        """Generate audio artifacts.
+
+        Args:
+            model: callable model, outputs (audio_pred, audio_pred_len)
+            audio_ids: list of IDs for the examples in audio batch
+            audio: tensor of input audio signals, shape (B, T)
+            audio_len: tensor of lengths for each example in the batch, shape (B,)
+            save_input: if True, save input audio signals
+        """
         if not self.log_audio:
             return []
 
@@ -284,19 +353,43 @@ class AudioCodecArtifactGenerator(ArtifactGenerator):
             audio_pred, audio_pred_len = model(audio=audio, audio_len=audio_len)
 
         audio_artifacts = []
+        # Log output audio
         for i, audio_id in enumerate(audio_ids):
             audio_pred_i = audio_pred[i, : audio_pred_len[i]].cpu().numpy()
             audio_artifact = AudioArtifact(
-                id=f"audio_{audio_id}", data=audio_pred_i, filename=f"{audio_id}.wav", sample_rate=model.sample_rate,
+                id=f"audio_out_{audio_id}",
+                data=audio_pred_i,
+                filename=f"{audio_id}_audio_out.wav",
+                sample_rate=model.sample_rate,
             )
             audio_artifacts.append(audio_artifact)
+
+        if save_input:
+            # save input audio
+            for i, audio_id in enumerate(audio_ids):
+                audio_in_i = audio[i, : audio_len[i]].cpu().numpy()
+                audio_artifact = AudioArtifact(
+                    id=f"audio_in_{audio_id}",
+                    data=audio_in_i,
+                    filename=f"{audio_id}_audio_in.wav",
+                    sample_rate=model.sample_rate,
+                )
+                audio_artifacts.append(audio_artifact)
 
         return audio_artifacts
 
     def _generate_images(self, model, audio_ids, audio, audio_len):
+        """Generate image artifacts.
+
+        Args:
+            model: model, needs to support `model.encode_audio`, `model.quantize` and `model.dequantize`
+            audio_ids: list of IDs for the examples in audio batch
+            audio: tensor of input audio signals, shape (B, T)
+            audio_len: tensor of lengths for each example in the batch, shape (B,)
+        """
         image_artifacts = []
 
-        if not self.log_encoding and not self.log_quantized:
+        if not self.log_encoding and not self.log_dequantized:
             return image_artifacts
 
         with torch.no_grad():
@@ -309,36 +402,42 @@ class AudioCodecArtifactGenerator(ArtifactGenerator):
                 encoded_artifact = ImageArtifact(
                     id=f"encoded_{audio_id}",
                     data=encoded_i,
-                    filename=f"{audio_id}_encode.png",
+                    filename=f"{audio_id}_encoded.png",
                     x_axis="Audio Frames",
                     y_axis="Channels",
                 )
                 image_artifacts.append(encoded_artifact)
 
-        if not self.log_quantized:
+        if not self.log_dequantized:
             return image_artifacts
 
         with torch.no_grad():
             # [B, D, T]
-            indices = model.quantize_encode(encoded=encoded, encoded_len=encoded_len)
-            quantized = model.quantize_decode(indices=indices, encoded_len=encoded_len)
+            tokens = model.quantize(encoded=encoded, encoded_len=encoded_len)
+            dequantized = model.dequantize(tokens=tokens, tokens_len=encoded_len)
 
         for i, audio_id in enumerate(audio_ids):
-            quantized_i = quantized[i, :, : encoded_len[i]].cpu().numpy()
-            quantized_artifact = ImageArtifact(
-                id=f"quantized_{audio_id}",
-                data=quantized_i,
-                filename=f"{audio_id}_quantized.png",
+            dequantized_i = dequantized[i, :, : encoded_len[i]].cpu().numpy()
+            dequantized_artifact = ImageArtifact(
+                id=f"dequantized_{audio_id}",
+                data=dequantized_i,
+                filename=f"{audio_id}_dequantized.png",
                 x_axis="Audio Frames",
                 y_axis="Channels",
             )
-            image_artifacts.append(quantized_artifact)
+            image_artifacts.append(dequantized_artifact)
 
         return image_artifacts
 
     def generate_artifacts(
-        self, model: LightningModule, batch_dict: Dict
+        self, model: LightningModule, batch_dict: Dict, initial_log: bool = False
     ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
+        """
+        Args:
+            model: model used to process input to generate artifacts
+            batch_dict: dictionary obtained form the dataloader
+            initial_log: save input audio for the initial log
+        """
 
         audio_filepaths = batch_dict.get("audio_filepaths")
         audio_ids = [create_id(p) for p in audio_filepaths]
@@ -346,7 +445,9 @@ class AudioCodecArtifactGenerator(ArtifactGenerator):
         audio = batch_dict.get("audio")
         audio_len = batch_dict.get("audio_lens")
 
-        audio_artifacts = self._generate_audio(model=model, audio_ids=audio_ids, audio=audio, audio_len=audio_len)
+        audio_artifacts = self._generate_audio(
+            model=model, audio_ids=audio_ids, audio=audio, audio_len=audio_len, save_input=initial_log
+        )
         image_artifacts = self._generate_images(model=model, audio_ids=audio_ids, audio=audio, audio_len=audio_len)
 
         return audio_artifacts, image_artifacts
@@ -492,8 +593,12 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
         return audio_artifacts, image_artifacts
 
     def generate_artifacts(
-        self, model: LightningModule, batch_dict: Dict
+        self, model: LightningModule, batch_dict: Dict, initial_log: bool = False
     ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
+
+        if initial_log:
+            # Currently, nothing to log before training starts
+            return [], []
 
         audio_artifacts = []
         image_artifacts = []

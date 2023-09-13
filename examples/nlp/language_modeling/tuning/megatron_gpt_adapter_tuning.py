@@ -20,6 +20,7 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model import MegatronGPTAdapterLearningModel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
@@ -90,12 +91,8 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
     exp_manager(trainer, cfg.exp_manager)
-
-    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    with open_dict(cfg):
-        cfg.model.precision = cfg.trainer.precision
 
     # load existing or init new soft prompt GPT model
     if cfg.model.get("restore_path", None):
@@ -109,4 +106,10 @@ def main(cfg) -> None:
 
 
 if __name__ == '__main__':
+    dep_msg = "* Please switch to using examples/nlp/language_modeling/tuning/megatron_gpt_peft_tuning.py *"
+    dep = "Deprecation Notice!!".center(len(dep_msg) - 2, " ")
+    banner = "*" * len(dep_msg)
+    spacer = " " * (len(dep_msg) - 2)
+    logging.warning(f"\n\n{banner}\n*{spacer}*\n*{dep}*\n{dep_msg}\n*{spacer}*\n{banner}\n\n")
     main()
+    logging.warning(f"\n\n{banner}\n*{spacer}*\n*{dep}*\n{dep_msg}\n*{spacer}*\n{banner}\n\n")

@@ -26,6 +26,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_glue_model import Me
 from nemo.collections.nlp.models.language_modeling.megatron_t0_model import MegatronT0Model
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
@@ -57,6 +58,21 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
                 t5_cfg.encoder.ffn_dropout = cfg.model.get('ffn_dropout', 0.1)
             if hasattr(t5_cfg.decoder, 'ffn_dropout'):
                 t5_cfg.decoder.ffn_dropout = cfg.model.get('ffn_dropout', 0.1)
+
+            if hasattr(cfg.model, 'encoder'):
+                if hasattr(cfg.model.encoder, 'position_embedding_type'):
+                    t5_cfg.encoder.position_embedding_type = cfg.model.encoder.position_embedding_type
+                if hasattr(cfg.model.encoder, 'use_flash_attention'):
+                    t5_cfg.encoder.use_flash_attention = cfg.model.encoder.use_flash_attention
+                if hasattr(cfg.model.encoder, 'attention_dropout'):
+                    t5_cfg.encoder.attention_dropout = cfg.model.encoder.attention_dropout
+            if hasattr(cfg.model, 'decoder'):
+                if hasattr(cfg.model.decoder, 'position_embedding_type'):
+                    t5_cfg.decoder.position_embedding_type = cfg.model.decoder.position_embedding_type
+                if hasattr(cfg.model.decoder, 'use_flash_attention'):
+                    t5_cfg.decoder.use_flash_attention = cfg.model.decoder.use_flash_attention
+                if hasattr(cfg.model.decoder, 'attention_dropout'):
+                    t5_cfg.decoder.attention_dropout = cfg.model.decoder.attention_dropout
         else:
             t5_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.1)
             t5_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.1)
@@ -162,7 +178,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -170,8 +186,6 @@ def main(cfg) -> None:
     if cfg.model.resume_from_checkpoint is not None:
         trainer.ckpt_path = cfg.model.resume_from_checkpoint
     logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
-
-    trainer._checkpoint_connector = _CheckpointConnector(trainer)
 
     if hasattr(cfg.model.data.train_ds, 'task_name'):
         if cfg.model.restore_from_path:

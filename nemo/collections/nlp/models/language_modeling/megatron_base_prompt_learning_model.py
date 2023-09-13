@@ -33,6 +33,7 @@ from nemo.collections.nlp.modules.common import (
     VirtualPromptSource,
     VirtualPromptStyle,
 )
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
@@ -46,11 +47,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state
+    from megatron.core import ModelParallelConfig, parallel_state
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
@@ -80,10 +83,8 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.init_model(cfg, trainer)
 
-    def init_model(self, cfg: DictConfig, trainer: Trainer):
-        self.cfg = cfg
+        self.config: ModelParallelConfig = self.model_parallel_config
 
         self.load_frozen_model(cfg, trainer)
         self.prompt_encoder = None
@@ -93,8 +94,10 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             self.hidden_size = (
                 self.frozen_model.cfg.encoder.hidden_size
             )  # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
+            self.config.hidden_size = self.hidden_size
         else:
             self.hidden_size = self.frozen_model.cfg.hidden_size
+            self.config.hidden_size = self.hidden_size
 
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
@@ -132,14 +135,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
-        if self.trainer.precision in ['bf16', 'bf16-mixed']:
-            self.autocast_dtype = torch.bfloat16
-        elif self.trainer.precision in [32, '32', '32-true']:
-            self.autocast_dtype = torch.float
-        elif self.trainer.precision in [16, '16', '16-mixed']:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
@@ -208,6 +203,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
         self.prompt_encoder = PromptEncoder(
+            config=self.model_parallel_config,
             encoder_type=encoder_type,
             total_virtual_tokens=total_virtual_tokens,
             token_dim=self.hidden_size,
