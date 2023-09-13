@@ -430,6 +430,15 @@ class NLPDDPStrategy(DDPStrategy):
         """
         return True
 
+class NLPDDPStrategyNotebook(NLPDDPStrategy):
+    """ Version of NLPDDPStrategy to be used in a Jupyter Notebook
+    A large portion of Megatron code has DDP dependency, so it has been necessary to use NLPDDPStrategy even for
+    single-GPU training (e.g. in a Jupyter notebook)
+    A PTL 2.0 changes has prevented DDPStrategy to be used in a notebook.
+    This version of NLPDDPStrategy enables megatron training in a notebook in PTL 2.0.
+    """
+    def _configure_launcher(self):
+        self._launcher = None
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:

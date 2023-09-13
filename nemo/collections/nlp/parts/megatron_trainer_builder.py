@@ -20,10 +20,10 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
-    PipelineMixedPrecisionPlugin,
+    PipelineMixedPrecisionPlugin, NLPDDPStrategyNotebook,
 )
 from nemo.utils import logging
-
+import sys
 
 class MegatronTrainerBuilder:
     """
@@ -38,6 +38,15 @@ class MegatronTrainerBuilder:
         """
         Returns a ddp strategy passed to Trainer.strategy.
         """
+        # check interactive environment
+        _IS_INTERACTIVE = hasattr(sys, "ps1") or bool(sys.flags.interactive)
+        if _IS_INTERACTIVE and self.cfg.trainer.devices == 1:
+            logging.info("Detected interactive environment, using NLPDDPStrategyNotebook")
+            return NLPDDPStrategyNotebook(
+            no_ddp_communication_hook=True,
+            find_unused_parameters=False,
+        )
+
         return NLPDDPStrategy(
             no_ddp_communication_hook=True,
             gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
