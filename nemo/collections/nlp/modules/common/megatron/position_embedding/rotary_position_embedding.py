@@ -25,7 +25,7 @@ class RotaryEmbedding(nn.Module):
     Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
     """
 
-    def __init__(self, dim: int, seq_len_interpolation_factor: int = None):
+    def __init__(self, pretrained_max_position_embeddings: int, dim: int, seq_len_interpolation_factor: int = None):
         """
         Args:
 
@@ -34,15 +34,22 @@ class RotaryEmbedding(nn.Module):
             by this factor via the trick in https://arxiv.org/abs/2306.15595.
         """
         super().__init__()
-        self.seq_len_interpolation_factor = seq_len_interpolation_factor
+        self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
+        self.seq_len_interpolation_factor = 1 if seq_len_interpolation_factor is None else seq_len_interpolation_factor
         inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
 
     def forward(self, max_seq_len, offset=0):
         seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
-        if self.seq_len_interpolation_factor is not None:
-            seq = seq.type_as(self.inv_freq)
+        seq = seq.type_as(self.inv_freq)
+        
+        if max_seq_len > self.pretrained_max_position_embeddings * self.seq_len_interpolation_factor:          
+            # dynamic linear scaling
+            seq *= 1 / (max_seq_len / self.pretrained_max_position_embeddings)
+        else:
+            # fixed linear scaling
             seq *= 1 / self.seq_len_interpolation_factor
+            
         freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size
