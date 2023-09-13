@@ -83,6 +83,8 @@ class DiffusionEngine(nn.Module, Serialization):
 
         self.conditioner = DiffusionEngine.from_config_dict(default(conditioner_config, UNCONDITIONAL_CONFIG))
         self.scheduler_config = scheduler_config
+        # Precaching
+        self.precache_mode = cfg.get('precache_mode')
         self._init_first_stage(first_stage_config)
         self.model_type = None
 
@@ -102,9 +104,6 @@ class DiffusionEngine(nn.Module, Serialization):
                 self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
             self.model = self.model.to(memory_format=torch.channels_last)
 
-        # Precaching
-        self.precache_mode = cfg.get('precache_mode')
-        
     def _init_first_stage(self, config):
         if self.precache_mode == 'both':
             logging.info('Do not intialize VAE when caching image features.')
