@@ -819,8 +819,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             
             end_indices = {}
             # pad dec_input (B, 8, T) to 1000 timesteps
-            dec_input = torch.nn.functional.pad(dec_input, (0, 1500 - dec_input.shape[2]), value=0)
-            dec_input_mask = torch.nn.functional.pad(dec_input_mask, (0, 1500 - dec_input_mask.shape[1]), value=1)
+            max_inference_timesteps = self.cfg.get('max_inference_timesteps', 1000)
+            dec_input = torch.nn.functional.pad(dec_input, (0, max_inference_timesteps - dec_input.shape[2]), value=0)
+            dec_input_mask = torch.nn.functional.pad(dec_input_mask, (0, max_inference_timesteps - dec_input_mask.shape[1]), value=1)
             
             for t in range(dec_input.shape[2]-1):
                 output_logits, _, token_and_speech_logits = self.forward(
