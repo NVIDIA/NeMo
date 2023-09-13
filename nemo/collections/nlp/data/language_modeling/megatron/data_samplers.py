@@ -35,6 +35,7 @@ class BaseMegatronSampler:
         global_batch_size: Optional[int] = None,
         rampup_batch_size: Optional[list] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
+        compute_length_in_micro_batches: bool = False,
     ) -> None:
         # Sanity checks.
         if total_samples <= 0:
@@ -73,6 +74,7 @@ class BaseMegatronSampler:
         self.drop_last = drop_last
         self.global_batch_size = global_batch_size
         self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
+        self.compute_length_in_micro_batches = compute_length_in_micro_batches
 
         logging.info(
             f'Instantiating MegatronPretrainingSampler with total_samples: {total_samples} and consumed_samples: {consumed_samples}'
@@ -82,11 +84,17 @@ class BaseMegatronSampler:
         num_available_samples: int = self.total_samples - self.consumed_samples
         if self.global_batch_size is not None:
             if self.drop_last:
-                return num_available_samples // self.global_batch_size
+                num_global_batches = num_available_samples // self.global_batch_size
             else:
-                return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
+                num_global_batches = (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
+            if self.compute_length_in_micro_batches:
+                return num_global_batches * (self.global_batch_size // self.micro_batch_times_data_parallel_size)
+            else:
+                return num_global_batches
         else:
             return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size + 1
+
+        
 
     @abc.abstractmethod
     def __iter__(self):

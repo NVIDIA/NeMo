@@ -14,6 +14,7 @@
 
 import gc
 import itertools
+import math
 import os
 import re
 from dataclasses import fields
@@ -43,7 +44,7 @@ from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
     HAVE_APEX = True
 
@@ -210,7 +211,18 @@ class MegatronBaseModel(NLPModel):
         Reconfigure trainer.limit_val_batches for pretraining
         """
         # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
-        self.trainer.limit_val_batches *= get_num_microbatches()
+        if isinstance(self.trainer.limit_val_batches, int):
+            self.trainer.limit_val_batches *= get_num_microbatches()
+        else:
+            assert isinstance(self.trainer.limit_val_batches, float)
+            if self._validation_ds is not None and self.trainer.limit_val_batches < 1.0:
+                val_length = len(self._validation_ds)
+                if not math.isinf(val_length):
+                    mb_times_dp = get_micro_batch_size() * parallel_state.get_data_parallel_world_size()
+                    total_val_microbatches = val_length // mb_times_dp
+                    limit_val_batches = int(self.trainer.limit_val_batches * total_val_microbatches)
+                    self.trainer.limit_val_batches = limit_val_batches - limit_val_batches % get_num_microbatches()
+
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
