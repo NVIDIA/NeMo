@@ -159,14 +159,18 @@ def main(cfg) -> None:
             pretrained_cfg.precision = trainer.precision
             if trainer.precision == "16":
                 pretrained_cfg.megatron_amp_O2 = False
-            try:
-                pretrained_cfg.use_flash_attention = True
-            except:
-                pretrained_cfg["use_flash_attention"] = True
+            if cfg.inference.get("use_flash_attention", None) is not None:
+                try:
+                    pretrained_cfg.use_flash_attention = cfg.inference.use_flash_attention
+                except:
+                    pretrained_cfg["use_flash_attention"] = cfg.inference.use_flash_attention
 
-            # if cfg.inference.max_seq_length is not None:
-            #     pretrained_cfg.encoder_seq_length = cfg.inference.max_seq_length
-            #     pretrained_cfg.max_position_embeddings = cfg.inference.max_seq_length
+            if cfg.inference.get("apply_query_key_layer_scaling", None) is not None:
+                pretrained_cfg.apply_query_key_layer_scaling = cfg.inference.apply_query_key_layer_scaling
+
+            if cfg.get("model", None) is not None and cfg.model.get("encoder", None) is not None:
+                for k, v in cfg.model.encoder.items():
+                    pretrained_cfg[k] = v
             
             pretrained_cfg.apply_query_key_layer_scaling = False
         model = MegatronGPTModel.restore_from(
@@ -240,7 +244,8 @@ def main(cfg) -> None:
                          task=cfg.inference.task,
                          max_seq_length=cfg.inference.max_seq_length,
                          data_dir=cfg.inference.data_dir,
-                         n_jobs=cfg.inference.n_jobs)
+                         n_jobs=cfg.inference.n_jobs,
+                         remove_newline_tab=cfg.inference.remove_newline_ta)
 
     truncated_input = [s.replace("\n"," ").replace("\t"," ").strip().replace("  ", " ") for s in truncated_input]
 

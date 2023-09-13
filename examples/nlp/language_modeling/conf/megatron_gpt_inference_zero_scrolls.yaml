@@ -16,6 +16,9 @@ inference:
   batch_size: 1  # batch size for inference
   max_seq_length: null # max sequence length for inference, use model's pretraining seq length if not set
   n_jobs: -1 # number of jobs to process input data, -1 means using all the cores
+  use_flash_attention: True # will override the model's config
+  apply_query_key_layer_scaling: null # will override the model's config
+  remove_newline_tab: True
 
 trainer:
   devices: 1
