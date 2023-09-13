@@ -17,8 +17,8 @@
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.layer_norm import get_layer_norm
+from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
