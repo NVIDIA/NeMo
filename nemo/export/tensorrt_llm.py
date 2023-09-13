@@ -100,7 +100,7 @@ class TensorRTLLM(ITritonDeployable):
 
             if self.prompt_table.shape[1] != self.config["builder_config"]["hidden_size"]:
                 raise Exception(
-                    "Dimension of the prompt table and the hidden size do not match. Please make sure to use the correct prompt table."
+                    "Hidden dimension of the model is {0} and does not match with the dimension of the prompt table.".format(self.config["builder_config"]["hidden_size"])
                 )
         else:
             self.prompt_table = None
