@@ -43,9 +43,9 @@ to correctly configure creating GPT-2 model in Megatron:
 Here is an example usage command:
 ```python
 python scripts/nlp_language_modeling/convert_starcoder_hf_to_nemo.py \
-    -c /path/to/megatron_gpt_config.yaml \
-    -i /path/to/starcoder \
-    -o /path/to/save
+    --config /path/to/megatron_gpt_config.yaml \
+    --input /path/to/starcoder \
+    --output /path/to/save
 ```
 """
 
@@ -98,17 +98,13 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-i",
-        "--input",
-        type=str,
-        required=True,
-        help="StarCoder from HuggingFace hub or local dir with downloaded model",
+        "--config", type=str, required=True, help="Path to the megatron_gpt_config.yaml file",
     )
     parser.add_argument(
-        "-c", "--config", type=str, required=True, help="Path to the megatron_gpt_config.yaml file",
+        "--input", type=str, required=True, help="StarCoder from HuggingFace hub or local dir with downloaded model",
     )
     parser.add_argument(
-        "-o", "--output", type=str, default=".", help="Path to dir where to store output .nemo file",
+        "--output", type=str, default=".", help="Path to dir where to store output .nemo file",
     )
     parser.add_argument(
         "--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving",
