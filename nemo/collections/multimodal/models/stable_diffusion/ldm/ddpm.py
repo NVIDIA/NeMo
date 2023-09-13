@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
+import time
 from contextlib import contextmanager
 from functools import partial
 from typing import Any, Dict, Optional, Union
@@ -1778,6 +1779,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             rank_zero_only=True,
             batch_size=1,
         )
+        self.log("timestamp", int(time.time() * 1e3), batch_size=1, rank_zero_only=True)
         return loss_mean
 
     def backward(self, *args, **kwargs):
