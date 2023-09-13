@@ -11,6 +11,7 @@ infer:
   prompt:
     - "A professional photograph of an astronaut riding a pig"
   negative_prompt: ""
+  seed: 123
 
 
 sampling:

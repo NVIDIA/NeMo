@@ -50,6 +50,7 @@ def main(cfg):
         negative_prompt=cfg.infer.negative_prompt,
         samples=cfg.infer.num_samples,
         return_latents=True if use_refiner else False,
+        seed=cfg.infer.seed,
     )
 
     if use_refiner:
@@ -66,6 +67,7 @@ def main(cfg):
             prompt=cfg.infer.prompt,
             negative_prompt=cfg.infer.negative_prompt,
             samples=cfg.infer.num_samples,
+            seed=cfg.infer.seed,
         )
 
     perform_save_locally(cfg.out_path, samples)
