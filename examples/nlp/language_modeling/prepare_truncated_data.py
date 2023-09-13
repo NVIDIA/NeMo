@@ -51,7 +51,7 @@ def _process_line(line, task, tokenizer, max_seq_length, tokens_to_generate_extr
         truncated_text = prompt.replace("{context}", truncated_text)
     return truncated_text
 
-def process_data(tokenizer: TokenizerSpec, prompt:str, task: str, max_seq_length: int, data_dir: str, n_jobs: int = -1):
+def process_data(tokenizer: TokenizerSpec, prompt:str, task: str, max_seq_length: int, data_dir: str, n_jobs: int=-1, remove_newline_tab: bool=False):
     task = task.lower()
     if task not in TASKS:
         raise NotImplementedError(f"{task} not implemented")
@@ -72,6 +72,9 @@ def process_data(tokenizer: TokenizerSpec, prompt:str, task: str, max_seq_length
         lines = [json.loads(line) for line in f_in]
 
     truncated_texts = Parallel(n_jobs)(delayed(_process_line)(line, task, tokenizer, max_seq_length, tokens_to_generate, prompt) for line in tqdm(lines))
+
+    if remove_newline_tab:
+        truncated_texts = [s.replace("\n"," ").replace("\t"," ").strip().replace("  ", " ") for s in truncated_texts]
     return lines, truncated_texts
             
 
