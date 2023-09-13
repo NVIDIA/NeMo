@@ -1082,6 +1082,11 @@ class CustomProgressBar(TQDMProgressBar):
     Add CustomProgressBar to remove 's/it' and display progress per step instead of per microbatch
     for megatron models
     """
+    def get_current_epoch_step(self, trainer):
+        """
+        Get the value of step within an epoch
+        """
+        return trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed
 
     def init_train_tqdm(self):
         """
@@ -1091,11 +1096,20 @@ class CustomProgressBar(TQDMProgressBar):
         self.bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
         return self.bar
 
+    def on_train_epoch_start(self, trainer, *_):
+        if trainer.max_steps != -1:
+            num_training_batches = min(trainer.max_steps, trainer.num_training_batches)
+        else:
+            num_training_batches = trainer.num_training_batches
+        self.train_progress_bar.reset(num_training_batches)
+        self.train_progress_bar.initial = 0
+        self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
+
     def on_train_batch_end(self, trainer, pl_module, *_, **__):
         """
-        Override parent class on_train_batch_end to update progress bar per global_step instead of per microbatch
+        Override parent class on_train_batch_end to update progress bar per global batch instead of per microbatch
         """
-        n = trainer.global_step
+        n = self.get_current_epoch_step(trainer)
         if self._should_update(n, self.train_progress_bar.total):
             _update_n(self.train_progress_bar, n)
             self.train_progress_bar.set_postfix(self.get_metrics(trainer, pl_module))
