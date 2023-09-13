@@ -110,7 +110,7 @@ class TestASRConfidenceBenchmark:
         assert ConfidenceConfig().method_cfg.alpha == 0.33, "default `alpha` is supposed to be 0.33"
         model = conformer_ctc_bpe_model if model_name == "ctc" else conformer_rnnt_bpe_model
         assert isinstance(model, ASRModel)
-        
+
         conf = OmegaConf.create({"temperature": 0.5})
         test_args_main = {"method_cfg": conf}
         test_args_greedy = {"confidence_method_cfg": conf}
