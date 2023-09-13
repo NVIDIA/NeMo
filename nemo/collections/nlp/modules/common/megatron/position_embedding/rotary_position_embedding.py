@@ -42,14 +42,14 @@ class RotaryEmbedding(nn.Module):
     def forward(self, max_seq_len, offset=0):
         seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
         seq = seq.type_as(self.inv_freq)
-        
+
         if max_seq_len > self.pretrained_max_position_embeddings * self.seq_len_interpolation_factor:
             # dynamic linear scaling
             seq *= 1 / (max_seq_len / self.pretrained_max_position_embeddings)
         else:
             # fixed linear scaling
             seq *= 1 / self.seq_len_interpolation_factor
-            
+
         freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size
