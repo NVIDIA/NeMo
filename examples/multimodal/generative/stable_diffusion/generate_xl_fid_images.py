@@ -62,7 +62,7 @@ def main(cfg):
 
     # Generate images using the model and save them
     for i, prompt in enumerate(input):
-        cfg.infer.prompts = [prompt]
+        cfg.infer.prompt = [prompt]
         output = base.text_to_image(
             params=cfg.sampling.base,
             prompt=cfg.infer.prompt,
