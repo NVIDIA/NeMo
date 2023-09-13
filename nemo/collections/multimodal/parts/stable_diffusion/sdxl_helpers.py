@@ -10,6 +10,7 @@ from PIL import Image
 from torch import autocast
 
 from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims
+from nemo.collections.multimodal.parts.utils import randn_like
 
 
 def get_unique_embedder_keys_from_conditioner(conditioner):
@@ -63,12 +64,15 @@ def do_sample(
     batch2model_input: Optional[List] = None,
     return_latents=False,
     filter=None,
+    seed=42,
     device="cuda",
 ):
     if force_uc_zero_embeddings is None:
         force_uc_zero_embeddings = []
     if batch2model_input is None:
         batch2model_input = []
+
+    rng = torch.Generator().manual_seed(seed)
 
     with torch.no_grad():
         with autocast(device) as precision_scope:
@@ -97,7 +101,7 @@ def do_sample(
                     additional_model_inputs[k] = batch[k]
 
                 shape = (math.prod(num_samples), C, H // F, W // F)
-                randn = torch.randn(shape).to(device)
+                randn = torch.randn(shape, generator=rng).to(device)
 
                 def denoiser(input, sigma, c):
                     return model.denoiser(model.model, input, sigma, c, **additional_model_inputs)
@@ -174,8 +178,11 @@ def do_img2img(
     return_latents=False,
     skip_encode=False,
     filter=None,
+    seed=42,
     device="cuda",
 ):
+    rng = torch.Generator().manual_seed(seed)
+
     with torch.no_grad():
         with autocast(device) as precision_scope:
             with model.ema_scope():
@@ -195,7 +202,7 @@ def do_img2img(
                     z = img
                 else:
                     z = model.encode_first_stage(img)
-                noise = torch.randn_like(z)
+                noise = randn_like(z, generator=rng)
                 sigmas = sampler.discretization(sampler.num_steps)
                 sigma = sigmas[0].to(z.device)
 

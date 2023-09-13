@@ -40,7 +40,13 @@ class SamplingPipeline:
         self.vae_scale_factor = 2 ** (len(self.config.model.first_stage_config.ddconfig.ch_mult) - 1)
 
     def text_to_image(
-        self, params, prompt: str, negative_prompt: str = "", samples: int = 1, return_latents: bool = False,
+        self,
+        params,
+        prompt: str,
+        negative_prompt: str = "",
+        samples: int = 1,
+        return_latents: bool = False,
+        seed: int = 42,
     ):
         sampler = get_sampler_config(params)
         value_dict = OmegaConf.to_container(params, resolve=True)
@@ -60,10 +66,18 @@ class SamplingPipeline:
             force_uc_zero_embeddings=["txt"] if not self.config.model.is_legacy else [],
             return_latents=return_latents,
             filter=None,
+            seed=seed,
         )
 
     def image_to_image(
-        self, params, image, prompt: str, negative_prompt: str = "", samples: int = 1, return_latents: bool = False,
+        self,
+        params,
+        image,
+        prompt: str,
+        negative_prompt: str = "",
+        samples: int = 1,
+        return_latents: bool = False,
+        seed: int = 42,
     ):
         sampler = get_sampler_config(params)
 
@@ -86,6 +100,7 @@ class SamplingPipeline:
             force_uc_zero_embeddings=["txt"] if not self.config.model.is_legacy else [],
             return_latents=return_latents,
             filter=None,
+            seed=seed,
         )
 
     def refiner(

@@ -1,10 +1,28 @@
+name: stable-diffusion-train
+
+fid:
+  classifier_free_guidance:
+    - 1.5
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+  nnodes_per_cfg: 1
+  ntasks_per_node: 8
+  local_task_id: null
+  num_images_to_eval: 30000
+  coco_captions_path: /coco2014/coco2014_val_sampled_30k/captions
+  coco_images_path: /coco2014/coco2014_val/images_256
+  save_path: output
+
 use_refiner: True
 use_fp16: False # use fp16 model weights
 
 base_model_config: /opt/NeMo/examples/multimodal/generative/stable_diffusion/conf/sd_xl_base.yaml
 refiner_config: /opt/NeMo/examples/multimodal/generative/stable_diffusion/conf/sd_xl_refiner.yaml
-
-out_path: ./output
 
 infer:
   num_samples: 1
@@ -63,5 +81,3 @@ sampling:
     s_noise: 1.0
     eta: 1.0
     order: 4
-
-
