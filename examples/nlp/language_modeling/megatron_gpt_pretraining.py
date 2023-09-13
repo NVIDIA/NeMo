@@ -22,7 +22,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-# mp.set_start_method("spawn", force=True)
+mp.set_start_method("spawn", force=True)
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
@@ -32,10 +32,6 @@ def main(cfg) -> None:
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
-
-    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    with open_dict(cfg):
-        cfg.model.precision = cfg.trainer.precision
 
     model = MegatronGPTModel(cfg.model, trainer)
 

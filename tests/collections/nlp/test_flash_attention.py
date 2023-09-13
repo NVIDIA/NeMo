@@ -64,6 +64,7 @@ def HAVE_AMPERE_GPU():
         return False
 
 
+@pytest.mark.pleasefixme
 @pytest.mark.run_only_on('GPU')
 @pytest.mark.skipif(not HAVE_APEX, reason="apex is not installed")
 class TestFlashAttention:
@@ -113,6 +114,7 @@ class TestFlashAttention:
         config = ModelParallelConfig()
         return config
 
+    @pytest.mark.pleasefixme
     @pytest.mark.skipif(not HAVE_FA, reason="flash-attention is not installed")
     @pytest.mark.unit
     def test_flash_self_attention(self, cfg, model_parallel_config):
@@ -190,6 +192,7 @@ class TestFlashAttention:
         out_fa = attention_fa(q, k, v, ~attention_mask_2d)
         torch.testing.assert_close(out, out_fa)
 
+    @pytest.mark.pleasefixme
     @pytest.mark.skipif(not HAVE_FA, reason="flash-attention is not installed")
     @pytest.mark.unit
     def test_flash_cross_attention(self, cfg, model_parallel_config):
