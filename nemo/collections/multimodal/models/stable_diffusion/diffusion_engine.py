@@ -70,6 +70,8 @@ class DiffusionEngine(nn.Module, Serialization):
         self.channels_last = cfg.get('channels_last', False)
         self.log_keys = cfg.get('log_keys', None)
         self.input_key = cfg.get('input_key', 'images')
+        # Precaching
+        self.precache_mode = cfg.get('precache_mode')
 
         self.loss_fn = DiffusionEngine.from_config_dict(loss_fn_config) if loss_fn_config is not None else None
 
@@ -101,9 +103,6 @@ class DiffusionEngine(nn.Module, Serialization):
             if self.first_stage_model:
                 self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
             self.model = self.model.to(memory_format=torch.channels_last)
-
-        # Precaching
-        self.precache_mode = cfg.get('precache_mode')
         
     def _init_first_stage(self, config):
         if self.precache_mode == 'both':
@@ -481,14 +480,21 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             with torch.cuda.amp.autocast(
                 self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
             ):
-                x = batch[self.model.input_key].to(torch.cuda.current_device())
-                if self.model.channels_last:
-                    x = x.permute(0, 3, 1, 2).to(memory_format=torch.channels_last, non_blocking=True)
+                if self.model.precache_mode == 'both':
+                    x = batch[self.model.input_key].to(torch.cuda.current_device())
+                    if self.model.channels_last:
+                        x = x.to(memory_format=torch.channels_last, non_blocking=True)
+                    else:
+                        x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
                 else:
-                    x = rearrange(x, "b h w c -> b c h w")
-                    x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
-                # x = batch[self.model.input_key].cuda(non_blocking=True)
-                x = self.model.encode_first_stage(x)
+                    x = batch[self.model.input_key].to(torch.cuda.current_device())
+                    if self.model.channels_last:
+                        x = x.permute(0, 3, 1, 2).to(memory_format=torch.channels_last, non_blocking=True)
+                    else:
+                        x = rearrange(x, "b h w c -> b c h w")
+                        x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
+                    x = self.model.encode_first_stage(x)
+                
                 batch['global_step'] = self.trainer.global_step
 
             return x, batch

@@ -44,31 +44,32 @@ def main(cfg):
         refiner_config = cfg.refiner_config
         refiner = SamplingPipeline(refiner_config, use_fp16=cfg.use_fp16)
 
-    samples = base.text_to_image(
-        params=cfg.sampling.base,
-        prompt=cfg.infer.prompt,
-        negative_prompt=cfg.infer.negative_prompt,
-        samples=cfg.infer.num_samples,
-        return_latents=True if use_refiner else False,
-    )
-
-    if use_refiner:
-        assert isinstance(samples, (tuple, list))
-        samples, samples_z = samples
-        assert samples is not None
-        assert samples_z is not None
-
-        perform_save_locally(cfg.out_path, samples)
-
-        samples = refiner.refiner(
-            params=cfg.sampling.refiner,
-            image=samples_z,
-            prompt=cfg.infer.prompt,
+    for prompt in cfg.infer.prompt:
+        samples = base.text_to_image(
+            params=cfg.sampling.base,
+            prompt=[prompt],
             negative_prompt=cfg.infer.negative_prompt,
             samples=cfg.infer.num_samples,
+            return_latents=True if use_refiner else False,
         )
 
-    perform_save_locally(cfg.out_path, samples)
+        if use_refiner:
+            assert isinstance(samples, (tuple, list))
+            samples, samples_z = samples
+            assert samples is not None
+            assert samples_z is not None
+
+            perform_save_locally(cfg.out_path, samples)
+
+            samples = refiner.refiner(
+                params=cfg.sampling.refiner,
+                image=samples_z,
+                prompt=cfg.infer.prompt,
+                negative_prompt=cfg.infer.negative_prompt,
+                samples=cfg.infer.num_samples,
+            )
+
+        perform_save_locally(cfg.out_path, samples)
 
 
 if __name__ == "__main__":

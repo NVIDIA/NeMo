@@ -90,7 +90,7 @@ def build_train_valid_precached_datasets(
                 out_dict[model_cfg.first_stage_key] = torch.tensor(input['autoencoderkl_image'])
                 out_dict[model_cfg.cond_stage_key] = torch.tensor(input['clip-vit-large-patch14_text'])
             else:
-                out_dict = inp
+                out_dict = input
             yield out_dict
 
     def transform_fn(sample):
