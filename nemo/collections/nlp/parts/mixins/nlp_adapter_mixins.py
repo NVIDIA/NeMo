@@ -53,15 +53,13 @@ except (ImportError, ModuleNotFoundError):
 
 class NLPAdapterModelMixin(AdapterModelPTMixin):
     """ NLP Adapter Mixin that can augment any transformer-based model with Adapter module support.
-
     This mixin class should be used only with a top level ModelPT subclass, that includes either a `model` or an `enc_dec_model` submodule.
     This mixin class adds several utility methods to add, load and save adapters.
 
     An Adapter module is any Pytorch nn.Module that possess a few properties :
 
     - It's input and output dimension are the same, while the hidden dimension need not be the same.
-    - The final layer of the Adapter module is zero-initialized, so that the residual connection to the adapter
-yields the original output.
+    - The final layer of the Adapter module is zero-initialized, so that the residual connection to the adapter yields the original output.
 
     This mixin class aims to integrate with PEFT, which is one or more adapters modules.
     The two features of PEFT, layer selection and weight tying, are also supported in this mixin class.
