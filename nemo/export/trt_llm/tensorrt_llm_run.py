@@ -193,7 +193,7 @@ def _forward(
                 le_size = len(line_encoded)
             else:
                 le_size = line_encoded.size(0)
-            tasks = torch.zeros([le_size]).cuda()
+            tasks = torch.zeros(le_size, 1).cuda()
 
             ptuning_args = [prompt_table, tasks, task_vocab_size]
 
