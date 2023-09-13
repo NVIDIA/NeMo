@@ -243,7 +243,7 @@ def main(cfg) -> None:
                          max_seq_length=cfg.inference.max_seq_length,
                          data_dir=cfg.inference.data_dir,
                          n_jobs=cfg.inference.n_jobs,
-                         remove_newline_tab=cfg.inference.remove_newline_ta)
+                         remove_newline_tab=cfg.inference.remove_newline_tab)
 
     truncated_input = [s.replace("\n"," ").replace("\t"," ").strip().replace("  ", " ") for s in truncated_input]
 
