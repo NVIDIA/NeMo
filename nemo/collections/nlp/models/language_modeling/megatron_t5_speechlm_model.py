@@ -812,23 +812,25 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 taskname_ids,
                 speech_mask,
             ) = batch
-            dec_input = dec_input_raw * 1 # (B, 8, T)
-            dec_input_mask = dec_input_mask_raw * 1 # (B, T)
+            dec_input = dec_input_raw * 1  # (B, 8, T)
+            dec_input_mask = dec_input_mask_raw * 1  # (B, T)
             dec_input_mask[:, :] = 1  # Does not really matter
             output_token_list = []
-            
+
             end_indices = {}
             # pad dec_input (B, 8, T) to 1000 timesteps
             max_inference_timesteps = self.cfg.get('max_inference_timesteps', 1000)
             dec_input = torch.nn.functional.pad(dec_input, (0, max_inference_timesteps - dec_input.shape[2]), value=0)
-            dec_input_mask = torch.nn.functional.pad(dec_input_mask, (0, max_inference_timesteps - dec_input_mask.shape[1]), value=1)
-            
-            for t in range(dec_input.shape[2]-1):
+            dec_input_mask = torch.nn.functional.pad(
+                dec_input_mask, (0, max_inference_timesteps - dec_input_mask.shape[1]), value=1
+            )
+
+            for t in range(dec_input.shape[2] - 1):
                 output_logits, _, token_and_speech_logits = self.forward(
                     virtual_tokens,
                     context_and_question_tokens,
                     enc_mask,
-                    dec_input[:, :, : t + 1], # Slice until the current timestep
+                    dec_input[:, :, : t + 1],  # Slice until the current timestep
                     dec_input_mask[:, : t + 1],
                     position_ids,
                     taskname_ids,
@@ -907,7 +909,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 predicted_tokens = output_tokens_combined[i]
                 if i in end_indices:
                     print("Clipping until end index for audio", i)
-                    predicted_tokens = predicted_tokens[:, 0:end_indices[i]+1] # trim to audio length
+                    predicted_tokens = predicted_tokens[:, 0 : end_indices[i] + 1]  # trim to audio length
 
                 pred_img = predicted_tokens.data.cpu().float().numpy()
                 dec_inp_img = dec_input_to_1024.data.cpu().float().numpy()
