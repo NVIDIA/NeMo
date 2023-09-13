@@ -436,7 +436,16 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                                 self.logger.experiment.add_audio("Dec Input", dec_wav, self.global_step, 24000)
 
                                 token_logits = debug_tensors[0]
-                                speech_logits = debug_tensors[1]
+                                speech_logits_list = debug_tensors[1]
+                                if self.frozen_model.enc_dec_model.parallel_output:
+                                    # Gather from tensor parallel region
+                                    token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
+                                    for _i in range(len(speech_logits_list)):
+                                        speech_logits_list[_i] = tensor_parallel.gather_from_tensor_model_parallel_region(
+                                            speech_logits_list[_i]
+                                        )
+
+                                speech_logits = torch.stack(speech_logits_list, dim=-1) # (t, b, 1024, 7) 
                                 token_logits_example = token_logits[:, 0, :] * 1
                                 speech_logits_example = speech_logits[:, 0, :, :] * 1
                                 first_layer_tokens = token_logits_example.argmax(dim=1) - 30000
@@ -668,7 +677,15 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 inference=True,
             )
 
-            first_layer_logits, speech_logits = output_logits  # first_layer_logits: (t,bs,vocab_size)
+            first_layer_logits, speech_logits_list = output_logits  # first_layer_logits: (t,bs,vocab_size)
+            if self.frozen_model.enc_dec_model.parallel_output:
+                # Gather from tensor parallel region
+                first_layer_logits = tensor_parallel.gather_from_tensor_model_parallel_region(first_layer_logits)
+                for _i in range(len(speech_logits_list)):
+                    speech_logits_list[_i] = tensor_parallel.gather_from_tensor_model_parallel_region(
+                        speech_logits_list[_i]
+                    )
+            speech_logits = torch.stack(speech_logits_list, dim=-1)  # (t,bs,1024,7)
             first_layer_preds = first_layer_logits.argmax(dim=2)  # (t,bs)
             first_layer_preds = first_layer_preds.transpose(0, 1)  # (bs,t)
             labels_first_layer = labels_original[:, 0, :]  # (bs,t)

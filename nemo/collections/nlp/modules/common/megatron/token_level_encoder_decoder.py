@@ -649,12 +649,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     speech_layers = 7
                     last_layer_output = dec_output
                     last_layer_logits = token_logits
-                    speech_logits = torch.zeros(
-                        [*token_logits.shape[:-1], self.speech_codebook_size, speech_layers],
-                        device=token_logits.device,
-                    )
+                    
                     # speech_logits_list will be used in loss calculation (parallel output)
-                    # speech_logits have the gathered logits (for validation metrics and audio logging)
                     speech_logits_list = []
                     if self.seq_pattern in ["parallel", "delay_parallel"]:
                         for i in range(speech_layers):
@@ -669,16 +665,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                                     last_layer_output, self.speech_tokens_embeddings[i].weight
                                 )
                             elif self.speech_head_type == "linear":
-                                last_layer_logits = self.speech_tokens_heads[i](dec_output)[0]
+                                last_layer_logits = self.speech_tokens_heads[i](dec_output)[0] # T, B, 1024
                             else:
                                 raise ValueError(f"Speech head type {self.speech_head_type} not supported")
-                            speech_logits_list.append(last_layer_logits)
-                            if self.parallel_output:
-                                speech_logits[:, :, :, i] = tensor_parallel.gather_from_tensor_model_parallel_region(
-                                    last_layer_logits
-                                )
-                            else:
-                                speech_logits[:, :, :, i] = last_layer_logits
+                            speech_logits_list.append(last_layer_logits) # T, B, 1024
                 else:
                     token_logits = self.tokens_head(dec_output)[0]  # T, B, WordEmbSize
 
@@ -726,19 +716,26 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
 
-                    if self.parallel_output:
-                        token_logits_gathered = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
-                    else:
-                        token_logits_gathered = token_logits
-
-                    return tokens_loss, [token_logits_gathered, speech_logits]
+                    return tokens_loss, [token_logits, speech_logits_list]
                 else:
                     # [s, b, h] -> [b, s, h]
-                    token_logits = token_logits.transpose(0, 1).contiguous()  # (b, s, 30208)
+                    # If labels is None then we are in inference mode and we return the gathered logits
+                    if self.parallel_output:
+                        # Gather logits from tensor parallel if in parallel_output mode
+                        token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits) # T, B, 30208
+                        for _i in range(len(speech_logits_list)):
+                            speech_logits_list[_i] = tensor_parallel.gather_from_tensor_model_parallel_region(
+                                speech_logits_list[_i]
+                            ) # T, B, 1024
+                    
+                    token_logits = token_logits.transpose(0, 1).contiguous()  # (B, T, 30208)
+                    speech_logits = torch.stack(speech_logits_list, dim=-1) # T, B, 1024, 7
+                    speech_logits = speech_logits.transpose(0, 1).contiguous()  # (B, T, 1024, 7)
+
                     _si = self.speech_offset
                     _ei = _si + self.speech_codebook_size
                     first_layer_speech_logits = token_logits[:, :, _si:_ei].unsqueeze(-1)  # (b, s, 1023, 1)
-                    speech_logits = speech_logits.transpose(0, 1).contiguous()  # (b, s, 1024, 7)
+                    
                     all_speech_logits = torch.cat(
                         [first_layer_speech_logits, speech_logits], dim=-1
                     )  # (b, s, 1024, 8)
