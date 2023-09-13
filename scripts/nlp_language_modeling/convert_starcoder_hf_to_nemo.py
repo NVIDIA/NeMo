@@ -60,6 +60,7 @@ from omegaconf import OmegaConf
 from transformers import AutoConfig, AutoModelForCausalLM
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 
 
@@ -180,6 +181,7 @@ if __name__ == "__main__":
         "gradient_clip_val": 1.0,
         "benchmark": False,
         "enable_model_summary": False,
+        "strategy": NLPDDPStrategy(),
     }
 
     model_dict.update(override_model_dict)
