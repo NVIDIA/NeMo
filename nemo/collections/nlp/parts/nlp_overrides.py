@@ -1098,8 +1098,11 @@ class CustomProgressBar(TQDMProgressBar):
 
     def on_train_epoch_start(self, trainer, *_):
         if trainer.max_steps != -1:
-            num_training_batches = min(trainer.max_steps, trainer.num_training_batches)
+            #num_training_batches = min(trainer.max_steps, trainer.num_training_batches)
+            # update with max_steps for both training from scratch and resuming
+            num_training_batches = trainer.max_steps
         else:
+            # TODO: fix for resume with multiple epochs
             num_training_batches = trainer.num_training_batches
         self.train_progress_bar.reset(num_training_batches)
         self.train_progress_bar.initial = 0
