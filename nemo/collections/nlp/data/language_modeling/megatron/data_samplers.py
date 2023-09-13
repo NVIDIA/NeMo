@@ -94,8 +94,6 @@ class BaseMegatronSampler:
         else:
             return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size + 1
 
-        
-
     @abc.abstractmethod
     def __iter__(self):
         ...
