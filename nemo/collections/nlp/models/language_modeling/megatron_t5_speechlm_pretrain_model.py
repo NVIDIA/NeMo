@@ -439,13 +439,17 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                                 speech_logits_list = debug_tensors[1]
                                 if self.frozen_model.enc_dec_model.parallel_output:
                                     # Gather from tensor parallel region
-                                    token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
+                                    token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(
+                                        token_logits
+                                    )
                                     for _i in range(len(speech_logits_list)):
-                                        speech_logits_list[_i] = tensor_parallel.gather_from_tensor_model_parallel_region(
+                                        speech_logits_list[
+                                            _i
+                                        ] = tensor_parallel.gather_from_tensor_model_parallel_region(
                                             speech_logits_list[_i]
                                         )
 
-                                speech_logits = torch.stack(speech_logits_list, dim=-1) # (t, b, 1024, 7) 
+                                speech_logits = torch.stack(speech_logits_list, dim=-1)  # (t, b, 1024, 7)
                                 token_logits_example = token_logits[:, 0, :] * 1
                                 speech_logits_example = speech_logits[:, 0, :, :] * 1
                                 first_layer_tokens = token_logits_example.argmax(dim=1) - 30000

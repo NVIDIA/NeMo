@@ -649,7 +649,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     speech_layers = 7
                     last_layer_output = dec_output
                     last_layer_logits = token_logits
-                    
+
                     # speech_logits_list will be used in loss calculation (parallel output)
                     speech_logits_list = []
                     if self.seq_pattern in ["parallel", "delay_parallel"]:
@@ -665,10 +665,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                                     last_layer_output, self.speech_tokens_embeddings[i].weight
                                 )
                             elif self.speech_head_type == "linear":
-                                last_layer_logits = self.speech_tokens_heads[i](dec_output)[0] # T, B, 1024
+                                last_layer_logits = self.speech_tokens_heads[i](dec_output)[0]  # T, B, 1024
                             else:
                                 raise ValueError(f"Speech head type {self.speech_head_type} not supported")
-                            speech_logits_list.append(last_layer_logits) # T, B, 1024
+                            speech_logits_list.append(last_layer_logits)  # T, B, 1024
                 else:
                     token_logits = self.tokens_head(dec_output)[0]  # T, B, WordEmbSize
 
@@ -722,20 +722,22 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # If labels is None then we are in inference mode and we return the gathered logits
                     if self.parallel_output:
                         # Gather logits from tensor parallel if in parallel_output mode
-                        token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits) # T, B, 30208
+                        token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(
+                            token_logits
+                        )  # T, B, 30208
                         for _i in range(len(speech_logits_list)):
                             speech_logits_list[_i] = tensor_parallel.gather_from_tensor_model_parallel_region(
                                 speech_logits_list[_i]
-                            ) # T, B, 1024
-                    
+                            )  # T, B, 1024
+
                     token_logits = token_logits.transpose(0, 1).contiguous()  # (B, T, 30208)
-                    speech_logits = torch.stack(speech_logits_list, dim=-1) # T, B, 1024, 7
+                    speech_logits = torch.stack(speech_logits_list, dim=-1)  # T, B, 1024, 7
                     speech_logits = speech_logits.transpose(0, 1).contiguous()  # (B, T, 1024, 7)
 
                     _si = self.speech_offset
                     _ei = _si + self.speech_codebook_size
                     first_layer_speech_logits = token_logits[:, :, _si:_ei].unsqueeze(-1)  # (b, s, 1023, 1)
-                    
+
                     all_speech_logits = torch.cat(
                         [first_layer_speech_logits, speech_logits], dim=-1
                     )  # (b, s, 1024, 8)
