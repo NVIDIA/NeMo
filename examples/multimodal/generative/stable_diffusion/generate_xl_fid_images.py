@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import torch
 from einops import rearrange
 from omegaconf.omegaconf import open_dict
 from PIL import Image
@@ -53,7 +54,8 @@ def main(cfg):
     print(f"Current worker {node_id}:{local_task_id} will generate {len(input)} images")
 
     os.makedirs(save_path, exist_ok=True)
-    os.environ['CUDA_VISIBLE_DEVICES']= str(local_task_id)
+
+    torch.cuda.set_device(local_task_id)
 
     base_model_config = cfg.base_model_config
     base = SamplingPipeline(base_model_config, use_fp16=cfg.use_fp16)
