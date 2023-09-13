@@ -30,8 +30,8 @@ Example to run this conversion script:
 ```
 """
 
-import os
 import logging
+import os
 import time
 from argparse import ArgumentParser
 from collections import OrderedDict
@@ -40,8 +40,7 @@ import torch
 from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
-from transformers import AutoTokenizer, AutoModelForCausalLM, FalconConfig
-
+from transformers import AutoModelForCausalLM, AutoTokenizer, FalconConfig
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -51,22 +50,28 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 
-
 # TODO:
 # [Y] refactor ckpt func to make it cleaner
 # [Y] dict tokenizer mapping for falcon family
 # [ ] good way to add new_decoder_architecture and parallel_attn in megatron_gpt_config.yaml
 # [ ] safetensors loading. (only 180b used safetensors)
-# [Y] test on non parallel attention model （block by no alibi support? 1b-rw good, 7b-rw still some time) 
+# [Y] test on non parallel attention model （block by no alibi support? 1b-rw good, 7b-rw still some time)
 # [Y] hf config name mapping for falcon 7b and 40b.
 # [Y] trust remote code add
 # [Y] MQA MHA GQA num_kv_heads and mcore's GQA logic add (not sure about MQA)
 # [Y] When bias_gelu_fusion is True, add_bias_linear must also be True. error
 # [ ] remove unnecessary comments and codes.
 
+
 def setup_logging(log_file="test_log.txt"):
-    logging.basicConfig(filename=log_file, level=logging.DEBUG, 
-                        format='%(asctime)s [%(levelname)s] - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.DEBUG,
+        format='%(asctime)s [%(levelname)s] - %(message)s',
+        datefmt='%d-%b-%y %H:%M:%S',
+    )
+
+
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
@@ -74,7 +79,11 @@ def get_args():
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
-    parser.add_argument("--tokenizer-type", type=str, default="tiiuae/falcon-7b", help="Tokenizer type to use, e.g., 'tiiuae/falcon-7b'."
+    parser.add_argument(
+        "--tokenizer-type",
+        type=str,
+        default="tiiuae/falcon-7b",
+        help="Tokenizer type to use, e.g., 'tiiuae/falcon-7b'.",
     )
     args = parser.parse_args()
     return args
@@ -115,14 +124,14 @@ def load_falcon_config(args) -> FalconConfig:
             "num_hidden_layers": config.n_layer,
             "num_attention_heads": config.n_head,
             "num_kv_heads": config.n_head_kv,
-            "new_decoder_architecture": True
+            "new_decoder_architecture": True,
         }
     elif config.model_type == 'RefinedWebModel':
         mappings = {
             "num_hidden_layers": config.n_layer,
             "num_attention_heads": config.n_head,
-            "num_kv_heads": 1 if config.multi_query else config.n_head, 
-            "new_decoder_architecture": False
+            "num_kv_heads": 1 if config.multi_query else config.n_head,
+            "new_decoder_architecture": False,
         }
     else:
         return config
@@ -147,10 +156,12 @@ def load_nemo_config(args):
     nemo_config.max_position_embeddings = falcon_config.max_position_embeddings
     nemo_config.init_method_std = falcon_config.initializer_range
     nemo_config.layernorm_epsilon = falcon_config.layer_norm_epsilon
-    try: 
+    try:
         if falcon_config.alibi:
-            raise ValueError("Alibi is not yet supported in Megatron Core, \
-                force to use RoPE will generate suboptimal responses")
+            raise ValueError(
+                "Alibi is not yet supported in Megatron Core, \
+                force to use RoPE will generate suboptimal responses"
+            )
     except ValueError as e:
         print(e)
     finally:
@@ -163,15 +174,17 @@ def load_nemo_config(args):
         'library': 'huggingface',
         'type': args.tokenizer_type,  # FIXME: can it work from local args.input too, fix for falcon family?
     }
-    
+
     nemo_config.tokenizer = tokenizer_dict
     ##############################################
     # TODO: need refactor Mcore to support parallel attn and 40b/180b model arch
-    #nemo_config.new_decoder_architecture = falcon_config['new_decoder_architecture'] #bool, if True, always use parallel attn
-    #nemo_config.parallel_attention = falcon_config['parallel_attn']
+    # nemo_config.new_decoder_architecture = falcon_config['new_decoder_architecture'] #bool, if True, always use parallel attn
+    # nemo_config.parallel_attention = falcon_config['parallel_attn']
     ###############################################
 
-    nemo_config.num_query_groups = falcon_config.num_kv_heads if falcon_config.new_decoder_architecture or falcon_config.multi_query else None
+    nemo_config.num_query_groups = (
+        falcon_config.num_kv_heads if falcon_config.new_decoder_architecture or falcon_config.multi_query else None
+    )
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'gelu'
     if falcon_config.rope_scaling is not None:
@@ -179,17 +192,18 @@ def load_nemo_config(args):
             nemo_config['seq_len_interpolation_factor'] = falcon_config.rope_scaling.factor
         else:
             raise ValueError("Only linear rope scaling type is supported now")
-    
+
     nemo_config.mcore_gpt = True
     nemo_config.transformer_engine = True
     nemo_config.bias_activation_fusion = False
-    
+
     base = 128
     while falcon_config.vocab_size % base != 0:
         base //= 2
     nemo_config.make_vocab_size_divisible_by = base
 
     return nemo_config
+
 
 def determine_precision(args):
     """Helper function to determine the precision of model
@@ -202,15 +216,17 @@ def determine_precision(args):
             return args.precision[2:]  # prune 'bf' from string
     return args.precision
 
+
 def determine_dtype(precision):
     dtype_map = {
         "32": torch.float32,
         "16": torch.float16,
         "16-mixed": torch.float16,
         "bf16": torch.bfloat16,
-        "bf16-mixed": torch.bfloat16
+        "bf16-mixed": torch.bfloat16,
     }
     return dtype_map.get(precision, torch.float32)  # default to torch.float32
+
 
 def convert(args):
     logging.info(f"loading checkpoint {args.in_file}")
@@ -224,14 +240,14 @@ def convert(args):
     precision = determine_precision(args)
 
     plugins = []
-    
+
     if precision in ['16', '16-mixed', 'bf16', 'bf16-mixed']:
         scaler_params = {
             'init_scale': nemo_config.get('native_amp_init_scale', 2 ** 32),
             'growth_interval': nemo_config.get('native_amp_growth_interval', 1000),
-            'hysteresis': nemo_config.get('hysteresis', 2)
+            'hysteresis': nemo_config.get('hysteresis', 2),
         }
-    
+
         plugin_precision = '16-mixed' if precision in ['16', '16-mixed'] else 'bf16-mixed'
         scaler = GradScaler(**scaler_params) if precision in ['16', '16-mixed'] else None
 
@@ -241,20 +257,26 @@ def convert(args):
 
     hidden_size = falcon_config.hidden_size
     head_num = falcon_config.num_attention_heads
-    head_size = hidden_size // head_num 
+    head_size = hidden_size // head_num
     num_layers = falcon_config.num_hidden_layers
-    
+
     #  - MHA: num_heads = num_kv_heads
     #  - Multi-Query Attention: num_kv_heads = 1
     #  - Grouped-Query Attention: num_heads % num_kv_heads = 0
-    num_query_groups = nemo_config.num_query_groups if nemo_config.num_query_groups and nemo_config.num_query_groups != head_num else head_num
-    assert head_num % num_query_groups == 0, f'head_num ({head_num}) must be divisible by num_query_groups ({num_query_groups})'
+    num_query_groups = (
+        nemo_config.num_query_groups
+        if nemo_config.num_query_groups and nemo_config.num_query_groups != head_num
+        else head_num
+    )
+    assert (
+        head_num % num_query_groups == 0
+    ), f'head_num ({head_num}) must be divisible by num_query_groups ({num_query_groups})'
 
     param_to_weights = lambda param: param.float()
 
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
-    
+
     def add_to_checkpoint(source_prefix, target_prefix, weight_or_bias, is_layernorm=False):
         source_name = f"{source_prefix}.{weight_or_bias}"
         if source_name in model.state_dict():
@@ -268,25 +290,43 @@ def convert(args):
         add_to_checkpoint(source_prefix, target_prefix, 'weight', is_layernorm)
         if f"{source_prefix}.bias" in model.state_dict():
             add_to_checkpoint(source_prefix, target_prefix, 'bias', is_layernorm)
-    
+
     add_to_checkpoint('transformer.word_embeddings', 'model.embedding.word_embeddings', 'weight')
 
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
         prefix = f'transformer.h.{l}'
-        
-        add_weight_and_possible_bias(f'{prefix}.self_attention.query_key_value', f'model.decoder.layers.{l}.self_attention.linear_qkv')
-        add_weight_and_possible_bias(f'{prefix}.self_attention.dense', f'model.decoder.layers.{l}.self_attention.linear_proj')
+
+        add_weight_and_possible_bias(
+            f'{prefix}.self_attention.query_key_value', f'model.decoder.layers.{l}.self_attention.linear_qkv'
+        )
+        add_weight_and_possible_bias(
+            f'{prefix}.self_attention.dense', f'model.decoder.layers.{l}.self_attention.linear_proj'
+        )
         add_weight_and_possible_bias(f'{prefix}.mlp.dense_h_to_4h', f'model.decoder.layers.{l}.mlp.linear_fc1')
         add_weight_and_possible_bias(f'{prefix}.mlp.dense_4h_to_h', f'model.decoder.layers.{l}.mlp.linear_fc2')
 
         if falcon_config.new_decoder_architecture:
-            add_weight_and_possible_bias(f'{prefix}.ln_attn', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True)
-            add_weight_and_possible_bias(f'{prefix}.ln_mlp', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True)
+            add_weight_and_possible_bias(
+                f'{prefix}.ln_attn',
+                f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm',
+                is_layernorm=True,
+            )
+            add_weight_and_possible_bias(
+                f'{prefix}.ln_mlp', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True
+            )
         else:
-            add_weight_and_possible_bias(f'{prefix}.input_layernorm', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True)
+            add_weight_and_possible_bias(
+                f'{prefix}.input_layernorm',
+                f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm',
+                is_layernorm=True,
+            )
             if not falcon_config.parallel_attn:
-                add_weight_and_possible_bias(f'{prefix}.post_attention_layernorm', f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm', is_layernorm=True)
+                add_weight_and_possible_bias(
+                    f'{prefix}.post_attention_layernorm',
+                    f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm',
+                    is_layernorm=True,
+                )
 
         print(f"done layer {l}")
 
@@ -294,18 +334,18 @@ def convert(args):
     add_weight_and_possible_bias('transformer.ln_f', 'model.decoder.final_layernorm')
 
     # LM weight
-    add_to_checkpoint('lm_head', 'model.output_layer','weight')
-    
+    add_to_checkpoint('lm_head', 'model.output_layer', 'weight')
+
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
     logging.debug(f'final checkpoint, {checkpoint}')
-    
+
     tok = time.time()
     t = time.strftime('%H:%M:%S', time.gmtime(tok - tik))
     logging.info(f'Weights loaded. Total time: {t}')
 
     del model
 
-    #model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
+    # model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
     model = MegatronGPTModel(checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY], strict=False, trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
