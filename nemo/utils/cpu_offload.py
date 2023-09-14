@@ -716,6 +716,74 @@ class GroupJitOffloadHandler(OffloadHandler):
             tensor = state
         return tensor
 
+class GroupAsyncPersistentBufferOffloadHandler(GroupAsyncOffloadHandler):
+    def __init__(self,
+                 num_offload_group,
+                 num_prefetch_group=1,
+                 tensor_need_offloading_checker=(lambda _: True),
+                 debug=False) -> None:
+        super().__init__(num_offload_group, num_prefetch_group, tensor_need_offloading_checker, debug)
+
+        self.tensor_id_to_tensor_bufs = []
+        for _ in range(2):
+            self.tensor_id_to_tensor_bufs.append(dict()) # ping-pong buffer
+
+    def get_tensor_buf_for_offloaded_tensor(self, tensor, tensor_tag):
+        group_id, tensor_id = tensor_tag
+        id_buf_map = self.tensor_id_to_tensor_bufs[ (group_id % 2) ]
+
+        if not tensor_id in id_buf_map:
+            allocate_new_buf = True
+        else:
+            tensor_buf = id_buf_map[tensor_id]
+            if not (tensor_buf.size() == tensor.size() and tensor_buf.dtype == tensor.dtype):
+                allocate_new_buf = True
+            else:
+                allocate_new_buf = False
+        # if not (tensor_id in id_buf_map):
+        #     allocate_new_buf = True
+        # else:
+        #     tensor_buf = id_buf_map[tensor_id]
+        #     assert ( tensor_buf.size() == tensor.size() and tensor_buf.dtype == tensor.dtype), \
+        #     "async offloading requires that the offloaded tensors in each group have identical shapes"
+        #     allocate_new_buf = False
+        
+        if allocate_new_buf:
+            # supposed to only execute once
+            if self.debug:
+                logging.info(f"Allocating tensor_buf for group {group_id} tensor {tensor_id} size {tensor.size()}")
+            id_buf_map[tensor_id] = torch.empty(tensor.size(),
+                                                dtype=tensor.dtype,
+                                                layout=tensor.layout,
+                                                device=tensor.device,
+                                                )
+        
+
+        return id_buf_map[tensor_id]
+    
+    def on_group_commit_forward(self):
+        if self.current_group - 1 >= 0 and self.current_group - 1 < self.num_offload_group:
+            torch.cuda.current_stream().wait_event(self.d2h_finish_events[self.current_group - 1])
+        return super().on_group_commit_forward()
+    
+    def tensor_push(self, tensor: torch.Tensor, **kwargs):
+        # obtain a unique tensor tag
+        tensor_tag = (self.current_group, self.tensor_count_current_group)
+        if self.debug:
+            print("tensor_push", tensor_tag, tensor.shape, type(tensor), "need_offloading ?", self.tensor_need_offloading_checker(tensor))
+            # print("hasattr main_grad", hasattr(tensor, "main_grad"))
+        self.tensor_count_current_group += 1
+        assert not (tensor_tag in self.tensor_tag_to_state)
+        
+        if self.current_group < self.num_offload_group and self.tensor_need_offloading_checker(tensor):
+            tensor_buf = self.get_tensor_buf_for_offloaded_tensor(tensor, tensor_tag)
+            tensor_buf.copy_(tensor)
+            self.tensor_tag_to_state[tensor_tag] = tensor_buf
+        else:
+            self.tensor_tag_to_state[tensor_tag] = tensor
+        return tensor_tag
+
+
 # mimic the unpad/pad functions in flash_attention 
 # but without using torch.nonzero and torch.item (both cause host-device synchronization).
 # only useful when attention_mask == None

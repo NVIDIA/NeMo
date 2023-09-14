@@ -28,7 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, erf_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
 from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
-from nemo.utils import cpu_offload
+from nemo.utils import cpu_offload_refactored as cpu_offload
 from nemo.core import adapter_mixins
 
 try:

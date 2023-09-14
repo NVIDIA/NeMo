@@ -8,7 +8,7 @@ export PYTHONPATH=${NEMO}:${PYTHONPATH}
 MICRO_BATCH_SIZE=${1:-1}
 SEQ_LENGTH=${2:-512}
 MEGATRON_AMP_O2=${3:-"True"}
-OFFLOAD_REGION=${4:-"encoder"} # comma-separated list, choices in [ln,ffn_act,bias_dropout_add,attn_fn,qkv_proj,out_proj,ffn1,ffn2] or endocder
+OFFLOAD_REGION=${4:-"transformer_layer"} # comma-separated list, choices in [ln,ffn_act,bias_dropout_add,attn_fn,qkv_proj,out_proj,ffn1,ffn2] or endocder
 OFFLOAD_NUM_LAYERS=${5:-15}
 OFFLOAD_METHOD=${6:-"group_async"} # group_async or group_jit
 

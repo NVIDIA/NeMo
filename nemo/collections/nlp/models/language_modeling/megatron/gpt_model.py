@@ -26,7 +26,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.parts import utils_funcs
-from nemo.utils import cpu_offload
+from nemo.utils import cpu_offload_refactored as cpu_offload
+from nemo.utils.cpu_offload import GroupAsyncPersistentBufferOffloadHandler
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -203,22 +204,23 @@ class GPTModel(MegatronModule):
             def tensor_need_offloading_checker(tensor):
                 return (
                     (not isinstance(tensor, torch.nn.Parameter))    # avoid parameters
-                    and (len(tensor.shape) == 3)                    # this is a hack to make sure only qkv 
-                                                                    # tensors are offloaded in flash attention. 
-                                                                    # otherwise flash attention throws device illegal access somehow
+                    # and (len(tensor.shape) == 3)                    # this is a hack to make sure only qkv 
+                    #                                                 # tensors are offloaded in flash attention. 
+                    #                                                 # otherwise flash attention throws device illegal access somehow
                     )
             
             if cpu_offloading_method == 'group_async':
                 assert (
-                    cpu_offloading_num_layers > 0 and cpu_offloading_num_layers <= num_layers
-                ), "cpu_offloading_num_layers should be in [0, num_layers] but got %d" % cpu_offloading_num_layers
+                    cpu_offloading_num_layers > 0 and cpu_offloading_num_layers <= num_layers - 1
+                ), "cpu_offloading_num_layers should be in [0, num_layers - 1] but got %d" % cpu_offloading_num_layers
                 assert (
                     cpu_offloading_num_prefetch_layers >= 0
                 ), "cpu_offloading_num_prefetch_layers should be >= 0"
                 
                 
                 # initialize the cpu offload handler
-                cpu_offload_handler = cpu_offload.GroupAsyncOffloadHandler(
+                # cpu_offload_handler = cpu_offload.AsyncDoubleBufferGroupOffloadHandler(
+                cpu_offload_handler = cpu_offload.AsyncDoubleBufferGroupOffloadHandler(
                     num_offload_group=cpu_offloading_num_layers,
                     num_prefetch_group=cpu_offloading_num_prefetch_layers,
                     tensor_need_offloading_checker=tensor_need_offloading_checker,
@@ -230,7 +232,7 @@ class GPTModel(MegatronModule):
                 ), "cpu_offloading_num_layers should be in [0, num_layers] but got %d" % cpu_offloading_num_layers
                 
                 # initialize the cpu offload handler
-                cpu_offload_handler = cpu_offload.GroupJitOffloadHandler(
+                cpu_offload_handler = cpu_offload.SynchronizedGroupOffloadHandler(
                     num_offload_group=cpu_offloading_num_layers,
                     tensor_need_offloading_checker=tensor_need_offloading_checker,
                     # debug=True,
@@ -245,12 +247,12 @@ class GPTModel(MegatronModule):
             assert isinstance(cpu_offloading_region, list), "cpu_offloading_region should be a list"
 
             for region in cpu_offloading_region:
-                assert region in ['ln', 'ffn_act', 'bias_dropout_add', 'attn_fn', 'qkv_proj', 'out_proj', 'ffn1', 'ffn2', 'encoder'], \
-                f"Got region {region} but only [ln, ffn_act, bias_dropout_add, attn_fn] are supported."
+                assert region in ['ln', 'ffn_act', 'bias_dropout_add', 'attn_fn', 'qkv_proj', 'out_proj', 'ffn1', 'ffn2', 'transformer_layer'], \
+                f"Got region {region} but only [ln, ffn_act, bias_dropout_add, attn_fn, qkv_proj, out_proj, ffn1, ffn2, transformer_layer] are supported."
                 
-                if region == "encoder":
+                if region == "transformer_layer":
                     # encoder and the rest of the options are mutually exclusive. If with encoder, encoder must be the only region
-                    cpu_offloading_region = ["encoder"]
+                    cpu_offloading_region = ["transformer_layer"]
                     break
 
         else:

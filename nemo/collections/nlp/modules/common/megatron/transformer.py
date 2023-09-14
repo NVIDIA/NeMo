@@ -40,7 +40,7 @@ from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, Switch
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts import utils_funcs
-from nemo.utils import cpu_offload
+from nemo.utils import cpu_offload_refactored as cpu_offload
 from nemo.core import adapter_mixins
 from nemo.utils import logging
 
@@ -1019,6 +1019,10 @@ class ParallelTransformer(MegatronModule):
         self.activations_checkpoint_granularity = activations_checkpoint_granularity
         self.activations_checkpoint_layers_per_pipeline = activations_checkpoint_layers_per_pipeline
 
+        self.cpu_offloading = cpu_offloading
+        self.cpu_offloading_region = cpu_offloading_region
+        self.cpu_offload_handler = cpu_offload_handler
+
         if self.activations_checkpoint_granularity:
             if self.activations_checkpoint_granularity == 'selective':
                 if self.activations_checkpoint_method == 'uniform':
@@ -1235,6 +1239,12 @@ class ParallelTransformer(MegatronModule):
             # removing bias, so we also have to check for that
             if not bias and normalization not in ['layernorm', 'layernorm1p']:
                 remove_bias_from_layernorm(self.final_layernorm)
+
+    def _get_cpu_offload_context(self, region):
+        if self.cpu_offloading and (region in self.cpu_offloading_region):
+            return cpu_offload.CpuOffloadHookWithOffloadHandler(offload_handler=self.cpu_offload_handler)
+        else:
+            return nullcontext()
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]
@@ -1585,20 +1595,21 @@ class ParallelTransformer(MegatronModule):
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
                         else:
-                            hidden_states = layer(
-                                hidden_states,
-                                attention_mask,
-                                encoder_output=encoder_output,
-                                enc_dec_attn_mask=enc_dec_attn_mask,
-                                layer_past=past,
-                                get_key_value=get_key_value,
-                                set_inference_key_value_memory=set_inference_key_value_memory,
-                                inference_max_sequence_len=inference_max_sequence_len,
-                                rotary_pos_emb=rotary_pos_emb,
-                                self_attention_relative_position_bias=self_attention_relative_position_bias,
-                                cross_attention_relative_position_bias=cross_attention_relative_position_bias,
-                                checkpoint_core_attention=checkpoint_core_attention,
-                            )
+                            with self._get_cpu_offload_context("transformer_layer"):
+                                hidden_states = layer(
+                                    hidden_states,
+                                    attention_mask,
+                                    encoder_output=encoder_output,
+                                    enc_dec_attn_mask=enc_dec_attn_mask,
+                                    layer_past=past,
+                                    get_key_value=get_key_value,
+                                    set_inference_key_value_memory=set_inference_key_value_memory,
+                                    inference_max_sequence_len=inference_max_sequence_len,
+                                    rotary_pos_emb=rotary_pos_emb,
+                                    self_attention_relative_position_bias=self_attention_relative_position_bias,
+                                    cross_attention_relative_position_bias=cross_attention_relative_position_bias,
+                                    checkpoint_core_attention=checkpoint_core_attention,
+                                )
                     # Update current sequence length outside of the loops
                     if self.transformer_engine:
                         self.inference_current_sequence_len += hidden_states.size(0)

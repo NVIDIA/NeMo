@@ -18,7 +18,7 @@ from contextlib import nullcontext
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from nemo.utils import cpu_offload
+from nemo.utils import cpu_offload_refactored as cpu_offload
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
