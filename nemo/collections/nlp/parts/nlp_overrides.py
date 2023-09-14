@@ -1082,6 +1082,7 @@ class CustomProgressBar(TQDMProgressBar):
     Add CustomProgressBar to remove 's/it' and display progress per step instead of per microbatch
     for megatron models
     """
+
     def get_current_epoch_step(self, trainer):
         """
         Get the value of step within an epoch
