@@ -223,7 +223,7 @@ class GPTSFTDataset(Dataset):
             template_with_placeholder_separated = [
                 s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated
             ]
-            
+
         # convert placeholder to the corresponding string and key
         template_strings, template_strings_keys = [], []
         for t in template_with_placeholder_separated:
@@ -303,7 +303,7 @@ class GPTSFTDataset(Dataset):
         # Replace placeholder and calculate total ids
         template_strings, template_strings_keys = self._separate_template(prompt_template_values, space_reduce=False)
         answer_string = example[self.label_key]
-        context_string = ''.join(template_strings)[:-len(answer_string)]
+        context_string = ''.join(template_strings)[: -len(answer_string)]
         context_ids = self.tokenizer.text_to_ids(context_string)
         answer_ids = self.tokenizer.text_to_ids(answer_string)
         total_ids = (
@@ -317,7 +317,9 @@ class GPTSFTDataset(Dataset):
 
         # Do truncation
         if total_ids > self.max_seq_length:
-            template_strings, template_strings_keys = self._separate_template(prompt_template_values, space_reduce=True)
+            template_strings, template_strings_keys = self._separate_template(
+                prompt_template_values, space_reduce=True
+            )
             template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
             context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
 
