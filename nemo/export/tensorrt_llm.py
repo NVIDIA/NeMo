@@ -144,7 +144,7 @@ class TensorRTLLM(ITritonDeployable):
             parallel_build (bool): build in parallel or not.
         """
 
-        if prompt_embeddings_table is None:
+        if prompt_embeddings_table is not None:
             if not isinstance(prompt_embeddings_table, np.ndarray):
                 raise TypeError("Only numpy array is allowed for the prompt embeddings table.")
 
