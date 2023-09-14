@@ -25,7 +25,7 @@ class RotaryEmbedding(nn.Module):
     Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
     """
 
-    def __init__(self, pretrained_max_position_embeddings: int, dim: int, seq_len_interpolation_factor: int = None):
+    def __init__(self,  dim: int, seq_len_interpolation_factor: int = None, pretrained_max_position_embeddings: int = None):
         """
         Args:
 
@@ -43,14 +43,15 @@ class RotaryEmbedding(nn.Module):
         seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
         seq = seq.type_as(self.inv_freq)
 
-        if max_seq_len > self.pretrained_max_position_embeddings * self.seq_len_interpolation_factor:
-            # dynamic linear scaling
-            seq *= 1 / (max_seq_len / self.pretrained_max_position_embeddings)
-        else:
-            # fixed linear scaling
-            seq *= 1 / self.seq_len_interpolation_factor
+        if self.pretrained_max_position_embeddings is not None:
+            if max_seq_len > self.pretrained_max_position_embeddings * self.seq_len_interpolation_factor:
+                # dynamic linear scaling
+                seq *= 1 / (max_seq_len / self.pretrained_max_position_embeddings)
+            else:
+                # fixed linear scaling
+                seq *= 1 / self.seq_len_interpolation_factor
 
-        freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
+        freqs = einsum('i , j -> i j', seq, self.inv_freq)
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size
         emb = torch.cat((freqs, freqs), dim=-1)
