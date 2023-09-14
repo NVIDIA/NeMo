@@ -230,19 +230,28 @@ def fake_initialize_model_parallel(
         virtual_pipeline_model_parallel_rank = 0
 
     # Build the data-parallel groups.
-    all_data_parallel_group_ranks = []
+    all_data_parallel_group_ranks_with_cp = []
     for i in range(pipeline_model_parallel_size):
         start_rank = i * num_pipeline_model_parallel_groups
         end_rank = (i + 1) * num_pipeline_model_parallel_groups
-        for j in range(tensor_model_parallel_size):
-            ranks = range(start_rank + j, end_rank, tensor_model_parallel_size)
-            all_data_parallel_group_ranks.append(list(ranks))
+        for j in range(context_parallel_size * tensor_model_parallel_size):
+            ranks = range(start_rank + j, end_rank, context_parallel_size * tensor_model_parallel_size)
             if rank in ranks:
                 data_parallel_group = list(ranks)
-                logging.info(f'Rank {rank} has data parallel group: {data_parallel_group}')
+                logging.info(f'Rank {rank} has data parallel group : {data_parallel_group}')
+        for j in range(tensor_model_parallel_size):
+            ranks_with_cp = range(start_rank + j, end_rank, tensor_model_parallel_size)
+            all_data_parallel_group_ranks_with_cp.append(list(ranks_with_cp))
+            if rank in ranks_with_cp:
+                data_parallel_group_with_cp = list(ranks_with_cp)
+                logging.info(
+                    f'Rank {rank} has combined group of data parallel and context parallel : {data_parallel_group_with_cp}'
+                )
 
-    data_parallel_rank = data_parallel_group.index(rank) // context_parallel_size
-    logging.info(f'All data parallel group ranks: {all_data_parallel_group_ranks}')
+    data_parallel_rank = data_parallel_group.index(rank)
+    logging.info(
+        f'All data parallel group ranks with context parallel combined: {all_data_parallel_group_ranks_with_cp}'
+    )
     logging.info(f'Ranks {rank} has data parallel rank: {data_parallel_rank}')
 
     # Build the context-parallel groups.
@@ -269,7 +278,10 @@ def fake_initialize_model_parallel(
     # Build the model-parallel groups.
     all_model_parallel_group_ranks = []
     for i in range(data_parallel_size * context_parallel_size):
-        ranks = [data_parallel_group_ranks[i] for data_parallel_group_ranks in all_data_parallel_group_ranks]
+        ranks = [
+            data_parallel_group_ranks_with_cp[i]
+            for data_parallel_group_ranks_with_cp in all_data_parallel_group_ranks_with_cp
+        ]
         all_model_parallel_group_ranks.append(ranks)
         if rank in ranks:
             logging.info(f'Rank {rank} has model parallel group: {list(ranks)}')
