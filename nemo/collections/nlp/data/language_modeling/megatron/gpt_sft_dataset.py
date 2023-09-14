@@ -119,7 +119,7 @@ class GPTSFTDataset(Dataset):
         ), f'we need prompt_template to combine contexts and label {self.label_key}'
         # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
         self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
-        self.prompt_template_keys = re.findall(r'{(.*?)}', self.prompt_template)
+        self.prompt_template_keys = re.findall(r'{(.+?)}', self.prompt_template)
 
         label_placeholder = f'{{{self.label_key}}}'
         assert (
@@ -178,7 +178,7 @@ class GPTSFTDataset(Dataset):
             raise e
         return self._process_example(example)
 
-    def _separate_template(self, prompt_template_values: List[str]):
+    def _separate_template(self, prompt_template_values: List[str], space_reduce=False):
         """
         Combine contexts and label based on prompt_template into a list of strings and a list of keys.
 
@@ -208,28 +208,33 @@ class GPTSFTDataset(Dataset):
         # placeholder to key
         ph_to_k = {ph: k for ph, k in zip(placeholders, self.prompt_template_keys)}
 
-        # separate prompt_template based on '<space>{placeholder}'
+        # separate prompt_template based on '<space><any_string>{placeholder}'
         # examples:
         #   self.prompt_template = "Context:{context}  Passage: {passage}\n\nQuestion:{question} {label}"
-        #   template_with_placeholder_separated = ['Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}']
-        template_with_placeholder_separated = re.split('( *?{.+?})', self.prompt_template)
+        #   template_with_placeholder_separated = ['Context:{context}', '  Passage:', ' {passage}', '\n\nQuestion:{question}', ' {label}']
+        template_with_placeholder_separated = re.split('( *?[^ ]*?{.+?})', self.prompt_template)
         template_with_placeholder_separated = [s for s in template_with_placeholder_separated if len(s) > 0]
 
         # remove space if we have leading space and tokenizer is not space_sensitive
         # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B')
         # space_sensitive = False: tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces-1}B')
-        space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
-        template_with_space_reduced = [
-            s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated
-        ]
-
-        # convert placeholder to the corresponding string (preserve left spaces) and key
+        if space_reduce:
+            space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
+            template_with_placeholder_separated = [
+                s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated
+            ]
+            
+        # convert placeholder to the corresponding string and key
         template_strings, template_strings_keys = [], []
-        for t in template_with_space_reduced:
-            placeholder = t.lstrip(' ')
-            left_spaces = ' ' * (len(t) - len(placeholder))
-            template_strings.append(left_spaces + ph_to_s.get(placeholder, placeholder))
-            template_strings_keys.append(ph_to_k.get(placeholder, '<template>'))
+        for t in template_with_placeholder_separated:
+            placeholders = re.findall('({.+?})', t)
+            if len(placeholders) > 0:
+                # should only have one placeholder
+                template_strings.append(t.replace(placeholders[0], ph_to_s.get(placeholders[0])))
+                template_strings_keys.append(ph_to_k.get(placeholders[0]))
+            else:
+                template_strings.append(t)
+                template_strings_keys.append('<template>')
 
         return template_strings, template_strings_keys
 
@@ -295,9 +300,26 @@ class GPTSFTDataset(Dataset):
         """
         prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
 
-        template_strings, template_strings_keys = self._separate_template(prompt_template_values)
-        template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
-        context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
+        # Replace placeholder and calculate total ids
+        template_strings, template_strings_keys = self._separate_template(prompt_template_values, space_reduce=False)
+        answer_string = example[self.label_key]
+        context_string = ''.join(template_strings)[:-len(answer_string)]
+        context_ids = self.tokenizer.text_to_ids(context_string)
+        answer_ids = self.tokenizer.text_to_ids(answer_string)
+        total_ids = (
+            self.virtual_tokens
+            + len(context_ids)
+            + max(len(answer_ids), self.tokens_to_generate)
+            + self.add_bos
+            + self.add_sep
+            + self.add_eos  # Only training need to consider eos token
+        )
+
+        # Do truncation
+        if total_ids > self.max_seq_length:
+            template_strings, template_strings_keys = self._separate_template(prompt_template_values, space_reduce=True)
+            template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
+            context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
