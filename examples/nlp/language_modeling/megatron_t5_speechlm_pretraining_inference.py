@@ -30,21 +30,10 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-# mp.set_start_method("spawn", force=True)
 
-
-"""
-This is an example of how to ptune/prompt-tune a pretrained T5 model.
-Be sure to use a .nemo T5 model with this code. If you've downloaded
-a model from NGC or are otherwise using a MegatronLM model, please use
-either megatron_ckpt_to_nemo.py or megatron_lm_ckpt_to_nemo.py found
-within this examples directory to convert your model to .nemo format.
-"""
-
-
-def _mask_encoder_input(enc_input, mask_id, seq_pattern="parallel"):
-    mask_length_poisson_lambda = 4.0
-    mask_context_prob = 0.99
+def _mask_encoder_input(enc_input, mask_id, seq_pattern="parallel", mask_prob=0.5):
+    mask_length_poisson_lambda = 5.0
+    mask_context_prob = mask_prob
     if seq_pattern in ["parallel", "delay_parallel"]:
         span_length = torch.poisson(torch.tensor([mask_length_poisson_lambda]))
         span_length = int(span_length.item())
@@ -76,7 +65,7 @@ def _mask_encoder_input(enc_input, mask_id, seq_pattern="parallel"):
     return enc_input
 
 
-def getitem_from_speech(tokens, tokenizer, seq_pattern="parallel"):
+def getitem_from_speech(tokens, tokenizer, seq_pattern="parallel", mask_prob=0.5):
     speech_codebook_size = 1024
     speech_offset = 30000
     seq_length = 192
@@ -111,7 +100,7 @@ def getitem_from_speech(tokens, tokenizer, seq_pattern="parallel"):
         labels = tokens_processed[:, 1:] * 1
     else:
         raise NotImplementedError(f"seq_pattern={seq_pattern} not implemented")
-    enc_input = _mask_encoder_input(enc_input, tokenizer.mask_id, seq_pattern)
+    enc_input = _mask_encoder_input(enc_input, tokenizer.mask_id, seq_pattern, mask_prob=mask_prob)
 
     # TODO add pad id condition as well for enc_input?
     enc_mask = (enc_input[0] != tokenizer.mask_id).long()
@@ -192,13 +181,14 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     # checkpoint_path = "/datap/misc/DelayPatternExperimentsFinal/LocalRun/Step90k.ckpt"
-    checkpoint_path = "/datap/misc/DelayPatternExperimentsLinearHead/Step98k.ckpt"
+    checkpoint_path = "/datap/misc/Checkpoints/DPLinearStep140k.ckpt"
     model = MegatronT5SpeechLMModel.load_from_checkpoint(
         checkpoint_path=checkpoint_path, trainer=trainer, cfg=cfg.model
     )
     model.eval()
     model = model.cuda()
     seq_pattern = cfg.model.get('seq_pattern', 'parallel')
+    mask_prob = cfg.get('mask_prob', 0.5)
 
     for example_num in range(3):
         with torch.no_grad():
@@ -207,7 +197,7 @@ def main(cfg) -> None:
             )
             sample_input = indexed_dataset_speech[example_num]
             sample_input = torch.tensor(sample_input)[:, 1024 : 1024 + 513]
-            batch = getitem_from_speech(sample_input, model.tokenizer, seq_pattern=seq_pattern)
+            batch = getitem_from_speech(sample_input, model.tokenizer, seq_pattern=seq_pattern, mask_prob=mask_prob)
 
             with torch.no_grad():
                 output_token_list = []
@@ -288,7 +278,7 @@ def main(cfg) -> None:
                         output_logits = output_tensor[:, t, :]  # (B, Vocab Size, 8)
                         output_logits = output_logits[0].permute(1, 0)  # (8, Vocab Size)
                         # Multinomial sampling using temperature T
-                        TEMP = 0.05
+                        TEMP = 0.7
                         output_probs = torch.nn.functional.softmax(output_logits / TEMP, dim=1)
                         output_tokens_curr_timestep = torch.multinomial(output_probs, num_samples=1)[:, 0][None]
                         # import ipdb; ipdb.set_trace()

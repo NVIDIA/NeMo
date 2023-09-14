@@ -38,6 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder im
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
+    init_method_normal,
 )
 from nemo.collections.nlp.modules.common.speech_residual_networks import SimplestModule
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
@@ -105,6 +106,21 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         speech_offset = cfg.data.get('speech_offset', 30000)
         speech_head_type = cfg.get('speech_head_type', 'token_level')  # token_level, linear
 
+        self.speech_offset = speech_offset
+        self.speech_codebook_size = speech_codebook_size
+        self.frozen_model.enc_dec_model.speech_offset = speech_offset
+        self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
+        self.frozen_model.enc_dec_model.cross_entropy_type = cfg.get('cross_entropy_type', 'regular')
+        self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
+        self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
+
+        # Parallel output is used only for vocab parallel cross entropy.
+        self.frozen_model.enc_dec_model.parallel_output = (
+            self.frozen_model.enc_dec_model.cross_entropy_type == 'vocab_parallel'
+        )
+        # Need to explicitly set this since it is already initialiazed
+        self.frozen_model.enc_dec_model.tokens_head.parallel_output = self.frozen_model.enc_dec_model.parallel_output
+
         list_of_speech_heads = []
         list_of_speech_tokens_embeddings = []
         for _ in range(7):
@@ -119,7 +135,18 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             elif speech_head_type == 'linear':
                 # Linear layer that maps from hidden size to speech codebook size
                 hidden_size = self.frozen_model.enc_dec_model.decoder_cfg.hidden_size
-                list_of_speech_heads.append(torch.nn.Linear(hidden_size, speech_codebook_size))
+                init_method_std = self.frozen_model.enc_dec_model.decoder_cfg.init_method_std
+                # Changing to ColumnParallelLinear instead of Linear to support 3b Tensor Parallelism
+                _speech_head = tensor_parallel.ColumnParallelLinear(
+                    input_size=hidden_size,
+                    output_size=speech_codebook_size,
+                    bias=True,
+                    gather_output=not self.frozen_model.enc_dec_model.parallel_output,
+                    init_method=init_method_normal(init_method_std),
+                    use_cpu_initialization=False,
+                    params_dtype=self.frozen_model.enc_dec_model.dtype,
+                )
+                list_of_speech_heads.append(_speech_head)
 
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
         self.frozen_model.enc_dec_model.speech_tokens_embeddings = torch.nn.ModuleList(
@@ -133,14 +160,6 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(
                 self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size
             )
-
-        self.speech_offset = speech_offset
-        self.speech_codebook_size = speech_codebook_size
-        self.frozen_model.enc_dec_model.speech_offset = speech_offset
-        self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
-        self.frozen_model.enc_dec_model.cross_entropy_type = cfg.get('cross_entropy_type', 'regular')
-        self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
-        self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
 
         encodec_model = EncodecModel.encodec_model_24khz()
         encodec_model.set_target_bandwidth(6.0)
@@ -417,7 +436,20 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                                 self.logger.experiment.add_audio("Dec Input", dec_wav, self.global_step, 24000)
 
                                 token_logits = debug_tensors[0]
-                                speech_logits = debug_tensors[1]
+                                speech_logits_list = debug_tensors[1]
+                                if self.frozen_model.enc_dec_model.parallel_output:
+                                    # Gather from tensor parallel region
+                                    token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(
+                                        token_logits
+                                    )
+                                    for _i in range(len(speech_logits_list)):
+                                        speech_logits_list[
+                                            _i
+                                        ] = tensor_parallel.gather_from_tensor_model_parallel_region(
+                                            speech_logits_list[_i]
+                                        )
+
+                                speech_logits = torch.stack(speech_logits_list, dim=-1)  # (t, b, 1024, 7)
                                 token_logits_example = token_logits[:, 0, :] * 1
                                 speech_logits_example = speech_logits[:, 0, :, :] * 1
                                 first_layer_tokens = token_logits_example.argmax(dim=1) - 30000
@@ -575,6 +607,11 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
         print(f'global_step {self.trainer.global_step}')
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
+        consumed_samples = self.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
+        # TODO: make sure compute_consumed_samples works for pipeline parallelism
+        self.log(
+            'consumed_samples', consumed_samples, prog_bar=True, rank_zero_only=True, batch_size=1,
+        )
         return loss_mean
 
     def get_predictions(self, input_ids, enc_mask, encoder_input, labels):
@@ -628,6 +665,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         self._reconfigure_and_process_inference_batch(enc_input_ids.size(0), gbs)
         loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
         metrics = {'loss': loss_mean}
+
         with torch.no_grad():
             labels_original = batch['labels'].clone()
             loss_mask = batch['loss_mask']
@@ -643,7 +681,15 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 inference=True,
             )
 
-            first_layer_logits, speech_logits = output_logits  # first_layer_logits: (t,bs,vocab_size)
+            first_layer_logits, speech_logits_list = output_logits  # first_layer_logits: (t,bs,vocab_size)
+            if self.frozen_model.enc_dec_model.parallel_output:
+                # Gather from tensor parallel region
+                first_layer_logits = tensor_parallel.gather_from_tensor_model_parallel_region(first_layer_logits)
+                for _i in range(len(speech_logits_list)):
+                    speech_logits_list[_i] = tensor_parallel.gather_from_tensor_model_parallel_region(
+                        speech_logits_list[_i]
+                    )
+            speech_logits = torch.stack(speech_logits_list, dim=-1)  # (t,bs,1024,7)
             first_layer_preds = first_layer_logits.argmax(dim=2)  # (t,bs)
             first_layer_preds = first_layer_preds.transpose(0, 1)  # (bs,t)
             labels_first_layer = labels_original[:, 0, :]  # (bs,t)
@@ -858,8 +904,8 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
             # TODO: look at this
-            # consumed_samples = self.compute_consumed_samples(0)
-            consumed_samples = 0
+            consumed_samples = self.compute_consumed_samples(0)
+            # consumed_samples = 0
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
@@ -894,6 +940,15 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
     def setup(self, stage=None):
+
+        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        if resume_checkpoint_path:
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+        self.init_global_step = self.trainer.global_step
+
         if stage == 'predict' and self.first_stage_of_pipeline():
             return
 

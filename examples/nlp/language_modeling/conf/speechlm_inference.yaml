@@ -1,5 +1,5 @@
 name: p_tuning_squad_t5
-
+mask_prob: 0.5
 trainer:
   devices: 1
   accelerator: gpu

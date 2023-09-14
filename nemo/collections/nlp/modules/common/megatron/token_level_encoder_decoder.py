@@ -407,17 +407,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         if add_decoder and post_process:
             if share_decoder_tokens_head_embeddings:
+                # parallel_output is True if TP > 1 (3b model)
                 self.tokens_head = MegatronTokenLevelHead(
-                    self.word_embeddings_weight().size(0), False, bias=tokens_head_bias
+                    self.word_embeddings_weight().size(0), parallel_output, bias=tokens_head_bias
                 )
-                # Need to subtract 1024*7, the last 7 heads of encodec
-                # self.tokens_head = MegatronTokenLevelHead(
-                #     self.word_embeddings_weight().size(0)-1024*7, parallel_output, bias=tokens_head_bias
-                # )
-                # self.speech_tokens_head = MegatronTokenLevelHead(
-                #     1024, parallel_output, bias=tokens_head_bias
-                # )
-                # self.speech_residual_model = SimplestModule(decoder_cfg.hidden_size)
             else:
                 self.tokens_head = tensor_parallel.ColumnParallelLinear(
                     input_size=decoder_cfg.hidden_size,
@@ -656,10 +649,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     speech_layers = 7
                     last_layer_output = dec_output
                     last_layer_logits = token_logits
-                    speech_logits = torch.zeros(
-                        [*token_logits.shape[:-1], self.speech_codebook_size, speech_layers],
-                        device=token_logits.device,
-                    )
+
+                    # speech_logits_list will be used in loss calculation (parallel output)
+                    speech_logits_list = []
                     if self.seq_pattern in ["parallel", "delay_parallel"]:
                         for i in range(speech_layers):
                             if self.speech_head_type == "token_level":
@@ -673,10 +665,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                                     last_layer_output, self.speech_tokens_embeddings[i].weight
                                 )
                             elif self.speech_head_type == "linear":
-                                last_layer_logits = self.speech_tokens_heads[i](dec_output)
+                                last_layer_logits = self.speech_tokens_heads[i](dec_output)[0]  # T, B, 1024
                             else:
                                 raise ValueError(f"Speech head type {self.speech_head_type} not supported")
-                            speech_logits[:, :, :, i] = last_layer_logits
+                            speech_logits_list.append(last_layer_logits)  # T, B, 1024
                 else:
                     token_logits = self.tokens_head(dec_output)[0]  # T, B, WordEmbSize
 
@@ -703,8 +695,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         if labels.dim() == 2:
                             tokens_loss = _cross_entropy_function(token_logits.float(), labels, label_smoothing)
                         elif labels.dim() == 3:
-                            # print("first layer labels", labels[0, :, :].shape, labels[0, :, :].min(), labels[0, :, :].max(), labels[0, 0, :5])
-                            # print("token logits", token_logits.shape, token_logits[0,0].argmax())
                             tokens_loss = _cross_entropy_function(
                                 token_logits.float(), labels[0, :, :], label_smoothing
                             )
@@ -715,7 +705,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                                     # What is labels[:7, :, :] if this is text? (It is all zeros)
                                     curr_codebook_loss = (
                                         _cross_entropy_function(
-                                            speech_logits[:, :, :, i].float(), labels[i + 1, :, :], label_smoothing
+                                            speech_logits_list[i].float(), labels[i + 1, :, :], label_smoothing
                                         )
                                         * speech_mask.T
                                     )
@@ -726,14 +716,28 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
 
-                    return tokens_loss, [token_logits, speech_logits]
+                    return tokens_loss, [token_logits, speech_logits_list]
                 else:
                     # [s, b, h] -> [b, s, h]
-                    token_logits = token_logits.transpose(0, 1).contiguous()  # (b, s, 30208)
+                    # If labels is None then we are in inference mode and we return the gathered logits
+                    if self.parallel_output:
+                        # Gather logits from tensor parallel if in parallel_output mode
+                        token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(
+                            token_logits
+                        )  # T, B, 30208
+                        for _i in range(len(speech_logits_list)):
+                            speech_logits_list[_i] = tensor_parallel.gather_from_tensor_model_parallel_region(
+                                speech_logits_list[_i]
+                            )  # T, B, 1024
+
+                    token_logits = token_logits.transpose(0, 1).contiguous()  # (B, T, 30208)
+                    speech_logits = torch.stack(speech_logits_list, dim=-1)  # T, B, 1024, 7
+                    speech_logits = speech_logits.transpose(0, 1).contiguous()  # (B, T, 1024, 7)
+
                     _si = self.speech_offset
                     _ei = _si + self.speech_codebook_size
                     first_layer_speech_logits = token_logits[:, :, _si:_ei].unsqueeze(-1)  # (b, s, 1023, 1)
-                    speech_logits = speech_logits.transpose(0, 1).contiguous()  # (b, s, 1024, 7)
+
                     all_speech_logits = torch.cat(
                         [first_layer_speech_logits, speech_logits], dim=-1
                     )  # (b, s, 1024, 8)

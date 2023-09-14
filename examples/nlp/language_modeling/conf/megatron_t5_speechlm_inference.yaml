@@ -62,6 +62,7 @@ model:
   seq_pattern: "parallel" # parallel, delay_parallel, flatten
   speech_head_type: "token_level" # token_level, linear
   temperature: 0.7 # Temperature to be used for inference
+  max_inference_timesteps: 1000 # Maximum number of timesteps to run inference for
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
