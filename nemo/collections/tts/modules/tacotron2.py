@@ -314,7 +314,7 @@ class Decoder(NeuralModule):
 
         mel_lengths = torch.zeros([memory.size(0)], dtype=torch.int32)
         not_finished = torch.ones([memory.size(0)], dtype=torch.int32)
-        if torch.cuda.is_available():
+        if next(self.parameters()).is_cuda:
             mel_lengths = mel_lengths.cuda()
             not_finished = not_finished.cuda()
 
