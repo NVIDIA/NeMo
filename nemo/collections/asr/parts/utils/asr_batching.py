@@ -114,11 +114,6 @@ class SemiSortBatchSampler(DistributedSampler):
         global_num_batches += num_batches_pad
 
         # calculate the number of batches per rank
-        print(
-            f'\n\n\nsamples {len(self.durations)} \n'
-            f'global_num_batches {global_num_batches} \n'
-            f'world_size {self.num_replicas}\n\n\n'
-        )
         local_num_batches = global_num_batches // self.num_replicas
 
         return local_num_batches
