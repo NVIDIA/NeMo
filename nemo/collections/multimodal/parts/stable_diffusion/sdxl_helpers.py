@@ -181,7 +181,7 @@ def do_img2img(
     seed=42,
     device="cuda",
 ):
-    rng = torch.Generator().manual_seed(seed)
+    rng = torch.Generator(device=device).manual_seed(seed)
 
     with torch.no_grad():
         with autocast(device) as precision_scope:
