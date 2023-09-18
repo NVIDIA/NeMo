@@ -15,6 +15,7 @@
 import contextlib
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+from torch.nn import functional as F
 
 import torch
 from hydra.utils import instantiate
@@ -32,12 +33,14 @@ from nemo.collections.tts.parts.utils.helpers import (
     tacotron2_log_to_tb_func,
     tacotron2_log_to_wandb_func,
 )
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     EmbeddedTextType,
     LengthsType,
     LogitsType,
+    ChannelType,
     MelSpectrogramType,
     SequenceToSequenceAlignmentType,
 )
@@ -62,7 +65,256 @@ class Tacotron2Config:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-class Tacotron2Model(SpectrogramGenerator):
+def encoder_infer(self, x, input_lengths):
+    device = x.device
+    for conv in self.convolutions:
+        x = F.dropout(F.relu(conv(x.to(device))), 0.5, False)
+
+    x = x.transpose(1, 2)
+
+    x = torch.nn.utils.rnn.pack_padded_sequence(
+        x, input_lengths, batch_first=True, enforce_sorted=False
+    )
+
+    outputs, _ = self.lstm(x)
+
+    outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
+
+    return outputs, input_lengths*2
+
+
+class EncoderIter(torch.nn.Module, Exportable):
+    def __init__(self, tacotron2):
+        super(EncoderIter, self).__init__()
+        self.tacotron2 = tacotron2
+        self.tacotron2.encoder.lstm.flatten_parameters()
+        self.infer = encoder_infer
+
+    def forward(self, seq, seq_len):
+        embedded_inputs = self.tacotron2.text_embedding(seq).transpose(1, 2)
+        memory, lens = self.infer(self.tacotron2.encoder, embedded_inputs, seq_len)
+        processed_memory = self.tacotron2.decoder.attention_layer.memory_layer(memory)
+        return memory, processed_memory, lens
+
+    def input_example(self, max_batch=1, max_dim=512):
+        seq = torch.randint(low=0, high=114, size=(1, max_dim), dtype=torch.long)
+        seq_len = torch.IntTensor([seq.size(1)]).long()
+        inputs = {"seq": seq, "seq_len": seq_len}
+        return (inputs,)
+
+    @property
+    def input_types(self):
+        return {
+            "seq": NeuralType(('B', 'T'), EmbeddedTextType()),
+            "seq_len": NeuralType(('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "memory": NeuralType(('B', 'T', 'D'), EmbeddedTextType()),
+            "processed_memory": NeuralType(('B', 'T', 'D'), EmbeddedTextType()),
+            "lens": NeuralType(('B'), LengthsType()),
+        }
+
+
+def lstmcell2lstm_params(lstm_mod, lstmcell_mod):
+    lstm_mod.weight_ih_l0 = torch.nn.Parameter(lstmcell_mod.weight_ih)
+    lstm_mod.weight_hh_l0 = torch.nn.Parameter(lstmcell_mod.weight_hh)
+    lstm_mod.bias_ih_l0 = torch.nn.Parameter(lstmcell_mod.bias_ih)
+    lstm_mod.bias_hh_l0 = torch.nn.Parameter(lstmcell_mod.bias_hh)
+
+
+def prenet_infer(self, x):
+    x1 = x[:]
+    for linear in self.layers:
+        x1 = F.relu(linear(x1))
+        x0 = x1[0].unsqueeze(0)
+        mask = torch.le(torch.rand(256).to(x.dtype), 0.5).to(x.dtype)
+        mask = mask.expand(x1.size(0), x1.size(1))
+        x1 = x1*mask*2.0
+
+    return x1
+
+
+class DecoderIter(torch.nn.Module, Exportable):
+    def __init__(self, tacotron2):
+        super(DecoderIter, self).__init__()
+
+        self.tacotron2 = tacotron2
+        dec = tacotron2.decoder
+
+        self.p_attention_dropout = dec.p_attention_dropout
+        self.p_decoder_dropout = dec.p_decoder_dropout
+        self.prenet = dec.prenet
+
+        self.prenet.infer = prenet_infer
+
+        self.attention_rnn = nn.LSTM(dec.prenet_dim + dec.encoder_embedding_dim,
+                                     dec.attention_rnn_dim, 1)
+        lstmcell2lstm_params(self.attention_rnn, dec.attention_rnn)
+        self.attention_rnn.flatten_parameters()
+
+        self.attention_layer = dec.attention_layer
+
+        self.decoder_rnn = nn.LSTM(dec.attention_rnn_dim + dec.encoder_embedding_dim,
+                                   dec.decoder_rnn_dim, 1)
+        lstmcell2lstm_params(self.decoder_rnn, dec.decoder_rnn)
+        self.decoder_rnn.flatten_parameters()
+
+        self.linear_projection = dec.linear_projection
+        self.gate_layer = dec.gate_layer
+
+
+    def decode(self, decoder_input, in_attention_hidden, in_attention_cell,
+               in_decoder_hidden, in_decoder_cell, in_attention_weights,
+               in_attention_weights_cum, in_attention_context, memory,
+               processed_memory):
+
+        cell_input = torch.cat((decoder_input, in_attention_context), -1)
+
+        _, (out_attention_hidden, out_attention_cell) = self.attention_rnn(
+            cell_input.unsqueeze(0), (in_attention_hidden.unsqueeze(0),
+                                      in_attention_cell.unsqueeze(0)))
+        out_attention_hidden = out_attention_hidden.squeeze(0)
+        out_attention_cell = out_attention_cell.squeeze(0)
+
+        out_attention_hidden = F.dropout(
+            out_attention_hidden, self.p_attention_dropout, False)
+
+        attention_weights_cat = torch.cat(
+            (in_attention_weights.unsqueeze(1),
+             in_attention_weights_cum.unsqueeze(1)), dim=1)
+        out_attention_context, out_attention_weights = self.attention_layer(
+            out_attention_hidden, memory, processed_memory,
+            attention_weights_cat, None)
+
+        out_attention_weights_cum = in_attention_weights_cum + out_attention_weights
+        decoder_input_tmp = torch.cat(
+            (out_attention_hidden, out_attention_context), -1)
+
+        _, (out_decoder_hidden, out_decoder_cell) = self.decoder_rnn(
+            decoder_input_tmp.unsqueeze(0), (in_decoder_hidden.unsqueeze(0),
+                                             in_decoder_cell.unsqueeze(0)))
+        out_decoder_hidden = out_decoder_hidden.squeeze(0)
+        out_decoder_cell = out_decoder_cell.squeeze(0)
+
+        out_decoder_hidden = F.dropout(
+            out_decoder_hidden, self.p_decoder_dropout, False)
+
+        decoder_hidden_attention_context = torch.cat(
+            (out_decoder_hidden, out_attention_context), 1)
+
+        decoder_output = self.linear_projection(
+            decoder_hidden_attention_context)
+
+        gate_prediction = self.gate_layer(decoder_hidden_attention_context)
+
+        return (decoder_output, gate_prediction, out_attention_hidden,
+                out_attention_cell, out_decoder_hidden, out_decoder_cell,
+                out_attention_weights, out_attention_weights_cum, out_attention_context)
+
+    def forward(self,
+                decoder_input,
+                attention_hidden,
+                attention_cell,
+                decoder_hidden,
+                decoder_cell,
+                attention_weights,
+                attention_weights_cum,
+                attention_context,
+                memory,
+                processed_memory):
+        decoder_input1 = self.prenet.infer(self.prenet, decoder_input)
+        outputs = self.decode(decoder_input1,
+                              attention_hidden,
+                              attention_cell,
+                              decoder_hidden,
+                              decoder_cell,
+                              attention_weights,
+                              attention_weights_cum,
+                              attention_context,
+                              memory,
+                              processed_memory)
+        return outputs
+
+    def input_example(self, max_batch=1, max_dim=512):
+        memory = torch.randn((1, max_dim, max_dim))
+        memory_lengths = torch.tensor([max_dim])
+        self.tacotron2.decoder.initialize_decoder_states(memory, None)
+        decoder_input = self.tacotron2.decoder.get_go_frame(memory)
+        inputs = {
+            "decoder_input": decoder_input,
+            "attention_hidden": self.tacotron2.decoder.attention_hidden,
+            "attention_cell": self.tacotron2.decoder.attention_cell,
+            "decoder_hidden": self.tacotron2.decoder.decoder_hidden,
+            "decoder_cell": self.tacotron2.decoder.decoder_cell,
+            "attention_weights": self.tacotron2.decoder.attention_weights,
+            "attention_weights_cum": self.tacotron2.decoder.attention_weights_cum,
+            "attention_context": self.tacotron2.decoder.attention_context,
+            "memory": memory,
+            "processed_memory": self.tacotron2.decoder.processed_memory,
+        }
+        return (inputs,)
+
+    @property
+    def input_types(self):
+        return {
+            "decoder_input": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "attention_hidden": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "attention_cell": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "decoder_hidden": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "decoder_cell": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "attention_weights": NeuralType(('B', 'T'), ChannelType()),
+            "attention_weights_cum": NeuralType(('B', 'T'), ChannelType()),
+            "attention_context": NeuralType(('B', 'D'), ChannelType()),
+            "memory": NeuralType(('B', 'T', 'D'), EmbeddedTextType()),
+            "processed_memory": NeuralType(('B', 'T', 'D'), EmbeddedTextType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "decoder_output": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
+            "gate_prediction": NeuralType(('B', 'T'), LogitsType()),
+            "out_attention_hidden": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "out_attention_cell": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "out_decoder_hidden": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "out_decoder_cell": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "out_attention_weights": NeuralType(('B', 'T'), ChannelType()),
+            "out_attention_weights_cum": NeuralType(('B', 'T'), ChannelType()),
+            "out_attention_context": NeuralType(('B', 'D'), ChannelType()),
+        }
+
+
+class PostnetIter(torch.nn.Module, Exportable):
+    def __init__(self, tacotron2):
+        super(PostnetIter, self).__init__()
+        self.tacotron2 = tacotron2
+
+    def forward(self, mel_spec):
+        mel_outputs_postnet = self.tacotron2.postnet(mel_spec=mel_spec)
+        return mel_outputs_postnet
+
+    def input_example(self, max_batch=1, max_dim=80):
+        mel_spec = torch.randn((max_batch, self.tacotron2.decoder.n_mel_channels, self.tacotron2.decoder.max_decoder_steps))
+        inputs = {"mel_spec": mel_spec}
+        return (inputs,)
+
+    @property
+    def input_types(self):
+        return {
+            "mel_spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "output": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+
+class Tacotron2Model(SpectrogramGenerator, Exportable):
     """Tacotron 2 Model that is used to generate mel spectrograms from text"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -424,3 +676,18 @@ class Tacotron2Model(SpectrogramGenerator):
         )
         list_of_models.append(model)
         return list_of_models
+
+    @property
+    def tacotron2encoder(self):
+        return EncoderIter(self)
+
+    @property
+    def tacotron2decoder(self):
+        return DecoderIter(self)
+
+    @property
+    def tacotron2postnet(self):
+        return PostnetIter(self)
+
+    def list_export_subnets(self):
+        return ['tacotron2encoder', "tacotron2decoder", "tacotron2postnet"]
