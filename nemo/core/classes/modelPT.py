@@ -858,10 +858,14 @@ class ModelPT(LightningModule, Model):
     def val_dataloader(self):
         if self._validation_dl is not None:
             return self._validation_dl
+        else: # None dataloader no longer supported in PTL2.0
+            return []
 
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
+        else: # None dataloader no longer supported in PTL2.0
+            return []
 
     def on_validation_epoch_end(self) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """
