@@ -111,6 +111,7 @@ class SamplingPipeline:
         negative_prompt: Optional[str] = None,
         samples: int = 1,
         return_latents: bool = False,
+        seed: int = 42,
     ):
         sampler = get_sampler_config(params)
         if params.img2img_strength < 1.0:
@@ -139,6 +140,7 @@ class SamplingPipeline:
             skip_encode=True,
             return_latents=return_latents,
             filter=None,
+            seed=seed,
         )
 
 

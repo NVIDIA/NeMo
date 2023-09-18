@@ -76,9 +76,9 @@ def main(cfg):
         )
 
         if use_refiner:
-            assert isinstance(samples, (tuple, list))
-            samples, samples_z = samples
-            assert samples is not None
+            assert isinstance(output, (tuple, list))
+            output, samples_z = output
+            assert output is not None
             assert samples_z is not None
 
             # perform_save_locally(cfg.out_path, samples)
