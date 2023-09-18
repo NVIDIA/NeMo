@@ -213,6 +213,8 @@ def main(cfg) -> None:
             pretrained_cfg.precision = trainer.precision
             if trainer.precision == "16":
                 pretrained_cfg.megatron_amp_O2 = False
+            elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
+                pretrained_cfg.megatron_amp_O2 = True
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
@@ -246,7 +248,6 @@ def main(cfg) -> None:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
     model.freeze()
-
     # Have to turn off activations_checkpoint_method for inference
     try:
         model.model.language_model.encoder.activations_checkpoint_method = None
@@ -268,6 +269,7 @@ def main(cfg) -> None:
         "all_probs": cfg.inference.all_probs,
         "compute_logprob": cfg.inference.compute_logprob,
         "end_strings": cfg.inference.end_strings,
+        "compute_attention_mask": cfg.inference.compute_attention_mask,
     }
 
     fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)

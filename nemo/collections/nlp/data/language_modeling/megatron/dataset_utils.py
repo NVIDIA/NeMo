@@ -72,7 +72,15 @@ DSET_TYPE_BART = 'bart'
 DSET_TYPE_UL2 = 'ul2'
 DSET_TYPE_UL2COLT5 = 'ul2_colt5'
 
-DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART, DSET_TYPE_UL2, DSET_TYPE_UL2COLT5]
+DSET_TYPES = [
+    DSET_TYPE_BERT,
+    DSET_TYPE_ICT,
+    DSET_TYPE_T5,
+    DSET_TYPE_T5_LM,
+    DSET_TYPE_BART,
+    DSET_TYPE_UL2,
+    DSET_TYPE_UL2COLT5,
+]
 
 
 def compile_helper():
@@ -470,7 +478,7 @@ def create_extreme_masked_lm_predictions(
     def _get_prediction_len():
         # decoder will included masked tokens + sentinal tokens for each span + bos/eos tokens
         return len(masked_lms) + len(masked_spans) + 2
-    
+
     cand_indexes = [[i] for i in range(len(tokens))]
     for idx in range(len(cand_indexes)):
         ngram_index = {}
@@ -630,8 +638,8 @@ def get_dataset(
     from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
     from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
     from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-    from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
     from nemo.collections.nlp.data.language_modeling.megatron.ul2_colt5_dataset import UL2CoLT5Dataset
+    from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
 
     if dataset_type == DSET_TYPE_ICT:
         raise NotImplementedError("ICT dataset is not implemented yet.")

@@ -810,6 +810,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 batch['tokens'],
                 batch['position_ids'],
                 batch.get('attention_mask', None),
+                batch['loss_mask'],
                 batch['labels'],
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )
@@ -1144,7 +1145,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # default do greedy sampling
         if length_params is None:
             length_params = get_default_length_params()
-
         return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:

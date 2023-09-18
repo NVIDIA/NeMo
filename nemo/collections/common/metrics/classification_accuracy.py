@@ -16,7 +16,7 @@ import logging
 import re
 import string
 from collections import Counter
-from typing import List, Union 
+from typing import List, Union
 
 import torch
 from torchmetrics import Metric
@@ -212,6 +212,7 @@ class ExactStringMatchMetric(Metric):
 
 class TokenF1Score(Metric):
     """Taken from the official evaluation script for v1.1 of the SQuAD dataset"""
+
     def __init__(self, dist_sync_on_step=False, *args, **kwargs):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 
