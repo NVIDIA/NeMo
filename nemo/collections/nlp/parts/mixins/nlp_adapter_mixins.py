@@ -28,7 +28,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
     PromptEncoderAdapterConfig,
 )
 from nemo.collections.nlp.parts.nlp_overrides import PEFTSaveRestoreConnector
@@ -39,9 +38,7 @@ from nemo.collections.nlp.parts.peft_config import (
     PtuningPEFTConfig,
 )
 from nemo.core.classes.mixins.adapter_mixins import (
-    AdapterModelPTMixin,
     AdapterModuleMixin,
-    _prepare_default_adapter_config,
 )
 from nemo.utils import logging, model_utils
 
@@ -51,7 +48,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-class NLPAdapterModelMixin(AdapterModelPTMixin):
+class NLPAdapterModelMixin:
     """ NLP Adapter Mixin that can augment any transformer-based model with Adapter module support.
     This mixin class should be used only with a top level ModelPT subclass, that includes either a `model` or an `enc_dec_model` submodule.
     This mixin class adds several utility methods to add, load and save adapters.
