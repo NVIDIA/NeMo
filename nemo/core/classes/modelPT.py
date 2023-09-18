@@ -856,24 +856,11 @@ class ModelPT(LightningModule, Model):
             return self._train_dl
 
     def val_dataloader(self):
-<<<<<<< HEAD
         if self._validation_dl is None:
             # None dataloader no longer supported in PTL2.0
             self._validation_dl = []
 
         return self._validation_dl
-=======
-        if self._validation_dl is not None:
-            return self._validation_dl
-        else:  # None dataloader no longer supported in PTL2.0
-            return []
-
-    def test_dataloader(self):
-        if self._test_dl is not None:
-            return self._test_dl
-        else:  # None dataloader no longer supported in PTL2.0
-            return []
->>>>>>> 75269ded63752763de3887a0f1e0ba30a74a6fb8
 
     def test_dataloader(self):
         if self._test_dl is None:
