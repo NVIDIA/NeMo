@@ -98,16 +98,19 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--config", type=str, required=True, help="Path to the megatron_gpt_config.yaml file",
+        "--config", type=str, required=True, help="Path to the megatron_gpt_config.yaml file"
     )
     parser.add_argument(
-        "--input", type=str, required=True, help="StarCoder from HuggingFace hub or local dir with downloaded model",
+        "--input", type=str, required=True, help="StarCoder from HuggingFace hub or local dir with downloaded model"
     )
     parser.add_argument(
-        "--output", type=str, default=".", help="Path to dir where to store output .nemo file",
+        "--output", type=str, default=".", help="Path to dir where to store output .nemo file"
     )
     parser.add_argument(
-        "--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving",
+        "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
+    )
+    parser.add_argument(
+        "--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving"
     )
     args = parser.parse_args()
 
@@ -154,6 +157,7 @@ if __name__ == "__main__":
         "share_embeddings_and_output_weights": False,
         "position_embedding_type": "learned_absolute",
         "normalize_attention_scores": True,
+        "precision": args.precision,
     }
     tokenizer_dict = {
         "library": "huggingface",
@@ -164,7 +168,7 @@ if __name__ == "__main__":
         "devices": 1,
         "num_nodes": 1,
         "accelerator": "gpu" if args.cuda else "cpu",
-        "precision": 32,
+        "precision": args.precision,
         "logger": False,
         "enable_checkpointing": False,
         "max_epochs": -1,
@@ -215,5 +219,8 @@ if __name__ == "__main__":
     logging.info("Saving model...")
     # We make sure that the tokenizer can be instantiated later regardless of args.input
     model.cfg.tokenizer.update(type="bigcode/starcoder")
+    dtype = torch.bfloat16 if args.precision == "bf16" else torch.float32
+    model = model.to(dtype=dtype)
+    model.cfg.update(use_cpu_initialization=False)
     model.save_to(os.path.join(args.output, "megatron_starcoder_tp1_pp1.nemo"))
     logging.info("Done.")
