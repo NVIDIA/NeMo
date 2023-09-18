@@ -35,6 +35,8 @@ from megatron.core.dist_checkpointing.optimizer import (
 HAVE_TE_FP8TENSOR = False
 try:
     from transformer_engine.pytorch import Float8Tensor
+    from transformer_engine.pytorch.fp8 import get_fp8_te_dtype
+    from transformer_engine.pytorch.cpp_extensions import cast_to_fp8
     HAVE_TE_FP8TENSOR = True
 except (ImportError, ModuleNotFoundError):
     pass
@@ -384,6 +386,17 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             dummy_overflow_buf=self._dummy_overflow_buf,
         )
 
+        # Precompute transposes
+        ### TODO Optimized transpose kernel
+        for fragment in fragments:
+            param = self.parameter(fragment)
+            if _is_fp8_tensor(param):
+                param._transpose = None
+        for fragment in fragments:
+            param = self.parameter(fragment)
+            if _is_fp8_tensor(param):
+                param.transpose()
+
     @torch.no_grad()
     def _check_params_shard_dtypes(
         self,
@@ -396,94 +409,95 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         """
 
-        # Peform FP8 casts if needed
+        # Just call base class function if there are no FP8 tensors
         num_fp8_params = sum(
             1 for param in self.parameters() if _is_fp8_tensor(param)
         )
-        if num_fp8_params > 0:
+        if num_fp8_params == 0:
+            super()._check_params_shard_dtypes(params_buckets)
+            return
 
-            # Packed buffer for amax reductions
-            amaxes = torch.zeros(
-                num_fp8_params,
-                dtype=torch.float32,
-                device=self.device,
+        # Iterate through FP8 tensors
+        fp8_params_shards = dict()
+        amaxes = []
+        for param in self.parameters():
+            if not _is_fp8_tensor(param):
+                continue
+
+            # FP8 scaling factors
+            fp8_meta = param.fp8_meta_view["scaling_fwd"]
+            fp8_meta_index = param.gemm_index
+            fp8_dtype = get_fp8_te_dtype(
+                param.fp8_meta_view["recipe"],
+                fprop_tensor=True,
             )
-            amax_pos = -1
+            fp8_meta.scale_inv[fp8_meta_index] = 1 / fp8_meta.scale[fp8_meta_index]
+            param._scale_inv_cache = fp8_meta.scale_inv[fp8_meta_index]
+            amaxes.append(fp8_meta.amax_history[0][fp8_meta_index].view(1))
 
-            # Loop through FP8 tensors
-            fp8_params_shards = dict()
-            for param in self.parameters():
-                if not _is_fp8_tensor(param):
+            # Iterate through fragments with local data
+            for fragment in self.state[param]["fragments"]:
+                if not fragment.in_local_shard:
                     continue
-                amax_pos += 1
+                shard_start, shard_end = fragment.shard_range
+                if shard_end <= shard_start:
+                    continue
+                shard_range = slice(shard_start, shard_end)
 
-                # Loop through fragments with local data
-                for fragment in self.state[param]["fragments"]:
-                    if not fragment.in_local_shard:
-                        continue
-                    shard_start, shard_end = fragment.shard_range
-                    if shard_end <= shard_start:
-                        continue
-                    shard_range = slice(shard_start, shard_end)
+                # Get bucket containing fragment
+                bucket_id = fragment.bucket_id
+                if bucket_id not in params_buckets:
+                    continue
+                state_bucket = self.state["buckets"][bucket_id]
+                param_bucket = params_buckets[bucket_id]
+                if state_bucket.param_sync_dtype != torch.uint8:
+                    continue
 
-                    # Get bucket containing fragment
-                    bucket_id = fragment.bucket_id
-                    if bucket_id not in params_buckets:
-                        continue
-                    state_bucket = self.state["buckets"][bucket_id]
-                    param_bucket = params_buckets[bucket_id]
-                    if state_bucket.param_sync_dtype != torch.uint8:
-                        continue
-
-                    # Allocate FP8 buffer if needed
-                    if bucket_id not in fp8_params_shards:
-                        fp8_params_shards[bucket_id] = torch.empty_like(
-                            param_bucket.params_shard,
-                            dtype=torch.uint8,
-                        )
-
-                    # FP8 cast and amax
-                    ### TODO Multi-tensor cast-amax
-                    ### TODO Use updated scale
-                    fp32_fragment = param_bucket.params_shard[shard_range]
-                    fp8_fragment = Float8Tensor.from_float32(
-                        param_bucket.params_shard[shard_range],
-                        param._scale,
-                        param._flavor,
+                # Allocate FP8 buffer if needed
+                if bucket_id not in fp8_params_shards:
+                    fp8_params_shards[bucket_id] = torch.empty_like(
+                        param_bucket.params_shard,
+                        dtype=torch.uint8,
                     )
-                    fp8_params_shards[bucket_id][shard_range].copy_(
-                        fp8_fragment._data,
-                    )
-                    amax = torch.maximum(amaxes[amax_pos:amax_pos+1], fp32_fragment.amax())
-                    amaxes[amax_pos:amax_pos+1].copy_(amax)
 
-            # Update param shards with FP8 buffers
-            for bucket_id, params_shard in fp8_params_shards.items():
-                params_buckets[bucket_id].params_shard = params_shard
+                # FP8 cast and amax
+                ### TODO Multi-tensor cast-amax
+                fp32_fragment = param_bucket.params_shard[shard_range].view(1, -1)
+                fp8_fragment = fp8_params_shards[bucket_id][shard_range].view(1, -1)
+                cast_to_fp8(
+                    fp32_fragment,
+                    fp8_meta,
+                    fp8_meta_index,
+                    fp8_dtype,
+                    out=fp8_fragment,
+                )
 
-            # Reduce amaxes
-            torch.distributed.all_reduce(
-                amaxes,
-                op=torch.distributed.ReduceOp.MAX,
-                group=self.distributed_process_group,
-            )
+        # Update param shards with FP8 buffers
+        for bucket_id, params_shard in fp8_params_shards.items():
+            params_buckets[bucket_id].params_shard = params_shard
 
-            # Unpack amaxes
-            ### TODO Handle
-            # buffers_in = []
-            # buffers_out = []
-            # pos = -1
-            # for param in self.parameters():
-            #     if not _is_fp8_tensor(param):
-            #         continue
-            #     pos += 1
-            #     buffers_in.append(amaxes[pos:pos+1])
-            #     buffers_out.append(param._amax)
-            # _multi_tensor_copy(
-            #     buffers_in,
-            #     buffers_out,
-            #     dummy_overflow_buf=self._dummy_overflow_buf,
-            # )
+        # Reduce amaxes
+        packed_amaxes = torch.zeros(
+            num_fp8_params,
+            dtype=torch.float32,
+            device=self.device,
+        )
+        packed_amax_views = [packed_amaxes[i].view(1) for i in range(len(amaxes))]
+        _multi_tensor_copy(
+            amaxes,
+            packed_amax_views,
+            dummy_overflow_buf=self._dummy_overflow_buf,
+        )
+        torch.distributed.all_reduce(
+            packed_amaxes,
+            op=torch.distributed.ReduceOp.MAX,
+            group=self.distributed_process_group,
+        )
+        _multi_tensor_copy(
+            packed_amax_views,
+            amaxes,
+            dummy_overflow_buf=self._dummy_overflow_buf,
+        )
 
         # Handle any remaining dtype conversions
         super()._check_params_shard_dtypes(params_buckets)
