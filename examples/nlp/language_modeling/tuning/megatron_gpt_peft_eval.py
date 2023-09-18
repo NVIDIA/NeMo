@@ -246,7 +246,8 @@ def main(cfg) -> None:
     # )
     # 
 
-    model_weights = torch.load("/dataset/gpt/nemo/model-downloads-temp/model_weights.ckpt")
+    # model_weights = torch.load("/dataset/gpt/nemo/model-downloads-temp/model_weights.ckpt")
+    model_weights = torch.load("/workspaces/software/inference-engines/model_weights.ckpt")
 
 
     # lora_customization = self.preprocessor._get_customization(task_name, tuning_type="lora")
@@ -272,7 +273,7 @@ def main(cfg) -> None:
         "min_length": 1,
     }
     sampling_params: SamplingParam = {
-        "use_greedy": True,
+        "use_greedy": False,
         "temperature": 1.0,
         "top_k": 2,
         "top_p": 0,
