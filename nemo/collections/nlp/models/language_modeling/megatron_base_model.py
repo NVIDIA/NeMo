@@ -102,10 +102,12 @@ class MegatronBaseModel(NLPModel):
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
 
+        with open_dict(cfg):
+            if cfg.get('precision', None) is None and trainer is not None:
+                cfg.precision = trainer.precision
+
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
-        with open_dict(self.cfg):
-            self.cfg.precision = trainer.precision
         # TODO: @maanug-nv consolidate into one attribute (requires lots of changes in subclasses)
         self.torch_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)  # Mixed precision datatype
         self.autocast_dtype = self.torch_dtype  # Mixed precision datatype
@@ -209,8 +211,8 @@ class MegatronBaseModel(NLPModel):
         """
         # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
         self.trainer.limit_val_batches *= get_num_microbatches()
-        # Override num sanity steps equal to num of microbatches and perform one val_step
-        self.trainer.num_sanity_val_steps = get_num_microbatches()
+        # Override num sanity steps to be a multiple of num of microbatches
+        self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
