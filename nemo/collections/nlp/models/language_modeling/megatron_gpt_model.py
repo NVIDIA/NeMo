@@ -551,7 +551,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
             self.cfg.get('hidden_size'),
         ]
-
         te_module.base.initialize_ub(
             shape=input_shape,
             tp_size=self.cfg.get('tensor_model_parallel_size'),

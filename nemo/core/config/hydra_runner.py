@@ -25,10 +25,7 @@ from omegaconf import DictConfig, OmegaConf
 
 
 def _get_gpu_name():
-    try:
-        import pynvml
-    except (ImportError, ModuleNotFoundError):
-        return None
+    import pynvml
 
     pynvml.nvmlInit()
     handle = pynvml.nvmlDeviceGetHandleByIndex(0)
