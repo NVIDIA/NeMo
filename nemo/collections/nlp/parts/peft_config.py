@@ -39,12 +39,10 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 
 class PEFTConfig:
     # superclass for adapter name and config
-    def __init__(self, cfg: DictConfig, peft_cfg: DictConfig, name_key_to_cfg: Dict):
+    def __init__(self, peft_cfg: DictConfig, name_key_to_cfg: Dict):
         self.name_key_to_cfg = name_key_to_cfg
 
         self.layer_selection = peft_cfg.get("layer_selection", None)
-        if self.layer_selection is None:
-            self.layer_selection = list(range(1, cfg.num_layers + 1))
         self.weight_tying = peft_cfg.get("weight_tying", False)
 
     def get_config_dict(self):
@@ -108,7 +106,7 @@ class LoraPEFTConfig(PEFTConfig):
         }
         self.name_key_to_mcore_mixins = {AdapterName.LORA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionMixin)]}
 
-        super().__init__(cfg, lora_cfg, name_key_to_cfg)
+        super().__init__(lora_cfg, name_key_to_cfg)
 
 
 class IA3PEFTConfig(PEFTConfig):
@@ -124,7 +122,7 @@ class IA3PEFTConfig(PEFTConfig):
             AdapterName.MLP_INFUSED: mlp_infused_adapter_cfg,
         }
 
-        super().__init__(cfg, cfg.peft.ia3_tuning, name_key_to_cfg)
+        super().__init__(cfg.peft.ia3_tuning, name_key_to_cfg)
 
 
 class PtuningPEFTConfig(PEFTConfig):
@@ -140,7 +138,7 @@ class PtuningPEFTConfig(PEFTConfig):
         self.name_key_to_mcore_mixins = {AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)]}
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
 
-        super().__init__(cfg, cfg.peft.p_tuning, name_key_to_cfg)
+        super().__init__(cfg.peft.p_tuning, name_key_to_cfg)
 
 
 class CanonicalAdaptersPEFTConfig(PEFTConfig):
@@ -179,7 +177,7 @@ class CanonicalAdaptersPEFTConfig(PEFTConfig):
             AdapterName.POST_ATTN_ADAPTER: [("", MCoreTransformerLayerMixin)],
         }
 
-        super().__init__(cfg, adapter_tuning_cfg, name_key_to_cfg)
+        super().__init__(adapter_tuning_cfg, name_key_to_cfg)
 
 
 PEFT_CONFIG_MAP = {
