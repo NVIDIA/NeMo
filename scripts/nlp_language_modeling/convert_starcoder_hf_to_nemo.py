@@ -97,21 +97,15 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--config", type=str, required=True, help="Path to the megatron_gpt_config.yaml file"
-    )
+    parser.add_argument("--config", type=str, required=True, help="Path to the megatron_gpt_config.yaml file")
     parser.add_argument(
         "--input", type=str, required=True, help="StarCoder from HuggingFace hub or local dir with downloaded model"
     )
-    parser.add_argument(
-        "--output", type=str, default=".", help="Path to dir where to store output .nemo file"
-    )
+    parser.add_argument("--output", type=str, default=".", help="Path to dir where to store output .nemo file")
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
-    parser.add_argument(
-        "--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving"
-    )
+    parser.add_argument("--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving")
     args = parser.parse_args()
 
     if not os.path.isdir(args.output):
