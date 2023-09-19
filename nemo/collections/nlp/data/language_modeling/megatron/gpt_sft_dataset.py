@@ -275,7 +275,7 @@ class GPTSFTDataset(Dataset):
                     if len(ids) < truncation_length:
                         logging.warning(f'{key} is not long enough to truncate.')
                         truncation_length = len(ids)
-                        
+
                     if self.truncation_method == 'left':
                         window_offset = truncation_length
                     elif self.truncation_method == 'right':
