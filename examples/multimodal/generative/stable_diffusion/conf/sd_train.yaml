@@ -118,7 +118,7 @@ model:
     context_dim: 768
     use_checkpoint: False
     legacy: False
-    use_flash_attention: False
+    use_flash_attention: True
 
   first_stage_config:
     _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
