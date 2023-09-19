@@ -59,6 +59,7 @@ from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, 
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
+from nemo.collections.asr.parts.utils.activations import Snake
 
 
 class SEANetResnetBlock(NeuralModule):
