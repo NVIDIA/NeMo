@@ -14,6 +14,7 @@
 
 import numpy as np
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+from nemo.utils import logging
 
 __all__ = ['MMGPTSFTDataset']
 
@@ -33,7 +34,10 @@ class MMGPTSFTDataset(GPTSFTDataset):
         """
         load audio data from npz file
         """
-        AUDIO_ID_OFFSET = 256003
+        # make sure that it is npz file
+        assert filepath.endswith('.npz'), f"audio_codes should be npz file, got {filepath}"
+
+        AUDIO_ID_OFFSET = 256003        # @kpuvvada: move to config file
         audio_codes = np.load(filepath)['codes']
         audio_codes = np.squeeze(audio_codes)
         assert len(audio_codes.shape) == 1, f"audio_codes should be 1D, got {audio_codes.shape}"
@@ -43,7 +47,8 @@ class MMGPTSFTDataset(GPTSFTDataset):
         return audio_codes.tolist()
 
 
-    def _process_example(self, example):
+    # @kpuvvada: deprecated; not used - to be removed
+    def _process_example_deprecated(self, example):
         """
         Overriding the _process_example method from GPTSFTDataset to handle audio inputs
         """
@@ -120,6 +125,72 @@ class MMGPTSFTDataset(GPTSFTDataset):
         # metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
         metadata = {}       # @kpuvvada: temporary placeholder
         
+        processed_example = {
+            'input_ids': input_ids,
+            'answer_start_idx': answer_start_idx,
+            'context_ids': context_ids,
+            'context_length': len(context_ids),
+            'answer_ids': answer_ids,
+            'metadata': metadata,
+        }
+
+        return processed_example
+
+
+    def _process_example(self, example):
+        """
+        Overriding the _process_example method from GPTSFTDataset to handle audio inputs
+        
+        Create an example by concatenating text and answer.
+        Truncation is carried out when needed, but it is performed only on the prompt side.
+        BOS, EOS, and SEP, are added if specified.
+        """
+        prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
+
+        template_strings, template_strings_keys = self._separate_template(prompt_template_values)
+        template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
+        
+        # Insert audio codes
+        if 'audio_codes' in template_strings_keys:
+            # find the respective index
+            audio_codes_idx = template_strings_keys.index('audio_codes')
+            audio_ids = self._load_audio_data(example['audio_codes'])
+            template_ids[audio_codes_idx] = audio_ids
+        
+        context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
+
+        if self.virtual_tokens:
+            # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
+            # these pad/eos tokens are placeholders for virtual tokens
+            context_ids = [self.tokenizer.eos_id] * self.virtual_tokens + context_ids
+
+        input_ids = context_ids
+        answer_start_idx = len(input_ids)
+
+        # Adds bos token in the start
+        if self.add_bos:
+            context_ids = [self.tokenizer.bos_id] + context_ids
+            input_ids = [self.tokenizer.bos_id] + input_ids
+            answer_start_idx += 1
+
+        # Adds sep token between text/prompt and answer
+        if self.add_sep:
+            context_ids = context_ids + [self.sep_id]
+            input_ids = input_ids + [self.sep_id]
+            answer_start_idx += 1
+
+        input_ids = input_ids + answer_ids
+
+        # Only training need to consider eos token
+        if self.add_eos:
+            input_ids = input_ids + [self.tokenizer.eos_id]
+
+        if len(input_ids) > self.max_seq_length:
+            logging.warning(f'Input ids length {len(input_ids)} exceed max sequence length {self.max_seq_length}')
+            input_ids = input_ids[: self.max_seq_length]
+
+        # store metadata in dataset, in case user may have keys required in the prediction json files
+        metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
