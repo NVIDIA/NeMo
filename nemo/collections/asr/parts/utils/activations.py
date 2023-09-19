@@ -19,7 +19,7 @@ __all__ = ['Swish']
 
 
 # @torch.jit.script
-def snake(x, alpha: torch.Tensor = 1.0):
+def snake(x, alpha: torch.Tensor):
     shape = x.shape
     x = x.reshape(shape[0], shape[1], -1)
     x = x + (alpha + 1e-9).reciprocal() * torch.sin(alpha * x).pow(2)
