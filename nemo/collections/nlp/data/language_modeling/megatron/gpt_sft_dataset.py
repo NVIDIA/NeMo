@@ -231,7 +231,7 @@ class GPTSFTDataset(Dataset):
         template_ids = []
         for i, s in enumerate(template_strings):
             tokenized_tokens = self.tokenizer.text_to_tokens(s)
-            if i != 0: 
+            if i != 0:
                 if s[0] == ' ' and not space_sensitive:
                     # remove space if we have leading space and tokenizer is not space_sensitive
                     tokenized_tokens = self.tokenizer.text_to_tokens(s[1:])
@@ -311,7 +311,7 @@ class GPTSFTDataset(Dataset):
 
         template_strings, template_strings_keys = self._separate_template(prompt_template_values)
         answer_string = example[self.label_key]
-        context_string = ''.join(template_strings)[:-len(answer_string)]
+        context_string = ''.join(template_strings)[: -len(answer_string)]
         answer_ids = self.tokenizer.text_to_ids(answer_string)
         context_ids = self.tokenizer.text_to_ids(context_string)
         total_ids = (
