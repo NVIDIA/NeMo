@@ -272,7 +272,10 @@ class GPTSFTDataset(Dataset):
             for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
                 if key in self.truncation_fields:
                     truncation_length = truncation_length_list.pop()
-                    assert len(ids) >= truncation_length, f'{key} is not long enough to truncate.'
+                    if len(ids) < truncation_length:
+                        logging.warning(f'{key} is not long enough to truncate.')
+                        truncation_length = len(ids)
+
                     if self.truncation_method == 'left':
                         window_offset = truncation_length
                     elif self.truncation_method == 'right':
