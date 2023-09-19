@@ -185,9 +185,7 @@ class TransformerConfig(ModelParallelConfig):
         """
         super().__post_init__()
         if self.fp16 and self.bf16:
-            raise ValueError(
-                f'Only one of self.fp16: {self.fp16} and self.bf16 {self.bf16} should be True.'
-            )
+            raise ValueError(f'Only one of self.fp16: {self.fp16} and self.bf16 {self.bf16} should be True.')
 
         if self.num_attention_heads % self.tensor_model_parallel_size != 0:
             raise ValueError(
@@ -221,9 +219,7 @@ class TransformerConfig(ModelParallelConfig):
 
             if self.recompute_method is not None:
                 if not self.recompute_method in ['block', 'uniform']:
-                    raise ValueError(
-                        f'recompute_method: {self.recompute_method} must be "block" or "uniform".'
-                    )
+                    raise ValueError(f'recompute_method: {self.recompute_method} must be "block" or "uniform".')
             elif self.recompute_granularity != 'selective':
                 raise ValueError(
                     f'Using recompute_granularity: {self.recompute_granularity} so recompute_method must be "block" or "uniform"'
@@ -234,9 +230,7 @@ class TransformerConfig(ModelParallelConfig):
                     f'When using recompute_granularity: {self.recompute_granularity} recompute_num_layers must be between '
                     f'1 and num_layers_per_pipeline_rank: {self.num_layers // self.pipeline_model_parallel_size}'
                 )
-            elif (
-                self.recompute_granularity == 'selective' and self.recompute_num_layers is not None
-            ):
+            elif self.recompute_granularity == 'selective' and self.recompute_num_layers is not None:
                 raise ValueError(
                     f'When using recompute_granularity: {self.recompute_granularity} recompute_num_layers must be None.'
                 )
@@ -257,9 +251,7 @@ class TransformerConfig(ModelParallelConfig):
 
         if self.bias_gelu_fusion:
             if not self.add_bias_linear:
-                raise ValueError(
-                    "When bias_gelu_fusion is True, add_bias_linear must also be True."
-                )
+                raise ValueError("When bias_gelu_fusion is True, add_bias_linear must also be True.")
 
             if self.activation_func != F.gelu:
                 raise ValueError(f'When bias_gelu_fusion is True, activation_func must be F.gelu.')
@@ -268,6 +260,4 @@ class TransformerConfig(ModelParallelConfig):
             self.init_method = init_method_normal(self.init_method_std)
 
         if self.output_layer_init_method is None:
-            self.output_layer_init_method = scaled_init_method_normal(
-                self.init_method_std, self.num_layers
-            )
+            self.output_layer_init_method = scaled_init_method_normal(self.init_method_std, self.num_layers)

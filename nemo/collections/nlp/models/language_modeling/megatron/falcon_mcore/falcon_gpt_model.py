@@ -4,17 +4,19 @@ import logging
 from typing import Literal, Optional
 
 import torch
-from torch import Tensor
-
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.models.common.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.models.gpt.gpt_embedding import GPTEmbedding
 from megatron.core.transformer.enums import AttnMaskType, ModelType
 from megatron.core.transformer.module import MegatronModule
-#from megatron.core.transformer.transformer_block import TransformerBlock
-from nemo.collections.nlp.models.language_modeling.megatron.falcon_mcore.falcon_transformer_block import FalconTransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import make_tp_sharded_tensor_for_checkpoint
+from torch import Tensor
+
+# from megatron.core.transformer.transformer_block import TransformerBlock
+from nemo.collections.nlp.models.language_modeling.megatron.falcon_mcore.falcon_transformer_block import (
+    FalconTransformerBlock,
+)
 
 
 class FalconGPTModel(MegatronModule):
@@ -112,8 +114,7 @@ class FalconGPTModel(MegatronModule):
                 bias=False,
                 skip_bias_add=False,
                 gather_output=not self.parallel_output,
-                skip_weight_param_allocation=self.pre_process
-                and self.share_embeddings_and_output_weights,
+                skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
             )
 
         if self.share_embeddings_and_output_weights and (self.pre_process or self.post_process):
@@ -239,9 +240,7 @@ class FalconGPTModel(MegatronModule):
         if torch.distributed.is_initialized():
             if parallel_state.is_rank_in_embedding_group():
                 weight = self.shared_embedding_or_output_weight()
-                torch.distributed.all_reduce(
-                    weight.data, group=parallel_state.get_embedding_group()
-                )
+                torch.distributed.all_reduce(weight.data, group=parallel_state.get_embedding_group())
 
         elif not getattr(GPTModel, "embedding_warning_printed", False):
             logging.getLogger(__name__).warning(
@@ -258,9 +257,7 @@ class FalconGPTModel(MegatronModule):
 
         if self.pre_process:
             embedding_prefix = f'{prefix}embedding.'
-            embedding_sharded_state_dict = self.embedding.sharded_state_dict(
-                prefix=embedding_prefix
-            )
+            embedding_sharded_state_dict = self.embedding.sharded_state_dict(prefix=embedding_prefix)
             sharded_state_dict.update(embedding_sharded_state_dict)
 
         decoder_prefix = f'{prefix}decoder.'
@@ -278,9 +275,7 @@ class FalconGPTModel(MegatronModule):
                     first_stage_word_emb_key = f'{prefix}embedding.word_embeddings.weight'
                     dp_rank = parallel_state.get_data_parallel_rank()
                     dp_size = parallel_state.get_data_parallel_world_size()
-                    last_stage_word_emb_replica_id = (
-                        dp_rank + dp_size
-                    )  # copy of first stage embedding
+                    last_stage_word_emb_replica_id = dp_rank + dp_size  # copy of first stage embedding
 
                     sharded_output_layer_tensor = make_tp_sharded_tensor_for_checkpoint(
                         tensor=tensor,
@@ -292,9 +287,7 @@ class FalconGPTModel(MegatronModule):
                     sharded_state_dict[output_layer_key] = sharded_output_layer_tensor
 
             else:
-                output_layer_state_dict = self.output_layer.state_dict(
-                    prefix=output_layer_prefix, keep_vars=True
-                )
+                output_layer_state_dict = self.output_layer.state_dict(prefix=output_layer_prefix, keep_vars=True)
                 output_layer_tensor = output_layer_state_dict[output_layer_key]
                 # independent output layer
                 sharded_output_layer_tensor = make_tp_sharded_tensor_for_checkpoint(

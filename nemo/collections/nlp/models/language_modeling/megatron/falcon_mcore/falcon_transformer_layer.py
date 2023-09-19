@@ -3,13 +3,9 @@
 import re
 
 import torch
-
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-#from megatron.core.transformer.attention import SelfAttention
-# change attention due to extra layernorm before mlp, ln_mlp.
-from nemo.collections.nlp.models.language_modeling.megatron.falcon_mcore.falcon_attention import SelfAttention
 from megatron.core.transformer.custom_layers.transformer_engine import TENorm
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
@@ -17,6 +13,10 @@ from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import make_viewless_tensor
+
+# from megatron.core.transformer.attention import SelfAttention
+# change attention due to extra layernorm before mlp, ln_mlp.
+from nemo.collections.nlp.models.language_modeling.megatron.falcon_mcore.falcon_attention import SelfAttention
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -32,6 +32,7 @@ from megatron.core.utils import make_viewless_tensor
     tensor of the same size. We use the following arguments:
         hyperparameters: transformer hyperparameters
 """
+
 
 class FalconTransformerLayer(MegatronModule):
     """A single transformer layer.
@@ -62,16 +63,16 @@ class FalconTransformerLayer(MegatronModule):
         self.layer_number = layer_number + self._get_layer_offset()
 
         self.self_attn_mask_type = self_attn_mask_type
-        
+
         self.new_decoder_architecture = new_decoder_architecture
         self.parallel_attention = parallel_attention
-        
+
         # Layernorm on the input data.
         # TODO: add pytorch only layernorm
         self.input_layernorm = self._create_identity_op()
-        
+
         self.mlp_layernorm = self._create_identity_op() if self.new_decoder_architecture else None
-        
+
         if self.new_decoder_architecture or self.parallel_attention:
             self.post_self_attn_layernorm = None
         else:
@@ -93,7 +94,7 @@ class FalconTransformerLayer(MegatronModule):
         # use_nvfuser = TORCH_MAJOR > 1 or (TORCH_MAJOR == 1 and TORCH_MINOR >= 10)
         # self.bias_dropout_add_exec_handler = nullcontext if use_nvfuser else torch.enable_grad
         self.bias_dropout_add_exec_handler = torch.enable_grad
-        
+
     def _create_identity_op(self):
         """Helper function to create an IdentityOp with common parameters."""
         return IdentityOp(
@@ -142,26 +143,23 @@ class FalconTransformerLayer(MegatronModule):
         rotary_pos_emb=None,
     ):
         # hidden_states: [s, b, h]
-        
+
         # Layer norm at the beginning of the transformer layer.
         layernorm_output = self.input_layernorm(hidden_states)
         input_mlp_ln = layernorm_output
-        
+
         # Self attention.
         attention_output_with_bias = self.self_attention(
-            layernorm_output,
-            attention_mask,
-            inference_params=inference_params,
-            rotary_pos_emb=rotary_pos_emb,
+            layernorm_output, attention_mask, inference_params=inference_params, rotary_pos_emb=rotary_pos_emb,
         )
-                 
+
         # Residual connection.
         if self.config.apply_residual_connection_post_layernorm:
             residual = layernorm_output
         else:
             residual = hidden_states
-        
-        # falcon specific 
+
+        # falcon specific
         if self.new_decoder_architecture:
             mlp_ln_output = self.mlp_layernorm(hidden_states)
 
@@ -169,9 +167,7 @@ class FalconTransformerLayer(MegatronModule):
 
         # bias_dropout_add fusion returning fp32 instead of bf16
         with self.bias_dropout_add_exec_handler():
-            layernorm_input = bias_dropout_add_func(
-                attention_output_with_bias, residual, self.config.hidden_dropout
-            )
+            layernorm_input = bias_dropout_add_func(attention_output_with_bias, residual, self.config.hidden_dropout)
 
         # falcon specific
         if not self.new_decoder_architecture:
@@ -179,7 +175,9 @@ class FalconTransformerLayer(MegatronModule):
                 layernorm_output = input_mlp_ln
             else:
                 layernorm_output = self.post_self_attn_layernorm(layernorm_input)
-                residual = layernorm_input if not self.config.apply_residual_connection_post_layernorm else layernorm_output
+                residual = (
+                    layernorm_input if not self.config.apply_residual_connection_post_layernorm else layernorm_output
+                )
         else:
             layernorm_output = mlp_ln_output
 
@@ -189,11 +187,9 @@ class FalconTransformerLayer(MegatronModule):
         # falcon specific:
         if self.new_decoder_architecture or self.parallel_attention:
             mlp_output_with_bias = mlp_output_with_bias + attention_output_with_bias
-            
+
         with self.bias_dropout_add_exec_handler():
-            output = bias_dropout_add_func(
-                mlp_output_with_bias, residual, self.config.hidden_dropout
-            )
+            output = bias_dropout_add_func(mlp_output_with_bias, residual, self.config.hidden_dropout)
 
         # Jit compiled function creates 'view' tensor. This tensor
         # potentially gets saved in the MPU checkpoint function context,
@@ -201,9 +197,7 @@ class FalconTransformerLayer(MegatronModule):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(
-            inp=output, requires_grad=output.requires_grad, keep_graph=True
-        )
+        output = make_viewless_tensor(inp=output, requires_grad=output.requires_grad, keep_graph=True)
 
         return output
 
@@ -245,18 +239,13 @@ class FalconTransformerLayer(MegatronModule):
                 replica_id = parallel_state.get_data_parallel_rank()
             else:
                 replica_id = (
-                    parallel_state.get_data_parallel_rank()
-                    * parallel_state.get_data_parallel_world_size()
+                    parallel_state.get_data_parallel_rank() * parallel_state.get_data_parallel_world_size()
                     + parallel_state.get_tensor_model_parallel_rank()
                 )
 
             if layer_name.endswith('._extra_state'):
                 sharded_state_dict[layer_key] = ShardedObject(
-                    f'{prefix}{layer_name}',
-                    tensor,
-                    (num_layers,),
-                    (global_layer_offset,),
-                    replica_id,
+                    f'{prefix}{layer_name}', tensor, (num_layers,), (global_layer_offset,), replica_id,
                 )
 
             else:
