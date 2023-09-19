@@ -196,12 +196,8 @@ def load_nemo_config(args):
     nemo_config.mcore_gpt = True
     nemo_config.transformer_engine = True
     nemo_config.bias_activation_fusion = False
-<<<<<<< HEAD
     nemo_config.bias_dropout_add_fusion = False
     
-=======
-
->>>>>>> 8297b5ccb9b4c489e25316777cf8181f24712ebe
     base = 128
     while falcon_config.vocab_size % base != 0:
         base //= 2
@@ -312,19 +308,8 @@ def convert(args):
         add_weight_and_possible_bias(f'{prefix}.mlp.dense_4h_to_h', f'model.decoder.layers.{l}.mlp.linear_fc2')
 
         if falcon_config.new_decoder_architecture:
-<<<<<<< HEAD
             add_weight_and_possible_bias(f'{prefix}.ln_attn', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True)
             add_weight_and_possible_bias(f'{prefix}.ln_mlp', f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm', is_layernorm=True)
-=======
-            add_weight_and_possible_bias(
-                f'{prefix}.ln_attn',
-                f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm',
-                is_layernorm=True,
-            )
-            add_weight_and_possible_bias(
-                f'{prefix}.ln_mlp', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True
-            )
->>>>>>> 8297b5ccb9b4c489e25316777cf8181f24712ebe
         else:
             add_weight_and_possible_bias(
                 f'{prefix}.input_layernorm',
@@ -355,13 +340,8 @@ def convert(args):
 
     del model
 
-<<<<<<< HEAD
     #model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
     model = MegatronGPTModel(checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY], trainer=trainer)
-=======
-    # model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
-    model = MegatronGPTModel(checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY], strict=False, trainer=trainer)
->>>>>>> 8297b5ccb9b4c489e25316777cf8181f24712ebe
 
     model._save_restore_connector = NLPSaveRestoreConnector()
 
