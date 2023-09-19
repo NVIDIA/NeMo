@@ -46,7 +46,14 @@ def main(cfg) -> None:
     model_cfg = MegatronT5SFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
     model = MegatronT5SFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
-    model.add_adapter(peft_cfg_cls(model_cfg))
+
+    if cfg.model.peft.restore_from_path is not None:
+        # initialize peft weights from a checkpoint instead of randomly
+        # This is not the same as resume training because optimizer states are not restored.
+        logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
+        model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+    else:
+        model.add_adapter(peft_cfg_cls(model_cfg))
 
     trainer.fit(model)
 
