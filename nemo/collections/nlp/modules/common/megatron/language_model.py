@@ -123,6 +123,7 @@ def get_language_model(
     use_emha=False,
     use_flash_attention=False,
     output_size=None,
+    embedding_scale=1.0,
 ):
     """Build language model and return along with the key to save."""
 
@@ -200,6 +201,7 @@ def get_language_model(
         use_emha=use_emha,
         use_flash_attention=use_flash_attention,
         output_size=output_size,
+        embedding_scale=embedding_scale,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -508,6 +510,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         use_emha=False,
         use_flash_attention=False,
         output_size=None,
+        embedding_scale=1.0,
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -529,6 +532,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.embedding_scale = embedding_scale
         if output_size is None:
             output_size = vocab_size
         elif share_embeddings_and_output_weights and output_size != vocab_size:
@@ -745,6 +749,8 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         checkpoint_activations_all_layers=None,
     ):
         # Embeddings.
+        # print("$$$$$$$$$$$$$$$$$$$$$$")
+        # print(self.embedding_scale)
         if self.pre_process and encoder_input is None:
             encoder_input = None
             if enc_input_ids.dim() > 2:
@@ -755,8 +761,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                         encoder_input = cur
                     else:
                         include_channel_flag = (torch.sum(enc_input_ids[:, i, :], dim=1) > 0).float()
-                        encoder_input = encoder_input + cur * include_channel_flag.unsqueeze(-1).unsqueeze(0)
-                        # encoder_input = encoder_input + cur * include_channel_flag.unsqueeze(-1).unsqueeze(0)
+                        encoder_input = encoder_input + cur * include_channel_flag.unsqueeze(-1).unsqueeze(0) * self.embedding_scale
             else:
                 # Should be text tokens
                 encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)

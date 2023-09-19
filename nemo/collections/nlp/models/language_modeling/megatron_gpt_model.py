@@ -1381,6 +1381,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         """Very small override of base model so we can have different embedding and output layer size"""
         # print(f"AGAIN1 {self.cfg.get('override_vocab_size')}")
         # print(f"AGAIN1 {self.cfg.get('output_size')}")
+        # print(f"AGAIN1 {self.cfg.get('embedding_scale')}")
         model = GPTModel(
             vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
             output_size=self.cfg.get('output_size', None),
@@ -1442,6 +1443,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             use_emha=self.cfg.get('use_emha', False),
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
+            embedding_scale=self.cfg.get('embedding_scale', 1.0),
         )
 
         return model

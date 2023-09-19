@@ -109,7 +109,7 @@ def post_language_model_processing(
             # print(f"{-(num_speech_tokens-1024*(i+1))}:{-(num_speech_tokens-1024*(i+2))}")
             speech_logits[:, :, :, i] = last_layer_logits
     else:
-        output = output[:, :, : 256000 + 1024]
+        # output = output[:, :, : 256000 + 1024]
         speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers], device=output.device)  # [S, B, H, L]
         for i in range(speech_layers):
             speech_logits[:, :, :, i] = output[
@@ -238,6 +238,7 @@ class GPTModel(MegatronModule):
         use_emha=False,
         use_flash_attention=False,
         output_size=None,
+        embedding_scale=1.0,
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -321,6 +322,7 @@ class GPTModel(MegatronModule):
             use_emha=use_emha,
             use_flash_attention=use_flash_attention,
             output_size=output_size,
+            embedding_scale=embedding_scale,
         )
 
         if self.share_embeddings_and_output_weights:

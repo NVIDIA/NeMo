@@ -42,6 +42,10 @@ def pad_text_to_speech_dims(text_tensor, pad_id):
     empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
     return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
+class GPTSpeechLMDataset(BasePromptLearningDataset):
+    def __getitem__(self, idx):
+        pass
+
 
 class T5SpeechLMDataset(BasePromptLearningDataset):
     """
@@ -147,9 +151,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
     def load_data(self, dataset):
         """
         Loads a dataset by filling in the task templates specified in the config file
-        with the information from each training/inference example. Converts all input 
-        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in 
-        the task templates with the actual virtual prompt token ids. 
+        with the information from each training/inference example. Converts all input
+        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in
+        the task templates with the actual virtual prompt token ids.
 
         params:
             dataset: A list of json objects or a dictionary objects each
