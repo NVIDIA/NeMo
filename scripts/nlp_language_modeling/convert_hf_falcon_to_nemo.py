@@ -183,6 +183,7 @@ def load_nemo_config(args):
     nemo_config.mcore_gpt = True
     nemo_config.transformer_engine = True
     nemo_config.bias_activation_fusion = False
+    nemo_config.bias_dropout_add_fusion = False
     
     base = 128
     while falcon_config.vocab_size % base != 0:
@@ -282,7 +283,7 @@ def convert(args):
 
         if falcon_config.new_decoder_architecture:
             add_weight_and_possible_bias(f'{prefix}.ln_attn', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True)
-            add_weight_and_possible_bias(f'{prefix}.ln_mlp', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True)
+            add_weight_and_possible_bias(f'{prefix}.ln_mlp', f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm', is_layernorm=True)
         else:
             add_weight_and_possible_bias(f'{prefix}.input_layernorm', f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm', is_layernorm=True)
             if not falcon_config.parallel_attn:
@@ -306,7 +307,7 @@ def convert(args):
     del model
 
     #model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
-    model = MegatronGPTModel(checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY], strict=False, trainer=trainer)
+    model = MegatronGPTModel(checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY], trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
 
