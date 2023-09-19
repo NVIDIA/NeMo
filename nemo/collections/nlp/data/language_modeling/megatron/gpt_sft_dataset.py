@@ -229,19 +229,20 @@ class GPTSFTDataset(Dataset):
         space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
 
         template_ids = []
-        for s in template_strings:
-            if s[0] == ' ' and not space_sensitive:
-                # remove space if we have leading space and tokenizer is not space_sensitive
-                tokenized_tokens = self.tokenizer.text_to_tokens(s[1:])
-            elif isinstance(self.tokenizer, SentencePieceTokenizer):
-                # remove `▁` if we don't have a leading space in string
-                tokenized_tokens = self.tokenizer.text_to_tokens(s)
-                if tokenized_tokens[0] == '▁':
-                    tokenized_tokens.pop(0)
-                elif tokenized_tokens[0][0] == '▁':
-                    tokenized_tokens[0] = tokenized_tokens[0][1:]
-            else:
-                tokenized_tokens = self.tokenizer.text_to_tokens(s)
+        for i, s in enumerate(template_strings):
+            tokenized_tokens = self.tokenizer.text_to_tokens(s)
+            
+            if i != 0: 
+                if s[0] == ' ' and not space_sensitive:
+                    # remove space if we have leading space and tokenizer is not space_sensitive
+                    tokenized_tokens = self.tokenizer.text_to_tokens(s[1:])
+                elif isinstance(self.tokenizer, SentencePieceTokenizer):
+                    # remove `▁` if we don't have a leading space in string
+                    tokenized_tokens = self.tokenizer.text_to_tokens(s)
+                    if tokenized_tokens[0] == '▁':
+                        tokenized_tokens.pop(0)
+                    elif tokenized_tokens[0][0] == '▁':
+                        tokenized_tokens[0] = tokenized_tokens[0][1:]
 
             tokenized_ids = self.tokenizer.tokens_to_ids(tokenized_tokens)
             template_ids.append(tokenized_ids)
@@ -311,8 +312,21 @@ class GPTSFTDataset(Dataset):
         prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
 
         template_strings, template_strings_keys = self._separate_template(prompt_template_values)
-        template_ids = self._tokenize_template(template_strings)
-        context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
+        answer_string = example[self.label_key]
+        context_string = ''.join(template_strings)[:-len(answer_string)]
+        answer_ids = self.tokenizer.text_to_ids(answer_string)
+        context_ids = self.tokenizer.text_to_ids(context_string)
+        total_ids = (
+            self.virtual_tokens
+            + len(context_ids)
+            + max(len(answer_ids), self.tokens_to_generate)
+            + self.add_bos
+            + self.add_sep
+            + self.add_eos  # Only training need to consider eos token
+        )
+        if total_ids > self.max_seq_length:
+            template_ids = self._tokenize_template(template_strings)
+            context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
