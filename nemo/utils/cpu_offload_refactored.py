@@ -315,7 +315,7 @@ class AsyncDoubleBufferGroupOffloadHandler(SynchronizedGroupOffloadHandler):
         # the host should wait for the copying of previous group
         # to avoid overwriting buffer
         previous_group = current_group - 1
-        if previous_group >= 0 and previous_group < self.num_offload_group:
+        if (previous_group < self.num_offload_group):
             torch.cuda.synchronize()
             # TODO (guyueh): this part is originally designed to reduce the peak memory usage.
             # however, uncommenting this part will cause illegal access, have not figured out why.
