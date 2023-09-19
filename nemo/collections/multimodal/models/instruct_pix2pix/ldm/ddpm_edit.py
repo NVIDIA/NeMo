@@ -23,7 +23,6 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
-from pytorch_lightning.utilities.distributed import rank_zero_only
 from torch.optim.lr_scheduler import LambdaLR
 from torchvision.utils import make_grid
 from tqdm import tqdm
