@@ -14,11 +14,11 @@ CHECKPOINT_NUM_LAYERS=${6:-1}
 
 python ${NEMO}/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
 --config-path ${NEMO}/debug_gh/megatron \
---config-name gpt_3.4b.yaml \
+--config-name gpt_3.4b_no_grad_acc_fusion.yaml \
 trainer.devices=1 \
 trainer.num_nodes=1 \
 model.micro_batch_size=${MICRO_BATCH_SIZE} \
-model.global_batch_size=128 \
+model.global_batch_size=16 \
 model.data.data_impl="mock" model.data.data_prefix=[] \
 model.optim.name="fused_adam" \
 model.megatron_amp_O2=${MEGATRON_AMP_O2} \

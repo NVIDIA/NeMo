@@ -8,24 +8,23 @@ export PYTHONPATH=${NEMO}:${PYTHONPATH}
 MICRO_BATCH_SIZE=${1:-1}
 SEQ_LENGTH=${2:-512}
 MEGATRON_AMP_O2=${3:-"True"}
-OFFLOAD_REGION=${4:-"transformer_layer"} # comma-separated list, choices in [ln,ffn_act,bias_dropout_add,attn_fn]
-OFFLOAD_NUM_LAYERS=${5:-15}
-OFFLOAD_METHOD=${6:-"group_async"} # group_async or group_jit
+CHECKPOINT_GRANULARITY=${4:-"full"}
+CHECKPOINT_METHOD=${5:-"uniform"}
+CHECKPOINT_NUM_LAYERS=${6:-1}
 ADDON_ARGS=${7:-""}
 
 python ${NEMO}/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
 --config-path ${NEMO}/debug_cpu_offload/megatron \
---config-name gpt_5b_no_grad_acc_fusion.yaml \
+--config-name gpt_3.4b_no_grad_acc_fusion.yaml \
 trainer.devices=1 \
 trainer.num_nodes=1 \
 model.micro_batch_size=${MICRO_BATCH_SIZE} \
-model.global_batch_size=128 \
+model.global_batch_size=16 \
 model.data.data_impl="mock" model.data.data_prefix=[] \
 model.optim.name="fused_adam" \
 model.megatron_amp_O2=${MEGATRON_AMP_O2} \
 model.encoder_seq_length=${SEQ_LENGTH} ${ADDON_ARGS} \
-++model.cpu_offloading=True \
-++model.cpu_offloading_num_layers=${OFFLOAD_NUM_LAYERS} \
-++model.cpu_offloading_method=${OFFLOAD_METHOD} \
-++model.cpu_offloading_region=[${OFFLOAD_REGION}] \
-2>&1 | tee gpt_5b_offload_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}_amp_O2_${MEGATRON_AMP_O2}_offload_num_layers_${OFFLOAD_NUM_LAYERS}_region_${OFFLOAD_REGION}_method_${OFFLOAD_METHOD}_${ADDON_ARGS}.log
+model.activations_checkpoint_granularity=${CHECKPOINT_GRANULARITY} \
+model.activations_checkpoint_method=${CHECKPOINT_METHOD} \
+model.activations_checkpoint_num_layers=${CHECKPOINT_NUM_LAYERS} \
+2>&1 | tee gpt_3.4b_recompute_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}_amp_O2_${MEGATRON_AMP_O2}_granularity_${CHECKPOINT_GRANULARITY}_method_${CHECKPOINT_METHOD}_num_layers_${CHECKPOINT_NUM_LAYERS}_${ADDON_ARGS}.log

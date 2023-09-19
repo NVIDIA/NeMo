@@ -33,7 +33,7 @@ def calculate_peak_memory(args):
     activation_elements_per_layer = (
         S*B*hidden_size +       # input ln
         S*B*hidden_size +       # qkv
-        S*B*hidden_size*3 +     # self_attention
+        S*B*hidden_size*4 +     # self_attention
         S*B*hidden_size +       # attn_out
         S*B*hidden_size // 2 +  # for dropout
         S*B*hidden_size +       # pre mlp ln
@@ -44,30 +44,53 @@ def calculate_peak_memory(args):
     )
     activation_elements_per_layer_with_opt = activation_elements_per_layer
     num_opt_layers = 0
+    num_layers_with_no_activations = 0
     
     if args.cpu_offloading_num_layers > 0:
-        num_opt_layers = args.cpu_offloading_num_layers
-        if args.cpu_offloading_region == 'ln':
-            activation_elements_per_layer_with_opt -= 2 * S*B*hidden_size
-        elif args.cpu_offloading_region == 'gelu':
-            activation_elements_per_layer_with_opt -= S*B*ffn_hidden_size
-        elif args.cpu_offloading_region == 'ln_and_gelu':
-            activation_elements_per_layer_with_opt -= 2 * S*B*hidden_size
-            activation_elements_per_layer_with_opt -= S*B*ffn_hidden_size
-        elif args.cpu_offloading_region == 'full':
+        if args.cpu_offloading_method == "group_async":
+            num_opt_layers = max(0, args.cpu_offloading_num_layers - 2)
+        else:
+            num_opt_layers = args.cpu_offloading_num_layers
+        num_layers_with_no_activations = 0
+        regions = args.cpu_offloading_region.split(',')
+        if 'transformer_layer' in regions:
             activation_elements_per_layer_with_opt = 0
+        else:
+            activation_elements_per_layer_with_opt = activation_elements_per_layer
+            if 'ln' in regions:
+                activation_elements_per_layer_with_opt -= 2 * S*B*hidden_size
+            if 'ffn_act' in regions:
+                activation_elements_per_layer_with_opt -= S*B*ffn_hidden_size
+            if 'bias_dropout_add' in regions:
+                activation_elements_per_layer_with_opt -= S*B*hidden_size
+            if 'attn_fn' in regions:
+                activation_elements_per_layer_with_opt -= S*B*hidden_size*4
+            if 'qkv_proj' in regions:
+                activation_elements_per_layer_with_opt -= S*B*hidden_size
+            if 'out_proj' in regions:
+                activation_elements_per_layer_with_opt -= S*B*hidden_size
+            if 'ffn1' in regions:
+                activation_elements_per_layer_with_opt -= S*B*hidden_size
+            if 'ffn2' in regions:
+                activation_elements_per_layer_with_opt -= S*B*ffn_hidden_size
     elif args.activations_checkpoint_num_layers >= 0:
-        num_opt_layers = args.activations_checkpoint_num_layers
+        if args.activations_checkpoint_method == "block":
+            num_opt_layers = args.activations_checkpoint_num_layers
+            num_layers_with_no_activations = 0
+        elif args.activations_checkpoint_method == "uniform":
+            num_opt_layers = args.num_layers // args.activations_checkpoint_num_layers
+            num_layers_with_no_activations = args.num_layers - num_opt_layers
         if args.activations_checkpoint_granularity == 'full':
             activation_elements_per_layer_with_opt = S*B*hidden_size
+        else:
+            activation_elements_per_layer_with_opt = activation_elements_per_layer
 
     activation_width = 2
     activation_mem_size = (
-        activation_elements_per_layer * (args.num_layers - num_opt_layers) + 
+        activation_elements_per_layer * (args.num_layers - num_opt_layers - num_layers_with_no_activations) + 
         activation_elements_per_layer_with_opt * num_opt_layers + 
         activation_elements_output_layer
     ) * activation_width
-
 
     return ((model_mem_size + activation_mem_size) // 1024 // 1024, 
             model_mem_size // 1024 // 1024, 
@@ -77,7 +100,7 @@ def main():
     parser = argparse.ArgumentParser()
     # default is a gpt-5B config
     # assume the settings of precision=bf16, megatron_amp_O2=true, use_flash_attention=true
-    parser.add_argument('--num_layers', type=int, default=24)
+    parser.add_argument('--num_layers', type=int, default=16)
     parser.add_argument('--hidden_size', type=int, default=4096)
     parser.add_argument('--ffn_hidden_size', type=int, default=None)
     parser.add_argument('--num_attention_heads', type=int, default=32)
@@ -87,11 +110,13 @@ def main():
     
     # activation checkpointing options
     parser.add_argument('--activations_checkpoint_granularity', default='full', choices=['selective', 'full'])
+    parser.add_argument('--activations_checkpoint_method', default='block', choices=['block', 'uniform'])
     parser.add_argument('--activations_checkpoint_num_layers', type=int, default=0)
 
     # activation offloading options
     parser.add_argument('--cpu_offloading_num_layers', type=int, default=0)
-    parser.add_argument('--cpu_offloading_region', default="ln_and_gelu", choices=["ln", "gelu", "ln_and_gelu", 'full'])
+    parser.add_argument('--cpu_offloading_region', default="transformer_layer")
+    parser.add_argument('--cpu_offloading_method', default='group_sync', choices=['group_sync', 'group_async'])
 
     args = parser.parse_args()
 

@@ -13,10 +13,10 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 75000 # consumed_samples = global_step * global_batch_size
+  max_steps: 100 # consumed_samples = global_step * global_batch_size
   max_time: "05:23:30:00"
   log_every_n_steps: 10
-  val_check_interval: 2000
+  val_check_interval: ${.max_steps}
   limit_val_batches: 50
   limit_test_batches: 50
   accumulate_grad_batches: 1
@@ -74,15 +74,15 @@ model:
 
   # Fusion
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
-  gradient_accumulation_fusion: True # Fuse weight gradient accumulation to GEMMs
+  gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
   bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
   bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
 
   ## Activation Checkpointing
-  activations_checkpoint_granularity: full # 'selective' or 'full'
-  activations_checkpoint_method: uniform # 'uniform', 'block'
-  activations_checkpoint_num_layers: 1
+  activations_checkpoint_granularity: null # 'selective' or 'full'
+  activations_checkpoint_method: null # 'uniform', 'block'
+  activations_checkpoint_num_layers: null 
   num_micro_batches_with_partial_activation_checkpoints: null
   activations_checkpoint_layers_per_pipeline: null
 

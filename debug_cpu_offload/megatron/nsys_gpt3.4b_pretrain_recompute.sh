@@ -7,12 +7,12 @@ SEQ_LENGTH=${2:-512}
 
 
 /home/scratch.svc_compute_arch/release/nsightSystems/x86_64/rel/2023.2.1.122/bin/nsys \
-profile -s none -o ./nsys_gpt_5b_recompute_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH} \
+profile -s none -o ./nsys_gpt_3.4b_recompute_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH} \
 -t cuda,nvtx --force-overwrite true \
 --capture-range=cudaProfilerApi --capture-range-end=stop \
 python ${NEMO}/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
 --config-path ${NEMO}/debug_cpu_offload/megatron \
---config-name gpt_5b.yaml \
+--config-name gpt_3.4b.yaml \
 trainer.devices=1 \
 trainer.num_nodes=1 \
 model.micro_batch_size=${MICRO_BATCH_SIZE} \
@@ -28,4 +28,4 @@ model.nsys_profile.enabled=True \
 model.nsys_profile.gen_shape=True \
 model.nsys_profile.start_step=1 \
 model.nsys_profile.end_step=1 \
-2>&1 | tee nsys_gpt_5b_recompute_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}.log
+2>&1 | tee nsys_gpt_3.4b_recompute_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}.log
