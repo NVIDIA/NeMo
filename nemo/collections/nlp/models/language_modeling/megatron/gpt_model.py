@@ -226,7 +226,7 @@ class GPTModel(MegatronModule):
                     tensor_need_offloading_checker=tensor_need_offloading_checker,
                     # debug=True,
                     )
-            elif cpu_offloading_method == "group_jit":
+            elif cpu_offloading_method == "group_sync":
                 assert (
                     cpu_offloading_num_layers > 0 and cpu_offloading_num_layers <= num_layers
                 ), "cpu_offloading_num_layers should be in [0, num_layers] but got %d" % cpu_offloading_num_layers
@@ -238,7 +238,7 @@ class GPTModel(MegatronModule):
                     # debug=True,
                     )
             else:
-                assert 0, "only group_async is the supported as the cpu_offloading_method."
+                assert 0, "only group_async, group_sync are the supported as the cpu_offloading_method."
             
             assert (cpu_offloading_region is not None ), \
                 "requires specifying cpu_offloading_region (comma separated choices from [ln, ffn_act, dropout_add, flash_attn])"
