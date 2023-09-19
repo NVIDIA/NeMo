@@ -438,6 +438,7 @@ class GPTDataset(Dataset):
                 # text on the 1st - 7th layers should be between [vocab_size+offset, vocab_size+offset+1024)
                 #  where the offset is 1024 * layer_i
                 text[0] += self.vocab_size
+                # TODO: allow option for delay rather than hard code
                 for l in range(1, text.shape[0]):
                     text[l] = torch.roll(text[l], l)
                     text[l, :l] = 0

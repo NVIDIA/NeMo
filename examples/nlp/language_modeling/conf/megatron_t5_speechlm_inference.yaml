@@ -1,4 +1,5 @@
 name: p_tuning_squad_t5
+checkpoint_path: "/Data/Experiments/ComparisonBreakUnbreak/DelayParallelLinearHead/Epoch10.ckpt"
 
 trainer:
   devices: 1
@@ -8,24 +9,24 @@ trainer:
   logger: False 
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: -1
-  max_steps: 1000000
+  max_epochs: 10000
+  max_steps: -1
   log_every_n_steps: 10
   val_check_interval: null
-  check_val_every_n_epoch: 1
+  check_val_every_n_epoch: 3
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
   limit_val_batches: 25
 
 exp_manager:
   explicit_log_dir: null
-  exp_dir: null
+  exp_dir: "/Data/Experiments/InferenceDelayParallel"
   name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: PromptLearning-T5
     name: ${name}
-  resume_if_exists: True
+  resume_if_exists: False
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
@@ -60,7 +61,9 @@ model:
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
   seq_pattern: "parallel" # parallel, delay_parallel, flatten
   speech_head_type: "token_level" # token_level, linear
-  cross_entropy_type: "regular" # regular, vocab_parallel
+  temperature: 0.7 # Temperature to be used for inference
+  max_inference_timesteps: 1000 # Maximum number of timesteps to run inference for
+  
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
@@ -86,8 +89,9 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["/Data/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
-    validation_ds: ["/Data/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
+    train_ds: null
+    validation_ds: null
+    test_ds: ["/Data/LibriTTS/inference_unseen.json"]
     max_seq_length: 512
     sample_rate: 24000
     add_eos: true
