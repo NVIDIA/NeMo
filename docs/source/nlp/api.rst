@@ -145,7 +145,7 @@ Adapter Mixin Class
 
 .. autoclass:: nemo.collections.nlp.parts.mixins.nlp_adapter_mixins.NLPAdapterModelMixin
     :show-inheritance:
-    :members: add_adapter, save_adapters, load_adapters, merge_cfg_with, merge_inference_cfg
+    :members: add_adapter, load_adapters, merge_cfg_with, merge_inference_cfg
     :exclude-members: first_stage_of_pipeline, tie_weights, get_peft_state_dict, state_dict, sharded_state_dict, load_state_dict, on_load_checkpoint
     :member-order: bysource
 
