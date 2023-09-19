@@ -45,7 +45,7 @@ class Snake(nn.Module):
 
 
 # @torch.jit.script
-def snake(x, alpha: torch.Tensor):
+def snake(x, alpha: torch.Tensor = 1.0):
     shape = x.shape
     x = x.reshape(shape[0], shape[1], -1)
     x = x + (alpha + 1e-9).reciprocal() * torch.sin(alpha * x).pow(2)
