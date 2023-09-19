@@ -106,6 +106,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
             repetition_penalty=sampling_params['repetition_penalty'],
             min_tokens_to_generate=length_params['min_length'],
             compute_attention_mask=sampling_params.get("compute_attention_mask", True),
+            vocab_size=sampling_params.get("vocab_size", 256000),
             mode=mode,
             **strategy_args,
         )
@@ -127,6 +128,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
                 greedy=sampling_params['use_greedy'],
                 repetition_penalty=sampling_params['repetition_penalty'],
                 min_tokens_to_generate=length_params['min_length'],
+                vocab_size=sampling_params.get("vocab_size", 256000),
                 mode=mode,
                 **strategy_args,
             )
@@ -494,6 +496,7 @@ def generate(
     min_tokens_to_generate=0,
     end_strings=['<|endoftext|>'],
     mode="teacher-forced",
+    vocab_size=256000,
     **strategy_args,
 ) -> OutputType:
     """
@@ -602,10 +605,11 @@ def generate(
         resp_sentences_seg = []
 
         decode_tokens = decode_tokens.cpu().numpy().tolist()
+        # import ipdb; ipdb.set_trace()
         for decode_token in decode_tokens:
             is_speech = False
             for token in decode_token[0]:
-                if token > 256000:
+                if token > vocab_size-1:
                     is_speech = True
                     break
             if is_speech:

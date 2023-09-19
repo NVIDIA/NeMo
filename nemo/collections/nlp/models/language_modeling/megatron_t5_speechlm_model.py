@@ -262,7 +262,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
             loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
+            loss_tensor = torch.cat(loss_tensors_list)
             loss_mean = loss_tensor.mean()
         else:
             # we're not on the last pipeline stage so no losses
