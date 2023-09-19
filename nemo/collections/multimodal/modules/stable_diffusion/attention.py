@@ -38,15 +38,15 @@ def check_cuda():
 
 
 try:
-    from flash_attn.flash_attention import FlashAttention
-    from flash_attn.flash_attn_interface import flash_attn_unpadded_kvpacked_func
+    import torch.nn as nn
+    from flash_attn.modules.mha import FlashCrossAttention, FlashSelfAttention
 
     flash_attn_installed = check_cuda()
     print("FlashAttention Installed")
 
     # Disable TorchDynamo on FlashAttention
-    flash_attn_unpadded_kvpacked_func = disable(flash_attn_unpadded_kvpacked_func)
-    FlashAttention.forward = disable(FlashAttention.forward)
+    FlashSelfAttention.forward = disable(FlashSelfAttention.forward)
+    FlashCrossAttention.forward = disable(FlashCrossAttention.forward)
 except ImportError:
     flash_attn_installed = False
 
@@ -204,8 +204,11 @@ class CrossAttention(nn.Module):
         self.to_out = nn.Sequential(nn.Linear(inner_dim, query_dim), nn.Dropout(dropout))
         self.use_flash_attention = use_flash_attention
 
-        if context_dim == query_dim and dim_head <= 128 and (dim_head % 8) == 0 and flash_attn_installed:
-            self.flash_attn = FlashAttention(self.scale)
+        if dim_head <= 128 and (dim_head % 8) == 0 and flash_attn_installed:
+            if context_dim == query_dim:
+                self.flash_attn = FlashSelfAttention(self.scale)
+            else:
+                self.flash_attn = FlashCrossAttention(self.scale)
 
     def forward(self, x, context=None, mask=None):
         h = self.heads
@@ -258,7 +261,7 @@ class CrossAttention(nn.Module):
             d = hd // h
             qkv = qkv.view(b, s, t, h, d)
 
-            out, _ = self.flash_attn(qkv)
+            out = self.flash_attn(qkv)
             out = out.view(b, s, hd)
         else:
             # cross-attention
@@ -268,14 +271,10 @@ class CrossAttention(nn.Module):
             b, s_kv, t, hd = kv.shape
             d = hd // h
 
-            q = q.view(b * s_q, h, d)
-            kv = kv.view(b * s_kv, t, h, d)
+            q = q.view(b, s_q, h, d)
+            kv = kv.view(b, s_kv, t, h, d)
 
-            cu_seqlens_q = torch.arange(0, (b + 1) * s_q, step=s_q, dtype=torch.int32, device=q.device)
-            cu_seqlens_k = torch.arange(0, (b + 1) * s_kv, step=s_kv, dtype=torch.int32, device=kv.device)
-
-            out = flash_attn_unpadded_kvpacked_func(q, kv, cu_seqlens_q, cu_seqlens_k, s_q, s_kv, 0.0, self.scale)
-
+            out = self.flash_attn(q, kv)
             out = out.view(b, s_q, hd)
 
         return out
@@ -394,7 +393,7 @@ class SpatialTransformer(nn.Module):
         if not self.use_linear:
             x = self.proj_in(x)
         x = x.view(b, c, -1).transpose(1, 2)  # b c h w -> b (h w) c
-        x = x.contiguous()  # workaround for dynamo ddp bug
+        # x = x.contiguous()  # workaround for dynamo ddp bug
         if self.use_linear:
             x = self.proj_in(x)
         for i, block in enumerate(self.transformer_blocks):
@@ -402,7 +401,7 @@ class SpatialTransformer(nn.Module):
         if self.use_linear:
             x = self.proj_out(x)
         x = x.transpose(1, 2).view(b, c, h, w)  # b (h w) c -> b c h w
-        x = x.contiguous()  # workaround for dynamo ddp bu
+        # x = x.contiguous()  # workaround for dynamo ddp bu
         if not self.use_linear:
             x = self.proj_out(x)
         return x + x_in
