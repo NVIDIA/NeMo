@@ -209,7 +209,7 @@ class GPTSFTDataset(Dataset):
         #   template_with_placeholder_separated = ['Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}']
         template_with_placeholder_separated = re.split('( *?{.+?})', self.prompt_template)
         template_with_placeholder_separated = [s for s in template_with_placeholder_separated if len(s) > 0]
-            
+
         # convert placeholder to the corresponding string and key
         template_strings, template_strings_keys = [], []
         for t in template_with_placeholder_separated:
@@ -227,7 +227,7 @@ class GPTSFTDataset(Dataset):
         # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B')
         # space_sensitive = False: tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces-1}B')
         space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
-    
+
         template_ids = []
         for s in template_strings:
             if s[0] == ' ' and not space_sensitive:
@@ -242,12 +242,12 @@ class GPTSFTDataset(Dataset):
                     tokenized_tokens[0] = tokenized_tokens[0][1:]
             else:
                 tokenized_tokens = self.tokenizer.text_to_tokens(s)
-            
+
             tokenized_ids = self.tokenizer.tokens_to_ids(tokenized_tokens)
             template_ids.append(tokenized_ids)
-            
+
         return template_ids
-        
+
     def _multiple_truncation(self, template_ids: List[List[int]], template_ids_keys: List[str]):
         """
         Calculate total tokens and truncate multiple contexts in truncation_fields.
