@@ -423,7 +423,7 @@ class AudioCodecArtifactGenerator(ArtifactGenerator):
                     id=f"encoded_{audio_id}",
                     data=encoded_i,
                     filepath=encoded_path,
-                    x_axis="Audio Tokens",
+                    x_axis="Audio Frames",
                     y_axis="Channels",
                 )
                 image_artifacts.append(encoded_artifact)
@@ -443,7 +443,7 @@ class AudioCodecArtifactGenerator(ArtifactGenerator):
                 id=f"dequantized_{audio_id}",
                 data=dequantized_i,
                 filepath=dequantized_path,
-                x_axis="Audio Tokens",
+                x_axis="Audio Frames",
                 y_axis="Channels",
             )
             image_artifacts.append(dequantized_artifact)
