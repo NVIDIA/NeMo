@@ -16,6 +16,7 @@
 
 try:
     from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
+    from nemo.collections.nlp.models.language_modeling.megatron.falcon_mcore.falcon_gpt_model import FalconGPTModel
 
     HAVE_MEGATRON_CORE = True
 except (ImportError, ModuleNotFoundError):
