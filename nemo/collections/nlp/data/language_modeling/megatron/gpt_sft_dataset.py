@@ -231,14 +231,12 @@ class GPTSFTDataset(Dataset):
         template_ids = []
         for i, s in enumerate(template_strings):
             tokenized_tokens = self.tokenizer.text_to_tokens(s)
-            
             if i != 0: 
                 if s[0] == ' ' and not space_sensitive:
                     # remove space if we have leading space and tokenizer is not space_sensitive
                     tokenized_tokens = self.tokenizer.text_to_tokens(s[1:])
                 elif isinstance(self.tokenizer, SentencePieceTokenizer):
                     # remove `▁` if we don't have a leading space in string
-                    tokenized_tokens = self.tokenizer.text_to_tokens(s)
                     if tokenized_tokens[0] == '▁':
                         tokenized_tokens.pop(0)
                     elif tokenized_tokens[0][0] == '▁':
