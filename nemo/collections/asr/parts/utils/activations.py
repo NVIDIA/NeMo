@@ -13,9 +13,29 @@
 # limitations under the License.
 
 import torch.nn as nn
+import torch 
 
 __all__ = ['Swish']
 
+
+@torch.jit.script
+def snake(x, alpha=1.0):
+    shape = x.shape
+    x = x.reshape(shape[0], shape[1], -1)
+    x = x + (alpha + 1e-9).reciprocal() * torch.sin(alpha * x).pow(2)
+    x = x.reshape(shape)
+    return x
+
+class Snake(nn.Module):
+    """
+    Snake activation function introduced in 'https://arxiv.org/abs/2006.08195'
+    """
+    def __init__(self, channels):
+        super().__init__()
+        self.alpha = nn.Parameter(torch.ones(1, channels, 1))
+
+    def forward(self, x):
+        return snake(x, self.alpha)
 
 class Swish(nn.SiLU):
     """
