@@ -42,8 +42,8 @@ trainer = pl.Trainer(plugins=plugins, strategy=strategy, **config.trainer)
 print("Trainer config - \n")
 print(OmegaConf.to_yaml(config.trainer))
 
-# checkpoint_path = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo"
-checkpoint_path = "/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo"
+checkpoint_path = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo"
+# checkpoint_path = "/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo"
 # checkpoint_path = "/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo"
 gpt_cfg = MegatronGPTModel.restore_from(
     restore_path=checkpoint_path,
@@ -85,4 +85,4 @@ print("embedding weight")
 print(model.model.module.language_model.embedding.word_embeddings.weight.shape)
 print("output weight")
 print(model.model.module.language_model.output_layer.weight.shape)
-model.save_to("/home/jasoli/models/speechllm_sgpt_base_843m_tp1_pp1_linearv2.nemo")
+model.save_to("/home/jasoli/models/speechllm_sgpt_base_2b_tp1_pp1_linearv2.nemo")

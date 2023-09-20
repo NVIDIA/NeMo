@@ -1444,6 +1444,8 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
             embedding_scale=self.cfg.get('embedding_scale', 1.0),
+            speech_loss_scale=self.cfg.get('speech_loss_scale', 1.0),
+            text_size=self.cfg.get('text_size', 256000),
         )
 
         return model

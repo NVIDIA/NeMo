@@ -62,6 +62,8 @@ def post_language_model_processing(
     gradient_accumulation_fusion=False,
     speech_mask=None,
     speech_residual_model=None,
+    speech_loss_scale=1.0,
+    text_size=256000
 ):
     if get_key_value:
         lm_output, presents = lm_output
@@ -85,7 +87,7 @@ def post_language_model_processing(
     # approach 1 was using convs
     approach = 2 if speech_residual_model == None else 1
     output = token_head(
-        lm_output, logit_weights[: 256000 + 1024, :] if approach == 1 else logit_weights  # TODO: remove hardcode
+        lm_output, logit_weights[: text_size + 1024, :] if approach == 1 else logit_weights  # TODO: remove hardcode
     )
 
     speech_layers = 7
@@ -112,6 +114,7 @@ def post_language_model_processing(
         # output = output[:, :, : 256000 + 1024]
         speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers], device=output.device)  # [S, B, H, L]
         for i in range(speech_layers):
+            # print(f"{i}: {num_speech_tokens - 1024 * (i + 1)} - {num_speech_tokens - 1024 * (i + 2) or None}")
             speech_logits[:, :, :, i] = output[
                 :, :, -(num_speech_tokens - 1024 * (i + 1)) : -(num_speech_tokens - 1024 * (i + 2)) or None
             ]
@@ -142,29 +145,18 @@ def post_language_model_processing(
                 loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
             elif labels.dim() == 3:
                 if approach == 1:
-                    loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
-                    for i in range(speech_layers):
-                        loss += (
-                            vocab_parallel_cross_entropy(speech_logits[:, :, :, i].float(), labels[i + 1, :, :])
-                            * speech_mask.T
-                            * 0.125
-                        )
+                    first_layer_logits = output
                 else:
-                    first_layer_logits = output[:, :, : 256000 + 1024]
-                    loss += vocab_parallel_cross_entropy(first_layer_logits.float(), labels[0, :, :])
-                    for i in range(speech_layers):
-                        ith_layer_logits = output[
-                            :, :, -(num_speech_tokens - 1024 * (i + 1)) : -(num_speech_tokens - 1024 * (i + 2)) or None
-                        ]
-                        loss += (
-                            vocab_parallel_cross_entropy(ith_layer_logits.float(), labels[i + 1, :, :])
-                            * speech_mask.T
-                            * 0.125
-                        )
-                    # import ipdb; ipdb.set_trace()
-                    # print(f"{i}: {loss}")
-                    # logging.debug(f"token_loss_{i}: {tokens_loss}")
-                    # logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
+                    first_layer_logits = output[:, :, : text_size + 1024]
+                # print(f"loss: {first_layer_logits.shape} | {labels[0, :, :].shape}")
+                loss += vocab_parallel_cross_entropy(first_layer_logits.float(), labels[0, :, :])
+                for i in range(speech_layers):
+                    # print(f"loss {i}: {speech_logits[:, :, :, i].shape} | {labels[i + 1, :, :].shape}")
+                    loss += (
+                        vocab_parallel_cross_entropy(speech_logits[:, :, :, i].float(), labels[i + 1, :, :])
+                        * speech_mask.T
+                        * speech_loss_scale
+                    )
 
         # [s b] -> [b, s]
         loss = loss.transpose(0, 1).contiguous()
@@ -239,6 +231,8 @@ class GPTModel(MegatronModule):
         use_flash_attention=False,
         output_size=None,
         embedding_scale=1.0,
+        speech_loss_scale=1.0,
+        text_size=256000
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -250,6 +244,8 @@ class GPTModel(MegatronModule):
         self.gradient_accumulation_fusion = gradient_accumulation_fusion
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.speech_loss_scale = speech_loss_scale
+        self.text_size = text_size
 
         if kv_channels is None:
             assert (
@@ -386,6 +382,8 @@ class GPTModel(MegatronModule):
                 gradient_accumulation_fusion=self.gradient_accumulation_fusion,
                 speech_mask=speech_mask,
                 speech_residual_model=self.speech_residual_model,
+                speech_loss_scale=self.speech_loss_scale,
+                text_size=self.text_size,
             )
         else:
             return lm_output

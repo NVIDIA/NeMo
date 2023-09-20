@@ -1,16 +1,14 @@
 ### Model eval
+import nemo
+import torch
 import os
 import tempfile
-
-import pytorch_lightning as pl
-import torch
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, MegatronSpeechGPTModel
+from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from omegaconf import OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.trainer import Trainer
-
-import nemo
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+import pytorch_lightning as pl
 from nemo.utils import AppState
 
 config = OmegaConf.load(
@@ -46,12 +44,12 @@ print(OmegaConf.to_yaml(config.trainer))
 # checkpoint_path = "/home/jasoli/experiments/nemo_experiments/megatron_sgpt_843m_linear/checkpoints/megatron_gpt--val_loss=5.74-step=111000-consumed_samples=887984.0.ckpt"
 # checkpoint_path = "/mnt/drive1/experiments/sgpt_pretrain_2b_linear_FA_0/08_15_23/training/megatron_sgpt_2b/checkpoints/megatron_gpt--val_loss=5.53-step=21002-consumed_samples=2688000.0-last.ckpt"
 # checkpoint_path = "/home/jasoli/experiments/nemo_experiments/megatron_sgpt_843m_linear_delay_embeddingscale/checkpoints/megatron_gpt--val_loss=5.51-step=349000-consumed_samples=5583968.0-last.ckpt"
-# checkpoint_path = "/mnt/drive1/experiments/sgpt_pretrain_843m_linearv2/09_08_23/training/megatron_sgpt_843m/checkpoints/megatron_gpt--val_loss=6.34-step=24768-consumed_samples=19016448.0-last.ckpt"
-checkpoint_path = "/home/jasoli/experiments/nemo_experiments/megatron_sgpt_220m_linearv2_delay_embeddingscale/checkpoints/megatron_gpt--val_loss=5.90-step=38000-consumed_samples=2431936.0-last.ckpt"
+checkpoint_path = "/mnt/drive1/experiments/sgpt_pretrain_843m_linearv2/09_08_23/training/megatron_sgpt_843m/checkpoints/megatron_gpt--val_loss=6.34-step=24768-consumed_samples=19016448.0-last.ckpt"
+# checkpoint_path = "/home/jasoli/experiments/nemo_experiments/megatron_sgpt_220m_linearv2_delay_embeddingscale/checkpoints/megatron_gpt--val_loss=5.90-step=38000-consumed_samples=2431936.0-last.ckpt"
 gpt_cfg = MegatronSpeechGPTModel.restore_from(
 #     restore_path="/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo",
-#     restore_path="/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo",
-    restore_path="/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo",
+    restore_path="/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo",
+    # restore_path="/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo",
     trainer=trainer,
     return_config=True,
     save_restore_connector=NLPSaveRestoreConnector(),
@@ -60,42 +58,14 @@ gpt_cfg = MegatronSpeechGPTModel.restore_from(
 
 def load_from_checkpoint_dir(cls, cfg, trainer, checkpoint):
     app_state = AppState()
-#     if cfg.model.tensor_model_parallel_size > 1 or cfg.model.pipeline_model_parallel_size > 1:
-#         app_state.model_parallel_size = cfg.model.tensor_model_parallel_size * cfg.model.pipeline_model_parallel_size
-#         app_state.tensor_model_parallel_size = cfg.model.tensor_model_parallel_size
-#         app_state.pipeline_model_parallel_size = cfg.model.pipeline_model_parallel_size
-#         (
-#             app_state.tensor_model_parallel_rank,
-#             app_state.pipeline_model_parallel_rank,
-#             app_state.model_parallel_size,
-#             app_state.data_parallel_size,
-#             app_state.pipeline_model_parallel_split_rank,
-#             app_state.virtual_pipeline_model_parallel_rank,
-#         ) = fake_initialize_model_parallel(
-#             world_size=app_state.model_parallel_size,
-#             rank=trainer.global_rank,
-#             tensor_model_parallel_size_=cfg.model.tensor_model_parallel_size,
-#             pipeline_model_parallel_size_=cfg.model.pipeline_model_parallel_size,
-#             pipeline_model_parallel_split_rank_=cfg.model.pipeline_model_parallel_split_rank,
-#         )
-#     checkpoint_path = inject_model_parallel_rank(
-#         os.path.join(cfg.model.pretrained_checkpoint.checkpoint_dir, cfg.model.pretrained_checkpoint.checkpoint_name)
-#     )
-#     hparams_file = OmegaConf.load(cfg.model.pretrained_checkpoint.hparams_file)
-#     gpt_cfg = _modify_config(hparams_file.cfg, cfg, add_cfg_to_tree=True)
     OmegaConf.resolve(cfg)
     cfg.cfg = cfg
-#     cfg.cfg.tokenizer.model = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/2053796188904e679f7e2754a2a1f280_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model"
-#     cfg.cfg.tokenizer.tokenizer_model = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/2053796188904e679f7e2754a2a1f280_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model"
-    cfg.cfg.tokenizer.model = "/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256/b11cee03bc8940fa86cb2da19e99fd4e_t5_tokenizer.model"
-    cfg.cfg.tokenizer.tokenizer_model = "/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256/b11cee03bc8940fa86cb2da19e99fd4e_t5_tokenizer.model"
-#     cfg.cfg.override_vocab_size = 256000+1024*8
-#     cfg.cfg.output_size = 256000+1024
-    cfg.cfg.override_vocab_size = 32128+1024*8
+    cfg.cfg.tokenizer.model = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/2053796188904e679f7e2754a2a1f280_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model"
+    cfg.cfg.tokenizer.tokenizer_model = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/2053796188904e679f7e2754a2a1f280_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model"
+    cfg.cfg.override_vocab_size = 256000+1024*8
     cfg.cfg.output_size = None
-#     cfg.cfg.speech_residual_model = "conv"
     cfg.cfg.speech_residual_model = None
-#     input_type = "parallel"
+    cfg.cfg.embedding_scale = 0.33
     with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
         OmegaConf.save(config=cfg, f=f.name)
         model = cls.load_from_checkpoint(checkpoint_path=checkpoint, trainer=trainer, hparams_file=f.name)
