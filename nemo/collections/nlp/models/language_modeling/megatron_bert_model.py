@@ -39,7 +39,6 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
 
-
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
@@ -51,6 +50,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     import logging
+
     from lddl.torch_mp import get_bert_pretrain_data_loader
 
     HAVE_LDDL = True
@@ -89,15 +89,6 @@ class MegatronBertModel(MegatronBaseModel):
 
         self._validate_trainer()
 
-        if self.trainer.precision in ['bf16', 'bf16-mixed']:
-            self.autocast_dtype = torch.bfloat16
-        elif self.trainer.precision in [32, '32', '32-true']:
-            self.autocast_dtype = torch.float
-        elif self.trainer.precision in [16, '16', '16-mixed']:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
-
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )
@@ -133,12 +124,12 @@ class MegatronBertModel(MegatronBaseModel):
                 converted_model = []
                 for module in self.model:
                     converted_model.append(
-                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                        Float16Module(config=self.model_parallel_config, module=module, precision=self.cfg.precision)
                     )
                 self.model = converted_model
             else:
                 self.model = Float16Module(
-                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                    config=self.model_parallel_config, module=self.model, precision=self.cfg.precision
                 )
 
         if hasattr(self, '_nsys_profile_enabled'):
@@ -181,6 +172,7 @@ class MegatronBertModel(MegatronBaseModel):
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
             masked_softmax_fusion=cfg.get('masked_softmax_fusion', True),
             bias_gelu_fusion=cfg.get('bias_gelu_fusion', True),
+            bias_dropout_add_fusion=cfg.get("bias_dropout_add_fusion", True),
             onnx_safe=cfg.get('onnx_safe', False),
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
@@ -366,7 +358,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.cfg.precision == 16:
+        if self.torch_dtype == torch.float16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
@@ -417,8 +409,8 @@ class MegatronBertModel(MegatronBaseModel):
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def validation_step(self, dataloader_iter, batch_idx):
-        # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely when PP rank 1 reaches the end of dataloader_iter
-        dataloader_iter, done = self._prefetch(dataloader_iter)
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         if done:
             return
         prefix = "test" if self.trainer.testing else "val"
@@ -588,6 +580,8 @@ class MegatronBertModel(MegatronBaseModel):
         logging.info(f'Finished building LDDL Dataloaders')
 
     def build_train_valid_test_datasets(self):
+        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+        self._reconfigure_val_batches()
         logging.info('Building Bert datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
