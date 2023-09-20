@@ -58,7 +58,7 @@ State of the Art pretrained NeMo models are freely available on `HuggingFace Hub
 These models can be used to transcribe audio, synthesize speech, or translate text in just a few lines of code.
 
 We have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that
-can all be run on `Google Colab <https://colab.research.google.com>`_.
+can be run on `Google Colab <https://colab.research.google.com>`_.
 
 For advanced users that want to train NeMo models from scratch or finetune existing NeMo models
 we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ that support multi-GPU/multi-node training.
@@ -75,7 +75,7 @@ Key Features
 * Speech processing
     * `HuggingFace Space for Audio Transcription (File, Microphone and YouTube) <https://huggingface.co/spaces/smajumdar/nemo_multilingual_language_id>`_
     * `Automatic Speech Recognition (ASR) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html>`_
-        * Supported ASR models: `<https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html>`_
+        * Supported ASR `models <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html>`_:
             * Jasper, QuartzNet, CitriNet, ContextNet
             * Conformer-CTC, Conformer-Transducer, FastConformer-CTC, FastConformer-Transducer
             * Squeezeformer-CTC and Squeezeformer-Transducer
@@ -86,7 +86,7 @@ Key Features
             * Hybrid Transducer/CTC
             * NeMo Original `Multi-blank Transducers <https://arxiv.org/abs/2211.03541>`_ and `Token-and-Duration Transducers (TDT) <https://arxiv.org/abs/2304.06795>`_
         * Streaming/Buffered ASR (CTC/Transducer) - `Chunked Inference Examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_chunked_inference>`_
-        * Cache-aware Streaming Conformer with multiple lookaheads - `<https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#cache-aware-streaming-conformer>`_
+        * `Cache-aware Streaming Conformer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#cache-aware-streaming-conformer>`_ with multiple lookaheads.
         * Beam Search decoding
         * `Language Modelling for ASR (CTC and RNNT) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html>`_: N-gram LM in fusion with Beam Search decoding, Neural Rescoring with Transformer
         * `Support of long audios for Conformer with memory efficient local attention <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.html#inference-on-long-audio>`_
@@ -98,7 +98,7 @@ Key Features
         * Clustering Diarizer: TitaNet, ECAPA_TDNN, SpeakerNet
         * Neural Diarizer: MSDD (Multi-scale Diarization Decoder)
     * `Speech Intent Detection and Slot Filling <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_intent_slot/intro.html>`_: Conformer-Transformer
-    * `Pretrained models on different languages. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_: English, Spanish, German, Russian, Chinese, French, Italian, Polish, ...
+    * `Pretrained models on different languages. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_: English, Spanish, German, Russian, Chinese, French, Italian, Polish and more.
     * `NGC collection of pre-trained speech processing models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_
 * Natural Language Processing
     * `NeMo Megatron pre-training of Large Language Models <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/nemo_megatron/intro.html>`_
