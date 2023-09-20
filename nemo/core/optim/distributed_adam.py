@@ -336,6 +336,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Figure out corresponding positions in param buckets and params
         buffers_in = []
         buffers_out = []
+        fragments = list(fragments)
         for fragment in fragments:
 
             # Check if fragment needs to be updated
@@ -387,7 +388,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         )
 
         # Precompute transposes
-        ### TODO Optimized transpose kernel
         for fragment in fragments:
             param = self.parameter(fragment)
             if _is_fp8_tensor(param):
@@ -417,23 +417,47 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             super()._check_params_shard_dtypes(params_buckets)
             return
 
-        # Iterate through FP8 tensors
-        fp8_params_shards = dict()
+        # FP8 scaling factors
         amaxes = []
+        scales = []
+        scale_invs = torch.empty(
+            num_fp8_params,
+            dtype=torch.float32,
+            device=self.device,
+        )
+        i = -1
+        for param in self.parameters():
+            if not _is_fp8_tensor(param):
+                continue
+            i += 1
+            fp8_meta = param.fp8_meta_view["scaling_fwd"]
+            fp8_meta_index = param.gemm_index
+            amaxes.append(fp8_meta.amax_history[0][fp8_meta_index].view(1))
+            scales.append(fp8_meta.scale[fp8_meta_index].view(1))
+            param._scale_inv_cache = scale_invs[i]
+
+        # Update cached scale-inverses
+        scale_inv_views = [scale_invs[i].view(1) for i in range(num_fp8_params)]
+        _multi_tensor_copy(
+            scales,
+            scale_inv_views,
+            dummy_overflow_buf=self._dummy_overflow_buf,
+        )
+        torch.reciprocal(scale_invs, out=scale_invs)
+
+        # Cast local data to FP8
+        fp8_params_shards = dict()
         for param in self.parameters():
             if not _is_fp8_tensor(param):
                 continue
 
-            # FP8 scaling factors
+            # FP8 metadata
             fp8_meta = param.fp8_meta_view["scaling_fwd"]
             fp8_meta_index = param.gemm_index
             fp8_dtype = get_fp8_te_dtype(
                 param.fp8_meta_view["recipe"],
                 fprop_tensor=True,
             )
-            fp8_meta.scale_inv[fp8_meta_index] = 1 / fp8_meta.scale[fp8_meta_index]
-            param._scale_inv_cache = fp8_meta.scale_inv[fp8_meta_index]
-            amaxes.append(fp8_meta.amax_history[0][fp8_meta_index].view(1))
 
             # Iterate through fragments with local data
             for fragment in self.state[param]["fragments"]:
@@ -461,7 +485,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     )
 
                 # FP8 cast and amax
-                ### TODO Multi-tensor cast-amax
                 fp32_fragment = param_bucket.params_shard[shard_range].view(1, -1)
                 fp8_fragment = fp8_params_shards[bucket_id][shard_range].view(1, -1)
                 cast_to_fp8(
@@ -477,12 +500,12 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             params_buckets[bucket_id].params_shard = params_shard
 
         # Reduce amaxes
-        packed_amaxes = torch.zeros(
+        packed_amaxes = torch.empty(
             num_fp8_params,
             dtype=torch.float32,
             device=self.device,
         )
-        packed_amax_views = [packed_amaxes[i].view(1) for i in range(len(amaxes))]
+        packed_amax_views = [packed_amaxes[i].view(1) for i in range(num_fp8_params)]
         _multi_tensor_copy(
             amaxes,
             packed_amax_views,
