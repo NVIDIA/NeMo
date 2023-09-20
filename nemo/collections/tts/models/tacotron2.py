@@ -15,7 +15,6 @@
 import contextlib
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-from torch.nn import functional as F
 
 import torch
 from hydra.utils import instantiate
@@ -23,6 +22,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from omegaconf.errors import ConfigAttributeError
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from torch import nn
+from torch.nn import functional as F
 
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
@@ -37,10 +37,10 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
+    ChannelType,
     EmbeddedTextType,
     LengthsType,
     LogitsType,
-    ChannelType,
     MelSpectrogramType,
     SequenceToSequenceAlignmentType,
 )
@@ -72,15 +72,13 @@ def encoder_infer(self, x, input_lengths):
 
     x = x.transpose(1, 2)
 
-    x = torch.nn.utils.rnn.pack_padded_sequence(
-        x, input_lengths, batch_first=True, enforce_sorted=False
-    )
+    x = torch.nn.utils.rnn.pack_padded_sequence(x, input_lengths, batch_first=True, enforce_sorted=False)
 
     outputs, _ = self.lstm(x)
 
     outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
 
-    return outputs, input_lengths*2
+    return outputs, input_lengths * 2
 
 
 class EncoderIter(torch.nn.Module, Exportable):
@@ -132,7 +130,7 @@ def prenet_infer(self, x):
         x0 = x1[0].unsqueeze(0)
         mask = torch.le(torch.rand(256).to(x.dtype), 0.5).to(x.dtype)
         mask = mask.expand(x1.size(0), x1.size(1))
-        x1 = x1*mask*2.0
+        x1 = x1 * mask * 2.0
 
     return x1
 
@@ -150,92 +148,105 @@ class DecoderIter(torch.nn.Module, Exportable):
 
         self.prenet.infer = prenet_infer
 
-        self.attention_rnn = nn.LSTM(dec.prenet_dim + dec.encoder_embedding_dim,
-                                     dec.attention_rnn_dim, 1)
+        self.attention_rnn = nn.LSTM(dec.prenet_dim + dec.encoder_embedding_dim, dec.attention_rnn_dim, 1)
         lstmcell2lstm_params(self.attention_rnn, dec.attention_rnn)
         self.attention_rnn.flatten_parameters()
 
         self.attention_layer = dec.attention_layer
 
-        self.decoder_rnn = nn.LSTM(dec.attention_rnn_dim + dec.encoder_embedding_dim,
-                                   dec.decoder_rnn_dim, 1)
+        self.decoder_rnn = nn.LSTM(dec.attention_rnn_dim + dec.encoder_embedding_dim, dec.decoder_rnn_dim, 1)
         lstmcell2lstm_params(self.decoder_rnn, dec.decoder_rnn)
         self.decoder_rnn.flatten_parameters()
 
         self.linear_projection = dec.linear_projection
         self.gate_layer = dec.gate_layer
 
-
-    def decode(self, decoder_input, in_attention_hidden, in_attention_cell,
-               in_decoder_hidden, in_decoder_cell, in_attention_weights,
-               in_attention_weights_cum, in_attention_context, memory,
-               processed_memory):
+    def decode(
+        self,
+        decoder_input,
+        in_attention_hidden,
+        in_attention_cell,
+        in_decoder_hidden,
+        in_decoder_cell,
+        in_attention_weights,
+        in_attention_weights_cum,
+        in_attention_context,
+        memory,
+        processed_memory,
+    ):
 
         cell_input = torch.cat((decoder_input, in_attention_context), -1)
 
         _, (out_attention_hidden, out_attention_cell) = self.attention_rnn(
-            cell_input.unsqueeze(0), (in_attention_hidden.unsqueeze(0),
-                                      in_attention_cell.unsqueeze(0)))
+            cell_input.unsqueeze(0), (in_attention_hidden.unsqueeze(0), in_attention_cell.unsqueeze(0))
+        )
         out_attention_hidden = out_attention_hidden.squeeze(0)
         out_attention_cell = out_attention_cell.squeeze(0)
 
-        out_attention_hidden = F.dropout(
-            out_attention_hidden, self.p_attention_dropout, False)
+        out_attention_hidden = F.dropout(out_attention_hidden, self.p_attention_dropout, False)
 
         attention_weights_cat = torch.cat(
-            (in_attention_weights.unsqueeze(1),
-             in_attention_weights_cum.unsqueeze(1)), dim=1)
+            (in_attention_weights.unsqueeze(1), in_attention_weights_cum.unsqueeze(1)), dim=1
+        )
         out_attention_context, out_attention_weights = self.attention_layer(
-            out_attention_hidden, memory, processed_memory,
-            attention_weights_cat, None)
+            out_attention_hidden, memory, processed_memory, attention_weights_cat, None
+        )
 
         out_attention_weights_cum = in_attention_weights_cum + out_attention_weights
-        decoder_input_tmp = torch.cat(
-            (out_attention_hidden, out_attention_context), -1)
+        decoder_input_tmp = torch.cat((out_attention_hidden, out_attention_context), -1)
 
         _, (out_decoder_hidden, out_decoder_cell) = self.decoder_rnn(
-            decoder_input_tmp.unsqueeze(0), (in_decoder_hidden.unsqueeze(0),
-                                             in_decoder_cell.unsqueeze(0)))
+            decoder_input_tmp.unsqueeze(0), (in_decoder_hidden.unsqueeze(0), in_decoder_cell.unsqueeze(0))
+        )
         out_decoder_hidden = out_decoder_hidden.squeeze(0)
         out_decoder_cell = out_decoder_cell.squeeze(0)
 
-        out_decoder_hidden = F.dropout(
-            out_decoder_hidden, self.p_decoder_dropout, False)
+        out_decoder_hidden = F.dropout(out_decoder_hidden, self.p_decoder_dropout, False)
 
-        decoder_hidden_attention_context = torch.cat(
-            (out_decoder_hidden, out_attention_context), 1)
+        decoder_hidden_attention_context = torch.cat((out_decoder_hidden, out_attention_context), 1)
 
-        decoder_output = self.linear_projection(
-            decoder_hidden_attention_context)
+        decoder_output = self.linear_projection(decoder_hidden_attention_context)
 
         gate_prediction = self.gate_layer(decoder_hidden_attention_context)
 
-        return (decoder_output, gate_prediction, out_attention_hidden,
-                out_attention_cell, out_decoder_hidden, out_decoder_cell,
-                out_attention_weights, out_attention_weights_cum, out_attention_context)
+        return (
+            decoder_output,
+            gate_prediction,
+            out_attention_hidden,
+            out_attention_cell,
+            out_decoder_hidden,
+            out_decoder_cell,
+            out_attention_weights,
+            out_attention_weights_cum,
+            out_attention_context,
+        )
 
-    def forward(self,
-                decoder_input,
-                attention_hidden,
-                attention_cell,
-                decoder_hidden,
-                decoder_cell,
-                attention_weights,
-                attention_weights_cum,
-                attention_context,
-                memory,
-                processed_memory):
+    def forward(
+        self,
+        decoder_input,
+        attention_hidden,
+        attention_cell,
+        decoder_hidden,
+        decoder_cell,
+        attention_weights,
+        attention_weights_cum,
+        attention_context,
+        memory,
+        processed_memory,
+    ):
         decoder_input1 = self.prenet.infer(self.prenet, decoder_input)
-        outputs = self.decode(decoder_input1,
-                              attention_hidden,
-                              attention_cell,
-                              decoder_hidden,
-                              decoder_cell,
-                              attention_weights,
-                              attention_weights_cum,
-                              attention_context,
-                              memory,
-                              processed_memory)
+        outputs = self.decode(
+            decoder_input1,
+            attention_hidden,
+            attention_cell,
+            decoder_hidden,
+            decoder_cell,
+            attention_weights,
+            attention_weights_cum,
+            attention_context,
+            memory,
+            processed_memory,
+        )
         return outputs
 
     def input_example(self, max_batch=1, max_dim=512):
@@ -297,7 +308,9 @@ class PostnetIter(torch.nn.Module, Exportable):
         return mel_outputs_postnet
 
     def input_example(self, max_batch=1, max_dim=80):
-        mel_spec = torch.randn((max_batch, self.tacotron2.decoder.n_mel_channels, self.tacotron2.decoder.max_decoder_steps))
+        mel_spec = torch.randn(
+            (max_batch, self.tacotron2.decoder.n_mel_channels, self.tacotron2.decoder.max_decoder_steps)
+        )
         inputs = {"mel_spec": mel_spec}
         return (inputs,)
 
