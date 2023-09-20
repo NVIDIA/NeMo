@@ -237,9 +237,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
                     margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3
                 )
-            with transformer_engine.pytorch.fp8_autocast(
-                enabled=fp8_enabled, fp8_recipe=fp8_recipe
-            ):
+            with transformer_engine.pytorch.fp8_autocast(enabled=fp8_enabled, fp8_recipe=fp8_recipe):
                 self.model = build_model(
                     model_provider_func=self.model_provider_func,
                     wrap_with_ddp=False,
@@ -305,6 +303,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
             from megatron.core.models.gpt.gpt_decoder_spec import get_gpt_decoder_spec
+
             model = MCoreGPTModel(
                 config=self.transformer_config,
                 spec=get_gpt_decoder_spec(),
