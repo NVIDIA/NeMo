@@ -161,6 +161,8 @@ class MegatronBaseModel(NLPModel):
         }
 
         self.gc_interval = cfg.get('gc_interval', 0)
+        # Do manual garbage collection during validation routine when gc_interval > 0
+        self.gc_in_validation = bool(int(os.getenv("NEMO_MANUAL_GC_IN_VALIDATION", 1)))
         assert self.gc_interval >= 0, "gc_interval should be an integer value larger than or equal to 0."
         # If gc_interval > 0, memory garbage collection is manually controlled.
         # The automatic garbage collector sould be disabled before training starts.
@@ -235,12 +237,12 @@ class MegatronBaseModel(NLPModel):
 
     def on_validation_start(self) -> None:
         super().on_validation_start()
-        if self.gc_interval > 0:
+        if self.gc_interval > 0 and self.gc_in_validation:
             gc.collect()
 
     def on_validation_end(self) -> None:
         super().on_validation_end()
-        if self.gc_interval > 0:
+        if self.gc_interval > 0 and self.gc_in_validation:
             gc.collect()
 
     def _build_vocab(self):
@@ -394,7 +396,7 @@ class MegatronBaseModel(NLPModel):
     def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
         super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
-        if self.gc_interval > 0:
+        if self.gc_interval > 0 and self.gc_in_validation:
             if self.validation_global_step % self.gc_interval == 0:
                 gc.collect()
             self.validation_global_step += 1
