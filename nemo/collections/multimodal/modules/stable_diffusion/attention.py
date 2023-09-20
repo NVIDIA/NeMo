@@ -323,7 +323,10 @@ class BasicTransformerBlock(nn.Module):
         self.use_checkpoint = use_checkpoint
 
     def forward(self, x, context=None):
-        return checkpoint(self._forward, (x, context), self.parameters(), self.use_checkpoint)
+        if self.use_checkpoint:
+            return checkpoint(self._forward, (x, context), self.parameters(), self.use_checkpoint)
+        else:
+            return self._forward(x, context)
 
     def _forward(self, x, context=None):
         x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None) + x

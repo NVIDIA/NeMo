@@ -129,11 +129,13 @@ class NLPDDPStrategy(DDPStrategy):
                 # TODO: for megatron-lm self.model is a list
                 self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
-                self._model = DistributedDataParallel(
-                    LightningDistributedModule(self.model),
-                    process_group=parallel_state.get_data_parallel_group(),
-                    **self._ddp_kwargs,
-                )
+                # DDP has to be initialized on side stream for CUDA graph
+                with torch.cuda.stream(torch.cuda.Stream()):
+                    self._model = DistributedDataParallel(
+                        LightningDistributedModule(self.model),
+                        process_group=parallel_state.get_data_parallel_group(),
+                        **self._ddp_kwargs,
+                    )
 
                 if self.no_ddp_communication_hook:
                     # When using custom gradient accumulation and allreduce, disable
@@ -573,14 +575,17 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         retval = None
-        found_inf = torch.cuda.FloatTensor([sum(v.item() for v in optimizer_state["found_inf_per_device"].values())])
+        found_infs = tuple(optimizer_state["found_inf_per_device"].values())
+        found_inf = torch.stack(found_infs).sum(dim=0, keepdim=True)
 
         # Update across all model parallel instances.
         torch.distributed.all_reduce(
             found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
         )
 
-        if found_inf.item() == 0:
+        self._found_infs_cpu = found_inf.item()
+        self._found_infs_cuda = found_inf
+        if self._found_infs_cpu == 0:
             retval = optimizer.step(*args, **kwargs)
             self.optimizer_update_skipped = False
         else:
@@ -610,33 +615,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
                 assert new_scale.requires_grad is False, reason
                 self._scale.copy_(new_scale)  # type: ignore[union-attr]
         else:
-            # Consume shared inf/nan data collected from optimizers to update the scale.
-            # If all found_inf tensors are on the same device as self._scale, this operation is asynchronous.
-            found_infs = [
-                found_inf.to(device=_scale.device, non_blocking=True)
-                for state in self._per_optimizer_states.values()
-                for found_inf in state["found_inf_per_device"].values()
-            ]
-
-            assert len(found_infs) > 0, "No inf checks were recorded prior to update."
-
-            found_inf_combined = found_infs[0]
-
-            # Update across all model parallel instances.
-            torch.distributed.all_reduce(
-                found_inf_combined, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
-            )
-
-            if len(found_infs) > 1:
-                for i in range(1, len(found_infs)):
-                    found_inf = found_infs[i]
-                    # Update across all model parallel instances.
-                    torch.distributed.all_reduce(
-                        found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
-                    )
-                    found_inf_combined += found_inf
-
-            if found_inf_combined > 0:
+            if self._found_infs_cpu > 0:
                 self._hysteresis_tracker -= 1
                 if self._hysteresis_tracker <= 0:
                     # When hysteresis becomes zero, follow the native grad scale update rule.
@@ -644,7 +623,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
                     torch._amp_update_scale_(
                         _scale,
                         _growth_tracker,
-                        found_inf_combined,
+                        self._found_infs_cuda,
                         self._growth_factor,
                         self._backoff_factor,
                         self._growth_interval,
@@ -659,7 +638,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
                 torch._amp_update_scale_(
                     _scale,
                     _growth_tracker,
-                    found_inf_combined,
+                    self._found_infs_cuda,
                     self._growth_factor,
                     self._backoff_factor,
                     self._growth_interval,

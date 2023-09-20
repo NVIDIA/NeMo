@@ -26,7 +26,6 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.utilities.distributed import rank_zero_only
-from torch._dynamo import optimize
 from torch._inductor import config as inductor_config
 from torch.optim.lr_scheduler import LambdaLR
 from torchvision.utils import make_grid
@@ -1777,7 +1776,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
                 self.log('loss_scale', loss_scale, batch_size=1)
 
         self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log('reduced_train_loss', loss_mean, prog_bar=False, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
@@ -2067,11 +2066,10 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
         if inductor:
             # TorchInductor with CUDA graph can lead to OOM
             inductor_config.triton.cudagraphs = inductor_cudagraphs
-            self.diffusion_model = optimize("inductor")(self.diffusion_model)
+            self.diffusion_model = torch.compile(self.diffusion_model)
         # CUDA graph
         self.capture_cudagraph_iters = capture_cudagraph_iters
         self.iterations = 0
-        self.graphed_diffusion_model = None
 
     def forward(self, x, t, c_concat: list = None, c_crossattn: list = None):
         if self.conditioning_key is None:
@@ -2083,10 +2081,10 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
             cc = torch.cat(c_crossattn, 1)
             if self.iterations == self.capture_cudagraph_iters:
                 logging.info("Capturing CUDA graph for module: %s", self.diffusion_model.__class__.__name__)
-                self.graphed_diffusion_model = torch.cuda.make_graphed_callables(self.diffusion_model, (x, t, cc))
+                self.diffusion_model = torch.cuda.make_graphed_callables(self.diffusion_model, (x, t, cc))
 
             if 0 <= self.capture_cudagraph_iters <= self.iterations:
-                out = self.graphed_diffusion_model(x, t, cc)
+                out = self.diffusion_model(x, t, cc)
             else:
                 out = self.diffusion_model(x, t, context=cc)
             self.iterations += 1
