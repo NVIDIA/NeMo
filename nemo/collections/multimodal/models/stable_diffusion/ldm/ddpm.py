@@ -89,10 +89,6 @@ except (ImportError, ModuleNotFoundError):
 
 __conditioning_keys__ = {'concat': 'c_concat', 'crossattn': 'c_crossattn', 'adm': 'y'}
 
-import torch._dynamo
-
-torch._dynamo.config.suppress_errors = True
-
 
 def random_dropout(embeddings, drop_rate):
     r"""
