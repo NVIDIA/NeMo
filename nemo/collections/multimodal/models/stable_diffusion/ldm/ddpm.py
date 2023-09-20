@@ -763,13 +763,22 @@ class LatentDiffusion(DDPM, Serialization):
         return_original_cond=False,
         bs=None,
     ):
-        x = super().get_input(batch, k)
-        if bs is not None:
-            x = x[:bs]
-        if self.first_stage_key.endswith('encoded'):
-            encoder_posterior = batch[self.first_stage_key]
+        if self.first_stage_key.endswith("encoded"):
+            # Loading encoded images from the disk
+            encoder_posterior = batch[self.first_stage_key]  # torch.Size([3, 4, 64, 64])
+        elif self.first_stage_key.endswith("moments"):
+            # Loading distribution from disk and sampling encoded
+            distribution = batch[self.first_stage_key]  # torch.size([3, 1, 8, 64, 64])
+            distribution = torch.squeeze(distribution, dim=1)
+            encoder_posterior = DiagonalGaussianDistribution(distribution)
         else:
+            # Loading images from disk and encoding them
+            x = super().get_input(batch, k)
+            if bs is not None:
+                x = x[:bs]
             encoder_posterior = self.encode_first_stage(x)
+
+        # z.shape = torch.Size([BS, 4, 64, 64])
         z = self.get_first_stage_encoding(encoder_posterior).detach()
 
         if self.model.conditioning_key is not None:
@@ -1940,6 +1949,10 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
 
         if self.cfg.first_stage_key.endswith("encoded"):
+            self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
+                model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
+            )
+        elif self.cfg.first_stage_key.endswith("moments"):
             self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
                 model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
             )
