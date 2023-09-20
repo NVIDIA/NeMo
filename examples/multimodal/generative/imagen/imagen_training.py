@@ -17,7 +17,7 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
-from torch._dynamo import disable, optimize
+from torch._dynamo import disable
 from torch._inductor import config as inductor_config
 
 from nemo.collections.multimodal.models.imagen.imagen import MegatronImagen

@@ -22,7 +22,6 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import GradClipAlgorithmType
-from torch._dynamo import optimize
 from torch._inductor import config as inductor_config
 from torch.optim.lr_scheduler import LambdaLR
 
@@ -117,8 +116,10 @@ class DreamBooth(torch.nn.Module, Serialization):
         self.unet.train()
         if self.inductor:
             # TorchInductor with CUDA graph can lead to OOM
-            inductor_config.triton.cudagraphs = cfg.inductor_cudagraphs
-            self.unet = optimize("inductor")(self.unet)
+            inductor_config.triton.cudagraphs = self.inductor_cudagraphs
+            torch._dynamo.config.dynamic_shapes = False
+            torch._dynamo.config.automatic_dynamic_shapes = False
+            self.unet = torch.compile(self.unet)
 
     def instantiate_vae(self, cfg):
         model = DreamBooth.from_config_dict(cfg)
