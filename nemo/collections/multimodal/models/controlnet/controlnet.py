@@ -93,7 +93,9 @@ class ControlLDM(LatentDiffusion):
         if cfg.get("inductor", False):
             # TorchInductor with CUDA graph can lead to OOM
             inductor_config.triton.cudagraphs = cfg.get("inductor_cudagraphs", False)
-            self.control_model = optimize("inductor")(self.control_model)
+            torch._dynamo.config.dynamic_shapes = False
+            torch._dynamo.config.automatic_dynamic_shapes = False
+            self.control_model = torch.compile(self.control_model)
 
         if self.channels_last:
             self.control_model = self.control_model.to(memory_format=torch.channels_last)

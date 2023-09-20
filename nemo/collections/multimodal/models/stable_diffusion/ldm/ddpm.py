@@ -89,6 +89,10 @@ except (ImportError, ModuleNotFoundError):
 
 __conditioning_keys__ = {'concat': 'c_concat', 'crossattn': 'c_crossattn', 'adm': 'y'}
 
+import torch._dynamo
+
+torch._dynamo.config.suppress_errors = True
+
 
 def random_dropout(embeddings, drop_rate):
     r"""
@@ -2126,8 +2130,10 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
         # Fusing VAE and CLIP doesn't give benefit
         if inductor:
             # TorchInductor with CUDA graph can lead to OOM
+            torch._dynamo.config.dynamic_shapes = False
+            torch._dynamo.config.automatic_dynamic_shapes = False
             inductor_config.triton.cudagraphs = inductor_cudagraphs
-            self.diffusion_model = optimize("inductor")(self.diffusion_model)
+            self.diffusion_model = torch.compile(self.diffusion_model)
         # CUDA graph
         self.capture_cudagraph_iters = capture_cudagraph_iters
         self.iterations = 0
