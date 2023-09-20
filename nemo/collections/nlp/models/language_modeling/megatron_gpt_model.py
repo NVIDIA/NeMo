@@ -225,11 +225,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
             )
         else:
-            self.model = build_model(
-                model_provider_func=self.model_provider_func,
-                wrap_with_ddp=False,
-                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-            )
+            fp8_enabled = cfg.get('fp8', False)
+            fp8_recipe = None
+            if fp8_enabled and HAVE_TE:
+                fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
+                    margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3
+                )
+            with transformer_engine.pytorch.fp8_autocast(enabled=fp8_enabled, fp8_recipe=fp8_recipe):
+                self.model = build_model(
+                    model_provider_func=self.model_provider_func,
+                    wrap_with_ddp=False,
+                    virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                )
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
