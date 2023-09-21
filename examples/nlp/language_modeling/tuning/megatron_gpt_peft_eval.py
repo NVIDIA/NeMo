@@ -145,6 +145,7 @@ def main(cfg) -> None:
         peft_model_cfg.activations_checkpoint_granularity = None
         peft_model_cfg.activations_checkpoint_method = None
         peft_model_cfg.activations_checkpoint_layers_per_pipeline = None
+        peft_model_cfg.global_batch_size = cfg.model.data.test_ds.global_batch_size
         if peft_model_cfg.get("use_flash_attention", False):
             peft_model_cfg.use_flash_attention = cfg.model.use_flash_attention
         if cfg.model.get("seq_len_interpolation_factor", None) is not None:
