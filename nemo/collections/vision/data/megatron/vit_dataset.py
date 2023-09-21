@@ -26,15 +26,14 @@ from nemo.collections.vision.data.megatron.image_folder import ImageFolder
 
 
 def _to_torch_data_type(precision):
-    if precision == 'bf16':
+    if precision in ['bf16', 'bf16-mixed']:
         return torch.bfloat16
-    elif int(precision) == 16:
+    elif precision in [16, '16', '16-mixed']:
         return torch.float16
-    elif int(precision) == 32:
+    elif precision in [32, '32', '32-true']:
         return torch.float32
     else:
         raise ValueError(f"Cannot recognize precision {precision}")
-
 
 class RandomSeedDataset(Dataset):
     def __init__(self, dataset, seed=1234):

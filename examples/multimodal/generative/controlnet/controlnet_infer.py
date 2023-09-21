@@ -101,11 +101,11 @@ def pipeline(model, cfg, rng=None, verbose=True):
     control_image_preprocess = cfg.infer.get('control_image_preprocess', None)
 
     # get autocast_dtype
-    if cfg.trainer.precision == 'bf16':
+    if cfg.trainer.precision in ['bf16', 'bf16-mixed']:
         autocast_dtype = torch.bfloat16
-    elif int(cfg.trainer.precision) == 32:
+    elif cfg.trainer.precision in [32, '32', '32-true']:
         autocast_dtype = torch.float
-    elif int(cfg.trainer.precision) == 16:
+    elif cfg.trainer.precision in [16, '16', '16-mixed']:
         autocast_dtype = torch.half
     else:
         raise ValueError('precision must be in [32, 16, "bf16"]')

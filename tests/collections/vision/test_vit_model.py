@@ -281,11 +281,11 @@ class TestMegatronVitClassificationModel:
         trainer, vit_classification_model = vit_classification_trainer_and_model
 
         dtype = None
-        if vit_classification_model.cfg['precision'] == 32:
+        if vit_classification_model.cfg['precision'] in [32, '32', '32-true']:
             dtype = torch.float
-        elif vit_classification_model.cfg['precision'] == 16:
+        elif vit_classification_model.cfg['precision'] in [16, '16', '16-mixed']:
             dtype = torch.float16
-        elif vit_classification_model.cfg['precision'] == 'bf16':
+        elif vit_classification_model.cfg['precision'] in ['bf16', 'bf16-mixed']:
             dtype = torch.bfloat16
         else:
             raise ValueError(f"precision: {vit_classification_model.cfg['precision']} is not supported.")
@@ -323,11 +323,11 @@ class TestMegatronVitClassificationModel:
         )
 
         dtype = None
-        if trainer_cfg['precision'] == 32:
+        if trainer_cfg['precision'] in [32, '32', '32-true']:
             dtype = torch.float
-        elif trainer_cfg['precision'] == 16:
+        elif trainer_cfg['precision'] in [16, '16', '16-mixed']:
             dtype = torch.float16
-        elif trainer_cfg['precision'] == 'bf16':
+        elif trainer_cfg['precision'] in ['bf16', 'bf16-mixed']:
             dtype = torch.bfloat16
         else:
             raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")
@@ -357,11 +357,11 @@ class TestMegatronVitClassificationModel:
     @pytest.mark.unit
     def test_vit_head(self, model_cfg, trainer_cfg, precision):
         dtype = None
-        if trainer_cfg['precision'] == 32:
+        if trainer_cfg['precision'] in [32, '32', '32-true']:
             dtype = torch.float
-        elif trainer_cfg['precision'] == 16:
+        elif trainer_cfg['precision'] in [16, '16', '16-mixed']:
             dtype = torch.float16
-        elif trainer_cfg['precision'] == 'bf16':
+        elif trainer_cfg['precision'] in ['bf16', 'bf16-mixed']:
             dtype = torch.bfloat16
         else:
             raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")

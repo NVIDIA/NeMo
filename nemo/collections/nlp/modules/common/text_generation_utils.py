@@ -509,7 +509,7 @@ def synced_generate(
                 precision = model._trainer.precision
                 if precision in [16, "16"]:
                     dtype = torch.float16
-                elif precision == "bf16":
+                elif precision in ['bf16', 'bf16-mixed']:
                     dtype = torch.bfloat16
                 else:
                     dtype = torch.float32

@@ -1126,7 +1126,7 @@ class LatentDiffusion(DDPM, Serialization):
         else:
             raise NotImplementedError()
 
-        if (self.precision == 'bf16') or (int(self.precision) == 16):
+        if (self.precision in ['bf16', 'bf16-mixed']) or (self.precision in [16, '16', '16-mixed']):
             model_output = model_output.type(torch.float32)
         loss_simple = self.get_loss(model_output, target, mean=False).mean([1, 2, 3])
         loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
@@ -1701,7 +1701,7 @@ class MegatronLatentDiffusion(MegatronBaseModel):
                     loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
                     loss_tensor = torch.stack(loss_tensors_list)
                     loss_dict[key] = loss_tensor.mean()
-                loss_mean = loss_dict["train/loss"]
+                loss_mean = loss_dict["val/loss"] if forward_only else loss_dict["train/loss"]
             else:
                 raise NotImplementedError("Losses of micro batches sizes must be uniform!")
         else:

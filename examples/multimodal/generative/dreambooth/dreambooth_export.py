@@ -36,7 +36,7 @@ def main(cfg):
     width = cfg.infer.get('width', 512)
     downsampling_factor = cfg.infer.get('down_factor', 8)
     fp16 = 16 == cfg.trainer.get("precision", 32)
-    if cfg.trainer.get("precision", 32) == "bf16":
+    if cfg.trainer.get("precision", 32) in ['bf16', 'bf16-mixed']:
         print("BF16 not supported for export, will use fp32")
 
     def model_cfg_modifier(model_cfg):

@@ -858,7 +858,7 @@ def main():
             logging.warning("BF16 is not supported on this device. Using FP16 instead.")
             precision = precision[2:]
 
-    if precision == 32:
+    if precision in [32, '32', '32-true']:
         dtype = torch.float32
     elif precision in [16, "16", "16-mixed"]:
         dtype = torch.float16

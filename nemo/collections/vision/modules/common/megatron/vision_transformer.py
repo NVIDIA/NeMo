@@ -314,11 +314,11 @@ class ParallelVisionTransformerLayer(ParallelVisionTransformerLayer_):
     def __init__(self, **kwargs):
         super(ParallelVisionTransformerLayer, self).__init__(**kwargs)
         precision = kwargs['precision']
-        if precision == 'bf16':
+        if precision in ['bf16', 'bf16-mixed']:
             self.dtype = torch.bfloat16
-        elif int(precision) == 16:
+        elif precision in [16, '16', '16-mixed']:
             self.dtype = torch.float16
-        elif int(precision) == 32:
+        elif precision in [32, '32', '32-true']:
             self.dtype = torch.float32
         else:
             raise ValueError(f"Cannot recognize precision {precision}")

@@ -168,7 +168,7 @@ def convert(args):
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
 
-    if precision == 32:
+    if precision in [32, '32', '32-true']:
         dtype = torch.float32
     elif precision in [16, "16", "16-mixed"]:
         dtype = torch.float16

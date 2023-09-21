@@ -488,9 +488,9 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
 
         model_cfg = self.model.cfg
 
-        if model_cfg.precision == 16:
+        if model_cfg.precision in [16, '16', '16-mixed']:
             media = image.type(torch.float16)
-        elif model_cfg.precision == 32:
+        elif model_cfg.precision in [32, '32', '32-true']:
             media = image.type(torch.float32)
         else:
             media = image.type(torch.bfloat16)

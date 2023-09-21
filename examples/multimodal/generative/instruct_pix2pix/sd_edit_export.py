@@ -62,7 +62,7 @@ def main(cfg):
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
     fp16 = 16 == cfg.trainer.get("precision", 32)
-    if cfg.trainer.get("precision", 32) == "bf16":
+    if cfg.trainer.get("precision", 32) in ['bf16', 'bf16-mixed']:
         print("BF16 not supported for export, will use fp32")
     with open_dict(cfg):
         edit_cfg = cfg.pop("edit")

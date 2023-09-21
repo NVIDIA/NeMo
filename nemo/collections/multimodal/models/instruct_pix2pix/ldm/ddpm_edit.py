@@ -144,7 +144,7 @@ class LatentDiffusionEdit(LatentDiffusion):
 class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
-        model = LatentDiffusionEdit(cfg=self.cfg)
+        model = LatentDiffusionEdit(cfg=self.cfg, model_parallel_config=self.model_parallel_config)
         return model
 
     def setup(self, stage=None):
