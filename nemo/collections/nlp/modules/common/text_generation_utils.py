@@ -593,7 +593,7 @@ def generate(
         greedy=greedy,
         repetition_penalty=repetition_penalty,
         end_strings=end_strings,
-        mode=mode
+        mode=mode,
         min_tokens_to_generate=min_tokens_to_generate,
     )
     special_tokens = set()

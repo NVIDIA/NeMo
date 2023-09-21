@@ -233,7 +233,7 @@ class GPTModel(MegatronModule):
         output_size=None,
         embedding_scale=1.0,
         speech_loss_scale=1.0,
-        text_size=256000
+        text_size=256000,
         seq_len_interpolation_factor=None,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
@@ -388,7 +388,6 @@ class GPTModel(MegatronModule):
                 self.fp16_lm_cross_entropy,
                 return_logits=encoder_input is not None,
                 sequence_parallel=self.sequence_parallel,
-                gradient_accumulation_fusion=self.gradient_accumulation_fusion,
                 speech_mask=speech_mask,
                 speech_residual_model=self.speech_residual_model,
                 speech_loss_scale=self.speech_loss_scale,
