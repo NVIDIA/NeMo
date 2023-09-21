@@ -1,4 +1,5 @@
 boto3
+datasets
 einops
 faiss-cpu
 fasttext
@@ -7,7 +8,6 @@ ftfy
 gdown
 h5py
 ijson
-inflect
 jieba
 markdown2
 matplotlib>=3.3.2
@@ -19,3 +19,5 @@ rapidfuzz
 rouge_score
 sacrebleu[ja]
 sentence_transformers
+tensorstore
+zarr

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.04-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.08-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -45,12 +45,18 @@ RUN apt-get update && \
 WORKDIR /workspace/
 
 WORKDIR /tmp/
-# TODO: Remove once this Apex commit (2/24/23) is included in PyTorch
-# container
+
+# Distributed Adam support for multiple dtypes
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
-  git checkout 57057e2fcf1c084c0fcc818f55c0ff6ea1b24ae2 && \
-  pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+  git checkout 52e18c894223800cb611682dce27d88050edf1de && \
+  pip3 install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+
+# install megatron core, this can be removed once 0.3 pip package is released
+RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
+  cd Megatron-LM && \
+  git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
+  pip install -e .
 
 # uninstall stuff from base container
 RUN pip3 uninstall -y sacrebleu torchtext
@@ -76,7 +82,9 @@ RUN pip install --no-deps encodec
 # install flash attention dependencies
 RUN pip install flash-attn
 # pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
-RUN pip install triton==2.0.0.dev20221202 
+RUN pip install triton==2.0.0.dev20221202
+# install numba for latest containers
+RUN pip install numba>=0.57.1
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
@@ -95,7 +103,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.19.0
+ARG NEMO_VERSION=1.21.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes

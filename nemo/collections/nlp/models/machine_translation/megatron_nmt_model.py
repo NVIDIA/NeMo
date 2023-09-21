@@ -151,7 +151,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
         # We then set things up for real only once setup() of this class is called.
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -303,35 +303,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
+        return self._execute_fwd_bwd_function(
             data_iterator=data_iter,
-            model=[self.enc_dec_model],
-            num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
             tensor_shape=tensor_shape,
             decoder_seq_length=decoder_seq_length,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
         )
 
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            # we're not on the last pipeline stage so no losses
-            loss_mean = torch.tensor(0.0).cuda()
-
-        return loss_mean
-
     def eval_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
+            return
         # Need to squeze dim 0 for old NMT datasets since things are pre-batched and we ask the dataloader for batch size 1.
         batch = next(dataloader_iter)
         batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
@@ -377,12 +360,22 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
         )
 
-        return {
+        loss_dict = {
             'inputs': encoder_inputs,
             'translations': preds,
             'ground_truths': labels,
-            'loss': reduced_loss,
         }
+        if isinstance(reduced_loss, dict):
+            loss_dict.update(reduced_loss)
+        else:
+            loss_dict['loss'] = reduced_loss
+
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(loss_dict)
+        else:
+            self.validation_step_outputs.append(loss_dict)
+
+        return loss_dict
 
     def postprocess_outputs(self, outputs, tokenizer, processor):
         # Convert ids to lists.
@@ -437,11 +430,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         return dataloaders
 
-    def validation_epoch_end(self, outputs):
-        return self.eval_epoch_end(outputs, 'val')
+    def on_validation_epoch_end(self):
+        return self.eval_epoch_end(self.validation_step_outputs, 'val')
 
-    def test_epoch_end(self, outputs):
-        return self.eval_epoch_end(outputs, 'test')
+    def on_test_epoch_end(self):
+        return self.eval_epoch_end(self.test_step_outputs, 'test')
 
     def eval_epoch_end(self, outputs, mode):
         if not outputs:
@@ -536,10 +529,21 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 else:
                     self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, batch_size=1)
                     self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss, prog_bar=False, batch_size=1)
+            outputs[dataloader_idx].clear()  # free memory
 
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True, batch_size=1)
             self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), batch_size=1)
+
+        app_state = AppState()
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self._cfg.train_ds.global_batch_size,
+                micro_batch_size=self._cfg.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
 
     def _log_multilingual_bleu_and_loss(self, dataloader_idx, bleu_score, loss, mode):
         """
@@ -801,17 +805,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
     def list_available_models(self):
         pass
-
-    def on_validation_epoch_end(self):
-        app_state = AppState()
-        if hasattr(self, "_train_ds"):
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=self._cfg.train_ds.global_batch_size,
-                micro_batch_size=self._cfg.train_ds.micro_batch_size,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
 
     def on_validation_epoch_start(self):
         app_state = AppState()

@@ -130,6 +130,8 @@ class TranscriptionConfig:
 
     # Set to True to output greedy timestamp information (only supported models)
     compute_timestamps: bool = False
+    # set to True if need to return full alignment information
+    preserve_alignment: bool = False
 
     # Set to True to output language ID information
     compute_langs: bool = False
@@ -140,6 +142,7 @@ class TranscriptionConfig:
     cuda: Optional[int] = None
     allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
     amp: bool = False
+    amp_dtype: str = "float16"  # can be set to "float16" or "bfloat16" when using amp
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
@@ -151,8 +154,10 @@ class TranscriptionConfig:
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
-    # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Joint RNNT/CTC models
+    # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Hybrid RNNT/CTC models
     decoder_type: Optional[str] = None
+    # att_context_size can be set for cache-aware streaming models with multiple look-aheads
+    att_context_size: Optional[list] = None
 
     # Use this for model-specific changes before transcription
     model_change: ModelChangeConfig = ModelChangeConfig()
@@ -166,6 +171,9 @@ class TranscriptionConfig:
     # can be set to True to return list of transcriptions instead of the config
     # if True, will also skip writing anything to the output file
     return_transcriptions: bool = False
+
+    # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
+    return_hypotheses: bool = True
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -224,12 +232,11 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 
-    # collect additional transcription information
-    return_hypotheses = True
-
     # we will adjust this flag if the model does not support it
     compute_timestamps = cfg.compute_timestamps
     compute_langs = cfg.compute_langs
+    # has to be True if timestamps are required
+    preserve_alignment = True if cfg.compute_timestamps else cfg.preserve_alignment
 
     # Check whether model and decoder type match
     if isinstance(asr_model, EncDecCTCModel):
@@ -242,6 +249,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         if cfg.decoder_type and cfg.decoder_type != 'rnnt':
             raise ValueError('RNNT model only support rnnt decoding!')
 
+    if cfg.decoder_type and hasattr(asr_model.encoder, 'set_default_att_context_size'):
+        asr_model.encoder.set_default_att_context_size(cfg.att_context_size)
+
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
         if cfg.decoder_type is not None:
@@ -252,7 +262,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             decoding_cfg = cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding
             decoding_cfg.compute_timestamps = cfg.compute_timestamps  # both ctc and rnnt support it
             if 'preserve_alignments' in decoding_cfg:
-                decoding_cfg.preserve_alignments = cfg.compute_timestamps
+                decoding_cfg.preserve_alignments = preserve_alignment
             if 'compute_langs' in decoding_cfg:
                 decoding_cfg.compute_langs = cfg.compute_langs
             if hasattr(asr_model, 'cur_decoder'):
@@ -265,9 +275,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             cfg.rnnt_decoding.fused_batch_size = -1
             cfg.rnnt_decoding.compute_timestamps = cfg.compute_timestamps
             cfg.rnnt_decoding.compute_langs = cfg.compute_langs
-
             if 'preserve_alignments' in cfg.rnnt_decoding:
-                cfg.rnnt_decoding.preserve_alignments = cfg.compute_timestamps
+                cfg.rnnt_decoding.preserve_alignments = preserve_alignment
 
             asr_model.change_decoding_strategy(cfg.rnnt_decoding)
         else:
@@ -296,7 +305,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     else:
 
         @contextlib.contextmanager
-        def autocast():
+        def autocast(dtype=None):
             yield
 
     # Compute output filename
@@ -311,7 +320,10 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         return cfg
 
     # transcribe audio
-    with autocast():
+
+    amp_dtype = torch.float16 if cfg.amp_dtype == "float16" else torch.bfloat16
+
+    with autocast(dtype=amp_dtype):
         with torch.no_grad():
             if partial_audio:
                 transcriptions = transcribe_partial_audio(
@@ -319,7 +331,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     path2manifest=cfg.dataset_manifest,
                     batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
-                    return_hypotheses=return_hypotheses,
+                    return_hypotheses=cfg.return_hypotheses,
                     channel_selector=cfg.channel_selector,
                     augmentor=augmentor,
                     decoder_type=cfg.decoder_type,
@@ -329,7 +341,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     paths2audio_files=filepaths,
                     batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
-                    return_hypotheses=return_hypotheses,
+                    return_hypotheses=cfg.return_hypotheses,
                     channel_selector=cfg.channel_selector,
                     augmentor=augmentor,
                 )

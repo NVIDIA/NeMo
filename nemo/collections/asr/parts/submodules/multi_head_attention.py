@@ -73,7 +73,6 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(p=dropout_rate)
 
         self._max_cache_len = max_cache_len
-        self._cache_id = None
 
     def forward_qkv(self, query, key, value):
         """Transforms query, key and value.
@@ -119,20 +118,20 @@ class MultiHeadAttention(nn.Module):
 
         return self.linear_out(x)  # (batch, time1, d_model)
 
-    def forward(self, query, key, value, mask, pos_emb=None, cache=None, cache_next=None):
+    def forward(self, query, key, value, mask, pos_emb=None, cache=None):
         """Compute 'Scaled Dot Product Attention'.
         Args:
             query (torch.Tensor): (batch, time1, size)
             key (torch.Tensor): (batch, time2, size)
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
-            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
-            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+            cache (torch.Tensor) : (batch, time_cache, size)
 
         returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+            cache (torch.Tensor) : (batch, time_cache_next, size)
         """
-        key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
+        key, value, query, cache = self.update_cache(key=key, value=value, query=query, cache=cache)
 
         if torch.is_autocast_enabled():
             query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
@@ -142,17 +141,17 @@ class MultiHeadAttention(nn.Module):
             q, k, v = self.forward_qkv(query, key, value)
             scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
             out = self.forward_attention(v, scores, mask)
+        if cache is None:
+            return out
+        else:
+            return out, cache
 
-        return out
-
-    def update_cache(self, key, value, query, cache, cache_next):
+    def update_cache(self, key, value, query, cache):
         if cache is not None:
-            key = value = torch.cat([cache[self._cache_id], key], dim=1)
+            key = value = torch.cat([cache, key], dim=1)
             q_keep_size = query.shape[1] - self.cache_drop_size
-            if cache_next is not None:
-                cache_next[self._cache_id, :, :-q_keep_size, :] = cache[self._cache_id, :, q_keep_size:, :]
-                cache_next[self._cache_id, :, -q_keep_size:, :] = query[:, :q_keep_size, :]
-        return key, value, query
+            cache = torch.cat([cache[:, q_keep_size:, :], query[:, :q_keep_size, :]], dim=1)
+        return key, value, query, cache
 
 
 class RelPositionMultiHeadAttention(MultiHeadAttention):
@@ -195,7 +194,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         x = x[:, :, 1:].view(b, h, qlen, pos_len)  # (b, h, t1, t2)
         return x
 
-    def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
+    def forward(self, query, key, value, mask, pos_emb, cache=None):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
         Args:
             query (torch.Tensor): (batch, time1, size)
@@ -203,12 +202,13 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
             pos_emb (torch.Tensor) : (batch, time1, size)
-            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
-            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+            cache (torch.Tensor) : (batch, time_cache, size)
+
         Returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+            cache (torch.Tensor) : (batch, time_cache_next, size)
         """
-        key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
+        key, value, query, cache = self.update_cache(key=key, value=value, query=query, cache=cache)
 
         if torch.is_autocast_enabled():
             query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
@@ -244,7 +244,10 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
             out = self.forward_attention(v, scores, mask)
 
-        return out
+        if cache is None:
+            return out
+        else:
+            return out, cache
 
 
 class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
@@ -298,7 +301,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             self.global_k = nn.Linear(n_feat, n_feat)
             self.global_v = nn.Linear(n_feat, n_feat)
 
-    def forward(self, query, key, value, pad_mask, pos_emb, cache=None, cache_next=None):
+    def forward(self, query, key, value, pad_mask, pos_emb, cache=None):
         """Compute Scaled Dot Product Local Attention with rel. positional encoding. using overlapping chunks
         Args:
             query (torch.Tensor): (batch, time, size)
@@ -306,13 +309,13 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             value(torch.Tensor): (batch, time, size)
             pad_mask (torch.Tensor): (batch, time)
             pos_emb (torch.Tensor) : (batch, 2w + 1, size)
-            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
-            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+            cache (torch.Tensor) : (batch, time_cache, size)
         Returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+            cache (torch.Tensor) : (batch, time_cache_next, size)
         """
 
-        key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
+        key, value, query, cache = self.update_cache(key=key, value=value, query=query, cache=cache)
 
         if torch.is_autocast_enabled():
             query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
@@ -374,12 +377,6 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
             scores += d_mask
 
-            attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)
-            attn = self.dropout(attn)
-            # (batch, head, time, 2w + 1)
-
-            out = self.sliding_chunks_matmul_pv(attn, v, w).reshape(n_batch, -1, self.h * self.d_k)
-
             if self.global_tokens > 0:
 
                 # create q, k, v for global attn
@@ -423,21 +420,34 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
                     is_local_index_no_global_attn_nonzero=is_local_index_no_global_attn_nonzero,
                 ).transpose(1, 2)
 
-                global_key_attn = torch.softmax(global_key_attn, dim=-1).masked_fill(mask, 0.0)
-                global_key_attn = self.dropout(global_key_attn)
+                # concat to local_attn_probs
+                # (batch, time, head, max_num_global_attn_indices + 2*w)
+                scores = torch.cat((global_key_attn, scores), dim=-1)
 
-                # compute outputs for global attention from all tokens to global
-                # (batch, time, head x head_dim)
-                out_all_to_global = self._compute_out_all_to_global(
-                    value=global_v,
-                    attn_probs=global_key_attn,
+                # free memory
+                del global_key_attn
+
+            attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)
+            p_attn = self.dropout(attn)
+            # (batch, head, time, 2w + 1)
+
+            if self.global_tokens > 0:
+                # compute sum of global and local attn
+                out = self._compute_attn_output_with_global_indices(
+                    value=v,
+                    attn_probs=p_attn,
                     max_num_global_attn_indices=max_num_global_attn_indices,
                     is_index_global_attn_nonzero=is_index_global_attn_nonzero,
                     is_local_index_global_attn_nonzero=is_local_index_global_attn_nonzero,
+                    w=w,
                 )
+            else:
+                # compute local attn only
+                out = self.sliding_chunks_matmul_pv(p_attn, v, w)
 
-                # compute outputs for global attention from global tokens to all
-                # (batch, max_num_global_attn_indices, head x head_dim)
+            out = out.reshape(n_batch, -1, self.h * self.d_k)[:, :T]
+
+            if self.global_tokens > 0:
                 out_global_to_all = self._compute_out_global_to_all(
                     query=global_q,
                     key=global_k,
@@ -449,11 +459,15 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
                     is_index_masked=mask,
                 )
 
-                out += out_all_to_global
+                # overwrite values with global attention
+                out[is_index_global_attn_nonzero] = out_global_to_all
 
-                out[is_index_global_attn_nonzero] += out_global_to_all
+        ret = self.linear_out(out)
 
-        return self.linear_out(out.reshape(n_batch, -1, self.h * self.d_k)[:, :T])
+        if cache is None:
+            return ret
+        else:
+            return ret, cache
 
     def _get_global_attn_indices(self, is_index_global_attn: torch.Tensor) -> Tuple:
         """
@@ -537,16 +551,17 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
         return attn_probs_from_global_key
 
-    def _compute_out_all_to_global(
+    def _compute_attn_output_with_global_indices(
         self,
         value: torch.Tensor,
         attn_probs: torch.Tensor,
         max_num_global_attn_indices: int,
         is_index_global_attn_nonzero: tuple,
         is_local_index_global_attn_nonzero: tuple,
+        w: int,
     ) -> torch.Tensor:
         """
-        Compute the attention output of all tokens attending to global.
+        Compute the attention output with global indices.
 
         Args:
             value (torch.Tensor): (batch, head, time, head_dim) The value vectors for global attention.
@@ -554,7 +569,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             max_num_global_attn_indices (int): Maximum number of global attention indices in the batch.
             is_index_global_attn_nonzero (tuple): Indices of global attention (non-zero elements).
             is_local_index_global_attn_nonzero (tuple): Non-padding values within global attention indices.
-
+            w (int): Local context size
         Returns:
             torch.Tensor: (batch, time, head x head_dim) The attention output of all tokens attending to global.
         """
@@ -566,12 +581,22 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         value_vectors_only_global = value.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
         value_vectors_only_global[is_local_index_global_attn_nonzero] = value[is_index_global_attn_nonzero]
 
+        # cut local attn probs to global only
+        attn_probs_only_global = attn_probs.narrow(-1, 0, max_num_global_attn_indices)
         # compute attn output only global
-        out_all_to_global = torch.matmul(attn_probs, value_vectors_only_global.transpose(1, 2)).transpose(1, 2)
+        attn_output_only_global = torch.matmul(
+            attn_probs_only_global.clone(), value_vectors_only_global.transpose(1, 2).clone()
+        ).transpose(1, 2)
 
-        out_all_to_global = out_all_to_global.reshape(batch_size, time, -1)
+        # reshape attn probs
+        attn_probs_without_global = attn_probs.narrow(
+            -1, max_num_global_attn_indices, attn_probs.size(-1) - max_num_global_attn_indices
+        ).contiguous()
 
-        return out_all_to_global
+        # compute attn output with global
+        attn_output_without_global = self.sliding_chunks_matmul_pv(attn_probs_without_global, value.transpose(1, 2), w)
+
+        return attn_output_only_global + attn_output_without_global
 
     def _compute_out_global_to_all(
         self,

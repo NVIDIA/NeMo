@@ -90,6 +90,12 @@ def get_manifest_lines_batch(manifest_filepath, start, end):
                     # newline chars to spaces
                     data["text"] = data["text"].replace("\ufeff", "")
                     data["text"] = " ".join(data["text"].split())
+
+                    # Replace any horizontal ellipses with 3 separate periods.
+                    # The tokenizer will do this anyway. But making this replacement
+                    # now helps avoid errors when restoring punctuation when saving
+                    # the output files
+                    data["text"] = data["text"].replace("\u2026", "...")
                 manifest_lines_batch.append(data)
 
             if line_i == end:
@@ -249,6 +255,8 @@ def get_utt_obj(
 
     # remove any spaces at start and end of segments
     segments = [seg.strip() for seg in segments]
+    # remove any empty segments
+    segments = [seg for seg in segments if len(seg) > 0]
 
     utt = Utterance(text=text, audio_filepath=audio_filepath, utt_id=utt_id,)
 

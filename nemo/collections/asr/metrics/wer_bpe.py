@@ -85,21 +85,22 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                     entropy_type: Which type of entropy to use (str).
                         Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
-                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                                Note that for this entropy, the temperature should comply the following inequality:
-                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
-                            - 'renui' for the Rényi entropy.
+                            - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                        When the temperature equals one, scaling is not applied to 'max_prob',
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
@@ -115,6 +116,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
                 preserve_frame_confidence: Same as above, overrides above value.
+                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -217,13 +219,15 @@ class WERBPE(Metric):
         def validation_step(self, batch, batch_idx):
             ...
             wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
-            return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            self.val_outputs = {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            return self.val_outputs
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self):
             ...
-            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            wer_num = torch.stack([x['val_wer_num'] for x in self.val_outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in self.val_outputs]).sum()
             tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+            self.val_outputs.clear()  # free memory
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
@@ -247,7 +251,7 @@ class WERBPE(Metric):
         fold_consecutive=True,
         dist_sync_on_step=False,
     ):
-        super().__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=False)
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
         self.decoding = decoding
         self.tokenizer = self.decoding.tokenizer
         self.blank_id = self.decoding.tokenizer.tokenizer.vocab_size
