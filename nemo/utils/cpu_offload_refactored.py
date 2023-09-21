@@ -320,9 +320,9 @@ class AsyncDoubleBufferGroupOffloadHandler(SynchronizedGroupOffloadHandler):
             # TODO (guyueh): this part is originally designed to reduce the peak memory usage.
             # however, uncommenting this part will cause illegal access, have not figured out why.
             
-            # if previous_group + 2 >= self.num_offload_group:
-            #     # this buffer is no longer required
-            #     self.tensor_id_to_tensor_buf_double_bufs[(previous_group % 2)] = dict()
+            if previous_group + 2 >= self.num_offload_group:
+                # this buffer is no longer required
+                self.tensor_id_to_tensor_buf_double_bufs[(previous_group % 2)] = dict()
 
         # the copying of this group should wait for the computation stream event
         if current_group < self.num_offload_group:
