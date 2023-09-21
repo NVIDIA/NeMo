@@ -647,6 +647,9 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         if cfg.model.get('use_am_tokenizer', False):
             model.tokenizer = audio_model.tokenizer
             logging.info(f'Use AM tokenizer: {audio_model.tokenizer}')
+        if 'inference' in cfg:
+            inference_cfg = OmegaConf.to_container(cfg.inference, resolve=True)
+            model.set_inference_config(inference_cfg)
         return model
 
     def _build_vocab(self):

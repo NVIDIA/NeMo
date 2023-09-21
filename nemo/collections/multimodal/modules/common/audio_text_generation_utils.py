@@ -457,8 +457,7 @@ def generate(
     if 'strategy' in strategy_args:
         inference_strategy = strategy_args['strategy']
     else:
-        # TODO(zhehuai)
-        inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args)
+        inference_strategy = model_inference_strategy_dispatcher(model)
     tokenizer = model.tokenizer
     audio_signal, audio_signal_length = inputs[2], inputs[3]
     if torch.distributed.get_rank() == get_model_parallel_src_rank():

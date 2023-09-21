@@ -164,7 +164,8 @@ def main(cfg) -> None:
         override_config_path=peft_model_cfg,
         save_restore_connector=save_restore_connector,
     )
-
+    config = OmegaConf.to_container(cfg.inference, resolve=True)
+    model.set_inference_config(config)
     model.freeze()
 
     if cfg.evaluate_metric:
@@ -178,8 +179,6 @@ def main(cfg) -> None:
     request_dl = DataLoader(
         dataset=_test_ds, batch_size=peft_model_cfg.data.test_ds.global_batch_size, collate_fn=_test_ds.collate_fn,
     )
-    config = OmegaConf.to_container(cfg.inference, resolve=True)
-    model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
 
     if model.global_rank == 0:
