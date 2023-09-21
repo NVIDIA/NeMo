@@ -481,6 +481,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             cfg.peft.p_tuning.embedding_dim,
             cfg.peft.p_tuning.init_std,
             cfg.hidden_size,
+            cfg.peft.p_tuning.use_residual,
         )
         self.name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
         self.name_key_to_mcore_mixins = {AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)]}
