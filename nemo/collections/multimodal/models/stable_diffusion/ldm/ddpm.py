@@ -21,9 +21,13 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
+from lightning_fabric.utilities.cloud_io import _load as pl_load
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators import CPUAccelerator
+from pytorch_lightning.core.saving import _load_state as ptl_load_state
+from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
+from pytorch_lightning.utilities.migration import pl_legacy_patch
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
 from torch._dynamo import optimize
 from torch._inductor import config as inductor_config
@@ -1995,6 +1999,7 @@ class MegatronLatentDiffusion(MegatronBaseModel):
             self._cfg = cfg
         super().save_to(save_path)
 
+    @classmethod
     def load_from_checkpoint(
         cls,
         checkpoint_path: str,
