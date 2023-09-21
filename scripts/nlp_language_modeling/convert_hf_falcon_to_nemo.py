@@ -46,6 +46,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
+    NLPDDPStrategy,
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
@@ -60,6 +61,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 # [Y] trust remote code add
 # [Y] MQA MHA GQA num_kv_heads and mcore's GQA logic add (not sure about MQA)
 # [Y] When bias_gelu_fusion is True, add_bias_linear must also be True. error
+# [Y] update save_to and restore_from for dist checkpointing
 # [ ] remove unnecessary comments and codes.
 
 
@@ -178,8 +180,8 @@ def load_nemo_config(args):
     nemo_config.tokenizer = tokenizer_dict
     ##############################################
     # TODO: need refactor Mcore to support parallel attn and 40b/180b model arch
-    # nemo_config.new_decoder_architecture = falcon_config['new_decoder_architecture'] #bool, if True, always use parallel attn
-    # nemo_config.parallel_attention = falcon_config['parallel_attn']
+    nemo_config.new_decoder_architecture = falcon_config.new_decoder_architecture #bool, if True, always use parallel attn
+    nemo_config.parallel_attention = falcon_config.parallel_attn
     ###############################################
 
     nemo_config.num_query_groups = (
@@ -254,8 +256,8 @@ def convert(args):
 
     dtype = determine_dtype(precision)
     nemo_config.precision = precision
-    trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision)
-
+    trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision, strategy=NLPDDPStrategy())
+    
     hidden_size = falcon_config.hidden_size
     head_num = falcon_config.num_attention_heads
     head_size = hidden_size // head_num
@@ -346,7 +348,6 @@ def convert(args):
 
     del model
 
-    # model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
     model = MegatronGPTModel(checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY], trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
@@ -362,6 +363,6 @@ def convert(args):
 
 
 if __name__ == '__main__':
-    setup_logging()
+    #setup_logging()
     args = get_args()
     convert(args)
