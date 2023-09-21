@@ -1685,9 +1685,18 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         # print(f"AGAIN1 {self.cfg.get('override_vocab_size')}")
         # print(f"AGAIN1 {self.cfg.get('output_size')}")
         # print(f"AGAIN1 {self.cfg.get('embedding_scale')}")
+        # print(f"AGAIN1 {self.mcore_gpt}")
+        if self.mcore_gpt:
+            raise NotImplementedError("No mcore for speech")
+        assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
+            'num_query_groups', None
+        ) == self.cfg.get(
+            'num_attention_heads', None
+        ), "Group Query Attention is only supported in Megatron Core. Set 'mcore_gpt' to use GQA."
+
         model = GPTModel(
+            config=self.model_parallel_config,
             vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
-            output_size=self.cfg.get('output_size', None),
             hidden_size=self.cfg.hidden_size,
             max_position_embeddings=self.cfg.max_position_embeddings,
             num_layers=self.cfg.num_layers,
@@ -1702,7 +1711,6 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             init_method_std=self.cfg.get('init_method_std', 0.02),
             use_scaled_init_method=self.cfg.get('use_scaled_init_method', True),
             fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
             attention_dropout=self.cfg.get('attention_dropout', 0.1),
@@ -1731,9 +1739,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
             attention_type=self.cfg.get('attention_type', 'multihead'),
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
-            gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
             transformer_engine=self.cfg.get('transformer_engine', False),
             fp8=self.cfg.get('fp8', False),
             fp8_e4m3=self.cfg.get('fp8_e4m3', False),
@@ -1744,8 +1750,10 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'most_recent'),
             reduce_amax=self.cfg.get('reduce_amax', True),
             use_emha=self.cfg.get('use_emha', False),
+            ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
+            seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             embedding_scale=self.cfg.get('embedding_scale', 1.0),
             speech_loss_scale=self.cfg.get('speech_loss_scale', 1.0),
             text_size=self.cfg.get('text_size', 256000),

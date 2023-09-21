@@ -529,8 +529,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.output_layer_init_method = output_layer_init_method
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
-        self.sequence_parallel = sequence_parallel
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
         self.embedding_scale = embedding_scale
         if output_size is None:
             output_size = vocab_size
