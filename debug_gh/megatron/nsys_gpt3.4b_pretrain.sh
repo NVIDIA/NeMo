@@ -3,13 +3,16 @@ NEMO=/home/scratch.guyueh_sw/2023su/cpu_offload/NeMo
 # FLASH_ATTN=/home/scratch.guyueh_sw/2023su/cpu_offload/flash-attention
 
 export PYTHONPATH=${NEMO}:${PYTHONPATH}
-# export PYTHONPATH=${NEMO}:${MLM}:${PYTHONPATH}
 # export PYTHONPATH=${NEMO}:${MLM}:${FLASH_ATTN}:${PYTHONPATH}
 
 MICRO_BATCH_SIZE=${1:-1}
 SEQ_LENGTH=${2:-512}
 MEGATRON_AMP_O2=${3:-"True"}
 
+nsys \
+profile -s none -o ./gh_nsys_gpt_3.4b_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}_amp_O2_${MEGATRON_AMP_O2} \
+-t cuda,nvtx --force-overwrite true \
+--capture-range=cudaProfilerApi --capture-range-end=stop \
 python ${NEMO}/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
 --config-path ${NEMO}/debug_gh/megatron \
 --config-name gpt_3.4b_no_grad_acc_fusion.yaml \
@@ -21,4 +24,8 @@ model.data.data_impl="mock" model.data.data_prefix=[] \
 model.optim.name="fused_adam" \
 model.megatron_amp_O2=${MEGATRON_AMP_O2} \
 model.encoder_seq_length=${SEQ_LENGTH} \
-2>&1 | tee gh_gpt_3.4b_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}_amp_O2_${MEGATRON_AMP_O2}.log
+model.nsys_profile.enabled=True \
+model.nsys_profile.gen_shape=True \
+model.nsys_profile.start_step=1 \
+model.nsys_profile.end_step=1 \
+2>&1 | tee gh_nsys_gpt_3.4b_MBS_${MICRO_BATCH_SIZE}_seq_${SEQ_LENGTH}_amp_O2_${MEGATRON_AMP_O2}.log
