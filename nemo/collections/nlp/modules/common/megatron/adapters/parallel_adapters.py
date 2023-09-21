@@ -302,6 +302,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         embedding_dim: int,
         init_std: float,
         output_dim: int,
+        use_residual: bool,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
     ):
@@ -318,6 +319,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.embedding_dim = embedding_dim
         self.output_dim = output_dim
         self.virtual_tokens = virtual_tokens
+        self.use_residual = use_residual
         self.activation = "gelu"
 
         if model_parallel_config is None:
@@ -380,6 +382,8 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
         output_embeds, bias_parallel = self.second(intermediate_parallel)
         output_embeds = output_embeds + bias_parallel
+        if self.use_residual:
+            output_embeds = output_embeds + input_embeds
         output_embeds = output_embeds.transpose(0, 1)
         return output_embeds
 
@@ -412,6 +416,7 @@ class PromptEncoderAdapterConfig:
     embedding_dim: int
     init_std: float
     output_dim: int
+    use_residual: bool
     _target_: str = "{0}.{1}".format(PromptEncoderAdapter.__module__, PromptEncoderAdapter.__name__)
 
 

@@ -108,6 +108,7 @@ model:
       bottleneck_dim: 1024  # the size of the prompt encoder mlp bottleneck
       embedding_dim: 1024  # the size of the prompt encoder embeddings
       init_std: 0.023
+      use_residual: False
     
     ia3_tuning:
       layer_selection:  null  # selects in which layers to add ia3 adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
