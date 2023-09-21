@@ -478,7 +478,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         adapter_cfg = PromptEncoderAdapterConfig(
             cfg.peft.p_tuning.virtual_tokens,
             cfg.peft.p_tuning.bottleneck_dim,
-            cfg.peft.p_tuning.embedding_dim,
+            cfg.hidden_size if cfg.peft.p_tuning.use_residual else cfg.peft.p_tuning.embedding_dim,
             cfg.peft.p_tuning.init_std,
             cfg.hidden_size,
             cfg.peft.p_tuning.use_residual,
