@@ -522,6 +522,7 @@ class MegatronDreamBooth(MegatronBaseModel):
         else:
             return self.model.parameters()
 
+    @classmethod
     def load_from_checkpoint(
         cls,
         checkpoint_path: str,

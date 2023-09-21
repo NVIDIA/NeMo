@@ -784,7 +784,7 @@ class MegatronBaseModel(NLPModel):
             "async_tensor_model_parallel_allreduce": self.cfg.get('tensor_model_parallel_world_size', 1) > 1
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
-            "grad_scale_func": self.trainer.precision_plugin.scaler.scale
+            "grad_scale_func": self.trainer.precision_plugin.scaler._scale
             if self.torch_dtype == torch.float16
             else None,
             "enable_autocast": not megatron_amp_O2 and self.torch_dtype in [torch.bfloat16, torch.float16],

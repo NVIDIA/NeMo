@@ -28,6 +28,7 @@ import os
 from argparse import ArgumentParser
 
 import torch
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -39,6 +40,7 @@ from nemo.collections.multimodal.models.instruct_pix2pix.ldm.ddpm_edit import Me
 from nemo.collections.multimodal.models.kosmos.megatron_kosmos_model import MegatronKosmosModel
 from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
 from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
@@ -101,12 +103,14 @@ def convert(local_rank, rank, world_size, args):
     app_state = AppState()
     app_state.data_parallel_rank = 0
     num_nodes = world_size // args.gpus_per_node
-    if args.bcp:
-        trainer = Trainer(
-            devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu', plugins=[TorchElasticEnvironment()]
-        )
-    else:
-        trainer = Trainer(devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu')
+
+    cfg = OmegaConf.load(args.hparams_file)
+    with open_dict(cfg):
+        cfg['model'] = cfg['cfg']
+        cfg['trainer'] = {'precision': cfg['model']['precision']}
+        if args.bcp:
+            cfg['cluster_type'] = 'BCP'
+    trainer = MegatronTrainerBuilder(cfg).create_trainer()
 
     app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
     app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
