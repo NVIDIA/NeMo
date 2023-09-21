@@ -126,7 +126,7 @@ class VocoderDataset(Dataset):
         for _ in range(self.num_audio_retries):
             try:
                 audio_segment = AudioSegment.segment_from_file(
-                    audio_filepath, target_sr=self.sample_rate, n_segments=self.n_samples,
+                    audio_filepath, target_sr=self.sample_rate, n_segments=self.n_samples, dtype="int32"
                 )
                 return audio_segment
             except Exception:
