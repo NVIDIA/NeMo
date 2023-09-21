@@ -1,12 +1,10 @@
-import soundfile as sf
 import numpy as np
 import onnxruntime as ort
-
-# Load Tacotron2
-from nemo.collections.tts.models import Tacotron2Model
+import soundfile as sf
 
 # Load HifiGanModel
-from nemo.collections.tts.models import HifiGanModel
+# Load Tacotron2
+from nemo.collections.tts.models import HifiGanModel, Tacotron2Model
 
 
 def initialize_decoder_states(self, memory):
