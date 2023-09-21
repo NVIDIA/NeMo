@@ -106,6 +106,7 @@ def __process_transcript(file_path: str):
                 'duration': float(duration),
                 'text': text,
                 'normalized_text': normalized_text,
+                'speaker': int(speaker[3:]),
             }
 
             i += 1
