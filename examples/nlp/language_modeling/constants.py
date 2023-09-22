@@ -1,78 +1,135 @@
-TASKS = {"qasper":
-                {"response": "Answer:",
-                "tokens_to_generate": 128,
-                "subset": "Qasper/test.jsonl"},
-        "narrative_qa":
-                {"response": "Answer:",
-                "tokens_to_generate": 29,
-                "subset": "NarrativeQA/test.jsonl"},
-        "quality":
-                {"response": "Answer:",
-                "tokens_to_generate": 8,
-                "subset": "QuALITY/validation.jsonl"},
-        "musique":
-                {"response": "Answer:",
-                "tokens_to_generate": 24,
-                "subset": "MuSiQue/validation.jsonl"},
-        "space_digest":
-                {"response": "Percentage of Positive Reviews:",
-                "tokens_to_generate": 24,
-                "subset": "SpaceDigest/test.jsonl"},
-        "book_sum_sort":
-                {"response": "Summary IDs in Correct Order:",
-                "tokens_to_generate": 128,
-                "subset": "BookSumSort/validation.jsonl"},
-        "gov_report":
-                {"response": "Summary:",
-                "tokens_to_generate": 1024,
-                "subset": "GovReport/test.jsonl"},
-        "gov_report-0":
-                {"response": "Summary:",
-                "tokens_to_generate": 1024,
-                "subset": "GovReport/test_0.jsonl"},
-        "gov_report-1":
-                {"response": "Summary:",
-                "tokens_to_generate": 1024,
-                "subset": "GovReport/test_1.jsonl"},
-        "gov_report-2":
-                {"response": "Summary:",
-                "tokens_to_generate": 1024,
-                "subset": "GovReport/test_2.jsonl"},
-        "gov_report-3":
-                {"response": "Summary:",
-                "tokens_to_generate": 1024,
-                "subset": "GovReport/test_3.jsonl"},
-        "gov_report-4":
-                {"response": "Summary:",
-                "tokens_to_generate": 1024,
-                "subset": "GovReport/test_4.jsonl"},
-        "summ_screen_fd":
-                {"response": "Summary:",
-                "tokens_to_generate": 640,
-                "subset": "SummScreenFD/test.jsonl"},
-        "summ_screen_fd-0":
-                {"response": "Summary:",
-                "tokens_to_generate": 640,
-                "subset": "SummScreenFD/test_0.jsonl"},
-        "summ_screen_fd-1":
-                {"response": "Summary:",
-                "tokens_to_generate": 640,
-                "subset": "SummScreenFD/test_1.jsonl"},
-        "summ_screen_fd-2":
-                {"response": "Summary:",
-                "tokens_to_generate": 640,
-                "subset": "SummScreenFD/test_2.jsonl"},
-        "summ_screen_fd-3":
-                {"response": "Summary:",
-                "tokens_to_generate": 640,
-                "subset": "SummScreenFD/test_3.jsonl"},
-        "qmsum":
-                {"response": "Answer:",
-                "tokens_to_generate": 256,
-                "subset": "QMSum/test.jsonl"},
-        "squality":
-                {"response": "Answer:",
-                "tokens_to_generate": 640,
-                "subset": "SQuALITY/validation.jsonl"}
-        }
-
+TASKS = {
+    'qasper': {
+        'context': 'Article:',
+        'response': 'Answer:',
+        'tokens_to_generate': 128,
+        'subset': 'Qasper/test.jsonl',
+        'chat_instruction': 'Do not provide any explanation.',
+    },
+    'narrative_qa': {
+        'context': 'Story:',
+        'response': 'Answer:',
+        'tokens_to_generate': 29,
+        'subset': 'NarrativeQA/test.jsonl',
+        'chat_instruction': 'Do not provide any explanation.',
+    },
+    'quality': {
+        'context': 'Story:',
+        'response': 'Answer:',
+        'tokens_to_generate': 8,
+        'subset': 'QuALITY/validation.jsonl',
+        'chat_instruction': 'Do not provide any explanation.',
+    },
+    'musique': {
+        'context': 'Paragraphs:',
+        'response': 'Answer:',
+        'tokens_to_generate': 24,
+        'subset': 'MuSiQue/validation.jsonl',
+        'chat_instruction': 'Do not provide any explanation.',
+    },
+    'space_digest': {
+        'context': 'Reviews:',
+        'response': 'Percentage of Positive Reviews:',
+        'tokens_to_generate': 24,
+        'subset': 'SpaceDigest/test.jsonl',
+        'chat_instruction': 'Do not provide any explanation.',
+    },
+    'book_sum_sort': {
+        'context': 'Summaries:',
+        'response': 'Summary IDs in Correct Order:',
+        'tokens_to_generate': 128,
+        'subset': 'BookSumSort/validation.jsonl',
+        'chat_instruction': 'Do not provide any explanation.',
+    },
+    'gov_report': {
+        'context': 'Report:',
+        'response': 'Summary:',
+        'tokens_to_generate': 1024,
+        'subset': 'GovReport/test.jsonl',
+        'chat_instruction': '',
+    },
+    'gov_report-0': {
+        'context': 'Report:',
+        'response': 'Summary:',
+        'tokens_to_generate': 1024,
+        'subset': 'GovReport/test_0.jsonl',
+        'chat_instruction': '',
+    },
+    'gov_report-1': {
+        'context': 'Report:',
+        'response': 'Summary:',
+        'tokens_to_generate': 1024,
+        'subset': 'GovReport/test_1.jsonl',
+        'chat_instruction': '',
+    },
+    'gov_report-2': {
+        'context': 'Report:',
+        'response': 'Summary:',
+        'tokens_to_generate': 1024,
+        'subset': 'GovReport/test_2.jsonl',
+        'chat_instruction': '',
+    },
+    'gov_report-3': {
+        'context': 'Report:',
+        'response': 'Summary:',
+        'tokens_to_generate': 1024,
+        'subset': 'GovReport/test_3.jsonl',
+        'chat_instruction': '',
+    },
+    'gov_report-4': {
+        'context': 'Report:',
+        'response': 'Summary:',
+        'tokens_to_generate': 1024,
+        'subset': 'GovReport/test_4.jsonl',
+        'chat_instruction': '',
+    },
+    'summ_screen_fd': {
+        'context': 'Episode Script:',
+        'response': 'Summary:',
+        'tokens_to_generate': 640,
+        'subset': 'SummScreenFD/test.jsonl',
+        'chat_instruction': '',
+    },
+    'summ_screen_fd-0': {
+        'context': 'Episode Script:',
+        'response': 'Summary:',
+        'tokens_to_generate': 640,
+        'subset': 'SummScreenFD/test_0.jsonl',
+        'chat_instruction': '',
+    },
+    'summ_screen_fd-1': {
+        'context': 'Episode Script:',
+        'response': 'Summary:',
+        'tokens_to_generate': 640,
+        'subset': 'SummScreenFD/test_1.jsonl',
+        'chat_instruction': '',
+    },
+    'summ_screen_fd-2': {
+        'context': 'Episode Script:',
+        'response': 'Summary:',
+        'tokens_to_generate': 640,
+        'subset': 'SummScreenFD/test_2.jsonl',
+        'chat_instruction': '',
+    },
+    'summ_screen_fd-3': {
+        'context': 'Episode Script:',
+        'response': 'Summary:',
+        'tokens_to_generate': 640,
+        'subset': 'SummScreenFD/test_3.jsonl',
+        'chat_instruction': '',
+    },
+    'qmsum': {
+        'context': 'Transcript:',
+        'response': 'Answer:',
+        'tokens_to_generate': 256,
+        'subset': 'QMSum/test.jsonl',
+        'chat_instruction': '',
+    },
+    'squality': {
+        'context': 'Story:',
+        'response': 'Answer:',
+        'tokens_to_generate': 640,
+        'subset': 'SQuALITY/validation.jsonl',
+        'chat_instruction': '',
+    },
+}
