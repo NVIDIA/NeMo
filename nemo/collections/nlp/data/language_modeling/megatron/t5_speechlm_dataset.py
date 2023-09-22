@@ -173,6 +173,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         skipped = 0
         tts = 0
+        asr = 0
         i = 0
         print(f"copy_dataset len === {len(copy_dataset)}")
         for json_line in tqdm(copy_dataset):
@@ -191,11 +192,15 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 if self.train_task != 'tts':
                     continue
             elif "Next token prediction" in question_in_manifest:
-                tts += 1
-                pass
+                if self.train_task != 'tts':
+                    asr += 1
+                else:
+                    tts += 1
+                continue
             else:
                 if self.train_task == 'tts':
                     continue
+                asr += 1
 
             if doc["context_type"] == "SPEECH":
                 assert "context_duration" in doc, f"context_duration key not in document {doc}"
@@ -220,7 +225,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 print(f"skipped for {approx_context_len + approx_question_len} {approx_answer_len} len")
                 skipped += 1
 
-        print(f"After Process len(self.examples) {len(self.examples)} {tts}")
+        print(f"After Process len(self.examples) {len(self.examples)} TTS = {tts} ASR = {asr}")
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
     def __getitem__(self, idx):

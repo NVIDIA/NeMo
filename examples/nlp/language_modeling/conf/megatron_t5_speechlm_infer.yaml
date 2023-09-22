@@ -59,6 +59,9 @@ model:
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
+  seq_pattern: "delay_parallel"
+  speech_head_type: "linear" # token_level, linear
+  cross_entropy_type: "regular" # regular, vocab_parallel
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
