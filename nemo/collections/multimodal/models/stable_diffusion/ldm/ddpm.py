@@ -36,6 +36,7 @@ from nemo.collections.multimodal.data.common.utils import get_collate_fn
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
     build_train_valid_datasets,
     build_train_valid_precached_datasets,
+    build_train_valid_precached_clip_datasets,
 )
 from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
 from nemo.collections.multimodal.models.stable_diffusion.diffusion_model import DiffusionModel
@@ -1984,14 +1985,15 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
 
-        if self.cfg.first_stage_key.endswith("encoded"):
-            self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
-                model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
-            )
-        elif self.cfg.first_stage_key.endswith("moments"):
-            self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
-                model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
-            )
+        if self.cfg.first_stage_key.endswith("encoded") or self.cfg.first_stage_key.endswith("moments"):
+            if self.cfg.cond_stage_key.endswith("encoded"):
+                self._train_ds, self._validation_ds = build_train_valid_precached_clip_datasets(
+                    model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
+                )
+            else:
+                self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
+                    model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
+                )
         else:
             self._train_ds, self._validation_ds = build_train_valid_datasets(
                 model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0)
