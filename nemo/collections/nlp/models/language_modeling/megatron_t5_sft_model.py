@@ -337,7 +337,6 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
             categories = batch['lang']
 
         if self.val_metric is not None or self.test_metric is not None:
-            breakpoint()
             metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
             assert len(categories) == len(preds_text) == len(labels_text)
             for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
