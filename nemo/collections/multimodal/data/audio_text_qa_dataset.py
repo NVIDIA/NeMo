@@ -33,7 +33,15 @@ from nemo.collections.asr.data.audio_to_text_dataset import ConcatDataset, conve
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.parts.preprocessing import collections
-from nemo.collections.multimodal.parts.utils.data_utils import ceil_to_nearest, maybe_cast_to_list
+from nemo.collections.multimodal.parts.utils.data_utils import (
+    ceil_to_nearest,
+    get_num_samples_from_files,
+    maybe_cast_to_list,
+)
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
+    get_datasets_weights_and_num_samples,
+)
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
@@ -407,7 +415,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         question_file: Optional[str] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
-        random_context_positive_ratio: Optional[int] = 2,
+        random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
     ):
         super().__init__(
@@ -438,7 +446,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         # If necessary, cache manifests and audio from object store
         cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
 
-        self.collection = collections.ALMAudioQA(
+        self.collection = collections.ALMAudioTextCollection(
             manifests_files=manifest_filepath,
             min_duration=min_duration,
             max_duration=max_duration,
@@ -447,7 +455,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             max_num_samples=max_num_samples,
             question_file=question_file,
             random_context_num=random_context_num,
-            random_context_positive_ratio=random_context_positive_ratio,
+            random_context_positive_percent=random_context_positive_percent,
             random_context_prob=random_context_prob,
         )
 
@@ -692,7 +700,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         question_file: Optional[str] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
-        random_context_positive_ratio: Optional[int] = 2,
+        random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
     ):
         super().__init__(
@@ -731,7 +739,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         # If necessary, cache manifests from object store
         cache_datastore_manifests(manifest_filepaths=manifest_filepath)
 
-        self.collection = collections.ALMAudioQA(
+        self.collection = collections.ALMAudioTextCollection(
             manifests_files=manifest_filepath,
             min_duration=min_duration,
             max_duration=max_duration,
@@ -739,7 +747,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             question_file=question_file,
             random_context_prob=random_context_prob,
             random_context_num=random_context_num,
-            random_context_positive_ratio=random_context_positive_ratio,
+            random_context_positive_percent=random_context_positive_percent,
         )
 
         self.len = self._compute_len()
@@ -949,7 +957,7 @@ def get_tarred_aqa_dataset(
             sample_alpha=config.get('sample_alpha', None),
             question_file=question_file,
             random_context_num=config.get('random_context_num', 3),
-            random_context_positive_ratio=config.get('random_context_positive_ratio', 2),
+            random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
             random_context_prob=config.get('random_context_prob', None),
         )
 
@@ -1074,47 +1082,92 @@ def get_aqa_dataset_from_config(
     config: DictConfig,
     tokenizer,
     augmentor,
+    is_train,
     sep_id: Optional[int] = None,
     answer_only_loss: bool = True,
     virtual_tokens: int = 0,
-    num_samples: Optional[List[int]] = None,
-    question_file: Optional[str] = None,
 ):
-    dataset = AudioQuestionAnswerDataset(
-        manifest_filepath=manifest_filepath,
-        tokenizer=tokenizer,
-        sample_rate=config.sample_rate,
-        int_values=config.get('int_values', False),
-        augmentor=augmentor,
-        max_duration=getattr(config, 'max_duration', None),
-        min_duration=getattr(config, 'min_duration', None),
-        max_utts=getattr(config, 'max_utts', -1),
-        trim=getattr(config, 'trim_silence', False),
-        channel_selector=getattr(config, 'channel_selector', None),
-        max_seq_length=config.max_seq_length,
-        min_seq_length=config.min_seq_length,
-        add_bos=config.get('add_bos', False),
-        add_eos=config.get('add_eos', True),
-        add_sep=config.get('add_sep', False),
-        sep_id=sep_id,
-        max_num_samples=num_samples,
-        seed=config.get('seed', 1234),
-        separate_prompt_and_response_with_newline=config.get('separate_prompt_and_response_with_newline', True),
-        answer_only_loss=answer_only_loss,
-        truncation_field=config.get('truncation_field', 'context'),
-        pad_to_max_length=config.get('pad_to_max_length', False),
-        prompt_template=config.get('prompt_template', None),
-        virtual_tokens=virtual_tokens,
-        tokens_to_generate=config.get(
-            'tokens_to_generate', 0
-        ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
-        input_key=config.get('input_key', 'input'),
-        output_key=config.get('output_key', 'output'),
-        end_string=config.get('end_string', None),
-        sample_alpha=config.get('sample_alpha', None),
-        random_context_prob=config.get('random_context_prob', None),
-        random_context_num=config.get('random_context_num', 3),
-        random_context_positive_ratio=config.get('random_context_positive_ratio', 2),
-        question_file=question_file,
-    )
-    return dataset
+    if isinstance(config.manifest_filepath, str):
+        manifest_filepath = config.manifest_filepath.split(',')
+    else:
+        manifest_filepath = config.manifest_filepath
+
+    datasets = []
+    if is_train:
+        # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
+        # that is of the format [weight1,file_name1,weight2,file_name2,...]
+        concat_sampling_probabilities = config.get('concat_sampling_probabilities', None)
+        if concat_sampling_probabilities is None:
+            concat_sampling_probabilities = [1.0 / len(manifest_filepath)] * len(manifest_filepath)
+        elif len(config.get('concat_sampling_probabilities', None)) != len(manifest_filepath):
+            raise ValueError(
+                (
+                    f"concat_sampling_probabilities must be of the same size as manifest_filepath.",
+                    f"Provided size {len(config.concat_sampling_probabilities)}, number of datasets {len(manifest_filepath)}",
+                )
+            )
+        data_prefix = []
+        for weight, prefix in zip(concat_sampling_probabilities, manifest_filepath):
+            data_prefix.append(weight)
+            data_prefix.append(prefix)
+
+        num_samples_per_dataset = get_num_samples_from_files(manifest_filepath)
+        num_train_samples = [len(manifest_filepath) * max(num_samples_per_dataset)]
+        _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
+        num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
+    else:
+        num_train_samples_per_dataset = [[None]] * len(manifest_filepath)
+
+    for dataset_idx, (file_path, num_samples) in enumerate(zip(manifest_filepath, num_train_samples_per_dataset)):
+        question_file_set = config.get('question_file_set', None)
+        if question_file_set is not None:
+            assert len(question_file_set) == len(manifest_filepath)
+            question_file = question_file_set[dataset_idx]
+        else:
+            question_file = None
+        dataset = AudioQuestionAnswerDataset(
+            manifest_filepath=manifest_filepath,
+            tokenizer=tokenizer,
+            sample_rate=config.sample_rate,
+            int_values=config.get('int_values', False),
+            augmentor=augmentor,
+            max_duration=getattr(config, 'max_duration', None),
+            min_duration=getattr(config, 'min_duration', None),
+            max_utts=getattr(config, 'max_utts', -1),
+            trim=getattr(config, 'trim_silence', False),
+            channel_selector=getattr(config, 'channel_selector', None),
+            max_seq_length=config.max_seq_length,
+            min_seq_length=config.min_seq_length,
+            add_bos=config.get('add_bos', False),
+            add_eos=config.get('add_eos', True),
+            add_sep=config.get('add_sep', False),
+            sep_id=sep_id,
+            max_num_samples=num_samples[0],
+            seed=config.get('seed', 1234),
+            separate_prompt_and_response_with_newline=config.get('separate_prompt_and_response_with_newline', True),
+            answer_only_loss=answer_only_loss,
+            truncation_field=config.get('truncation_field', 'context'),
+            pad_to_max_length=config.get('pad_to_max_length', False),
+            prompt_template=config.get('prompt_template', None),
+            virtual_tokens=virtual_tokens,
+            tokens_to_generate=config.get(
+                'tokens_to_generate', 0
+            ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
+            input_key=config.get('input_key', 'input'),
+            output_key=config.get('output_key', 'output'),
+            end_string=config.get('end_string', None),
+            sample_alpha=config.get('sample_alpha', None),
+            random_context_prob=config.get('random_context_prob', None),
+            random_context_num=config.get('random_context_num', 3),
+            random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
+            question_file=question_file,
+        )
+        datasets.append(dataset)
+
+    if is_train:
+        dataset = BlendableDataset(
+            datasets=datasets, weights=concat_sampling_probabilities, size=num_train_samples_after_blend
+        )
+        return dataset
+    else:
+        return datasets

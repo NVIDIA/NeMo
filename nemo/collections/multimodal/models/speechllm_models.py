@@ -35,10 +35,6 @@ from nemo.collections.multimodal.data.audio_text_qa_dataset import (
 )
 from nemo.collections.multimodal.modules.common.audio_text_generation_utils import generate
 from nemo.collections.multimodal.modules.speechllm_perception import AudioPerceptionModel
-from nemo.collections.multimodal.parts.utils.data_utils import get_num_samples_from_files
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-)
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -138,9 +134,9 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
                 param.requires_grad = False
             known_groups.append('model.')
         # TODO(heh): double check this part works properly
-        if self.cfg.get('freeze_matcher', False):
-            self.perception.matcher.freeze()
-            known_groups.append('matcher.')
+        if self.cfg.get('freeze_modality_adapter', False):
+            self.perception.modality_adapter.freeze()
+            known_groups.append('modality_adapter.')
         if self.cfg.get('freeze_audio_encoder', False):
             self.perception.encoder.freeze()
             known_groups.append('audio_encoder.')
@@ -179,7 +175,7 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         param_groups = [{"params": opt_params}] + param_groups
 
         self._optimizer_param_groups = param_groups
-        logging.info(f"Optimizer groups set:\n{self.summarize()}")
+        logging.info(f"Optimizer groups set:\n{self.summarize(max_depth=2)}")
 
     def inject_perception_input(self, encoded, encoded_len, input_ids, input_length):
         def _concat_embs(embs1, emb1_lens, embs2, emb2_lens):
@@ -378,108 +374,40 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         else:
             augmentor = None
 
+        # Check dataset max_seq_legnth and max_position_embeddings size
+        if (
+            self.cfg.get('position_embedding_type', None) in [None, 'learned_absolute']
+            and data_cfg.max_seq_length > self.cfg.max_position_embeddings
+        ):
+            logging.warning(
+                f"Set dataset max_seq_length to max_position_embeddings {self.cfg.max_position_embeddings} if using learned_absolute position embedding"
+            )
+            data_cfg.max_seq_length = self.cfg.max_position_embeddings
+
+        # Notably, the data weights are controlled by either bucketing_weights
+        # or concat_sampling_probabilities depending on the dataset type.
         if data_cfg.get('is_tarred', False):
-            return self._build_tarred_dataset(data_cfg, augmentor=augmentor)
-
-        merge_manifests = data_cfg.get('merge_manifests', False)
-
-        if isinstance(data_cfg.manifest_filepath, str):
-            manifest_filepath = data_cfg.manifest_filepath.split(',')
-        else:
-            manifest_filepath = data_cfg.manifest_filepath
-
-        if not is_train and merge_manifests:
-            dataset = get_aqa_dataset_from_config(
-                manifest_filepath=manifest_filepath,
+            return get_tarred_aqa_dataset_from_config(
                 config=data_cfg,
                 tokenizer=self.tokenizer,
                 augmentor=augmentor,
                 sep_id=self.sep_id,
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
                 virtual_tokens=self.virtual_tokens,
+                global_rank=parallel_state.get_data_parallel_rank(),
+                world_size=parallel_state.get_data_parallel_world_size(),
             )
-            return dataset
-
         else:
-            datasets = []
-            if is_train:
-                # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
-                # that is of the format [weight1,file_name1,weight2,file_name2,...]
-                concat_sampling_probabilities = data_cfg.get('concat_sampling_probabilities', None)
-                if concat_sampling_probabilities is None:
-                    concat_sampling_probabilities = [1.0 / len(manifest_filepath)] * len(manifest_filepath)
-                elif len(data_cfg.get('concat_sampling_probabilities', None)) != len(manifest_filepath):
-                    raise ValueError(
-                        (
-                            f"concat_sampling_probabilities must be of the same size as manifest_filepath.",
-                            f"Provided size {len(data_cfg.concat_sampling_probabilities)}, number of datasets {len(manifest_filepath)}",
-                        )
-                    )
-                data_prefix = []
-                for weight, prefix in zip(concat_sampling_probabilities, manifest_filepath):
-                    data_prefix.append(weight)
-                    data_prefix.append(prefix)
-
-                num_samples_per_dataset = get_num_samples_from_files(manifest_filepath)
-                num_train_samples = [len(manifest_filepath) * max(num_samples_per_dataset)]
-                _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(
-                    data_prefix, num_train_samples
-                )
-                num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
-            else:
-                num_train_samples_per_dataset = [[None]] * len(manifest_filepath)
-
-            # Check dataset max_seq_legnth and max_position_embeddings size
-            if (
-                self.cfg.get('position_embedding_type', None) in [None, 'learned_absolute']
-                and data_cfg.max_seq_length > self.cfg.max_position_embeddings
-            ):
-                logging.warning(
-                    f"Set dataset max_seq_length to max_position_embeddings {self.cfg.max_position_embeddings} if using learned_absolute position embedding"
-                )
-                data_cfg.max_seq_length = self.cfg.max_position_embeddings
-
-            for dataset_idx, (file_path, num_samples) in enumerate(
-                zip(manifest_filepath, num_train_samples_per_dataset)
-            ):
-                question_file_set = data_cfg.get('question_file_set', None)
-                if question_file_set is not None:
-                    assert len(question_file_set) == len(manifest_filepath)
-                    question_file = question_file_set[dataset_idx]
-                else:
-                    question_file = None
-                dataset = get_aqa_dataset_from_config(
-                    manifest_filepath=file_path,
-                    config=data_cfg,
-                    tokenizer=self.tokenizer,
-                    augmentor=augmentor,
-                    sep_id=self.sep_id,
-                    answer_only_loss=self.cfg.get('answer_only_loss', True),
-                    virtual_tokens=self.virtual_tokens,
-                    num_samples=num_samples[0],
-                    question_file=question_file,
-                )
-                datasets.append(dataset)
-
-            if is_train:
-                dataset = BlendableDataset(
-                    datasets=datasets, weights=concat_sampling_probabilities, size=num_train_samples_after_blend
-                )
-                return dataset
-            else:
-                return datasets
-
-    def _build_tarred_dataset(self, data_cfg, augmentor):
-        return get_tarred_aqa_dataset_from_config(
-            config=data_cfg,
-            tokenizer=self.tokenizer,
-            augmentor=augmentor,
-            sep_id=self.sep_id,
-            answer_only_loss=self.cfg.get('answer_only_loss', True),
-            virtual_tokens=self.virtual_tokens,
-            global_rank=parallel_state.get_data_parallel_rank(),
-            world_size=parallel_state.get_data_parallel_world_size(),
-        )
+            return get_aqa_dataset_from_config(
+                manifest_filepath=data_cfg.manifest_filepath,
+                config=data_cfg,
+                tokenizer=self.tokenizer,
+                augmentor=augmentor,
+                is_train=is_train,
+                sep_id=self.sep_id,
+                answer_only_loss=self.cfg.get('answer_only_loss', True),
+                virtual_tokens=self.virtual_tokens,
+            )
 
     def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
         """Buld dataloader given an input dataset."""
@@ -542,7 +470,7 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         with open_dict(gpt_cfg):
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
             gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
-            gpt_cfg.freeze_matcher = cfg.model.get('freeze_matcher', False)
+            gpt_cfg.freeze_modality_adapter = cfg.model.get('freeze_modality_adapter', False)
             gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
             gpt_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
             gpt_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
@@ -570,8 +498,8 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             gpt_cfg.perception = cfg.model.perception
             gpt_cfg.perception.preprocessor = audio_cfg.preprocessor
             gpt_cfg.perception.encoder = audio_cfg.encoder
-            matcher_cfg = gpt_cfg.perception.matcher
-            matcher_cfg.feat_in = audio_cfg.encoder.d_model
+            modality_adapter_cfg = gpt_cfg.perception.modality_adapter
+            modality_adapter_cfg.feat_in = audio_cfg.encoder.d_model
             gpt_cfg.perception.output_dim = gpt_cfg.hidden_size
             override_vocab_size = cfg.model.get('override_vocab_size', None)
             if override_vocab_size is not None:
@@ -745,8 +673,13 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
 
     def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: Optional[int] = None):
         inference_config = self.get_inference_config()
-        # need to overwrite some configuration, make it immutable
-        inference_config = inference_config.copy()
+        if inference_config is not None:
+            # need to overwrite some configuration, make it immutable
+            inference_config = inference_config.copy()
+        else:
+            inference_config = {'greedy': True, 'compute_logprob': False, 'tokens_to_generate': 5, 'add_BOS': False}
+            logging.warning(f'inference_config is not set. Use default: {inference_config}')
+
         if self.cfg.data.get('end_string', None):
             inference_config['end_strings'] = [self.cfg.data.end_string]
 

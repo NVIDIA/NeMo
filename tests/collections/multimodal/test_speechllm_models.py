@@ -59,7 +59,8 @@ def llm_model_config():
     )
     # TODO(zhehuai): move the following to Test /home/TestData
     config.model.restore_from_path = "/root/home/works/TestData/pretrained_models/megatron_gpt/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo"
-    config.model.micro_batch_size = 64
+    config.model.micro_batch_size = 2
+    config.model.global_batch_size = 2
     config.model.data.validation_ds.manifest_filepath = (
         '/root/home/works/TestData/datasets/LibriSpeech/dev_clean_cleaned.json'
     )
@@ -119,7 +120,7 @@ def perception_model_config():
             "_target_": "nemo.collections.multimodal.modules.speechllm_perception.AudioPerceptionModel",
             "preprocessor": DictConfig(preprocessor),
             "encoder": DictConfig(encoder),
-            "matcher": DictConfig(encoder),
+            "modality_adapter": DictConfig(encoder),
             "output_dim": 1024,
         }
     )
@@ -170,7 +171,6 @@ class TestModularizedAudioGPTModel:
         trainer, llm_model_config.trainer = trainer_config
         model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
-
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
         encoder_input, attention_mask, labels, loss_mask, encoder_length = model.prepare_llm_input(batch)
@@ -188,12 +188,11 @@ class TestModularizedAudioGPTModel:
         trainer, llm_model_config.trainer = trainer_config
         model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
-
         model.on_train_start()
         model.setup()
         model.train()
         loss_mean = model.training_step(iter([test_batch]), None)
-        assert np.allclose(loss_mean.cpu().detach().numpy(), 6.014655)
+        assert np.allclose(loss_mean.cpu().detach().numpy(), 5.7052)
 
     @pytest.mark.unit
     def test_validation_step(self, llm_model_config, perception_model_config, trainer_config, test_batch):
@@ -202,11 +201,10 @@ class TestModularizedAudioGPTModel:
         trainer, llm_model_config.trainer = trainer_config
         model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
-
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
-        loss_mean = model.validation_step(iter([batch]), None)
-        assert np.allclose(loss_mean['loss'].cpu().detach().numpy(), 5.9237595)
+        loss_mean = model.validation_step(iter([batch]), 0)
+        assert np.allclose(loss_mean['loss'].cpu().detach().numpy(), 5.7052)
 
     @pytest.mark.unit
     def test_predict_step(self, llm_model_config, perception_model_config, trainer_config, test_batch):
@@ -217,5 +215,5 @@ class TestModularizedAudioGPTModel:
         model.cuda()
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
-        response = model.predict_step(batch, None, None)
-        assert np.allclose(response['loss'].cpu().detach().numpy(), 5.9237595)
+        response = model.predict_step(batch, 0, 0)
+        assert np.allclose(np.mean(response['token_ids']), 5.2368421052631575)

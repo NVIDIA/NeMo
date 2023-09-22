@@ -67,7 +67,7 @@ model:
   pretrained_audio_model: stt_en_fastconformer_transducer_large
   freeze_llm: True
   freeze_audio_encoder: False
-  freeze_matcher: False
+  freeze_modality_adapter: False
   load_audio_encoder: True
 
   global_batch_size: 128
@@ -129,7 +129,7 @@ model:
       init_std: 0.023
 
   perception:
-    matcher: 
+    modality_adapter: 
       _target_: nemo.collections.asr.modules.ConformerEncoder
       feat_in: 1024
       feat_out: -1 # you may set it if you need different output size other than the default d_model
@@ -213,11 +213,10 @@ model:
       max_seq_length: 2048
       min_seq_length: 1
       drop_last: True
-      # Example of how to specify concat_sampling_probabilities
-      # concat_sampling_probabilities:
-      #   - 0.5
-      #   - 0.25
-      #   - 0.25
+      # Notably, the data weights are controlled by either bucketing_weights
+      # or concat_sampling_probabilities depending on the dataset type (tar and
+      # non-tar).
+      # See audio_text_qa_dataset.py for details.
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
       context_key: 'input'
       label_key: 'output'

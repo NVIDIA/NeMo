@@ -235,8 +235,12 @@ class ASRAudioText(AudioText):
         )
 
 
-class AudioQuestAns(_Collection):
-    """List of audio-transcript text correspondence with preprocessing."""
+class ALMAudioText(_Collection):
+    """List of audio-transcript text correspondence with preprocessing.
+    
+    All of the audio, duration, question, answer are optional.
+    If answer is not present, text is treated as the answer.
+    """
 
     OUTPUT_TYPE = collections.namedtuple(
         typename='AudioQAEntity', field_names='id audio_file duration question answer offset speaker orig_sr lang',
@@ -261,6 +265,7 @@ class AudioQuestAns(_Collection):
         max_num_samples: Optional[int] = None,
     ):
         """Instantiates audio-question-answer manifest with filters and preprocessing.
+
 
         Args:
             ids: List of examples positions.
@@ -341,8 +346,11 @@ class AudioQuestAns(_Collection):
         super().__init__(data)
 
 
-class ALMAudioQA(AudioQuestAns):
-    """`AudioQuestAns` collector from audio-LM json files."""
+class ALMAudioTextCollection(ALMAudioText):
+    """`ALMAudioText` collector from audio-LM json files.
+    
+    This collector also keeps backward compatibility with ASRFeatureLabel.
+    """
 
     def __init__(
         self,
@@ -350,7 +358,7 @@ class ALMAudioQA(AudioQuestAns):
         question_file: Optional[str] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
-        random_context_positive_ratio: Optional[int] = 2,
+        random_context_positive_percent: Optional[float] = 0.1,
         *args,
         **kwargs,
     ):
@@ -383,6 +391,7 @@ class ALMAudioQA(AudioQuestAns):
             self.random_questions = None
         self.random_context_prob = random_context_prob
         self.random_context_num = random_context_num
+        self.random_context_positive_percent = random_context_positive_percent
         self.random_context = []
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
@@ -446,14 +455,16 @@ class ALMAudioQA(AudioQuestAns):
         else:
             question = np.random.choice(self.random_questions).strip()
             if self.random_context_prob is not None:
-                if np.random.random() < self.random_context_prob:
-                    current_words = item['answer'].strip().split()
-                    candidate_words = current_words[: len(current_words) // 2] + self.random_context
-                    context = f"Following words may occur in audio: {np.random.choice(candidate_words, self.random_context_num)} ".replace(
-                        '\n', ''
-                    )
-                    self.random_context = current_words
+                current_words = item['answer'].strip().split()
+                if np.random.random() < self.random_context_prob and self.random_context:
+                    positive_num = int(self.random_context_num * self.random_context_positive_percent)
+                    positives = np.random.choice(current_words, positive_num)
+                    negatives = np.random.choice(self.random_context, self.random_context_num - positive_num)
+                    candidate_words = np.concatenate((positives, negatives))
+                    np.random.shuffle(candidate_words)
+                    context = f"Following words may occur in audio: {candidate_words} ".replace('\n', '')
                     question = context + question
+                self.random_context = current_words
             item['question'] = question
 
         item = dict(

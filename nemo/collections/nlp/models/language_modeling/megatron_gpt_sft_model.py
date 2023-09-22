@@ -529,17 +529,15 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
             if metric_name != 'loss':
                 metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-                # TODO(zhehuai)
                 metric_fn = self.val_metric[0] if mode == 'validation' else self.test_metric[0]
                 if metric_label_key in deduplicated_outputs['metadata'][0]:
                     labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
                 else:
                     labels = deduplicated_outputs['labels']
 
+                # sacrebleu.corpus_bleu is commonly used which does not share
+                # the same interface as other metrics. We handle it separately.
                 if metric_name == 'bleu':
-                    # TODO(zhehuai): confirm with Olexsii H on the bleu is correct
-                    # _ = metric_fn(deduplicated_outputs['preds'], [[label] for label in labels])
-                    # _ = metric_fn(deduplicated_outputs['preds'], [labels])
                     metric_result = torch.Tensor(
                         [sacrebleu.corpus_bleu(deduplicated_outputs['preds'], [labels]).score]
                     )

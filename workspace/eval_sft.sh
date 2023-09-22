@@ -18,18 +18,25 @@ ALM_YAML='../../models/debug0cff_2bsft_inf_sel_FC-GPT_2b_sft_ls960_lr1e-4wd1e-3_
 
 VAL_MANIFESTS="[/media/data/datasets/LibriSpeech/dev_clean_10_q.json]"
 VAL_NAMES="[dev_clean_10]"
-VAL_MANIFESTS="[/media/data/datasets/LibriSpeech/test_clean_q.json]"
-VAL_NAMES="[test_clean_q]"
+VAL_MANIFESTS="[/media/data/datasets/LibriSpeech/test_clean_32.json]"
+VAL_NAMES="[test_clean_32]"
+
+VAL_MANIFESTS="[/media/data/datasets/LibriSpeech/test_clean_q.json,/media/data/datasets/LibriSpeech/test_clean_q.json]"
+VAL_NAMES="[test_clean_q,test_clean_q]"
+
+
 
 HYDRA_FULL_ERROR=1 
-#python -m pdb -c continue \
-python \
+#python \
+python -m pdb -c continue \
 eval_audio_gpt_lora.py \
     model.restore_from_path=$MEGATRON_CKPT \
     model.peft.restore_from_path=$ALM_CKPT \
     model.peft.restore_from_hparams_path=$ALM_YAML \
     model.data.test_ds.manifest_filepath=$VAL_MANIFESTS \
     model.data.test_ds.names=$VAL_NAMES \
-    model.data.test_ds.global_batch_size=2 \
-	model.data.test_ds.micro_batch_size=2 \
+    model.data.test_ds.global_batch_size=4 \
+    ++inference.greedy=False \
+    ++inference.temperature=0.8 \
+	model.data.test_ds.micro_batch_size=4 \
 	model.data.test_ds.tokens_to_generate=128
