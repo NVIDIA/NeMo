@@ -74,6 +74,10 @@ class NLPAdapterModelMixin:
         else:
             self.model_prefix = "model.module." if self.cfg.megatron_amp_O2 else "model."
 
+        self.use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
+        if self.use_mcore_gpt:
+            assert HAVE_MEGATRON_CORE, "You set `mcore_gpt` as True but megatron core is not found."
+
     def first_stage_of_pipeline(self):
         if hasattr(self, "model") and hasattr(self.model, "pre_process"):
             return self.model.pre_process
@@ -93,6 +97,76 @@ class NLPAdapterModelMixin:
         # we include buffers because ptuning representations are cached in a buffer and saved to state_dict for inference time use.
         return set(k + b)
 
+    def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
+        if name_key_to_mcore_mixins is not None:
+            for mcore_target, mcore_mixin in name_key_to_mcore_mixins[peft_name]:
+                if name in [
+                    mcore_target,
+                    f'model.{mcore_target}',
+                    f'model.module.{mcore_target}',
+                ]:  # simple string match for now
+                    swap_mcore_mixin(module, mcore_mixin)
+                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                        module.add_adapter(
+                            name=peft_name,
+                            cfg=peft_cfg,
+                            base_model_cfg=self.cfg,
+                            model_parallel_config=self.model_parallel_config,
+                        )
+        elif isinstance(module, AdapterModuleMixin):
+            if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                module.add_adapter(
+                    name=peft_name,
+                    cfg=peft_cfg,
+                    base_model_cfg=self.cfg,
+                    model_parallel_config=self.model_parallel_config,
+                )
+
+    def _check_and_add_peft_cfg(self, peft_cfg):
+
+        layer_selection = peft_cfg.layer_selection
+
+        assert not self.use_mcore_gpt or hasattr(
+            peft_cfg, 'name_key_to_mcore_mixins'
+        ), f"{peft_cfg.__class__.__name__} is not supported in megatron core mode yet."
+        name_key_to_mcore_mixins = peft_cfg.name_key_to_mcore_mixins if self.use_mcore_gpt else None
+
+        for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
+            # self.mcore_gpt means is GPT and not T5
+            if hasattr(self, 'mcore_gpt') and not isinstance(adapter_cfg, PromptEncoderAdapterConfig):
+                if layer_selection is not None:
+                    logging.info(
+                        f"Layer selection {layer_selection} is enabled for the current model ("
+                        f"{self.__class__.__name__} + {adapter_name})"
+                    )
+                if self.use_mcore_gpt:
+                    if self.cfg.megatron_amp_O2:
+                        layers = self.model.module.decoder.layers
+                    else:
+                        layers = self.model.decoder.layers
+                else:
+                    if self.cfg.megatron_amp_O2:
+                        layers = self.model.module.language_model.encoder.layers
+                    else:
+                        layers = self.model.language_model.encoder.layers
+                if layer_selection is None:
+                    layer_selection = list(range(1, self.cfg.num_layers + 1))
+                for layer in layers:
+                    if layer.layer_number in layer_selection:
+                        for name, module in layer.named_modules():
+                            self._check_and_add_adapter(
+                                name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
+                            )
+            else:
+                # Non GPT models, as well as GPT+PTuning do not support layer selection
+                if layer_selection is not None:
+                    logging.warning(
+                        "Layer selection is specified, but it is not supported for either "
+                        f"{self.__class__.__name__} or {adapter_name})"
+                    )
+                for name, module in self.named_modules():
+                    self._check_and_add_adapter(name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins)
+
     def add_adapter(self, peft_cfgs: Union[PEFTConfig, List[PEFTConfig]]):
         """
         High level API to add one or more adapter modules to the model, and freeze the base weights
@@ -103,31 +177,6 @@ class NLPAdapterModelMixin:
             peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
         """
 
-        def _check_and_add_adapter(name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
-            if name_key_to_mcore_mixins is not None:
-                for mcore_target, mcore_mixin in name_key_to_mcore_mixins[peft_name]:
-                    if name in [
-                        mcore_target,
-                        f'model.{mcore_target}',
-                        f'model.module.{mcore_target}',
-                    ]:  # simple string match for now
-                        swap_mcore_mixin(module, mcore_mixin)
-                        if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                            module.add_adapter(
-                                name=peft_name,
-                                cfg=peft_cfg,
-                                base_model_cfg=self.cfg,
-                                model_parallel_config=self.model_parallel_config,
-                            )
-            elif isinstance(module, AdapterModuleMixin):
-                if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                    module.add_adapter(
-                        name=peft_name,
-                        cfg=peft_cfg,
-                        base_model_cfg=self.cfg,
-                        model_parallel_config=self.model_parallel_config,
-                    )
-
         if not isinstance(peft_cfgs, List):
             peft_cfgs = [peft_cfgs]
 
@@ -135,9 +184,6 @@ class NLPAdapterModelMixin:
         self.freeze()
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
-        use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
-        if use_mcore_gpt:
-            assert HAVE_MEGATRON_CORE, "You set `mcore_gpt` as True but megatron core is not found."
 
         self.use_ptuning_only = len(peft_cfgs) == 1 and isinstance(peft_cfgs[0], PtuningPEFTConfig)
 
@@ -148,48 +194,7 @@ class NLPAdapterModelMixin:
                     continue
                 self.virtual_tokens = peft_cfg.virtual_tokens
 
-            layer_selection = peft_cfg.layer_selection
-
-            assert not use_mcore_gpt or hasattr(
-                peft_cfg, 'name_key_to_mcore_mixins'
-            ), f"{peft_cfg.__class__.__name__} is not supported in megatron core mode yet."
-            name_key_to_mcore_mixins = peft_cfg.name_key_to_mcore_mixins if use_mcore_gpt else None
-
-            for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
-                # self.mcore_gpt means is GPT and not T5
-                if hasattr(self, 'mcore_gpt') and not isinstance(adapter_cfg, PromptEncoderAdapterConfig):
-                    if layer_selection is not None:
-                        logging.info(
-                            f"Layer selection {layer_selection} is enabled for the current model ("
-                            f"{self.__class__.__name__} + {adapter_name})"
-                        )
-                    if use_mcore_gpt:
-                        if self.cfg.megatron_amp_O2:
-                            layers = self.model.module.decoder.layers
-                        else:
-                            layers = self.model.decoder.layers
-                    else:
-                        if self.cfg.megatron_amp_O2:
-                            layers = self.model.module.language_model.encoder.layers
-                        else:
-                            layers = self.model.language_model.encoder.layers
-                    if layer_selection is None:
-                        layer_selection = list(range(1, self.cfg.num_layers + 1))
-                    for layer in layers:
-                        if layer.layer_number in layer_selection:
-                            for name, module in layer.named_modules():
-                                _check_and_add_adapter(
-                                    name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
-                                )
-                else:
-                    # Non GPT models, as well as GPT+PTuning do not support layer selection
-                    if layer_selection is not None:
-                        logging.warning(
-                            "Layer selection is specified, but it is not supported for either "
-                            f"{self.__class__.__name__} or {adapter_name})"
-                        )
-                    for name, module in self.named_modules():
-                        _check_and_add_adapter(name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins)
+            self._check_and_add_peft_cfg(peft_cfg)
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
@@ -284,10 +289,10 @@ class NLPAdapterModelMixin:
         assert set(state_dict.keys()) == self.adapter_keys
         super().load_state_dict(state_dict, strict=False)
 
-    def tie_weights(self, peft_cfg, use_mcore_gpt):
+    def tie_weights(self, peft_cfg):
         pos_idx = 0
 
-        if use_mcore_gpt:
+        if self.use_mcore_gpt:
             if self.cfg.megatron_amp_O2:
                 layers = self.model.module.decoder.layers
             else:
