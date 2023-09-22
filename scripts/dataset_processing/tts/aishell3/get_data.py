@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Disclaimer: 
+#   Each user is responsible for checking the content of datasets and the applicable licenses and determining if suitable for the intended use.
+
 import argparse
 import json
 import os
