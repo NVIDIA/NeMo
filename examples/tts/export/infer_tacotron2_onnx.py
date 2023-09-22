@@ -16,8 +16,6 @@ import numpy as np
 import onnxruntime as ort
 import soundfile as sf
 
-# Load HifiGanModel
-# Load Tacotron2
 from nemo.collections.tts.models import HifiGanModel, Tacotron2Model
 
 
