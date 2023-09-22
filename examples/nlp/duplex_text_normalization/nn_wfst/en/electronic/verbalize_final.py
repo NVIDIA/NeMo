@@ -18,7 +18,7 @@ try:
     from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst
     from nn_wfst.en.electronic.verbalize import VerbalizeFst
     from pynini.lib import pynutil
-except ModuleNotFoundError:
+except (ImportError, ModuleNotFoundError):
     raise ModuleNotFoundError(
         "The package `nemo_text_processing` was not installed in this environment. Please refer to"
         " https://github.com/NVIDIA/NeMo-text-processing and install this package before using "

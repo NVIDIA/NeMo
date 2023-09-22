@@ -61,7 +61,7 @@ from nemo.utils import logging
 
 try:
     from nemo_text_processing.text_normalization.data_loader_utils import post_process_punct
-except ModuleNotFoundError:
+except (ImportError, ModuleNotFoundError):
     raise ModuleNotFoundError(
         "The package `nemo_text_processing` was not installed in this environment. Please refer to"
         " https://github.com/NVIDIA/NeMo-text-processing and install this package before using "
