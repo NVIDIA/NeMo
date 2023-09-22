@@ -123,7 +123,7 @@ def main():
         true_answers = pred_line[args.ground_truth_field]
         if not isinstance(true_answers, list):
             true_answers = [true_answers]
-        print(pred_answer, true_answers)
+
         r_scores = []
         for ta in true_answers:
             r_scores.append(scorer.score(ta, pred_answer)['rougeL'].fmeasure)
