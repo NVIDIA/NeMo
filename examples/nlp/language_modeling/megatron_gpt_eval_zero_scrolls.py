@@ -12,17 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
-import os
 import json
-import threading
-from functools import partial
+import os
 
 import torch
+from constants import TASKS
 from omegaconf import OmegaConf, open_dict
+from prepare_truncated_data import process_data
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
-from prepare_truncated_data import process_data
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
@@ -33,7 +31,6 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRest
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
-from constants import TASKS
 
 try:
     from megatron.core import parallel_state
@@ -48,10 +45,10 @@ except (ImportError, ModuleNotFoundError):
 This is the script to Zero-Scrolls evaluation with base GPT models (FA is enabled).
 
 Supported tasks:
-    'book_sum_sort' 'gov_report' 'narrative_qa' 'qasper' 'qmsum' 'summ_screen_fd' 'quality' 'squality' 'musique' 'space_digest' 
+    ['book_sum_sort', 'gov_report', 'narrative_qa', 'qasper', 'qmsum', 'summ_screen_fd', 'quality', 'squality', 'musique', 'space_digest']
 
-See NeMo/examples/nlp/language_modeling/constants.py for the exact subset used for each task. We use "test" if labeled data is available, otherwise "validation".
-DATA_DIR - is the path to the folder with subsets for all scrolls tasks.
+See NeMo/examples/nlp/language_modeling/constants.py for the exact subset used for each task. We use 'test' if labeled data is available, otherwise 'validation'.
+`DATA_DIR` - is the path to the folder with subsets for all scrolls tasks.
 
 Usage:
     python ${NEMO_DIR}/examples/nlp/language_modeling/megatron_gpt_eval_zero_scrolls.py \
@@ -66,16 +63,14 @@ Usage:
         inference.task=${TASK} \
         inference.data_dir=${DATA_DIR} \
         inference.batch_size=1 \
-        inference.greedy=True \
-        inference.add_BOS=False \
-        inference.max_seq_length=${MAX_SEQ_LENGTH} 
+        inference.max_seq_length=${MAX_SEQ_LENGTH}
 
-The output of this script is a jsonl file with original fields and the generated output stored at "pred" field.
+The output of this script is a jsonl file with original fields and the generated output stored at 'pred' field.
 
 To evaluate the generated predictions, run (https://gitlab-master.nvidia.com/yangzhang/llm_long_context):
     python llm_long_context/gpt_zero-shot/zero_scrolls/metrics_zero_scrolls.py \
         --predictions_file=${PREDICTIONS}.jsonl \
-        --task=${TASK} 
+        --task=${TASK}
 """
 
 if not torch.cuda.is_available():
@@ -169,7 +164,7 @@ def main(cfg) -> None:
             if cfg.get("model", None) is not None and cfg.model.get("encoder", None) is not None:
                 for k, v in cfg.model.encoder.items():
                     pretrained_cfg[k] = v
-            
+
             pretrained_cfg.apply_query_key_layer_scaling = False
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
@@ -211,41 +206,21 @@ def main(cfg) -> None:
         model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
-    
-    length_params: LengthParam = {
-        "max_length": cfg.inference.task,
-        "min_length": cfg.inference.min_tokens_to_generate,
-    }
-
-    sampling_params: SamplingParam = {
-        "use_greedy": cfg.inference.greedy,
-        "temperature": cfg.inference.temperature,
-        "top_k": cfg.inference.top_k,
-        "top_p": cfg.inference.top_p,
-        "repetition_penalty": cfg.inference.repetition_penalty,
-        "add_BOS": cfg.inference.add_BOS,
-        "all_probs": cfg.inference.all_probs,
-        "compute_logprob": cfg.inference.compute_logprob,
-        "end_strings": cfg.inference.end_strings,
-    }
 
     fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
     if fp8_enabled:
         nb_paddings = 0
-        while len(cfg.prompts) % 8 != 0:
-            cfg.prompts.append("")
-            nb_paddings += 1
 
     print("Processing data...")
-    original_lines, truncated_input = process_data(model.tokenizer,
-                         prompt=None,
-                         task=cfg.inference.task,
-                         max_seq_length=cfg.inference.max_seq_length,
-                         data_dir=cfg.inference.data_dir,
-                         n_jobs=cfg.inference.n_jobs,
-                         remove_newline_tab=cfg.inference.remove_newline_tab)
-
-    truncated_input = [s.replace("\n"," ").replace("\t"," ").strip().replace("  ", " ") for s in truncated_input]
+    original_lines, truncated_input = process_data(
+        model.tokenizer,
+        prompt=cfg.chatbot_config.prompt if cfg.chat else None,
+        task=cfg.inference.task,
+        max_seq_length=cfg.inference.max_seq_length,
+        data_dir=cfg.inference.data_dir,
+        n_jobs=cfg.inference.n_jobs,
+        remove_newline_tab=cfg.inference.remove_newline_tab,
+    )
 
     print("Running inference...")
     bs = cfg.inference.batch_size
@@ -274,6 +249,7 @@ def main(cfg) -> None:
         else:
             print(response)
     print("***************************")
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
