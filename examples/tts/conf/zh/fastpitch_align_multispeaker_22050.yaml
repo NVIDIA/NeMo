@@ -7,7 +7,7 @@ name: FastPitch
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: [ "align_prior_matrix", "pitch" ]
+sup_data_types: [ "align_prior_matrix", "pitch", "speaker_id"]
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -40,10 +40,12 @@ model:
   learn_alignment: true
   bin_loss_warmup_epochs: 100
 
-  n_speakers: 1
+  n_speakers: 1958
   max_token_duration: 75
   symbols_embedding_dim: 384
   pitch_embedding_kernel_size: 3
+  speaker_emb_condition_prosody: true
+  speaker_emb_condition_aligner: true
 
   pitch_fmin: ${pitch_fmin}
   pitch_fmax: ${pitch_fmax}
