@@ -254,6 +254,7 @@ class MegatronMultimodalModel(MultimodalModel):
         self._validate_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
+        self.with_megatron_fused_adam = cfg.optim.get('name') == 'megatron_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
@@ -444,6 +445,10 @@ class MegatronMultimodalModel(MultimodalModel):
 
         clip_val = float(clip_val)
         if clip_val <= 0:
+            return
+
+        if self.with_megatron_fused_adam:
+            # Gradient clipping is done in optimizer step
             return
 
         if self.grad_clip_pl_default:
