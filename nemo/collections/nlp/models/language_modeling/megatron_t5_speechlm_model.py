@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import editdistance
 import itertools
 import os
 from typing import Any, List
 
+import editdistance
 import numpy as np
 import soundfile as sf
 import torch
@@ -253,8 +253,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
-            t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens 39168
-            t5_cfg.seq_length = cfg.data.max_seq_length 
+            t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056  # cfg.num_speech_tokens 39168
+            t5_cfg.seq_length = cfg.data.max_seq_length
             t5_cfg.max_position_embeddings = cfg.data.max_seq_length
 
         self.frozen_model = MegatronT5Model.restore_from(
@@ -361,13 +361,13 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     with torch.cuda.amp.autocast(enabled=False):
                         # Encodec does not work with fp16, so we disable autocast for logging audio
                         if torch.count_nonzero(speech_mask) == 0:
-                            text_labels = labels[:, 0, :] # [B, 8, T] -> [B, T]
-                            token_logits = out_logits[0] * 1 # [T, B, V]
+                            text_labels = labels[:, 0, :]  # [B, 8, T] -> [B, T]
+                            token_logits = out_logits[0] * 1  # [T, B, V]
                             if self.frozen_model.enc_dec_model.parallel_output:
                                 # Gather from tensor parallel region
                                 token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
-                            token_logits = token_logits.argmax(dim=2) # [T, B]
-                            token_logits = token_logits.t() # [B, T]
+                            token_logits = token_logits.argmax(dim=2)  # [T, B]
+                            token_logits = token_logits.t()  # [B, T]
                             score = 0
                             for i in range(text_labels.size()[0]):
                                 r = text_labels[i].long()
@@ -384,9 +384,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             labels_to_1024 = self.convert_tokens_to_range(labels[0, :, 0:audio_len])
                             label_wav = self.additional_models['encodec'].decode([[labels_to_1024[None], None]])[0, 0]
                             dec_input_to_1024 = self.convert_tokens_to_range(dec_input[0, :, 0:audio_len])
-                            dec_input_wav = self.additional_models['encodec'].decode([[dec_input_to_1024[None], None]])[
-                                0, 0
-                            ]
+                            dec_input_wav = self.additional_models['encodec'].decode(
+                                [[dec_input_to_1024[None], None]]
+                            )[0, 0]
                             self.logger.experiment.add_audio("Target Wav", label_wav, self.global_step, 24000)
                             self.logger.experiment.add_audio("Dec Input Wav", dec_input_wav, self.global_step, 24000)
 
@@ -798,7 +798,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             sup_data_path=self.cfg.data.get('sup_data_path', '/sup_data_path'),
             speech_offset=self.cfg.data.get('speech_offset', None),
             train_task=self.cfg.data.get('train_task', "tts"),
-            seq_pattern=self.cfg.get('seq_pattern', 'delay_parallel')
+            seq_pattern=self.cfg.get('seq_pattern', 'delay_parallel'),
         )
 
         rank = parallel_state.get_data_parallel_rank()
@@ -874,9 +874,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         output_logits[:, t, :, :].permute(0, 2, 1).contiguous().view(-1, self.speech_codebook_size)
                     )  # (B*8, V)
                 else:
-                    output_logits_currtimestep = (
-                        token_logits_currtimestep
-                    ) # (B, V)
+                    output_logits_currtimestep = token_logits_currtimestep  # (B, V)
                 temperature = self.cfg.get('temperature', 0.7)  # Set temp 0.01 for greedy decoding
                 output_logits_currtimestep = output_logits_currtimestep / temperature
                 output_logits_currtimestep = torch.nn.functional.softmax(output_logits_currtimestep, dim=1)
@@ -981,7 +979,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 wer_score /= batch_size
                 self.logger.experiment.add_scalar('AVG WER', wer_score, step)
                 print(f"average wer score : {wer_score}")
-
 
                 # save predicted_wav and gt_wav to a wav files in dir_path
                 audio_fp_pred = os.path.join(_exp_dir_path, f'predicted_wav_{step}.wav')

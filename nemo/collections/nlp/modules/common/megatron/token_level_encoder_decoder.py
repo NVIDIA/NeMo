@@ -704,7 +704,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                             )
                             logging.debug(f"token_loss: {tokens_loss}")
                             logging.debug(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
-                            if self.seq_pattern in ["parallel", "delay_parallel"] and torch.count_nonzero(speech_mask) > 0:
+                            if (
+                                self.seq_pattern in ["parallel", "delay_parallel"]
+                                and torch.count_nonzero(speech_mask) > 0
+                            ):
                                 for i in range(speech_layers):
                                     # What is labels[:7, :, :] if this is text? (It is all zeros)
                                     curr_codebook_loss = (
