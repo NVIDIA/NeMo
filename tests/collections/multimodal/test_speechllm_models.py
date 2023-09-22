@@ -216,4 +216,4 @@ class TestModularizedAudioGPTModel:
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
         response = model.predict_step(batch, 0, 0)
-        assert np.allclose(np.mean(response['token_ids']), 5.2368421052631575)
+        assert np.allclose(np.mean(response['token_ids']), 2429.3169014084506)

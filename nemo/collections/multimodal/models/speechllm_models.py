@@ -92,7 +92,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["ModularizedAudioGPTModel"]
 
 
-default_inference_config = {'greedy': True, 'compute_logprob': False, 'tokens_to_generate': 5, 'add_BOS': False}
+default_inference_config = {'tokens_to_generate': 30}
 
 
 class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
