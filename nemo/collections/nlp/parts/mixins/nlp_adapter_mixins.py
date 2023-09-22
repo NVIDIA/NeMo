@@ -14,7 +14,7 @@
 
 import os
 import tempfile
-from typing import List, Union
+from typing import List, Union, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -37,7 +37,7 @@ from nemo.collections.nlp.parts.peft_config import (
     CanonicalAdaptersPEFTConfig,
     LoraPEFTConfig,
     PEFTConfig,
-    PtuningPEFTConfig,
+    PtuningPEFTConfig, PEFT_CONFIG_MAP,
 )
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModuleMixin,
@@ -196,7 +196,7 @@ class NLPAdapterModelMixin:
 
         for cfg in peft_cfgs:
             if cfg.weight_tying:
-                self.tie_weights(cfg, use_mcore_gpt)
+                self.tie_weights(cfg)
         self.use_peft = True
 
     def _get_config_and_state_dict_from_nemo(self, filepath, map_location):
@@ -246,7 +246,7 @@ class NLPAdapterModelMixin:
             super().setup_optimizer_param_groups()
 
     def load_adapters(
-        self, filepath: str, peft_cfgs: Union[PEFTConfig, List[PEFTConfig]], map_location: str = None,
+        self, filepath: str, peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None, map_location: str = None,
     ):
         """
         Utility method that restores only the adapter module(s), and not the entire model itself.
@@ -259,10 +259,10 @@ class NLPAdapterModelMixin:
 
         Args:
             filepath: Filepath of the .ckpt or .nemo file.
-            peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
+            peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration.
+                If none, will infer from the .nemo checkpoint
             map_location: Pytorch flag, where to place the adapter(s) state dict(s).
         """
-        self.add_adapter(peft_cfgs)
 
         # Determine device
         if map_location is None:
@@ -272,12 +272,15 @@ class NLPAdapterModelMixin:
                 map_location = 'cpu'
 
         if filepath.endswith('.nemo'):
-            _, state_dict = self._get_config_and_state_dict_from_nemo(filepath, map_location)
+            conf, state_dict = self._get_config_and_state_dict_from_nemo(filepath, map_location)
         elif filepath.endswith('.ckpt'):
             state_dict = torch.load(filepath, map_location)['state_dict']
         else:
             raise RuntimeError(f"{filepath} is not nemo file or ckpt file")
-
+        if not peft_cfgs:
+            assert filepath.endswith('.nemo'), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
+            peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
+        self.add_adapter(peft_cfgs)
         assert set(state_dict.keys()) == self.adapter_keys
         super().load_state_dict(state_dict, strict=False)
 

@@ -117,10 +117,10 @@ def main(cfg) -> None:
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    model_cfg = MegatronT5SFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
+    model_cfg = MegatronT5SFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
     model = MegatronT5SFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
-    peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
-    model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+
+    model.load_adapters(cfg.model.peft.restore_from_path)
 
     model.freeze()
     logging.info(f"Freezing parameters for PEFT eval:\n{model.summarize()}")
