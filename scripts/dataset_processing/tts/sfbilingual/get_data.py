@@ -31,6 +31,7 @@ except ModuleNotFoundError:
         "this script"
     )
 
+
 def get_args():
     parser = argparse.ArgumentParser(
         description='Prepare SF_bilingual dataset and create manifests with predefined split'
