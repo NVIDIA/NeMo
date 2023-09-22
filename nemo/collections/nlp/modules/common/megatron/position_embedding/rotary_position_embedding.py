@@ -86,22 +86,7 @@ class RotaryEmbedding(nn.Module):
             self.beta_slow = beta_slow
             self.dim = dim
 
-            pos_freqs = self.base ** (torch.arange(0, self.dim, 2).float() / self.dim)
-            inv_freq_extrapolation = 1.0 / pos_freqs
-            inv_freq_interpolation = 1.0 / (self.seq_len_interpolation_factor * pos_freqs)
-
-            low, high = find_correction_range(
-                self.beta_fast, self.beta_slow, self.dim, self.base, self.max_positional_embeddings
-            )
-            inv_freq_mask = (
-                1 - linear_ramp_mask(low, high, self.dim // 2).float()
-            ) * self.extrapolation_factor  # Get n-d rotational scaling corrected for extrapolation
-            inv_freq = inv_freq_interpolation * (1 - inv_freq_mask) + inv_freq_extrapolation * inv_freq_mask
-
-            self.register_buffer("inv_freq", inv_freq)
-            self.mscale = float(
-                get_mscale(self.seq_len_interpolation_factor) * self.attn_factor
-            )  # Get n-d magnitude scaling corrected for interpolation
+            self.yarn(self.seq_len_interpolation_factor)
 
             self.max_seq_len_cached = self.max_positional_embeddings * self.seq_len_interpolation_factor
             t = torch.arange(self.max_seq_len_cached, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
@@ -114,11 +99,30 @@ class RotaryEmbedding(nn.Module):
             inv_freq = 1.0 / (self.base ** (torch.arange(0, dim, 2).float() / dim))
             self.register_buffer('inv_freq', inv_freq)
 
+    def yarn(self, scale):
+        pos_freqs = self.base ** (torch.arange(0, self.dim, 2).float() / self.dim)
+        inv_freq_extrapolation = 1.0 / pos_freqs
+        # inv_freq_interpolation = 1.0 / (self.seq_len_interpolation_factor * pos_freqs)
+        inv_freq_interpolation = 1.0 / (scale * pos_freqs)
+
+        low, high = find_correction_range(
+                self.beta_fast, self.beta_slow, self.dim, self.base, self.max_positional_embeddings
+            )
+        inv_freq_mask = (
+                1 - linear_ramp_mask(low, high, self.dim // 2).float()
+            ) * self.extrapolation_factor  # Get n-d rotational scaling corrected for extrapolation
+        inv_freq = inv_freq_interpolation * (1 - inv_freq_mask) + inv_freq_extrapolation * inv_freq_mask
+
+        self.register_buffer("inv_freq", inv_freq)
+        self.mscale = float(
+                get_mscale(scale) * self.attn_factor
+            )  # Get n-d magnitude scaling corrected for interpolation
+
     def forward(self, max_seq_len, offset=0):
         if self.use_yarn:
             if max_seq_len > self.max_seq_len_cached:
                 self.max_seq_len_cached = max_seq_len
-
+                self.yarn(max_seq_len / self.max_positional_embeddings)
                 t = torch.arange(self.max_seq_len_cached, dtype=self.inv_freq.dtype).to(self.inv_freq.device)
                 freqs = torch.einsum("i , j -> i j", t, self.inv_freq)
                 # Different from paper, but it uses a different permutation in order to obtain the same calculation
