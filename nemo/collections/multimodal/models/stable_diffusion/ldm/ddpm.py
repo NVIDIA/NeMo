@@ -1787,7 +1787,9 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             rank_zero_only=True,
             batch_size=1,
         )
-        self.log("timestamp", int(time.time() * 1e3), batch_size=1, rank_zero_only=True)
+
+        ts = torch.tensor(int(time.time() * 1e3), dtype=torch.float64)
+        self.log("timestamp", ts, batch_size=1, rank_zero_only=True)
         return loss_mean
 
     def backward(self, *args, **kwargs):
