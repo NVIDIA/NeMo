@@ -19,6 +19,8 @@ from typing import List, Union
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
+from nemo.utils.model_utils import inject_model_parallel_rank
+
 try:
     from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
 
@@ -213,6 +215,7 @@ class NLPAdapterModelMixin:
 
                 os.chdir(cwd)
                 model_weights = os.path.join(tmpdir, model_weights_ckpt)
+                model_weights = inject_model_parallel_rank(model_weights)
                 state_dict = torch.load(model_weights, map_location=map_location)
 
                 return conf, state_dict
