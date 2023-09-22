@@ -2,8 +2,8 @@ NEMO_DIR=/workspace/nemo/works/mod_speech_llm/NeMo_clean
 export PYTHONPATH=$NEMO_DIR:$PYTHONPATH
 
 MEGATRON_CKPT=/media/data3/pretrained_models/megatron_gpt/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo
-ASR_MODEL="stt_en_fastconformer_transducer_large"
 ASR_MODEL="ssl_en_conformer_large"
+ASR_MODEL="stt_en_fastconformer_transducer_large"
 GLOBAL_BATCH=2
 MICRO_BATCH=2
 

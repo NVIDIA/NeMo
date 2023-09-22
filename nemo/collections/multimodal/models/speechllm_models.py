@@ -18,6 +18,7 @@ import os
 from functools import partial
 from typing import Dict, Optional, Union
 
+import sacrebleu
 import torch
 from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
@@ -46,6 +47,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
@@ -90,16 +92,25 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["ModularizedAudioGPTModel"]
 
 
+default_inference_config = {'greedy': True, 'compute_logprob': False, 'tokens_to_generate': 5, 'add_BOS': False}
+
+
 class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
     """Modularized speech GPT model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         super().__init__(cfg, trainer)
+        # Used other keys from metadata to calulate metrics
+        if hasattr(self.cfg.data, "test_ds") and hasattr(self.cfg.data.test_ds, "metric"):
+            self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
+        if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
+            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+
         self.perception = AudioPerceptionModel(cfg=cfg.perception)
         self.setup_optimizer_param_groups()
         self.configure_optimizers()
-        self.summarize()
+        self.summarize(max_depth=2)
 
     def parameters(self):
         # override the same method in MegatronGPT model to include parameters ouside of LM
@@ -671,14 +682,91 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
                 metric = [metric_cls()]
         return metric, metric_name
 
+    # Override the parent batch reconfiguring logic.
+    def _reconfigure_and_process_inference_batch(self, batch, data_cfg):
+        global_batch_size_per_gpu = batch['tokens'].size(0)
+        # This should happen only on the last batch of the dataset.
+        if (
+            global_batch_size_per_gpu
+            != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
+        ):
+            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
+            if (
+                global_batch_size_per_gpu
+                != data_cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
+            ):
+                app_state = AppState()
+                _reconfigure_microbatch_calculator(
+                    rank=app_state.global_rank,
+                    rampup_batch_size=None,
+                    global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                    micro_batch_size=global_batch_size_per_gpu,
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                )
+            # NOTE: need to explicitly handle resetting for multi-validation
+            else:
+                app_state = AppState()
+                _reconfigure_microbatch_calculator(
+                    rank=app_state.global_rank,
+                    rampup_batch_size=None,
+                    global_batch_size=data_cfg.global_batch_size,
+                    micro_batch_size=data_cfg.micro_batch_size,
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                )
+
+    def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
+        batch = next(dataloader_iter)
+        data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
+        self._reconfigure_and_process_inference_batch(batch, data_cfg)
+        # Meta data from dataset
+        metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([batch]), batch_idx)
+
+        # We need _inference_config to get generation params
+        # add_BOS and tokens_to_generate are set in dataset
+        if self.get_inference_config() is None:
+            logging.warning(f'inference_config is not set. Use default: {default_inference_config}')
+            self.set_inference_config(inference_config=default_inference_config)
+        self._inference_config['add_BOS'] = data_cfg.add_bos
+        self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
+
+        output = self.predict_step(batch, batch_idx, dataloader_idx)
+
+        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
+        labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
+        preds_text = [
+            self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
+            for t, l in zip(output['token_ids'], batch['context_lengths'])
+        ]
+
+        preds_text = [p.replace(data_cfg.end_string, '') for p in preds_text]
+        labels_text = [p.replace(data_cfg.end_string, '') for p in labels_text]
+        if data_cfg.get("log_every_n_steps", None) is not None:
+            if batch_idx % data_cfg.log_every_n_steps == 0:
+                logging.info(f"Input: `{inputs_text[0]}`")
+                logging.info(f"Label: `{labels_text[0]}`")
+                logging.info(f"Pred: `{preds_text[0]}`")
+
+        outputs = {
+            'loss': loss,
+            'preds': preds_text,  # [str]
+            'labels': labels_text,  # [str]
+            'inputs': inputs_text,  # [str]
+            'metadata': metadata,  # [dict]
+        }
+
+        # TODO(zhehuai): handling self.validation_step_outputs for PTL2.0
+        return outputs
+
     def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: Optional[int] = None):
         inference_config = self.get_inference_config()
         if inference_config is not None:
             # need to overwrite some configuration, make it immutable
             inference_config = inference_config.copy()
         else:
-            inference_config = {'greedy': True, 'compute_logprob': False, 'tokens_to_generate': 5, 'add_BOS': False}
-            logging.warning(f'inference_config is not set. Use default: {inference_config}')
+            self.set_inference_config(inference_config=default_inference_config)
+            logging.warning(f'inference_config is not set. Use default: {default_inference_config}')
+            inference_config = self.get_inference_config()
 
         if self.cfg.data.get('end_string', None):
             inference_config['end_strings'] = [self.cfg.data.end_string]
@@ -723,6 +811,186 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
 
         return response
 
+    def inference_epoch_end(self, outputs, mode, data_cfg):
+        # Parent class will handle logging of the loss.
+        if not outputs:
+            # Handle case where no metrics. This can break checkpoint save/load.
+            app_state = AppState()
+            monitor_mode = app_state.checkpoint_callback_params.mode
+            assert monitor_mode in ['min', 'max']
+            averaged_metric = 0.0 if monitor_mode == 'max' else 1e2
+            logging.warning(f"No outputs to log for {mode} epoch")
+            return torch.Tensor([1e2]), torch.Tensor([averaged_metric])
+
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
+
+        averaged_loss = []
+        averaged_metric = []
+        # Log metrics for each provided validation/test dataset.
+        for dataloader_idx, output in enumerate(outputs):
+            # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
+            loss_vals = [x['loss'] for x in output]
+            if parallel_state.is_pipeline_last_stage():
+                # only the last pipeline parallel stages return loss with their batch size
+                if self.cfg.data.get('validation_drop_last', True):
+                    loss = torch.stack(loss_vals).mean()
+                else:
+                    # Compute the avg loss by total_loss across all samples / total number of samples
+                    total_loss_and_total_samples = torch.vstack(loss_vals).sum(axis=0)
+                    avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
+                    loss = avg_loss.type(torch.float32).cuda()
+            else:
+                loss = torch.tensor(0.0, dtype=torch.float32).cuda()
+
+            # we can only log on one rank if it is rank zero so we broadcast from last rank
+            torch.distributed.broadcast(loss, get_last_rank())
+
+            self.log('val_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=True)
+
+            # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
+            loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
+            self.log(loss_log_key, loss, batch_size=1)
+            averaged_loss.append(loss)
+
+            # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
+            gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+            torch.distributed.all_gather_object(
+                gathered_outputs,
+                [
+                    {'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'metadata': x['metadata']}
+                    for x in output
+                ],
+                group=parallel_state.get_data_parallel_group(),
+            )
+
+            # Remove duplicate examples due to distributed sampler.
+            inp_label_set = set()
+            deduplicated_outputs = {
+                'preds': [],
+                'labels': [],
+                'inputs': [],
+                'metadata': [],
+            }
+            total_size = 0
+            for rank in range(0, parallel_state.get_data_parallel_world_size()):
+                for batch in gathered_outputs[rank]:
+                    for pred, label, input, metadata in zip(
+                        batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
+                    ):
+                        key = input + label
+                        total_size += 1
+                        if key not in inp_label_set:
+                            inp_label_set.add(key)
+                            deduplicated_outputs['preds'].append(pred)
+                            deduplicated_outputs['labels'].append(label)
+                            deduplicated_outputs['inputs'].append(input)
+                            deduplicated_outputs['metadata'].append(metadata)
+
+            # Compute metric score
+            metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+            metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
+            if metric_name != 'loss':
+                metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+                metric_fn = self.val_metric[0] if mode == 'validation' else self.test_metric[0]
+                if metric_label_key in deduplicated_outputs['metadata'][0]:
+                    labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
+                else:
+                    labels = deduplicated_outputs['labels']
+
+                # sacrebleu.corpus_bleu is commonly used which does not share
+                # the same interface as other metrics. We handle it separately.
+                if metric_name == 'bleu':
+                    metric_result = torch.Tensor(
+                        [sacrebleu.corpus_bleu(deduplicated_outputs['preds'], [labels]).score]
+                    )
+                else:
+                    for pred, label in zip(deduplicated_outputs['preds'], labels):
+                        _ = metric_fn(pred, label)
+
+                    metric_result = metric_fn.compute()
+
+                if metric_name == 'rouge':
+                    for k, v in metric_result.items():
+                        if 'fmeasure' in k:
+                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
+                            logging.info(f"{mode} {metric_name} {k}: {v.item()}")
+                    metric_result = metric_result['rouge1_fmeasure']
+                else:
+                    self.log(metric_log_key, metric_result.item(), sync_dist=True)
+                    logging.info(f"{mode} {metric_name}: {metric_result.item()}")
+
+                metric_fn.reset()
+                averaged_metric.append(metric_result)
+
+            # Write predictions to file
+            if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
+                logging.info(
+                    f"Total deduplicated inference data size: {total_size} to {len(deduplicated_outputs['inputs'])}"
+                )
+
+                # Check if the user provided a prefix path to the file(s) they want to write.
+                if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
+                    raise ValueError(
+                        f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
+                    )
+                filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+                self.write_predictions_to_file(
+                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                )
+
+            torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
+            outputs[dataloader_idx].clear()  # free memory
+
+        # Logging of the averaged metrics:
+        averaged_loss = sum(averaged_loss) / len(averaged_loss)
+        averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 0 else None
+
+        # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
+        if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
+            app_state = AppState()
+            monitor_mode = app_state.checkpoint_callback_params.mode
+            assert monitor_mode in ['min', 'max']
+            averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
+
+        if mode == 'validation':
+            self.log("validation_loss", averaged_loss, batch_size=1, sync_dist=True)
+            if averaged_metric is not None:
+                self.log(f"validation_{self.val_metric_name}", averaged_metric, sync_dist=True)
+        elif mode == 'test':
+            self.log("test_loss", averaged_loss, batch_size=1, sync_dist=True)
+            if averaged_metric is not None:
+                self.log(f"test_{self.test_metric_name}", averaged_metric, sync_dist=True)
+
+        # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
+        app_state = AppState()
+        self._restore_activation_checkpointing_args()
+        self._restore_sequence_parallelism_args()
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        # When running `trainer.validate()`, the training dataset is not available.
+        else:
+            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=data_cfg.global_batch_size,
+                micro_batch_size=data_cfg.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
+        return averaged_loss, averaged_metric
+
+    def validation_epoch_end(self, outputs):
+        averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
+        return averaged_loss
+
     def test_epoch_end(self, outputs):
         averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
         return averaged_loss
@@ -742,3 +1010,12 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
                 f_json.write(json.dumps(json_string) + '\n')
 
         logging.info(f'Predictions saved to {output_file_path}')
+
+    def setup_eval_dataloader(self, datasets, data_cfg):
+        dataloaders = []
+        if not isinstance(datasets, list):
+            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0,)
+        for dataset in datasets:
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
+            dataloaders.append(eval_dl)
+        return dataloaders
