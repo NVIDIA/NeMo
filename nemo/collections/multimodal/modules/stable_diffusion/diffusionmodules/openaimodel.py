@@ -34,13 +34,20 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
 )
 
 
-# dummy replace
-def convert_module_to_f16(x):
-    pass
+def convert_module_to_dtype(module, dtype):
+    # Convert module parameters to dtype
+    if isinstance(module, (torch.nn.Conv1d, torch.nn.Conv2d, torch.nn.Linear)):
+        module.weight.data = module.weight.data.to(dtype)
+        if module.bias is not None:
+            module.bias.data = module.bias.data.to(dtype)
 
 
-def convert_module_to_f32(x):
-    pass
+def convert_module_to_fp16(module):
+    convert_module_to_dtype(module, torch.float16)
+
+
+def convert_module_to_fp32(module):
+    convert_module_to_dtype(module, torch.float32)
 
 
 ## go
@@ -476,6 +483,7 @@ class UNetModel(nn.Module):
         from_NeMo=False,
         # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
         use_flash_attention: bool = False,
+        precision='fp32',
     ):
         super().__init__()
         if use_spatial_transformer:
@@ -743,6 +751,11 @@ class UNetModel(nn.Module):
                     'Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
                 )
 
+        if precision == 'fp16':
+            self.convert_to_fp16()
+        elif precision == 'fp32':
+            self.convert_to_fp32()
+
     def _input_blocks_mapping(self, input_dict):
         res_dict = {}
         for key_, value_ in input_dict.items():
@@ -961,17 +974,13 @@ class UNetModel(nn.Module):
         """
         Convert the torso of the model to float16.
         """
-        self.input_blocks.apply(convert_module_to_f16)
-        self.middle_block.apply(convert_module_to_f16)
-        self.output_blocks.apply(convert_module_to_f16)
+        self.apply(convert_module_to_fp16)
 
     def convert_to_fp32(self):
         """
         Convert the torso of the model to float32.
         """
-        self.input_blocks.apply(convert_module_to_f32)
-        self.middle_block.apply(convert_module_to_f32)
-        self.output_blocks.apply(convert_module_to_f32)
+        self.apply(convert_module_to_fp32)
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         """
@@ -1180,15 +1189,15 @@ class EncoderUNetModel(nn.Module):
         """
         Convert the torso of the model to float16.
         """
-        self.input_blocks.apply(convert_module_to_f16)
-        self.middle_block.apply(convert_module_to_f16)
+        self.input_blocks.apply(convert_module_to_fp16)
+        self.middle_block.apply(convert_module_to_fp16)
 
     def convert_to_fp32(self):
         """
         Convert the torso of the model to float32.
         """
-        self.input_blocks.apply(convert_module_to_f32)
-        self.middle_block.apply(convert_module_to_f32)
+        self.input_blocks.apply(convert_module_to_fp32)
+        self.middle_block.apply(convert_module_to_fp32)
 
     def forward(self, x, timesteps):
         """
