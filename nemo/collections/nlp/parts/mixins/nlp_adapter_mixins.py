@@ -471,13 +471,13 @@ class NLPAdapterModelMixin:
         """
 
         output = cls.restore_from(path, return_config=True)
-
         with open_dict(output):
             # update the model config of the trained model with params we want to set at inference time.
             output.precision = cfg.trainer.precision
-            output.data.test_ds = cfg.model.data.test_ds
             for key, val in cfg.model.items():
-                output[key] = val
+                if key != 'data':
+                    output[key] = val
+            output.data.test_ds = cfg.model.data.test_ds
 
         with open_dict(cfg):
             cfg.inference.add_BOS = output.data.test_ds.add_bos
