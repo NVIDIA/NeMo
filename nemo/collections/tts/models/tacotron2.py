@@ -249,7 +249,6 @@ class DecoderIter(torch.nn.Module, Exportable):
 
     def input_example(self, max_batch=1, max_dim=512):
         memory = torch.randn((1, max_dim, max_dim))
-        memory_lengths = torch.tensor([max_dim])
         self.tacotron2.decoder.initialize_decoder_states(memory, None)
         decoder_input = self.tacotron2.decoder.get_go_frame(memory)
         inputs = {
