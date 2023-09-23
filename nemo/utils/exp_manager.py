@@ -309,6 +309,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     # Add rank information to logger
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     global_rank = trainer.node_rank * trainer.num_devices + local_rank
+    logging.rank = global_rank
 
     # the exp manager calls some operations that require explicit
     # synchronization, therefore we need to initialize the process
@@ -321,10 +322,6 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         if trainer.strategy.launcher is not None:
             trainer.strategy.launcher.launch(dummy, trainer=trainer)
         trainer.strategy.setup_environment()
-
-        global_rank = torch.distributed.get_rank()
-
-    logging.rank = global_rank
 
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
