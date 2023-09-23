@@ -65,7 +65,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 # [ ] remove unnecessary comments and codes.
 
 
-def setup_logging(log_file="test_log.txt"):
+def setup_logging(log_file="test.txt"):
     logging.basicConfig(
         filename=log_file,
         level=logging.DEBUG,
@@ -93,11 +93,13 @@ def get_args():
 
 def load_model(cls, checkpoint, strict, **kwargs):
     try:
+        logging.debug(f'kwargs are, {kwargs}')
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
         else:
             model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
             for name, module in model.named_parameters():
+                logging.debug(f'model state dict name, {name}')
                 if name in checkpoint['state_dict']:
                     module.data = checkpoint['state_dict'][name]
                     checkpoint['state_dict'].pop(name)
@@ -199,6 +201,7 @@ def load_nemo_config(args):
     nemo_config.transformer_engine = True
     nemo_config.bias_activation_fusion = False
     nemo_config.bias_dropout_add_fusion = False
+    nemo_config.share_embeddings_and_output_weights = False
 
     base = 128
     while falcon_config.vocab_size % base != 0:
@@ -240,6 +243,8 @@ def convert(args):
     logging.debug(f"initial falcon_config, {falcon_config}")
 
     nemo_config = load_nemo_config(args)
+    # debug
+    logging.debug(f"initial nemo_config, {nemo_config}")
     precision = determine_precision(args)
 
     plugins = []
@@ -280,19 +285,16 @@ def convert(args):
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
 
-    def add_to_checkpoint(source_prefix, target_prefix, weight_or_bias, is_layernorm=False):
+    def add_to_checkpoint(source_prefix, target_prefix, weight_or_bias):
         source_name = f"{source_prefix}.{weight_or_bias}"
         if source_name in model.state_dict():
-            if is_layernorm:
-                target_name = f"{target_prefix}_{weight_or_bias}"
-            else:
-                target_name = f"{target_prefix}.{weight_or_bias}"
+            target_name = f"{target_prefix}.{weight_or_bias}"
             checkpoint['state_dict'][target_name] = param_to_weights(model.state_dict()[source_name])
 
-    def add_weight_and_possible_bias(source_prefix, target_prefix, is_layernorm=False):
-        add_to_checkpoint(source_prefix, target_prefix, 'weight', is_layernorm)
+    def add_weight_and_possible_bias(source_prefix, target_prefix):
+        add_to_checkpoint(source_prefix, target_prefix, 'weight')
         if f"{source_prefix}.bias" in model.state_dict():
-            add_to_checkpoint(source_prefix, target_prefix, 'bias', is_layernorm)
+            add_to_checkpoint(source_prefix, target_prefix, 'bias')
 
     add_to_checkpoint('transformer.word_embeddings', 'model.embedding.word_embeddings', 'weight')
 
@@ -312,23 +314,21 @@ def convert(args):
         if falcon_config.new_decoder_architecture:
             add_weight_and_possible_bias(
                 f'{prefix}.ln_attn',
-                f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm',
-                is_layernorm=True,
+                f'model.decoder.layers.{l}.input_layernorm',
             )
             add_weight_and_possible_bias(
-                f'{prefix}.ln_mlp', f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm', is_layernorm=True
+                f'{prefix}.ln_mlp', 
+                f'model.decoder.layers.{l}.pre_mlp_layernorm', 
             )
         else:
             add_weight_and_possible_bias(
                 f'{prefix}.input_layernorm',
-                f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm',
-                is_layernorm=True,
+                f'model.decoder.layers.{l}.input_layernorm',
             )
             if not falcon_config.parallel_attn:
                 add_weight_and_possible_bias(
                     f'{prefix}.post_attention_layernorm',
-                    f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm',
-                    is_layernorm=True,
+                    f'model.decoder.layers.{l}.post_self_attn_layernorm',
                 )
 
         print(f"done layer {l}")
@@ -348,6 +348,7 @@ def convert(args):
 
     del model
 
+    #model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
     model = MegatronGPTModel(checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY], trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
@@ -358,11 +359,12 @@ def convert(args):
     # We make sure that the tokenizer can be instantiated later regardless of args.input
     model.cfg.tokenizer.update(type=args.tokenizer_type)
     # save model
+    
     model.save_to(args.out_file)
     logging.info(f'NeMo model saved to: {args.out_file}')
 
 
 if __name__ == '__main__':
-    #setup_logging()
+    setup_logging()
     args = get_args()
     convert(args)
