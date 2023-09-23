@@ -1,9 +1,11 @@
+import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_speechlm_model import MegatronT5SpeechLMModel
+
 # from nemo.collections.nlp.models.language_modeling.megatron_t5_speechlm_pretrain_model import (
 #     MegatronT5SpeechLMModel,
 # )
@@ -17,7 +19,6 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-import torch
 
 
 @hydra_runner(config_path="conf", config_name="speechlm_inference.yaml")
@@ -58,9 +59,10 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
         checkpoint_path = cfg.model.pop("checkpoint_path")
 
-
     # checkpoint_path = "/home/shehzeenh/Code/NeMo/nemo_experiments/p_tuning_squad_t5/checkpoints/Step34770.ckpt"
-    model = MegatronT5SpeechLMModel.load_from_checkpoint(checkpoint_path=checkpoint_path, trainer=trainer, cfg=cfg.model)
+    model = MegatronT5SpeechLMModel.load_from_checkpoint(
+        checkpoint_path=checkpoint_path, trainer=trainer, cfg=cfg.model
+    )
     model.eval()
     model = model.cuda()
     trainer.test(model)

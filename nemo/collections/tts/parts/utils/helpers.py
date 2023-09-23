@@ -47,7 +47,6 @@ from typing import Optional, Tuple
 
 import librosa
 import matplotlib.pylab as plt
-import seaborn as sns
 import numpy as np
 import seaborn as sns
 import torch
@@ -438,6 +437,7 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
     data = save_figure_to_numpy(fig)
     plt.close()
     return data
+
 
 def plot_encodec_to_numpy(encodec, title=''):
     fig, ax = plt.subplots(figsize=(10, 3))
