@@ -577,11 +577,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         if self.frozen_model.enc_dec_model.parallel_output:
             # Gather from tensor parallel region
             first_layer_logits = tensor_parallel.gather_from_tensor_model_parallel_region(first_layer_logits)
-            for _i in range(len(speech_logits_list)):
-                speech_logits_list[_i] = tensor_parallel.gather_from_tensor_model_parallel_region(
-                    speech_logits_list[_i]
-                )
-        speech_logits = torch.stack(speech_logits_list, dim=-1)  # (t, b, 1024, 7)
+            if torch.count_nonzero(speech_mask) > 0:
+                for _i in range(len(speech_logits_list)):
+                    speech_logits_list[_i] = tensor_parallel.gather_from_tensor_model_parallel_region(
+                        speech_logits_list[_i]
+                    )
+                speech_logits = torch.stack(speech_logits_list, dim=-1)  # (t, b, 1024, 7)
         first_layer_preds = first_layer_logits.argmax(dim=2)  # (t,bs)
         first_layer_preds = first_layer_preds.transpose(0, 1)  # (bs,t)
         labels_first_layer = labels_original[:, 0, :]  # (bs,t)
@@ -596,7 +597,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         first_layer_loss = torch.sum(first_layer_loss * loss_mask) / total_predictions
 
         metrics = {
-            'loss': loss_mean,
+            'loss': loss_mean*0.14 if torch.count_nonzero(speech_mask) > 0 else loss_mean,
             'first_layer_accuracy': first_layer_accuracy,
             'first_layer_loss': first_layer_loss,
         }
