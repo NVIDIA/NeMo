@@ -28,7 +28,6 @@ import pytorch_lightning
 import torch
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
-from megatron.core import parallel_state
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -309,11 +308,12 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     """
     # Add rank information to logger
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    global_rank = trainer.node_rank * trainer.num_devices + local_rank
 
     # the exp manager calls some operations that require explicit
     # synchronization, therefore we need to initialize the process
     # group to initiate a barrier
-    if parallel_state.is_unitialized():
+    if not torch.distributed.is_initialized() and trainer.num_nodes * trainer.num_devices > 1:
 
         def dummy():
             return
@@ -322,7 +322,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             trainer.strategy.launcher.launch(dummy, trainer=trainer)
         trainer.strategy.setup_environment()
 
-    global_rank = torch.distributed.get_rank()
+        global_rank = torch.distributed.get_rank()
+
     logging.rank = global_rank
 
     if cfg is None:
@@ -514,7 +515,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         # Add lightning file logging to global_rank zero
         add_filehandlers_to_pl_logger(log_dir / 'lightning_logs.txt', log_dir / 'nemo_error_log.txt')
 
-    torch.distributed.barrier()
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
     return log_dir
 
 
