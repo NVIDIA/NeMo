@@ -15,7 +15,7 @@
 # from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 
 try:
-    from nemo.collections.nlp.models.language_modeling.megatron.falcon_mcore.falcon_gpt_model import FalconGPTModel
+    from nemo.collections.nlp.models.language_modeling.megatron.spec_falcon.falcon_gpt_model import FalconGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 
     HAVE_MEGATRON_CORE = True
