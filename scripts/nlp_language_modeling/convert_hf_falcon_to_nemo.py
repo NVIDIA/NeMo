@@ -65,7 +65,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 # [ ] remove unnecessary comments and codes.
 
 
-def setup_logging(log_file="test.txt"):
+def setup_logging(log_file="test.log"):
     logging.basicConfig(
         filename=log_file,
         level=logging.DEBUG,
@@ -93,22 +93,35 @@ def get_args():
 
 def load_model(cls, checkpoint, strict, **kwargs):
     try:
-        logging.debug(f'kwargs are, {kwargs}')
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
         else:
             model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
             for name, module in model.named_parameters():
-                logging.debug(f'model state dict name, {name}')
                 if name in checkpoint['state_dict']:
                     module.data = checkpoint['state_dict'][name]
                     checkpoint['state_dict'].pop(name)
                 else:
-                    logging.info(f"Unexpected key: {name} not in checkpoint but in model.")
+                    print(f"Unexpected key: {name} not in checkpoint but in model.")
+
+            for name, buffer in model.named_buffers():
+                if name in checkpoint['state_dict']:
+                    buffer.data = checkpoint['state_dict'][name]
+                    checkpoint['state_dict'].pop(name)
+
             if len(checkpoint['state_dict'].keys()) != 0:
                 raise RuntimeError(
                     f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model."
                 )
+
+            # register the artifacts
+            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]
+            if cfg.tokenizer.model is not None:
+                model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
+            if cfg.tokenizer.vocab_file is not None:
+                model.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file)
+            if cfg.tokenizer.merge_file is not None:
+                model.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file)
     finally:
         cls._set_model_restore_state(is_being_restored=False)
     return model
@@ -180,11 +193,9 @@ def load_nemo_config(args):
     }
 
     nemo_config.tokenizer = tokenizer_dict
-    ##############################################
-    # TODO: need refactor Mcore to support parallel attn and 40b/180b model arch
+
     nemo_config.new_decoder_architecture = falcon_config.new_decoder_architecture #bool, if True, always use parallel attn
     nemo_config.parallel_attention = falcon_config.parallel_attn
-    ###############################################
 
     nemo_config.num_query_groups = (
         falcon_config.num_kv_heads if falcon_config.new_decoder_architecture or falcon_config.multi_query else None
@@ -340,13 +351,15 @@ def convert(args):
     add_to_checkpoint('lm_head', 'model.output_layer', 'weight')
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
-    logging.debug(f'final checkpoint, {checkpoint}')
-
-    tok = time.time()
-    t = time.strftime('%H:%M:%S', time.gmtime(tok - tik))
-    logging.info(f'Weights loaded. Total time: {t}')
+    #logging.debug(f'final checkpoint, {checkpoint}')
 
     del model
+    
+    # state dict name for megatron_amp_O2 is different
+    if nemo_config.get('megatron_amp_O2', False):
+        keys = list(checkpoint['state_dict'].keys())
+        for key in keys:
+            checkpoint['state_dict'][key.replace('model.', 'model.module.', 1)] = checkpoint['state_dict'].pop(key)
 
     #model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
     model = MegatronGPTModel(checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY], trainer=trainer)
@@ -362,6 +375,10 @@ def convert(args):
     
     model.save_to(args.out_file)
     logging.info(f'NeMo model saved to: {args.out_file}')
+    
+    tok = time.time()
+    t = time.strftime('%H:%M:%S', time.gmtime(tok - tik))
+    logging.info(f'Weights loaded and saved. Total time: {t}')
 
 
 if __name__ == '__main__':
