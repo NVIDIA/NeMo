@@ -224,7 +224,9 @@ class TimingCallback(Callback):
         self._on_batch_end("train_backward_timing", pl_module)
 
 
-def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
+def exp_manager(
+    trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None, seconds_to_sleep: float = 5.0
+) -> Optional[Path]:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
     of exp_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get exp_dir,
@@ -301,6 +303,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
             - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want 
                 a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
+        seconds_to_sleep (float): seconds to sleep non rank 0 processes for. Used to give enough time for rank 0 to initialize
 
     returns:
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
@@ -500,6 +503,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
         # Add lightning file logging to global_rank zero
         add_filehandlers_to_pl_logger(log_dir / 'lightning_logs.txt', log_dir / 'nemo_error_log.txt')
+
+    elif trainer.num_devices * trainer.num_devices > 1:
+        # sleep other ranks so rank 0 can finish
+        # doing the initialization such as moving files
+        time.sleep(seconds_to_sleep)
 
     return log_dir
 
