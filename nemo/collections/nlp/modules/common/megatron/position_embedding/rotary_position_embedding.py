@@ -53,6 +53,8 @@ class RotaryEmbedding(nn.Module):
     """
     Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
     """
+    global mscale
+    mscale = None
 
     def __init__(
         self,
@@ -117,6 +119,8 @@ class RotaryEmbedding(nn.Module):
         self.mscale = float(
                 get_mscale(scale) * self.attn_factor
             )  # Get n-d magnitude scaling corrected for interpolation
+        global mscale
+        mscale = self.mscale
 
     def forward(self, max_seq_len, offset=0):
         if self.use_yarn:
@@ -128,7 +132,7 @@ class RotaryEmbedding(nn.Module):
                 # Different from paper, but it uses a different permutation in order to obtain the same calculation
                 emb = torch.cat((freqs, freqs), dim=-1).to(self.inv_freq.device) * self.mscale
                 self.register_buffer('emb', emb)
-            return rearrange(self.emb, 'n d -> n 1 1 d')
+            return rearrange(self.emb, 'n d -> n 1 1 d')[:max_seq_len,:,:,:]
 
         seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
         if self.seq_len_interpolation_factor is not None:
@@ -163,5 +167,8 @@ def apply_rotary_pos_emb(t, freqs):
     t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
     # first part is cosine component
     # second part is sine component, need to change signs with _rotate_half method
-    t = (t * freqs.cos()) + (_rotate_half(t) * freqs.sin())
-    return torch.cat((t, t_pass), dim=-1)
+    if mscale:
+        t = (t * freqs.cos() * mscale) + (_rotate_half(t) * freqs.sin() * mscale)
+    else:
+        t = (t * freqs.cos()) + (_rotate_half(t) * freqs.sin())
+    return torch.cat((t, t_pass), dim=-1) 
