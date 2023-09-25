@@ -29,6 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
+
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
 
@@ -206,6 +207,12 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         else:
             raise NotImplementedError("out_init_method should be zero, normal or xavier")
         return init_fn
+
+    def adapter_unfreeze(self,):
+        """
+        Can be customized to allow for selective training of only some params in the PEFT.
+        """
+        super().adapter_unfreeze()
 
     def forward(self, x):
 
@@ -429,6 +436,8 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         num_position_embeddings: int = 1,
         dim_position_embeddings: int = 1024,
         position_embedding_strategy: Optional[str] = "add",
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        **kwargs,
     ):
         self.position_embeddings = None
         self.mlp = None
@@ -457,6 +466,8 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             row_init_method,
             gather_output,
             dropout,
+            model_parallel_config,
+            **kwargs,
         )
         if self.position_embedding_strategy:
             self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)

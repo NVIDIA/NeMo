@@ -153,7 +153,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
         encoder, decoder = None, None
         if add_encoder:

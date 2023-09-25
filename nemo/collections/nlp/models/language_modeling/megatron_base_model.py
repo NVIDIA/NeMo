@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
@@ -101,7 +102,21 @@ class MegatronBaseModel(NLPModel):
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
 
+        with open_dict(cfg):
+            if cfg.get('precision', None) is None and trainer is not None:
+                cfg.precision = trainer.precision
+
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
+
+        # TODO: @maanug-nv consolidate into one attribute (requires lots of changes in subclasses)
+        self.torch_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)  # Mixed precision datatype
+        self.autocast_dtype = self.torch_dtype  # Mixed precision datatype
+        # instantiate weights in mixed precision datatype if using megatron amp O2
+        self.params_dtype = (
+            self.torch_dtype
+            if self.torch_dtype in [torch.bfloat16, torch.float16] and self.cfg.get('megatron_amp_O2', False)
+            else torch.float32
+        )
 
         # set the megatron core model parallel config
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
@@ -196,8 +211,8 @@ class MegatronBaseModel(NLPModel):
         """
         # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
         self.trainer.limit_val_batches *= get_num_microbatches()
-        # Override num sanity steps equal to num of microbatches and perform one val_step
-        self.trainer.num_sanity_val_steps = get_num_microbatches()
+        # Override num sanity steps to be a multiple of num of microbatches
+        self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -446,7 +461,7 @@ class MegatronBaseModel(NLPModel):
 
             # Make sure embedding grad reductions are in FP32
             for name, param in self.named_parameters():
-                if 'word_embedding' in name or 'position_embedding' in name:
+                if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
                     param._with_fp32_optimizer = True
 
             # Match param allgather with model dtype
@@ -471,10 +486,10 @@ class MegatronBaseModel(NLPModel):
 
         # Wrap the baseline optimizer with the optimizer class with master parameters
         if self.megatron_amp_o2 and not self.with_distributed_adam and self._optimizer is not None:
-            if self.cfg.precision == 'bf16':
+            if self.torch_dtype == torch.bfloat16:
                 fp32_grad_accum = True
                 contiguous_grad_bucket = True
-            elif self.cfg.precision == 16:
+            elif self.torch_dtype == torch.float16:
                 fp32_grad_accum = False
                 # TODO: contiguous grad bucket for fp16 is also planned to be supported
                 contiguous_grad_bucket = False
@@ -750,32 +765,25 @@ class MegatronBaseModel(NLPModel):
         precision = cfg.get('precision', 32)  # PTL trainer precision
         megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
-        # instantiate weights in bfloat16 if using megatron amp O2 and bf16
-        params_dtype = torch.bfloat16 if precision == 'bf16' and megatron_amp_O2 else torch.float32
-
         # dtype used in p2p communication
-        pipeline_dtype = (
-            torch.bfloat16 if precision == 'bf16' else torch.half if precision in [16, '16'] else torch.float32
-        )
-
-        # same as pipeline_dtype when not using megatron amp O2
-        autocast_dtype = pipeline_dtype if not megatron_amp_O2 else None
+        pipeline_dtype = self.torch_dtype
 
         # maps NeMo model configs to ModelParallelConfig from megatron core
         config_mapping = {
             "perform_initialization": True,  # initailize weights when constructing the module
-            "fp16": False,  # NeMo does not currently support fp16 training with megatron amp O2
-            "bf16": precision == 'bf16' and megatron_amp_O2,
-            "params_dtype": params_dtype,
+            "fp16": self.torch_dtype == torch.float16
+            and megatron_amp_O2,  # NeMo does not currently support fp16 training with megatron amp O2, eval and inference is supported
+            "bf16": self.torch_dtype == torch.bfloat16 and megatron_amp_O2,
+            "params_dtype": self.params_dtype,
             "timers": None,  # NeMo does not currently support megatron core timers
             "async_tensor_model_parallel_allreduce": self.cfg.get('tensor_model_parallel_world_size', 1) > 1
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
             "grad_scale_func": self.trainer.precision_plugin.scaler.scale
-            if precision in [16, '16', '16-mixed']
+            if self.torch_dtype == torch.float16
             else None,
-            "enable_autocast": not megatron_amp_O2 and precision in [16, '16', 'bf16'],
-            "autocast_dtype": autocast_dtype,
+            "enable_autocast": not megatron_amp_O2 and self.torch_dtype in [torch.bfloat16, torch.float16],
+            "autocast_dtype": self.autocast_dtype,
             "variable_seq_lengths": False,  # set dynamically during training
             "num_microbatches_with_partial_activation_checkpoints": self.cfg.get(
                 'num_micro_batches_with_partial_activation_checkpoints', None

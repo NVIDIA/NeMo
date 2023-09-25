@@ -23,6 +23,7 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import _Checkpoin
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
@@ -60,7 +61,9 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.max_position_embeddings = cfg.model.max_position_embeddings
         gpt_cfg.seq_len_interpolation_factor = cfg.model.seq_len_interpolation_factor
         gpt_cfg.use_flash_attention = cfg.model.use_flash_attention
-
+        assert (
+            gpt_cfg.encoder_seq_length == gpt_cfg.max_position_embeddings * gpt_cfg.seq_len_interpolation_factor
+        ), 'seq_length should be equal to max_position_embedding * seq_len_interpolation_factor'
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
         if add_cfg_to_tree:
@@ -156,7 +159,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -182,9 +185,6 @@ def main(cfg) -> None:
         model = load_from_checkpoint_dir(MegatronGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
         print(' > WARNING: No checkpoint provided. Starting from scratch.')
-        # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-        with open_dict(cfg):
-            cfg.model.precision = cfg.trainer.precision
         model = MegatronGPTModel(cfg.model, trainer)
     trainer.fit(model)
 
