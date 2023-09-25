@@ -32,7 +32,7 @@ except (ImportError, ModuleNotFoundError):
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     PromptEncoderAdapterConfig,
 )
-from nemo.collections.nlp.parts.nlp_overrides import PEFTSaveRestoreConnector
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import (
     CanonicalAdaptersPEFTConfig,
     LoraPEFTConfig,
@@ -209,7 +209,7 @@ class NLPAdapterModelMixin:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                PEFTSaveRestoreConnector._unpack_nemo_file(filepath, tmpdir)
+                SaveRestoreConnector._unpack_nemo_file(filepath, tmpdir)
 
                 os.chdir(tmpdir)
 
