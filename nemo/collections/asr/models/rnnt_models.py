@@ -833,7 +833,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
 
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
-        # adding this as return values are no longer logger automatically in PTL2.0
         self.log_dict(tensorboard_logs)
 
         return tensorboard_logs
