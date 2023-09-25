@@ -72,5 +72,6 @@ def main(cfg) -> None:
 
     trainer.fit(model)
 
+
 if __name__ == '__main__':
     main()

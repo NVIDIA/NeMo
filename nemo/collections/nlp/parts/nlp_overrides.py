@@ -432,6 +432,7 @@ class NLPDDPStrategy(DDPStrategy):
         """
         return True
 
+
 class NLPDDPStrategyNotebook(NLPDDPStrategy):
     """ Version of NLPDDPStrategy to be used in a Jupyter Notebook
     A large portion of Megatron code has DDP dependency, so it has been necessary to use NLPDDPStrategy even for
@@ -439,8 +440,10 @@ class NLPDDPStrategyNotebook(NLPDDPStrategy):
     A PTL 2.0 changes has prevented DDPStrategy to be used in a notebook.
     This version of NLPDDPStrategy enables megatron training in a notebook in PTL 2.0.
     """
+
     def _configure_launcher(self):
         self._launcher = None
+
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
@@ -684,7 +687,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
 
-      
+
 class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin):
     """ Overrides PTL autocasting to not wrap training/val/test_step.
         We do this because we have the megatron-core fwd/bwd functions in training_step.

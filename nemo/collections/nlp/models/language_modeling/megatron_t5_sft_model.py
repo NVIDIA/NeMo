@@ -26,16 +26,15 @@ from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import Sequen
 from nemo.collections.nlp.data.language_modeling.megatron.t5_sft_dataset import T5SFTDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+from nemo.collections.nlp.parts.microbatch_calculator import (
+    _reconfigure_microbatch_calculator,
+    get_current_global_batch_size,
+    get_micro_batch_size,
+    get_num_microbatches,
+)
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
-
-from nemo.collections.nlp.parts.microbatch_calculator import (
-        _reconfigure_microbatch_calculator,
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
 
 try:
     from megatron.core import parallel_state
@@ -643,8 +642,9 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         for dataset in datasets:
             eval_dl = self.build_data_loader(
                 dataset,
-                global_batch_size=self.cfg.data.test_ds.global_batch_size if hasattr(self.cfg.data, "test_ds") else \
-                                  self.cfg.data.validation_ds.global_batch_size,
+                global_batch_size=self.cfg.data.test_ds.global_batch_size
+                if hasattr(self.cfg.data, "test_ds")
+                else self.cfg.data.validation_ds.global_batch_size,
                 shuffle=data_cfg.shuffle,
                 num_workers=data_cfg.num_workers,
                 pin_memory=data_cfg.pin_memory,

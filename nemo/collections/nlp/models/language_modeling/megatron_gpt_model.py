@@ -55,13 +55,12 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     TextGeneration,
 )
 from nemo.collections.nlp.parts import utils_funcs
+from nemo.collections.nlp.parts.microbatch_calculator import get_num_microbatches
 from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
-
-from nemo.collections.nlp.parts.microbatch_calculator import get_num_microbatches
 
 try:
     from megatron.core import InferenceParams, parallel_state

@@ -31,6 +31,7 @@ from nemo.utils import AppState
 
 try:
     from apex import amp
+
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):

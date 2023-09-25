@@ -14,7 +14,7 @@
 
 import os
 import tempfile
-from typing import List, Union, Optional
+from typing import List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -29,19 +29,16 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    PromptEncoderAdapterConfig,
-)
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
 from nemo.collections.nlp.parts.peft_config import (
+    PEFT_CONFIG_MAP,
     CanonicalAdaptersPEFTConfig,
     LoraPEFTConfig,
     PEFTConfig,
-    PtuningPEFTConfig, PEFT_CONFIG_MAP,
+    PtuningPEFTConfig,
 )
-from nemo.core.classes.mixins.adapter_mixins import (
-    AdapterModuleMixin,
-)
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils
 
 try:
@@ -184,7 +181,6 @@ class NLPAdapterModelMixin:
         self.freeze()
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
-
         self.use_ptuning_only = len(peft_cfgs) == 1 and isinstance(peft_cfgs[0], PtuningPEFTConfig)
 
         for peft_cfg in peft_cfgs:
@@ -283,7 +279,9 @@ class NLPAdapterModelMixin:
         else:
             raise RuntimeError(f"{filepath} is not nemo file or ckpt file")
         if not peft_cfgs:
-            assert filepath.endswith('.nemo'), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
+            assert filepath.endswith(
+                '.nemo'
+            ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         self.add_adapter(peft_cfgs)
         assert set(state_dict.keys()) == self.adapter_keys

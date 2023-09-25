@@ -23,6 +23,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_an
 
 try:
     from apex import amp
+
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
