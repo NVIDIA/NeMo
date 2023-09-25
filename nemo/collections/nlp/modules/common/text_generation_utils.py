@@ -29,14 +29,6 @@ from nemo.collections.nlp.modules.common.text_generation_strategy import model_i
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
 from nemo.utils import AppState
 
-try:
-    from apex import amp
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
 from nemo.collections.nlp.parts.microbatch_calculator import _reconfigure_microbatch_calculator
 
 try:
