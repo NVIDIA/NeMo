@@ -118,7 +118,7 @@ model:
       max_seq_length: 2048
       min_seq_length: 1
       drop_last: False
-      context_key: ${data.train_ds.context_key}
+      context_key: 'input'
       label_key: ${data.train_ds.label_key}
       add_eos: ${data.train_ds.add_eos}
       add_sep: ${data.train_ds.add_sep}
