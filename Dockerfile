@@ -16,6 +16,10 @@
 
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.08-py3
 
+# get triton sdk for triton installation
+ARG TRITON_SDK_IMAGE=nvcr.io/nvidia/tritonserver:23.08-py3-sdk
+FROM ${TRITON_SDK_IMAGE} as triton-sdk
+
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
 # image (by specifying build target as `nemo-deps`)
@@ -28,6 +32,8 @@ ARG REQUIRE_TORCHAUDIO=false
 ARG REQUIRE_K2=false
 # ais cli: not required by default, install only if required
 ARG REQUIRE_AIS_CLI=false
+# module to install
+ARG MODULE=all
 
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
@@ -76,12 +82,25 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/torchaudio_build/scripts/installers/install_tor
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
-RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+# RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements.txt
+RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements_asr.txt
+RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements_common.txt
+RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements_docs.txt
+RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements_lightning.txt
+RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements_nlp.txt
+RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements_test.txt
+# RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements_tts.txt
 
 # install flash attention dependencies
 RUN pip install flash-attn
 # pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
-RUN pip install triton==2.0.0.dev20221202
+ARG ARM_BUILD=false
+COPY --from=triton-sdk /workspace/install/python/tritonclient-2.37.0.9383150-py3-none-manylinux1_x86_64.whl .
+RUN if [ "${ARM_BUILD}" = true ]; then \
+  pip install tritonclient*.whl; \
+  else pip install triton==2.0.0.dev20221202; fi
+
 # install numba for latest containers
 RUN pip install numba>=0.57.1
 
@@ -111,7 +130,7 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
   /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
 
 # Install NeMo
-RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]"
+RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[${MODULE}]"
 
 # Check install
 RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
