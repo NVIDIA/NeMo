@@ -25,11 +25,9 @@ from omegaconf.omegaconf import OmegaConf
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
 
 try:
     from megatron.core import parallel_state
@@ -114,8 +112,7 @@ def use_inference_server(cfg, model, trainer):
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
-    trainer = MegatronTrainerBuilder(cfg).create_trainer()
-    # exp_manager(trainer, cfg.exp_manager)
+    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
 
     model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)

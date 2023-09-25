@@ -121,3 +121,13 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
         strategy = self._training_strategy()
         plugins = self._plugins()
         return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=[ModelSummary(max_depth=3)])
+
+class MegatronLMPPTrainerBuilder(MegatronTrainerBuilder):
+    """Builder for scripts where grad scaler is turned off for pipeline parallel LM model. E.g. PEFT tuning scripts"""
+    def _grad_scaler(self) -> GradScaler:
+        return GradScaler(
+            init_scale=self.cfg.model.get("native_amp_init_scale", 2 ** 32),
+            growth_interval=self.cfg.model.get("native_amp_growth_interval", 1000),
+            hysteresis=self.cfg.model.get("hysteresis", 2),
+            enabled=False if self.cfg.model.pipeline_model_parallel_size > 1 else True,
+        )
