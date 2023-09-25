@@ -430,19 +430,19 @@ class NLPAdapterModelMixin:
 
         """
 
-        output = cls.restore_from(path, return_config=True)
+        base_cfg = cls.restore_from(path, return_config=True)
 
         OmegaConf.resolve(cfg)
-        with open_dict(output):
+        with open_dict(base_cfg):
             for key, val in cfg.model.items():
-                output[key] = val
+                base_cfg[key] = val
             if "train_ds" in cfg.model.data:
-                output.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
-                output.global_batch_size = cfg.model.data.train_ds.global_batch_size
+                base_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
+                base_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
             if cfg.get("trainer", None) and cfg.trainer.get("precision"):
-                output.precision = cfg.trainer.precision
+                base_cfg.precision = cfg.trainer.precision
 
-        return output
+        return base_cfg
 
     @classmethod
     def merge_inference_cfg(cls, path: str, cfg: DictConfig) -> DictConfig:
@@ -470,17 +470,17 @@ class NLPAdapterModelMixin:
             - "seq_len_interpolation_factor" will be overrided from `cfg` if it's not None from checkpoint
         """
 
-        output = cls.restore_from(path, return_config=True)
-        with open_dict(output):
+        peft_cfg = cls.restore_from(path, return_config=True)
+        with open_dict(peft_cfg):
             # update the model config of the trained model with params we want to set at inference time.
-            output.precision = cfg.trainer.precision
+            peft_cfg.precision = cfg.trainer.precision
             for key, val in cfg.model.items():
                 if key != 'data':
-                    output[key] = val
-            output.data.test_ds = cfg.model.data.test_ds
+                    peft_cfg[key] = val
+            peft_cfg.data.test_ds = cfg.model.data.test_ds
 
         with open_dict(cfg):
-            cfg.inference.add_BOS = output.data.test_ds.add_bos
-            cfg.inference.tokens_to_generate = output.data.test_ds.tokens_to_generate
+            cfg.inference.add_BOS = peft_cfg.data.test_ds.add_bos
+            cfg.inference.tokens_to_generate = peft_cfg.data.test_ds.tokens_to_generate
 
-        return output
+        return peft_cfg
