@@ -20,31 +20,6 @@ from collections import Counter
 from rouge_score import rouge_scorer
 
 
-"""
-This script can be used to calcualte exact match and F1 scores for many different tasks, not just squad. 
-
-Example command for T5 Preds
-
-    ```
-    python squad_metric_calc.py \
-        --ground-truth squad_test_gt.jsonl \
-        --preds squad_preds_t5.txt
-    ```
-
-Example command for GPT Preds
-
-    ```
-    python squad_metric_calc.py \
-        --ground-truth squad_test_gt.jsonl \
-        --preds squad_preds_gpt.txt \
-        --split-string "answer:"
-    ```
-
-    In this case, the prediction file will be split on "answer: " when looking for the LM's predicted answer. 
-
-"""
-
-
 def normalize_answer(s):
     """Lower text and remove punctuation, articles and extra whitespace."""
 
@@ -90,58 +65,45 @@ def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser(description='report metrics on the output of peft_eval')
     parser.add_argument(
-        '--ground-truth',
+        '--pred_file',
         type=str,
-        help="ground truth .jsonl file made from /NeMo/scripts/dataset_processing/nlp/squad/prompt_learning_squad_preprocessing.py",
+        help="Jsonl file with test set model predictions (expected in a field named 'pred'). Prediction file can be made by running NeMo/examples/nlp/language_modeling/megatron_gpt_peft_eval.py",
     )
     parser.add_argument(
-        '--preds',
-        type=str,
-        help="Text file with test set prompts + model predictions. Prediction file can be made by running NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py",
-    )
-    parser.add_argument(
-        '--split-string',
-        type=str,
-        help="The text at the end of the prompt, write before the predicted answer. This will be used to find the model's predictions in pred files when the pred file containers both the prompt and prediction.",
-        default=None,
-    )  # If the pred file only has preditions, just pass none
-    parser.add_argument(
-        '--answer-field',
+        '--label_field',
         type=str,
         help="The field in the json file that contains the ground truth tokens",
-        default="answer",
+        default="label",
+    )
+
+    parser.add_argument(
+        '--pred_field',
+        type=str,
+        help="The field in the json file that contains the predictied tokens",
+        default="pred",
     )
 
     args = parser.parse_args()
 
-    ground_truth_file = args.ground_truth
-    pred_file = args.preds
     scorer = rouge_scorer.RougeScorer(['rougeL'], use_stemmer=True)
-    preds = open(pred_file, encoding="utf-8").readlines()
-    ground_truth = open(ground_truth_file).readlines()
     f1 = exact_match = total = r_score = 0
+    with open(args.pred_file, 'r', encoding='utf8') as f:
+        for line in f:
+            j = json.loads(line)
+            pred_answer = j[args.pred_field]
+            true_answers = j[args.label_field]
+            if not isinstance(true_answers, list):
+                true_answers = [true_answers]
 
-    for i in range(len(preds)):
-        truth = json.loads(ground_truth[i])
-        pred_answer = json.loads(preds[i])
-
-        # Need to separate out preditions from prompt, spliting on the provided "split string"
-        if args.split_string is not None:
-            pred_answer = pred_answer["sentence"].split(args.split_string)[-1].strip()
-
-        true_answers = truth[args.answer_field]
-        if not isinstance(true_answers, list):
-            true_answers = [true_answers]
-
-        r_scores = []
-        for ta in true_answers:
-            r_scores.append(scorer.score(ta, pred_answer)['rougeL'].fmeasure)
-        r_score += max(r_scores)
-        exact_match += metric_max_over_ground_truths(exact_match_score, pred_answer, true_answers)
-        f1 += metric_max_over_ground_truths(f1_score, pred_answer, true_answers)
-        total += 1
+            r_scores = []
+            for ta in true_answers:
+                r_scores.append(scorer.score(ta, pred_answer)['rougeL'].fmeasure)
+            r_score += max(r_scores)
+            exact_match += metric_max_over_ground_truths(exact_match_score, pred_answer, true_answers)
+            f1 += metric_max_over_ground_truths(f1_score, pred_answer, true_answers)
+            total += 1
 
     exact_match = 100.0 * exact_match / total
     f1 = 100.0 * f1 / total
