@@ -652,10 +652,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                     # speech_logits_list will be used in loss calculation (parallel output)
                     speech_logits_list = []
-                    speech_logits = torch.zeros(
-                        [*token_logits.shape[:-1], self.speech_codebook_size, speech_layers],
-                        device=token_logits.device,
-                    )
                     if self.seq_pattern in ["parallel", "delay_parallel"] and torch.count_nonzero(speech_mask) > 0:
                         for i in range(speech_layers):
                             if self.speech_head_type == "token_level":
