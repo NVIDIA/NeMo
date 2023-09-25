@@ -29,6 +29,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     chinese_text_preprocessing,
     english_text_preprocessing,
     spanish_text_preprocessing,
+    french_text_preprocessing,
 )
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -264,6 +265,35 @@ class SpanishCharsTokenizer(BaseCharsTokenizer):
             pad_with_space=pad_with_space,
             non_default_punct_list=non_default_punct_list,
             text_preprocessing_func=spanish_text_preprocessing,
+        )
+
+
+class FrenchCharsTokenizer(BaseCharsTokenizer):
+
+    PUNCT_LIST = get_ipa_punctuation_list("fr-FR")
+
+    def __init__(
+        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+    ):
+        """Spanish grapheme tokenizer.
+        Args:
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            apostrophe: Whether to use apostrophe or not.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+        """
+
+        fr_alphabet = get_grapheme_character_set("fr-FR")
+        super().__init__(
+            chars=fr_alphabet,
+            punct=punct,
+            apostrophe=apostrophe,
+            add_blank_at=add_blank_at,
+            pad_with_space=pad_with_space,
+            non_default_punct_list=non_default_punct_list,
+            text_preprocessing_func=french_text_preprocessing,
         )
 
 
@@ -519,7 +549,7 @@ class IPATokenizer(BaseTokenizer):
         Args:
             g2p: Grapheme to phoneme module, should be IpaG2p or some subclass thereof.
             locale: Locale used to determine default text processing logic and punctuation.
-                Supports ["en-US", "de-DE", "es-ES"]. Defaults to "en-US".
+                Supports ["en-US", "de-DE", "es-ES", "fr-FR"]. Defaults to "en-US".
                 Specify None if implementing custom logic for a new locale.
             punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default, if any.

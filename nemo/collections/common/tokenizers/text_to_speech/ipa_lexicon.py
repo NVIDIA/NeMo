@@ -15,7 +15,7 @@
 
 # fmt: off
 
-SUPPORTED_LOCALES = ["en-US", "de-DE", "es-ES"]
+SUPPORTED_LOCALES = ["en-US", "de-DE", "es-ES", "fr-FR"]
 
 DEFAULT_PUNCTUATION = (
     ',', '.', '!', '?', '-',
@@ -48,6 +48,13 @@ GRAPHEME_CHARACTER_SETS = {
         'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
         'U', 'V', 'W', 'X', 'Y', 'Z', 'Ä', 'Ö', 'Ü', 'ẞ',
     ),
+    "fr-FR": (
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 
+        'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 
+        'U', 'V', 'W', 'X', 'Y', 'Z', 'À', 'Â', 'Ä', 'Æ', 
+        'Ç', 'È', 'É', 'Ê', 'Ë', 'Í', 'Î', 'Ï', 'Ñ', 'Ô', 
+        'Ö', 'Ù', 'Û', 'Ü', 'Ō', 'Œ',
+    ),
 }
 
 IPA_CHARACTER_SETS = {
@@ -70,6 +77,14 @@ IPA_CHARACTER_SETS = {
         'w', 'x', 'y', 'z', 'ç', 'ø', 'ŋ', 'œ', 'ɐ', 'ɑ',
         'ɒ', 'ɔ', 'ə', 'ɛ', 'ɜ', 'ɡ', 'ɪ', 'ɹ', 'ɾ', 'ʃ',
         'ʊ', 'ʌ', 'ʒ', '̃', 'θ'
+    ),
+    "fr-FR": (
+        'a', 'b', 'd', 'e', 'f', 'h', 'i', 'j', 'k', 'l', 
+        'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'v', 'w', 
+        'y', 'z', 'ð', 'ø', 'ŋ', 'œ', 'ɐ', 'ɑ', 'ɒ', 'ɔ', 
+        'ə', 'ɛ', 'ɜ', 'ɡ', 'ɪ', 'ɲ', 'ɹ', 'ʁ', 'ʃ', 'ʊ', 
+        'ʌ', 'ʒ', 'θ',
+        # 'ː', '̃',
     )
 }
 
@@ -124,7 +139,7 @@ def get_ipa_punctuation_list(locale):
     punct_set = set(DEFAULT_PUNCTUATION)
     # TODO @xueyang: verify potential mismatches with locale-specific punctuation sets used
     #  in nemo_text_processing.text_normalization.en.taggers.punctuation.py
-    if locale in ["de-DE", "es-ES"]:
+    if locale in ["de-DE", "es-ES", "fr-FR"]:
         # ref: https://en.wikipedia.org/wiki/Guillemet#Uses
         punct_set.update(['«', '»', '‹', '›'])
     if locale == "de-DE":
@@ -143,6 +158,8 @@ def get_ipa_punctuation_list(locale):
     elif locale == "es-ES":
         # ref: https://en.wikipedia.org/wiki/Spanish_orthography#Punctuation
         punct_set.update(['¿', '¡'])
+    elif locale == "fr-FR":
+        punct_set.update(['–', '“', '”', '…', '̀', '́', '̂', '̈', '̧'])
 
     punct_list = sorted(list(punct_set))
     return punct_list
