@@ -27,9 +27,8 @@ from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenize
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
-from nemo.utils import AppState
-
 from nemo.collections.nlp.parts.microbatch_calculator import _reconfigure_microbatch_calculator
+from nemo.utils import AppState
 
 try:
     from megatron.core import parallel_state, tensor_parallel
