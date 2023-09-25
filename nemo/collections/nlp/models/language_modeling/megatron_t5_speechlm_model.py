@@ -597,7 +597,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         first_layer_loss = torch.sum(first_layer_loss * loss_mask) / total_predictions
 
         metrics = {
-            'loss': loss_mean*0.14 if torch.count_nonzero(speech_mask) > 0 else loss_mean,
+            'loss': loss_mean * 0.14 if torch.count_nonzero(speech_mask) > 0 else loss_mean,
             'first_layer_accuracy': first_layer_accuracy,
             'first_layer_loss': first_layer_loss,
         }
