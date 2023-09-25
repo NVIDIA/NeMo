@@ -401,42 +401,42 @@ class AudioCodecModel(ModelPT):
 
         loss_mel_l1, loss_mel_l2 = self.mel_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
         if self.mel_loss_l1_scale:
-            generator_losses.append(self.mel_loss_l1_scale * loss_mel_l1)
             metrics["g_loss_mel_l1"] = loss_mel_l1
+            generator_losses.append(self.mel_loss_l1_scale * loss_mel_l1)
         if self.mel_loss_l2_scale:
-            generator_losses.append(self.mel_loss_l2_scale * loss_mel_l2)
             metrics["g_loss_mel_l2"] = loss_mel_l2
+            generator_losses.append(self.mel_loss_l2_scale * loss_mel_l2)
 
         if self.stft_loss_scale:
             loss_stft = self.stft_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
-            generator_losses.append(self.stft_loss_scale * loss_stft)
             metrics["g_loss_stft"] = loss_stft
+            generator_losses.append(self.stft_loss_scale * loss_stft)
 
         if self.time_domain_loss_scale:
             loss_time_domain = self.time_domain_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
-            generator_losses.append(self.time_domain_loss_scale * loss_time_domain)
             metrics["g_loss_time_domain"] = loss_time_domain
+            generator_losses.append(self.time_domain_loss_scale * loss_time_domain)
 
         if self.si_sdr_loss_scale:
             loss_si_sdr = self.si_sdr_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+            metrics["g_loss_si_sdr"] = loss_si_sdr
             generator_losses.append(self.si_sdr_loss_scale * loss_si_sdr)
-            metrics["g_loss_si_sdr"] = commit_loss
 
         _, disc_scores_gen, fmaps_real, fmaps_gen = self.discriminator(audio_real=audio, audio_gen=audio_gen)
 
         if self.gen_loss_scale:
             loss_gen = self.gen_loss_fn(disc_scores_gen=disc_scores_gen)
+            metrics["g_loss_gen"] = loss_gen
             generator_losses.append(self.gen_loss_scale * loss_gen)
-            metrics["g_loss_gen"] = commit_loss
 
         if self.feature_loss_scale:
             loss_feature = self.feature_loss_fn(fmaps_real=fmaps_real, fmaps_gen=fmaps_gen)
+            metrics["g_loss_feature"] = loss_feature
             generator_losses.append(self.feature_loss_scale * loss_feature)
-            metrics["g_loss_feature"] = commit_loss
 
         if self.commit_loss_scale:
-            generator_losses.append(self.commit_loss_scale * commit_loss)
             metrics["g_loss_commit"] = commit_loss
+            generator_losses.append(self.commit_loss_scale * commit_loss)
 
         loss_gen_all = sum(generator_losses)
 
