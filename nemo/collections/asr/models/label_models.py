@@ -373,13 +373,16 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._macro_accuracy.update(preds=logits, target=labels)
         stats = self._macro_accuracy._final_state()
 
-        return {
+        eval_dict = {
             f'{tag}_loss': loss_value,
             f'{tag}_correct_counts': correct_counts,
             f'{tag}_total_counts': total_counts,
             f'{tag}_acc_micro_top_k': acc_top_k,
             f'{tag}_acc_macro_stats': stats,
         }
+
+        self.log_dict(eval_dict)
+        return eval_dict
 
     def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
         loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()

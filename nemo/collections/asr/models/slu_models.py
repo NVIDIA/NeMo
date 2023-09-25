@@ -320,12 +320,16 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()
 
-        return {
+        val_logs_dict = {
             'val_loss': loss_value,
             'val_wer_num': wer_num,
             'val_wer_denom': wer_denom,
             'val_wer': wer,
         }
+
+        self.log_dict(val_logs_dict)
+
+        return val_logs_dict
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
@@ -335,6 +339,9 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             'test_wer_denom': logs['val_wer_denom'],
             'test_wer': logs['val_wer'],
         }
+
+        self.log_dict(test_logs)
+
         return test_logs
 
     def test_dataloader(self):

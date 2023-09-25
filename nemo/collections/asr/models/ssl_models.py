@@ -554,9 +554,11 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         self.reset_registry()
         del self._in_validation_step
 
-        return {
-            'val_loss': loss_value,
-        }
+        val_log_dict = {'val_loss': loss_value}
+
+        self.log_dict(val_log_dict)
+
+        return val_log_dict
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
