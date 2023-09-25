@@ -1126,7 +1126,7 @@ def get_aqa_dataset_from_config(
         else:
             question_file = None
         dataset = AudioQuestionAnswerDataset(
-            manifest_filepath=manifest_filepath,
+            manifest_filepath=file_path,
             tokenizer=tokenizer,
             sample_rate=config.sample_rate,
             int_values=config.get('int_values', False),
