@@ -171,7 +171,7 @@ class STFTLoss(Loss):
     def __init__(self, resolution: List[int], log_guard: float = 1.0, sqrt_guard: float = 1e-5):
         super(STFTLoss, self).__init__()
         self.loss_fn = MaskedMAELoss()
-        self.n_fft, self.win_length, self.hop_length = resolution
+        self.n_fft, self.hop_length, self.win_length = resolution
         self.register_buffer("window", torch.hann_window(self.win_length, periodic=False))
         self.log_guard = log_guard
         self.sqrt_guard = sqrt_guard
