@@ -43,9 +43,9 @@ class MegatronTrainerBuilder:
         if _IS_INTERACTIVE and self.cfg.trainer.devices == 1:
             logging.info("Detected interactive environment, using NLPDDPStrategyNotebook")
             return NLPDDPStrategyNotebook(
-            no_ddp_communication_hook=True,
-            find_unused_parameters=False,
-        )
+                no_ddp_communication_hook=True,
+                find_unused_parameters=False,
+            )
 
         return NLPDDPStrategy(
             no_ddp_communication_hook=True,
@@ -95,13 +95,7 @@ class MegatronTrainerBuilder:
     def create_trainer(self) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer)
-
-        if self.cfg.model.resume_from_checkpoint is not None:
-            trainer.ckpt_path = self.cfg.model.resume_from_checkpoint
-            logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
-
-        return trainer
+        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer)
 
 
 class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
