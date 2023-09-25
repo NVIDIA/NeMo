@@ -601,9 +601,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
 
-        #adding this as return values are no longer logger automatically in PTL2.0
+        # adding this as return values are no longer logger automatically in PTL2.0
         self.log_dict(tensorboard_logs)
-
 
         return tensorboard_logs
 
