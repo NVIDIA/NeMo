@@ -95,11 +95,10 @@ RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements_test
 # install flash attention dependencies
 RUN pip install flash-attn
 # pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
-ARG ARM_BUILD=false
-COPY --from=triton-sdk /workspace/install/python/tritonclient-2.37.0.9383150-py3-none-manylinux1_x86_64.whl .
-RUN if [ "${ARM_BUILD}" = true ]; then \
-  pip install tritonclient*.whl; \
-  else pip install triton==2.0.0.dev20221202; fi
+# RUN pip install triton==2.0.0.dev20221202
+# install tritonclient
+COPY --from=triton-sdk /workspace/install/python/tritonclient-2.37.0.9383150-py3-none-manylinux*.whl .
+RUN pip install tritonclient*.whl && rm tritonclient*.whl
 
 # install numba for latest containers
 RUN pip install numba>=0.57.1
