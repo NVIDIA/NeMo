@@ -452,7 +452,7 @@ class MegatronBaseModel(NLPModel):
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         # Ensure `max_steps` is set correctly
-        optim_config = self._get_optim_config_copy(optim_config)
+        optim_config = self._optim_config_copy(optim_config)
         if optim_config is not None and 'sched' in optim_config and optim_config.sched.get('max_steps') is None:
             with open_dict(optim_config):
                 optim_config.sched.max_steps = self._get_max_steps()

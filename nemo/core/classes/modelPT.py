@@ -586,7 +586,7 @@ class ModelPT(LightningModule, Model):
         self.setup_optimizer_param_groups()
 
         # Make copy of the config so it can be modified later
-        optim_config = self._get_optim_config_copy(optim_config)
+        optim_config = self._optim_config_copy(optim_config)
 
         # If config is still None, return without instantiation
         if optim_config is None:
@@ -1816,7 +1816,7 @@ class ModelPT(LightningModule, Model):
             device = torch.device("cuda", index=device)
         return super().cuda(device=device)
 
-    def _get_optim_config_copy(self, optim_config: Optional[Union[DictConfig, Dict]]) -> Optional[DictConfig]:
+    def _optim_config_copy(self, optim_config: Optional[Union[DictConfig, Dict]]) -> Optional[DictConfig]:
         """
         Return a copy of `optim_config` if provided (and otherwise of the internal optim config, if available).
         """
