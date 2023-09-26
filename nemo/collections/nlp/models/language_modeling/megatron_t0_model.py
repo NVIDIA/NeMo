@@ -154,7 +154,7 @@ class MegatronT0Model(MegatronT5SFTModel):
             return datasets
 
     def training_step(self, dataloader_iter, batch_idx):
-        return super(MegatronT5SFTModel, self).training_step(dataloader_iter, batch_idx)
+        return super().training_step(dataloader_iter, batch_idx)
 
     # Override the parent batch reconfiguring logic.
     def _reconfigure_and_process_inference_batch(self, batch):
@@ -236,10 +236,10 @@ class MegatronT0Model(MegatronT5SFTModel):
 
     # TODO: Temporary overrides of finetune model. This needs to removed in the finetune model.
     def on_train_start(self) -> None:
-        super(MegatronT5SFTModel, self).on_train_start()
+        super().on_train_start()
 
     def on_validation_start(self) -> None:
-        super(MegatronT5SFTModel, self).on_validation_start()
+        super().on_validation_start()
 
     def on_test_start(self) -> None:
-        super(MegatronT5SFTModel, self).on_test_start()
+        super().on_test_start()

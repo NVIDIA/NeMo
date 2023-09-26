@@ -17,7 +17,7 @@ from functools import partial
 from typing import Any, Optional
 
 import torch
-from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
@@ -33,11 +33,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    LengthParam,
-    SamplingParam,
     generate,
     get_computeprob_response,
-    megatron_gpt_generate,
 )
 from nemo.collections.nlp.parts.microbatch_calculator import (
     _reconfigure_microbatch_calculator,

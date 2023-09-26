@@ -33,7 +33,7 @@ try:
     from megatron.core import parallel_state
 
     HAVE_MEGATRON_CORE = True
-except:
+except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 mp.set_start_method("spawn", force=True)
