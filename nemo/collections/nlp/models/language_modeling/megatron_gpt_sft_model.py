@@ -45,6 +45,7 @@ try:
         get_micro_batch_size,
         get_num_microbatches,
     )
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
