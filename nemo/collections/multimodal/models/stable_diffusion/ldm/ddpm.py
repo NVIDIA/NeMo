@@ -1778,12 +1778,12 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
         self.log('reduced_train_loss', loss_mean, prog_bar=False, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log('lr', lr, prog_bar=False, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step + 1, prog_bar=False, rank_zero_only=True, batch_size=1)
         self.log(
             'consumed_samples',
             self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
-            prog_bar=True,
+            prog_bar=False,
             rank_zero_only=True,
             batch_size=1,
         )
