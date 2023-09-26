@@ -44,9 +44,10 @@ Usage:
             "model.data.validation_ds.file_names=[PATH TO VALIDATION JSONL FILE]",
             "model.data.validation_ds.names=[NAME FOR METRIC LOGGING]",
             model.restore_from_path="PATH TO BASE GPT MODEL .nemo FILE"
+            model.peft.peft_scheme='lora'  # lora, ptuning, adapter, ia3, or none for full fineutning
             name="NAME OF TRAINING RUN"
             exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
-Please see lora_tutorial.md for a step-by-step guide.
+Please see lora.ipynb for a step-by-step guide.
 """
 
 
@@ -67,8 +68,11 @@ def main(cfg) -> None:
         # This is not the same as resume training because optimizer states are not restored.
         logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
         model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
-    else:
+    elif peft_cfg_cls is not None:
+        logging.info("Adding adapter weights to the model for PEFT")
         model.add_adapter(peft_cfg_cls(model_cfg))
+    else:
+        logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
 
     trainer.fit(model)
 

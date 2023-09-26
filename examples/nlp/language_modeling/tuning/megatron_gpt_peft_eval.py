@@ -114,10 +114,15 @@ def main(cfg) -> None:
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
 
-    model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
+    if cfg.model.peft.restore_from_path:
+        model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
+    else:
+        model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
+
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
 
-    model.load_adapters(cfg.model.peft.restore_from_path)
+    if cfg.model.peft.restore_from_path:
+        model.load_adapters(cfg.model.peft.restore_from_path)
 
     model.freeze()
     logging.info(f"Freezing parameters for PEFT eval:\n{model.summarize()}")

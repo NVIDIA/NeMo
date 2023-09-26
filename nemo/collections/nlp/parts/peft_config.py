@@ -185,4 +185,6 @@ PEFT_CONFIG_MAP = {
     "ia3": IA3PEFTConfig,
     "ptuning": PtuningPEFTConfig,
     "lora": LoraPEFTConfig,
+    'none': None,
+    None: None,
 }
