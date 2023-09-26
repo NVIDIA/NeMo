@@ -56,7 +56,7 @@ Usage:
             trainer.max_epochs=2
 """
 
-@deprecated(explanation="Please use MegatronGPTSFTModel.add_adapter() for PEFT features."
+@deprecated(explanation=f"{__file__} is deprecated. Please use MegatronGPTSFTModel.add_adapter() for PEFT features."
             "See updated scripts `megatron_gpt_peft_tuning.py` and `megatron_gpt_peft_eval.py` for examples.")
 @hydra_runner(config_path="conf", config_name="megatron_gpt_adapter_tuning_config")
 def main(cfg) -> None:

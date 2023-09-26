@@ -45,7 +45,7 @@ Usage:
 if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
 
-@deprecated(explanation="Please use MegatronT5SFTModel.add_adapter() for PEFT features."
+@deprecated(explanation=f"{__file__} is deprecated. Please use MegatronT5SFTModel.add_adapter() for PEFT features."
             "See updated scripts `megatron_t5_peft_tuning.py` and `megatron_t5_peft_eval.py` for examples.")
 @hydra_runner(config_path="conf", config_name="megatron_t5_adapter_inference")
 def main(cfg) -> None:
