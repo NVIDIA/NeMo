@@ -142,8 +142,11 @@ def validate_checkpoint_loading_args(cfg):
     if cfg.hparams_file is None or not os.path.isfile(cfg.hparams_file):
         raise ValueError(f'Hparams file {cfg.hparams_file} does not exist or is not a file.')
 
-@deprecated(explanation=f"{__file__} is deprecated. PEFT and SFT scripts are now consolidated"
-            "See updated scripts `megatron_gpt_peft_tuning.py` and `megatron_gpt_peft_eval.py` for examples.")
+
+@deprecated(
+    explanation=f"{__file__} is deprecated. PEFT and SFT scripts are now consolidated"
+    "See updated scripts `megatron_gpt_peft_tuning.py` and `megatron_gpt_peft_eval.py` for examples."
+)
 @hydra_runner(config_path="conf", config_name="megatron_gpt_sft")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")

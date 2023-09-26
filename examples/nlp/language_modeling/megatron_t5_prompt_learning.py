@@ -43,8 +43,11 @@ either megatron_ckpt_to_nemo.py or megatron_lm_ckpt_to_nemo.py found
 within this examples directory to convert your model to .nemo format.
 """
 
-@deprecated(explanation=f"{__file__} is deprecated. Please use MegatronT5SFTModel.add_adapter() for PEFT features."
-            "See updated scripts `megatron_t5_peft_tuning.py` and `megatron_t5_peft_eval.py` for examples.")
+
+@deprecated(
+    explanation=f"{__file__} is deprecated. Please use MegatronT5SFTModel.add_adapter() for PEFT features."
+    "See updated scripts `megatron_t5_peft_tuning.py` and `megatron_t5_peft_eval.py` for examples."
+)
 @hydra_runner(config_path="conf", config_name="megatron_t5_prompt_learning.yaml")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
