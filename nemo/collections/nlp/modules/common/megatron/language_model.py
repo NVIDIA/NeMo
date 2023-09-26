@@ -524,7 +524,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = config.sequence_parallel
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
         if kv_channels is None:
 
             assert (
@@ -554,7 +554,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             if rotary_percentage < 1:
                 rotary_dim = int(rotary_dim * rotary_percentage)
             self.rotary_pos_emb = RotaryEmbedding(
-                rotary_dim, seq_len_interpolation_factor=seq_len_interpolation_factor
+                rotary_dim,
+                seq_len_interpolation_factor=seq_len_interpolation_factor,
+                pretrained_max_position_embeddings=max_position_embeddings,
             )
 
         elif position_embedding_type == 'alibi':

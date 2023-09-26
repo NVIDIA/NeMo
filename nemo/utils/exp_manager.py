@@ -190,7 +190,14 @@ class TimingCallback(Callback):
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
-        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, batch_size=1)
+        pl_module.log(
+            name + ' in s',
+            self.timer[name],
+            on_step=True,
+            on_epoch=False,
+            batch_size=1,
+            prog_bar=(name == "train_step_timing"),
+        )
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")
@@ -571,8 +578,8 @@ def check_resume(
         end_dist_checkpoints = [d for d in dist_checkpoints if d.match("*end")]
         last_dist_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
 
-        end_checkpoints = end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.glob("*end.ckpt"))
-        last_checkpoints = last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.glob("*last.ckpt"))
+        end_checkpoints = end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
+        last_checkpoints = last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
 
         if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
             if resume_ignore_no_checkpoint:
