@@ -1518,7 +1518,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         recompute_method = self.cfg.get('activations_checkpoint_method', None)
         recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
 
-        layernorm_zero_centered_gamma=self.cfg.get('layernorm_zero_centered_gamma', 'False')
+        layernorm_zero_centered_gamma = self.cfg.get('layernorm_zero_centered_gamma', 'False')
 
         if not self.cfg.get('fp8', False):
             fp8 = None
