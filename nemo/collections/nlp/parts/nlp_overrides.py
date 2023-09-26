@@ -577,7 +577,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
         if HAVE_AMP_C:
             self._hysteresis_tracker = torch.tensor([self.hysteresis], dtype=torch.int32, device="cuda")
         else:
-            self._hysteresis_tracker = torch.tensor([self.hysteresis], dtype=torch.int32, device="cuda")
+            self._hysteresis_tracker = self.hysteresis
 
     def _unscale_grads_(self, optimizer, *args):
         if getattr(optimizer, "_custom_amp_unscale_grads", False):
