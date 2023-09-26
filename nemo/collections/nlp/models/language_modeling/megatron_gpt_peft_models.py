@@ -303,7 +303,7 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
-        self.inverse_peft = adapter_cfg.get("inverse_peft", False)
+        self.inverse_peft = adapter_tuning_cfg.get("inverse_peft", False)
 
 
 class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
