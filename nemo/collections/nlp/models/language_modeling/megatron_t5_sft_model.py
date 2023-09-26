@@ -26,15 +26,21 @@ from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import Sequen
 from nemo.collections.nlp.data.language_modeling.megatron.t5_sft_dataset import T5SFTDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
-from nemo.collections.nlp.parts.microbatch_calculator import (
-    _reconfigure_microbatch_calculator,
-    get_current_global_batch_size,
-    get_micro_batch_size,
-    get_num_microbatches,
-)
+
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
+
+try:
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator,
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 try:
     from megatron.core import parallel_state
@@ -53,6 +59,10 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
     """ T5 Finetuning model in the same format as MegatronGPTSFTModel """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(cfg, trainer=trainer)
         self.val_metric = self.test_metric = None
         if hasattr(self.cfg.data, "validation_ds"):
