@@ -1518,6 +1518,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         recompute_method = self.cfg.get('activations_checkpoint_method', None)
         recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
 
+        layernorm_zero_centered_gamma=self.cfg.get('layernorm_zero_centered_gamma', 'False')
+
         if not self.cfg.get('fp8', False):
             fp8 = None
         elif self.cfg.get('fp8_e4m3', False):
@@ -1530,7 +1532,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
-            'layernorm_zero_centered_gamma': False,  # not currently used in NeMo
+            'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'add_bias_linear': add_bias_linear,
             'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,
