@@ -35,6 +35,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
+from nemo.utils.decorators import deprecated
 
 try:
     from megatron.core import parallel_state
@@ -45,7 +46,8 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
-
+@deprecated(explanation="Please use MegatronGPTSFTModel.add_adapter() for PEFT features."
+                        "See the updated `megatron_gpt_peft_tuning.py` for an example.")
 class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     """
     base class for all mixin based adapter models
@@ -58,9 +60,6 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         self.freeze()
         self.init_peft_modules()
         self.adapter_keys = self.get_all_keys() - self.base_keys
-        logging.warning(
-            f"{self.__class__} is deprecated. Please use MegatronGPTSFTModel.add_adapters for PEFT model features"
-        )
 
     def first_stage_of_pipeline(self):
         if hasattr(self, "model") and hasattr(self.model, "pre_process"):
