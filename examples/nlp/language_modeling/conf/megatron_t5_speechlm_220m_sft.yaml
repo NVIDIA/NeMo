@@ -15,7 +15,6 @@ trainer:
   check_val_every_n_epoch: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
-  limit_val_batches: 25
 
 exp_manager:
   explicit_log_dir: null
@@ -50,17 +49,17 @@ model:
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
-  global_batch_size: 16 
-  micro_batch_size: 16 # micro batch size should equal global batch size when pipeline parallel = 1
+  global_batch_size: 2 
+  micro_batch_size: 2 # micro batch size should equal global batch size when pipeline parallel = 1
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
   validation_drop_last: False
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
-  seq_pattern: "parallel" # parallel, delay_parallel, flatten
-  speech_head_type: "token_level" # token_level, linear
-  cross_entropy_type: "regular" # regular, vocab_parallel
+  seq_pattern: "delay_parallel" # parallel, delay_parallel, flatten
+  speech_head_type: "linear" # token_level, linear
+  cross_entropy_type: "vocab_parallel" # regular, vocab_parallel
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
@@ -85,9 +84,11 @@ model:
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
+    # train_ds: ["/data/speech/train_clean_300_speechlm_alltasks.json"]
+    # validation_ds: ["/data/speech/val_clean_300_speechlm_alltasks.json"]
   data:
-    train_ds: ["/Data/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
-    validation_ds: ["/Data/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
+    train_ds: ["/data/speech/val_clean_300_speechlm_alltasks.json"]
+    validation_ds: ["/data/speech/val_clean_300_speechlm_alltasks.json"]    
     max_seq_length: 512
     sample_rate: 24000
     add_eos: true
@@ -105,15 +106,15 @@ model:
 
   optim:
     name: fused_adam
-    lr: 5e-5
+    lr: 1e-3
     weight_decay: 0.01 
     betas: 
     - 0.9
     - 0.98
-    # sched:
-    #   name: CosineAnnealing
-    #   warmup_steps: 50
-    #   constant_steps: 0
-    #   min_lr: 0.0
-    #   monitor: val_loss
-    #   reduce_on_plateau: false
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 50
+      constant_steps: 0
+      min_lr: 0.0
+      monitor: val_loss
+      reduce_on_plateau: false

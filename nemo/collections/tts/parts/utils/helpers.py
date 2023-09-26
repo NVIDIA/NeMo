@@ -439,6 +439,17 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
     return data
 
 
+def plot_encodec_to_numpy(encodec, title=''):
+    fig, ax = plt.subplots(figsize=(10, 3))
+    sns.heatmap(encodec, ax=ax)
+
+    plt.tight_layout()
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+
 def plot_pitch_to_numpy(pitch, ylim_range=None):
     fig, ax = plt.subplots(figsize=(12, 3))
     plt.plot(pitch)
