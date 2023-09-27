@@ -29,6 +29,7 @@ exp_manager:
     monitor: validation_${model.data.validation_ds.metric.name}
     save_top_k: 1
     mode: min
+    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # Should be false, correct prompt learning model file is saved at model.nemo_path set below, 
     filename: 'megatron_gpt_sft--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${model.tensor_model_parallel_size}
@@ -69,6 +70,11 @@ model:
   attention_dropout: 0.0
   ffn_dropout: 0.0
 
+  # audio related args
+  num_audio_codebooks: 8
+  audio_codebook_size: 1024
+  audio_token_offset: 256003      # vocab size of text tokenizer
+
   data:
     train_ds:
       # Example of how to specify paths to multiple datasets
@@ -103,13 +109,18 @@ model:
       prompt_template: "Context: {audio_codes} Question: [ Transcribe in English ] Answer: {text}"  # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
+      # audio related args
+      num_audio_codebooks: ${model.num_audio_codebooks}
+      audio_codebook_size: ${model.audio_codebook_size}
+      audio_token_offset: ${model.audio_token_offset}
+
 
     validation_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
-      shuffle: False
+      shuffle: True   # True in case you are using limit_val_batches
       num_workers: 4
       memmap_workers: ${model.data.train_ds.memmap_workers}
       pin_memory: True
@@ -128,6 +139,10 @@ model:
       tokens_to_generate: 64 # decide how many tokens we want to generate to evaluate performance with string metrics
       hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
+      # audio related args
+      num_audio_codebooks: ${model.num_audio_codebooks}
+      audio_codebook_size: ${model.audio_codebook_size}
+      audio_token_offset: ${model.audio_token_offset}
 
       metric:
         name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
@@ -158,7 +173,11 @@ model:
       tokens_to_generate: 64 # decide how many tokens we want to generate to evaluate performance with string metrics
       hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
       truncation_method: 'right' # Truncation from which position, Options: Options: ['left', 'right']
-
+      # audio related args
+      num_audio_codebooks: ${model.num_audio_codebooks}
+      audio_codebook_size: ${model.audio_codebook_size}
+      audio_token_offset: ${model.audio_token_offset}
+      
       metric:
         name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.

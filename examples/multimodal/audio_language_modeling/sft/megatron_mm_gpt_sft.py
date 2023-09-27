@@ -82,6 +82,10 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.tokenizer.sentencepiece_legacy = True
         gpt_cfg.tokenizer.expand_tokens_dataset_type = "audio"      # is there any better name? 
         gpt_cfg.tokenizer.num_sentinel_tokens = 1000
+        
+        gpt_cfg.num_audio_codebooks = cfg.model.get('num_audio_codebooks', 1)
+        gpt_cfg.audio_codebook_size = cfg.model.get('audio_codebook_size', 1024)
+        gpt_cfg.audio_token_offset = cfg.model.get('audio_token_offset', 0)
         # end Audio related configs <=====
         
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
@@ -103,6 +107,7 @@ def load_from_nemo(cls, cfg, trainer, gpt_cfg, modify_confg_fn):
         trainer=trainer,
         override_config_path=gpt_cfg,
         save_restore_connector=save_restore_connector,
+        strict=cfg.model.restore_strict,
     )
     return model
 

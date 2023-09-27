@@ -205,7 +205,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                         tokenizer.add_special_tokens([f'<extra_id_{mask_type}>'])
 
             if dataset_type == "audio":
-                N_AUDIO_TOKENS = 8192
+                N_AUDIO_TOKENS = 8192 #32768
                 # this is a hack. either introduce a new config param (like num_audio_tokens)
                 # or just increase num_sentinel_tokens, in which case all the audio tokens will be named <extra_id_xx> tokens
 
