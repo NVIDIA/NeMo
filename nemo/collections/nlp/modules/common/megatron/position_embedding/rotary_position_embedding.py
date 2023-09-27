@@ -25,7 +25,7 @@ class RotaryEmbedding(nn.Module):
     Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
     """
 
-    def __init__(self, dim: int, seq_len_interpolation_factor: int = None, pretrained_max_position_embeddings: int = None):
+    def __init__(self, dim: int, seq_len_interpolation_factor: int = None, pretrained_max_position_embeddings: int = None, enable_pos_fp32=False):
         """
         Args:
 
@@ -39,8 +39,12 @@ class RotaryEmbedding(nn.Module):
         inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
         self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
-
+        self.enable_fp32 = enable_fp32
+        
     def forward(self, max_seq_len, offset=0):
+        if self.enable_pos_fp32:
+            self.inv_freq = self.inv_freq.to(torch.float32)
+            
         seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
         seq = seq.type_as(self.inv_freq)
 
@@ -51,8 +55,13 @@ class RotaryEmbedding(nn.Module):
             else:
                 # fixed linear scaling
                 seq *= 1 / self.seq_len_interpolation_factor
-
-        freqs = einsum('i , j -> i j', seq, self.inv_freq)
+                
+        if self.enable_pos_fp32:
+            freqs = torch.outer(seq, self.inv_freq)
+        else:
+            # einsum converts fp32 to fp16/bf16 under AMP
+            freqs = einsum('i , j -> i j', seq, self.inv_freq)
+            
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size
         emb = torch.cat((freqs, freqs), dim=-1)
