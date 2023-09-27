@@ -722,7 +722,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             chunks.
         """
 
-        if not isinstance(self.model, list) or len(self.model) == 1:
+        if not isinstance(self.model, list):
             return data_iterator  # TODO @tmoon: Remove
             # TODO @tmoon: Use once available in Megatron-LM
             # return DataIteratorList([data_iterator])
