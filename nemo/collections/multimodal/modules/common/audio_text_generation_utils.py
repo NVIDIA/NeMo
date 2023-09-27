@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import nemo.collections.nlp.modules.common.text_generation_utils as text_generation_utils
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.multimodal.modules.common.audio_text_generation_strategy import (
     END_OF_SEQ,
@@ -51,143 +52,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 __all__ = [
-    "get_default_sampling_params",
-    "get_default_length_params",
     "get_computeprob_response",
     "generate",
 ]
 
 
-def get_default_sampling_params():
-    # default do greedy sampling
-    sampling_params: SamplingParam = {
-        "use_greedy": True,
-        "temperature": 1.0,
-        "top_k": 0,
-        "top_p": 1.0,
-        "repetition_penalty": 1.0,
-        "add_BOS": True,
-        "all_probs": False,
-        "compute_logprob": False,
-        "end_strings": ["<|endoftext|>", "<extra_id_1>"],
-    }
-
-    return sampling_params
-
-
-def get_default_length_params():
-    # default do greedy sampling
-    length_params: LengthParam = {"min_length": 0, "max_length": 30}
-
-    return length_params
-
-
 def get_computeprob_response(tokenizer, response, inputs):
-    if parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage():
-        # we only have a response on the first and last pipeline stages
-        compute_prob_response = {}
-        new_token_ids = []
-        new_tokens = []
-        new_texts = []
-        log_probs = []
-        full_logprobs = []
-        offsets = []
-        for batch_id in range(len(response['tokens'])):
-            if isinstance(inputs, (list, tuple)):
-                if isinstance(inputs[0], str):
-                    new_token_id = tokenizer.text_to_ids(inputs[batch_id])
-                    new_text = inputs[batch_id]
-                    token_len = len(new_token_id)
-                elif isinstance(inputs[0], torch.Tensor):
-                    token_len = int(inputs[1][batch_id].item())
-                    new_token_id = inputs[0][batch_id][:token_len].tolist()
-                    new_text = tokenizer.ids_to_text(new_token_id)
-            new_token_ids.append(new_token_id)
-            new_tokens.append(response['tokens'][batch_id][:token_len])
-            new_texts.append(new_text)
-            log_probs.append(response['logprob'][batch_id][:token_len])
-            full_logprobs.append(response['full_logprob'][batch_id][:token_len])
-            offsets.append(response['offsets'][batch_id][:-1])
-        compute_prob_response['sentences'] = new_texts
-        compute_prob_response['tokens'] = new_tokens
-        compute_prob_response['token_ids'] = new_token_ids
-        compute_prob_response['logprob'] = log_probs
-        compute_prob_response['full_logprob'] = full_logprobs
-        compute_prob_response['offsets'] = offsets
-        return compute_prob_response
-    else:
-        # intermediate stages
-        return None
-
-
-def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started=None):
-    """
-       This function has been mostly taken from huggingface conversational
-         ai code at
-         https://medium.com/huggingface/how-to-build-a-state-of-the-art-
-              conversational-ai-with-transfer-learning-2d818ac26313 
-
-        @param logits: logits tensor
-        @param top_k: keep only top k tokens with highest probability
-        @param top_p: keep the top tokens with cumulative probability
-        @filter_value: value to set filtered tokens to
-        @started: a tensor of bools indicating whether the text generation starts for the batch
-        returns the filtered logits
-    """
-    if top_k > 0:
-        # Remove all tokens with a probability less than the
-        # last token of the top-k
-        indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
-        if started is not None:
-            for i in np.arange(indices_to_remove.size(0))[started.cpu().numpy()]:
-                logits[i, indices_to_remove[i]] = filter_value
-        else:
-            logits[indices_to_remove] = filter_value
-
-    if top_p > 0.0:
-        # Cconvert to 1D
-        sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
-        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-
-        # Remove tokens with cumulative probability above the threshold
-        sorted_indices_to_remove = cumulative_probs > top_p
-        # Shift the indices to the right to keep also the first token
-        # above the threshold
-        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-        sorted_indices_to_remove[..., 0] = 0
-        if started is not None:
-            for i in np.arange(sorted_indices.size(0))[started.cpu().numpy()]:
-                indices_to_remove = sorted_indices[i][sorted_indices_to_remove[i]]
-                logits[i, indices_to_remove] = filter_value
-        else:
-            for i in range(sorted_indices.size(0)):
-                indices_to_remove = sorted_indices[i][sorted_indices_to_remove[i]]
-                logits[i, indices_to_remove] = filter_value
-
-    return logits
-
-
-def repetition_penalty(logits, repetition_penalty, used_tokens):
-    """ Implement the repetition penalty, check paper 
-    https://arxiv.org/pdf/1909.05858.pdf
-    """
-    if used_tokens is not None and repetition_penalty != 1.0:
-        logits_update = torch.gather(logits, 1, used_tokens)
-        logits = torch.scatter(logits, 1, used_tokens, logits_update / repetition_penalty)
-    return logits
-
-
-def get_model_parallel_src_rank():
-    """Calculate the global rank corresponding to the first local rank
-    in the model parallel group."""
-    world_size = torch.distributed.get_world_size()
-    all_ranks = np.arange(world_size)
-    tp_size = parallel_state.get_tensor_model_parallel_world_size()
-    pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-    # [pipeline dim, data parallel, tensor dim]
-    all_ranks = all_ranks.reshape(pp_size, -1, tp_size)
-    dp_rank = parallel_state.get_data_parallel_rank()
-    return all_ranks[:, dp_rank, :].min()
+    return text_generation_utils.get_computeprob_response(tokenizer, response, inputs)
 
 
 def send_generate_info(
@@ -210,7 +81,7 @@ def send_generate_info(
     Needs to be synced up with receive_generate_info
     """
     model_parallel_group = parallel_state.get_model_parallel_group()
-    src = get_model_parallel_src_rank()
+    src = text_generation_utils.get_model_parallel_src_rank()
 
     audio_max_len = audio_signal.size(1) if audio_signal is not None else 0
 
@@ -250,7 +121,7 @@ def receive_generate_info():
     Needs to be synced up with send_generate_info
     """
     model_parallel_group = parallel_state.get_model_parallel_group()
-    src = get_model_parallel_src_rank()
+    src = text_generation_utils.get_model_parallel_src_rank()
     input_info_tensor = torch.empty(12, dtype=torch.float32, device=torch.cuda.current_device())
     torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
     batch_size = int(input_info_tensor[0].item())
@@ -443,7 +314,7 @@ def generate(
         inference_strategy = model_inference_strategy_dispatcher(model)
     tokenizer = model.tokenizer
     audio_signal, audio_signal_length = inputs[2], inputs[3]
-    if torch.distributed.get_rank() == get_model_parallel_src_rank():
+    if torch.distributed.get_rank() == text_generation_utils.get_model_parallel_src_rank():
         if isinstance(inputs, tuple) and len(inputs) == 2:
             context_tokens_tensor, context_length_tensor = inputs
         if isinstance(inputs, tuple) and len(inputs) == 4:
@@ -675,8 +546,10 @@ def sample_sequence_batch(
                     logits = logits.float()
                     logits /= temperature
                     # handle repetition penality
-                    logits = repetition_penalty(logits, extra.get('repetition_penalty', 1.2), all_generated_indices)
-                    logits = top_k_logits(
+                    logits = text_generation_utils.repetition_penalty(
+                        logits, extra.get('repetition_penalty', 1.2), all_generated_indices
+                    )
+                    logits = text_generation_utils.top_k_logits(
                         logits, top_k=extra.get('top_k', 0), top_p=extra.get('top_p', 0.9), started=started
                     )
                     probs = F.softmax(logits, dim=-1)
