@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,34 +39,21 @@ from nemo.utils import logging
 
 mp.set_start_method("spawn", force=True)
 """
-This is the script to run inference with a PEFT model or an SFT Model.
+This is the script to run inference with a speechllm model.
 
-If you want to evaluate an SFT .nemo file:
+If you want to evaluate an speechllm file:
 
-python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
-	model.restore_from_path=<path_to_sft_nemo_file> \
-	model.peft.restore_from_path=null \
-	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
-	model.data.test_ds.names=\['name_for_test_file1', 'name_for_test_file2'] \  # this is not the filename just some identifier
-	model.data.test_ds.global_batch_size=4 \  # or some other value
-	model.data.test_ds.micro_batch_size=4 \
-	model.data.test_ds.tokens_to_generate=30 \
-	inference.greedy=True \
-	inference.outfile_path=\'<path_to_jsonl_output_file>'  
-
-If you want to evaluate a PEFT Model, you should provide a base GPT model and a PEFT model .nemo file
-
-python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
-	model.restore_from_path=<path_to_sft_nemo_file> \
-	model.peft.restore_from_path=<path_to_peft_nemo_file> \ # this will be created if you use `megatron_gpt_peft_tuning.py`
-	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
-	model.data.test_ds.names=\['name_for_test_file1', 'name_for_test_file2'] \  # this is not the filename just some identifier
-	model.data.test_ds.global_batch_size=4 \  # or some other value
-	model.data.test_ds.micro_batch_size=4 \
-	model.data.test_ds.tokens_to_generate=30 \
-	inference.greedy=True \
-	inference.outfile_path=\'<path_to_jsonl_output_file>'  
-
+python eval_audio_gpt_lora.py \
+	model.restore_from_path=$MEGATRON_CKPT \
+    model.peft.restore_from_path=$ALM_CKPT \
+    model.peft.restore_from_hparams_path=$ALM_YAML \
+    model.data.test_ds.manifest_filepath=$VAL_MANIFESTS \
+    model.data.test_ds.names=$VAL_NAMES \
+    model.data.test_ds.global_batch_size=4 \
+    ++inference.greedy=False \
+    ++inference.temperature=0.8 \
+    model.data.test_ds.micro_batch_size=4 \
+    model.data.test_ds.tokens_to_generate=128
 """
 
 
