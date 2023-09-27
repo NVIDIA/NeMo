@@ -1483,10 +1483,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         activation_func = activation_to_func(activation)
 
         normalization = self.cfg.get('normalization', 'layernorm')
+        layernorm_zero_centered_gamma = self.cfg.get('layernorm_zero_centered_gamma', 'False')
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
         elif normalization == 'rmsnorm':
             normalization = 'RMSNorm'
+        elif normalization == 'layernorm1p':
+            normalization = 'LayerNorm'
+            layernorm_zero_centered_gamma = True
         else:
             logging.warning(
                 f"The normalization type: {normalization} might not be supported in megatron core."
@@ -1517,8 +1521,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
         recompute_method = self.cfg.get('activations_checkpoint_method', None)
         recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
-
-        layernorm_zero_centered_gamma = self.cfg.get('layernorm_zero_centered_gamma', 'False')
 
         if not self.cfg.get('fp8', False):
             fp8 = None

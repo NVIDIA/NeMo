@@ -46,7 +46,7 @@ exp_manager:
 
 model:
   # use GPTModel from megatron.core
-  mcore_gpt: False
+  mcore_gpt: True
 
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
@@ -72,6 +72,7 @@ model:
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number.
   normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
+  layernorm_zero_centered_gamma: True
   layernorm_epsilon: 1e-5
   do_layer_norm_weight_decay: False # True means weight decay on all params
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
@@ -199,7 +200,7 @@ model:
     # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
-    data_prefix: ???
+    data_prefix: [1.0, /home/data/my-gpt3_00_text_document]
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50
@@ -225,7 +226,7 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
   
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
     lr: 2e-4
     weight_decay: 0.01 
     betas: 
