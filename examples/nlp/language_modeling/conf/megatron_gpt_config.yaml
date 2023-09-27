@@ -72,7 +72,7 @@ model:
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number.
   normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
-  layernorm_zero_centered_gamma: True
+  layernorm_zero_centered_gamma: False
   layernorm_epsilon: 1e-5
   do_layer_norm_weight_decay: False # True means weight decay on all params
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
