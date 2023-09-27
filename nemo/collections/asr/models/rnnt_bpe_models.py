@@ -184,6 +184,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         results.append(model)
 
         model = PretrainedModelInfo(
+            pretrained_model_name="stt_enzh_fastconformer_transducer_large_codesw",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_enzh_fastconformer_transducer_large_codesw",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_enzh_fastconformer_transducer_large_codesw/versions/1.22.0/files/stt_enzh_fastconformer_transducer_large_codesw.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
             pretrained_model_name="stt_ca_conformer_transducer_large",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_ca_conformer_transducer_large",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_ca_conformer_transducer_large/versions/1.11.0/files/stt_ca_conformer_transducer_large.nemo",
