@@ -128,7 +128,7 @@ def build_train_valid_precached_clip_datasets(
             yield out_dict
 
     def transform_fn(sample):
-        latents, text_embed = sample['pyd']["image_embed"], sample['pyd']['text_emebd']
+        latents, text_embed = sample['pyd']["image_embed"], sample['pyd']['captions_embed']
         latents = torch.from_numpy(latents)
         text_embed = torch.from_numpy(text_embed)
 
