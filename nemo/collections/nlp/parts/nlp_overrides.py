@@ -321,6 +321,7 @@ class LayerUnitTestStrategy(NLPDDPStrategy):
             if torch.distributed.is_initialized():
                 parallel_state.initialize_model_components_parallel(
                     parallelization_specs=self.parallelization_specs,
+                    virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                     pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
                     use_fp8=app_state.use_fp8,
                 )
