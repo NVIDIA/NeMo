@@ -566,7 +566,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             if rotary_percentage < 1:
                 rotary_dim = int(rotary_dim * rotary_percentage)
             self.rotary_pos_emb = RotaryEmbedding(
-                rotary_dim, 
+                rotary_dim,
                 seq_len_interpolation_factor=seq_len_interpolation_factor,
                 pretrained_max_position_embeddings=max_position_embeddings,
                 enable_pos_fp32=enable_pos_fp32,
@@ -582,7 +582,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 layer_type=LayerType.encoder,
                 num_attention_heads_alibi=None,
                 max_seq_len=max_position_embeddings,
-                seq_len_interpolation_factor=seq_len_interpolation_factor
+                seq_len_interpolation_factor=seq_len_interpolation_factor,
             )
 
         elif position_embedding_type == 'kerple':

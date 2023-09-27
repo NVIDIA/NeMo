@@ -285,6 +285,7 @@ def main(cfg) -> None:
 
     # read json file
     import json
+
     output_file = cfg.inference.output_file
     with open(cfg.inference.input_file) as f:
         cfg.prompts = []
@@ -304,7 +305,7 @@ def main(cfg) -> None:
     # print("***************************")
 
     # Second method of running text generation, call trainer.predict [recommended]
-    bs = cfg.inference.batch_size #8 if fp8_enabled else 2
+    bs = cfg.inference.batch_size  # 8 if fp8_enabled else 2
     ds = RequestDataSet(lines)
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
