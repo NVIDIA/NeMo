@@ -193,7 +193,7 @@ model:
     # preprocessor: null
 
   data:
-    end_string: "$$"
+    end_string: "~"
     train_ds:
       # Example of how to specify paths to multiple datasets
       # manifest_filepath:
