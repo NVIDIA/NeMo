@@ -39,11 +39,11 @@ class RotaryEmbedding(nn.Module):
         inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
         self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
-        
+
     def forward(self, max_seq_len, offset=0):
         seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
         seq = seq.type_as(self.inv_freq)
-        
+
         if self.pretrained_max_position_embeddings is not None and self.seq_len_interpolation_factor is not None:
             if max_seq_len > self.pretrained_max_position_embeddings * self.seq_len_interpolation_factor:
                 # dynamic linear scaling (length > position we have learned)
