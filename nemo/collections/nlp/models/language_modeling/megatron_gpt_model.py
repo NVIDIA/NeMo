@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import nullcontext
 import itertools
 import queue
 import warnings
@@ -226,12 +227,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
         else:
             fp8_enabled = cfg.get('fp8', False)
-            fp8_recipe = None
+            make_fp8_autocast = nullcontext
             if fp8_enabled and HAVE_TE:
                 fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
-                    margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3
+                    margin=0,
+                    interval=1,
+                    fp8_format=transformer_engine.common.recipe.Format.E4M3,
                 )
-            with transformer_engine.pytorch.fp8_autocast(enabled=fp8_enabled, fp8_recipe=fp8_recipe):
+                make_fp8_autocast = partial(
+                    transformer_engine.pytorch.fp8_autocast,
+                    enabled=fp8_enabled,
+                    fp8_recipe=fp8_recipe,
+                )
+            with make_fp8_autocast():
                 self.model = build_model(
                     model_provider_func=self.model_provider_func,
                     wrap_with_ddp=False,
