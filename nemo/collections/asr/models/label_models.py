@@ -381,9 +381,16 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             f'{tag}_acc_macro_stats': stats,
         }
         if tag == 'val':
-            self.validation_step_outputs.append(output)
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(output)
+            else:
+                self.validation_step_outputs.append(output)
         else:
-            self.test_step_outputs.append(output)
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(output)
+            else:
+                self.test_step_outputs.append(output)
+
         return output
 
     def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
