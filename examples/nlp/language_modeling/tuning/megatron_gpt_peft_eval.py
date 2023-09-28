@@ -134,7 +134,8 @@ def main(cfg) -> None:
             peft_model_cfg.apply_query_key_layer_scaling = cfg.model.get('apply_query_key_layer_scaling', True)
         if cfg.model.get("seq_len_interpolation_factor", None) is not None:
             peft_model_cfg["seq_len_interpolation_factor"] = cfg.model.seq_len_interpolation_factor
-
+        peft_model_cfg.enforce_fp32_pos_idx = cfg.model.get('enforce_fp32_pos_idx', True)
+        
     with open_dict(cfg):
         # update the config with the trained model config
         # required for hydra interpolation to work inside cfg.inference
