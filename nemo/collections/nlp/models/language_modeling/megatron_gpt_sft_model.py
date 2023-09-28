@@ -565,6 +565,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
+        # Need to calculate averaged_metric as long as there is at least one metric that is not loss, otherwise the
+        # key "validation_{self.val_metric_name}" is not logged and checkpoint monitor will throw error
         averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) >= 1 else None
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
