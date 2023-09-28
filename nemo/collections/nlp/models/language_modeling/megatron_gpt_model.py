@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from contextlib import nullcontext
 import itertools
 import queue
 import warnings
+from contextlib import nullcontext
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
 
@@ -230,14 +230,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             make_fp8_autocast = nullcontext
             if fp8_enabled and HAVE_TE:
                 fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
-                    margin=0,
-                    interval=1,
-                    fp8_format=transformer_engine.common.recipe.Format.E4M3,
+                    margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3,
                 )
                 make_fp8_autocast = partial(
-                    transformer_engine.pytorch.fp8_autocast,
-                    enabled=fp8_enabled,
-                    fp8_recipe=fp8_recipe,
+                    transformer_engine.pytorch.fp8_autocast, enabled=fp8_enabled, fp8_recipe=fp8_recipe,
                 )
             with make_fp8_autocast():
                 self.model = build_model(
