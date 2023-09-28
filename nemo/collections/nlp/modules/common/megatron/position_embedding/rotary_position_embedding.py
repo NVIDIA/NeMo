@@ -26,9 +26,9 @@ class RotaryEmbedding(nn.Module):
     """
 
     def __init__(
-        self, 
-        dim: int, 
-        seq_len_interpolation_factor: int = None, 
+        self,
+        dim: int,
+        seq_len_interpolation_factor: int = None,
         pretrained_max_position_embeddings: int = None,
         enforce_fp32_pos_idx: bool = True,
     ):
@@ -46,7 +46,7 @@ class RotaryEmbedding(nn.Module):
         self.register_buffer('inv_freq', inv_freq)
         self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
         self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
-        
+
     def forward(self, max_seq_len, offset=0):
         if self.enforce_fp32_pos_idx:
             seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32) + offset
