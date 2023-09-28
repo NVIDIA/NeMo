@@ -27,6 +27,7 @@ from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
 from nemo.core.classes.mixins import adapter_mixin_strategies
+from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
 
 try:
@@ -53,7 +54,7 @@ except (ImportError, ModuleNotFoundError):
 
 class AdapterName(str, enum.Enum):
     """
-    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility. 
+    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility.
     """
 
     MLP_INFUSED = "mlp_infused_adapter"
@@ -96,14 +97,14 @@ class InfusedAdapter(nn.Module, AdapterModuleUtil):
 class MLPInfusedAdapter(InfusedAdapter):
     """
     MLPInfusedAdapter is basically a clone of InfusedAdapter. We do this to make the adapter_mixin agnostic to adapter names
-    and only check adapter class types. 
+    and only check adapter class types.
     """
 
     pass
 
 
 @dataclass
-class InfusedAdapterConfig:
+class InfusedAdapterConfig(AdapterConfig):
     in_features: int
     _target_: str = "{0}.{1}".format(InfusedAdapter.__module__, InfusedAdapter.__name__)
 
@@ -233,7 +234,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
 
 @dataclass
-class ParallelLinearAdapterConfig:
+class ParallelLinearAdapterConfig(AdapterConfig):
     in_features: int
     out_features: int
     dim: int
@@ -407,7 +408,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
 
 
 @dataclass
-class PromptEncoderAdapterConfig:
+class PromptEncoderAdapterConfig(AdapterConfig):
     virtual_tokens: int
     bottleneck_dim: int
     embedding_dim: int
