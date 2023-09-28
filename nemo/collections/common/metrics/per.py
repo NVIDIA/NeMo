@@ -1,343 +1,295 @@
-import json
-import re
-from argparse import ArgumentParser
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-import pandas as pd
-from tabulate import tabulate
+import re
+from collections import namedtuple
 from tqdm import tqdm
 
-
 class PER:
-    punctuation_marks = None
-    punctuation_mask = "[PUNCT]"
+    """
+    Class for computation punctuation operations absolute amounts and its rates
+    between reference and hypothesis strings:
+        - Absolute amounts of correct predictions, deletions, insertions
+        and substitutions for each given punctuation mark
+        - Rates of correct predictions, deletions, insertions
+        and substitutions for each given punctuation mark
+        - Overall rates of correct predictions, deletions, insertions
+        and substiturions between reference and hypothesis string
+        - Punctuation Error Rate
 
-    def __init__(self, punctuation_marks: list[str], punctuation_mask: str = "[PUNCT]"):
-        PER.punctuation_marks = punctuation_marks
-        PER.punctuation_mask = punctuation_mask
+    Args to init:
+        punctuation_marks (list[str]) - list of punctuation marks for computing metrics
+        punctuation_mask (str, default = "[PUNCT]") - mask token that will be applied to
+        given punctuation marks while edit distance calculation 
+    
+    How to use:
+        1. Create object of PER class.
+           Example:
+                punctuation_marks = [".", ",", "?"]
+                per_obj = PER(punctuation_marks)
+        
+        2. To compute punctuation metrics, pass reference and hypothesis string to the "compute" method
+        of created object.
+            Example:
+                reference_str = "Hi, dear! Nice to see you. What's"
+                hypothesis_str = "Hi dear! Nice to see you! What's?"
+                per_obj.compute(reference_str, hypothesis_str)
 
-    class Statistics:
-        def __init__(self) -> None:
-            self.punctuation_marks_statistics = pd.DataFrame(
-                0, index=["Correct", "Deletions", "Insertions", "Substitutions"], columns=PER.punctuation_marks
-            )
-
-            self.substitution_statistics = pd.DataFrame(0, index=PER.punctuation_marks, columns=PER.punctuation_marks)
-
-            self.punctuation_marks_rates = pd.DataFrame(
-                0, index=["Correct", "Deletions", "Insertions", "Substitutions", "PER"], columns=PER.punctuation_marks
-            )
-
-            self.substitution_rates = pd.DataFrame(0, index=PER.punctuation_marks, columns=PER.punctuation_marks)
-
-            self.correct_rate = 0
-            self.deletions_rate = 0
-            self.insertions_rate = 0
-            self.substitutions_rate = 0
-            self.per = 0
-
-        def update_statistics(self, per_statistics_obj: object):
-            self.punctuation_marks_statistics = self.punctuation_marks_statistics.add(
-                per_statistics_obj.punctuation_marks_statistics, fill_value=0
-            )
-
-            self.substitution_statistics = self.substitution_statistics.add(
-                per_statistics_obj.substitution_statistics, fill_value=0
-            )
-
-        def compute_rates(self) -> None:
-            amounts_sum = 0
-
-            for punctuation_mark in PER.punctuation_marks:
-                punctuation_mark_amounts_sum = self.punctuation_marks_statistics[punctuation_mark].sum()
-                if punctuation_mark_amounts_sum == 0:
-                    continue
-
-                amounts_sum += punctuation_mark_amounts_sum
-                self.punctuation_marks_rates[punctuation_mark] = self.punctuation_marks_statistics[
-                    punctuation_mark
-                ].div(punctuation_mark_amounts_sum)
-                self.substitution_rates[punctuation_mark] = self.substitution_statistics[punctuation_mark].div(
-                    punctuation_mark_amounts_sum
-                )
-
-                self.punctuation_marks_rates.loc["PER", punctuation_mark] = (
-                    self.punctuation_marks_rates.loc["Deletions", punctuation_mark]
-                    + self.punctuation_marks_rates.loc["Insertions", punctuation_mark]
-                    + self.punctuation_marks_rates.loc["Substitutions", punctuation_mark]
-                )
-
-            if amounts_sum == 0:
-                return
-
-            self.correct_rate = self.punctuation_marks_statistics.loc["Correct"].sum() / amounts_sum
-            self.deletions_rate = self.punctuation_marks_statistics.loc["Deletions"].sum() / amounts_sum
-            self.insertions_rate = self.punctuation_marks_statistics.loc["Insertions"].sum() / amounts_sum
-            self.substitutions_rate = self.punctuation_marks_statistics.loc["Substitutions"].sum() / amounts_sum
-            self.per = self.deletions_rate + self.insertions_rate + self.substitutions_rate
-
-            return
-
-    class Sample:
-        def __init__(self, reference: str, hypothesis: str) -> None:
-            self.reference = reference
-            self.hypothesis = hypothesis
-
-            self.statistics = PER.Statistics()
-
-        def _tokenize(self, text: str):
-            punctuation_marks = "\\" + "\\".join(PER.punctuation_marks)
+    Output:
+        1. Dict of absolute operations amounts for each given punctuation mark:
+            Example:
+            {'.': {'Correct': 0, 'Deletions': 1, 'Insertions': 0, 'Substitutions': 0}, 
+             ',': {'Correct': 0, 'Deletions': 1, 'Insertions': 0, 'Substitutions': 0}, 
+             '?': {'Correct': 0, 'Deletions': 0, 'Insertions': 1, 'Substitutions': 0}}, 
+              
+        2. Dict of substitutions absolute amounts between given punctuation marks:
+            Example:
+            {'.': {'.': 0, ',': 0, '?': 0}, 
+             ',': {'.': 0, ',': 0, '?': 0}, 
+             '?': {'.': 0, ',': 0, '?': 0}}
+             
+        3. namedtuple "PunctuationRates" of punctuation operation rates (in range from 0 to 1):
+            3.1. correct_rate - overall correct rate 
+                Example: correct_rate=0.0
+            3.2. deletions_rate - overall deletions rate
+                Example: deletions_rate=0.6666666666666666
+            3.3. insertions_rate - overall insertions rate
+                Example: insertions_rate=0.3333333333333333
+            3.4. substitution_rate - overall substitution_rate
+                Example: substitution_rate=0.0
+            3.5. per - Punctuation Error Rate
+                Example: per=1.0
+            3.6. operation_rates - dict of operations rates for each given punctuation mark
+                Example: 
+                operation_rates={
+                    '.': {'Correct': 0.0, 'Deletions': 1.0, 'Insertions': 0.0, 'Substitutions': 0.0}, 
+                    ',': {'Correct': 0.0, 'Deletions': 1.0, 'Insertions': 0.0, 'Substitutions': 0.0}, 
+                    '?': {'Correct': 0.0, 'Deletions': 0.0, 'Insertions': 1.0, 'Substitutions': 0.0}
+                    }
+            3.7. substitution_rates - dict of substitution rates for each given punctuation mark
+                Example:
+                substitution_rates={
+                    '.': {'.': 0.0, ',': 0.0, '?': 0.0}, 
+                    ',': {'.': 0.0, ',': 0.0, '?': 0.0}, 
+                    '?': {'.': 0.0, ',': 0.0, '?': 0.0}}
+    """
+    
+    def __init__(self, punctuation_marks: list[str], punctuation_mask: str = "[PUNCT]") -> None:
+        self.punctuation_marks = punctuation_marks
+        self.punctuation_mask = punctuation_mask
+        
+        self.operations = ["Correct", "Deletions", "Insertions", "Substitutions"]
+                
+    def compute_rates(self, operation_amounts: dict, substitution_amounts: dict):                        
+        operation_rates = {pm : {operation : 0 for operation in self.operations} for pm in self.punctuation_marks}
+        substitution_rates = {pm : {pm : 0 for pm in self.punctuation_marks} for pm in self.punctuation_marks}
+        
+        for pm in self.punctuation_marks:
+            operations_amount_by_pm = sum(operation_amounts[pm].values())
+            
+            if operations_amount_by_pm == 0:
+                continue
+                
+            operation_rates[pm] = {operation: 
+                (operation_amounts[pm][operation] / operations_amount_by_pm) for operation in self.operations}
+            
+            substitution_rates[pm] = {_pm: 
+                (substitution_amounts[pm][_pm] / operations_amount_by_pm) for _pm in substitution_amounts[pm].keys()}
+            
+        _operation_amounts = {operation: {pm: operation_amounts[operation] for pm, operation_amounts in operation_amounts.items()} for operation in self.operations}
+        
+        overall_amounts_by_operation = {operation : sum(_operation_amounts[operation].values()) for operation in _operation_amounts}
+        overall_operations_amount = sum(overall_amounts_by_operation.values())
+        
+        punctuation_rates = namedtuple('PunctuationRates', ['correct_rate', 'deletions_rate', 'insertions_rate', 'substitution_rate', 'per',
+                                                            'operation_rates', 'substitution_rates'])
+                
+        if overall_operations_amount == 0:
+            rates = punctuation_rates(0, 0, 0, 0, 0, operation_rates, substitution_rates)
+        else:
+            correct_rate = overall_amounts_by_operation["Correct"] / overall_operations_amount
+            deletions_rate = overall_amounts_by_operation["Deletions"] / overall_operations_amount
+            insertions_rate = overall_amounts_by_operation["Insertions"] / overall_operations_amount
+            substitution_rate = overall_amounts_by_operation["Substitutions"] / overall_operations_amount
+            per = deletions_rate + insertions_rate + substitution_rate
+            
+            rates = punctuation_rates(correct_rate, deletions_rate, insertions_rate, substitution_rate, per, 
+                                      operation_rates, substitution_rates)
+            
+        return rates
+                    
+    def compute_operation_amounts(self, reference: str, hypothesis: str):
+        operation_amounts = {pm : {operation : 0 for operation in self.operations} for pm in self.punctuation_marks}
+        substitution_amounts = {pm : {pm : 0 for pm in self.punctuation_marks} for pm in self.punctuation_marks}    
+    
+        def tokenize(text: str, punctuation_marks: list[str]):
+            punctuation_marks = "\\" + "\\".join(self.punctuation_marks)
             tokens = re.findall(rf"[\w']+|[{punctuation_marks}]", text)
             return tokens
-
-        def _mask_punct_tokens(self, tokens: list[str]):
-            masked = [PER.punctuation_mask if token in PER.punctuation_marks else token for token in tokens]
+        
+        def mask_punct_tokens(tokens: list[str], punctuation_marks: list[str], punctuation_mask: str):
+            masked = [punctuation_mask if token in punctuation_marks else token for token in tokens]
             return masked
+        
+        r_tokens = tokenize(reference, self.punctuation_marks)
+        h_tokens = tokenize(hypothesis, self.punctuation_marks)
+        
+        r_masked = mask_punct_tokens(r_tokens, self.punctuation_marks, self.punctuation_mask)
+        h_masked = mask_punct_tokens(h_tokens, self.punctuation_marks, self.punctuation_mask)
+        
+        r_punct_amount = r_masked.count(self.punctuation_mask)
+        h_punct_amount = h_masked.count(self.punctuation_mask)
+        
+        if r_punct_amount + h_punct_amount == 0:
+            return operation_amounts, substitution_amounts
 
-        def compute_operations_amounts(self):
-            r_tokens = self._tokenize(self.reference)
-            h_tokens = self._tokenize(self.hypothesis)
+        r_len = len(r_masked)
+        h_len = len(h_masked)
+        
+        costs = [[0 for inner in range(h_len + 1)] for outer in range(r_len + 1)]
+        backtrace = [[0 for inner in range(h_len + 1)] for outer in range(r_len + 1)]
+        
+        COR = 'C'
+        DEL, DEL_PENALTY = 'D', 1
+        INS, INS_PENALTY = 'I', 1
+        SUB, SUB_PENALTY = 'S', 1
+        
+        for i in range(1, r_len + 1):
+            costs[i][0] = DEL_PENALTY * i
+            backtrace[i][0] = DEL
 
-            r_masked = self._mask_punct_tokens(r_tokens)
-            h_masked = self._mask_punct_tokens(h_tokens)
+        for j in range(1, h_len + 1):
+            costs[0][j] = INS_PENALTY * j
+            backtrace[0][j] = INS
+            
+        for j in range(1, h_len + 1):
+            costs[0][j] = INS_PENALTY * j
+            backtrace[0][j] = INS
 
-            r_punct_amount = r_masked.count(PER.punctuation_mask)
-            h_punct_amount = h_masked.count(PER.punctuation_mask)
+        for i in range(1, r_len + 1):
+            for j in range(1, h_len + 1):
+                if r_masked[i - 1] == h_masked[j - 1]:
+                    costs[i][j] = costs[i - 1][j - 1]
+                    backtrace[i][j] = COR
+                else:
+                    substitution_cost = costs[i - 1][j - 1] + SUB_PENALTY
+                    insertion_cost = costs[i][j - 1] + INS_PENALTY
+                    deletion_cost = costs[i - 1][j] + DEL_PENALTY
 
-            if r_punct_amount + h_punct_amount == 0:
-                return
-            else:
-                r_len = len(r_masked)
-                h_len = len(h_masked)
+                    costs[i][j] = min(substitution_cost, insertion_cost, deletion_cost)
+                    if costs[i][j] == substitution_cost:
+                        backtrace[i][j] = SUB
+                    elif costs[i][j] == insertion_cost:
+                        backtrace[i][j] = INS
+                    else:
+                        backtrace[i][j] = DEL
+                                                     
+        i = r_len
+        j = h_len
+                                
+        while i > 0 or j > 0:
+            if backtrace[i][j] == COR:
+                if r_masked[i - 1] == self.punctuation_mask or h_masked[j - 1] == self.punctuation_mask:
+                    r_token = r_tokens[i - 1]
+                    h_token = h_tokens[j - 1]
+                    
+                    if r_token == h_token:
+                        operation_amounts[r_token]['Correct'] += 1
+                    else:
+                        operation_amounts[r_token]['Substitutions'] += 1
+                        substitution_amounts[r_token][h_token] += 1
+                i-=1
+                j-=1
 
-                costs = [[0 for inner in range(h_len + 1)] for outer in range(r_len + 1)]
-                backtrace = [[0 for inner in range(h_len + 1)] for outer in range(r_len + 1)]
+            elif backtrace[i][j] == SUB:
+                i-=1
+                j-=1
 
-                OP_COR = 'C'
-                OP_SUB = 'S'
-                OP_INS = 'I'
-                OP_DEL = 'D'
-
-                DEL_PENALTY = 1
-                INS_PENALTY = 1
-                SUB_PENALTY = 1
-
-                for i in range(1, r_len + 1):
-                    costs[i][0] = DEL_PENALTY * i
-                    backtrace[i][0] = OP_DEL
-
-                for j in range(1, h_len + 1):
-                    costs[0][j] = INS_PENALTY * j
-                    backtrace[0][j] = OP_INS
-
-                for j in range(1, h_len + 1):
-                    costs[0][j] = INS_PENALTY * j
-                    backtrace[0][j] = OP_INS
-
-                for i in range(1, r_len + 1):
-                    for j in range(1, h_len + 1):
-                        if r_masked[i - 1] == h_masked[j - 1]:
-                            costs[i][j] = costs[i - 1][j - 1]
-                            backtrace[i][j] = OP_COR
-                        else:
-                            substitutionCost = costs[i - 1][j - 1] + SUB_PENALTY
-                            insertionCost = costs[i][j - 1] + INS_PENALTY
-                            deletionCost = costs[i - 1][j] + DEL_PENALTY
-
-                            costs[i][j] = min(substitutionCost, insertionCost, deletionCost)
-                            if costs[i][j] == substitutionCost:
-                                backtrace[i][j] = OP_SUB
-                            elif costs[i][j] == insertionCost:
-                                backtrace[i][j] = OP_INS
-                            else:
-                                backtrace[i][j] = OP_DEL
-
-                i = r_len
-                j = h_len
-
-                while i > 0 or j > 0:
-                    if backtrace[i][j] == OP_COR:
-                        if r_masked[i - 1] == PER.punctuation_mask or h_masked[j - 1] == PER.punctuation_mask:
-                            r_token = r_tokens[i - 1]
-                            h_token = h_tokens[j - 1]
-
-                            if r_token == h_token:
-                                self.statistics.punctuation_marks_statistics.loc['Correct', r_token] += 1
-                            else:
-                                self.statistics.substitution_statistics.loc[r_token, h_token] += 1
-                                self.statistics.punctuation_marks_statistics.loc['Substitutions', r_token] += 1
-                        i -= 1
-                        j -= 1
-
-                    elif backtrace[i][j] == OP_SUB:
-                        i -= 1
-                        j -= 1
-
-                    elif backtrace[i][j] == OP_INS:
-                        j -= 1
-
-                    elif backtrace[i][j] == OP_DEL:
-                        i -= 1
-
-                for punctuation_mark in PER.punctuation_marks:
-                    num_correct_of_punctution_mark = self.statistics.punctuation_marks_statistics.loc[
-                        'Correct', punctuation_mark
-                    ]
-
-                    num_substitutions_of_punctuation_mark = self.statistics.substitution_statistics.loc[
-                        punctuation_mark
-                    ].sum()
-                    num_substitutions_to_punctuation_mark = self.statistics.substitution_statistics.loc[
-                        :, punctuation_mark
-                    ].sum()
-
-                    num_deletions_of_mark_per_sample = r_tokens.count(punctuation_mark) - (
-                        num_correct_of_punctution_mark + num_substitutions_of_punctuation_mark
-                    )
-                    num_insertions_of_mark_per_sample = h_tokens.count(punctuation_mark) - (
-                        num_correct_of_punctution_mark + num_substitutions_to_punctuation_mark
-                    )
-
-                    self.statistics.punctuation_marks_statistics.loc[
-                        'Deletions', punctuation_mark
-                    ] = num_deletions_of_mark_per_sample
-                    self.statistics.punctuation_marks_statistics.loc[
-                        'Insertions', punctuation_mark
-                    ] = num_insertions_of_mark_per_sample
-                    self.statistics.punctuation_marks_statistics.loc[
-                        'Substitutions', punctuation_mark
-                    ] = num_substitutions_of_punctuation_mark
-
-                return
-
-    class Dataset:
-        def __init__(
-            self,
-            input_manifest_path: str,
-            reference_field: str = "text",
-            hypothesis_field: str = "pred_text",
-            output_manifest_path: str = None,
-        ) -> None:
-
-            self.input_manifest_path = input_manifest_path
-            self.reference_field = reference_field
-            self.hypothesis_field = hypothesis_field
-            self.output_manifest_path = output_manifest_path
-            self.samples = []
-
-            self.statistics = PER.Statistics()
-
-        def read_manifest(self):
-            with open(self.input_manifest_path, 'r') as manifest:
-                lines = manifest.readlines()
-                for line in tqdm(lines, desc="Reading manifest.."):
-                    sample = json.loads(line)
-
-                    sample = PER.Sample(
-                        reference=sample[self.reference_field], hypothesis=sample[self.hypothesis_field]
-                    )
-
-                    self.samples.append(sample)
-
-        def compute(self):
-            for sample in tqdm(self.samples, desc="Computing.."):
-                sample.compute_operations_amounts()
-                sample.statistics.compute_rates()
-                self.statistics.update_statistics(sample.statistics)
-
-            self.statistics.compute_rates()
-
-        def write_manifest(self):
-            with open(self.output_manifest_path, 'w') as manifest:
-                for sample in tqdm(self.samples, desc="Writing manifest"):
-                    sample_dict = {
-                        self.reference_field: sample.reference,
-                        self.hypothesis_field: sample.hypothesis,
-                        "correct_rate": sample.statistics.correct_rate,
-                        "deletions_rate": sample.statistics.deletions_rate,
-                        "insertions_rate": sample.statistics.insertions_rate,
-                        "substitutions_rate": sample.statistics.substitutions_rate,
-                        "per": sample.statistics.per,
-                    }
-
-                    line = json.dumps(sample_dict)
-                    manifest.writelines(f'{line}\n')
-
-        def print_rates(self):
-
-            print("-" * 40)
-
-            correct_rate = self.statistics.correct_rate
-            print(f"Correct rate: {correct_rate} ({correct_rate * 100:2f}%)")
-
-            deletions_rate = self.statistics.deletions_rate
-            print(f"Deletions rate: {deletions_rate} ({deletions_rate * 100:2f}%)")
-
-            insertions_rate = self.statistics.insertions_rate
-            print(f"Insertions rate: {insertions_rate} ({insertions_rate * 100:2f}%)")
-
-            substitutions_rate = self.statistics.substitutions_rate
-            print(f"Substitutions rate: {substitutions_rate} ({substitutions_rate * 100:2f}%)")
-
-            per = self.statistics.per
-            print(f"Punctuation Error Rate: {per} ({per * 100:2f}%)")
-
-            print("\nRATES BY PUNCTUATION MARK:")
-            print(tabulate(self.statistics.punctuation_marks_rates, headers='keys', tablefmt='psql'))
-
-
-if __name__ == "__main__":
-    parser = ArgumentParser("Calculate Punctuaton Prediction Accuracy Rates")
-
-    parser.add_argument(
-        "--manifest",
-        required=True,
-        type=str,
-        help="Path .json manifest file with ASR predictions saved at `pred_text` field.",
-    )
-    parser.add_argument(
-        "--punctuation_marks",
-        required=True,
-        type=str,
-        help="String of punctuation marks for calculating rates \
-        separeted by vertical bar (ex. \".|,|?\")",
-    )
-    parser.add_argument(
-        "--reference_field", default="text", type=str, help="Manifest field of reference text",
-    )
-    parser.add_argument(
-        "--hypothesis_field", default="pred_text", type=str, help="Manifest field of hypothesis text",
-    )
-    parser.add_argument(
-        "--output_manifest_path",
-        default=None,
-        type=str,
-        help="Path where output .json manifest file \
-        with metrics will be saved",
-    )
-    parser.add_argument(
-        "--punctuation_mask",
-        default="[PUNCT]",
-        type=str,
-        help="Mask template for substituting punctuation\
-        marks during PER calculation",
-    )
-
-    args = parser.parse_args()
-    args.punctuation_marks = args.punctuation_marks.split("|")
-
-    per = PER(punctuation_marks=args.punctuation_marks, punctuation_mask=args.punctuation_mask)
-
-    per_dataset = per.Dataset(
-        input_manifest_path=args.manifest,
-        reference_field=args.reference_field,
-        hypothesis_field=args.hypothesis_field,
-        output_manifest_path=args.output_manifest_path,
-    )
-
-    per_dataset.read_manifest()
-    per_dataset.compute()
-
-    if args.output_manifest_path is not None:
-        per_dataset.write_manifest()
-
-    per_dataset.print_rates()
+            elif backtrace[i][j] == INS:
+                j-=1
+                
+            elif backtrace[i][j] == DEL:
+                i-=1
+            
+        for pm in self.punctuation_marks:
+            num_of_correct = operation_amounts[pm]['Correct']
+            
+            num_substitutions_of_pm = operation_amounts[pm]['Substitutions']                
+            num_substitutions_to_pm = sum([substitution_amounts[_pm][pm] for _pm in self.punctuation_marks])
+            
+            num_of_deletions = r_tokens.count(pm) - (num_of_correct + num_substitutions_of_pm)
+            operation_amounts[pm]['Deletions'] = num_of_deletions
+            
+            num_of_insertions = h_tokens.count(pm) - (num_of_correct + num_substitutions_to_pm)
+            operation_amounts[pm]['Insertions'] = num_of_insertions
+        
+        return operation_amounts, substitution_amounts
+        
+    def compute(self, reference: str, hypothesis: str):
+        operation_amounts, substitution_amounts = self.compute_operation_amounts(reference, hypothesis)
+        punctuation_rates = self.compute_rates(operation_amounts, substitution_amounts)
+        return operation_amounts, substitution_amounts, punctuation_rates
+        
+class PERData:
+    def __init__(self, references: list[str], hypotheses: list[str],
+                 punctuation_marks: list[str], punctuation_mask: str = "[PUNCT]") -> None:
+        
+        self.references = references
+        self.hypotheses = hypotheses
+        self.punctuation_marks = punctuation_marks
+        self.punctuation_mask = punctuation_mask
+        
+        self.per_obj = PER(punctuation_marks = self.punctuation_marks,
+                           punctuation_mask = self.punctuation_mask)
+        
+        self.operation_amounts = []
+        self.substitution_amounts = []
+        self.rates = []
+        
+        self.operation_rates = None
+        self.substitution_rates = None
+        self.correct_rate = None
+        self.deletions_rate = None
+        self.insertions_rate = None
+        self.substitution_rate = None
+        self.per = None
+    
+    def compute(self):
+        def sum_amounts(amounts_dicts: list[dict]):
+            amounts = {key: {_key : 0 for _key in amounts_dicts[0][key]} for key in amounts_dicts[0].keys()}
+            
+            for amounts_dict in amounts_dicts:
+                for outer_key, inner_dict in amounts_dict.items():
+                    for inner_key, value in inner_dict.items():
+                        amounts[outer_key][inner_key] += value
+            return amounts
+                    
+        for reference, hypothesis in tqdm(zip(self.references, self.hypotheses), total = len(self.references)):
+            operation_amounts, substitution_amounts, punctuation_rates = self.per_obj.compute(reference, hypothesis)
+            self.operation_amounts.append(operation_amounts)
+            self.substitution_amounts.append(substitution_amounts)
+            self.rates.append(punctuation_rates)
+        
+        overall_operation_amounts = sum_amounts(self.operation_amounts)
+        overall_substitution_amounts = sum_amounts(self.substitution_amounts)
+        overall_rates = self.per_obj.compute_rates(operation_amounts=overall_operation_amounts,
+                                                   substitution_amounts=overall_substitution_amounts)
+        
+        self.operation_rates = overall_rates.operation_rates
+        self.substitution_rates = overall_rates.substitution_rates
+        self.correct_rate = overall_rates.correct_rate
+        self.deletions_rate = overall_rates.deletions_rate
+        self.insertions_rate = overall_rates.insertions_rate
+        self.substitution_rate = overall_rates.substitution_rate
+        self.per = overall_rates.per
