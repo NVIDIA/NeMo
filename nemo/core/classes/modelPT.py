@@ -1582,7 +1582,11 @@ class ModelPT(LightningModule, Model):
         self._validation_step_outputs = []
         # Check len(self._validation_dl) > 1 as sometimes single dataloader can be in a list: [<Dataloader obj>] when ds_item in
         # config has 1 item passed in a list
-        if self._validation_dl is not None and isinstance(self._validation_dl, (list, tuple)) and len(self._validation_dl) > 1:
+        if (
+            self._validation_dl is not None
+            and isinstance(self._validation_dl, (list, tuple))
+            and len(self._validation_dl) > 1
+        ):
             for _ in range(len(self._validation_dl)):
                 self._validation_step_outputs.append([])
 
