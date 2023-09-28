@@ -434,6 +434,10 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         # Log global step
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32), sync_dist=True)
 
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(output_dict)
+        else:
+            self.validation_step_outputs.append(output_dict)
         return output_dict
 
     @classmethod
