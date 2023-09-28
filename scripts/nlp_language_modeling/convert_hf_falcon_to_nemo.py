@@ -23,109 +23,65 @@ TP/PP values you want:
 Example to run this conversion script:
 ```
     python convert_hf_falcon_to_nemo.py \
-     --in-file <path_to_hf_checkpoints_folder> \
-     --out-file <path_to_output_nemo_file> \
-     --tokenizer-type <model_id on hf> \
+     --config /path/to/megatron_gpt_config.yaml \
+     --input <path_to_hf_checkpoints_folder> \
+     --output <path_to_output_nemo_file> \
      --precision <precision of converted nemo model>
 ```
 """
 
-import logging
+import argparse
 import os
+from typing import Dict
 import time
-from argparse import ArgumentParser
-from collections import OrderedDict
 
+import pytorch_lightning as pl
 import torch
+import yaml
 from omegaconf import OmegaConf
-from pytorch_lightning.core.saving import _load_state as ptl_load_state
-from pytorch_lightning.trainer.trainer import Trainer
-from transformers import AutoModelForCausalLM, AutoTokenizer, FalconConfig
+from transformers import FalconConfig, AutoModelForCausalLM
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.utils import logging
 
-# TODO:
-# [Y] refactor ckpt func to make it cleaner
-# [Y] dict tokenizer mapping for falcon family
-# [ ] good way to add new_decoder_architecture and parallel_attn in megatron_gpt_config.yaml
-# [ ] safetensors loading. (only 180b used safetensors)
-# [Y] test on non parallel attention model （block by no alibi support? 1b-rw good, 7b-rw still some time)
-# [Y] hf config name mapping for falcon 7b and 40b.
-# [Y] trust remote code add
-# [Y] MQA MHA GQA num_kv_heads and mcore's GQA logic add (not sure about MQA)
-# [Y] When bias_gelu_fusion is True, add_bias_linear must also be True. error
-# [Y] update save_to and restore_from for dist checkpointing
-# [ ] remove unnecessary comments and codes.
-
-
-def setup_logging(log_file="test.log"):
-    logging.basicConfig(
-        filename=log_file,
-        level=logging.DEBUG,
-        format='%(asctime)s [%(levelname)s] - %(message)s',
-        datefmt='%d-%b-%y %H:%M:%S',
-    )
-
-
-def get_args():
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--in-file", type=str, default=None, required=True, help="Path to Huggingface Falcon checkpoints",
-    )
-    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
-    parser.add_argument("--precision", type=str, default="32", help="Model precision")
-    parser.add_argument(
-        "--tokenizer-type",
-        type=str,
-        default="tiiuae/falcon-7b",
-        help="Tokenizer type to use, e.g., 'tiiuae/falcon-7b'.",
-    )
-    args = parser.parse_args()
-    return args
-
-
-def load_model(cls, checkpoint, strict, **kwargs):
-    try:
-        if 'cfg' in kwargs:
-            model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
+def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
+    def get_new_key(old_key):
+        if old_key == "transformer.word_embeddings.weight":
+            return "embedding.word_embeddings.weight"
+        elif old_key.startswith("transformer.ln_f"):
+            return old_key.replace("transformer.ln_f", "decoder.final_layernorm")
+        elif old_key.startswith("lm_head"):
+            return old_key.replace("lm_head", "output_layer")
+        
+        # For the rest, a base transformation
+        key = old_key.replace("transformer.h", "decoder.layers")
+        
+        # Handling the layer normalization replacements
+        if falcon_config.new_decoder_architecture:
+            key = key.replace("ln_attn", "input_layernorm")
+            key = key.replace("ln_mlp", "pre_mlp_layernorm")
         else:
-            model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
-            for name, module in model.named_parameters():
-                if name in checkpoint['state_dict']:
-                    module.data = checkpoint['state_dict'][name]
-                    checkpoint['state_dict'].pop(name)
-                else:
-                    print(f"Unexpected key: {name} not in checkpoint but in model.")
+            key = key.replace("input_layernorm", "input_layernorm")
+            if not falcon_config.parallel_attn:
+                key = key.replace("post_attention_layernorm", "post_self_attn_layernorm")
+            
+        key = key.replace("self_attention.dense", "self_attention.linear_proj")
+        key = key.replace("self_attention.query_key_value", "self_attention.linear_qkv")
+        key = key.replace("dense_h_to_4h", "linear_fc1")
+        key = key.replace("dense_4h_to_h", "linear_fc2")
+        return key
 
-            for name, buffer in model.named_buffers():
-                if name in checkpoint['state_dict']:
-                    buffer.data = checkpoint['state_dict'][name]
-                    checkpoint['state_dict'].pop(name)
+    new_dict = {}
+    # amp O2 mode has different state dict name
+    prefix = "model.module." if amp else "model."
 
-            if len(checkpoint['state_dict'].keys()) != 0:
-                raise RuntimeError(
-                    f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model."
-                )
+    for old_key, val in state_dict.items():
+        new_key = get_new_key(old_key)
+        new_key = prefix + new_key
+        new_dict[new_key] = val
 
-            # register the artifacts
-            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]
-            if cfg.tokenizer.model is not None:
-                model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
-            if cfg.tokenizer.vocab_file is not None:
-                model.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file)
-            if cfg.tokenizer.merge_file is not None:
-                model.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file)
-    finally:
-        cls._set_model_restore_state(is_being_restored=False)
-    return model
-
+    return new_dict
 
 def load_falcon_config(args) -> FalconConfig:
     """ Helper utility to load FalconConfig.
@@ -134,8 +90,7 @@ def load_falcon_config(args) -> FalconConfig:
     `transformers.FalconModel`. need to manually set the config values
     and force to `falcon` model type. 
     """
-    config = FalconConfig.from_pretrained(args.in_file)
-
+    config = FalconConfig.from_pretrained(args.input)
     if config.model_type == 'RefinedWeb':
         mappings = {
             "num_hidden_layers": config.n_layer,
@@ -159,229 +114,176 @@ def load_falcon_config(args) -> FalconConfig:
     config.model_type = 'falcon'
     return config
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config", type=str, required=True, help="Path to the megatron_gpt_config.yaml file"
+    )
+    parser.add_argument(
+        "--input", type=str, required=True, help="Falcon variants from HuggingFace hub or local dir with downloaded model"
+    )
+    parser.add_argument(
+        "--output", type=str, default=".", help="Path to dir where to store output .nemo file"
+    )
+    parser.add_argument(
+        "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
+    )
+    parser.add_argument(
+        "--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving"
+    )
+    
+    args = parser.parse_args()
 
-def load_nemo_config(args):
+    if not os.path.isdir(args.output):
+        raise FileNotFoundError(f"Output directory '{args.output}' does not exist")
+    
     falcon_config = load_falcon_config(args)
     logging.info(f"falcon_config, {falcon_config}")
-    nemo_config = OmegaConf.load(
-        os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_gpt_config.yaml')
-    ).model
-    nemo_config.encoder_seq_length = falcon_config.max_position_embeddings
-    nemo_config.num_layers = int(falcon_config.num_hidden_layers)
-    nemo_config.hidden_size = falcon_config.hidden_size
-    nemo_config.num_attention_heads = falcon_config.num_attention_heads
-    nemo_config.max_position_embeddings = falcon_config.max_position_embeddings
-    nemo_config.init_method_std = falcon_config.initializer_range
-    nemo_config.layernorm_epsilon = falcon_config.layer_norm_epsilon
-    try:
-        if falcon_config.alibi:
+    with open(args.config, "r", encoding="utf_8") as f:
+        orig_cfg = yaml.safe_load(f)
+    
+    model_dict = orig_cfg["model"]
+    
+    if "data" in model_dict:
+        del model_dict["data"]
+    
+    override_model_dict = {
+        "micro_batch_size": 1,
+        "global_batch_size": 1,
+        "tensor_model_parallel_size": 1,
+        "pipeline_model_parallel_size": 1,
+        "megatron_amp_O2": False,
+        "transformer_engine": True,
+        "use_cpu_initialization": not args.cuda,
+        "normalization": "layernorm",
+        "mcore_gpt": True,
+        "num_query_groups": None,  # MHA
+        "hidden_size": falcon_config.hidden_size,
+        "encoder_seq_length": falcon_config.max_position_embeddings,
+        "max_position_embeddings": falcon_config.max_position_embeddings,
+        "num_layers": falcon_config.num_hidden_layers,
+        "num_attention_heads": falcon_config.num_attention_heads,
+        "ffn_hidden_size": falcon_config.hidden_size * 4,
+        "layernorm_epsilon": falcon_config.layer_norm_epsilon,
+        "pre_process": True,
+        "post_process": True,
+        "apply_query_key_layer_scaling": False,
+        "bias": falcon_config.bias,
+        "transformer_block_type": "pre_ln",
+        "fp32_residual_connection": False,
+        "hidden_dropout": falcon_config.hidden_dropout,
+        "attention_dropout": falcon_config.attention_dropout,
+        "ffn_dropout": 0,
+        "share_embeddings_and_output_weights": False,
+        "position_embedding_type": "rope",
+        "precision": args.precision,
+        "init_method_std": falcon_config.initializer_range,
+        "new_decoder_architecture": falcon_config.new_decoder_architecture,
+        "parallel_attention": falcon_config.parallel_attn,
+        "activation": "gelu",
+        "bias_activation_fusion": False,
+        "bias_dropout_add_fusion": False,
+        "seq_len_interpolation_factor": None,
+    }
+    tokenizer_dict = {
+        "library": "huggingface",
+        "type": args.input,
+        "use_fast": True,
+    }
+    trainer_dict = {
+        "devices": 1,
+        "num_nodes": 1,
+        "accelerator": "gpu" if args.cuda else "cpu",
+        "precision": args.precision,
+        "logger": False,
+        "enable_checkpointing": False,
+        "max_epochs": -1,
+        "max_steps": 100000,
+        "log_every_n_steps": 10,
+        "val_check_interval": 100,
+        "limit_val_batches": 50,
+        "limit_test_batches": 500,
+        "accumulate_grad_batches": 1,
+        "gradient_clip_val": 1.0,
+        "benchmark": False,
+        "enable_model_summary": False,
+        "strategy": NLPDDPStrategy(),
+    }
+
+    # Additional logic for position_embedding_type = alibi
+    if falcon_config.alibi:
+        try:
             raise ValueError(
                 "Alibi is not yet supported in Megatron Core, \
                 force to use RoPE will generate suboptimal responses"
             )
-    except ValueError as e:
-        print(e)
-    finally:
-        nemo_config.position_embedding_type = 'rope'
-    nemo_config.bias = falcon_config.bias
-    nemo_config.hidden_dropout = falcon_config.hidden_dropout
-    nemo_config.attention_dropout = falcon_config.attention_dropout
-    # TODO: how does vocab_file, merge_file etc get mapped automatically in respect to variants of falcon models?
-    tokenizer_dict = {
-        'library': 'huggingface',
-        'type': args.tokenizer_type,  # FIXME: can it work from local args.input too, fix for falcon family?
-    }
+        except ValueError as e:
+            print(e)
 
-    nemo_config.tokenizer = tokenizer_dict
-
-    nemo_config.new_decoder_architecture = falcon_config.new_decoder_architecture #bool, if True, always use parallel attn
-    nemo_config.parallel_attention = falcon_config.parallel_attn
-
-    nemo_config.num_query_groups = (
-        falcon_config.num_kv_heads if falcon_config.new_decoder_architecture or falcon_config.multi_query else None
-    )
-    nemo_config.use_cpu_initialization = True
-    nemo_config.activation = 'gelu'
+    # Additional logic for num_query_groups
+    if override_model_dict.get("num_query_groups") is None:
+        override_model_dict["num_query_groups"] = (
+            falcon_config.num_kv_heads if falcon_config.new_decoder_architecture or falcon_config.multi_query else None
+        )
+        
+    # Additional logic for bias fusion
+    if falcon_config.bias:
+        override_model_dict["bias_activation_fusion"] = True
+        override_model_dict["bias_dropout_add_fusion"] = True
+    
+    # Addtional logic for rope scaling
     if falcon_config.rope_scaling is not None:
         if falcon_config.rope_scaling.type == 'linear':
-            nemo_config['seq_len_interpolation_factor'] = falcon_config.rope_scaling.factor
+            override_model_dict['seq_len_interpolation_factor'] = falcon_config.rope_scaling.factor
         else:
             raise ValueError("Only linear rope scaling type is supported now")
+        
+    
+    model_dict.update(override_model_dict)
+    model_dict["tokenizer"] = tokenizer_dict
+    model_dict["name"] = 'megatron_falcon_gpt'
 
-    nemo_config.mcore_gpt = True
-    nemo_config.transformer_engine = True
-    nemo_config.bias_activation_fusion = False
-    nemo_config.bias_dropout_add_fusion = False
-    nemo_config.share_embeddings_and_output_weights = False
+    omega_cfg = OmegaConf.create(model_dict)
+    
+    # output_path = "./falcon_megatron_config.yaml"
+    # OmegaConf.save(config=omega_cfg, f=output_path)
 
-    base = 128
-    while falcon_config.vocab_size % base != 0:
-        base //= 2
-    nemo_config.make_vocab_size_divisible_by = base
+    trainer = pl.Trainer(**trainer_dict)
 
-    return nemo_config
-
-
-def determine_precision(args):
-    """Helper function to determine the precision of model
-    """
-    if args.precision in ["32", "16"]:
-        return int(args.precision)
-    elif args.precision in ["bf16", "bf16-mixed"]:
-        if not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()):
-            logging.warning("BF16 is not supported on this device. Using FP16 instead.")
-            return args.precision[2:]  # prune 'bf' from string
-    return args.precision
-
-
-def determine_dtype(precision):
-    dtype_map = {
-        "32": torch.float32,
-        "16": torch.float16,
-        "16-mixed": torch.float16,
-        "bf16": torch.bfloat16,
-        "bf16-mixed": torch.bfloat16,
-    }
-    return dtype_map.get(precision, torch.float32)  # default to torch.float32
-
-
-def convert(args):
-    logging.info(f"loading checkpoint {args.in_file}")
+    logging.info("Creating Megatron model...")
     tik = time.time()
-    model = AutoModelForCausalLM.from_pretrained(args.in_file, trust_remote_code=True)
-    falcon_config = load_falcon_config(args)
-    # debug
-    logging.debug(f"initial falcon_config, {falcon_config}")
+    model = MegatronGPTModel(omega_cfg, trainer)
+    logging.info(f"Created model:\n{model}")
 
-    nemo_config = load_nemo_config(args)
-    # debug
-    logging.debug(f"initial nemo_config, {nemo_config}")
-    precision = determine_precision(args)
+    logging.info("Loading HuggingFace model...")
+    model_hf = AutoModelForCausalLM.from_pretrained(args.input, trust_remote_code=True)
+    logging.info(f"Loaded model:\n{model_hf}")
 
-    plugins = []
+    state_dict_hf = model_hf.state_dict()
+    convert_dict = convert_state_dict(state_dict_hf, amp=omega_cfg.megatron_amp_O2)
 
-    if precision in ['16', '16-mixed', 'bf16', 'bf16-mixed']:
-        scaler_params = {
-            'init_scale': nemo_config.get('native_amp_init_scale', 2 ** 32),
-            'growth_interval': nemo_config.get('native_amp_growth_interval', 1000),
-            'hysteresis': nemo_config.get('hysteresis', 2),
-        }
+    logging.info("Loading state dict...")
+    missing_keys, unexpected_keys = model.load_state_dict(convert_dict, strict=False)
 
-        plugin_precision = '16-mixed' if precision in ['16', '16-mixed'] else 'bf16-mixed'
-        scaler = GradScaler(**scaler_params) if precision in ['16', '16-mixed'] else None
+    if missing_keys:
+        # Keys ending with '_extra_state' are related to Transformer Engine internals
+        missing_keys_non_extra = [key for key in missing_keys if not key.endswith("_extra_state")]
+        if missing_keys_non_extra:
+            logging.critical("Missing keys were detected during the load, something has gone wrong. Aborting.")
+            raise RuntimeError(f"Missing keys: \n{missing_keys_non_extra}")
 
-    dtype = determine_dtype(precision)
-    nemo_config.precision = precision
-    trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision, strategy=NLPDDPStrategy())
-    
-    hidden_size = falcon_config.hidden_size
-    head_num = falcon_config.num_attention_heads
-    head_size = hidden_size // head_num
-    num_layers = falcon_config.num_hidden_layers
+    if unexpected_keys:
+        logging.critical("Unexpected keys were detected which should not happen. Aborting.")
+        raise RuntimeError(f"Unexpected keys: \n{unexpected_keys}")
 
-    #  - MHA: num_heads = num_kv_heads
-    #  - Multi-Query Attention: num_kv_heads = 1
-    #  - Grouped-Query Attention: num_heads % num_kv_heads = 0
-    num_query_groups = (
-        nemo_config.num_query_groups
-        if nemo_config.num_query_groups and nemo_config.num_query_groups != head_num
-        else head_num
-    )
-    assert (
-        head_num % num_query_groups == 0
-    ), f'head_num ({head_num}) must be divisible by num_query_groups ({num_query_groups})'
+    logging.info("Saving model...")
 
-    param_to_weights = lambda param: param.float()
-
-    checkpoint = OrderedDict()
-    checkpoint['state_dict'] = OrderedDict()
-
-    def add_to_checkpoint(source_prefix, target_prefix, weight_or_bias):
-        source_name = f"{source_prefix}.{weight_or_bias}"
-        if source_name in model.state_dict():
-            target_name = f"{target_prefix}.{weight_or_bias}"
-            checkpoint['state_dict'][target_name] = param_to_weights(model.state_dict()[source_name])
-
-    def add_weight_and_possible_bias(source_prefix, target_prefix):
-        add_to_checkpoint(source_prefix, target_prefix, 'weight')
-        if f"{source_prefix}.bias" in model.state_dict():
-            add_to_checkpoint(source_prefix, target_prefix, 'bias')
-
-    add_to_checkpoint('transformer.word_embeddings', 'model.embedding.word_embeddings', 'weight')
-
-    for l in range(int(num_layers)):
-        print(f"converting layer {l}")
-        prefix = f'transformer.h.{l}'
-
-        add_weight_and_possible_bias(
-            f'{prefix}.self_attention.query_key_value', f'model.decoder.layers.{l}.self_attention.linear_qkv'
-        )
-        add_weight_and_possible_bias(
-            f'{prefix}.self_attention.dense', f'model.decoder.layers.{l}.self_attention.linear_proj'
-        )
-        add_weight_and_possible_bias(f'{prefix}.mlp.dense_h_to_4h', f'model.decoder.layers.{l}.mlp.linear_fc1')
-        add_weight_and_possible_bias(f'{prefix}.mlp.dense_4h_to_h', f'model.decoder.layers.{l}.mlp.linear_fc2')
-
-        if falcon_config.new_decoder_architecture:
-            add_weight_and_possible_bias(
-                f'{prefix}.ln_attn',
-                f'model.decoder.layers.{l}.input_layernorm',
-            )
-            add_weight_and_possible_bias(
-                f'{prefix}.ln_mlp', 
-                f'model.decoder.layers.{l}.pre_mlp_layernorm', 
-            )
-        else:
-            add_weight_and_possible_bias(
-                f'{prefix}.input_layernorm',
-                f'model.decoder.layers.{l}.input_layernorm',
-            )
-            if not falcon_config.parallel_attn:
-                add_weight_and_possible_bias(
-                    f'{prefix}.post_attention_layernorm',
-                    f'model.decoder.layers.{l}.post_self_attn_layernorm',
-                )
-
-        print(f"done layer {l}")
-
-    # final layer norm
-    add_weight_and_possible_bias('transformer.ln_f', 'model.decoder.final_layernorm')
-
-    # LM weight
-    add_to_checkpoint('lm_head', 'model.output_layer', 'weight')
-
-    checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
-    #logging.debug(f'final checkpoint, {checkpoint}')
-
-    del model
-    
-    # state dict name for megatron_amp_O2 is different
-    if nemo_config.get('megatron_amp_O2', False):
-        keys = list(checkpoint['state_dict'].keys())
-        for key in keys:
-            checkpoint['state_dict'][key.replace('model.', 'model.module.', 1)] = checkpoint['state_dict'].pop(key)
-
-    #model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
-    model = MegatronGPTModel(checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY], trainer=trainer)
-
-    model._save_restore_connector = NLPSaveRestoreConnector()
-
-    # cast to target precision and disable cpu init
+    dtype = torch.bfloat16 if args.precision == "bf16" else torch.float32
     model = model.to(dtype=dtype)
-    model.cfg.use_cpu_initialization = False
-    # We make sure that the tokenizer can be instantiated later regardless of args.input
-    model.cfg.tokenizer.update(type=args.tokenizer_type)
-    # save model
-    
-    model.save_to(args.out_file)
-    logging.info(f'NeMo model saved to: {args.out_file}')
-    
+    model.cfg.update(use_cpu_initialization=False)
+    name_last_part = os.path.basename(args.input.rstrip('/'))
+    model.save_to(os.path.join(args.output, f'falcon_{name_last_part}_{args.precision}_tp1_pp1.nemo'))
+    logging.info("Done.")
     tok = time.time()
     t = time.strftime('%H:%M:%S', time.gmtime(tok - tik))
-    logging.info(f'Weights loaded and saved. Total time: {t}')
-
-
-if __name__ == '__main__':
-    setup_logging()
-    args = get_args()
-    convert(args)
+    logging.info(f'nemo model created and saved. Total time: {t}')
