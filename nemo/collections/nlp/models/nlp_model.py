@@ -455,7 +455,8 @@ class NLPModel(ModelPT, Exportable):
     ):
         if save_restore_connector is None:
             save_restore_connector = NLPSaveRestoreConnector()
-
+        if os.path.isdir(restore_path):
+            save_restore_connector.model_extracted_dir = restore_path
         return super().restore_from(
             restore_path, override_config_path, map_location, strict, return_config, save_restore_connector, trainer
         )
