@@ -25,7 +25,13 @@ class RotaryEmbedding(nn.Module):
     Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
     """
 
-    def __init__(self, dim: int, seq_len_interpolation_factor: int = None, pretrained_max_position_embeddings: int = None, enforce_fp32_pos_idx: bool = False):
+    def __init__(
+        self,
+        dim: int,
+        seq_len_interpolation_factor: int = None,
+        pretrained_max_position_embeddings: int = None,
+        enforce_fp32_pos_idx: bool = False,
+    ):
         """
         Args:
 
@@ -40,7 +46,7 @@ class RotaryEmbedding(nn.Module):
         self.register_buffer('inv_freq', inv_freq)
         self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
         self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
-        
+
     def forward(self, max_seq_len, offset=0):
         if self.enforce_fp32_pos_idx:
             seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32) + offset
@@ -54,7 +60,7 @@ class RotaryEmbedding(nn.Module):
             else:
                 # fixed linear scaling
                 seq *= 1 / self.seq_len_interpolation_factor
-                
+
         if self.enforce_fp32_pos_idx:
             freqs = torch.outer(seq, self.inv_freq)
         else:
