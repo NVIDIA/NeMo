@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf.dictconfig import DictConfig
 from omegaconf import ListConfig
+from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
@@ -27,9 +27,9 @@ from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
-    LoraKQVAdapterConfig,
-    LoraHto4HAdapterConfig,
     Lora4HtoHAdapterConfig,
+    LoraHto4HAdapterConfig,
+    LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
@@ -50,6 +50,7 @@ except (ImportError, ModuleNotFoundError):
 
 QKV_LORA_KEYS = [AdapterName.LORA_KQV_ADAPTER]
 MLP_LORA_KEYS = [AdapterName.LORA_Hto4H_ADAPTER] + [AdapterName.LORA_4HtoH_ADAPTER]
+
 
 class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     """
@@ -613,7 +614,7 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
                 if num_query_groups is None:
                     num_query_groups = cfg.num_attention_heads
                 qkv_projection_size = projection_size + 2 * kv_channels * num_query_groups
-    
+
                 adapter_qkv_cfg = LoraKQVAdapterConfig(
                     in_features=cfg.hidden_size,
                     out_features=qkv_projection_size,
@@ -632,7 +633,9 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
                 self.peft_name_keys += MLP_LORA_KEYS
                 # Build the adapter config
                 fast_glu_activation = cfg.activation in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
-                assert fast_glu_activation, "Only fast_glu_activations are supported: ['fast-geglu', 'fast-swiglu', 'fast-reglu']"
+                assert (
+                    fast_glu_activation
+                ), "Only fast_glu_activations are supported: ['fast-geglu', 'fast-swiglu', 'fast-reglu']"
                 intermediate_size = cfg.ffn_hidden_size * 2 if fast_glu_activation else cfg.ffn_hidden_size
                 adapter_hto4h_cfg = LoraHto4HAdapterConfig(
                     in_features=cfg.hidden_size,
@@ -645,8 +648,8 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
                     row_init_method=lora_cfg.get("row_init_method", "zero"),
                     gather_output=False,
                     dropout=lora_cfg.adapter_dropout,
-                ) 
-    
+                )
+
                 adapter_4htoh_cfg = Lora4HtoHAdapterConfig(
                     in_features=cfg.ffn_hidden_size,
                     out_features=cfg.hidden_size,
@@ -658,10 +661,12 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
                     row_init_method=lora_cfg.get("row_init_method", "zero"),
                     gather_output=False,
                     dropout=lora_cfg.adapter_dropout,
-                )                 
+                )
 
             else:
-                NotImplementedError(f'Unsupported LoRA module: {target_module}. The valid options are "attention" and "mlp".')
+                NotImplementedError(
+                    f'Unsupported LoRA module: {target_module}. The valid options are "attention" and "mlp".'
+                )
 
         self.name_key_to_cfg = {}
         self.name_key_to_mcore_mixins = {}  # maps peft_key to a list of tuples (mcore_target, mcore_mixin)
@@ -669,10 +674,12 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
             if k == AdapterName.LORA_KQV_ADAPTER:
                 adapter_cfg = adapter_qkv_cfg
                 # @TODO (tkonuk): Add LoRA MLP support for MCore GPT
-                self.name_key_to_mcore_mixins[k] = [("self_attention", MCoreSelfAttentionMixin)] if target_module == 'attention' else None
+                self.name_key_to_mcore_mixins[k] = (
+                    [("self_attention", MCoreSelfAttentionMixin)] if target_module == 'attention' else None
+                )
             else:
                 adapter_cfg = adapter_hto4h_cfg if k == AdapterName.LORA_Hto4H_ADAPTER else adapter_4htoh_cfg
-            self.name_key_to_cfg[k] = adapter_cfg            
+            self.name_key_to_cfg[k] = adapter_cfg
         self.layer_selection = lora_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
