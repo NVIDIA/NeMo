@@ -1483,7 +1483,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         activation_func = activation_to_func(activation)
 
         normalization = self.cfg.get('normalization', 'layernorm')
-        layernorm_zero_centered_gamma = self.cfg.get('layernorm_zero_centered_gamma', 'False')
+        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
         elif normalization == 'rmsnorm':
