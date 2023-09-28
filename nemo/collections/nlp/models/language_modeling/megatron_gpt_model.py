@@ -235,6 +235,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
         # Falcon specific args
+        self.falcon_name = cfg.get('name', 'megatron_falcon_gpt')
         self.new_decoder_architecture = cfg.get('new_decoder_architecture', False)
         self.parallel_attention = cfg.get('parallel_attention', False)
         
@@ -325,7 +326,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
-        if self.mcore_gpt and (self.new_decoder_architecture or self.parallel_attention):
+        if self.mcore_gpt and self.falcon_name:
             FalconGPTModel, falcon_layer_spec = import_falcon_gpt_model()
             transformer_layer_spec = falcon_layer_spec
             #debug
@@ -344,7 +345,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             )
             
-            logging.info(f'model architecture is {model}')
             
         elif self.mcore_gpt:
             transformer_layer_spec = gpt_layer_with_transformer_engine_spec

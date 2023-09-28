@@ -67,9 +67,15 @@ class FalconTransformerLayer(MegatronModule):
 
         self.self_attn_mask_type = self_attn_mask_type
 
-        self.new_decoder_architecture = self.config.new_decoder_architecture
-
-        self.parallel_attention = self.config.parallel_attention
+        if hasattr(self.config, 'new_decoder_architecture'):
+            self.new_decoder_architecture = self.config.new_decoder_architecture
+        else:
+            self.new_decoder_architecture = None  
+        
+        if hasattr(self.config, 'parallel_attention'):
+            self.parallel_attention = self.config.parallel_attention
+        else:
+            self.parallel_attention = None 
 
 
         ## [Module 1: Input Layernorm] Optional Layernorm on the input data
