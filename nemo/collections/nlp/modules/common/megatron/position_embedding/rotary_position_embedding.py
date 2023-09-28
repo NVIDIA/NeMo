@@ -99,5 +99,5 @@ def apply_rotary_pos_emb(t, freqs):
     cos_ = torch.cos(freqs).to(t.dtype)
     sin_ = torch.sin(freqs).to(t.dtype)
 
-    t = (t * cos_) + (_rotate_half(t) * sin_))
+    t = (t * cos_) + (_rotate_half(t) * sin_)
     return torch.cat((t, t_pass), dim=-1)
