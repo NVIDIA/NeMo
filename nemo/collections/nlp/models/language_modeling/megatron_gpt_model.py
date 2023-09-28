@@ -371,7 +371,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
             seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-            enforce_fp32_pos_idx=self.cfg.get('enforce_fp32_pos_idx', False),
+            enforce_fp32_pos_idx=self.cfg.get('enforce_fp32_pos_idx', True),
         )
 
         return model

@@ -48,9 +48,6 @@ def build_slopes(num_attention_heads, num_attention_heads_alibi):
         .unsqueeze(-1)
     )
 
-    # if torch.cuda.is_available():
-    # slopes = slopes.to(torch.cuda.current_device())
-
     return slopes
 
 

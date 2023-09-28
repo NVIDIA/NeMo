@@ -30,7 +30,7 @@ class RotaryEmbedding(nn.Module):
         dim: int,
         seq_len_interpolation_factor: int = None,
         pretrained_max_position_embeddings: int = None,
-        enforce_fp32_pos_idx: bool = False,
+        enforce_fp32_pos_idx: bool = True,
     ):
         """
         Args:
@@ -39,6 +39,7 @@ class RotaryEmbedding(nn.Module):
             seq_len_interpolation_factor (int): if not None, discrete positions will be interpolated
             by this factor via the trick in https://arxiv.org/abs/2306.15595.
             pretrained_max_position_embeddings (int): pre-trained max_position_embeddings before position interpolation.
+            enforce_fp32_pos_idx (int): enforce pos index in fp32 to prevent index collision
         """
         super().__init__()
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
@@ -95,5 +96,8 @@ def apply_rotary_pos_emb(t, freqs):
     t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
     # first part is cosine component
     # second part is sine component, need to change signs with _rotate_half method
-    t = (t * freqs.cos()) + (_rotate_half(t) * freqs.sin())
+    cos_ = torch.cos(freqs).to(t.dtype)
+    sin_ = torch.sin(freqs).to(t.dtype)
+
+    t = (t * cos_) + (_rotate_half(t) * sin_))
     return torch.cat((t, t_pass), dim=-1)

@@ -305,7 +305,7 @@ def main(cfg) -> None:
     # print("***************************")
 
     # Second method of running text generation, call trainer.predict [recommended]
-    bs = cfg.inference.batch_size  # 8 if fp8_enabled else 2
+    bs = cfg.inference.batch_size
     ds = RequestDataSet(lines)
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)

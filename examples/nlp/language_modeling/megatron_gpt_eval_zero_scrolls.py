@@ -163,9 +163,8 @@ def main(cfg) -> None:
             if cfg.inference.get("apply_query_key_layer_scaling", None) is not None:
                 pretrained_cfg.apply_query_key_layer_scaling = cfg.inference.apply_query_key_layer_scaling
 
-            if cfg.get('enforce_fp32_pos_idx', None) is not None:
-                pretrained_cfg.enforce_fp32_pos_idx = cfg.enforce_fp32_pos_idx
-
+            pretrained_cfg.enforce_fp32_pos_idx = cfg.get('enforce_fp32_pos_idx', True)
+            
             if cfg.get("model", None) is not None and cfg.model.get("encoder", None) is not None:
                 for k, v in cfg.model.encoder.items():
                     pretrained_cfg[k] = v
