@@ -160,6 +160,7 @@ nav:
   # NeMo Blog Posts
   - Posts:
     - 2023:
+      - blogs/2023/2023-10-28-numba-fp16.md
       - blogs/2023/2023-08-nfa.md
       - blogs/2023/2023-08-forced-alignment.md
       - blogs/2023/2023-06-07-fast-conformer.md
