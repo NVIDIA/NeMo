@@ -25,7 +25,13 @@ class RotaryEmbedding(nn.Module):
     Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
     """
 
-    def __init__(self, dim: int, seq_len_interpolation_factor: int = None, pretrained_max_position_embeddings: int = None):
+    def __init__(
+        self,
+        dim: int,
+        seq_len_interpolation_factor: int = None,
+        pretrained_max_position_embeddings: int = None,
+        enforce_fp32_pos_idx: bool = True,
+    ):
         """
         Args:
 
@@ -33,16 +39,20 @@ class RotaryEmbedding(nn.Module):
             seq_len_interpolation_factor (int): if not None, discrete positions will be interpolated
             by this factor via the trick in https://arxiv.org/abs/2306.15595.
             pretrained_max_position_embeddings (int): pre-trained max_position_embeddings before position interpolation.
+            enforce_fp32_pos_idx (int): enforce pos index in fp32 to prevent index collision
         """
         super().__init__()
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
         inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
         self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
+        self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
 
     def forward(self, max_seq_len, offset=0):
-        seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
-        seq = seq.type_as(self.inv_freq)
+        if self.enforce_fp32_pos_idx:
+            seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32) + offset
+        else:
+            seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype) + offset
 
         if self.pretrained_max_position_embeddings is not None and self.seq_len_interpolation_factor is not None:
             if max_seq_len > self.pretrained_max_position_embeddings * self.seq_len_interpolation_factor:
@@ -52,7 +62,10 @@ class RotaryEmbedding(nn.Module):
                 # fixed linear scaling
                 seq *= 1 / self.seq_len_interpolation_factor
 
-        freqs = einsum('i , j -> i j', seq, self.inv_freq)
+        freqs = torch.outer(seq, self.inv_freq)
+        # einsum converts fp32 to fp16/bf16 under AMP
+        # freqs = einsum('i , j -> i j', seq, self.inv_freq)
+
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size
         emb = torch.cat((freqs, freqs), dim=-1)
@@ -81,5 +94,6 @@ def apply_rotary_pos_emb(t, freqs):
     t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
     # first part is cosine component
     # second part is sine component, need to change signs with _rotate_half method
+
     t = (t * freqs.cos()) + (_rotate_half(t) * freqs.sin())
     return torch.cat((t, t_pass), dim=-1)
