@@ -153,16 +153,14 @@ markdown_extensions:
 # Page Tree
 nav:
   - Home: index.md
-  # NVIDIA Tech blogs
-  - Techblog:
-      - techblog/techblog-2023.md
-      - techblog/techblog-2022.md
   # NeMo Blog Posts
-  - Posts:
+  - Blog posts:
     - 2023:
       - blogs/2023/2023-10-28-numba-fp16.md
       - blogs/2023/2023-08-nfa.md
       - blogs/2023/2023-08-forced-alignment.md
       - blogs/2023/2023-06-07-fast-conformer.md
+      - blogs/2023/2023-nvidia-technical-blog.md
     - 2022:
+      - blogs/2022/2022-nvidia-technical-blog.md
       - blogs/2022/2022-08-introduction.md

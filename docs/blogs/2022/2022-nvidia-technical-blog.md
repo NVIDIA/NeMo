@@ -1,24 +1,16 @@
 ---
-title: Technical Blog Posts 2022
-author: null
+title: NVIDIA Technical Blog 2022
+author: null 
 author_gh_user: null
-read_time: 10 Minutes
-publish_date: 6th February, 2023
+publish_date: null
 
 # DO NOT CHANGE _BELOW
 template: blog.html
 ---
 
-# NeMo Conversational AI Blog Posts and Announcements
+# NeMo on the NVIDIA Technical blog in 2022
 
-## Interspeech 2022 (September)
-
-* [Improving Japanese Language ASR by Combining Convolutions with Attention Mechanisms](https://developer.nvidia.com/blog/improving-japanese-language-asr-by-combining-convolutions-with-attention-mechanisms/)
-* [Changing CTC Rules to Reduce Memory Consumption in Training and Decoding](https://developer.nvidia.com/blog/changing-ctc-rules-to-reduce-memory-consumption-in-training-and-decoding/)
-* [Dynamic Scale Weighting Through Multiscale Speaker Diarization](https://developer.nvidia.com/blog/dynamic-scale-weighting-through-multiscale-speaker-diarization/)
-* [Text Normalization and Inverse Text Normalization with NVIDIA NeMo](https://developer.nvidia.com/blog/text-normalization-and-inverse-text-normalization-with-nvidia-nemo/)
-
------
+The following blog posts were published by the NeMo team on the NVIDIA [Technical blog](https://developer.nvidia.com/blog) in 2022.
 
 ## August 2022
 
@@ -27,9 +19,14 @@ template: blog.html
 -----
 
 ## September 2022
-
 * [Simplifying Model Development and Building Models at Scale with PyTorch Lightning and NGC](https://developer.nvidia.com/blog/simplifying-model-development-and-building-models-at-scale-with-pytorch-lightning-and-ngc/)
 
+Based on work accepted to **Interspeech 2022**:
+
+* [Improving Japanese Language ASR by Combining Convolutions with Attention Mechanisms](https://developer.nvidia.com/blog/improving-japanese-language-asr-by-combining-convolutions-with-attention-mechanisms/)
+* [Changing CTC Rules to Reduce Memory Consumption in Training and Decoding](https://developer.nvidia.com/blog/changing-ctc-rules-to-reduce-memory-consumption-in-training-and-decoding/)
+* [Dynamic Scale Weighting Through Multiscale Speaker Diarization](https://developer.nvidia.com/blog/dynamic-scale-weighting-through-multiscale-speaker-diarization/)
+* [Text Normalization and Inverse Text Normalization with NVIDIA NeMo](https://developer.nvidia.com/blog/text-normalization-and-inverse-text-normalization-with-nvidia-nemo/)
 -----
 
 ## October 2022
@@ -50,4 +47,5 @@ template: blog.html
 
 * [Training and Tuning Text-to-Speech with NVIDIA NeMo and W&B](https://speech-ai-workshop-nvidia.wandb.events/?promo=NV-12-08&tr=true)
 * [Deep Learning is Transforming ASR and TTS Algorithms](https://developer.nvidia.com/blog/deep-learning-is-transforming-asr-and-tts-algorithms/)
+
 
