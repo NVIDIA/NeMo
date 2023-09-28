@@ -65,7 +65,8 @@ class AdapterName(str, enum.Enum):
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
-
+    LORA_Hto4H_ADAPTER = "lora_hto4h_adapter"
+    LORA_4HtoH_ADAPTER = "lora_4htoh_adapter"
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
@@ -272,6 +273,21 @@ class LoraQAdapter(ParallelLinearAdapter):
 
     pass
 
+class LoraHto4HAdapter(ParallelLinearAdapter):
+    """
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    and they do not use an bottleneck activation function
+    """
+
+    pass
+
+class Lora4HtoHAdapter(ParallelLinearAdapter):
+    """
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    and they do not use an bottleneck activation function
+    """
+
+    pass
 
 @dataclass
 class LoraKQVAdapterConfig(ParallelLinearAdapterConfig):
@@ -287,6 +303,13 @@ class LoraQAdapterConfig(ParallelLinearAdapterConfig):
 class LoraKVAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraKVAdapter.__module__, LoraKVAdapter.__name__)
 
+@dataclass
+class LoraHto4HAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(LoraHto4HAdapter.__module__, LoraHto4HAdapter.__name__)
+
+@dataclass
+class Lora4HtoHAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(Lora4HtoHAdapter.__module__, Lora4HtoHAdapter.__name__)
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
