@@ -62,11 +62,9 @@ class RotaryEmbedding(nn.Module):
                 # fixed linear scaling
                 seq *= 1 / self.seq_len_interpolation_factor
 
-        if self.enforce_fp32_pos_idx:
-            freqs = torch.outer(seq, self.inv_freq)
-        else:
-            # einsum converts fp32 to fp16/bf16 under AMP
-            freqs = einsum('i , j -> i j', seq, self.inv_freq)
+        freqs = torch.outer(seq, self.inv_freq)
+        # einsum converts fp32 to fp16/bf16 under AMP
+        # freqs = einsum('i , j -> i j', seq, self.inv_freq)
 
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size
@@ -96,8 +94,6 @@ def apply_rotary_pos_emb(t, freqs):
     t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
     # first part is cosine component
     # second part is sine component, need to change signs with _rotate_half method
-    cos_ = torch.cos(freqs).to(t.dtype)
-    sin_ = torch.sin(freqs).to(t.dtype)
 
-    t = (t * cos_) + (_rotate_half(t) * sin_)
+    t = (t * freqs.cos()) + (_rotate_half(t) * freqs.sin())
     return torch.cat((t, t_pass), dim=-1)
