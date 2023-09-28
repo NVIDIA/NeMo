@@ -162,7 +162,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     Arguments:
         optimizer: base optimizer such as Adam or SGD.
         fp32_grad_accum: to enable the use of fp32 in gradient accumulation and allreduce.
-        contiguous_grad_bucket: to enable allocating the master gradients in the
+        contiguous_grad_bucket: to enable allocating the master gradients in the 
             contiguous memory space to reduce memory fragmentation.
         async_grad_allreduce: enable asynchronous gradient allreduce that is executed
             along with the training step backprop.
