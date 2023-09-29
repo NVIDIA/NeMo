@@ -77,7 +77,9 @@ class TextGeneration:
                           where 'prompt-tag' is used to identify the type of NLP task to solve.
             length_params (LengthParam):
                 a dictionary type which controls the sampling length.
-                    max_length: int, The maximum length of the sequence to be generated.
+                    max_length: int, The maximum length of the sequence to be generated. Note that this is a "soft"
+                        contraint: only the generated sequence with the longest context in the batch is guaranteed not
+                        to exceed this length (those generated from shorter contexts in the same batch may exceed it).
                     min_length: int,  The minimum length of the sequence to be generated.
                 If None, max_length is set to 30, and min_length is set to None
             sampling_params (SamplingParam):
