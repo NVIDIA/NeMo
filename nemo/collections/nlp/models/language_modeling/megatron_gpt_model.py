@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import re
 import queue
 import warnings
 from dataclasses import fields
@@ -30,8 +31,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import GPTSpeechLMDataset
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common import VirtualPromptSource, VirtualPromptPlaceholderToken
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -1760,3 +1763,164 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         )
 
         return model
+
+class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        super().__init__(cfg, trainer)
+        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
+        self.existing_tasks = list(self.cfg.get('existing_tasks', []))
+        self.new_tasks = list(self.cfg.get('new_tasks', []))
+        self.load_task_templates(self.cfg.task_templates)
+        self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
+
+    def build_train_valid_test_datasets(self):
+        pass
+
+    def setup_training_data(self, cfg):
+        if self.cfg.data.get('train_ds', None):
+            self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
+                dataset_paths=self.cfg.data.train_ds,
+                batch_size=self.cfg.global_batch_size,
+                for_train=True,
+                drop_last=True,
+                shuffle=True,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+
+    def setup_validation_data(self, cfg):
+        if self.cfg.data.get('validation_ds', None):
+            self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
+                dataset_paths=self.cfg.data.validation_ds,
+                batch_size=self.cfg.get("validation_global_batch_size", self.cfg.global_batch_size),
+                for_train=True,
+                drop_last=self.cfg.get("validation_drop_last", True),
+                shuffle=False,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+
+    def setup_test_data(self, cfg):
+        pass
+
+    def build_virtual_prompt_dataset(
+        self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
+    ):
+        dataset = GPTSpeechLMDataset(
+            datasets=dataset_paths,
+            tokenizer=self.tokenizer,
+            sample_rate=self.cfg.data.get('sample_rate', 24000),
+            virtual_prompt_source=VirtualPromptSource.PROMPT_ENCODER,
+            task_templates=self.task_templates,
+            pseudo_tokens=self.pseudo_tokens,
+            pad_token_id=self.pad_token_id,
+            max_seq_length=self.cfg.data.max_seq_length,
+            min_seq_length=self.cfg.data.get('min_seq_length', 1),
+            add_bos=self.cfg.data.get('add_bos', False),
+            add_eos=self.cfg.data.get('add_eos', True),
+            decoder_starts_with_pad=self.cfg.data.get('decoder_starts_with_pad', False),
+            add_eos_to_decoder_output=self.cfg.data.get('add_eos_to_decoder_output', True),
+            add_sentinel_to_input=self.cfg.data.get('add_sentinel_to_input', True),
+            ul2_prompt_token=self.cfg.data.get('ul2_prompt_token', None),
+            for_train=for_train,
+            segment_max_duration=self.cfg.data.get('segment_max_duration', None),
+            trim=self.cfg.data.get('trim', None),
+            trim_ref=self.cfg.data.get('trim_ref', None),
+            trim_top_db=self.cfg.data.get('trim_top_db', None),
+            trim_frame_length=self.cfg.data.get('trim_frame_length', None),
+            trim_hop_length=self.cfg.data.get('trim_hop_length', None),
+            pad_multiple=self.cfg.data.get('pad_multiple', 1),
+            pitch_augment=self.cfg.data.get('pitch_augment', None),
+            sup_data_path=self.cfg.data.get('sup_data_path', '/sup_data_path'),
+            speech_offset=self.cfg.data.get('speech_offset', None),
+            train_task=self.cfg.data.get('train_task', "tts"),
+            seq_pattern=self.cfg.seq_pattern,
+        )
+
+        rank = parallel_state.get_data_parallel_rank()
+        world_size = parallel_state.get_data_parallel_world_size()
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
+        )
+
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=dataset.collate_fn,
+            sampler=sampler,
+            batch_size=batch_size // world_size,
+            drop_last=drop_last,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            persistent_workers=True
+            if num_workers > 0
+            else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
+        )
+        batch = next(iter(dataloader))
+        for key in batch:
+            if batch[key] is not None:
+                print(f"{key}: {batch[key].requires_grad}")
+            else:
+                print(f"{key}: {batch[key]}")
+
+        print('build success', len(dataloader), dataset_paths)
+        return dataset, dataloader
+
+    def load_task_templates(self, task_templates):
+        """
+        Takes in the task template portion of the config and turns
+        it into a table where each task's prompt template and
+        the number of virtual tokens to insert in a given part of
+        the prompt template are specified.
+        """
+        self.task_templates = {}
+        self.task_id_num_to_name = {}
+        self.max_virtual_tokens = 0
+
+        task_id_num = 0
+        for task in task_templates:
+            self.task_templates[task.taskname] = {
+                "prompt_template": task.prompt_template,
+                "prompt_template_fields": re.findall("\{(.*?)\}", task.prompt_template),
+                "answer_only_loss": task.get("answer_only_loss", False),
+                "answer_field": task.get("answer_field", None),
+                "truncate_field": task.truncate_field,
+                "total_virtual_tokens": task.total_virtual_tokens,
+                "virtual_token_splits": task.virtual_token_splits,
+                "task_id_num": task_id_num,
+            }
+
+            self.max_virtual_tokens = max(self.max_virtual_tokens, task.total_virtual_tokens)
+            self.task_id_num_to_name[task_id_num] = task.taskname
+            task_id_num += 1
+
+        # Check that all new tasks have the same total num virtual tokens
+        # Num virtual tokens for new tasks don't need to match num used for previously tuned tasks
+        if self.new_tasks:
+            new_task_name = self.new_tasks[0]
+            self.total_new_task_virtual_tokens = self.task_templates[new_task_name]["total_virtual_tokens"]
+
+            assert all(
+                self.task_templates[taskname]["total_virtual_tokens"] == self.total_new_task_virtual_tokens
+                for taskname in self.new_tasks
+            ), "Total virtual tokens for each task tuned simultaneously must match. If you want to use a different number of virtual tokens for different tasks, tune them separately."
+
+def get_pseudo_tokens(num_virtual_tokens):
+    """
+    Takes in an integer and returns a list of strings where each string
+    is a numbered virtual token placeholder. If
+    num_virtual_tokens = 3, then this function returns:
+
+    ["<prompt_0>", "<prompt_1>", "<prompt_2>"]
+
+    Args:
+        num_virtual_tokens: (int) Number of virtual token strings you want to make
+
+    returns a list of string.
+
+    """
+    pseudo_tokens = [
+        VirtualPromptPlaceholderToken.BASE.value + str(i) + VirtualPromptPlaceholderToken.END.value
+        for i in range(num_virtual_tokens)
+    ]
+
+    return pseudo_tokens
