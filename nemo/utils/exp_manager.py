@@ -39,6 +39,7 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
+from nemo.utils.timers import NeMoTimerException
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
 from nemo.utils.env_var_parsing import get_envbool
@@ -185,10 +186,21 @@ class TimingCallback(Callback):
         if self.timer.buffer_size <= 0:
             self.timer.reset(name)
 
-        self.timer.start(name)
+        try:
+            self.timer.start(name)
+        except NeMoTimerException as e:
+            # Just reset the timer, not crashing the run
+            self.timer.reset(name)
+            self.timer.start(name)
+
 
     def _on_batch_end(self, name, pl_module):
-        self.timer.stop(name)
+        try:
+            self.timer.stop(name)
+        except NeMoTimerException as e:
+            # Skip the error
+            pass
+
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
         pl_module.log(
             name + ' in s',
@@ -299,7 +311,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
             - log_global_rank_0_only (bool): Whether to only create log files for global rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
-            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want 
+            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want
                 a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
 
     returns:
