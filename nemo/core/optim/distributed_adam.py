@@ -360,7 +360,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         for fragment in fragments:
             param = self.parameter(fragment)
             if _is_fp8_tensor(param):
-                param._transpose = None
+                param._reset_caches()
         for fragment in fragments:
             param = self.parameter(fragment)
             if _is_fp8_tensor(param):
@@ -390,11 +390,11 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             if not _is_fp8_tensor(param):
                 continue
             i += 1
-            fp8_meta = param.fp8_meta_view["scaling_fwd"]
-            fp8_meta_index = param.gemm_index
+            fp8_meta = param._fp8_meta["scaling_fwd"]
+            fp8_meta_index = param._fp8_meta_index
             amaxes.append(fp8_meta.amax_history[0][fp8_meta_index].view(1))
             scales.append(fp8_meta.scale[fp8_meta_index].view(1))
-            param._scale_inv_cache = scale_invs[i]
+            param._scale_inv = scale_invs[i]
 
         # Update cached scale-inverses
         scale_inv_views = [scale_invs[i].view(1) for i in range(num_fp8_params)]
@@ -410,9 +410,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 continue
 
             # FP8 metadata
-            fp8_meta = param.fp8_meta_view["scaling_fwd"]
-            fp8_meta_index = param.gemm_index
-            fp8_dtype = get_fp8_te_dtype(param.fp8_meta_view["recipe"], fprop_tensor=True,)
+            fp8_meta = param._fp8_meta["scaling_fwd"]
+            fp8_meta_index = param._fp8_meta_index
+            fp8_dtype = param._fp8_dtype
 
             # Iterate through fragments with local data
             for fragment in self.state[param]["fragments"]:
@@ -448,6 +448,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             params_buckets[bucket_id].params_shard = params_shard
 
         # Reduce amaxes
+        # Note: Assume each param has a separate amax
         packed_amaxes = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device,)
         packed_amax_views = [packed_amaxes[i].view(1) for i in range(num_fp8_params)]
         _multi_tensor_copy(
