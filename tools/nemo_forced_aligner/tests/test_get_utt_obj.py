@@ -15,9 +15,9 @@
 import prettyprinter
 import pytest
 from prettyprinter import pretty_call, register_pretty
+from utils.data_prep import Segment, Token, Utterance, Word, get_utt_obj
 
 from nemo.collections.asr.models import ASRModel
-from utils.data_prep import Segment, Token, Utterance, Word, get_utt_obj
 
 
 def get_utt_obj_pp_string(utt_obj):

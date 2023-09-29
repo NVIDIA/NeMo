@@ -20,9 +20,9 @@ from typing import List, Union
 import soundfile as sf
 import torch
 from tqdm.auto import tqdm
+from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
 from nemo.utils import logging
-from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
 
 def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
