@@ -30,7 +30,7 @@ class RotaryEmbedding(nn.Module):
         dim: int,
         seq_len_interpolation_factor: int = None,
         pretrained_max_position_embeddings: int = None,
-        enforce_fp32_pos_idx: bool = True,
+        enforce_fp32_pos_idx: bool = False,
     ):
         """
         Args:
