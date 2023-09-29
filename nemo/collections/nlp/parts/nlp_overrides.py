@@ -291,6 +291,10 @@ class NLPDDPStrategy(DDPStrategy):
             checkpoint_dir = ckpt_to_dir(filepath)
 
             fs = get_filesystem(checkpoint_dir)
+            if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
+                logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
+                return
+
             if is_global_rank_zero():
                 fs.makedirs(checkpoint_dir, exist_ok=True)
 
@@ -465,19 +469,24 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 # model weights is a directory
                 dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
                 fs = get_filesystem(dist_ckpt_dir)
-                if is_global_rank_zero():
-                    fs.makedirs(dist_ckpt_dir, exist_ok=True)
-                sharded_state_dict = model.sharded_state_dict()
-                # dist checkpoint needs torch.distributed to save the checkpoint
-                if parallel_state.is_unitialized():
 
-                    def dummy():
-                        return
+                if fs.isdir(dist_ckpt_dir) and dist_checkpointing.check_is_distributed_checkpoint(dist_ckpt_dir):
+                    logging.info(f'Distributed checkpoint at path {dist_ckpt_dir} already exists, skipping saving')
+                else:
+                    if is_global_rank_zero():
+                        fs.makedirs(dist_ckpt_dir, exist_ok=True)
 
-                    if model.trainer.strategy.launcher is not None:
-                        model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
-                    model.trainer.strategy.setup_environment()
-                dist_checkpointing.save(sharded_state_dict=sharded_state_dict, checkpoint_dir=dist_ckpt_dir)
+                    sharded_state_dict = model.sharded_state_dict()
+                    # dist checkpoint needs torch.distributed to save the checkpoint
+                    if parallel_state.is_unitialized():
+
+                        def dummy():
+                            return
+
+                        if model.trainer.strategy.launcher is not None:
+                            model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
+                        model.trainer.strategy.setup_environment()
+                    dist_checkpointing.save(sharded_state_dict=sharded_state_dict, checkpoint_dir=dist_ckpt_dir)
 
             else:
 
@@ -1132,6 +1141,12 @@ class CustomProgressBar(TQDMProgressBar):
     for megatron models
     """
 
+    def get_current_epoch_step(self, trainer):
+        """
+        Get the value of step within an epoch
+        """
+        return trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed
+
     def init_train_tqdm(self):
         """
         Override bar_format to not have 's/it'
@@ -1140,11 +1155,22 @@ class CustomProgressBar(TQDMProgressBar):
         self.bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
         return self.bar
 
+    def on_train_epoch_start(self, trainer, *_):
+        if trainer.max_steps > 0 and (trainer.ckpt_path is not None):
+            # while resuming from a ckpt use trainer.max_steps as the total for progress bar as trainer.num_training_batches
+            # is truncated to max_steps - step being resumed at
+            num_training_batches = trainer.max_steps
+        else:
+            num_training_batches = trainer.num_training_batches
+        self.train_progress_bar.reset(num_training_batches)
+        self.train_progress_bar.initial = 0
+        self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
+
     def on_train_batch_end(self, trainer, pl_module, *_, **__):
         """
-        Override parent class on_train_batch_end to update progress bar per global_step instead of per microbatch
+        Override parent class on_train_batch_end to update progress bar per global batch instead of per microbatch
         """
-        n = trainer.global_step
+        n = self.get_current_epoch_step(trainer)
         if self._should_update(n, self.train_progress_bar.total):
             _update_n(self.train_progress_bar, n)
             self.train_progress_bar.set_postfix(self.get_metrics(trainer, pl_module))
