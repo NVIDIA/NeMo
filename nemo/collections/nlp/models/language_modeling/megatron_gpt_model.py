@@ -1855,12 +1855,6 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
             if num_workers > 0
             else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
-        batch = next(iter(dataloader))
-        for key in batch:
-            if batch[key] is not None:
-                print(f"{key}: {batch[key].requires_grad}")
-            else:
-                print(f"{key}: {batch[key]}")
 
         print('build success', len(dataloader), dataset_paths)
         return dataset, dataloader

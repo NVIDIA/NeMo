@@ -187,11 +187,11 @@ class BasePromptLearningDataset(Dataset):
 
 
 def find_subsequence_location(sequence, subsequence):
-    """ Finds the start and end index of the first occurance 
-        of a given subsequence within a larger list. Returns 
-        the two indices corresponding to the postition of 
+    """ Finds the start and end index of the first occurance
+        of a given subsequence within a larger list. Returns
+        the two indices corresponding to the postition of
         the first and last token of the subseqeunce.
-        Assumes subsequence is known to be in sequence. 
+        Assumes subsequence is known to be in sequence.
     """
     assert len(sequence) >= len(subsequence), "subsequence too long"
 

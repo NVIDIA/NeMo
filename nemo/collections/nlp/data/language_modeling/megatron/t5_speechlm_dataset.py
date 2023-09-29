@@ -99,8 +99,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         self.add_sentinel_to_input = add_sentinel_to_input
         self.ul2_prompt_token = ul2_prompt_token
         # Speech related variables
-        self.encodec_model = EncodecModel.encodec_model_24khz()
-        self.encodec_model.set_target_bandwidth(6.0)
+        # self.encodec_model = EncodecModel.encodec_model_24khz()
+        # self.encodec_model.set_target_bandwidth(6.0)
         self.base_data_dir = None
         self.segment_max_duration = segment_max_duration
         self.sample_rate = sample_rate
@@ -913,29 +913,16 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
                     input_ids = torch.stack(dec_input_new, dim=0)
                     input_ids_len = torch.tensor(input_ids.shape[1]).long()
 
-
-            # for t in (
-            #     context_tokens,
-            #     context_tokens_len,
-            #     question_tokens,
-            #     question_tokens_len,
-            #     input_ids,
-            #     input_ids_len,
-            # ):
-            #     print(t)
-            #     print(t.requires_grad)
-
             return (
-                context_tokens.detach(),
-                context_tokens_len.detach(),
-                question_tokens.detach(),
-                question_tokens_len.detach(),
-                input_ids.detach(),
-                input_ids_len.detach(),
+                context_tokens,
+                context_tokens_len,
+                question_tokens,
+                question_tokens_len,
+                input_ids,
+                input_ids_len,
             )
 
     def collate_fn(self, batch):
-        logging.error(f"Inside of collate")
         (
             _,
             context_tokens_len,
@@ -1019,12 +1006,12 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         decoder_input = torch.stack(decoder_input_list)
         position_ids = build_position_ids(decoder_input)
         data_dict = {
-            "tokens": decoder_input.detach(),
-            "position_ids": position_ids.detach(),
+            "tokens": decoder_input,
+            "position_ids": position_ids,
             "attention_mask": None,
-            "labels": torch.stack(decoder_labels_list).detach(),
-            "speech_mask": decoder_mask.detach(),  # For TTS, can just be loss_mask since answer will always be speech
-            "loss_mask": decoder_mask.clone().detach(),  # Mask out context and question and padding
+            "labels": torch.stack(decoder_labels_list),
+            "speech_mask": decoder_mask,  # For TTS, can just be loss_mask since answer will always be speech
+            "loss_mask": decoder_mask,  # Mask out context and question and padding
         }
 
         return data_dict
