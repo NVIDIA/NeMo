@@ -204,11 +204,11 @@ class CrossAttention(nn.Module):
         self.to_out = nn.Sequential(nn.Linear(inner_dim, query_dim), nn.Dropout(dropout))
         self.use_flash_attention = use_flash_attention
 
-        if dim_head <= 128 and (dim_head % 8) == 0 and flash_attn_installed:
+        if dim_head <= 160 and (dim_head % 8) == 0 and flash_attn_installed:
             if context_dim == query_dim:
-                self.flash_attn = FlashSelfAttention(self.scale)
+                self.flash_attn = FlashSelfAttention(softmax_scale=self.scale)
             else:
-                self.flash_attn = FlashCrossAttention(self.scale)
+                self.flash_attn = FlashCrossAttention(softmax_scale=self.scale)
 
     def forward(self, x, context=None, mask=None):
         h = self.heads
@@ -229,7 +229,7 @@ class CrossAttention(nn.Module):
             not flash_attn_installed
             or not self.use_flash_attention
             or q.dtype == torch.float32
-            or (self.dim_head > 128 or (self.dim_head % 8) != 0)
+            or (self.dim_head > 160 or (self.dim_head % 8) != 0)
             or mask is not None
         ):
             # original implementation
@@ -396,7 +396,6 @@ class SpatialTransformer(nn.Module):
         if not self.use_linear:
             x = self.proj_in(x)
         x = x.view(b, c, -1).transpose(1, 2)  # b c h w -> b (h w) c
-        # x = x.contiguous()  # workaround for dynamo ddp bug
         if self.use_linear:
             x = self.proj_in(x)
         for i, block in enumerate(self.transformer_blocks):
@@ -404,7 +403,6 @@ class SpatialTransformer(nn.Module):
         if self.use_linear:
             x = self.proj_out(x)
         x = x.transpose(1, 2).view(b, c, h, w)  # b (h w) c -> b c h w
-        # x = x.contiguous()  # workaround for dynamo ddp bu
         if not self.use_linear:
             x = self.proj_out(x)
         return x + x_in
