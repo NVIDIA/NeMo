@@ -26,11 +26,11 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
-from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import (
     MegatronT5PromptLearningModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -147,6 +147,10 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         }
 
     def validation_step(self, dataloader_iter, batch_idx, inference=False):
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
+            return
         batch = next(dataloader_iter)
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
@@ -162,6 +166,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         else:
             metrics = {'loss': loss_mean}
 
+        self.validation_step_outputs.append(metrics)
         self.train(mode=mode)
         return metrics
 
@@ -178,11 +183,11 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         )
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-        input_text = MegatronT5FinetuneModel.ids_to_text(enc_input, self.tokenizer)
+        preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        input_text = MegatronT5SFTModel.ids_to_text(enc_input, self.tokenizer)
 
         if labels is not None:
-            labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
+            labels_text = MegatronT5SFTModel.ids_to_text(labels, self.tokenizer)
         else:
             labels_text = [None] * len(preds_text)
 
@@ -277,11 +282,11 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss
-                averaged_loss = torch.stack([i['loss'] for i in outputs]).mean()
+                averaged_loss = torch.stack([i['loss'] for i in self.validation_step_outputs]).mean()
             else:
                 averaged_loss = torch.tensor(0.0).cuda()
 
@@ -292,15 +297,15 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             logging.info(f'Validation loss: {averaged_loss}')
 
         else:
-            averaged_loss = torch.stack([item['loss'] for item in outputs]).mean()
+            averaged_loss = torch.stack([item['loss'] for item in self.validation_step_outputs]).mean()
             logging.info(f'Validation loss: {averaged_loss}')
             self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         if self.cfg.get('report_validation_accuracy', False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
-            all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
-            all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
-            all_inputs = list(itertools.chain(*[item['enc_inputs'] for item in outputs]))
+            all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in self.validation_step_outputs]))
+            all_labels = list(itertools.chain(*[item['labels'] for item in self.validation_step_outputs]))
+            all_inputs = list(itertools.chain(*[item['enc_inputs'] for item in self.validation_step_outputs]))
 
             assert len(all_preds) == len(all_labels)
             assert len(all_preds) == len(all_inputs)
@@ -334,6 +339,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
+        self.validation_step_outputs.clear()  # free memory
 
 
 class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):

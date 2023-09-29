@@ -1,4 +1,5 @@
 boto3
+datasets
 einops
 faiss-cpu
 fasttext
@@ -18,3 +19,5 @@ rapidfuzz
 rouge_score
 sacrebleu[ja]
 sentence_transformers
+tensorstore
+zarr

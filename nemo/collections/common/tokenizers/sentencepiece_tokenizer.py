@@ -55,6 +55,7 @@ class SentencePieceTokenizer(TokenizerSpec):
                     "Special tokens must be None when legacy is set to False. Provide special tokens at train time."
                 )
             self.add_special_tokens(special_tokens)
+        self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
 
     def text_to_tokens(self, text):
         if self.legacy:
@@ -299,7 +300,7 @@ def create_spt_model(
         byte_fallback: If <unk>, fallback to a byte sequence of the character.
         split_digits: If true, digits are split into individual tokens.
         split_by_whitespace: Whether to respect white space while creating subwords. If False, will learn merges across whitespace.
-        split_by_unicode_script: Whether to include multiple Unicode scripts. Ex. is Arabic diacritics which are considered part of the letter (عِدَّةُ)
+        split_by_unicode_script: Whether to include multiple Unicode scripts. Ex. is Arabic diacritics which are considered part of the letter (عِدَّةُ)
     """
 
     if not data_file or not os.path.exists(data_file):

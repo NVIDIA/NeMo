@@ -1,4 +1,4 @@
-name: megatron_gpt_peft_tuning
+name: megatron_gpt_peft_${model.peft.peft_scheme}_tuning
 
 trainer:
   devices: 1
@@ -7,10 +7,10 @@ trainer:
   precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: 9999
   max_steps: 20000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 10 # frequency with which training steps are logged 
+  log_every_n_steps: 10 # frequency with which training steps are logged
   val_check_interval: 200 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
 
@@ -47,12 +47,12 @@ model:
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
-  
+
   global_batch_size: 128
   micro_batch_size: 4
   restore_from_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
-  save_nemo_on_validation_end: False # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
+  save_nemo_on_validation_end: False # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   sync_batch_comm: False
   megatron_amp_O2: False
 
@@ -61,13 +61,14 @@ model:
   # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
   sequence_parallel: False
 
-  ## Activation Checkpoint 
-  activations_checkpoint_granularity: null # 'selective' or 'full' 
+  ## Activation Checkpoint
+  activations_checkpoint_granularity: null # 'selective' or 'full'
   activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
   # 'uniform' divides the total number of transformer layers and checkpoints the input activation
   # of each chunk at the specified granularity
   # 'block' checkpoints the specified number of layers per pipeline stage at the specified granularity
   activations_checkpoint_num_layers: null # not used with 'selective'
+  activations_checkpoint_layers_per_pipeline: null
   answer_only_loss: True
   gradient_as_bucket_view: False
 
@@ -78,23 +79,29 @@ model:
   peft:
     peft_scheme: "adapter"  # can be either adapter,ia3, or ptuning
     restore_from_path: null
-    
+
     # Used for adapter peft training
     adapter_tuning:
       type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
       adapter_dim: 32
       adapter_dropout: 0.0
-      norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
+      norm_position: 'pre' # This can be set to 'pre', 'post' or null, 'pre' is normally what is used.
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
-    
+      layer_selection: null  # selects in which layers to add adapters, e.g. [1,12] will add adapters to layer 1 (lowest) and 12. null will apply adapters to all layers
+      weight_tying: False
+      position_embedding_strategy: null # used only when weight_tying is True
+
     lora_tuning:
       adapter_dim: 32
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
-    
+      layer_selection:  null  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+      weight_tying: False
+      position_embedding_strategy: null # used only when weight_tying is True
+
     # Used for p-tuning peft training
     p_tuning:
       virtual_tokens: 10  # The number of virtual tokens the prompt encoder should add at the start of the sequence
@@ -102,10 +109,13 @@ model:
       embedding_dim: 1024  # the size of the prompt encoder embeddings
       init_std: 0.023
 
+    ia3_tuning:
+      layer_selection:  null  # selects in which layers to add ia3 adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+
   data:
     train_ds:
       # Example of how to specify paths to multiple datasets
-      # file_names: 
+      # file_names:
       #   - /path/to/squad.jsonl
       #   - /path/to/mnli.jsonl
       #   - /path/to/boolq.jsonl
@@ -116,6 +126,7 @@ model:
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
       num_workers: 0
+      memmap_workers: 2
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
@@ -126,16 +137,14 @@ model:
       #   - 0.25
       #   - 0.25
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
-      context_key: 'input'
       label_key: 'output'
       add_eos: True
       add_sep: False
       add_bos: False
-      separate_prompt_and_response_with_newline: False
-      truncation_field: "context" # Options: ['context', 'answer']
+      truncation_field: "input" # # Can be multiple keys separated with ',' Options: keys in prompt_template
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: "{input} {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-
+      truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
     validation_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: null # Names of the corresponding datasets used to log metrics.
@@ -143,49 +152,49 @@ model:
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
       num_workers: 0
+      memmap_workers: ${model.data.train_ds.memmap_workers}
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
       drop_last: False
-      context_key: 'input'
-      label_key: 'output'
+      label_key: ${model.data.train_ds.label_key}
       add_eos: ${model.data.train_ds.add_eos}
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
-      separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
       write_predictions_to_file: False
       output_file_path_prefix: null # Prefix of the file to write predictions to.
-      truncation_field: "context" # Options: ['context', 'answer']
+      truncation_field: ${model.data.train_ds.truncation_field} # Options: keys in prompt_template
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-
+      tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
+      truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
-  test_ds:
+    test_ds:
       file_names: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
-      num_workers: 4
+      num_workers: 0
+      memmap_workers: ${model.data.train_ds.memmap_workers}
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
       drop_last: False
-      context_key: 'input'
-      label_key: 'output'
+      label_key: ${model.data.train_ds.label_key}
       add_eos: ${model.data.train_ds.add_eos}
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
-      separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
       write_predictions_to_file: False
       output_file_path_prefix: null # Prefix of the file to write predictions to.
-      truncation_field: "context" # Options: ['context', 'answer']
+      truncation_field: ${model.data.train_ds.truncation_field} # Options: keys in prompt_template
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template}
-
+      tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
+      truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
