@@ -574,8 +574,11 @@ class GradScaler(torch.cuda.amp.GradScaler):
         )
         self.optimizer_update_skipped: Optional[bool] = None
         self.hysteresis = hysteresis
+
+    def _lazy_init_scale_growth_tracker(self, dev):
+        super()._lazy_init_scale_growth_tracker(dev)
         if HAVE_AMP_C:
-            self._hysteresis_tracker = torch.tensor([self.hysteresis], dtype=torch.int32, device="cuda")
+            self._hysteresis_tracker = torch.tensor([self.hysteresis], dtype=torch.int32, device=dev)
         else:
             self._hysteresis_tracker = self.hysteresis
 
