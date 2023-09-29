@@ -115,8 +115,9 @@ def main(cfg) -> None:
     model.freeze()
     model.mcore_gpt = False
     model._save_restore_connector = NLPSaveRestoreConnector()
-    
+
     model.save_to(cfg.output_file)
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
