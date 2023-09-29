@@ -291,6 +291,10 @@ class NLPDDPStrategy(DDPStrategy):
             checkpoint_dir = ckpt_to_dir(filepath)
 
             fs = get_filesystem(checkpoint_dir)
+            if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
+                logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
+                return
+
             if is_global_rank_zero():
                 fs.makedirs(checkpoint_dir, exist_ok=True)
 
@@ -465,19 +469,24 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 # model weights is a directory
                 dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
                 fs = get_filesystem(dist_ckpt_dir)
-                if is_global_rank_zero():
-                    fs.makedirs(dist_ckpt_dir, exist_ok=True)
-                sharded_state_dict = model.sharded_state_dict()
-                # dist checkpoint needs torch.distributed to save the checkpoint
-                if parallel_state.is_unitialized():
 
-                    def dummy():
-                        return
+                if fs.isdir(dist_ckpt_dir) and dist_checkpointing.check_is_distributed_checkpoint(dist_ckpt_dir):
+                    logging.info(f'Distributed checkpoint at path {dist_ckpt_dir} already exists, skipping saving')
+                else:
+                    if is_global_rank_zero():
+                        fs.makedirs(dist_ckpt_dir, exist_ok=True)
 
-                    if model.trainer.strategy.launcher is not None:
-                        model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
-                    model.trainer.strategy.setup_environment()
-                dist_checkpointing.save(sharded_state_dict=sharded_state_dict, checkpoint_dir=dist_ckpt_dir)
+                    sharded_state_dict = model.sharded_state_dict()
+                    # dist checkpoint needs torch.distributed to save the checkpoint
+                    if parallel_state.is_unitialized():
+
+                        def dummy():
+                            return
+
+                        if model.trainer.strategy.launcher is not None:
+                            model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
+                        model.trainer.strategy.setup_environment()
+                    dist_checkpointing.save(sharded_state_dict=sharded_state_dict, checkpoint_dir=dist_ckpt_dir)
 
             else:
 
@@ -740,7 +749,8 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
             peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
         else:
             peft_state_dict = {}
-        base_model_state_dict.update(peft_state_dict)  # add the PEFT state_dict into the base model's state_dict
+        if base_model_state_dict:
+            base_model_state_dict.update(peft_state_dict)  # add the PEFT state_dict into the base model's state_dict
         return base_model_state_dict
 
     def restore_from(
@@ -765,13 +775,61 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
             return loaded_params
         conf, instance, state_dict = loaded_params
 
-        if (
-            self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
-        ):  # we have this check only for training PEFT from scratch
-            peft_state_dict = instance.get_peft_state_dict()
-            state_dict.update(peft_state_dict)
-        state_dict = self.modify_state_dict(conf, state_dict)
-        self.load_instance_with_state_dict(instance, state_dict, strict)
+        # if we're using dist checkpointing then state_dict will be None
+        if state_dict is None:
+            # dist checkpointing needs torch.distributed to load the checkpoint
+            if parallel_state.is_unitialized():
+
+                def dummy():
+                    return
+
+                if trainer.strategy.launcher is not None:
+                    trainer.strategy.launcher.launch(dummy, trainer=trainer)
+                trainer.strategy.setup_environment()
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Check if self.model_extracted_dir is set, and is a valid path
+                if self.model_extracted_dir is not None and os.path.isdir(self.model_extracted_dir):
+                    # Log that NeMo will use the provided `model_extracted_dir`
+                    logging.info(
+                        f"Restoration will occur within pre-extracted directory : " f"`{self.model_extracted_dir}`."
+                    )
+
+                    # Override `tmpdir` above with the pre-extracted `model_extracted_dir`
+                    tmpdir = self.model_extracted_dir
+
+                else:
+                    # Extract the nemo file into the temporary directory
+                    self._unpack_nemo_file(
+                        path2file=restore_path, out_folder=tmpdir, extract_config_only=return_config is True
+                    )
+                checkpoint = {}
+                sharded_state_dict = instance.sharded_state_dict()
+                peft_state_dict = instance.get_peft_state_dict()
+                for k in peft_state_dict.keys():
+                    sharded_state_dict.pop(k)
+                checkpoint['state_dict'] = sharded_state_dict
+                # remove model weights extension
+                tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
+                tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
+                assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
+                checkpoint = dist_checkpointing.load(
+                    sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir
+                )
+                checkpoint['state_dict'].update(peft_state_dict)
+                instance.on_load_checkpoint(checkpoint)
+                if hasattr(instance, 'setup_transformer_engine_tp_groups'):
+                    instance.setup_transformer_engine_tp_groups()
+
+        else:
+            if (
+                self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
+            ):  # we have this check only for training PEFT from scratch
+                peft_state_dict = instance.get_peft_state_dict()
+                state_dict.update(peft_state_dict)
+            state_dict = self.modify_state_dict(conf, state_dict)
+            self.load_instance_with_state_dict(instance, state_dict, strict)
+
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
 
@@ -1083,6 +1141,12 @@ class CustomProgressBar(TQDMProgressBar):
     for megatron models
     """
 
+    def get_current_epoch_step(self, trainer):
+        """
+        Get the value of step within an epoch
+        """
+        return trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed
+
     def init_train_tqdm(self):
         """
         Override bar_format to not have 's/it'
@@ -1091,11 +1155,22 @@ class CustomProgressBar(TQDMProgressBar):
         self.bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
         return self.bar
 
+    def on_train_epoch_start(self, trainer, *_):
+        if trainer.max_steps > 0 and (trainer.ckpt_path is not None):
+            # while resuming from a ckpt use trainer.max_steps as the total for progress bar as trainer.num_training_batches
+            # is truncated to max_steps - step being resumed at
+            num_training_batches = trainer.max_steps
+        else:
+            num_training_batches = trainer.num_training_batches
+        self.train_progress_bar.reset(num_training_batches)
+        self.train_progress_bar.initial = 0
+        self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
+
     def on_train_batch_end(self, trainer, pl_module, *_, **__):
         """
-        Override parent class on_train_batch_end to update progress bar per global_step instead of per microbatch
+        Override parent class on_train_batch_end to update progress bar per global batch instead of per microbatch
         """
-        n = trainer.global_step
+        n = self.get_current_epoch_step(trainer)
         if self._should_update(n, self.train_progress_bar.total):
             _update_n(self.train_progress_bar, n)
             self.train_progress_bar.set_postfix(self.get_metrics(trainer, pl_module))
