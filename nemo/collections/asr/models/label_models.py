@@ -381,12 +381,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             f'{tag}_acc_macro_stats': stats,
         }
         if tag == 'val':
-            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
                 self.validation_step_outputs[dataloader_idx].append(output)
             else:
                 self.validation_step_outputs.append(output)
         else:
-            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            if isinstance(self.trainer.test_dataloaders, (list, tuple)) and len(self.trainer.test_dataloaders) > 1:
                 self.test_step_outputs[dataloader_idx].append(output)
             else:
                 self.test_step_outputs.append(output)
