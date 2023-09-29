@@ -21,6 +21,13 @@ from typing import List, Optional
 
 import torch
 from omegaconf import OmegaConf
+
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
+from nemo.core.config import hydra_runner
+from nemo.utils import logging
 from utils.data_prep import (
     add_t_start_end_to_utt_obj,
     get_batch_starts_ends,
@@ -33,13 +40,6 @@ from utils.make_ass_files import make_ass_files
 from utils.make_ctm_files import make_ctm_files
 from utils.make_output_manifest import write_manifest_out_line
 from utils.viterbi_decoding import viterbi_decoding
-
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
-from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
-from nemo.core.config import hydra_runner
-from nemo.utils import logging
 
 """
 Align the utterances in manifest_filepath. 

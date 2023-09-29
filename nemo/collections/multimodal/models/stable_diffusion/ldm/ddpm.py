@@ -35,8 +35,8 @@ from tqdm import tqdm
 from nemo.collections.multimodal.data.common.utils import get_collate_fn
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
     build_train_valid_datasets,
-    build_train_valid_precached_datasets,
     build_train_valid_precached_clip_datasets,
+    build_train_valid_precached_datasets,
 )
 from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
 from nemo.collections.multimodal.models.stable_diffusion.diffusion_model import DiffusionModel
