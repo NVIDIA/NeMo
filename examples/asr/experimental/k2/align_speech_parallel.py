@@ -94,7 +94,9 @@ from nemo.utils.get_rank import is_global_rank_zero
 @dataclass
 class ParallelAlignmentConfig:
     model: Optional[str] = None  # name
-    predict_ds: ASRDatasetConfig = field(default_factory=lambda: ASRDatasetConfig(return_sample_id=True, num_workers=4))
+    predict_ds: ASRDatasetConfig = field(
+        default_factory=lambda: ASRDatasetConfig(return_sample_id=True, num_workers=4)
+    )
     aligner_args: K2AlignerWrapperModelConfig = field(default_factory=lambda: K2AlignerWrapperModelConfig())
     output_path: str = MISSING
     model_stride: int = 8
