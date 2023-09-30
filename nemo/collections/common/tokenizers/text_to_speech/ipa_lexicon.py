@@ -184,7 +184,7 @@ def get_ipa_punctuation_list(locale):
                 '↘',
                 '”',
                 '’',
-                '-'
+                '-',
             ]
         )
     elif locale == "es-ES":
