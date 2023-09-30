@@ -209,11 +209,11 @@ class CrossAttention(nn.Module):
         self.to_out = nn.Sequential(nn.Linear(inner_dim, query_dim), nn.Dropout(dropout))
         self.use_flash_attention = use_flash_attention
 
-        if dim_head <= 128 and (dim_head % 8) == 0 and flash_attn_installed:
+        if dim_head <= 160 and (dim_head % 8) == 0 and flash_attn_installed:
             if context_dim == query_dim:
-                self.flash_attn = FlashSelfAttention(self.scale)
+                self.flash_attn = FlashSelfAttention(softmax_scale=self.scale)
             else:
-                self.flash_attn = FlashCrossAttention(self.scale)
+                self.flash_attn = FlashCrossAttention(softmax_scale=self.scale)
 
     def forward(self, x, context=None, mask=None):
         h = self.heads
@@ -234,7 +234,7 @@ class CrossAttention(nn.Module):
             not flash_attn_installed
             or not self.use_flash_attention
             or q.dtype == torch.float32
-            or (self.dim_head > 128 or (self.dim_head % 8) != 0)
+            or (self.dim_head > 160 or (self.dim_head % 8) != 0)
             or mask is not None
         ):
             # original implementation
