@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import itertools
+import os
 import queue
 import warnings
 from functools import partial
@@ -611,9 +611,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     last_pipeline_stage_offset = (tp_size * dp_size) * (pp_size - 1)
                     self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
                 torch.distributed.broadcast(
-                    loss_mean,
-                    self.loss_broadcast_src_rank,
-                    group=parallel_state.get_pipeline_model_parallel_group(),
+                    loss_mean, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
                 )
             self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
 
@@ -925,9 +923,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 last_pipeline_stage_offset = (tp_size * dp_size) * (pp_size - 1)
                 self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
             torch.distributed.broadcast(
-                averaged_loss,
-                self.loss_broadcast_src_rank,
-                group=parallel_state.get_pipeline_model_parallel_group(),
+                averaged_loss, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
             )
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
