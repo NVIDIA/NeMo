@@ -27,6 +27,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MECAB = False
     HAVE_IPADIC = False
 
+
 class EnJaProcessor:
     """
     Tokenizer, Detokenizer and Normalizer utilities for Japanese & English

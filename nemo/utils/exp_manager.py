@@ -155,7 +155,9 @@ class ExpManagerConfig:
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: Optional[CallbackParams] = field(default_factory=lambda: CallbackParams())
     create_early_stopping_callback: Optional[bool] = False
-    early_stopping_callback_params: Optional[EarlyStoppingParams] = field(default_factory=lambda: EarlyStoppingParams())
+    early_stopping_callback_params: Optional[EarlyStoppingParams] = field(
+        default_factory=lambda: EarlyStoppingParams()
+    )
     create_preemption_callback: Optional[bool] = True
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None

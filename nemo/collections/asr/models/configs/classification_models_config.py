@@ -72,25 +72,31 @@ class EncDecClassificationConfig(model_cfg.ModelConfig):
     timesteps: int = MISSING
 
     # Dataset configs
-    train_ds: EncDecClassificationDatasetConfig = field(default_factory=lambda: EncDecClassificationDatasetConfig(
-        manifest_filepath=None, shuffle=True, trim_silence=False
-    ))
-    validation_ds: EncDecClassificationDatasetConfig = field(default_factory=lambda: EncDecClassificationDatasetConfig(
-        manifest_filepath=None, shuffle=False
-    ))
-    test_ds: EncDecClassificationDatasetConfig = field(default_factory=lambda: EncDecClassificationDatasetConfig(
-        manifest_filepath=None, shuffle=False
-    ))
+    train_ds: EncDecClassificationDatasetConfig = field(
+        default_factory=lambda: EncDecClassificationDatasetConfig(
+            manifest_filepath=None, shuffle=True, trim_silence=False
+        )
+    )
+    validation_ds: EncDecClassificationDatasetConfig = field(
+        default_factory=lambda: EncDecClassificationDatasetConfig(manifest_filepath=None, shuffle=False)
+    )
+    test_ds: EncDecClassificationDatasetConfig = field(
+        default_factory=lambda: EncDecClassificationDatasetConfig(manifest_filepath=None, shuffle=False)
+    )
 
     # Optimizer / Scheduler config
-    optim: Optional[model_cfg.OptimConfig] = field(default_factory=lambda: model_cfg.OptimConfig(sched=model_cfg.SchedConfig()))
+    optim: Optional[model_cfg.OptimConfig] = field(
+        default_factory=lambda: model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
+    )
 
     # Model component configs
     preprocessor: AudioToMFCCPreprocessorConfig = field(default_factory=lambda: AudioToMFCCPreprocessorConfig())
-    spec_augment: Optional[SpectrogramAugmentationConfig] = field(default_factory=lambda: SpectrogramAugmentationConfig())
-    crop_or_pad_augment: Optional[CropOrPadSpectrogramAugmentationConfig] = field(default_factory=lambda: CropOrPadSpectrogramAugmentationConfig(
-        audio_length=-1
-    ))
+    spec_augment: Optional[SpectrogramAugmentationConfig] = field(
+        default_factory=lambda: SpectrogramAugmentationConfig()
+    )
+    crop_or_pad_augment: Optional[CropOrPadSpectrogramAugmentationConfig] = field(
+        default_factory=lambda: CropOrPadSpectrogramAugmentationConfig(audio_length=-1)
+    )
 
     encoder: ConvASREncoderConfig = field(default_factory=lambda: ConvASREncoderConfig())
     decoder: ConvASRDecoderClassificationConfig = field(default_factory=lambda: ConvASRDecoderClassificationConfig())

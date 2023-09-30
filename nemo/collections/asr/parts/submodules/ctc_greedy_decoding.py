@@ -253,7 +253,9 @@ class GreedyCTCInferConfig:
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     preserve_frame_confidence: bool = False
-    confidence_measure_cfg: Optional[ConfidenceMeasureConfig] = field(default_factory=lambda :ConfidenceMeasureConfig())
+    confidence_measure_cfg: Optional[ConfidenceMeasureConfig] = field(
+        default_factory=lambda: ConfidenceMeasureConfig()
+    )
     confidence_method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):

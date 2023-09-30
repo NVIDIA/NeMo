@@ -75,15 +75,23 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
 
     # Dataset configs
     train_ds: ASRDatasetConfig = field(default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=True))
-    validation_ds: ASRDatasetConfig = field(default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=False))
+    validation_ds: ASRDatasetConfig = field(
+        default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=False)
+    )
     test_ds: ASRDatasetConfig = field(default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=False))
 
     # Optimizer / Scheduler config
-    optim: Optional[model_cfg.OptimConfig] = field(default_factory=lambda: model_cfg.OptimConfig(sched=model_cfg.SchedConfig()))
+    optim: Optional[model_cfg.OptimConfig] = field(
+        default_factory=lambda: model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
+    )
 
     # Model component configs
-    preprocessor: AudioToMelSpectrogramPreprocessorConfig = field(default_factory=lambda: AudioToMelSpectrogramPreprocessorConfig())
-    spec_augment: Optional[SpectrogramAugmentationConfig] = field(default_factory=lambda: SpectrogramAugmentationConfig())
+    preprocessor: AudioToMelSpectrogramPreprocessorConfig = field(
+        default_factory=lambda: AudioToMelSpectrogramPreprocessorConfig()
+    )
+    spec_augment: Optional[SpectrogramAugmentationConfig] = field(
+        default_factory=lambda: SpectrogramAugmentationConfig()
+    )
     encoder: ConvASREncoderConfig = field(default_factory=lambda: ConvASREncoderConfig())
     decoder: ConvASRDecoderConfig = field(default_factory=lambda: ConvASRDecoderConfig())
     decoding: CTCDecodingConfig = field(default_factory=lambda: CTCDecodingConfig())
