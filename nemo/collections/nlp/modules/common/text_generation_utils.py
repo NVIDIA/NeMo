@@ -697,6 +697,7 @@ def sample_sequence_batch(
         all_generated_indices = None  # used to track all generated indices
         # Generate enough tokens for the longest sequence
         maxlen = tokens_to_generate + context_lengths.max().item()
+        maxlens = tokens_to_generate + context_lengths
 
         maxlen = inference_strategy.clip_max_len(maxlen)
 
@@ -748,6 +749,7 @@ def sample_sequence_batch(
 
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
+                prev[context_length > maxlens] = tokenizer.eos_id #@adithyare @TODO check off by one error
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
 
                 # Replace sampled tokens w/ done token if EOD has already been sampled
