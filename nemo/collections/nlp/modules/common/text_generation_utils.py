@@ -699,8 +699,8 @@ def sample_sequence_batch(
         maxlen = tokens_to_generate + context_lengths.max().item()
         maxlen = inference_strategy.clip_max_len(maxlen)
 
-        maxlens = tokens_to_generate + context_lengths # used to force EOS for shorter contexts in a batch.
-        maxlens[maxlens> maxlen] = maxlen
+        maxlens = tokens_to_generate + context_lengths  # used to force EOS for shorter contexts in a batch.
+        maxlens[maxlens > maxlen] = maxlen
 
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
@@ -750,7 +750,11 @@ def sample_sequence_batch(
 
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
-                prev[context_length >= maxlens] = tokenizer.eos_id  # force EOS token when tokens_to_generate has been reached for an item in the batch.
+                prev[
+                    context_length >= maxlens
+                ] = (
+                    tokenizer.eos_id
+                )  # force EOS token when tokens_to_generate has been reached for an item in the batch.
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
 
                 # Replace sampled tokens w/ done token if EOD has already been sampled
