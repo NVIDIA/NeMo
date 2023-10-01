@@ -750,11 +750,9 @@ def sample_sequence_batch(
 
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
-                prev[
-                    context_length >= maxlens
-                ] = (
-                    tokenizer.eos_id
-                )  # force EOS token when tokens_to_generate has been reached for an item in the batch.
+                # force EOS token when tokens_to_generate has been reached for an item in the batch.
+                prev[context_length >= maxlens] = tokenizer.eos_id
+
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
 
                 # Replace sampled tokens w/ done token if EOD has already been sampled
