@@ -116,7 +116,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             fp32_params = []
             for param_group in param_groups:
                 fp32_params.extend(
-                    filter(lambda param: getattr(param, '_with_fp32_optimizer', False), param_group['params'],)
+                    filter(lambda param: getattr(param, '_with_fp32_optimizer', False), param_group['params'])
                 )
             if fp32_params:
                 assert self.dtype == torch.float32, (
@@ -130,7 +130,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Assume params have already been synchronized
         pass
 
-    def _make_post_backward_hook(self, param: torch.nn.Parameter, param_group_id: int, param_id: int,) -> Callable:
+    def _make_post_backward_hook(self, param: torch.nn.Parameter, param_group_id: int, param_id: int) -> Callable:
         def hook(*unused):
             if getattr(param, '_pre_forward_hook_is_enabled', False):
                 raise RuntimeError(
@@ -285,7 +285,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if force or self._grad_norm is None:
 
             # Compute norm of local gradients for distributed optimizer
-            grad_norm_sq = self._local_grad_norm(parameters=parameters, norm_type=norm_type,)
+            grad_norm_sq = self._local_grad_norm(parameters=parameters, norm_type=norm_type)
             if self.redundant_size > 1:
                 grad_norm_sq /= self.redundant_size
 
@@ -299,7 +299,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         return super().grad_norm()
 
     @torch.no_grad()
-    def _param_copy_fragments(self, fragments: Iterable[DistributedFusedAdam.ParameterFragment],) -> None:
+    def _param_copy_fragments(self, fragments: Iterable[DistributedFusedAdam.ParameterFragment]) -> None:
         """Update parameter fragments with values from parameter buckets
 
         For FP8 params, values are copied directly into the FP8 data
@@ -367,7 +367,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 param.transpose()
 
     @torch.no_grad()
-    def _check_params_shard_dtypes(self, params_buckets: Dict[int, DistributedFusedAdam.ParameterBucket],) -> None:
+    def _check_params_shard_dtypes(self, params_buckets: Dict[int, DistributedFusedAdam.ParameterBucket]) -> None:
         """Make sure local shards of parameters are in expected datatypes
 
         For FP8 params, FP32 values are cast into FP8 using per-param
@@ -384,7 +384,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # FP8 scaling factors
         amaxes = []
         scales = []
-        scale_invs = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device,)
+        scale_invs = []
         i = -1
         for param in self.parameters():
             if not _is_fp8_tensor(param):
@@ -394,14 +394,18 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             fp8_meta_index = param._fp8_meta_index
             amaxes.append(fp8_meta.amax_history[0][fp8_meta_index].view(1))
             scales.append(fp8_meta.scale[fp8_meta_index].view(1))
-            param._scale_inv = scale_invs[i]
+            scale_invs.append(param._scale_inv.view(1))
 
         # Update cached scale-inverses
-        scale_inv_views = [scale_invs[i].view(1) for i in range(num_fp8_params)]
+        packed_scales = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device)
+        packed_scale_views = [packed_scales[i].view(1) for i in range(num_fp8_params)]
         _multi_tensor_copy(
-            scales, scale_inv_views, dummy_overflow_buf=self._dummy_overflow_buf,
+            scales, packed_scale_views, dummy_overflow_buf=self._dummy_overflow_buf,
         )
-        torch.reciprocal(scale_invs, out=scale_invs)
+        torch.reciprocal(packed_scales, out=packed_scales)
+        _multi_tensor_copy(
+            packed_scale_views, scale_invs, dummy_overflow_buf=self._dummy_overflow_buf,
+        )
 
         # Cast local data to FP8
         fp8_params_shards = dict()
@@ -434,7 +438,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
                 # Allocate FP8 buffer if needed
                 if bucket_id not in fp8_params_shards:
-                    fp8_params_shards[bucket_id] = torch.empty_like(param_bucket.params_shard, dtype=torch.uint8,)
+                    fp8_params_shards[bucket_id] = torch.empty_like(param_bucket.params_shard, dtype=torch.uint8)
 
                 # FP8 cast and amax
                 fp32_fragment = param_bucket.params_shard[shard_range].view(1, -1)
@@ -449,7 +453,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         # Reduce amaxes
         # Note: Assume each param has a separate amax
-        packed_amaxes = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device,)
+        packed_amaxes = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device)
         packed_amax_views = [packed_amaxes[i].view(1) for i in range(num_fp8_params)]
         _multi_tensor_copy(
             amaxes, packed_amax_views, dummy_overflow_buf=self._dummy_overflow_buf,
