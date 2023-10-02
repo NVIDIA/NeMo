@@ -89,7 +89,7 @@ def read_manifest(input_manifest_path: str) -> list[dict]:
         samples - list of dict
     '''
     
-    assert os.path.exists(input_manifest_path), f"Input manifest file not found: {input_manifest_path}"
+    assert os.path.exists(input_manifest_path), f"Input manifest file is not found: {input_manifest_path}"
 
     with open(input_manifest_path, "r") as manifest:
         lines = manifest.readlines()
