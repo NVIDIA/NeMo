@@ -284,7 +284,7 @@ class ItalianCharsTokenizer(BaseCharsTokenizer):
             non_default_punct_list: List of punctuation marks which will be used instead default.
         """
 
-        it_alphabet = "abcdefghijklmnopqrstuvwxyzàèéìòù"
+        it_alphabet = "abcdefghijklmnopqrstuvwxyzàèéìòùó"
         super().__init__(
             chars=it_alphabet,
             punct=punct,
@@ -369,12 +369,13 @@ class GermanPhonemesTokenizer(BaseCharsTokenizer):
 
 class ItalianPhonemesTokenizer(BaseCharsTokenizer):
     # fmt: off
-    PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
+    PUNCT_LIST = (
         ',', '.', '!', '?', '-',
         ':', ';', '/', '"', '(',
         ')', '[', ']', '{', '}',
+        '„', '“', '”', '‘', '’', '‒', '—', '«', '»', '‹', '›', '_',
     )
-    PUNCT_LIST_IT = list("„ “ ” ‘ ’ ‒ — « » ‹ › _") + list(PUNCT_LIST)
+    # fmt: on
 
     def __init__(
         self,
@@ -383,9 +384,9 @@ class ItalianPhonemesTokenizer(BaseCharsTokenizer):
         add_blank_at=None,
         pad_with_space=False,
         non_default_punct_list=None,
-        text_preprocessing_func=any_locale_text_preprocessing,
+        text_preprocessing_func=italian_text_preprocessing,
     ):
-        """Deutsch phoneme-based tokenizer.
+        """Italian phoneme-based tokenizer.
         Args:
             punct: Whether to reserve grapheme for basic punctuation or not.
             apostrophe: Whether to use apostrophe or not.
@@ -397,8 +398,7 @@ class ItalianPhonemesTokenizer(BaseCharsTokenizer):
              Currently, it only applies lower() function.
         """
 
-        it_ipa = "abdefhijklmnoprstuvwxzæɐɑɔəɚɜɬɹʌʔᵻðŋɛɡɣɪɲɾʃʊʎʒʝβθd͡'t͡'øɒɕɓçɖɘɝɞɟʄɡɠɢʛɦɧħɥʜɨɬɫɮʟɱɯɰɳɵɸœɶʘɺɻʀʁɽʂʈʧʉʋⱱɤʍχʏʑʐʔʡʕʢǀǁǂᵻʃ'ː,"
-    
+        it_ipa = "abcdefghijklmnopqrstuvwxyzàèéìòùóæɐɑɔəɚɜɬɹʌʔᵻðŋɛɡɣɪɲɾʃʊʎʒʝβθd͡'t͡'øɒɕɓçɖɘɝɞɟʄɡɠɢʛɦɧħɥʜɨɬɫɮʟɱɯɰɳɵɸœɶʘɺɻʀʁɽʂʈʧʉʋⱱɤʍχʏʑʐʔʡʕʢǀǁǂᵻʃ'ː"
         super().__init__(
             chars=it_ipa,
             punct=punct,
@@ -422,7 +422,7 @@ class ItalianPhonemesTokenizer(BaseCharsTokenizer):
             elif (c.isalnum() or c == "'" or c == "\u0303") and c in tokens:
                 cs.append(c)
             # Add punct
-            elif (c in list(self.PUNCT_LIST_IT)) and self.punct:
+            elif (c in self.PUNCT_LIST) and self.punct:
                 cs.append(c)
             # Warn about unknown char
             elif c != space:
