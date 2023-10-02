@@ -19,6 +19,31 @@ import pandas as pd
 from tabulate import tabulate
 
 from nemo.collections.common.metrics.per import PERData
+from nemo.utils import logging
+
+"""
+Script to compute rates of punctuation correctness and errors based on the provided punctuation marks 
+and the given manifest in .json file format.
+
+# Arguments
+    
+    input_manifest_path: str, Required - path to dataset .json manifest file with stored reference text and ASR output text.
+    punctuation_marks:, list[str], Required -  list of punctuation marks for estimating correctness and error rates among them.
+    reference_field: str, Optional - name of field in .json manifest with the reference text ("text" by default).
+    hypothesis_field: str, Optional - name of field in .json manifest with the hypothesis text ("pred_text" by default).
+    punctuation_mask: str, Optional - mask token that will be applied to given punctuation marks while edit distance is calculated ("[PUNCT]" by default).
+    output_manifest_path: str, Optional - path where .json manifest with calculated metrics will be saved.
+
+# Usage
+To score a dataset with a manifest file and given punctuation marks list:
+
+python rate_punctuation.py \
+    --input_manifest_path <Mandatory: Path to an ASR dataset manifest file> \
+    --punctuation_marks . , ? \
+    --reference_field "text" \
+    --hypothesis_field "pred_text" \
+    --output_manifest_path <Optional: Some output filename which will hold manifest with calculated metrics> 
+"""
 
 parser = ArgumentParser("Calculates Punctuaton Prediction Accuracy Rates")
 
@@ -51,7 +76,6 @@ parser.add_argument(
     help="Mask template for substituting punctuation\
     marks during PER calculation",
 )
-
 
 def read_manifest(input_manifest_path: str) -> list[dict]:
 
@@ -87,7 +111,7 @@ def write_manifest(output_manifest_path: str, samples: list[dict]) -> None:
         for sample in samples:
             line = json.dumps(sample)
             output.writelines(f'{line}\n')
-    print(f'Output manifest saved: {output_manifest_path}')
+    logging.info(f'Output manifest saved: {output_manifest_path}')
 
 
 def compute_rates(
@@ -97,10 +121,10 @@ def compute_rates(
     hypothesis_field: str = "pred_text",
     punctuation_mask: str = "[PUNCT]",
     output_manifest_path: str = None,
-):
+) -> None:
 
     '''
-    Calculates punctuation correctness and error rate based on the provided punctuation marks 
+    Calculates punctuation correctness and error rates based on the provided punctuation marks 
     and the given manifest.json file.
     
     Args:
@@ -120,6 +144,8 @@ def compute_rates(
         references.append(sample[reference_field])
         hypotheses.append(sample[hypothesis_field])
 
+    logging.info(f'Rates Computing..:')
+    
     per_data = PERData(
         references=references,
         hypotheses=hypotheses,
@@ -142,19 +168,17 @@ def compute_rates(
 
         write_manifest(output_manifest_path=output_manifest_path, samples=samples)
 
-    print(f'Correct rate: {per_data.correct_rate}')
-    print(f'Deletions rate: {per_data.deletions_rate}')
-    print(f'Insertions rate: {per_data.insertions_rate}')
-    print(f'Substitutions rate: {per_data.substitution_rate}')
-    print(f'Punctuation Error Rate: {per_data.per}')
+    logging.info(f'Correct rate: {per_data.correct_rate:2f}')
+    logging.info(f'Deletions rate: {per_data.deletions_rate:2f}')
+    logging.info(f'Insertions rate: {per_data.insertions_rate:2f}')
+    logging.info(f'Substitutions rate: {per_data.substitution_rate:2f}')
+    logging.info(f'Punctuation Error Rate: {per_data.per:2f}')
 
     rates_by_pm_df = pd.DataFrame(per_data.operation_rates)
     substitution_rates_by_pm_df = pd.DataFrame(per_data.substitution_rates)
 
-    print("\nRATES BY PUNCTUATION MARK:")
-    print(tabulate(rates_by_pm_df, headers='keys', tablefmt='psql'))
-    print("\nSUBSTITUTION RATES:")
-    print(tabulate(substitution_rates_by_pm_df, headers='keys', tablefmt='psql'))
+    logging.info("Rates of punctuation correctness and errors:\n" + tabulate(rates_by_pm_df, headers='keys', tablefmt='psql'))
+    logging.info("Substitution rates between puncutation marks:\n" + tabulate(substitution_rates_by_pm_df, headers='keys', tablefmt='psql'))
 
 
 if __name__ == "__main__":
