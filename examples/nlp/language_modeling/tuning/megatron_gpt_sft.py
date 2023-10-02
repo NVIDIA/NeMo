@@ -23,6 +23,7 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import _Checkpoin
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
@@ -31,6 +32,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging
+from nemo.utils.decorators import deprecated
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.model_utils import inject_model_parallel_rank
 
@@ -66,6 +68,9 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
         gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
         gpt_cfg.use_flash_attention = cfg.model.get('use_flash_attention', False)
+        gpt_cfg.tensor_model_parallel_size = cfg.model.get('tensor_model_parallel_size', 1)
+        gpt_cfg.pipeline_model_parallel_size = cfg.model.get('pipeline_model_parallel_size', 1)
+        gpt_cfg.pipeline_model_parallel_split_rank = cfg.model.get('pipeline_model_parallel_split_rank', 0)
 
         sft_cls = MegatronGPTSFTModel
         gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
@@ -142,6 +147,10 @@ def validate_checkpoint_loading_args(cfg):
         raise ValueError(f'Hparams file {cfg.hparams_file} does not exist or is not a file.')
 
 
+@deprecated(
+    explanation=f"{__file__} is deprecated. PEFT and SFT scripts are now consolidated"
+    "See updated scripts `megatron_gpt_peft_tuning.py` and `megatron_gpt_peft_eval.py` for examples."
+)
 @hydra_runner(config_path="conf", config_name="megatron_gpt_sft")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
@@ -175,7 +184,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -183,10 +192,6 @@ def main(cfg) -> None:
     if cfg.model.resume_from_checkpoint is not None:
         trainer.ckpt_path = cfg.model.resume_from_checkpoint
     logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
-
-    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    with open_dict(cfg):
-        cfg.model.precision = cfg.trainer.precision
 
     if cfg.model.restore_from_path:
         save_restore_connector = NLPSaveRestoreConnector()

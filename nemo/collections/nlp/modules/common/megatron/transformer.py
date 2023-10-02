@@ -187,7 +187,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.bias = bias
         self.transformer_block_type = transformer_block_type
         self.position_embedding_type = position_embedding_type
-        self.param_dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.param_dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
         self.set_accepted_adapter_types(
             [
@@ -729,7 +729,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         )
 
         # Dtype for forward pass - ignore amp O2
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2=None)
+        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2=None)
 
     def forward(
         self,
@@ -845,7 +845,7 @@ class AutocastTransformerLayer(TransformerLayer):
         # use_emha=use_emha,
 
         # Dtype for forward pass - ignore amp O2
-        self.dtype = utils_funcs.dtype_from_precision(autocast_dtype, megatron_amp_O2=None)
+        self.dtype = utils_funcs.torch_dtype_from_precision(autocast_dtype, megatron_amp_O2=None)
 
     def forward(
         self,
@@ -981,14 +981,14 @@ class ParallelTransformer(MegatronModule):
                 elif self.activations_checkpoint_method == 'block':
                     logging.info(
                         (
-                            f'Using block activation checkpointing requires activations_checkpoint_num_layers to be set.'
-                            f'Got: {self.activations_checkpoint_num_layers}. Setting to 1 by default.'
+                            f'Using block activation checkpointing with granularity selective forces all layers to use checkpointing.'
                         )
                     )
                 else:
                     raise ValueError(
                         f'activations_checkpoint_method should be "uniform" or "block" when using granularity selective.'
                     )
+                self.activations_checkpoint_num_layers = num_layers  # forcing all layers
             elif self.activations_checkpoint_granularity == 'full':
                 if self.activations_checkpoint_method in ['uniform', 'block']:
                     if not self.activations_checkpoint_num_layers:
@@ -998,6 +998,7 @@ class ParallelTransformer(MegatronModule):
                                 f'Got: {self.activations_checkpoint_num_layers}. Setting to 1 by default.'
                             )
                         )
+                        self.activations_checkpoint_num_layers = 1  # keeping the old default
                 else:
                     raise ValueError(
                         f'activations_checkpoint_method should be "uniform" or "block" when using granularity full.'
@@ -1047,6 +1048,13 @@ class ParallelTransformer(MegatronModule):
         # TODO: Add similar assert for encoder-decoder.
 
         self.num_layers = self.get_num_layers(num_layers)
+
+        if (
+            self.activations_checkpoint_num_layers is not None
+            and self.activations_checkpoint_num_layers > self.num_layers
+        ):
+            self.activations_checkpoint_num_layers = self.num_layers
+
         # Transformer layers.
         def build_layer(layer_number):
             if isinstance(layer_type, list):

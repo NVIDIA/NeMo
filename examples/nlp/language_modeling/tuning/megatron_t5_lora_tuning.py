@@ -20,6 +20,7 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5LoraModel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
@@ -28,6 +29,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 from nemo.utils.exp_manager import exp_manager
 
 mp.set_start_method("spawn", force=True)
@@ -55,6 +57,10 @@ Usage:
 """
 
 
+@deprecated(
+    explanation=f"{__file__} is deprecated. Please use MegatronT5SFTModel.add_adapter() for PEFT features."
+    "See updated scripts `megatron_t5_peft_tuning.py` and `megatron_t5_peft_eval.py` for examples."
+)
 @hydra_runner(config_path="conf", config_name="megatron_t5_lora_tuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
@@ -89,12 +95,8 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
     exp_manager(trainer, cfg.exp_manager)
-
-    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    with open_dict(cfg):
-        cfg.model.precision = cfg.trainer.precision
 
     # load existing or init new soft prompt GPT model
     if cfg.model.get("restore_path", None):
