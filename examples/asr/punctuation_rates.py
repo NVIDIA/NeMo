@@ -73,7 +73,8 @@ def read_manifest(input_manifest_path: str) -> list[dict]:
 
 def write_manifest(output_manifest_path: str, samples: list[dict]) -> None:
 
-    '''Writes samples to .json file.
+    '''
+    Writes samples to .json file.
     
     Args:
         output_manifest_path (str) - path where .json manifest with calculated metrics
