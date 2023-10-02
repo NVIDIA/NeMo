@@ -2,11 +2,10 @@
 title: NeMo Blog & Announcements
 author: [Somshubra Majumdar]
 author_gh_user: [titu1994]
-read_time: 2 Minutes
-publish_date: 7th August, 2022
 
-# DO NOT CHANGE BELOW
-template: blog.html
+date: 2022-08-07
+readtime: 2
+
 ---
 
 # NeMo Blog Posts and Announcements

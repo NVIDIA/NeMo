@@ -2,10 +2,11 @@
 title: NVIDIA Technical Blog 2022
 author: null 
 author_gh_user: null
-publish_date: null
+date: 2022-12-31
+readtime: 5
 
-# DO NOT CHANGE _BELOW
-template: blog.html
+categories: 
+- NVIDIA Technical blog 
 ---
 
 # NeMo on the NVIDIA Technical blog in 2022
@@ -27,6 +28,7 @@ Based on work accepted to **Interspeech 2022**:
 * [Changing CTC Rules to Reduce Memory Consumption in Training and Decoding](https://developer.nvidia.com/blog/changing-ctc-rules-to-reduce-memory-consumption-in-training-and-decoding/)
 * [Dynamic Scale Weighting Through Multiscale Speaker Diarization](https://developer.nvidia.com/blog/dynamic-scale-weighting-through-multiscale-speaker-diarization/)
 * [Text Normalization and Inverse Text Normalization with NVIDIA NeMo](https://developer.nvidia.com/blog/text-normalization-and-inverse-text-normalization-with-nvidia-nemo/)
+<!-- more -->
 -----
 
 ## October 2022

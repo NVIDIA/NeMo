@@ -3,9 +3,10 @@ title: NVIDIA Technical Blog 2023
 author: null 
 author_gh_user: null
 publish_date: null
-
-# DO NOT CHANGE _BELOW
-template: blog.html
+date: 2023-01-01
+readtime: 2
+categories: 
+- NVIDIA Technical blog 
 ---
 
 # NeMo on the NVIDIA Technical blog in 2023
