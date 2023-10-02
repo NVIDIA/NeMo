@@ -92,21 +92,21 @@ def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
 def main():
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument(
-        '--pred-file',
+        '--pred_file',
         type=str,
         help="Text file with test set prompts + model predictions. Prediction file can be made by running NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py",
     )
     parser.add_argument(
-        '--pred-field',
+        '--pred_field',
         type=str,
         help="The field in the json file that contains the prediction tokens",
         default="pred",
     )
     parser.add_argument(
-        '--ground-truth-field',
+        '--label_field',
         type=str,
         help="The field in the json file that contains the ground truth tokens",
-        default="original_answers",
+        default="label",
     )
 
     args = parser.parse_args()
