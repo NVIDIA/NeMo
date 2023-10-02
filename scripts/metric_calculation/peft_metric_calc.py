@@ -120,7 +120,7 @@ def main():
         pred_line = json.loads(preds[i])
 
         pred_answer = pred_line[args.pred_field]
-        true_answers = pred_line[args.ground_truth_field]
+        true_answers = pred_line[args.label_field]
         if not isinstance(true_answers, list):
             true_answers = [true_answers]
 
