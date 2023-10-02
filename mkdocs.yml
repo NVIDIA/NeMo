@@ -73,6 +73,7 @@ theme:
 # Plugins
 plugins:
   - blog:
+      blog_dir: blogs
       blog_toc: true
       post_url_date_format: yyyy
       post_url_format: "{date}/{file}"
@@ -152,4 +153,13 @@ markdown_extensions:
       auto_append:
         - includes/abbreviations.md
 
+################################################################################################
 
+# Begin Writing Page Navigation HERE !
+
+# Page Tree
+nav:
+  - Home: index.md
+  # NeMo Blog Posts
+  - Blog:
+      - blogs/index.md
