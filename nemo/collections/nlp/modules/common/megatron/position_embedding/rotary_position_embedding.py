@@ -53,6 +53,7 @@ class RotaryEmbedding(nn.Module):
     """
     Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
     """
+
     global mscale
     mscale = None
 
@@ -95,9 +96,9 @@ class RotaryEmbedding(nn.Module):
 
             self.max_seq_len_cached = self.max_positional_embeddings * self.seq_len_interpolation_factor
             if self.enforce_fp32_pos_idx:
-              seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32)
+                seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32)
             else:
-              seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
+                seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
             freqs = torch.outer(seq, self.inv_freq)
             # Different from paper, but it uses a different permutation in order to obtain the same calculation
             emb = torch.cat((freqs, freqs), dim=-1)
@@ -114,17 +115,17 @@ class RotaryEmbedding(nn.Module):
         inv_freq_interpolation = 1.0 / (scale * pos_freqs)
 
         low, high = find_correction_range(
-                self.beta_fast, self.beta_slow, self.dim, self.base, self.max_positional_embeddings
-            )
+            self.beta_fast, self.beta_slow, self.dim, self.base, self.max_positional_embeddings
+        )
         inv_freq_mask = (
-                1 - linear_ramp_mask(low, high, self.dim // 2).float()
-            ) * self.extrapolation_factor  # Get n-d rotational scaling corrected for extrapolation
+            1 - linear_ramp_mask(low, high, self.dim // 2).float()
+        ) * self.extrapolation_factor  # Get n-d rotational scaling corrected for extrapolation
         inv_freq = inv_freq_interpolation * (1 - inv_freq_mask) + inv_freq_extrapolation * inv_freq_mask
 
         self.register_buffer("inv_freq", inv_freq)
         self.mscale = float(
-                get_mscale(scale) * self.attn_factor
-            )  # Get n-d magnitude scaling corrected for interpolation
+            get_mscale(scale) * self.attn_factor
+        )  # Get n-d magnitude scaling corrected for interpolation
         global mscale
         mscale = self.mscale
 
@@ -141,7 +142,7 @@ class RotaryEmbedding(nn.Module):
                 # Different from paper, but it uses a different permutation in order to obtain the same calculation
                 emb = torch.cat((freqs, freqs), dim=-1).to(self.inv_freq.device)
                 self.register_buffer('emb', emb)
-            return rearrange(self.emb, 'n d -> n 1 1 d')[:max_seq_len,:,:,:]
+            return rearrange(self.emb, 'n d -> n 1 1 d')[:max_seq_len, :, :, :]
 
         if self.max_positional_embeddings is not None and self.seq_len_interpolation_factor is not None:
             if max_seq_len > self.max_positional_embeddings * self.seq_len_interpolation_factor:
@@ -181,5 +182,4 @@ def apply_rotary_pos_emb(t, freqs):
         t = (t * freqs.cos() * mscale) + (_rotate_half(t) * freqs.sin() * mscale)
     else:
         t = (t * freqs.cos()) + (_rotate_half(t) * freqs.sin())
-    return torch.cat((t, t_pass), dim=-1) 
-
+    return torch.cat((t, t_pass), dim=-1)
