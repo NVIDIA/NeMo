@@ -587,7 +587,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 rotary_dim,
                 seq_len_interpolation_factor=seq_len_interpolation_factor,
                 base=base,
-                max_positional_embeddings=max_position_embeddings,
                 extrapolation_factor=extrapolation_factor,
                 attn_factor=attn_factor,
                 beta_fast=beta_fast,
