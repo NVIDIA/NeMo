@@ -365,7 +365,7 @@ class GermanPhonemesTokenizer(BaseCharsTokenizer):
             cs = [space] + cs + [space]
 
         return [self._token2id[p] for p in cs]
-    
+
 
 class ItalianPhonemesTokenizer(BaseCharsTokenizer):
     # fmt: off
