@@ -16,6 +16,7 @@ import pytest
 import torch
 
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
+from nemo.collections.common.metrics.per import per, PER, PERData
 
 from .loss_inputs import ALL_NUM_MEASUREMENTS_ARE_ZERO, NO_ZERO_NUM_MEASUREMENTS, SOME_NUM_MEASUREMENTS_ARE_ZERO
 from .perplexity_inputs import NO_PROBS_NO_LOGITS, ONLY_LOGITS1, ONLY_LOGITS100, ONLY_PROBS, PROBS_AND_LOGITS
@@ -149,3 +150,70 @@ class TestLoss(LossTester):
             dist_sync_on_step=dist_sync_on_step,
             take_avg_loss=take_avg_loss,
         )
+
+class TestPER:
+    reference = "Hi, dear! Nice to see you. What's"
+    hypothesis = ["Hi dear! Nice to see you! What's?"]                
+    punctuation_marks = [".", ",", "!", "?"]
+    
+    reference_operation_amounts = {
+            '.': {'Correct': 0, 'Deletions': 0, 'Insertions': 0, 'Substitutions': 1},
+            ',': {'Correct': 0, 'Deletions': 1, 'Insertions': 0, 'Substitutions': 0},
+            '!': {'Correct': 1, 'Deletions': 0, 'Insertions': 0, 'Substitutions': 0},
+            '?': {'Correct': 0, 'Deletions': 0, 'Insertions': 1, 'Substitutions': 0}
+            }
+    reference_substitution_amounts = {
+        '.': {'.': 0, ',': 0, '!': 1, '?': 0},
+        ',': {'.': 0, ',': 0, '!': 0, '?': 0},
+        '!': {'.': 0, ',': 0, '!': 0, '?': 0},
+        '?': {'.': 0, ',': 0, '!': 0, '?': 0}
+        } 
+    reference_correct_rate = 0.25
+    reference_deletions_rate = 0.25
+    reference_insertions_rate = 0.25
+    reference_substitution_rate = 0.25
+    reference_per = 0.75
+    reference_operation_rates = {
+        '.': {'Correct': 0.0, 'Deletions': 0.0, 'Insertions': 0.0, 'Substitutions': 1.0},
+        ',': {'Correct': 0.0, 'Deletions': 1.0, 'Insertions': 0.0, 'Substitutions': 0.0},
+        '!': {'Correct': 1.0, 'Deletions': 0.0, 'Insertions': 0.0, 'Substitutions': 0.0},
+        '?': {'Correct': 0.0, 'Deletions': 0.0, 'Insertions': 1.0, 'Substitutions': 0.0}
+        }
+    reference_substitution_rates = {
+        '.': {'.': 0.0, ',': 0.0, '!': 1.0, '?': 0.0},
+        ',': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0},
+        '!': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0},
+        '?': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0}
+        }
+    
+    @pytest.mark.unit
+    def test_per_function(self):
+        assert per([self.reference], [self.hypothesis], punctuation_marks) == self.reference_per
+    
+    @pytest.mark.unit
+    def test_per_class(self):
+        per_obj = PER(punctuation_marks)
+        operation_amounts, substitution_amounts, punctuation_rates = per_obj.compute(self.reference, self.hypothesis)
+         
+        assert operation_amounts == self.reference_operation_amounts
+        assert substitution_amounts == self.reference_substitution_amounts
+        assert punctuation_rates.correct_rate == self.reference_correct_rate
+        assert punctuation_rates.deletions_rate == self.reference_deletions_rate
+        assert punctuation_rates.insertions_rate == self.reference_insertions_rate
+        assert punctuation_rates.substitution_rate == self.reference_substitution_rate
+        assert punctuation_rates.per == self.reference_per
+        assert punctuation_rates.operation_rates == self.reference_operation_rates
+        assert punctuation_rates.substitution_rates == self.reference_substitution_rates
+    
+    @pytest.mark.unit
+    def test_perdata_class(self):
+        per_data_obj = PERData([self.references], [self.hypotheses], punctuation_marks)
+        per_data_obj.compute()
+        
+        assert per_data_obj.correct_rate == self.reference_correct_rate
+        assert per_data_obj.deletions_rate == self.reference_deletions_rate
+        assert per_data_obj.insertions_rate == self.reference_insertions_rate
+        assert per_data_obj.substitution_rate == self.reference_substitution_rate
+        assert per_data_obj.per == self.reference_per
+        assert per_data_obj.operation_rates == self.reference_operation_rates
+        assert per_data_obj.substitution_rates == self.reference_substitution_rates
