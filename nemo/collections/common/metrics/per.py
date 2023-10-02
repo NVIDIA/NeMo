@@ -16,10 +16,38 @@ import re
 from collections import namedtuple
 from tqdm import tqdm
 
+def per(references: list[str],
+        hypotheses: list[str],
+        punctuation_marks: list[str],
+        punctuation_mask: str = "[PUNCT]",
+    ) -> None:
+    
+    """
+    Computes Punctuation Error Rate
+    
+    Args:
+        references (list[str]) - list of references
+        hypotheses (list[str]) - list of hypotheses
+        punctuation_marks (list[str]) - list of punctuation marks for computing metrics
+        punctuation_mask (str, by default "[PUNCT]") - mask token that will be applied to
+        given punctuation marks while edit distance calculation
+        
+    Return:
+        per (float) - Punctuation Error Rate
+    """
+    
+    per_data_obj = PERData(references=references, 
+                           hypotheses=hypotheses, 
+                           punctuation_marks=punctuation_marks, 
+                           punctuation_mask=punctuation_mask)
+    
+    per_data_obj.compute()
+    
+    return per_data_obj.per
 
 class PER:
     """
-    Class for computation punctuation operations absolute amounts and its rates
+    Class for computation puncutation-related absolute amounts of operations and thier rates
     between reference and hypothesis strings:
         - Absolute amounts of correct predictions, deletions, insertions
         and substitutions for each given punctuation mark
@@ -31,13 +59,13 @@ class PER:
 
     Args to init:
         punctuation_marks (list[str]) - list of punctuation marks for computing metrics
-        punctuation_mask (str, default = "[PUNCT]") - mask token that will be applied to
+        punctuation_mask (str, by default "[PUNCT]") - mask token that will be applied to
         given punctuation marks while edit distance calculation 
     
     How to use:
         1. Create object of PER class.
            Example:
-                punctuation_marks = [".", ",", "?"]
+                punctuation_marks = [".", ",", "!", "?"]
                 per_obj = PER(punctuation_marks)
         
         2. To compute punctuation metrics, pass reference and hypothesis string to the "compute" method
@@ -47,46 +75,55 @@ class PER:
                 hypothesis_str = "Hi dear! Nice to see you! What's?"
                 per_obj.compute(reference_str, hypothesis_str)
 
-    Output:
+    Output (listed in order of output):
         1. Dict of absolute operations amounts for each given punctuation mark:
             Example:
-            {'.': {'Correct': 0, 'Deletions': 1, 'Insertions': 0, 'Substitutions': 0}, 
-             ',': {'Correct': 0, 'Deletions': 1, 'Insertions': 0, 'Substitutions': 0}, 
-             '?': {'Correct': 0, 'Deletions': 0, 'Insertions': 1, 'Substitutions': 0}}, 
+            {'.': {'Correct': 0, 'Deletions': 0, 'Insertions': 0, 'Substitutions': 1},
+             ',': {'Correct': 0, 'Deletions': 1, 'Insertions': 0, 'Substitutions': 0},
+             '!': {'Correct': 1, 'Deletions': 0, 'Insertions': 0, 'Substitutions': 0},
+             '?': {'Correct': 0, 'Deletions': 0, 'Insertions': 1, 'Substitutions': 0}}
               
         2. Dict of substitutions absolute amounts between given punctuation marks:
             Example:
-            {'.': {'.': 0, ',': 0, '?': 0}, 
-             ',': {'.': 0, ',': 0, '?': 0}, 
-             '?': {'.': 0, ',': 0, '?': 0}}
-             
+            {'.': {'.': 0, ',': 0, '!': 1, '?': 0},
+             ',': {'.': 0, ',': 0, '!': 0, '?': 0},
+             '!': {'.': 0, ',': 0, '!': 0, '?': 0},
+             '?': {'.': 0, ',': 0, '!': 0, '?': 0}}
+            
         3. namedtuple "PunctuationRates" of punctuation operation rates (in range from 0 to 1):
             3.1. correct_rate - overall correct rate 
-                Example: correct_rate=0.0
+                Example: correct_rate=0.25
             3.2. deletions_rate - overall deletions rate
-                Example: deletions_rate=0.6666666666666666
+                Example: deletions_rate=0.25
             3.3. insertions_rate - overall insertions rate
-                Example: insertions_rate=0.3333333333333333
+                Example: insertions_rate=0.25
             3.4. substitution_rate - overall substitution_rate
-                Example: substitution_rate=0.0
+                Example: substitution_rate=0.25
             3.5. per - Punctuation Error Rate
-                Example: per=1.0
+                Example: per=0.75
             3.6. operation_rates - dict of operations rates for each given punctuation mark
                 Example: 
                 operation_rates={
-                    '.': {'Correct': 0.0, 'Deletions': 1.0, 'Insertions': 0.0, 'Substitutions': 0.0}, 
-                    ',': {'Correct': 0.0, 'Deletions': 1.0, 'Insertions': 0.0, 'Substitutions': 0.0}, 
+                    '.': {'Correct': 0.0, 'Deletions': 0.0, 'Insertions': 0.0, 'Substitutions': 1.0},
+                    ',': {'Correct': 0.0, 'Deletions': 1.0, 'Insertions': 0.0, 'Substitutions': 0.0},
+                    '!': {'Correct': 1.0, 'Deletions': 0.0, 'Insertions': 0.0, 'Substitutions': 0.0},
                     '?': {'Correct': 0.0, 'Deletions': 0.0, 'Insertions': 1.0, 'Substitutions': 0.0}
                     }
+  
             3.7. substitution_rates - dict of substitution rates for each given punctuation mark
                 Example:
                 substitution_rates={
-                    '.': {'.': 0.0, ',': 0.0, '?': 0.0}, 
-                    ',': {'.': 0.0, ',': 0.0, '?': 0.0}, 
-                    '?': {'.': 0.0, ',': 0.0, '?': 0.0}}
+                    '.': {'.': 0.0, ',': 0.0, '!': 1.0, '?': 0.0},
+                    ',': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0},
+                    '!': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0},
+                    '?': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0}
+                    }
     """
 
     def __init__(self, punctuation_marks: list[str], punctuation_mask: str = "[PUNCT]") -> None:
+        
+        assert len(punctuation_marks) != 0, f"List of punctuation marks is empty"
+        
         self.punctuation_marks = punctuation_marks
         self.punctuation_mask = punctuation_mask
 
@@ -270,6 +307,63 @@ class PER:
 
 
 class PERData:
+    """
+    Class for computation the total puncutation-related absolute amounts of operations and their rates 
+    in pairs of reference and hypothesis strins:
+        - Absolute amounts of correct predictions, deletions, insertions
+        and substitutions for each given punctuation mark
+        - Rates of correct predictions, deletions, insertions
+        and substitutions for each given punctuation mark 
+        - Total rates of correct predictions, deletions, insertions
+        and substiturions in pairs of reference and hypothesis strings 
+        - Punctuation Error Rate
+        
+    Args to init:
+        references (list[str]) - list of references
+        hypotheses (list[str]) - list of hypotheses
+        punctuation_marks (list[str]) - list of punctuation marks for computing metrics
+        punctuation_mask (str, by default "[PUNCT]") - mask token that will be applied to
+        given punctuation marks while edit distance calculation
+        
+    How to use:
+        1. Create object of PERData class.
+           Example:
+                references = ["Hi, dear! Nice to see you. What's"]
+                hypotheses = ["Hi dear! Nice to see you! What's?"]                
+                punctuation_marks = [".", ",", "!", "?"]
+                
+                per_data_obj = PERData(references, hypotheses, punctuation_marks)
+                
+        2. To compute punctuation metrics, call the class method "compute()".
+            Example:
+                per_data_obj.compute() 
+                
+    Result:
+    The following atributes of class object will be updated with calculated metrics values.
+    The values are available with calling the atributes:
+        
+        per_data_obj.operation_rates - dict, rates of correctness and errors for each punctuation mark 
+        from `preset per_data_obj.punctuation_marks` list.
+        
+        per_data_obj.substitution_rates - dict, substitution rates between puncutation marks from
+        `preset per_data_obj.punctuation_marks` list.
+        
+        per_data_obj.correct_rate - float, total rate of correctness between provided pairs of 
+        references and hypotheses.
+        
+        per_data_obj.deletions_rate - float, total rate of deletions between provided pairs of 
+        references and hypotheses.
+        
+        per_data_obj.insertions_rate - float, total rate of insertions between provided pairs of 
+        references and hypotheses.
+        
+        per_data_obj.substitution_rate - float, total rate of substitutions between provided pairs of 
+        references and hypotheses.
+        
+        per_data_obj.per - float, total Punctuation Error Rate between provided pairs of 
+        references and hypotheses.
+    """
+    
     def __init__(
         self,
         references: list[str],
