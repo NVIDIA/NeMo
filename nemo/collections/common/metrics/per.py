@@ -16,12 +16,11 @@ import re
 from collections import namedtuple
 from tqdm import tqdm
 
-def per(references: list[str],
-        hypotheses: list[str],
-        punctuation_marks: list[str],
-        punctuation_mask: str = "[PUNCT]",
-    ) -> None:
-    
+
+def per(
+    references: list[str], hypotheses: list[str], punctuation_marks: list[str], punctuation_mask: str = "[PUNCT]",
+) -> None:
+
     """
     Computes Punctuation Error Rate
     
@@ -35,15 +34,18 @@ def per(references: list[str],
     Return:
         per (float) - Punctuation Error Rate
     """
-    
-    per_data_obj = PERData(references=references, 
-                           hypotheses=hypotheses, 
-                           punctuation_marks=punctuation_marks, 
-                           punctuation_mask=punctuation_mask)
-    
+
+    per_data_obj = PERData(
+        references=references,
+        hypotheses=hypotheses,
+        punctuation_marks=punctuation_marks,
+        punctuation_mask=punctuation_mask,
+    )
+
     per_data_obj.compute()
-    
+
     return per_data_obj.per
+
 
 class PER:
     """
@@ -121,9 +123,9 @@ class PER:
     """
 
     def __init__(self, punctuation_marks: list[str], punctuation_mask: str = "[PUNCT]") -> None:
-        
+
         assert len(punctuation_marks) != 0, f"List of punctuation marks is empty"
-        
+
         self.punctuation_marks = punctuation_marks
         self.punctuation_mask = punctuation_mask
 
@@ -363,7 +365,7 @@ class PERData:
         per_data_obj.per - float, total Punctuation Error Rate between provided pairs of 
         references and hypotheses.
     """
-    
+
     def __init__(
         self,
         references: list[str],
