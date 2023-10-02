@@ -28,9 +28,9 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     any_locale_text_preprocessing,
     chinese_text_preprocessing,
     english_text_preprocessing,
+    french_text_preprocessing,
     italian_text_preprocessing,
     spanish_text_preprocessing,
-    french_text_preprocessing,
 )
 from nemo.utils import logging
 from nemo.utils.decorators import experimental

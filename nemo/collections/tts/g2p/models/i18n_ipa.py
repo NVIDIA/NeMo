@@ -422,7 +422,7 @@ class IpaG2p(BaseG2p):
                             word_found = word[start_index:].upper()
 
                     if word_found is not None and (
-                    not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word_found)
+                        not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word_found)
                     ):
                         return [c for c in cont_p] + self.phoneme_dict[word_found][0], True
 
