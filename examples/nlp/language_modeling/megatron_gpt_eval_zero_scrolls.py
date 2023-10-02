@@ -24,9 +24,6 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
@@ -152,6 +149,11 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
+            if cfg.get('seq_len_interpolation_factor', None) is not None:
+                try:
+                    pretrained_cfg.seq_len_interpolation_factor = cfg.seq_len_interpolation_factor
+                except:
+                    pretrained_cfg['seq_len_interpolation_factor'] = cfg.seq_len_interpolation_factor
             if trainer.precision == "16":
                 pretrained_cfg.megatron_amp_O2 = False
             if cfg.inference.get("use_flash_attention", None) is not None:
@@ -162,6 +164,9 @@ def main(cfg) -> None:
 
             if cfg.inference.get("apply_query_key_layer_scaling", None) is not None:
                 pretrained_cfg.apply_query_key_layer_scaling = cfg.inference.apply_query_key_layer_scaling
+
+
+            pretrained_cfg.enforce_fp32_pos_idx = cfg.get('enforce_fp32_pos_idx', False)
 
             if cfg.get("model", None) is not None and cfg.model.get("encoder", None) is not None:
                 for k, v in cfg.model.encoder.items():

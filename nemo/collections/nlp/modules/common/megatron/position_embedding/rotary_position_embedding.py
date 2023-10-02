@@ -67,6 +67,7 @@ class RotaryEmbedding(nn.Module):
         beta_fast: int = 32,
         beta_slow: int = 1,
         use_yarn: bool = False,
+        enforce_fp32_pos_idx: bool = False,
     ):
         """
         Args:
@@ -74,13 +75,15 @@ class RotaryEmbedding(nn.Module):
             dim (int): rotary embedding dimension
             seq_len_interpolation_factor (int): if not None, discrete positions will be interpolated
             by this factor via the trick in https://arxiv.org/abs/2306.15595.
+            max_positional_embeddings (int): pre-trained max_position_embeddings before position interpolation.
+            enforce_fp32_pos_idx (int): enforce pos index in fp32 to prevent index collision
         """
         super().__init__()
         self.use_yarn = use_yarn
         self.base = base
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
+        self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
         if self.use_yarn:
-            self.seq_len_interpolation_factor = seq_len_interpolation_factor  # scale
             self.max_positional_embeddings = max_positional_embeddings
             self.extrapolation_factor = extrapolation_factor
             self.attn_factor = attn_factor
@@ -91,10 +94,13 @@ class RotaryEmbedding(nn.Module):
             self.yarn(self.seq_len_interpolation_factor)
 
             self.max_seq_len_cached = self.max_positional_embeddings * self.seq_len_interpolation_factor
-            t = torch.arange(self.max_seq_len_cached, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
-            freqs = torch.einsum("i , j -> i j", t, self.inv_freq)
+            if self.enforce_fp32_pos_idx:
+              seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32)
+            else:
+              seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
+            freqs = torch.outer(seq, self.inv_freq)
             # Different from paper, but it uses a different permutation in order to obtain the same calculation
-            emb = torch.cat((freqs, freqs), dim=-1) * self.mscale
+            emb = torch.cat((freqs, freqs), dim=-1)
             self.register_buffer('emb', emb)
 
         else:
@@ -123,24 +129,28 @@ class RotaryEmbedding(nn.Module):
         mscale = self.mscale
 
     def forward(self, max_seq_len, offset=0):
+        if self.enforce_fp32_pos_idx:
+            seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32) + offset
+        else:
+            seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype) + offset
         if self.use_yarn:
             if max_seq_len > self.max_seq_len_cached:
                 self.max_seq_len_cached = max_seq_len
                 self.yarn(max_seq_len / self.max_positional_embeddings)
-                t = torch.arange(self.max_seq_len_cached, dtype=self.inv_freq.dtype).to(self.inv_freq.device)
-                freqs = torch.einsum("i , j -> i j", t, self.inv_freq)
+                freqs = torch.outer(seq, self.inv_freq)
                 # Different from paper, but it uses a different permutation in order to obtain the same calculation
-                emb = torch.cat((freqs, freqs), dim=-1).to(self.inv_freq.device) * self.mscale
+                emb = torch.cat((freqs, freqs), dim=-1).to(self.inv_freq.device)
                 self.register_buffer('emb', emb)
             return rearrange(self.emb, 'n d -> n 1 1 d')[:max_seq_len,:,:,:]
 
-        seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
-        if self.seq_len_interpolation_factor is not None:
-            seq = seq.type_as(self.inv_freq)
-            seq *= 1 / self.seq_len_interpolation_factor
-        freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
-        # first part even vector components, second part odd vector components,
-        #  2 * dim in dimension size
+        if self.max_positional_embeddings is not None and self.seq_len_interpolation_factor is not None:
+            if max_seq_len > self.max_positional_embeddings * self.seq_len_interpolation_factor:
+                # dynamic linear scaling (length > position we have learned)
+                seq *= 1 / (max_seq_len / self.max_positional_embeddings)
+            else:
+                # fixed linear scaling
+                seq *= 1 / self.seq_len_interpolation_factor
+        freqs = torch.outer(seq, self.inv_freq)
         emb = torch.cat((freqs, freqs), dim=-1)
         # emb [seq_length, .., dim]
         return rearrange(emb, 'n d -> n 1 1 d')
@@ -172,3 +182,4 @@ def apply_rotary_pos_emb(t, freqs):
     else:
         t = (t * freqs.cos()) + (_rotate_half(t) * freqs.sin())
     return torch.cat((t, t_pass), dim=-1) 
+

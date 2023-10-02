@@ -377,6 +377,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             beta_fast=self.cfg.get('beta_fast', 32),
             beta_slow=self.cfg.get('beta_slow', 1),
             use_yarn=self.cfg.get('use_yarn', False),
+            enforce_fp32_pos_idx=self.cfg.get('enforce_fp32_pos_idx', False),
         )
 
         return model

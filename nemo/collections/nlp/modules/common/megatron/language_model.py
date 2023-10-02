@@ -130,6 +130,7 @@ def get_language_model(
     beta_fast=32,
     beta_slow=1,
     use_yarn=False,
+    enforce_fp32_pos_idx=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -214,6 +215,7 @@ def get_language_model(
         beta_fast=beta_fast,
         beta_slow=beta_slow,
         use_yarn=use_yarn,
+        enforce_fp32_pos_idx=enforce_fp32_pos_idx,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -529,6 +531,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         beta_fast=None,
         beta_slow=None,
         use_yarn=False,
+        enforce_fp32_pos_idx=False,
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -590,6 +593,8 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 beta_fast=beta_fast,
                 beta_slow=beta_slow,
                 use_yarn=use_yarn,
+                pretrained_max_position_embeddings=max_position_embeddings,
+                enforce_fp32_pos_idx=enforce_fp32_pos_idx,
             )
 
         elif position_embedding_type == 'alibi':

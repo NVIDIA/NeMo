@@ -48,9 +48,6 @@ def build_slopes(num_attention_heads, num_attention_heads_alibi):
         .unsqueeze(-1)
     )
 
-    # if torch.cuda.is_available():
-        # slopes = slopes.to(torch.cuda.current_device())
-
     return slopes
 
 
@@ -65,9 +62,6 @@ def build_relative_position(max_seq_len, full=True):
         memory_position = torch.arange(1 - max_seq_len, 1)[:, None].mul(-1)
         relative_position = torch.abs(memory_position - relative_position)  # (max_seq_len, max_seq_len)
 
-    # if torch.cuda.is_available():
-        # relative_position = relative_position.to(torch.cuda.current_device())
-
     return relative_position
 
 
@@ -79,7 +73,13 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
     """
 
     def __init__(
-        self, bidirectional, num_attention_heads, layer_type, num_attention_heads_alibi=None, max_seq_len=512, seq_len_interpolation_factor: int = 1
+        self,
+        bidirectional,
+        num_attention_heads,
+        layer_type,
+        num_attention_heads_alibi=None,
+        max_seq_len=512,
+        seq_len_interpolation_factor: int = 1,
     ):
         """
         Args:
@@ -117,7 +117,6 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
             build_relative_position(max_seq_len, full=bidirectional).unsqueeze(0).expand(num_attention_heads, -1, -1)
         )
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
-
 
         self.register_buffer('slopes', slopes)
         self.register_buffer('relative_position', relative_position)

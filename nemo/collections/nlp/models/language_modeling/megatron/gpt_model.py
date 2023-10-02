@@ -173,6 +173,7 @@ class GPTModel(MegatronModule):
         beta_fast=32,
         beta_slow=1,
         use_yarn=False,
+        enforce_fp32_pos_idx=False,
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -263,6 +264,7 @@ class GPTModel(MegatronModule):
             beta_fast=beta_fast,
             beta_slow=beta_slow,
             use_yarn=use_yarn,
+            enforce_fp32_pos_idx=enforce_fp32_pos_idx,
         )
 
         if self.share_embeddings_and_output_weights:
