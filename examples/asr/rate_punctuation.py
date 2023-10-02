@@ -77,6 +77,7 @@ parser.add_argument(
     marks during PER calculation",
 )
 
+
 def read_manifest(input_manifest_path: str) -> list[dict]:
 
     '''
@@ -149,7 +150,7 @@ def compute_rates(
         hypotheses.append(sample[hypothesis_field])
 
     logging.info(f'Rates Computing..:')
-    
+
     per_data = PERData(
         references=references,
         hypotheses=hypotheses,
@@ -181,8 +182,13 @@ def compute_rates(
     rates_by_pm_df = pd.DataFrame(per_data.operation_rates)
     substitution_rates_by_pm_df = pd.DataFrame(per_data.substitution_rates)
 
-    logging.info("Rates of punctuation correctness and errors:\n" + tabulate(rates_by_pm_df, headers='keys', tablefmt='psql'))
-    logging.info("Substitution rates between puncutation marks:\n" + tabulate(substitution_rates_by_pm_df, headers='keys', tablefmt='psql'))
+    logging.info(
+        "Rates of punctuation correctness and errors:\n" + tabulate(rates_by_pm_df, headers='keys', tablefmt='psql')
+    )
+    logging.info(
+        "Substitution rates between puncutation marks:\n"
+        + tabulate(substitution_rates_by_pm_df, headers='keys', tablefmt='psql')
+    )
 
 
 if __name__ == "__main__":
