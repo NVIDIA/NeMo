@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from argparse import ArgumentParser
-
+import json
+import os
 import pandas as pd
 from tabulate import tabulate
 
@@ -88,6 +88,8 @@ def read_manifest(input_manifest_path: str) -> list[dict]:
     Returns:
         samples - list of dict
     '''
+    
+    assert os.path.exists(input_manifest_path), f"Input manifest file not found: {input_manifest_path}"
 
     with open(input_manifest_path, "r") as manifest:
         lines = manifest.readlines()
@@ -96,6 +98,8 @@ def read_manifest(input_manifest_path: str) -> list[dict]:
 
 
 def write_manifest(output_manifest_path: str, samples: list[dict]) -> None:
+    
+    assert os.path.exists(os.path.dirname(output_manifest_path)), f"Directory to save output manifest path does not exists: {output_manifest_path}"
 
     '''
     Writes samples to .json file.
