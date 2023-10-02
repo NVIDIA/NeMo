@@ -893,6 +893,9 @@ def tab_sample_sequence_batch(
         if maxlen > model.cfg.encoder_seq_length:
             maxlen = model.cfg.encoder_seq_length
 
+        maxlens = tokens_to_generate + context_lengths  # used to force EOS for shorter contexts in a batch.
+        maxlens[maxlens > maxlen] = maxlen
+        
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
         while context_length < maxlen:
@@ -926,7 +929,9 @@ def tab_sample_sequence_batch(
                 started = context_lengths <= context_length
                 # Clamp the out of vocabulary tokens.
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
-
+                # force EOS token when tokens_to_generate has been reached for an item in the batch.
+                prev[context_length >= maxlens] = tokenizer.eos_id
+                
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
 
                 # post process the inference tokens based on the strategy
