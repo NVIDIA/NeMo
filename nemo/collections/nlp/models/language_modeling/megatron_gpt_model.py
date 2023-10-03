@@ -45,6 +45,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.speech_residual_networks import LinearModule, SimplestModule
+from nemo.collections.nlp.modules.common.text_generation_strategy import TextGenerationStrategy
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
     get_computeprob_response,
@@ -199,9 +200,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-
         if not HAVE_MEGATRON_CORE:
-            raise ImportError(
+            logging.warning(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         # this prevents base constructor from initializing tokenizer
@@ -1196,6 +1196,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
         mode="teacher-forced",  # One of "teacher-forced", "greedy", "multinomial"
+        *,
+        strategy: Optional[TextGenerationStrategy] = None,
     ) -> OutputType:
         """
         inputs can either be a list of string or a tuple
@@ -1226,7 +1228,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if length_params is None:
             length_params = get_default_length_params()
 
-        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params, mode=mode)
+        strategy_args = {} if strategy is None else {"strategy": strategy}
+
+        return megatron_gpt_generate(
+            self.cuda(), inputs, self.tokenizer, length_params, sampling_params, mode=mode, **strategy_args
+        )
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()

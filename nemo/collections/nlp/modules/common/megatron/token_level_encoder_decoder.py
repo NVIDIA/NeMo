@@ -15,6 +15,10 @@
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    PromptEncoderAdapterConfig,
+)
 from nemo.collections.nlp.modules.common.megatron.hiddens import get_hiddens_module
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
@@ -39,6 +43,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.utils import logging
+from nemo.core.classes.mixins import adapter_mixins
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -103,7 +108,7 @@ class MegatronTokenLevelHead(MegatronModule):
 # TODO: add soft prompts as an Embedding sub-class
 
 
-class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
+class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.AdapterModuleMixin):
     """Token-based (input/output is tokens) encoder-decoder model (e.g. T5 Language model.)"""
 
     def __init__(
@@ -432,6 +437,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 )
 
             self._tokens_head_key = 'tokens_head'
+        self.set_accepted_adapter_types([PromptEncoderAdapterConfig._target_])
 
     def _validate_kv_channels(self, cfg):
         kv_channels = cfg.kv_channels
@@ -575,6 +581,18 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 else:
                     enc_position_ids = None
                 enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
+                if self.is_adapter_available():
+                    _sq, _bs, _hs = enc_input.size()
+                    ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
+                    v = ptuning_adapter.virtual_tokens
+                    if (
+                        ptuning_adapter and _sq >= v
+                    ):  # The sequence should be longer the v to insert virtual embeddings.
+                        virtual_embeddings = ptuning_adapter(_bs)
+                        enc_input = enc_input[
+                            v:, :, :
+                        ]  # the first v tokens are pads so that they can be swapped out with virtual embeddings.
+                        enc_input = torch.concat([virtual_embeddings, enc_input], dim=0)
             else:
                 enc_input = None
         else:
