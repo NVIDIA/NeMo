@@ -106,8 +106,8 @@ def import_falcon_gpt_model():
     """
     try:
         #from megatron.core.models.falcon.falcon_gpt_model import FalconGPTModel
-        from nemo.collections.nlp.models.language_modeling.megatron.spec_falcon.falcon_gpt_model import FalconGPTModel
-        from nemo.collections.nlp.models.language_modeling.megatron.spec_falcon.falcon_spec import falcon_layer_spec
+        from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_gpt_model import FalconGPTModel
+        from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import falcon_layer_spec
         return FalconGPTModel, falcon_layer_spec
     except (ImportError, ModuleNotFoundError):
         raise ImportError("Failed to import FalconGPTModel. Please ensure the necessary dependencies are installed.")

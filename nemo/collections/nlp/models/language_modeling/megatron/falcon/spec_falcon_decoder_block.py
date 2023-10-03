@@ -12,7 +12,7 @@ from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from .spec_falcon_decoder_layer import FalconTransformerLayer, FalconTransformerLayerSubmodules
+from .falcon_decoder_layer import FalconTransformerLayer, FalconTransformerLayerSubmodules
 from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_viewless_tensor
 
 
@@ -208,7 +208,7 @@ class FalconTransformerBlock(MegatronModule):
         hidden_states = make_viewless_tensor(
             inp=hidden_states, requires_grad=True, keep_graph=True,
         )
-
+        
         if self.config.sequence_parallel:
             rng_context = tensor_parallel.get_cuda_rng_tracker().fork()
         else:
@@ -250,13 +250,15 @@ class FalconTransformerBlock(MegatronModule):
                     rotary_pos_emb=rotary_pos_emb,
                 )
             else:
-                for layer in self.layers:
+                for idx, layer in enumerate(self.layers):
                     hidden_states = layer(
                         hidden_states=hidden_states,
                         attention_mask=attention_mask,
                         rotary_pos_emb=rotary_pos_emb,
                         inference_params=inference_params,
                     )
+                    logging.debug(f"Layer {idx + 1} tensor:", hidden_states)
+                    logging.debug(f"Layer {idx + 1} tensor shape:", hidden_states.shape)
 
         # Final layer norm.
         if self.post_process and self.post_layer_norm:

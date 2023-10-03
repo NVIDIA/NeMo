@@ -15,7 +15,7 @@ from megatron.core.utils import make_tp_sharded_tensor_for_checkpoint
 from torch import Tensor
 
 # from megatron.core.transformer.transformer_block import TransformerBlock
-from .spec_falcon_decoder_block import FalconTransformerBlock
+from .falcon_decoder_block import FalconTransformerBlock
 
 
 class FalconGPTModel(MegatronModule):
@@ -189,7 +189,7 @@ class FalconGPTModel(MegatronModule):
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()
         logits, _ = self.output_layer(hidden_states, weight=output_weight)
-
+    
         if labels is None:
             # [s b h] => [b s h]
             return logits.transpose(0, 1).contiguous()
@@ -197,7 +197,7 @@ class FalconGPTModel(MegatronModule):
         # [b s] => [s b]
         labels = labels.transpose(0, 1).contiguous()
         loss = tensor_parallel.vocab_parallel_cross_entropy(logits.float(), labels)
-
+        
         # [s b] => [b, s]
         loss = loss.transpose(0, 1).contiguous()
         return loss
@@ -247,7 +247,7 @@ class FalconGPTModel(MegatronModule):
                     weight.data, group=parallel_state.get_embedding_group()
                 )
 
-        elif not getattr(GPTModel, "embedding_warning_printed", False):
+        elif not getattr(FalconGPTModel, "embedding_warning_printed", False):
             logging.getLogger(__name__).warning(
                 "Distributed processes aren't initialized, so the output layer "
                 "is not initialized with weights from the word embeddings. "
@@ -255,7 +255,7 @@ class FalconGPTModel(MegatronModule):
                 "this needs to be handled manually. If you are training "
                 "something is definitely wrong."
             )
-            GPTModel.embedding_warning_printed = True
+            FalconGPTModel.embedding_warning_printed = True
 
     def sharded_state_dict(self, prefix=''):
         sharded_state_dict = {}

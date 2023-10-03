@@ -13,7 +13,7 @@ from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
-from .spec_falcon_decoder_layer import FalconTransformerLayer, FalconTransformerLayerSubmodules
+from .falcon_decoder_layer import FalconTransformerLayer, FalconTransformerLayerSubmodules
 
 # Use this spec for an implementation using modules in TE
 falcon_layer_spec = ModuleSpec(
