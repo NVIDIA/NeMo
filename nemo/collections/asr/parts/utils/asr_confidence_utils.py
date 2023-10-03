@@ -14,7 +14,7 @@
 
 import math
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from typing import List, Optional
 
@@ -181,7 +181,7 @@ class ConfidenceConfig:
     preserve_word_confidence: bool = False
     exclude_blank: bool = True
     aggregation: str = "min"
-    measure_cfg: ConfidenceMeasureConfig = ConfidenceMeasureConfig()
+    measure_cfg: ConfidenceMeasureConfig = field(default_factory=lambda: ConfidenceMeasureConfig())
     method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):
