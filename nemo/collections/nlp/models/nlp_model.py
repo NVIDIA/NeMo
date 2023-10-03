@@ -16,8 +16,9 @@ import copy
 import hashlib
 import json
 import os
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Union
 
+import torch
 from lightning_fabric.utilities.cloud_io import _load as pl_load
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -39,7 +40,17 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
+
+try:
+    from megatron.core import dist_checkpointing, parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = ['NLPModel']
 
@@ -310,6 +321,20 @@ class NLPModel(ModelPT, Exportable):
         checkpoint = None
         try:
             cls._set_model_restore_state(is_being_restored=True)
+
+            # dist checkpoint is a dir
+            checkpoint_dir = None
+            if os.path.isdir(checkpoint_path):
+                # store dir for later use
+                checkpoint_dir = checkpoint_path
+
+                # metadata is stored in common.pt
+                checkpoint_path = os.path.join(checkpoint_path, 'common.pt')
+
+                # we defer loading the state_dict until the class has been initialized
+                # we need to set this for ptl_load_state
+                strict = False
+
             # TODO: replace with proper PTL API
             with pl_legacy_patch():
                 if map_location is not None:
@@ -342,7 +367,7 @@ class NLPModel(ModelPT, Exportable):
                 config_kwargs.pop('trainer')
             cfg.update(config_kwargs)
 
-            if cfg.get('megatron_amp_O2', False):
+            if cfg.get('megatron_amp_O2', False) and checkpoint_dir is None:
                 new_state_dict = {}
                 for key in checkpoint['state_dict'].keys():
                     new_key = key.replace('model.', 'model.module.', 1)
@@ -354,6 +379,26 @@ class NLPModel(ModelPT, Exportable):
             else:
                 model = ptl_load_state(cls, checkpoint, strict=strict, cfg=cfg, **kwargs)
                 # cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
+
+            # if the checkpoint is distributed, we deferred loading the state_dict until now
+            if checkpoint_dir is not None:
+                sharded_state_dict = model.sharded_state_dict()
+                checkpoint['state_dict'] = sharded_state_dict
+                # dist checkpointing needs torch.distributed to load the checkpoint
+                if parallel_state.is_unitialized():
+
+                    def dummy():
+                        return
+
+                    if model.trainer.strategy.launcher is not None:
+                        model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
+                    model.trainer.strategy.setup_environment()
+                # load the checkpoint from disk
+                checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
+                # restore the weights
+                model.on_load_checkpoint(checkpoint)
+                if hasattr(model, 'setup_transformer_engine_tp_groups'):
+                    model.setup_transformer_engine_tp_groups()
 
             # NMT models do not have a `tokenizer` attribute, they instead have an encoder_tokenizer and decoder_tokenizer attribute.
             if hasattr(cfg, "tokenizer"):
@@ -396,3 +441,22 @@ class NLPModel(ModelPT, Exportable):
             del state_dict["bert_model.embeddings.position_ids"]
         results = super(NLPModel, self).load_state_dict(state_dict, strict=strict)
         return results
+
+    @classmethod
+    def restore_from(
+        cls,
+        restore_path: str,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = True,
+        return_config: bool = False,
+        save_restore_connector: SaveRestoreConnector = None,
+        trainer: Optional[Trainer] = None,
+    ):
+        if save_restore_connector is None:
+            save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(restore_path):
+            save_restore_connector.model_extracted_dir = restore_path
+        return super().restore_from(
+            restore_path, override_config_path, map_location, strict, return_config, save_restore_connector, trainer
+        )
