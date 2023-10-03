@@ -30,12 +30,12 @@ from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, 
 from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
-from nemo.collections.multimodal.data.audio_text_qa_dataset import (
+from nemo.collections.multimodal.speechllm.data.audio_text_qa_dataset import (
     get_aqa_dataset_from_config,
     get_tarred_aqa_dataset_from_config,
 )
-from nemo.collections.multimodal.modules.common.audio_text_generation_utils import generate
-from nemo.collections.multimodal.modules.speechllm_perception import AudioPerceptionModel
+from nemo.collections.multimodal.speechllm.modules.common.audio_text_generation_utils import generate
+from nemo.collections.multimodal.speechllm.modules.speechllm_perception import AudioPerceptionModel
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -51,14 +51,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
-    get_iterator_k_split,
 )
-from nemo.collections.nlp.modules.common.text_generation_utils import (
-    get_computeprob_response,
-    get_default_length_params,
-    get_default_sampling_params,
-    megatron_gpt_generate,
-)
+from nemo.collections.nlp.modules.common.text_generation_utils import get_computeprob_response
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, PEFTSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -89,13 +83,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-__all__ = ["ModularizedAudioGPTModel"]
+__all__ = ["ModularAudioGPTLoRAModel"]
 
 
 default_inference_config = {'tokens_to_generate': 30}
 
 
-class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
+class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     """Modularized speech GPT model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
