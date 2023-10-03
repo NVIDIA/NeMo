@@ -21,7 +21,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.init as init
-
+import torch.nn.functional as F
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
@@ -67,6 +67,7 @@ class AdapterName(str, enum.Enum):
     LORA_Q_ADAPTER = "lora_q_adapter"
     LORA_Hto4H_ADAPTER = "lora_hto4h_adapter"
     LORA_4HtoH_ADAPTER = "lora_4htoh_adapter"
+    NKB_FFN_ADAPTER = "nkb_ffn_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
@@ -233,6 +234,92 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         return x
 
 
+class NeuralKnowledgeBank(nn.Module, AdapterModuleUtil):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        dim: int,
+        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.        
+        dropout: float = 0.0,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        **kwargs,
+    ):
+        super().__init__()
+        if not HAVE_APEX:
+            logging.info("Apex is required to use ParallelLinearAdapters.")
+            raise RuntimeError("ParallelLinearAdapter can not run without Apex.")
+        if not HAVE_MEGATRON_CORE:
+            logging.info("Megatron-core is required to use ParallelLinearAdapters.")
+            raise RuntimeError("ParallelLinearAdapter can not run without Megatron-core.")
+        self.activation = F.silu
+
+        # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
+        # in case this arg is not provided, use the dummy default config.
+        if model_parallel_config is None:
+            model_parallel_config = ModelParallelConfig()
+
+        self.linear_in = ColumnParallelLinear(
+            in_features,
+            dim * 2,
+            config=model_parallel_config,
+            bias=False,
+            gather_output=False,
+            init_method=self._get_init_fn(column_init_method),
+        )
+
+        self.linear_out = RowParallelLinear(
+            dim,
+            out_features,
+            config=model_parallel_config,
+            bias=False,
+            input_is_parallel=True,
+            init_method=self._get_init_fn(row_init_method),
+        )
+
+        self.layer_norm = None
+        self.dropout = dropout
+
+        # cast all parameters when using amp O2 training
+        if model_parallel_config.bf16:
+            self.bfloat16()
+        elif model_parallel_config.fp16:
+            self.half()
+
+        # Setup adapter strategy
+        self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
+
+    def _get_init_fn(self, init_method: str):
+        if init_method == 'xavier':
+            init_fn = init.xavier_normal_
+        elif init_method == 'normal':
+            init_fn = init_method_normal(0.2)
+        elif init_method == "zero":
+            init_fn = init_method_const(0.0)
+        else:
+            raise NotImplementedError("out_init_method should be zero, normal or xavier")
+        return init_fn
+
+    def adapter_unfreeze(self,):
+        """
+        Can be customized to allow for selective training of only some params in the PEFT.
+        """
+        super().adapter_unfreeze()
+
+    def forward(self, x):
+
+        intermediate_parallel, _ = self.linear_in(x)  # ColumnLinear returns output and bias, we are ignoring the bias term.
+        intermediate_parallel, intermediate_parallel_2 = torch.chunk(intermediate_parallel, 2, dim=-1)
+        intermediate_parallel = self.activation(intermediate_parallel) * intermediate_parallel_2
+
+        if self.dropout > 0:
+            intermediate_parallel = F.dropout(intermediate_parallel, p=self.dropout, training=self.training)
+
+        output, _ = self.linear_out(intermediate_parallel)
+
+        return output
+    
 @dataclass
 class ParallelLinearAdapterConfig:
     in_features: int
@@ -247,6 +334,15 @@ class ParallelLinearAdapterConfig:
     dropout: float = 0.0
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
 
+@dataclass
+class NeuralKnowledgeBankConfig:
+    in_features: int
+    out_features: int
+    dim: int
+    column_init_method: str = 'xavier'
+    row_init_method: str = 'zero'
+    dropout: float = 0.0
+    _target_: str = "{0}.{1}".format(NeuralKnowledgeBank.__module__, NeuralKnowledgeBank.__name__)
 
 class LoraKQVAdapter(ParallelLinearAdapter):
     """
@@ -283,7 +379,6 @@ class LoraHto4HAdapter(ParallelLinearAdapter):
 
     pass
 
-
 class Lora4HtoHAdapter(ParallelLinearAdapter):
     """
     Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
@@ -312,11 +407,9 @@ class LoraKVAdapterConfig(ParallelLinearAdapterConfig):
 class LoraHto4HAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraHto4HAdapter.__module__, LoraHto4HAdapter.__name__)
 
-
 @dataclass
 class Lora4HtoHAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(Lora4HtoHAdapter.__module__, Lora4HtoHAdapter.__name__)
-
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
@@ -332,7 +425,6 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         embedding_dim: int,
         init_std: float,
         output_dim: int,
-        use_residual: bool,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
     ):
@@ -349,7 +441,6 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.embedding_dim = embedding_dim
         self.output_dim = output_dim
         self.virtual_tokens = virtual_tokens
-        self.use_residual = use_residual
         self.activation = "gelu"
 
         if model_parallel_config is None:
@@ -412,8 +503,6 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
         output_embeds, bias_parallel = self.second(intermediate_parallel)
         output_embeds = output_embeds + bias_parallel
-        if self.use_residual:
-            output_embeds = output_embeds + input_embeds
         output_embeds = output_embeds.transpose(0, 1)
         return output_embeds
 
@@ -446,7 +535,6 @@ class PromptEncoderAdapterConfig:
     embedding_dim: int
     init_std: float
     output_dim: int
-    use_residual: bool
     _target_: str = "{0}.{1}".format(PromptEncoderAdapter.__module__, PromptEncoderAdapter.__name__)
 
 
@@ -473,7 +561,6 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
     ):
-        
         self.position_embeddings = None
         self.mlp = None
         self.position_embedding_strategy = position_embedding_strategy

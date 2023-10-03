@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
+from omegaconf import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
@@ -27,14 +27,15 @@ from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
-    Lora4HtoHAdapterConfig,
-    LoraHto4HAdapterConfig,
     LoraKQVAdapterConfig,
+    LoraHto4HAdapterConfig,
+    Lora4HtoHAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
+    NeuralKnowledgeBankConfig,
 )
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
@@ -48,9 +49,9 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
 QKV_LORA_KEYS = [AdapterName.LORA_KQV_ADAPTER]
 MLP_LORA_KEYS = [AdapterName.LORA_Hto4H_ADAPTER] + [AdapterName.LORA_4HtoH_ADAPTER]
-
 
 class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     """
@@ -60,7 +61,6 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
         self.setup_complete = False
-        self.inverse_peft = False
         self.base_keys = self.get_all_keys()
         self.freeze()
         self.init_peft_modules()
@@ -123,11 +123,6 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     def setup(self, stage=None):
         super().setup(stage)
         self.setup_complete = True
-        if self.inverse_peft:
-            self.swap_adapter_and_base_keys()
-
-    def swap_adapter_and_base_keys(self,):
-        self.adapter_keys, self.base_keys = self.base_keys, self.adapter_keys
 
     def get_all_keys(self,):
         """ 
@@ -231,23 +226,9 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                 module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                 opt_params += [p for p in module.parameters() if p.requires_grad]
-
-        if self.inverse_peft:
-            opt_params = self.setup_optimizer_param_groups_inverse_training()
         self._optimizer_param_groups = ({"params": opt_params},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
-    
-    def setup_optimizer_param_groups_inverse_training(self):
-        """
-        Invert optimizer params...
-        flips params to train the base model and fix the peft params.
-        """
-        opt_params = []
-        # flip training params...
-        for n, p in self.named_parameters():
-            p.requires_grad = not p.requires_grad
-            opt_params += [p]
-        return opt_params
+
 
 class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
     def __init__(
@@ -277,7 +258,7 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
                 layers = self.model.language_model.encoder.layers
         for layer in layers:
             if layer.layer_number in self.layer_selection:
-                for name, module in layer.named_modules():
+                for name, module in layer.named_modules():                    
                     if self.mcore_gpt:
                         for peft_key in self.peft_name_keys:
                             for mcore_target, mcore_mixin in self.name_key_to_mcore_mixins[peft_key]:
@@ -295,8 +276,8 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
                                         )
                     else:
                         if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                            for peft_key in self.peft_name_keys:
-                                peft_cfg = self.name_key_to_cfg[peft_key]
+                            for peft_key in self.peft_name_keys:                                
+                                peft_cfg = self.name_key_to_cfg[peft_key]                             
                                 if (
                                     model_utils.import_class_by_path(peft_cfg._target_)
                                     in module.get_accepted_adapter_types()
@@ -352,7 +333,6 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
-        self.inverse_peft = adapter_tuning_cfg.get("inverse_peft", False)
 
 
 class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
@@ -460,11 +440,6 @@ class MegatronGPTIA3Model(MegatronGPTLayerwisePEFTModel):
                 self.name_key_to_cfg[k] = infused_adapter_cfg
             else:
                 raise ValueError(f"PEFT Key {k} is unknown.")
-
-        self.layer_selection = cfg.peft.ia3_tuning.get("layer_selection", None)
-        if self.layer_selection is None:
-            self.layer_selection = list(range(1, cfg.num_layers + 1))
-
         super().__init__(cfg, trainer)
 
 
@@ -483,10 +458,9 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         adapter_cfg = PromptEncoderAdapterConfig(
             cfg.peft.p_tuning.virtual_tokens,
             cfg.peft.p_tuning.bottleneck_dim,
-            cfg.hidden_size if cfg.peft.p_tuning.use_residual else cfg.peft.p_tuning.embedding_dim,
+            cfg.peft.p_tuning.embedding_dim,
             cfg.peft.p_tuning.init_std,
             cfg.hidden_size,
-            cfg.peft.p_tuning.use_residual,
         )
         self.name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
         self.name_key_to_mcore_mixins = {AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)]}
@@ -615,14 +589,15 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
     ):
         lora_cfg = cfg.peft.lora_tuning
         target_modules = lora_cfg.get("target_modules", ['attention'])
-        if not isinstance(target_modules, ListConfig):
+        if not isinstance(target_modules, (list, ListConfig)):
             target_modules = [target_modules]
+        
 
         self.peft_name_keys = []
         for target_module in target_modules:
             if target_module == 'attention':
                 # Update the PEFT keys
-                self.peft_name_keys += QKV_LORA_KEYS
+                self.peft_name_keys += QKV_LORA_KEYS              
                 # Build the adapter config
                 if cfg.get("kv_channels", None) is None:
                     assert (
@@ -636,7 +611,7 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
                 if num_query_groups is None:
                     num_query_groups = cfg.num_attention_heads
                 qkv_projection_size = projection_size + 2 * kv_channels * num_query_groups
-
+    
                 adapter_qkv_cfg = LoraKQVAdapterConfig(
                     in_features=cfg.hidden_size,
                     out_features=qkv_projection_size,
@@ -655,9 +630,7 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
                 self.peft_name_keys += MLP_LORA_KEYS
                 # Build the adapter config
                 fast_glu_activation = cfg.activation in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
-                assert (
-                    fast_glu_activation
-                ), "Only fast_glu_activations are supported: ['fast-geglu', 'fast-swiglu', 'fast-reglu']"
+                assert fast_glu_activation, "Only fast_glu_activations are supported: ['fast-geglu', 'fast-swiglu', 'fast-reglu']"
                 intermediate_size = cfg.ffn_hidden_size * 2 if fast_glu_activation else cfg.ffn_hidden_size
                 adapter_hto4h_cfg = LoraHto4HAdapterConfig(
                     in_features=cfg.hidden_size,
@@ -670,8 +643,8 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
                     row_init_method=lora_cfg.get("row_init_method", "zero"),
                     gather_output=False,
                     dropout=lora_cfg.adapter_dropout,
-                )
-
+                ) 
+    
                 adapter_4htoh_cfg = Lora4HtoHAdapterConfig(
                     in_features=cfg.ffn_hidden_size,
                     out_features=cfg.hidden_size,
@@ -683,32 +656,26 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
                     row_init_method=lora_cfg.get("row_init_method", "zero"),
                     gather_output=False,
                     dropout=lora_cfg.adapter_dropout,
-                )
+                )                 
 
             else:
-                NotImplementedError(
-                    f'Unsupported LoRA module: {target_module}. The valid options are "attention" and "mlp".'
-                )
+                NotImplementedError(f'Unsupported LoRA module: {target_module}. The valid options are "attention" and "mlp".')
 
         self.name_key_to_cfg = {}
         self.name_key_to_mcore_mixins = {}  # maps peft_key to a list of tuples (mcore_target, mcore_mixin)
         for k in self.peft_name_keys:
             if k == AdapterName.LORA_KQV_ADAPTER:
                 adapter_cfg = adapter_qkv_cfg
-                # @TODO (tkonuk): Add LoRA MLP support for MCore GPT
-                self.name_key_to_mcore_mixins[k] = (
-                    [("self_attention", MCoreSelfAttentionMixin)] if target_module == 'attention' else None
-                )
             else:
                 adapter_cfg = adapter_hto4h_cfg if k == AdapterName.LORA_Hto4H_ADAPTER else adapter_4htoh_cfg
             self.name_key_to_cfg[k] = adapter_cfg
+            self.name_key_to_mcore_mixins[k] = [("self_attention", MCoreSelfAttentionMixin)] if target_module == 'attention' else None
         self.layer_selection = lora_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
-        self.inverse_peft = lora_cfg.get("inverse_peft", False)
 
- 
+
 class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
     TODO 
@@ -805,3 +772,42 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
                     position_embeddings_0 = adapter_0.position_embeddings
                 adapter_l.tie_weights(pos_idx, adapter_0)
                 pos_idx += 1
+
+
+class MegatronGPTNKBModel(MegatronGPTLayerwisePEFTModel):
+    """
+    MegatronGPTNKBModel is a model that combines a base model (GPTSFTModel) with a Neural Knowledge Bank (NKB) layer.
+    The NKB layer will be added in `nemo/collections/nlp/modules/common/megatron/mlp.py`
+    The implementation is based on Dai et al., (2022): https://arxiv.org/abs/2208.00399
+
+    A single feedforward NKB layer is used in parallel with the final MLP layer.    
+    """
+
+    def __init__(
+        self, cfg: DictConfig, trainer: Trainer,
+    ):
+        nkb_cfg = cfg.peft.nkb_tuning
+
+        # Set the PEFT keys
+        self.peft_name_keys = [AdapterName.NKB_FFN_ADAPTER] 
+        
+        # Build the adapter config        
+        adapter_cfg = NeuralKnowledgeBankConfig(
+            in_features=cfg.hidden_size,
+            out_features=cfg.hidden_size,
+            dim=nkb_cfg.adapter_dim,
+            column_init_method=nkb_cfg.get("column_init_method", "normal"),
+            row_init_method=nkb_cfg.get("row_init_method", "zero"),
+            dropout=nkb_cfg.adapter_dropout,
+        )
+
+        self.name_key_to_cfg = {}
+        self.name_key_to_mcore_mixins = {}  # maps peft_key to a list of tuples (mcore_target, mcore_mixin)
+        for k in self.peft_name_keys:
+            self.name_key_to_cfg[k] = adapter_cfg
+            self.name_key_to_mcore_mixins[k] = None
+        
+        self.layer_selection = nkb_cfg.get("layer_selection", None)
+        if self.layer_selection is None:
+            self.layer_selection = list(range(1, cfg.num_layers + 1))
+        super().__init__(cfg, trainer)
