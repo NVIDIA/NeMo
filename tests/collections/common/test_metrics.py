@@ -154,7 +154,7 @@ class TestLoss(LossTester):
 
 class TestPER:
     reference = "Hi, dear! Nice to see you. What's"
-    hypothesis = ["Hi dear! Nice to see you! What's?"]
+    hypothesis = "Hi dear! Nice to see you! What's?"
     punctuation_marks = [".", ",", "!", "?"]
 
     reference_operation_amounts = {
@@ -189,11 +189,11 @@ class TestPER:
 
     @pytest.mark.unit
     def test_per_function(self):
-        assert per([self.reference], [self.hypothesis], punctuation_marks) == self.reference_per
+        assert per([self.reference], [self.hypothesis], self.punctuation_marks) == self.reference_per
 
     @pytest.mark.unit
     def test_per_class(self):
-        per_obj = PER(punctuation_marks)
+        per_obj = PER(self.punctuation_marks)
         operation_amounts, substitution_amounts, punctuation_rates = per_obj.compute(self.reference, self.hypothesis)
 
         assert operation_amounts == self.reference_operation_amounts
@@ -208,7 +208,7 @@ class TestPER:
 
     @pytest.mark.unit
     def test_perdata_class(self):
-        per_data_obj = PERData([self.references], [self.hypotheses], punctuation_marks)
+        per_data_obj = PERData([self.references], [self.hypotheses], self.punctuation_marks)
         per_data_obj.compute()
 
         assert per_data_obj.correct_rate == self.reference_correct_rate
