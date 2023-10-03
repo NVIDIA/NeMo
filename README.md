@@ -61,6 +61,7 @@ Preliminaries:
 
 6) Write down post content. Some extra guidance:
     - This is extended markdown - all ordinary markdown rules apply.
+    - Add a `<!-- more -->` tag to the blog post to indicate where it should say 'Continue reading' in the blogpost preview.
     - Extensions are listed below :
     - References of Material for MkDocs has a great section about all the extension - https://squidfunk.github.io/mkdocs-material/reference/ 
     - These have mostly been enabled already, you can directly use them.

@@ -22,9 +22,14 @@ date: Date of publishing in YYYY-MM-DD format
 - Add folder inside `blogs/posts` directory with year
 - Copy the contents of this template to the folder.
 - Edit the contents.
+- Add a `<!-- more -->` tag to the blog post to indicate where it should say 'Continue reading' in the blogpost preview.
 - Send PR and merge.
 - ASSETS: All blog images and external content must be hosted somewhere else. Do NOT add things to github for blog contents!
 
 # Blog Post
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras in massa et lacus consectetur maximus. Donec fringilla, justo vitae condimentum feugiat, est sapien interdum purus, vel rutrum neque ex quis ipsum. Etiam in mauris odio. Mauris in mattis massa. Vivamus tempor libero eu ante aliquet tempor. Vestibulum porttitor odio eu ante posuere, sit amet sagittis quam auctor. Nunc sem sem, ultrices eget porta ac, vulputate non nibh. In tempor risus non felis porta, id scelerisque eros interdum.
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras in massa et lacus consectetur maximus. Donec fringilla, justo vitae condimentum feugiat, est sapien interdum purus, vel rutrum neque ex quis ipsum. Etiam in mauris odio. 
+
+<!-- more -->
+
+Mauris in mattis massa. Vivamus tempor libero eu ante aliquet tempor. Vestibulum porttitor odio eu ante posuere, sit amet sagittis quam auctor. Nunc sem sem, ultrices eget porta ac, vulputate non nibh. In tempor risus non felis porta, id scelerisque eros interdum.
