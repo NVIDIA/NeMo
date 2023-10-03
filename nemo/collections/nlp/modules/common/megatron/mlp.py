@@ -17,9 +17,9 @@ import torch.nn.functional as F
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
-    MLPInfusedAdapterConfig,
-    LoraHto4HAdapterConfig,
     Lora4HtoHAdapterConfig,
+    LoraHto4HAdapterConfig,
+    MLPInfusedAdapterConfig,
     NeuralKnowledgeBankConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
