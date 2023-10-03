@@ -95,14 +95,14 @@ def remove_padded_prompts(response, nb_paddings):
     return result
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_inference_zero_scrolls")
+@hydra_runner(config_path='conf', config_name='megatron_gpt_inference_zero_scrolls')
 def main(cfg) -> None:
 
     if cfg.inference.task not in TASKS:
-        raise NotImplementedError(f"{cfg.inference.task} not implemented. Choose from {TASKS.keys()}")
-    cfg.inference.tokens_to_generate = TASKS[cfg.inference.task]["tokens_to_generate"]
+        raise NotImplementedError(f'{cfg.inference.task} not implemented. Choose from {TASKS.keys()}')
+    cfg.inference.tokens_to_generate = TASKS[cfg.inference.task]['tokens_to_generate']
 
-    # trainer required for restoring model parallel models
+    # Trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
     if (
@@ -128,7 +128,7 @@ def main(cfg) -> None:
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
-    ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
+    ), 'devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size'
 
     if cfg.gpt_model_file:
         save_restore_connector = NLPSaveRestoreConnector()
@@ -144,30 +144,34 @@ def main(cfg) -> None:
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
             pretrained_cfg.use_yarn = cfg.get('use_yarn', False)
-            # pretrained_cfg.seq_len_interpolation_factor = cfg.get('seq_len_interpolation_factor', None)
             pretrained_cfg.sequence_parallel = False
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
+
             pretrained_cfg.precision = trainer.precision
+            if trainer.precision == '16':
+                pretrained_cfg.megatron_amp_O2 = False
+            elif trainer.precision == 'bf16':
+                pretrained_cfg.megatron_amp_O2 = cfg.get('megatron_amp_O2', True)
+
             if cfg.get('seq_len_interpolation_factor', None) is not None:
                 try:
                     pretrained_cfg.seq_len_interpolation_factor = cfg.seq_len_interpolation_factor
                 except:
                     pretrained_cfg['seq_len_interpolation_factor'] = cfg.seq_len_interpolation_factor
-            if trainer.precision == "16":
-                pretrained_cfg.megatron_amp_O2 = False
-            if cfg.inference.get("use_flash_attention", None) is not None:
+
+            if cfg.inference.get('use_flash_attention', None) is not None:
                 try:
                     pretrained_cfg.use_flash_attention = cfg.inference.use_flash_attention
                 except:
-                    pretrained_cfg["use_flash_attention"] = cfg.inference.use_flash_attention
+                    pretrained_cfg['use_flash_attention'] = cfg.inference.use_flash_attention
 
-            if cfg.inference.get("apply_query_key_layer_scaling", None) is not None:
+            if cfg.inference.get('apply_query_key_layer_scaling', None) is not None:
                 pretrained_cfg.apply_query_key_layer_scaling = cfg.inference.apply_query_key_layer_scaling
 
             pretrained_cfg.enforce_fp32_pos_idx = cfg.get('enforce_fp32_pos_idx', False)
 
-            if cfg.get("model", None) is not None and cfg.model.get("encoder", None) is not None:
+            if cfg.get('model', None) is not None and cfg.model.get('encoder', None) is not None:
                 for k, v in cfg.model.encoder.items():
                     pretrained_cfg[k] = v
 
@@ -202,7 +206,7 @@ def main(cfg) -> None:
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
     else:
-        raise ValueError("need at least a nemo file or checkpoint dir")
+        raise ValueError('need at least a nemo file or checkpoint dir')
 
     print(f'\n{OmegaConf.to_yaml(model._cfg)}')
     model.freeze()
@@ -213,11 +217,11 @@ def main(cfg) -> None:
     except AttributeError:
         pass
 
-    fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
+    fp8_enabled = hasattr(model.cfg, 'fp8') and (model.cfg.fp8 == True)
     if fp8_enabled:
         nb_paddings = 0
 
-    print("Processing data...")
+    print('Processing data...')
     original_lines, truncated_input = process_data(
         model.tokenizer,
         prompt=cfg.chatbot_config.prompt if cfg.chat else None,
@@ -228,7 +232,7 @@ def main(cfg) -> None:
         remove_newline_tab=cfg.inference.remove_newline_tab,
     )
 
-    print("Running inference...")
+    print('Running inference...')
     bs = cfg.inference.batch_size
     ds = RequestDataSet(truncated_input)
     request_dl = DataLoader(dataset=ds, batch_size=bs)
@@ -240,10 +244,10 @@ def main(cfg) -> None:
         response[-1] = remove_padded_prompts(response[-1], nb_paddings)
 
     if model.global_rank == 0:
-        print("***************************")
+        print('***************************')
         if cfg.inference.output_file is not None:
             idx = 0
-            with open(cfg.inference.output_file, "w", encoding="utf-8") as f:
+            with open(cfg.inference.output_file, 'w', encoding='utf-8') as f:
                 for batch in response:
                     batch_sentences = [s for s in batch['sentences']]
                     for s in batch_sentences:
@@ -251,10 +255,10 @@ def main(cfg) -> None:
                         cur_line['pred'] = s
                         f.write(json.dumps(cur_line) + '\n')
                         idx += 1
-            print("predictions saved to {}".format(cfg.inference.output_file))
+            print(f'predictions saved to {cfg.inference.output_file}')
         else:
             print(response)
-    print("***************************")
+    print('***************************')
 
 
 if __name__ == '__main__':
