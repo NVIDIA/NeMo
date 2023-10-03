@@ -59,7 +59,9 @@ class TransformerLMModel(ModelPT):
             tokenizer_model=cfg.tokenizer.get("tokenizer_model", None),
             vocab_file=cfg.tokenizer.get("vocab_file", None),
             bpe_dropout=cfg.tokenizer.get("bpe_dropout", 0.0),
-            special_tokens=OmegaConf.to_container(cfg.tokenizer.special_tokens) if cfg.tokenizer.get("special_tokens", None) else None,
+            special_tokens=OmegaConf.to_container(cfg.tokenizer.special_tokens)
+            if cfg.tokenizer.get("special_tokens", None)
+            else None,
         )
 
         # init superclass
