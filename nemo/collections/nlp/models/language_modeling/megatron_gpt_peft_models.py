@@ -35,6 +35,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
+    NeuralKnowledgeBankConfig,
 )
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
@@ -50,7 +51,6 @@ except (ImportError, ModuleNotFoundError):
 
 QKV_LORA_KEYS = [AdapterName.LORA_KQV_ADAPTER]
 MLP_LORA_KEYS = [AdapterName.LORA_Hto4H_ADAPTER] + [AdapterName.LORA_4HtoH_ADAPTER]
-
 
 class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     """
@@ -805,3 +805,41 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
                     position_embeddings_0 = adapter_0.position_embeddings
                 adapter_l.tie_weights(pos_idx, adapter_0)
                 pos_idx += 1
+
+class MegatronGPTNKBModel(MegatronGPTLayerwisePEFTModel):
+    """
+    MegatronGPTNKBModel is a model that combines a base model (GPTSFTModel) with a Neural Knowledge Bank (NKB) layer.
+    The NKB layer will be added in `nemo/collections/nlp/modules/common/megatron/mlp.py`
+    The implementation is based on Dai et al., (2022): https://arxiv.org/abs/2208.00399
+
+    A single feedforward NKB layer is used in parallel with the final MLP layer.    
+    """
+
+    def __init__(
+        self, cfg: DictConfig, trainer: Trainer,
+    ):
+        nkb_cfg = cfg.peft.nkb_tuning
+
+        # Set the PEFT keys
+        self.peft_name_keys = [AdapterName.NKB_FFN_ADAPTER] 
+        
+        # Build the adapter config        
+        adapter_cfg = NeuralKnowledgeBankConfig(
+            in_features=cfg.hidden_size,
+            out_features=cfg.hidden_size,
+            dim=nkb_cfg.adapter_dim,
+            column_init_method=nkb_cfg.get("column_init_method", "normal"),
+            row_init_method=nkb_cfg.get("row_init_method", "zero"),
+            dropout=nkb_cfg.adapter_dropout,
+        )
+
+        self.name_key_to_cfg = {}
+        self.name_key_to_mcore_mixins = {}  # maps peft_key to a list of tuples (mcore_target, mcore_mixin)
+        for k in self.peft_name_keys:
+            self.name_key_to_cfg[k] = adapter_cfg
+            self.name_key_to_mcore_mixins[k] = None
+        
+        self.layer_selection = nkb_cfg.get("layer_selection", None)
+        if self.layer_selection is None:
+            self.layer_selection = list(range(1, cfg.num_layers + 1))
+        super().__init__(cfg, trainer)
