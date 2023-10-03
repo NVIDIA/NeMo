@@ -233,7 +233,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3,
                 )
                 make_fp8_autocast = partial(
-                    transformer_engine.pytorch.fp8_autocast, enabled=fp8_enabled, fp8_recipe=fp8_recipe,
+                    transformer_engine.pytorch.fp8_autocast, enabled=fp8_enabled, fp8_recipe=fp8_recipe, fp8_parameters=True,
                 )
             with make_fp8_autocast():
                 self.model = build_model(

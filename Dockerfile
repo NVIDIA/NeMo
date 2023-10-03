@@ -49,8 +49,10 @@ WORKDIR /tmp/
 # Distributed Adam support for multiple dtypes
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
-  git checkout 52e18c894223800cb611682dce27d88050edf1de && \
-  pip3 install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+  git checkout 2386a912164b0c5cfcd8be7a2b890fbac5607c82 && \
+  pip3 install -v --no-build-isolation --config-settings --build-option="--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" .
+
+RUN pip3 install git+https://github.com/timmoon10/TransformerEngine.git@float8tensor_experiments
 
 # uninstall stuff from base container
 RUN pip3 uninstall -y sacrebleu torchtext
