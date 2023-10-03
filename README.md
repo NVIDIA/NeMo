@@ -61,7 +61,7 @@ Preliminaries:
 
     - optionally, update these tags to improve link preview for your blogpost:
         - **og_title:** Title of the blog post for Rich URL previews. If unspecified, it will be the same as the `title` field you specified above
-        - **og_image:** Image for Rich URL previews (absolute URL). If unspecified, it will be the NVIDIA log.
+        - **og_image:** Image for Rich URL previews (absolute URL). If unspecified, it will be the NVIDIA logo.
         - **og_image_type:** Image type (e.g. image/png). Defaults to image/png.
         - **description:** Description of the post for Rich URL previews. If unspecified, it will be the same as the current site_description for the website.
 
