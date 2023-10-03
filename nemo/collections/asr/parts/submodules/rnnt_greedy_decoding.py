@@ -2185,9 +2185,7 @@ class GreedyRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
-    confidence_measure_cfg: Optional[ConfidenceMethodConfig] = field(
-        default_factory=lambda: ConfidenceMethodConfig()
-    )
+    confidence_measure_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     confidence_method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):
@@ -2204,9 +2202,7 @@ class GreedyBatchedRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
-    confidence_measure_cfg: Optional[ConfidenceMethodConfig] = field(
-        default_factory=lambda: ConfidenceMethodConfig()
-    )
+    confidence_measure_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     confidence_method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):
