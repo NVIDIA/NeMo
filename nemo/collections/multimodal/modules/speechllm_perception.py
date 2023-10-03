@@ -29,7 +29,7 @@ __all__ = ["AudioPerceptionModel"]
 
 
 class AudioPerceptionModel(NeuralModule, Exportable):
-    """Audio perception model with basic matcher (some fc layers)."""
+    """Audio perception model with basic modality_adapter (some fc layers)."""
 
     def input_example(self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200):
         batch_size = torch.randint(low=1, high=max_batch, size=[1]).item()
@@ -72,8 +72,8 @@ class AudioPerceptionModel(NeuralModule, Exportable):
             self.spec_augmentation = self.from_config_dict(cfg.spec_augment)
         else:
             self.spec_augmentation = None
-        self.matcher = self.from_config_dict(cfg.matcher)
-        self.proj = nn.Linear(cfg.matcher.d_model, cfg.output_dim)
+        self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
+        self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
 
     def maybe_preprocess_audio(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
@@ -105,7 +105,7 @@ class AudioPerceptionModel(NeuralModule, Exportable):
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
-        encoded, encoded_len = self.matcher(audio_signal=encoded, length=encoded_len)
+        encoded, encoded_len = self.modality_adapter(audio_signal=encoded, length=encoded_len)
         # b, t, c
         encoded = self.proj(encoded.transpose(1, 2))
 
