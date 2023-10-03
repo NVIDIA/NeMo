@@ -169,7 +169,7 @@ def compute_rates(
             samples[i]['correct_rate'] = per_data.rates[i].correct_rate
             samples[i]['deletions_rate'] = per_data.rates[i].deletions_rate
             samples[i]['insertions_rate'] = per_data.rates[i].insertions_rate
-            samples[i]['substitution_rate'] = per_data.rates[i].substitution_rate
+            samples[i]['substitutions_rate'] = per_data.rates[i].substitution_rate
             samples[i]['per'] = per_data.rates[i].per
 
             i += 1
@@ -203,4 +203,5 @@ if __name__ == "__main__":
         reference_field=args.reference_field,
         hypothesis_field=args.hypothesis_field,
         punctuation_mask=args.punctuation_mask,
+        output_manifest_path=args.output_manifest_path
     )
