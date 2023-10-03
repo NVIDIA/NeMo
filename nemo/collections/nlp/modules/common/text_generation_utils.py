@@ -856,11 +856,11 @@ def sample_sequence_batch(
                 torch.distributed.broadcast(new_0th_tokens, src, group)
                 torch.distributed.broadcast(speech_tokens, src, group)
 
-                #                done_token = (prev == eod_id).byte() & started.byte()
-                done_token = inference_strategy.end_of_generation_condition(
-                    tokens[:, 0, : context_length + 1], prev, eod_id, end_strings
-                )
-                done_token = done_token.byte() & started.byte()
+                done_token = (prev == eod_id).byte() & started.byte()
+                # done_token = inference_strategy.end_of_generation_condition(
+                #     tokens[:, 0, : context_length + 1], prev, eod_id, end_strings
+                # )
+                # done_token = done_token.byte() & started.byte()
 
                 just_finished = (done_token & ~is_done).bool()
                 lengths[just_finished.view(-1)] = context_length
