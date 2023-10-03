@@ -329,8 +329,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt and self.falcon_name:
             FalconGPTModel, falcon_layer_spec = import_falcon_gpt_model()
             transformer_layer_spec = falcon_layer_spec
-            #debug
-            logging.info(f'falcon gpt config, {self.transformer_config}')
             model = FalconGPTModel(
                 config=self.transformer_config,
                 transformer_layer_spec = transformer_layer_spec,

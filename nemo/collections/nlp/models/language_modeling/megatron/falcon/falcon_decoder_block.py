@@ -257,8 +257,6 @@ class FalconTransformerBlock(MegatronModule):
                         rotary_pos_emb=rotary_pos_emb,
                         inference_params=inference_params,
                     )
-                    logging.debug(f"Layer {idx + 1} tensor:", hidden_states)
-                    logging.debug(f"Layer {idx + 1} tensor shape:", hidden_states.shape)
 
         # Final layer norm.
         if self.post_process and self.post_layer_norm:
