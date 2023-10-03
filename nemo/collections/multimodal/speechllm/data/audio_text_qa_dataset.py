@@ -33,7 +33,7 @@ from nemo.collections.asr.data.audio_to_text_dataset import ConcatDataset, conve
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.parts.preprocessing import collections
-from nemo.collections.multimodal.parts.utils.data_utils import (
+from nemo.collections.multimodal.speechllm.parts.utils.data_utils import (
     ceil_to_nearest,
     get_num_samples_from_files,
     maybe_cast_to_list,
