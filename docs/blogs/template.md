@@ -5,6 +5,8 @@ author_gh_user: [Github User 1, Github User 2]
 readtime: Time to read in minutes
 date: Date of publishing in YYYY-MM-DD format
 
+# Optional: Categories
+# categories: List categories that this blog post belongs to. They will be displayed on the website.
 
 # Optional: OpenGraph metadata
 # og_title: Title of the blog post for Rich URL previews

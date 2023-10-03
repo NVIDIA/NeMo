@@ -2,7 +2,6 @@
 title: NVIDIA Technical Blog 2023
 author: null 
 author_gh_user: null
-publish_date: null
 date: 2023-01-01
 readtime: 2
 categories: 

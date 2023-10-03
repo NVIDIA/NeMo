@@ -57,6 +57,7 @@ Preliminaries:
     - author_gh_user: List of author Github ids separated by commas, enclosed inside [ ]
     - readtime: An approximate read time for your post, in minutes.
     - date: Date in format "YYYY-MM-DD" on which the post will be merged into NeMo. Do NOT update this date after it has been published, unless absolutely required. 
+    - categories (optional): a list of string(s) describing categories that this blog belongs to. They will be displayed on the website.
 
 6) Write down post content. Some extra guidance:
     - This is extended markdown - all ordinary markdown rules apply.
