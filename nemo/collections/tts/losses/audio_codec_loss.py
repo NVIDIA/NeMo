@@ -110,8 +110,18 @@ class TimeDomainLoss(Loss):
 
 
 class MultiResolutionMelLoss(Loss):
-    def __init__(self, sample_rate: int, mel_dims: List[int], resolutions: List[List], log_guard: float = 1.0):
+    """
+    Multi-resolution log mel spectrogram loss.
+
+    Args:
+        sample_rate: Sample rate of audio.
+        resolutions: List of resolutions, each being 3 integers ordered [num_fft, hop_length, window_length]
+        mel_dims: Dimension of mel spectrogram to compute for each resolution. Should be same length as 'resolutions'.
+        log_guard: Value to add to mel spectrogram to avoid taking log of 0.
+    """
+    def __init__(self, sample_rate: int, resolutions: List[List], mel_dims: List[int], log_guard: float = 1.0):
         super(MultiResolutionMelLoss, self).__init__()
+        assert len(resolutions) == len(mel_dims)
 
         self.l1_loss_fn = MaskedMAELoss()
         self.l2_loss_fn = MaskedMSELoss()
@@ -168,6 +178,14 @@ class MultiResolutionMelLoss(Loss):
 
 
 class STFTLoss(Loss):
+    """
+    Log magnitude STFT loss.
+
+    Args:
+        resolution: Resolution of spectrogram, a list of 3 numbers ordered [num_fft, hop_length, window_length]
+        log_guard: Value to add to magnitude spectrogram to avoid taking log of 0.
+        sqrt_guard: Value to add to when computing absolute value of STFT to avoid NaN loss.
+    """
     def __init__(self, resolution: List[int], log_guard: float = 1.0, sqrt_guard: float = 1e-5):
         super(STFTLoss, self).__init__()
         self.loss_fn = MaskedMAELoss()
@@ -216,6 +234,14 @@ class STFTLoss(Loss):
 
 
 class MultiResolutionSTFTLoss(Loss):
+    """
+    Multi-resolution log magnitude STFT loss.
+
+    Args:
+        resolutions: List of resolutions, each being 3 integers ordered [num_fft, hop_length, window_length]
+        log_guard: Value to add to magnitude spectrogram to avoid taking log of 0.
+        sqrt_guard: Value to add to when computing absolute value of STFT to avoid NaN loss.
+    """
     def __init__(self, resolutions: List[List], log_guard: float = 1.0, sqrt_guard: float = 1e-5):
         super(MultiResolutionSTFTLoss, self).__init__()
         self.loss_fns = torch.nn.ModuleList(
@@ -245,7 +271,7 @@ class MultiResolutionSTFTLoss(Loss):
 
 class SISDRLoss(Loss):
     """
-    Based off of torchmetrics.functional.audio.sdr.scale_invariant_signal_distortion_ratio
+    SI-SDR loss based off of torchmetrics.functional.audio.sdr.scale_invariant_signal_distortion_ratio
     with added support for masking.
     """
 
@@ -288,13 +314,13 @@ class SISDRLoss(Loss):
 
         # [B, T]
         target_scaled = alpha * target
-        noise = target_scaled - pred
+        distortion = target_scaled - pred
 
         # [B]
-        signal = torch.sum(target_scaled ** 2, dim=-1)
-        noise_square = torch.sum(noise ** 2, dim=-1)
+        target_scaled_power = torch.sum(target_scaled ** 2, dim=-1)
+        distortion_power = torch.sum(distortion ** 2, dim=-1)
 
-        ratio = (signal + self.epsilon) / (noise_square + self.epsilon)
+        ratio = (target_scaled_power + self.epsilon) / (distortion_power + self.epsilon)
         si_sdr = 10 * torch.log10(ratio)
 
         # [1]
