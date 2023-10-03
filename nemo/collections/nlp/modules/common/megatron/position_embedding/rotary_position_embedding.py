@@ -82,11 +82,14 @@ class RotaryEmbedding(nn.Module):
         super().__init__()
         self.use_yarn = use_yarn
         self.base = base
+        self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
         self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
 
+        inv_freq = 1.0 / (self.base ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer('inv_freq', inv_freq)
+
         if self.use_yarn:
-            self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
             self.extrapolation_factor = extrapolation_factor
             self.attn_factor = attn_factor
             self.beta_fast = beta_fast
@@ -105,10 +108,6 @@ class RotaryEmbedding(nn.Module):
             # Different from paper, but it uses a different permutation in order to obtain the same calculation
             emb = torch.cat((freqs, freqs), dim=-1)
             self.register_buffer('emb', emb)
-
-        else:
-            inv_freq = 1.0 / (self.base ** (torch.arange(0, dim, 2).float() / dim))
-            self.register_buffer('inv_freq', inv_freq)
 
     def yarn(self, scale):
         pos_freqs = self.base ** (torch.arange(0, self.dim, 2).float() / self.dim)
