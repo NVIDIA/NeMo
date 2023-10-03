@@ -10,7 +10,7 @@ date: Date of publishing in YYYY-MM-DD format
 
 # Optional: OpenGraph metadata
 # og_title: Title of the blog post for Rich URL previews
-# og_image (or image): Image for Rich URL previews (absolute URL)
+# og_image: Image for Rich URL previews (absolute URL)
 # og_image_type: Image type (e.g. image/png). Defaults to image/png.
 # page_path: Relative path to the image from the website root (e.g. /assets/images/)
 # description: Description of the post for Rich URL previews
