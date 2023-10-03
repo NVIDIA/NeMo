@@ -12,7 +12,7 @@ date: Date of publishing in YYYY-MM-DD format
 # og_title: Title of the blog post for Rich URL previews
 # og_image: Image for Rich URL previews (absolute URL)
 # og_image_type: Image type (e.g. image/png). Defaults to image/png.
-# page_path: Relative path to the image from the website root (e.g. /assets/images/)
+# page_path: Relative path to the image from the website root (e.g. /assets/images/). If specified, the image at this path will be used for the link preview. It is unlikely you will need this parameter - you can probably use og_image instead.
 # description: Description of the post for Rich URL previews
 ---
 
