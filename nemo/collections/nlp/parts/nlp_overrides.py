@@ -156,9 +156,10 @@ class NLPDDPStrategy(DDPStrategy):
                 # to False in PTL 2.0 and hence pre_configure_ddp() is removed in ddp.py
                 # self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
+                context_parallel = app_state.context_parallel_size is not None and app_state.context_parallel_size > 1
                 self._model = DistributedDataParallel(
                     _LightningModuleWrapperBase(self.model),
-                    process_group=parallel_state.get_data_parallel_group(),
+                    process_group=parallel_state.get_data_parallel_group(with_context_parallel=context_parallel),
                     **self._ddp_kwargs,
                 )
 

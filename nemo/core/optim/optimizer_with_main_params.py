@@ -105,10 +105,10 @@ class GradBucket(object):
         """Reset the buffer to zero."""
         self.data.zero_()
 
-    def allreduce_buffer(self):
+    def allreduce_buffer(self, context_parallel=False):
         """Synchronous buffer data allreduce """
-        self.data.div_(get_data_parallel_world_size())
-        torch.distributed.all_reduce(self.data, group=get_data_parallel_group())
+        self.data.div_(get_data_parallel_world_size(with_context_parallel=context_parallel))
+        torch.distributed.all_reduce(self.data, group=get_data_parallel_group(with_context_parallel=context_parallel))
 
     def get(self, shape, start_index):
         """Return a tensor with the input `shape` as a view into the
@@ -176,6 +176,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         async_grad_allreduce=False,
         grad_div_ar_fusion=True,
         grad_allreduce_chunk_size_mb=0,
+        context_parallel=False,
     ):
         if not HAVE_APEX:
             raise ImportError(
@@ -202,11 +203,14 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
         self._fp32_grad_accum = fp32_grad_accum
         self._contiguous_grad_bucket = contiguous_grad_bucket
+        self._context_parallel = context_parallel
 
         # used with tensor parallel only (no pipeline parallelism)
         # be careful, weight update cannot start until all async grad AR works are done
-        self._async_grad_allreduce = async_grad_allreduce and get_data_parallel_world_size() > 1
-        self._grad_divisor = 1 / get_data_parallel_world_size()
+        self._async_grad_allreduce = (
+            async_grad_allreduce and get_data_parallel_world_size(with_context_parallel=self._context_parallel) > 1
+        )
+        self._grad_divisor = 1 / get_data_parallel_world_size(with_context_parallel=self._context_parallel)
 
         if self._async_grad_allreduce:
             # use @no_sync to disable backward grad sync during gradient accumulation
@@ -340,27 +344,35 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         if self._grad_div_ar_fusion:
                             torch.distributed.all_reduce(
                                 allreduce_tensor,
-                                group=get_data_parallel_group(),
+                                group=get_data_parallel_group(with_context_parallel=self._context_parallel),
                                 async_op=True,
                                 op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
                             )
                         else:
-                            allreduce_tensor.div_(get_data_parallel_world_size())
+                            allreduce_tensor.div_(
+                                get_data_parallel_world_size(with_context_parallel=self._context_parallel)
+                            )
                             torch.distributed.all_reduce(
-                                allreduce_tensor, group=get_data_parallel_group(), async_op=True,
+                                allreduce_tensor,
+                                group=get_data_parallel_group(with_context_parallel=self._context_parallel),
+                                async_op=True,
                             )
                 else:
                     if self._grad_div_ar_fusion:
                         torch.distributed.all_reduce(
                             main_param.grad,
-                            group=get_data_parallel_group(),
+                            group=get_data_parallel_group(with_context_parallel=self._context_parallel),
                             async_op=True,
                             op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
                         )
                     else:
-                        main_param.grad.div_(get_data_parallel_world_size())
+                        main_param.grad.div_(
+                            get_data_parallel_world_size(with_context_parallel=self._context_parallel)
+                        )
                         torch.distributed.all_reduce(
-                            main_param.grad, group=get_data_parallel_group(), async_op=True,
+                            main_param.grad,
+                            group=get_data_parallel_group(with_context_parallel=self._context_parallel),
+                            async_op=True,
                         )
 
         return param_hook
@@ -470,7 +482,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     def allreduce_main_grads(self):
         for i in self._main_grad_buffers:
-            self._main_grad_buffers[i].allreduce_buffer()
+            self._main_grad_buffers[i].allreduce_buffer(context_parallel=self._context_parallel)
 
     @contextmanager
     def no_sync(self):

@@ -230,12 +230,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 wrap_with_ddp=False,
                 on_cpu=True,
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                context_parallel=(self.cfg.get('context_parallel_size', 1) > 1),
             )
         else:
             self.model = build_model(
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                context_parallel=(self.cfg.get('context_parallel_size', 1) > 1),
             )
 
         # if we're not using interleaved, then self.model is a module.
@@ -880,7 +882,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 loss_for_ub = self.loss_func(batch['loss_mask'], batch['loss_mask_sum'], output_tensor)
                 cp_size = self.cfg.get('context_parallel_size', 1)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
-                    num_valid_tokens_in_ub = batch['loss_mask'].sum()
+                    num_valid_tokens_in_ub = batch['loss_mask_sum']
                     if loss_for_ub.isnan():
                         assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
                         loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)

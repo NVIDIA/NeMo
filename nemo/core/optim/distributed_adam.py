@@ -73,7 +73,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         # Initialize process groups
         if 'process_group' not in kwargs and not parallel_state.is_unitialized():
-            kwargs['process_group'] = parallel_state.get_data_parallel_group()
+            context_parallel = kwargs['context_parallel'] if 'context_parallel' in kwargs else False
+            kwargs['process_group'] = parallel_state.get_data_parallel_group(with_context_parallel=context_parallel)
         if disable_distributed_parameters:
             world_size = torch.distributed.get_world_size()
             rank = torch.distributed.get_rank()

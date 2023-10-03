@@ -48,6 +48,7 @@ def build_model(
     virtual_pipeline_model_parallel_size: Optional[int] = None,
     model_type: ModelType = ModelType.encoder_or_decoder,
     on_cpu: bool = False,
+    context_parallel: bool = False,
     *args: Any,
     **kwargs: Any,
 ) -> List[torch.nn.Module]:
@@ -151,7 +152,10 @@ def build_model(
         i = torch.cuda.current_device()
         model = [
             torch.nn.parallel.distributed.DistributedDataParallel(
-                model_module, device_ids=[i], output_device=i, process_group=parallel_state.get_data_parallel_group(),
+                model_module,
+                device_ids=[i],
+                output_device=i,
+                process_group=parallel_state.get_data_parallel_group(with_context_parallel=context_parallel),
             )
             for model_module in model
         ]
