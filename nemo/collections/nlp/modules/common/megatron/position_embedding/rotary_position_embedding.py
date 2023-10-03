@@ -17,7 +17,7 @@ import math
 
 import torch
 from einops import rearrange
-from torch import einsum, nn
+from torch import nn
 
 __all__ = ['RotaryEmbedding', 'apply_rotary_pos_emb']
 
@@ -84,6 +84,7 @@ class RotaryEmbedding(nn.Module):
         self.base = base
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
         self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
+
         if self.use_yarn:
             self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
             self.extrapolation_factor = extrapolation_factor
@@ -96,9 +97,10 @@ class RotaryEmbedding(nn.Module):
 
             self.max_seq_len_cached = self.pretrained_max_position_embeddings * self.seq_len_interpolation_factor
             if self.enforce_fp32_pos_idx:
-                seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32)
+                seq = torch.arange(self.max_seq_len_cached, device=self.inv_freq.device, dtype=torch.float32)
             else:
-                seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
+                seq = torch.arange(self.max_seq_len_cached, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
+
             freqs = torch.outer(seq, self.inv_freq)
             # Different from paper, but it uses a different permutation in order to obtain the same calculation
             emb = torch.cat((freqs, freqs), dim=-1)
@@ -134,6 +136,7 @@ class RotaryEmbedding(nn.Module):
             seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32) + offset
         else:
             seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype) + offset
+
         if self.use_yarn:
             if max_seq_len > self.max_seq_len_cached:
                 self.max_seq_len_cached = max_seq_len
@@ -151,6 +154,7 @@ class RotaryEmbedding(nn.Module):
             else:
                 # fixed linear scaling
                 seq *= 1 / self.seq_len_interpolation_factor
+
         freqs = torch.outer(seq, self.inv_freq)
         emb = torch.cat((freqs, freqs), dim=-1)
         # emb [seq_length, .., dim]
