@@ -4,9 +4,15 @@ author: [Elena Rastorgueva]
 author_gh_user: [erastorgueva-nv]
 readtime: 15
 date: 2023-08-14
-
 categories:
 - Technical deep-dive
+
+# Optional: OpenGraph metadata
+# og_title: Title of the blog post for Rich URL previews
+og_image: https://github.com/NVIDIA/NeMo/releases/download/v1.20.0/asset-post-2023-08-forced-alignment-ctc_trellis.png
+# og_image_type: Image type (e.g. image/png). Defaults to image/png.
+# page_path: Relative path to the image from the website root (e.g. /assets/images/)
+description: An intuitive explanation of forced alignment with Viterbi decoding.
 ---
 
 # How does forced alignment work?

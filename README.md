@@ -59,8 +59,15 @@ Preliminaries:
     - **date:** Date in format **"YYYY-MM-DD"** on which the post will be merged into NeMo. Do NOT update this date after it has been published, unless absolutely required. 
     - **categories (optional):** a list of string(s) describing categories that this blog belongs to. They will be displayed on the website.
 
+    - optionally, update these tags to improve link preview for your blogpost:
+        - **og_title:** Title of the blog post for Rich URL previews. If unspecified, it will be the same as the `title` field you specified above
+        - **og_image:** Image for Rich URL previews (absolute URL). If unspecified, it will be the NVIDIA logo.
+        - **og_image_type:** Image type (e.g. image/png). Defaults to image/png.
+        - **description:** Description of the post for Rich URL previews. If unspecified, it will be the same as the current site_description for the website.
+
 6) Write down post content. Some extra guidance:
     - This is extended markdown - all ordinary markdown rules apply.
+    - Add a `<!-- more -->` tag to the blog post to indicate where it should say 'Continue reading' in the blogpost preview.
     - Extensions are listed below :
     - References of Material for MkDocs has a great section about all the extension - https://squidfunk.github.io/mkdocs-material/reference/ 
     - These have mostly been enabled already, you can directly use them.
