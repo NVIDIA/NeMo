@@ -203,5 +203,5 @@ if __name__ == "__main__":
         reference_field=args.reference_field,
         hypothesis_field=args.hypothesis_field,
         punctuation_mask=args.punctuation_mask,
-        output_manifest_path=args.output_manifest_path
+        output_manifest_path=args.output_manifest_path,
     )
