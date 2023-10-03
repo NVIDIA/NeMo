@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
+import os
 import time
 from contextlib import contextmanager
 from functools import partial
@@ -1680,6 +1681,9 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
+        self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
+        self.loss_broadcast_src_rank = None
+
     def get_module_list(self):
         if isinstance(self.model, list):
             return [model.module if isinstance(model, Float16Module) else model for model in self.model]
@@ -1750,7 +1754,22 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         else:
             loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
 
-        torch.distributed.broadcast(loss_mean, get_last_rank())
+        if self.log_train_loss:
+            # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
+            # it should be casted to other pipeline stages for logging.
+            # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                if self.loss_broadcast_src_rank is None:
+                    dp_size = parallel_state.get_data_parallel_world_size()
+                    tp_size = parallel_state.get_tensor_model_parallel_world_size()
+                    pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+                    rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * tp_size)
+                    last_pipeline_stage_offset = (tp_size * dp_size) * (pp_size - 1)
+                    self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
+                torch.distributed.broadcast(
+                    loss_mean, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
+                )
+            self.log('reduced_train_loss', loss_mean, prog_bar=False, rank_zero_only=True, batch_size=1)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -1776,7 +1795,6 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
                 self.log('loss_scale', loss_scale, batch_size=1)
 
         self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
-        self.log('reduced_train_loss', loss_mean, prog_bar=False, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, prog_bar=False, rank_zero_only=True, batch_size=1)
         self.log('global_step', self.trainer.global_step + 1, prog_bar=False, rank_zero_only=True, batch_size=1)

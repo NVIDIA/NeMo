@@ -665,7 +665,8 @@ class GradScaler(torch.cuda.amp.GradScaler):
                     self._growth_factor,
                     self._backoff_factor,
                     self._growth_interval,
-                    self.hysteresis)
+                    self.hysteresis,
+                )
             else:
                 if found_inf_combined > 0:
                     self._hysteresis_tracker -= 1
