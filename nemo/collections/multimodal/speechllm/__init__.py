@@ -12,28 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import torch
-
-
-def maybe_cast_to_list(x):
-    if isinstance(x, np.ndarray):
-        return [item.tolist() for item in x]
-    return x
-
-
-def ceil_to_nearest(n, m):
-    return (n + m - 1) // m * m
-
-def get_num_samples_from_files(file_list):
-    if isinstance(file_list, str):
-        file_list = file_list.split(',')
-    num_samples = []
-    for file in file_list:
-        with open(file, 'r') as f:
-            lines = list(f.readlines())
-            num = len(lines)
-            if lines[-1] == '\n':
-                num -= 1
-            num_samples.append(num)
-    return num_samples
+from nemo.collections.multimodal.speechllm import models, modules

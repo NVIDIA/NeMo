@@ -22,7 +22,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch.utils.data import DataLoader
 
-from nemo.collections.multimodal.models.speechllm_models import ModularizedAudioGPTModel
+from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTPEFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -145,7 +145,7 @@ def main(cfg) -> None:
     if os.path.isdir(cfg.model.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
 
-    model = ModularizedAudioGPTModel.restore_from(
+    model = ModularAudioGPTLoRAModel.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
         override_config_path=peft_model_cfg,
