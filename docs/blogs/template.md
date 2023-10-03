@@ -14,7 +14,6 @@ date: Date of publishing in YYYY-MM-DD format
 # og_image_type: Image type (e.g. image/png). Defaults to image/png.
 # page_path: Relative path to the image from the website root (e.g. /assets/images/)
 # description: Description of the post for Rich URL previews
-
 ---
 
 # Notes

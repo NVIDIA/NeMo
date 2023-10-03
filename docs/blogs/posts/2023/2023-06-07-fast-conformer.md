@@ -4,16 +4,15 @@ author: [Dima Rekesh, Samuel Kriman, Somshubra Majumdar, Vahid Noroozi, He Huang
 author_gh_user: [bmwshop, sam1373, titu1994, VahidooX, stevehuang52, AlexGrinch, iankur, borisgin]
 date: 2023-06-07
 readtime: 10
+categories:
+- Papers
+
 # Optional: OpenGraph metadata
 # og_title: Title of the blog post for Rich URL previews
 og_image: https://github.com/NVIDIA/NeMo/releases/download/v1.18.0/asset-post-fast-conformer-diagram.png
 # og_image_type: Image type (e.g. image/png). Defaults to image/png.
 # page_path: Relative path to the image from the website root (e.g. /assets/images/)
 description: Efficient training and inference on long audio with Fast Conformer architecture
-
-categories:
-- Papers
-
 ---
 
 # Fast Conformer with Linearly Scalable Attention for Efficient Speech Recognition
