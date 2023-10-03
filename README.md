@@ -45,19 +45,19 @@ Preliminaries:
 1) Create a new branch from the gh-pages-src branch on NeMo. Note that you should not use a fork/branch to do this, for the changes to show up during the PR it must be a branch directly from NVIDIA/NeMo.
     - If you prefer to not showcase the post until merge, then and only then consider using the fork/branch method.
 
-2) Open the directory docs/blogs/ folder. Here you will find template.md - copy the contents of this template file.
+2) Open the directory **docs/blogs/** folder. Here you will find template.md - copy the contents of this template file.
 
-3) Go inside the folder docs/blogs/posts/{YYYY}/ for your required year (make a new folder if your year isn't there already). All markdown files inside the docs/blogs/posts folder will be turned into blogs on the website.
+3) Go inside the folder **docs/blogs/posts/{YYYY}/** for your required year (make a new folder if your year isn't there already). All markdown files inside the docs/blogs/posts folder will be turned into blogs on the website.
 
-4) Create a new file with the following format - YYYY-MM-{title with dashes}.md and paste all of the contents of template.md into it.
+4) Create a new file with the following format - **YYYY-MM-{title with dashes}.md** and paste all of the contents of template.md into it.
 
-5) At the top of this file, there is a header section marked by  --- : Update the following:
-    - title: The title required. Try to make it fit in one line.
-    - author: List of author full names separated by commas, enclosed inside [ ]
-    - author_gh_user: List of author Github ids separated by commas, enclosed inside [ ]
-    - readtime: An approximate read time for your post, in minutes.
-    - date: Date in format "YYYY-MM-DD" on which the post will be merged into NeMo. Do NOT update this date after it has been published, unless absolutely required. 
-    - categories (optional): a list of string(s) describing categories that this blog belongs to. They will be displayed on the website.
+5) At the top of this file, there is a header section marked by  `---` : Update the following:
+    - **title:** The title required. Try to make it fit in one line.
+    - **author:** List of author full names separated by commas, enclosed inside [ ]
+    - **author_gh_user:** List of author Github ids separated by commas, enclosed inside [ ]
+    - **readtime:** An approximate read time for your post, in minutes.
+    - **date:** Date in format **"YYYY-MM-DD"** on which the post will be merged into NeMo. Do NOT update this date after it has been published, unless absolutely required. 
+    - **categories (optional):** a list of string(s) describing categories that this blog belongs to. They will be displayed on the website.
 
 6) Write down post content. Some extra guidance:
     - This is extended markdown - all ordinary markdown rules apply.
