@@ -25,7 +25,7 @@ import torch.nn.functional as F
 
 import nemo.collections.nlp.modules.common.text_generation_utils as text_generation_utils
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
-from nemo.collections.multimodal.modules.common.audio_text_generation_strategy import (
+from nemo.collections.multimodal.speechllm.modules.common.audio_text_generation_strategy import (
     END_OF_SEQ,
     model_inference_strategy_dispatcher,
 )

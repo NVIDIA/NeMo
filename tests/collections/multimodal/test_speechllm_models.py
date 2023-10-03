@@ -26,13 +26,13 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.asr.models.hybrid_asr_tts_models import ASRWithTTSModel
-from nemo.collections.multimodal.models import speechllm_models
+from nemo.collections.multimodal.speechllm.models import speechllm_models
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 
-class ModularizedAudioGPTModel(speechllm_models.ModularizedAudioGPTModel):
+class ModularAudioGPTLoRAModel(speechllm_models.ModularAudioGPTLoRAModel):
     # disable logging to avoid MisconfigurationException
     def log(self, *args, **kwargs):
         pass
@@ -117,7 +117,7 @@ def perception_model_config():
 
     model_config = DictConfig(
         {
-            "_target_": "nemo.collections.multimodal.modules.speechllm_perception.AudioPerceptionModel",
+            "_target_": "nemo.collections.multimodal.speechllm.modules.speechllm_perception.AudioPerceptionModel",
             "preprocessor": DictConfig(preprocessor),
             "encoder": DictConfig(encoder),
             "modality_adapter": DictConfig(encoder),
@@ -150,13 +150,13 @@ def test_batch():
     return batch
 
 
-class TestModularizedAudioGPTModel:
+class TestModularAudioGPTLoRAModel:
     @pytest.mark.unit
     def test_init_and_train(self, llm_model_config, perception_model_config, trainer_config):
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
 
         assert isinstance(model.model, GPTModel)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -169,7 +169,7 @@ class TestModularizedAudioGPTModel:
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
@@ -186,7 +186,7 @@ class TestModularizedAudioGPTModel:
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
         model.on_train_start()
         model.setup()
@@ -199,7 +199,7 @@ class TestModularizedAudioGPTModel:
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
@@ -211,9 +211,10 @@ class TestModularizedAudioGPTModel:
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
         response = model.predict_step(batch, 0, 0)
-        assert np.allclose(np.mean(response['token_ids']), 2429.3169014084506)
+        ground_truth = 'to suit you. Please note these are lecture notes from an alternate presentation. Copyright  ⁇ '
+        assert response['sentences'][0] == ground_truth
