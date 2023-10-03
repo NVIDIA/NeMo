@@ -21,7 +21,7 @@ from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from encodec import EncodecModel
+# from encodec import EncodecModel
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
