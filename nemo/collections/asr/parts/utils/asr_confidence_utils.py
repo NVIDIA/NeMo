@@ -175,7 +175,7 @@ class ConfidenceConfig:
     preserve_word_confidence: bool = False
     exclude_blank: bool = True
     aggregation: str = "min"
-    measure_cfg: ConfidenceMeasureConfig = field(default_factory=lambda: ConfidenceMeasureConfig())
+    measure_cfg: ConfidenceMethodConfig = field(default_factory=lambda: ConfidenceMethodConfig())
     method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):
