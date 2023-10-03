@@ -222,9 +222,10 @@ if __name__ == "__main__":
 
     # Additional logic for num_query_groups
     if override_model_dict.get("num_query_groups") is None:
-        override_model_dict["num_query_groups"] = (
-            falcon_config.num_kv_heads if falcon_config.new_decoder_architecture or falcon_config.multi_query else None
-        )
+        if falcon_config.new_decoder_architecture:
+            override_model_dict["num_query_groups"] = falcon_config.num_kv_heads
+        elif falcon_config.multi_query:
+            override_model_dict["num_query_groups"] = 1
         
     # Additional logic for bias fusion
     if falcon_config.bias:
@@ -256,7 +257,7 @@ if __name__ == "__main__":
     logging.info(f"Created model:\n{model}")
 
     logging.info("Loading HuggingFace model...")
-    model_hf = AutoModelForCausalLM.from_pretrained(args.input, trust_remote_code=True)
+    model_hf = AutoModelForCausalLM.from_pretrained(args.input)
     logging.info(f"Loaded model:\n{model_hf}")
 
     state_dict_hf = model_hf.state_dict()
