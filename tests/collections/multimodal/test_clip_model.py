@@ -45,7 +45,7 @@ def model_cfg():
       pipeline_model_parallel_size: 1 # inter-layer model parallelism
       virtual_pipeline_model_parallel_size: null # interleaved pipeline
     
-      restore_from_pretrained: null # used in fine-tuning
+      restore_from_path: null # used in fine-tuning
       # multimodal configs
       output_dim: 64
       local_loss: False # calculate loss w/ local features @ global (instead of realizing full global @ global matrix)

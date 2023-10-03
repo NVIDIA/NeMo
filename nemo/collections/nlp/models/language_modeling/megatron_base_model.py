@@ -274,7 +274,7 @@ class MegatronBaseModel(NLPModel):
 
         if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
             tokens_list = omegaconf.OmegaConf.to_object(self._cfg.tokenizer.additional_special_tokens)
-            self.tokenizer.add_special_tokens({'additional_special_tokens': tokens_list})
+            self.tokenizer.add_special_tokens(tokens_list)
 
     def on_train_start(self) -> None:
         super().on_train_start()

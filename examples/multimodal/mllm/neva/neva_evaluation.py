@@ -24,7 +24,6 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
-import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
@@ -44,6 +43,16 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    import ammo.torch.quantization as atq
+
+    HAVE_AMMO = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_AMMO = False
+
 
 """
 This is the script to run GPT text generation.
@@ -243,7 +252,16 @@ def main(cfg) -> None:
     model.freeze()
 
     # Have to turn off activations_checkpoint_method for inference
-    model.model.module.language_model.encoder.activations_checkpoint_method = None
+    # Have to turn off activations_checkpoint_method for inference
+    try:
+        model.model.language_model.encoder.activations_checkpoint_method = None
+    except AttributeError:
+        pass
+    try:
+        model.model.module.language_model.encoder.activations_checkpoint_method = None
+    except AttributeError:
+        pass
+
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
         "min_length": cfg.inference.min_tokens_to_generate,
@@ -258,6 +276,7 @@ def main(cfg) -> None:
         "add_BOS": cfg.inference.add_BOS,
         "all_probs": cfg.inference.all_probs,
         "compute_logprob": cfg.inference.compute_logprob,
+        "end_strings": cfg.inference.end_strings,
     }
 
     with open(cfg.prompt_file, 'r') as f:
@@ -272,9 +291,44 @@ def main(cfg) -> None:
         input_prompts=final_prompts, length_params=length_params, sampling_params=sampling_params, inference_config=cfg
     )
 
+    # =================== Start Quantization ====================
+    #  see https://gitlab-master.nvidia.com/omniml/ammo/-/tree/main/examples/nemo/neva for details
+    if HAVE_AMMO and cfg.quantization.enable == True:
+        print(f"Using quantization algorithm: {cfg.quantization.algorithm}")
+        if cfg.quantization.algorithm == "int8_sq":
+            atq_config = atq.INT8_SMOOTHQUANT_CFG
+        elif cfg.quantization.algorithm == "fp8":
+            atq_config = atq.FP8_DEFAULT_CFG
+        elif cfg.quantization.algorithm == "awq":
+            atq_config = atq.INT4_AWQ_CFG
+        else:
+            raise ValueError(f"Unsupported quantization algorithm: {cfg.quantization.algorithm}")
+
+        def forward_loop():
+            model.generate(
+                input_prompts=final_prompts,
+                length_params=length_params,
+                sampling_params=sampling_params,
+                inference_config=cfg,
+            )
+
+        atq.quantize(model, atq_config, forward_loop)
+
+        responses = model.generate(
+            input_prompts=final_prompts,
+            length_params=length_params,
+            sampling_params=sampling_params,
+            inference_config=cfg,
+        )
+    # ============== Quantization End =========================
+
     results = []
     for response, prompt in zip(responses, final_prompts):
-        prompt['response'] = response
+        prompt['full_text'] = response["clean_text"]
+        prompt['text'] = response["clean_response"]
+        prompt['model_id'] = cfg.neva_model_file
+        prompt['answer_id'] = 0
+        prompt['metadata'] = {}
         results.append(prompt)
 
     with open(cfg.output_file, 'w') as f:

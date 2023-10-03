@@ -37,11 +37,11 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    if cfg.model.restore_from_pretrained is None:
+    if cfg.model.restore_from_path is None:
         model = MegatronNevaModel(cfg.model, trainer)
     else:
         model = MegatronNevaModel.restore_from(
-            restore_path=cfg.model.restore_from_pretrained,
+            restore_path=cfg.model.restore_from_path,
             trainer=trainer,
             override_config_path=cfg.model,
             save_restore_connector=NLPSaveRestoreConnector(),

@@ -292,7 +292,7 @@ conv_vicuna_v1 = Conversation(
     offset=0,
     sep_style=SeparatorStyle.TWO,
     sep=" ",
-    sep2="</s>",
+    sep2="<extra_id_7>",
 )
 
 conv_llama_2 = Conversation(
@@ -304,8 +304,8 @@ If a question does not make any sense, or is not factually coherent, explain why
     messages=(),
     offset=0,
     sep_style=SeparatorStyle.LLAMA_2,
-    sep="<s>",
-    sep2="</s>",
+    sep="<extra_id_6>",
+    sep2="<extra_id_7>",
 )
 
 conv_llava_llama_2 = Conversation(
@@ -317,8 +317,8 @@ conv_llava_llama_2 = Conversation(
     messages=(),
     offset=0,
     sep_style=SeparatorStyle.LLAMA_2,
-    sep="<s>",
-    sep2="</s>",
+    sep="<extra_id_6>",
+    sep2="<extra_id_7>",
 )
 
 conv_mpt = Conversation(
@@ -367,7 +367,7 @@ conv_llava_v1 = Conversation(
     offset=0,
     sep_style=SeparatorStyle.TWO,
     sep=" ",
-    sep2="</s>",
+    sep2="<extra_id_7>",
 )
 
 conv_llava_v1_mmtag = Conversation(
@@ -379,7 +379,7 @@ conv_llava_v1_mmtag = Conversation(
     offset=0,
     sep_style=SeparatorStyle.TWO,
     sep=" ",
-    sep2="</s>",
+    sep2="<extra_id_7>",
     version="v1_mmtag",
 )
 

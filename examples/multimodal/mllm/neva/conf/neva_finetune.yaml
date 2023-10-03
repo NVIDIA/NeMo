@@ -62,13 +62,14 @@ model:
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
-  restore_from_pretrained: null # used in fine-tuning
+  restore_from_path: null # used in fine-tuning
 
   # Multimodal configs
   mm_cfg:
     llm:
       from_pretrained: null # path to nemo checkpoint
       freeze: False
+      model_type: nvgpt # Only support nvgpt or llama_2
     vision_encoder:
       from_pretrained: "" # path or name
       from_hf: True
@@ -86,7 +87,7 @@ model:
   mcore_gpt: False
 
   # model architecture
-  encoder_seq_length: 2048
+  encoder_seq_length: 4096
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: rope
   num_layers: 24
@@ -181,7 +182,8 @@ model:
     lazy_preprocess: True
     is_multimodal: True
     sep_image_conv_front: False
-    image_token_len: 0
+    image_token_len: 256
+    conv_template: ${model.mm_cfg.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
     image_aspect_ratio: 'square'
 

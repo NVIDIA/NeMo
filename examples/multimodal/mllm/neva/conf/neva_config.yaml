@@ -62,13 +62,14 @@ model:
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
-  restore_from_pretrained: null # used in fine-tuning
+  restore_from_path: null # used in fine-tuning
 
   # Multimodal configs
   mm_cfg:
     llm:
       from_pretrained: null # path to nemo checkpoint
       freeze: True
+      model_type: llama_2 # `nvgpt` or `llama_2` supported
     vision_encoder:
       from_pretrained: "" # path or name
       from_hf: True
@@ -78,7 +79,7 @@ model:
       class_token_length: 1
       freeze: True
     pretrain_mm_mlp_adapter: null # path to pretrained mm adapter
-    use_im_start_end: True # only support True now
+    use_im_start_end: True
 
 
   # LLM configs
@@ -86,20 +87,20 @@ model:
   mcore_gpt: False
 
   # model architecture
-  encoder_seq_length: 2048
+  encoder_seq_length: 4096
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: rope
-  num_layers: 24
-  hidden_size: 2048
-  ffn_hidden_size: 5440 # Transformer FFN hidden size. Usually 4 * hidden_size.
-  num_attention_heads: 16
+  num_layers: 40
+  hidden_size: 5120
+  ffn_hidden_size: 13824 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  num_attention_heads: 40
   init_method_std: 0.014 # Standard deviation of the zero mean normal distribution used for weight initialization.')
   use_scaled_init_method: True # use scaled residuals initialization
   hidden_dropout: 0. # Dropout probability for hidden state transformer.
   attention_dropout: 0.
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
-  normalization: layernorm1p # Type of normalization layers
+  normalization: rmsnorm # Type of normalization layers
   layernorm_epsilon: 1e-5
   do_layer_norm_weight_decay: False # True means weight decay on all params
   pre_process: True # add embedding
@@ -117,6 +118,7 @@ model:
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
+  use_flash_attention: True
 
   ## Activation Checkpointing
   activations_checkpoint_granularity: null # 'selective' or 'full'
@@ -156,6 +158,7 @@ model:
 
   # Megatron O2-style half-precision
   megatron_amp_O2: True # Enable O2-level automatic mixed precision using main parameters
+  async_grad_allreduce: False
   grad_allreduce_chunk_size_mb: 125
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
 
@@ -166,8 +169,8 @@ model:
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
 
   tokenizer:
-    library: 'megatron'
-    type: 'GPT2BPETokenizer'
+    library: 'sentencepiece'
+    type: null
     model: null
     vocab_file: null
     merge_file: null
@@ -182,8 +185,8 @@ model:
     lazy_preprocess: True
     is_multimodal: True
     sep_image_conv_front: False
-    conv_template: nvgpt # check `nemo/collections/multimodal/data/neva/conversation.py`
-    image_token_len: 0
+    image_token_len: 256
+    conv_template: ${model.mm_cfg.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
     image_aspect_ratio: 'square'
 

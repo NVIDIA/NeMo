@@ -32,6 +32,8 @@ from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel
 
 from nemo.collections.multimodal.data.neva.neva_dataset import (
+    DEFAULT_BOS_TOKEN,
+    DEFAULT_EOS_TOKEN,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DataCollatorForSupervisedDataset,
@@ -83,7 +85,7 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, logging, model_utils
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -116,9 +118,9 @@ except (ImportError, ModuleNotFoundError):
 
 
 class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
-    def __init__(self, model_cfg, pre_process=True, post_process=True):
+    def __init__(self, model_cfg, model_parallel_config, pre_process=True, post_process=True):
         super().__init__(
-            model_cfg, pre_process=pre_process, post_process=post_process, skip_head=True,
+            model_cfg, model_parallel_config, pre_process=pre_process, post_process=post_process, skip_head=True,
         )
         self.frozen = False
 
@@ -143,23 +145,44 @@ class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
         self.frozen = True
 
 
-class NevaEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
-    def init_vision(self, vision_encoder, media_start_id, media_end_id, vision_select_layer=-1, class_token_length=1):
+class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
+    def init_vision(
+        self,
+        vision_encoder,
+        media_start_id,
+        media_end_id,
+        vision_select_layer=-1,
+        class_token_length=1,
+        use_im_start_end=False,
+        llama_tricks=False,
+    ):
         self.vision_encoder = vision_encoder
         self.from_hf = isinstance(vision_encoder, CLIPVisionModel)
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.class_token_length = class_token_length
+        self.use_im_start_end = use_im_start_end
         self.vision_select_layer = vision_select_layer
         self.media = None
         self.set_accepted_adapter_types([MMLinearAdapterConfig._target_])
+        self.llama_tricks = llama_tricks
 
     def set_media(self, media):
         self.media = media
 
     def forward(self, input_ids, **kwargs):
         media = self.media  # avoid change the signature of embedding forward function
-        words_embeddings = super().forward(input_ids, **kwargs)
+        if self.llama_tricks and not self.use_im_start_end:
+            masked_input_ids = input_ids.detach().clone()
+            if self.num_embeddings < 32000:
+                raise ValueError("Not supported tokenizer with llama 2!")
+            else:
+                masked_input_ids[masked_input_ids >= 32000] = 0
+            words_embeddings = super().forward(masked_input_ids, **kwargs)
+
+        else:
+            words_embeddings = super().forward(input_ids, **kwargs)
+
         return self.replace_media_embeddings(input_ids, words_embeddings, media)
 
     def encode_vision_x(self, vision_x: torch.Tensor):
@@ -213,9 +236,15 @@ class NevaEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
         padded_media_indices *= sequence_length
         for idx, input_id in enumerate(input_ids):
             media_end_positions = torch.where(input_id == self.media_end_id)[0]
-            # locate the first media token positions
-            padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches
-            assert (input_id[padded_media_indices[idx, : len(media_end_positions)] - 1] == self.media_start_id).all()
+            if self.use_im_start_end:
+                # locate the first media token positions
+                padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches
+                assert (
+                    input_id[padded_media_indices[idx, : len(media_end_positions)] - 1] == self.media_start_id
+                ).all()
+            else:
+                padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches + 1
+                assert (input_id[padded_media_indices[idx, : len(media_end_positions)]] == self.media_start_id).all()
 
         # use indices to create a span
         padded_media_indices = padded_media_indices.unsqueeze(-1) + torch.arange(
@@ -270,19 +299,23 @@ class NevaModel(GPTModel):
             vision_cfg = MegatronCLIPModel.restore_from(
                 mm_cfg.vision_encoder.from_pretrained, return_config=True
             ).vision
-            vision_encoder = FrozenCLIPVisionTransformer(vision_cfg)
+            vision_encoder = FrozenCLIPVisionTransformer(vision_cfg, self.config)
             self.load_vision_encoder_weights(vision_encoder, mm_cfg.vision_encoder.from_pretrained)
             if mm_cfg.vision_encoder.freeze:
                 vision_encoder.freeze()
+
+        model_type = self.mm_cfg.llm.get("model_type", "nvgpt")
         # Monkey patch embedding
         if kwargs.get("pre_process", True):
-            extend_instance(self.language_model.embedding.word_embeddings, NevaEmbeddingMixin)
+            extend_instance(self.language_model.embedding.word_embeddings, NevaWordEmbeddingMixin)
             self.language_model.embedding.word_embeddings.init_vision(
                 vision_encoder,
                 media_start_id,
                 media_end_id,
                 vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -2),
                 class_token_length=mm_cfg.vision_encoder.get("class_token_length", 1),
+                use_im_start_end=mm_cfg.get("use_im_start_end", False),
+                llama_tricks=(model_type == "llama_2"),
             )
 
     def forward(
@@ -384,6 +417,36 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
         self.adapter_keys = self.get_all_keys() - self.base_keys
         if self.megatron_amp_O2:
             self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
+
+    def get_all_keys(self,):
+        # TODO (yuya): p-tuning need additional handle, check peft models.
+        """
+        Returns all the keys in the model
+        """
+        k = [n for n, p in self.named_parameters()]
+        return set(k)
+
+    def init_peft_modules(self):
+        """
+        Randomly initialize the peft params and add them to the appropriate modules.
+        """
+        assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
+        assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
+        logging.info(f"Before adding PEFT params:\n{self.summarize()}")
+        for _, module in self.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for peft_key in self.peft_name_keys:
+                    peft_cfg = self.name_key_to_cfg[peft_key]
+                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                        module.add_adapter(
+                            name=peft_key,
+                            cfg=peft_cfg,  # TODO (yuya): override this line in gpt peft models due to a conf merging issue
+                        )
+                if self.megatron_amp_O2:
+                    for adapter_name in getattr(module, 'adapter_layer', []):
+                        module.adapter_layer[adapter_name] = module.adapter_layer[adapter_name].to(self.autocast_dtype)
+        logging.info(f"After adding PEFT params:\n{self.summarize()}")
+        return True
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
@@ -495,7 +558,7 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
                 raise NotImplementedError(f"`validation_drop_last=False` is not implemented in Neva!")
             else:
                 reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                return loss_for_ub, dict(avg=reduced_loss[0])
+                return loss_for_ub, dict(avg=reduced_loss[0].unsqueeze(0))
 
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             batch = next(dataloader_iter)
@@ -538,6 +601,7 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
                 batch['tokens'],
                 batch['position_ids'],
                 batch['attention_mask'],
+                None,  # placehpolder for loss mask
                 batch['labels'],
                 batch.get('media'),
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
@@ -696,9 +760,6 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
 
-        if self.cfg.mm_cfg.llm.freeze:
-            self.setup_complete = True
-
     def build_train_valid_test_datasets(self):
         logging.info('Building Neva datasets.')
         ds_dict = make_supervised_data_module(tokenizer=self.tokenizer, model_cfg=self.cfg,)
@@ -792,6 +853,9 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
             logging.critical('Unexpected keys were detected during the load. Please double check.')
             logging.critical(f'Unexpected keys: \n{unexpected_keys}')
 
+    def sharded_state_dict(self, prefix: str = ''):
+        return None
+
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
 
@@ -850,6 +914,6 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
         # Supports only one prompt at a time
         result = megatron_neva_generate(self.cuda(), input_prompts, length_params, sampling_params, inference_config)
         end = time.time()
-        print(f'Time taken {end - start}')
+        # print(f'Time taken {end - start}')
 
         return result

@@ -58,7 +58,7 @@ model:
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
-  restore_from_pretrained: null # used in fine-tuning
+  restore_from_path: null # used in fine-tuning
   # multimodal configs
   output_dim: 512
   #  As the number of devices used to train increases, so does the space complexity of

@@ -22,10 +22,11 @@ import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.kosmos.kosmos_dataset import tokenize_and_insert_media_tokens
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
+MAX_NUM_IMAGES = 4
 IGNORE_INDEX = -1
 DEFAULT_PAD_TOKEN = "<pad>"
-DEFAULT_EOS_TOKEN = "</s>"
-DEFAULT_BOS_TOKEN = "<s>"
+DEFAULT_BOS_TOKEN = "<extra_id_6>"
+DEFAULT_EOS_TOKEN = "<extra_id_7>"
 DEFAULT_UNK_TOKEN = "<unk>"
 DEFAULT_IMAGE_TOKEN = "<image>"
 DEFAULT_SYSTEM_TOKEN = "<extra_id_0>"
@@ -123,16 +124,18 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
                 + conversation[0]['value']
             )
         for turn in conversation:
-            replace_token = DEFAULT_IMAGE_PATCH_TOKEN * image_token_len
             if multimodal_cfg['use_im_start_end']:
-                replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
+                replace_token = DEFAULT_IMAGE_PATCH_TOKEN * image_token_len
+            else:
+                replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (image_token_len - 2)
+            replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
             turn["value"] = turn["value"].replace(DEFAULT_IMAGE_TOKEN, replace_token)
 
     return sources
 
 
 def preprocess_llama_2(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
-    conv = conversation_lib.default_conversation.copy()
+    conv = conversation_lib.conv_llava_llama_2.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
     # Apply prompt templates
@@ -160,15 +163,19 @@ def preprocess_llama_2(sources: dict, tokenizer: transformers.PreTrainedTokenize
         add_extra_token=add_extra_token,
     )
 
+    # llama tricks
+    tokens[tokens == 32003] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    tokens[tokens == 32006] = 1  # <s>
+    tokens[tokens == 32007] = 2  # </s>
     labels = tokens.clone().detach()
 
     # Mask labels
     sep = "[/INST] "
     for conversation, target in zip(conversations, labels):
         rounds = conversation.split(conv.sep2)
-        cur_len = 1
-        target[:cur_len] = IGNORE_INDEX
+        cur_len = 0
         for i, rou in enumerate(rounds):
+
             if rou == "":
                 break
 
@@ -177,13 +184,17 @@ def preprocess_llama_2(sources: dict, tokenizer: transformers.PreTrainedTokenize
                 break
             parts[0] += sep
 
-            round_len = len(tokenizer.text_to_ids(rou).tokens)
-            instruction_len = len(tokenizer.text_to_ids(parts[0]).tokens) - 2
-
+            round_len = len(tokenizer.text_to_ids(rou + conv.sep2))
+            if i > 0:
+                round_len -= 1  # Remove extra token added by sp tokenizer
+            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 1
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
+
+    # Check if masking working correctly
+    # print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
 
     if add_extra_token:
         tokens = tokens[:, :-1].contiguous()
@@ -196,7 +207,7 @@ def preprocess_llama_2(sources: dict, tokenizer: transformers.PreTrainedTokenize
 
 
 def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
-    conv = conversation_lib.default_conversation.copy()
+    conv = conversation_lib.conv_vicuna_v1.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
     # Apply prompt templates
@@ -243,8 +254,8 @@ def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cf
                 break
             parts[0] += sep
 
-            round_len = len(tokenizer.text_to_ids(rou).tokens)
-            instruction_len = len(tokenizer.text_to_ids(parts[0]).tokens) - 2
+            round_len = len(tokenizer.text_to_ids(rou))
+            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
 
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
@@ -280,13 +291,20 @@ def preprocess_nvgpt(sources: dict, tokenizer: transformers.PreTrainedTokenizer,
         if len(source['conversations']) >= 2:
             conv.roles = (source['conversations'][0]['from'], source['conversations'][1]['from'])
 
+        strip_end_for_inference = False
         for turn in source['conversations']:
             if 'label' in turn:
                 value = DEFAULT_LABELS_TOKEN + turn['label'] + '\n' + turn['value']
                 conv.append_message(turn['from'], value)
+                if not turn["value"]:
+                    strip_end_for_inference = (
+                        True  # in inference, current turn is empty, thus end tokens need to striped.
+                    )
             else:
                 conv.append_message(turn['from'], turn['value'])
         context = conv.get_prompt()
+        if strip_end_for_inference:
+            context = context.rstrip("\n<extra_id_1>") + "\n"
         conversations.append(context)
 
     add_extra_token = cfg.get("add_extra_token")
@@ -371,40 +389,51 @@ class LazySupervisedDataset(Dataset):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
         if 'image' in sources[0]:
-            image_file = self.list_data_dict[i]['image']
-            image = self.image_loader.open_image(image_file)
-            if image is None:
-                logging.warning(f"Image {image_file} could not be found!")
-            if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
-                max_hw, min_hw = max(image.size), min(image.size)
-                aspect_ratio = max_hw / min_hw
-                max_len, min_len = 448, 224
-                shortest_edge = int(min(max_len / aspect_ratio, min_len))
-                image = processor.preprocess(
-                    image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-                )['pixel_values'][0]
-            elif self.multimodal_cfg['image_aspect_ratio'] == 'pad':
+            if not isinstance(self.list_data_dict[i]['image'], list):
+                self.list_data_dict[i]['image'] = [self.list_data_dict[i]['image']]
 
-                def expand2square(pil_img, background_color):
-                    width, height = pil_img.size
-                    if width == height:
-                        return pil_img
-                    elif width > height:
-                        result = Image.new(pil_img.mode, (width, width), background_color)
-                        result.paste(pil_img, (0, (width - height) // 2))
-                        return result
-                    else:
-                        result = Image.new(pil_img.mode, (height, height), background_color)
-                        result.paste(pil_img, ((height - width) // 2, 0))
-                        return result
+            images = []
+            for image_file in self.list_data_dict[i]['image']:
+                image = self.image_loader.open_image(image_file)
+                if image is None:
+                    logging.warning(f"Image {image_file} could not be found!")
+                if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
+                    max_hw, min_hw = max(image.size), min(image.size)
+                    aspect_ratio = max_hw / min_hw
+                    max_len, min_len = 448, 224
+                    shortest_edge = int(min(max_len / aspect_ratio, min_len))
+                    image = processor.preprocess(
+                        image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
+                    )['pixel_values'][0]
+                elif self.multimodal_cfg['image_aspect_ratio'] == 'pad':
 
-                image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-                image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-            else:
-                image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-            cur_token_len = (image.shape[1] // 14) * (image.shape[2] // 14)  # FIXME: 14 is hardcoded patch size
-            sources = preprocess_multimodal(copy.deepcopy(sources), self.multimodal_cfg, cur_token_len)
+                    def expand2square(pil_img, background_color):
+                        width, height = pil_img.size
+                        if width == height:
+                            return pil_img
+                        elif width > height:
+                            result = Image.new(pil_img.mode, (width, width), background_color)
+                            result.paste(pil_img, (0, (width - height) // 2))
+                            return result
+                        else:
+                            result = Image.new(pil_img.mode, (height, height), background_color)
+                            result.paste(pil_img, ((height - width) // 2, 0))
+                            return result
+
+                    image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
+                    image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                else:
+                    image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                images.append(image)
+            images_tensors = torch.tensor([])
+            if images:
+                images_tensors = torch.stack(images)
+                cur_token_len = (images_tensors[0].shape[1] // 14) * (
+                    images_tensors[0].shape[2] // 14
+                )  # FIXME: 14 is hardcoded patch size
+                sources = preprocess_multimodal(copy.deepcopy(sources), self.multimodal_cfg, cur_token_len)
         else:
+            images_tensors = torch.tensor([])
             sources = copy.deepcopy(sources)
 
         if self.conv_template == "nvgpt":
@@ -420,12 +449,14 @@ class LazySupervisedDataset(Dataset):
             data_dict = dict(tokens=data_dict["tokens"][0], labels=data_dict["labels"][0])
 
         # image exist in the data
-        if 'image' in self.list_data_dict[i]:
-            data_dict['image'] = image
-        elif self.multimodal_cfg['is_multimodal']:
-            # image does not exist in the data, but the model is multimodal
+        if self.multimodal_cfg['is_multimodal']:
             crop_size = self.processor.crop_size
-            data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
+            # image does not exist in the data, but the model is multimodal
+            zero_padding = torch.zeros(
+                (MAX_NUM_IMAGES - len(images_tensors), 3, crop_size['height'], crop_size['width']), dtype=torch.float
+            )
+            images_tensors = torch.cat((images_tensors, zero_padding), dim=0)
+            data_dict['image'] = images_tensors
         return data_dict
 
 
@@ -447,20 +478,19 @@ class NevaDataset(LazySupervisedDataset):
                 # This currently supports only a single image
                 # search for <img src="/absolute/path/to/image" in the conversation
                 #   add it as record['image'], remove src tag from the <img> tag
+
+                record['image'] = []
                 for turn in record['conversations']:
-                    # TODO (yuya): this is required?
-                    if "image" not in record:
-                        matches = re.finditer('<img src="([^"]+)"', turn['value'])
-                        for match in matches:
-                            image_name = match.group(1).split("/")[-1]
-                            image_path = os.path.join(image_folder, image_name)
-                            if not os.path.isfile(image_path):
-                                continue
-                            assert (
-                                'image' not in record
-                            ), "Multiple images are currently not supported by the loader"  # TODO
-                            record['image'] = image_name  # url
+                    matches = re.finditer('<img src="([^"]+)"', turn['value'])
+                    for match in matches:
+                        image_name = match.group(1).split("/")[-1]
+                        image_path = os.path.join(image_folder, image_name)
+                        if not os.path.isfile(image_path):
+                            logging.warning(f"Image not found: {image_path}")
+                            continue
+                        record['image'].append(image_name)  # url
                     turn['value'] = re.sub('<img src="([^"]+)">', DEFAULT_IMAGE_TOKEN, turn['value'])
+
                 self.list_data_dict.append(record)
 
         else:
@@ -505,7 +535,7 @@ class DataCollatorForSupervisedDataset(object):
         if media is None:
             raise NotImplementedError
         else:
-            media = rearrange(media, "b c h w -> b 1 1 c h w")
+            media = rearrange(media, "b T c h w -> b T 1 c h w")
 
         batch = {
             'tokens': tokens,

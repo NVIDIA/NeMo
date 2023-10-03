@@ -40,7 +40,7 @@ def model_cfg():
       pipeline_model_parallel_size: 1 # inter-layer model parallelism
       virtual_pipeline_model_parallel_size: null # interleaved pipeline
     
-      restore_from_pretrained: null # used in fine-tuning
+      restore_from_path: null # used in fine-tuning
     
       # vision configs
       vision_pretraining_type: "classify"
