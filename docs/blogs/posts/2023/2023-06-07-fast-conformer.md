@@ -2,9 +2,8 @@
 title: Fast Conformer with Linearly Scalable Attention for Efficient Speech Recognition
 author: [Dima Rekesh, Samuel Kriman, Somshubra Majumdar, Vahid Noroozi, He Huang, Oleksii Hrinchuk, Ankur Kumar, Boris Ginsburg]
 author_gh_user: [bmwshop, sam1373, titu1994, VahidooX, stevehuang52, AlexGrinch, iankur, borisgin]
-read_time: 10 Minutes
-publish_date: 06/07/2023
-
+date: 2023-06-07
+readtime: 10
 # Optional: OpenGraph metadata
 # og_title: Title of the blog post for Rich URL previews
 og_image: https://github.com/NVIDIA/NeMo/releases/download/v1.18.0/asset-post-fast-conformer-diagram.png
@@ -12,13 +11,16 @@ og_image: https://github.com/NVIDIA/NeMo/releases/download/v1.18.0/asset-post-fa
 # page_path: Relative path to the image from the website root (e.g. /assets/images/)
 description: Efficient training and inference on long audio with Fast Conformer architecture
 
-# DO NOT CHANGE BELOW
-template: blog.html
+categories:
+- Papers
+
 ---
 
 # Fast Conformer with Linearly Scalable Attention for Efficient Speech Recognition
 
 The Conformer architecture, introduced by [Gulati et al.](https://arxiv.org/abs/2005.08100) has been a standard architecture used for not only Automatic Speech Recognition, but has also been extended to other tasks such as Spoken Language Understanding, Speech Translation, and used as a backbone for Self Supervised Learning for various downstream tasks. While they are highly accurate models on each of these tasks, and can be extended for use in other tasks, they are also very computationally expensive. This is due to the quadratic complexity of the attention mechanism, which makes it difficult to train and infer on long sequences, which are used as input to these models due to the granular stride of audio pre-processors (commonly Mel Spectrograms or even raw audio signal in certain models with 10 milliseconds stride). Furthermore, the memory requirement of quadratic attention also significantly limits the audio duration during inference.
+
+<!-- more -->
 
 In this paper, we introduce the **Fast Conformer** architecture, which applies simple changes to the architecture to significantly reduce the computational cost of training and inference, all while mantaining the strong results of the original Conformer model. We further show that by modifying (on the fly) the global attention module to a linearly scalable attention mechanism - the same model can be used to train (or finetune) and then infer on long sequences (up to 1 hour !).
 

@@ -1,9 +1,12 @@
 ---
-title: Template 2022
+title: Template 2023
 author: [First Name, Second Name]
 author_gh_user: [Github User 1, Github User 2]
-read_time: Time to read
-publish_date: Date of publishing
+readtime: Time to read in minutes
+date: Date of publishing in YYYY-MM-DD format
+
+# Optional: Categories
+# categories: List categories that this blog post belongs to. They will be displayed on the website.
 
 # Optional: OpenGraph metadata
 # og_title: Title of the blog post for Rich URL previews
@@ -12,16 +15,13 @@ publish_date: Date of publishing
 # page_path: Relative path to the image from the website root (e.g. /assets/images/)
 # description: Description of the post for Rich URL previews
 
-# DO NOT CHANGE BELOW
-template: blog.html
 ---
 
 # Notes
 
-- Add folder inside `blogs` directory with year
-- Remove "placeholder" if it exists in the directory
+- Add folder inside `blogs/posts` directory with year
 - Copy the contents of this template to the folder.
-- Edit the contents and update `mkdocs.yml` at the end to link to the blog post.
+- Edit the contents.
 - Send PR and merge.
 - ASSETS: All blog images and external content must be hosted somewhere else. Do NOT add things to github for blog contents!
 

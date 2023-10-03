@@ -34,14 +34,16 @@ theme:
     - content.tabs.link
     - content.tooltips
     # - header.autohide
-    # - navigation.expand
+    - navigation.expand
     - navigation.indexes
     # - navigation.instant
+    - navigation.path
     # - navigation.prune
     - navigation.sections
     - navigation.tabs
-    # - navigation.tabs.sticky
+    - navigation.tabs.sticky
     - navigation.top
+    - navigation.footer
     - navigation.tracking
     - search.highlight
     - search.share
@@ -70,6 +72,11 @@ theme:
 
 # Plugins
 plugins:
+  - blog:
+      blog_dir: blogs
+      blog_toc: true
+      post_url_date_format: yyyy
+      post_url_format: "{date}/{file}"
   - search
   - minify:
       minify_html: true
@@ -153,16 +160,6 @@ markdown_extensions:
 # Page Tree
 nav:
   - Home: index.md
-  # NVIDIA Tech blogs
-  - Techblog:
-      - techblog/techblog-2023.md
-      - techblog/techblog-2022.md
   # NeMo Blog Posts
-  - Posts:
-    - 2023:
-      - blogs/2023/2023-10-28-numba-fp16.md
-      - blogs/2023/2023-08-nfa.md
-      - blogs/2023/2023-08-forced-alignment.md
-      - blogs/2023/2023-06-07-fast-conformer.md
-    - 2022:
-      - blogs/2022/2022-08-introduction.md
+  - Blog:
+      - blogs/index.md

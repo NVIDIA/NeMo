@@ -2,11 +2,11 @@
 title: How does forced alignment work?
 author: [Elena Rastorgueva]
 author_gh_user: [erastorgueva-nv]
-read_time: 15 minutes
-publish_date: 08/14/2023
+readtime: 15
+date: 2023-08-14
 
-# DO NOT CHANGE BELOW
-template: blog.html
+categories:
+- Technical deep-dive
 ---
 
 # How does forced alignment work?
@@ -25,11 +25,12 @@ In this blog post we will explain how you can use an Automatic Speech Recognitio
 
 [^2]: There are toolkits specialized for this purpose such as [CTC Segmentation](https://github.com/lumaku/ctc-segmentation), which has an [integration](https://github.com/NVIDIA/NeMo/tree/main/tools/ctc_segmentation) in NeMo. It uses an extended version of the algorithm that we describe in this tutorial. The key difference is that the algorithm in this tutorial is *forced alignment* which assumes that the ground truth text provided is exactly what is spoken in the text. However, in practice the ground truth text may be different from what is spoken, and the algorithm in CTC Segmentation accounts for this.
 
+<!-- more -->
+
 <figure markdown>
   ![type:video](https://github.com/NVIDIA/NeMo/releases/download/v1.20.0/asset-post-2023-08-forced-alignment-butter_betty_bought_words_aligned.mp4)
   <figcaption>Video with words highlighted according to timestamps obtained with NFA</figcaption>
 </figure>
-
 
 ## What is forced alignment?
 

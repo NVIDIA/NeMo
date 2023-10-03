@@ -42,29 +42,24 @@ Preliminaries:
 
 # Steps to create a post
 
-1) Create a new branch from the gh-pages-src branch on NeMo. Note that you should not use a fork/branch to do this, for the changes to show 
-up during the PR it must be a branch directly from NVIDIA/NeMo.
+1) Create a new branch from the gh-pages-src branch on NeMo. Note that you should not use a fork/branch to do this, for the changes to show up during the PR it must be a branch directly from NVIDIA/NeMo.
     - If you prefer to not showcase the post until merge, then and only then consider using the fork/branch method.
 
-2) Open the directory docs/blogs/ folder. Here you will find template.md - copy the contents of this template file.
+2) Open the directory **docs/blogs/** folder. Here you will find template.md - copy the contents of this template file.
 
-3) Go inside the required subfolder - it is organized by year 
+3) Go inside the folder **docs/blogs/posts/{YYYY}/** for your required year (make a new folder if your year isn't there already). All markdown files inside the docs/blogs/posts folder will be turned into blogs on the website.
 
-4) Create a new file with the following format - YYYY-MM-{title with dashes}.md and paste all of the contents of template.md into it.
+4) Create a new file with the following format - **YYYY-MM-{title with dashes}.md** and paste all of the contents of template.md into it.
 
-5) At the top of this file, there is a header section marked by  --- : Update the following:
-    - title: The title required. Try to make it fit in one line.
-    - author: List of author full names separated by commas, enclosed inside [ ]
-    - author_gh_user: List of author Github ids separated by commas, enclosed inside [ ]
-    - read_time: An approximate read time for your post, write as a string
-    - publish_date: String date on which the post will be merged into NeMo. Do NOT update this date after it has been published, unless absolutely required. 
-    - This date should be in expanded notation: 7th August, 2022
+5) At the top of this file, there is a header section marked by  `---` : Update the following:
+    - **title:** The title required. Try to make it fit in one line.
+    - **author:** List of author full names separated by commas, enclosed inside [ ]
+    - **author_gh_user:** List of author Github ids separated by commas, enclosed inside [ ]
+    - **readtime:** An approximate read time for your post, in minutes.
+    - **date:** Date in format **"YYYY-MM-DD"** on which the post will be merged into NeMo. Do NOT update this date after it has been published, unless absolutely required. 
+    - **categories (optional):** a list of string(s) describing categories that this blog belongs to. They will be displayed on the website.
 
-6) Read and follow the instructions written in the “Notes” section of the template:
-    - These are the steps you will take to link the markdown file to the actual website in the final step. 
-    - These steps will be noted below, so just note them and delete the template text 
-
-7) Write down post content
+6) Write down post content. Some extra guidance:
     - This is extended markdown - all ordinary markdown rules apply.
     - Extensions are listed below :
     - References of Material for MkDocs has a great section about all the extension - https://squidfunk.github.io/mkdocs-material/reference/ 
@@ -104,33 +99,14 @@ up during the PR it must be a branch directly from NVIDIA/NeMo.
 
 Once your post content is ready (blogpost, website), you can now begin to publish it on Github Pages.
 
-1) Go to the `mkdocs.yml` file and scroll to the very bottom to the section called `Page Tree`.
-2) There will be a nested list of articles.
+1) If you have added your blogpost to the docs/blogs/posts folder, it should be viewable in the blog when you preview it and eventually publish it. Make sure you put your blog post in the correct year folder (i.e. docs/blogs/posts/{YYYY}).
 
-```yaml
-
-nav:
-    - Home: index.md
-    - 2023:
-        - blogs/2023/2023-02-NeMo-101.md
-        - blogs/2023/2023-01-NeMo-101.md
-    - 2022:
-        - blogs/2022/2022-02-NeMo-101.md
-        - ...
-
-```
-
-3) First, select the **year** which matches your post.
-4) Then, copy the relative path (inside of docs) that corresponds to your post.
-      - Usually of the format `blogs/{YYYY}/{YYYY}-{MM}-{Title}.md`
-5) Now, **we need to sort the post such that the first post is always the latest**.
-6) IE: First item after Home should be {Current Year} and inside it should be the **latest blog**. **All other blogs should be pushed down the list**.
-7) Build your docs locally to make sure it looks correct.
+2) Build your docs locally to make sure it looks correct.
    - Make sure you have docker installed, then call `bash build_docs.sh`.
    - It should build most of the documentation for your page and then you can open the **site folder**.
    - Inside **site** folder, open the **index.md** file.
    - Then browse to your actual blogpost. **Note: You may need to reclick the page url if it doesnt auto show up.**
-8) Submit your changes to the `gh-pages-src` branch following [instructions above](#workflow)
+3) Submit your changes to the `gh-pages-src` branch following [instructions above](#workflow)
 
 
 
