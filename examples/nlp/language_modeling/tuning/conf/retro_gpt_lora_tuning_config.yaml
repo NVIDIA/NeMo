@@ -2,8 +2,8 @@ defaults:
   - .@model: megatron_model_base_config
 
 name: test_retro
-restore_from_path: "/dataset/retro/megatron_retro_converted_9B"
-# restore_from_path: /dataset/retro/retro_1100m_final.nemo
+restore_from_path: "/raid/users/aficek/retro/megatron_retro_converted_9B"
+# restore_from_path: /raid/users/aficek/retro/retro_1100m_final.nemo
 
 
 trainer:
@@ -15,7 +15,7 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: 2 # PTL default. In practice we don't usually train for more than 1 epoch.
-  max_steps: 50 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 0.25
   limit_val_batches: null
@@ -84,8 +84,8 @@ model:
   megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
   grad_allreduce_chunk_size_mb: 125
 
-  restore_from_path: "/dataset/retro/megatron_retro_converted_9B"
-  # restore_from_path: /dataset/retro/retro_1100m_final.nemo
+  restore_from_path: "/raid/users/aficek/retro/megatron_retro_converted_9B"
+  # restore_from_path: /raid/users/aficek/retro/retro_1100m_final.nemo
 
   eval: False
   save_nemo_on_validation_end: True
@@ -118,10 +118,10 @@ model:
 
   data:
     train_ds: # landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted
-      # file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/train_n10_retro.jsonl
-      file_name: /dataset/retro/boolq_retrieval/boolq_retrieval/train_n10_retro.jsonl
-      # file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl
-      # file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
+      # file_name: /home/aficek/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/train_n10_retro.jsonl
+      file_name: /raid/users/aficek/retro/boolq_retrieval/boolq_retrieval/train_n10_retro.jsonl
+      # file_name: /home/aficek/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl
+      # file_name: /raid/users/aficek/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 2048  # must be multiple of the chunk_size in your dataset
       add_bos: False  # whether to add bos at the beginning 
@@ -129,10 +129,10 @@ model:
       seed: 1234
       neighbors: 5  # number of retrieved neighbors
     val_ds:
-      # file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/valid_n10_retro.jsonl
-      file_name: /dataset/retro/boolq_retrieval/boolq_retrieval/dev_n10_retro.jsonl
-      # file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl
-      # file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
+      # file_name: /home/aficek/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/valid_n10_retro.jsonl
+      file_name: /raid/users/aficek/retro/boolq_retrieval/boolq_retrieval/dev_n10_retro.jsonl
+      # file_name: /home/aficek/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl
+      # file_name: /raid/users/aficek/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 2048  # must be multiple of the chunk_size in your dataset
       add_bos: False  # whether to add bos at the beginning 
@@ -140,10 +140,10 @@ model:
       seed: 1234
       neighbors: 5  # number of retrieved neighbors
     test_ds:
-      # file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
-      file_name: /dataset/retro/boolq_retrieval/boolq_retrieval/dev_n10_retro.jsonl
-      # file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl
-      # file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
+      # file_name: /home/aficek/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
+      file_name: /raid/users/aficek/retro/boolq_retrieval/boolq_retrieval/dev_n10_retro.jsonl
+      # file_name: /home/aficek/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl
+      # file_name: /raid/users/aficek/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 2048  # must be multiple of the chunk_size in your dataset
       add_bos: False  # whether to add bos at the beginning 
@@ -152,12 +152,12 @@ model:
       neighbors: 5  # number of retrieved neighbors
    
     data_prefix: 
-      - /workspaces/research/downloaded/converted/piqa/piqa_text_document
+      - /home/aficek/research/downloaded/converted/piqa/piqa_text_document
     knn_index: 
-      - /workspaces/research/downloaded/converted/piqa/knn_final_piqa.index
-      # - /dataset/mc4/c4_faiss_index.index  # list of KNN map index files
-      # - /dataset/pile/pile_index_final.index
-    retrieval_prefix: /workspaces/research/downloaded/converted/piqa/piqa_text_document # /dataset/retro_mc4_text_document/retro_mc4_text_document
+      - /home/aficek/research/downloaded/converted/piqa/knn_final_piqa.index
+      # - /raid/users/aficek/mc4/c4_faiss_index.index  # list of KNN map index files
+      # - /raid/users/aficek/pile/pile_index_final.index
+    retrieval_prefix: /home/aficek/research/downloaded/converted/piqa/piqa_text_document # /raid/users/aficek/retro_mc4_text_document/retro_mc4_text_document
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: retmmap   # for retro model, this is the only allowed type
     splits_string: 100,250,650
