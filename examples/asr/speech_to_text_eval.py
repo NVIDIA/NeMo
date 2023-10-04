@@ -247,7 +247,7 @@ def main(cfg: EvaluationConfig):
         if HAVE_TABLUATE_AND_PANDAS:
             rates_by_pm_df = pd.DataFrame(per_data_obj.operation_rates) * 100
             substitution_rates_by_pm_df = pd.DataFrame(per_data_obj.substitution_rates) * 100
-            
+
             logging.info(
                 "Rates of punctuation correctness and errors (%):\n"
                 + tabulate(rates_by_pm_df, headers='keys', tablefmt='psql')
