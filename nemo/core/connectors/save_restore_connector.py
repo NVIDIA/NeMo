@@ -194,7 +194,7 @@ class SaveRestoreConnector:
             state_dict: The state dict (which may have been modified)
             strict: Bool, whether to perform strict checks when loading the state dict.
         """
-        instance.load_state_dict(state_dict, strict=strict)
+        instance.load_state_dict(state_dict, strict=False)
         instance._set_model_restore_state(is_being_restored=False)
 
     def restore_from(

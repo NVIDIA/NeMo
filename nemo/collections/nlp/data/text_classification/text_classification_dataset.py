@@ -156,8 +156,8 @@ class TextClassificationDataset(Dataset):
                         labels=labels,
                         verbose=verbose,
                     )
-                    with open(cached_features_file, 'wb') as out_file:
-                        pickle.dump(self.features, out_file, protocol=pickle.HIGHEST_PROTOCOL)
+                    #with open(cached_features_file, 'wb') as out_file:
+                    #    pickle.dump(self.features, out_file, protocol=pickle.HIGHEST_PROTOCOL)
         else:
             for query in queries:
                 all_sents.append(query.strip().split())

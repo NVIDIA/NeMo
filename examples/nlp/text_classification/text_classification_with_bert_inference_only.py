@@ -103,8 +103,8 @@ from typing import Dict, List, Optional
 
 import joblib
 import pytorch_lightning as pl
-from googleapiclient import discovery
-from googleapiclient.errors import HttpError
+#from googleapiclient import discovery
+#from googleapiclient.errors import HttpError
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 from torch import softmax
@@ -116,7 +116,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-
+'''
 class PerspectiveApiScorer:
     """
     This class provides a method for accessing Perspective API using the Google API Client to obtain attribute scores for generated texts.
@@ -172,15 +172,16 @@ class PerspectiveApiScorer:
 
 
 scorer = PerspectiveApiScorer()
-
+'''
 
 def get_perspective_score(text, aspect='toxicity'):
-    score = scorer.get_scores(text)#[aspect]
+    #score = scorer.get_scores(text)#[aspect]
+    score = 0
     return score
 
 
 def save_predictions(
-    filename, generated_field, ground_truth_field, inputs,
+    filename, generated_field, samples,
 ):
     """
     Save predictions as a jsonl file
@@ -189,10 +190,10 @@ def save_predictions(
         Each arg is a list of strings (all args have the same length)
     """
     docs = []
-    for i in range(len(inputs)):
-        docs.append(
-            {"input": inputs[i], "ground_truth": ground_truth_field[i], "generated": generated_field[i],}
-        )
+    for i in range(len(samples)):
+        new_sample = samples[i]
+        new_sample["toxicity"] = generated_field[i]
+        docs.append(new_sample)
     with open(filename, 'w', encoding="UTF-8") as f:
         for item in docs:
             f.write(json.dumps(item) + "\n")
@@ -242,6 +243,7 @@ def main(cfg: DictConfig) -> None:
             lines = f.readlines()
         sentences = []
         gt_labels = []
+        samples = []
         for line in lines:
             if cfg.model.test_ds.file_path.endswith(".tsv"):
                 elements = line.split("\t")
@@ -253,11 +255,16 @@ def main(cfg: DictConfig) -> None:
                 if len(sentence) < 1:
                     sentence = " "
             elif cfg.model.test_ds.file_path.endswith(".jsonl"):
-                sample = json.loads(line)
-                sentence = sample['text'][:15000] # cutting to first 15,000 chars because perspective has a 20KB cutoff
+                try:
+                    sample = json.loads(line)
+                except:
+                    
+                    raise ValueError("failed to json loads: " + "length: " + str(len(line)) + "n lines" + str(len(lines)) +  ": " + line)
+                sentence = sample['text'][:5000] # cutting to first 5000 for the first 512 BERT tokens or 15,000 chars because perspective has a 20KB cutoff
                 gt_label = 0 # assume there's no label in text
             sentences.append(sentence)
             gt_labels.append(gt_label)
+            samples.append(sample)
             # if len(sentences) == 100:
             #     break
         # perform inference on a list of queries.
@@ -293,9 +300,9 @@ def main(cfg: DictConfig) -> None:
                 #print("reached here")
                 # max_seq_length=512 is the maximum length BERT supports.
                 # set -1 for no truncation
-                results = model.classifytext(queries=sentences, batch_size=16, max_seq_length=-1)
+                results = model.classifytext(queries=sentences, batch_size=16, max_seq_length=512) #-1
 
-            save_predictions(cfg.model.test_ds.prediction_filename, results, gt_labels, sentences)
+            save_predictions(cfg.model.test_ds.prediction_filename, results, samples)
         # raise ValueError
         # logging.info('The prediction results of some sample queries with the trained model:')
         # for query, result in zip(sentences[:5], results):
@@ -305,3 +312,4 @@ def main(cfg: DictConfig) -> None:
 
 if __name__ == '__main__':
     main()
+
