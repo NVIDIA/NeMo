@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import os
 import asyncio
 import threading
 from functools import partial
@@ -28,6 +28,8 @@ from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from pytorch_lightning.plugins.environments import LightningEnvironment
 
 try:
     from megatron.core import parallel_state
@@ -68,7 +70,7 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
 
 """
 
-class SeleneStrategy(NLPDDPStrategy):
+class BCMStrategy(NLPDDPStrategy):
     @property
     def cluster_environment(self):
         env = LightningEnvironment()
@@ -124,7 +126,11 @@ def use_inference_server(cfg, model, trainer):
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
-    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer(custom_strategy=SeleneStrategy())
+
+    custom_strategy = None
+    if cfg.bcm:
+        custom_strategy = BCMStrategy()
+    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer(custom_strategy=BCMStrategy())
 
     # loading base model cfg
     model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)

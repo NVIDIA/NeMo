@@ -149,6 +149,7 @@ inference:
   compute_attention_mask: True
 
 # server-related configs
+bcm: False
 server: False  # whether launch the API server
 port: 5555 # the port number for the inference server
 web_server: False # whether launch the web inference server
