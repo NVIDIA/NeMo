@@ -170,7 +170,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     def load_state_dict(self, state_dict, strict: bool = True):
         if len(state_dict) == 0:
             return  # checkpoint is loaded in on_load_checkpoint()
-        if self.setup_complete:
+        if self.setup_complete and not self.joint_peft:
             # at this stage only PEFT params will appear in the state_dict arg
             # so we only update those while the rest of the model is frozen.
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
