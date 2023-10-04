@@ -94,8 +94,11 @@ class MegatronTrainerBuilder:
 
         return plugins
 
-    def create_trainer(self) -> Trainer:
-        strategy = self._training_strategy()
+    def create_trainer(self, custom_strategy=None) -> Trainer:
+        if custom_strategy is None:
+            strategy = self._training_strategy()
+        else:
+            strategy = custom_strategy
         plugins = self._plugins()
         return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=[CustomProgressBar()])
 

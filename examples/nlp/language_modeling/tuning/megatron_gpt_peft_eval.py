@@ -68,6 +68,18 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
 
 """
 
+class SeleneStrategy(NLPDDPStrategy):
+    @property
+    def cluster_environment(self):
+        env = LightningEnvironment()
+        env.world_size = lambda: int(os.environ["WORLD_SIZE"])
+        env.global_rank = lambda: int(os.environ["RANK"])
+        return env
+
+    @cluster_environment.setter
+    def cluster_environment(self, env):
+        # prevents Lightning from overriding the Environment required for SageMaker
+        pass
 
 def use_inference_server(cfg, model, trainer):
     if not HAVE_MEGATRON_CORE:
@@ -112,15 +124,15 @@ def use_inference_server(cfg, model, trainer):
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
-    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
+    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer(custom_strategy=SeleneStrategy())
 
-    if cfg.model.peft.restore_from_path:
-        model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
-    else:
-        model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
+    # loading base model cfg
+    model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
 
+    # restoring the base model
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
 
+    # load adapters according to the saved weights
     if cfg.model.peft.restore_from_path:
         model.load_adapters(cfg.model.peft.restore_from_path)
 
