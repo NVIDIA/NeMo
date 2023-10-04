@@ -814,8 +814,9 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
                     # we need to untar the .nemo if its still tarred
                     with tempfile.TemporaryDirectory() as tmpdir2:
                         self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir2)
-                        model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir2,
-                                                                                       self.peft_model_ckpt_name)
+                        model_weights_path = self._inject_model_parallel_rank_for_ckpt(
+                            tmpdir2, self.peft_model_ckpt_name
+                        )
                         peft_state_dict = torch.load(model_weights_path, map_location)
                 elif self.peft_model_ckpt_dir:
                     # if the PEFT weights are provided in a ckpt path file
