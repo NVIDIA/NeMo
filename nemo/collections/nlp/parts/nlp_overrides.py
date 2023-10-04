@@ -732,24 +732,26 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         """
         # first load based model weights
         base_model_state_dict = super()._load_state_dict_from_disk(model_weights, map_location)
-        # Next, We want to load PEFT model's weights
-        if self.peft_model_nemo_path:
-            # if the PEFT weights are provided in a .nemo file
-            # we need to untar the .nemo if its still tarred
-            with tempfile.TemporaryDirectory() as tmpdir:
-                self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir)
-                model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.peft_model_ckpt_name)
-                peft_state_dict = torch.load(model_weights_path, map_location)
-        elif self.peft_model_ckpt_dir:
-            # if the PEFT weights are provided in a ckpt path file
-            # we don't need to untar
-            model_weights_path = self._inject_model_parallel_rank_for_ckpt(
-                self.peft_model_ckpt_dir, self.peft_model_ckpt_name
-            )
-            peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
-        else:
-            peft_state_dict = {}
+
+        # if distributed checkpointing, load peft weights in restore_from
         if base_model_state_dict:
+            # Next, We want to load PEFT model's weights
+            if self.peft_model_nemo_path:
+                # if the PEFT weights are provided in a .nemo file
+                # we need to untar the .nemo if its still tarred
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir)
+                    model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.peft_model_ckpt_name)
+                    peft_state_dict = torch.load(model_weights_path, map_location)
+            elif self.peft_model_ckpt_dir:
+                # if the PEFT weights are provided in a ckpt path file
+                # we don't need to untar
+                model_weights_path = self._inject_model_parallel_rank_for_ckpt(
+                    self.peft_model_ckpt_dir, self.peft_model_ckpt_name
+                )
+                peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
+            else:
+                peft_state_dict = {}
             base_model_state_dict.update(peft_state_dict)  # add the PEFT state_dict into the base model's state_dict
         return base_model_state_dict
 
@@ -805,7 +807,25 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
                     )
                 checkpoint = {}
                 sharded_state_dict = instance.sharded_state_dict()
-                peft_state_dict = instance.get_peft_state_dict()
+
+                # if distributed checkpointing, load peft weights here instead of in _load_state_dict_from_disk
+                if self.peft_model_nemo_path:
+                    # if the PEFT weights are provided in a .nemo file
+                    # we need to untar the .nemo if its still tarred
+                    with tempfile.TemporaryDirectory() as tmpdir2:
+                        self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir2)
+                        model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir2,
+                                                                                       self.peft_model_ckpt_name)
+                        peft_state_dict = torch.load(model_weights_path, map_location)
+                elif self.peft_model_ckpt_dir:
+                    # if the PEFT weights are provided in a ckpt path file
+                    # we don't need to untar
+                    model_weights_path = self._inject_model_parallel_rank_for_ckpt(
+                        self.peft_model_ckpt_dir, self.peft_model_ckpt_name
+                    )
+                    peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
+                else:
+                    peft_state_dict = instance.get_peft_state_dict()
 
                 if conf.peft.peft_scheme != "ptuning":
                     for k in peft_state_dict.keys():
