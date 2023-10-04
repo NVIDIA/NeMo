@@ -91,9 +91,9 @@ class SEANetResnetBlock(NeuralModule):
     @typecheck()
     def forward(self, inputs, input_len):
         res = self.pre_activation(inputs)
-        res = self.res_conv1(res, input_len)
+        res = self.res_conv1(inputs=res, input_len=input_len)
         res = self.post_activation(res)
-        res = self.res_conv2(res, input_len)
+        res = self.res_conv2(inputs=res, input_len=input_len)
 
         out = self.pre_conv(inputs=inputs, input_len=input_len) + res
         out = mask_sequence_tensor(out, input_len)
