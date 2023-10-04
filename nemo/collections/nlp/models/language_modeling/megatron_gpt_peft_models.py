@@ -368,8 +368,9 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
         self.inverse_peft = adapter_tuning_cfg.get("inverse_peft", False)
-
-
+        self.joint_peft = adapter_tuning_cfg.get("joint_peft", False)
+        assert (self.inverse_peft != self.joint_peft or (not self.inverse_peft and not self.joint_peft)), f"Invalid configuration: Both inverse and joint training is set to True" # Only one can be set to True        
+        
 class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
     TODO 
@@ -722,6 +723,8 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
         self.inverse_peft = lora_cfg.get("inverse_peft", False)
+        self.joint_peft = lora_cfg.get("joint_peft", False)
+        assert (self.inverse_peft != self.joint_peft or (not self.inverse_peft and not self.joint_peft)), f"Invalid configuration: Both inverse and joint training is set to True" # Only one can be set to True        
 
  
 class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
