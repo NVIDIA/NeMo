@@ -70,17 +70,19 @@ import transcribe_speech
 from omegaconf import MISSING, OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.common.metrics.per import PERData
 from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
+from nemo.collections.common.metrics.per import PERData
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 try:
     import pandas as pd
     from tabulate import tabulate
-    HAVE_TABLUATE_AND_PANDAS=True
+
+    HAVE_TABLUATE_AND_PANDAS = True
 except (ImportError, ModuleNotFoundError):
-    HAVE_TABLUATE_AND_PANDAS=False
+    HAVE_TABLUATE_AND_PANDAS = False
+
 
 @dataclass
 class EvaluationConfig(transcribe_speech.TranscriptionConfig):
@@ -137,7 +139,7 @@ def main(cfg: EvaluationConfig):
 
     if cfg.scores_per_sample:
         samples = []
-    
+
     ground_truth_text = []
     predicted_text = []
     invalid_manifest = False
@@ -148,7 +150,7 @@ def main(cfg: EvaluationConfig):
             if 'pred_text' not in data:
                 invalid_manifest = True
                 break
-            
+
             if cfg.scores_per_sample:
                 samples.append(data)
 
@@ -173,19 +175,26 @@ def main(cfg: EvaluationConfig):
             f"Invalid manifest provided: {transcription_cfg.output_filename} does not "
             f"contain value for `pred_text`."
         )
-    
+
     if cfg.use_per:
-        per_data_obj = PERData(hypotheses=predicted_text, references=ground_truth_text,
-                               punctuation_marks=list(cfg.text_processing.punctuation_marks))
+        per_data_obj = PERData(
+            hypotheses=predicted_text,
+            references=ground_truth_text,
+            punctuation_marks=list(cfg.text_processing.punctuation_marks),
+        )
         per_data_obj.compute()
         per = per_data_obj.per
-    
+
     if cfg.scores_per_sample:
         with open(cfg.output_with_scores_filename, 'w') as manifest_with_scores:
             if cfg.use_per:
                 for sample, punct_rates in zip(samples, per_data_obj.rates):
-                    sample_cer = word_error_rate(hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=True)
-                    sample_wer = word_error_rate(hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=False)
+                    sample_cer = word_error_rate(
+                        hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=True
+                    )
+                    sample_wer = word_error_rate(
+                        hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=False
+                    )
                     sample["cer"] = round(100 * sample_cer, 2)
                     sample["wer"] = round(100 * sample_wer, 2)
                     sample["punct_correct_rate"] = round(100 * punct_rates.correct_rate, 2)
@@ -193,21 +202,25 @@ def main(cfg: EvaluationConfig):
                     sample["punct_insertions_rate"] = round(100 * punct_rates.insertions_rate, 2)
                     sample["punct_substitutions_rate"] = round(100 * punct_rates.substitution_rate, 2)
                     sample["per"] = round(100 * punct_rates.per, 2)
-                     
+
                     line = json.dumps(sample)
-                    manifest_with_scores.writelines(f'{line}\n')      
+                    manifest_with_scores.writelines(f'{line}\n')
             else:
                 for sample in samples:
-                    sample_cer = word_error_rate(hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=True)
-                    sample_wer = word_error_rate(hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=False)
+                    sample_cer = word_error_rate(
+                        hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=True
+                    )
+                    sample_wer = word_error_rate(
+                        hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=False
+                    )
                     sample["cer"] = round(100 * sample_cer, 2)
                     sample["wer"] = round(100 * sample_wer, 2)
-                    
+
                     line = json.dumps(sample)
                     manifest_with_scores.writelines(f'{line}\n')
         logging.info(f'Output manifest saved: {cfg.output_with_scores_filename}')
-    
-    # Compute the WER         
+
+    # Compute the WER
     cer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=True)
     wer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=False)
 
@@ -225,28 +238,30 @@ def main(cfg: EvaluationConfig):
         logging.info(f'Got {metric_name} of {metric_value}. Tolerance was {cfg.tolerance}')
 
     logging.info(f'Dataset WER/CER ' + str(round(100 * wer, 2)) + "%/" + str(round(100 * cer, 2)) + "%")
-    
+
     if cfg.use_per:
         logging.info(f'Dataset PER ' + str(round(100 * per, 2)) + '%')
-        
+
         rates_by_pm_df = pd.DataFrame(per_data_obj.operation_rates) * 100
         substitution_rates_by_pm_df = pd.DataFrame(per_data_obj.substitution_rates) * 100
-        
+
         if HAVE_TABLUATE_AND_PANDAS:
             logging.info(
-            "Rates of punctuation correctness and errors (%):\n" + tabulate(rates_by_pm_df, headers='keys', tablefmt='psql')
+                "Rates of punctuation correctness and errors (%):\n"
+                + tabulate(rates_by_pm_df, headers='keys', tablefmt='psql')
             )
             logging.info(
-            "Substitution rates between puncutation marks (%):\n"
-            + tabulate(substitution_rates_by_pm_df, headers='keys', tablefmt='psql')
+                "Substitution rates between puncutation marks (%):\n"
+                + tabulate(substitution_rates_by_pm_df, headers='keys', tablefmt='psql')
             )
-                       
+
     # Inject the metric name and score into the config, and return the entire config
     with open_dict(cfg):
         cfg.metric_name = metric_name
         cfg.metric_value = metric_value
 
     return cfg
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
