@@ -253,9 +253,13 @@ def main(cfg: EvaluationConfig):
                 + tabulate(rates_by_pm_df, headers='keys', tablefmt='psql')
             )
             logging.info(
-                "Substitution rates between puncutation marks (%):\n"
+                "Substitution rates between punctuation marks (%):\n"
                 + tabulate(substitution_rates_by_pm_df, headers='keys', tablefmt='psql')
             )
+        else:
+            logging.warning("Some of the modules (pandas or tabulate) can't be imported")
+            logging.info(f"Rates of punctuation correctness and errors (in range [0, 1]):\n{per_data_obj.operation_rates}\n")
+            logging.info(f"Substitution rates between punctuation marks (in range [0, 1]):\n{per_data_obj.substitution_rates}\n")
 
     # Inject the metric name and score into the config, and return the entire config
     with open_dict(cfg):
