@@ -34,7 +34,8 @@ for full list of arguments >>
     tolerance: Float, minimum WER/CER required to pass some arbitrary tolerance.
 
     only_score_manifest: Bool, when set will skip audio transcription and just calculate WER of provided manifest.
-    scores_per_sample: Bool, compute metrics for each sample separately
+    scores_per_sample: Bool, compute metrics for each sample separately (if only_score_manifest=True, scores per sample
+    will be added to the manifest at the dataset_manifest path)
 
 # Usage
 
