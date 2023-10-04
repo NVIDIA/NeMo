@@ -80,6 +80,7 @@ from nemo.utils import logging
 try:
     import pandas as pd
     from tabulate import tabulate
+
     HAVE_TABLUATE_AND_PANDAS = True
 except (ImportError, ModuleNotFoundError):
     HAVE_TABLUATE_AND_PANDAS = False
