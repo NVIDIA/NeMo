@@ -12,24 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import asyncio
+import os
 import threading
 from functools import partial
 
 import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
-
+from pytorch_lightning.plugins.environments import LightningEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-from pytorch_lightning.plugins.environments import LightningEnvironment
 
 try:
     from megatron.core import parallel_state
@@ -70,6 +69,7 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
 
 """
 
+
 class BCMStrategy(NLPDDPStrategy):
     @property
     def cluster_environment(self):
@@ -82,6 +82,7 @@ class BCMStrategy(NLPDDPStrategy):
     def cluster_environment(self, env):
         # prevents Lightning from overriding the Environment required for SageMaker
         pass
+
 
 def use_inference_server(cfg, model, trainer):
     if not HAVE_MEGATRON_CORE:
