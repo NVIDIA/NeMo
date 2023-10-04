@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
 from contextlib import contextmanager
 
 import torch
@@ -228,14 +229,28 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         temperature: temperature of top-k sampling, all logits are divided
             by temperature before rescaling. High temperature leads to
             uniform distribution, low leads to delta-like distribution.
+        top_p: Optional, if not None, further limits the tokens sampled from,
+            such that the sum of their probabilities does not exceed top_p.
+            This helps avoid sampling extremely low probability tokens, and
+            can be used in combination with top-k decoding.
     Kwargs:
         all remaining parameters of GreedySequenceGenerator class
     """
 
-    def __init__(self, embedding, decoder, log_softmax, beam_size=1, temperature=1.0, **kwargs):
+    def __init__(
+        self,
+        embedding: torch.nn.Module,
+        decoder: torch.nn.Module,
+        log_softmax: torch.nn.Module,
+        beam_size: int = 1,
+        temperature: float = 1.0,
+        top_p: Optional[float] = None,
+        **kwargs,
+    ):
         super().__init__(embedding, decoder, log_softmax, **kwargs)
         self.beam_size = beam_size
         self.temp = temperature
+        self.top_p = top_p
 
     # @torch.no_grad()
     def _one_step_forward(
@@ -252,16 +267,25 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
 
         batch_size, seq_len, vocab_size = log_probs.size()
         scores, indices = torch.topk(log_probs, self.beam_size, dim=-1)
+        scores /= self.temp
+        probs = scores.exp()
+        probs = probs / probs.norm(1, -1, keepdim=True)
 
-        rescaled_logexp = torch.zeros_like(log_probs).scatter(-1, indices, scores.div(self.temp).exp())
-        probs = rescaled_logexp / rescaled_logexp.norm(1, -1, keepdim=True)
+        if self.top_p is not None:
+            # Get a mask showing where the cumulative probability
+            # exceeds top_p, then shift the mask one to the right
+            token_prob_mask = probs.cumsum(axis=-1) >= self.top_p
+            token_prob_mask = token_prob_mask.cumsum(axis=-1) > 1
+
+            probs[token_prob_mask] = 0
 
         # We randomly sample next tokens from rescaled probability distribution
         # over top-k candidates and return a binary tensor which indicates
         # candidates that have been selected. We call this object
         # `pseudo_log_probs` as genuine log_probs should have -infs instead of
         # 0s and 0s instead of 1s.
-        ids = torch.multinomial(probs.view(-1, vocab_size), 1).view(-1, seq_len, 1)
+        id_indices = torch.multinomial(probs.squeeze(1), 1).view(-1, seq_len, 1)
+        ids = indices.gather(-1, id_indices)
         pseudo_log_probs = torch.zeros_like(log_probs).scatter(-1, ids, 1.0)
 
         return pseudo_log_probs, decoder_mems_list
