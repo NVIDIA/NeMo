@@ -61,6 +61,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         super().__init__(cfg, trainer)
         self.setup_complete = False
         self.inverse_peft = False
+        self.joint_peft = False
         self.base_keys = self.get_all_keys()
         self.freeze()
         self.init_peft_modules()
@@ -151,7 +152,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        if self.setup_complete:
+        if self.setup_complete and not self.joint_peft:
             # Once setup is complete we no longer need to track the frozen part of the model. Only there adapter state dict keeps changing so state_dict only track these.
             return self.get_peft_state_dict()
         else:
@@ -234,6 +235,8 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
 
         if self.inverse_peft:
             opt_params = self.setup_optimizer_param_groups_inverse_training()
+        if self.joint_peft:
+            opt_params = self.setup_optimizer_param_groups_joint_training()
         self._optimizer_param_groups = ({"params": opt_params},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
     
@@ -249,6 +252,18 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             opt_params += [p]
         return opt_params
 
+    def setup_optimizer_param_groups_joint_training(self):
+        """
+        Include all optimizer params.
+        Make all params trainable: base and peft
+        """
+        opt_params = []
+        # make all parameters trainable.
+        for n, p in self.named_parameters():
+            p.requires_grad = True
+            opt_params += [p]
+        return opt_params
+    
 class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer,
@@ -806,6 +821,7 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
                 adapter_l.tie_weights(pos_idx, adapter_0)
                 pos_idx += 1
 
+
 class MegatronGPTNKBModel(MegatronGPTLayerwisePEFTModel):
     """
     MegatronGPTNKBModel is a model that combines a base model (GPTSFTModel) with a Neural Knowledge Bank (NKB) layer.
@@ -843,3 +859,6 @@ class MegatronGPTNKBModel(MegatronGPTLayerwisePEFTModel):
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
+        self.inverse_peft = nkb_cfg.get("inverse_peft", False)
+        self.joint_peft = nkb_cfg.get("joint_peft", False)
+        assert (self.inverse_peft != self.joint_peft or (not self.inverse_peft and not self.joint_peft)), f"Invalid configuration: Both inverse and joint training is set to True" # Only one can be set to True
