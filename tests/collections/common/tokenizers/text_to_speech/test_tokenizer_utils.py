@@ -121,7 +121,7 @@ class TestTokenizerUtils:
 
         output = any_locale_word_tokenize(input_text)
         assert output == expected_output
-    
+
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_french_text_preprocessing_lower(self):
@@ -139,7 +139,7 @@ class TestTokenizerUtils:
 
         output = french_text_preprocessing(input_text)
         assert output == expected_output
-    
+
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_french_text_preprocessing_upper(self):
