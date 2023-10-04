@@ -15,6 +15,7 @@ trainer:
   gradient_clip_val: 1.0
   benchmark: False
   enable_model_summary: True
+  limit_val_batches: 0
 
 exp_manager:
   exp_dir: null
@@ -175,6 +176,8 @@ model:
 
   data:
       num_workers: 16
+      synthetic_data: False # dataset_path and local_root_path can be empty when using synthetic data
+      synthetic_data_length: 10000
       train:
           dataset_path:
             - /datasets/coyo/test.pkl
