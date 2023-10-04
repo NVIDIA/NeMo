@@ -101,7 +101,9 @@ def max_symbols_setup():
     setup["joint"] = DummyRNNTJoint()
     # expected timesteps for max_symbols_per_step=5 are [[0, 0, 0, 0, 0, 1, 1], [1, 1, 1, 1, 1]],
     # so we have both looped and regular iteration on the second frame
-    setup["encoder_output"] = torch.tensor([[[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 0, 1], [2, 0, 0], [0, 0, 0]]], dtype=torch.float32).transpose(1, 2)
+    setup["encoder_output"] = torch.tensor(
+        [[[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 0, 1], [2, 0, 0], [0, 0, 0]]], dtype=torch.float32
+    ).transpose(1, 2)
     setup["encoded_lengths"] = torch.tensor([3, 2])
     return setup
 
