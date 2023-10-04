@@ -264,8 +264,7 @@ class LayerUnitTestStrategy(NLPDDPStrategy):
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
-        parallelization_specs = self.check_parallelization_specs(parallelization_specs, micro_batch_size)
-        self.parallelization_specs = parallelization_specs
+        self.parallelization_specs = self.check_parallelization_specs(parallelization_specs, micro_batch_size)
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
@@ -339,6 +338,11 @@ class LayerUnitTestStrategy(NLPDDPStrategy):
                 app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
     def check_parallelization_specs(self, parallelization_specs: dict, micro_batch_size: int) -> None:
+        """check that parallelization_specs is defined correctly"""
+
+        # currently do not support more than 3 components
+        assert len(parallelization_specs) == 3
+
         assert "stimulus" in parallelization_specs
         assert "test" in parallelization_specs
         assert "response" in parallelization_specs
@@ -350,10 +354,18 @@ class LayerUnitTestStrategy(NLPDDPStrategy):
             assert "data_parallel_group_size" in parallelization_specs[key]
             assert "tensor_model_parallel_group_size" in parallelization_specs[key]
             assert "pipeline_model_parallel_group_size" in parallelization_specs[key]
-            assert "micro_batch_size" in parallelization_specs[key]
 
-            assert parallelization_specs[key]["micro_batch_size"] == micro_batch_size, \
-                'micro_batch_size in parallelization_specs must match global micro_batch_size.'
+        # check that tensor_model_parallel_group_size is constant
+        assert parallelization_specs["stimulus"]["tensor_model_parallel_group_size"] == \
+            parallelization_specs["test"]["tensor_model_parallel_group_size"] == \
+            parallelization_specs["response"]["tensor_model_parallel_group_size"], \
+            "non-uniform tensor parallelism is not yet supported"
+
+        if (parallelization_specs["test"]["data_parallel_group_size"] != \
+            parallelization_specs["stimulus"]["data_parallel_group_size"]) or ( \
+            parallelization_specs["test"]["data_parallel_group_size"] != \
+            parallelization_specs["response"]["data_parallel_group_size"]):
+            print('Warning, non-uniform data parallelism is extremly experimental and most likely has bugs!')
 
         # make sure stimulus -> test -> response
         ordered_parallelization_specs = {}
