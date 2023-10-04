@@ -398,6 +398,7 @@ def synced_generate(
     end_strings=[],
     mode="teacher-forced",
     min_tokens_to_generate=0,
+    vocab_size=256000
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -419,6 +420,7 @@ def synced_generate(
             "greedy": greedy,
             "repetition_penalty": repetition_penalty,
             "min_tokens_to_generate": min_tokens_to_generate,
+            "vocab_size": vocab_size
         }
         if mode == "teacher-forced":
             func = sample_sequence_batch_teacherforced
@@ -595,6 +597,7 @@ def generate(
         end_strings=end_strings,
         mode=mode,
         min_tokens_to_generate=min_tokens_to_generate,
+        vocab_size=vocab_size
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -767,7 +770,7 @@ def sample_sequence_batch(
                     logits[within_min_length, eod_id] = -float('Inf')
 
                 # make sure it won't sample outside the vocab_size range
-                logits[:, 256000 + 1024 :] = -float('Inf')
+                logits[:, extra["vocab_size"] + 1024 :] = -float('Inf')
 
                 # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
 
@@ -776,7 +779,7 @@ def sample_sequence_batch(
                     prev = torch.argmax(logits, dim=-1).view(-1)
                     prev_speech = torch.argmax(speech_logits, dim=1)
                     for i in range(7):
-                        prev_speech[:, i] = prev_speech[:, i] + 256000 + 1024 * (i + 1)
+                        prev_speech[:, i] = prev_speech[:, i] + extra["vocab_size"] + 1024 * (i + 1)
                 elif extra.get('temperature', 0.) > 0.:
                     # print(logits.shape)
                     # print(speech_logits.shape)
@@ -786,8 +789,8 @@ def sample_sequence_batch(
                     prev_speech_dist = torch.nn.functional.softmax(speech_logits / temperature, dim=1)
                     prev_speech = torch.zeros(1, 7,device=prev_speech_dist.device)
                     for i in range(7):
-                        prev_speech[0, i] = torch.multinomial(prev_speech_dist[0,:,i], 1) + 256000 + 1024 * (i + 1)
-                        # prev_speech[:, i] = prev_speech[:, i] + 256000 + 1024 * (i + 1)
+                        prev_speech[0, i] = torch.multinomial(prev_speech_dist[0,:,i], 1) + extra["vocab_size"] + 1024 * (i + 1)
+                        # prev_speech[:, i] = prev_speech[:, i] + extra["vocab_size"] + 1024 * (i + 1)
                 else:
                     raise NotImplementedError("No support for 2D speech tokens :(")
                     logits = logits.float()
@@ -804,8 +807,8 @@ def sample_sequence_batch(
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1 + 1024)
                 # new_tokens = switch(tokens[:, 0, context_length].view(-1), prev, started)
                 new_0th_tokens = switch(tokens[:, 0, context_length].view(-1), prev, started)
-                is_speech = new_0th_tokens >= 256000
-                # is_speech = new_tokens >= 256000
+                is_speech = new_0th_tokens >= extra["vocab_size"]
+                # is_speech = new_tokens >= extra["vocab_size"]
                 speech_tokens = torch.zeros([batch_size, 7], device=tokens.device)
                 for i in range(7):
                     speech_tokens[:, i] = switch(
@@ -990,7 +993,7 @@ def sample_sequence_batch_teacherforced(
                     logits[within_min_length, eod_id] = -float('Inf')
 
                 # make sure it won't sample outside the vocab_size range
-                logits[:, 256000 + 1024 :] = -float('Inf')
+                logits[:, extra["vocab_size"] + 1024 :] = -float('Inf')
 
                 # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
 
@@ -1000,7 +1003,7 @@ def sample_sequence_batch_teacherforced(
                     prev = torch.argmax(logits, dim=-1).view(-1)
                     prev_speech = torch.argmax(speech_logits, dim=1)
                     for i in range(7):
-                        prev_speech[:, i] = prev_speech[:, i] + 256000 + 1024 * (i + 1)
+                        prev_speech[:, i] = prev_speech[:, i] + extra["vocab_size"] + 1024 * (i + 1)
                 else:
                     raise NotImplementedError("No support for 2D speech tokens :(")
                     logits = logits.float()
@@ -1017,8 +1020,8 @@ def sample_sequence_batch_teacherforced(
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1 + 1024)
                 # new_tokens = switch(tokens[:, 0, context_length].view(-1), prev, started)
                 new_0th_tokens = switch(tokens[:, 0, context_length].view(-1), prev, started)
-                is_speech = new_0th_tokens >= 256000
-                # is_speech = new_tokens >= 256000
+                is_speech = new_0th_tokens >= extra["vocab_size"]
+                # is_speech = new_tokens >= extra["vocab_size"]
                 speech_tokens = torch.zeros([batch_size, 7], device=tokens.device)
                 for i in range(7):
                     speech_tokens[:, i] = switch(
@@ -1069,11 +1072,11 @@ def sample_sequence_batch_teacherforced(
                 torch.distributed.broadcast(new_0th_tokens, src, group)
                 torch.distributed.broadcast(speech_tokens, src, group)
 
-                #                done_token = (prev == eod_id).byte() & started.byte()
-                done_token = inference_strategy.end_of_generation_condition(
-                    tokens[:, 0, : context_length + 1], prev, eod_id, end_strings
-                )
-                done_token = done_token.byte() & started.byte()
+                done_token = (prev == eod_id).byte() & started.byte()
+                # done_token = inference_strategy.end_of_generation_condition(
+                #     tokens[:, 0, : context_length + 1], prev, eod_id, end_strings
+                # )
+                # done_token = done_token.byte() & started.byte()
 
                 just_finished = (done_token & ~is_done).bool()
                 lengths[just_finished.view(-1)] = context_length
