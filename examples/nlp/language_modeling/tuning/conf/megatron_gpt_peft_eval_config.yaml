@@ -26,7 +26,7 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: validation_${model.data.validation_ds.metric.name}
+    monitor: validation_${model.data.test_ds.metric.name}
     save_top_k: 1
     mode: max
     save_nemo_on_train_end: True
@@ -39,12 +39,12 @@ model:
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
-  
+
   global_batch_size: 1
   micro_batch_size: 1
   restore_from_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
-  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
+  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   sync_batch_comm: False
   megatron_amp_O2: False
 
@@ -53,8 +53,8 @@ model:
   # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
   sequence_parallel: False
 
-  ## Activation Checkpoint 
-  activations_checkpoint_granularity: null # 'selective' or 'full' 
+  ## Activation Checkpoint
+  activations_checkpoint_granularity: null # 'selective' or 'full'
   activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
   # 'uniform' divides the total number of transformer layers and checkpoints the input activation
   # of each chunk at the specified granularity
@@ -73,17 +73,29 @@ model:
     restore_from_path: null
     restore_from_ckpt_name: null
     restore_from_hparams_path: null
-    
+
     # Used for adapter peft training
     adapter_tuning:
       type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
       adapter_dim: 32
       adapter_dropout: 0.0
-      norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
+      norm_position: 'pre' # This can be set to 'pre', 'post' or null, 'pre' is normally what is used.
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
-    
+      layer_selection: null  # selects in which layers to add adapters, e.g. [1,12] will add adapters to layer 1 (lowest) and 12. null will apply adapters to all layers
+      weight_tying: False
+      position_embedding_strategy: null # used only when weight_tying is True
+
+    lora_tuning:
+      adapter_dim: 32
+      adapter_dropout: 0.0
+      column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      layer_selection:  null  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+      weight_tying: False
+      position_embedding_strategy: null # used only when weight_tying is True
+
     # Used for p-tuning peft training
     p_tuning:
       virtual_tokens: 10  # The number of virtual tokens the prompt encoder should add at the start of the sequence
@@ -91,18 +103,22 @@ model:
       embedding_dim: 1024  # the size of the prompt encoder embeddings
       init_std: 0.023
 
+    ia3_tuning:
+      layer_selection:  null  # selects in which layers to add ia3 adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+
   data:
     test_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: ??? # Names of the corresponding datasets used to log metrics.
-      global_batch_size: ???
-      micro_batch_size: ???
+      global_batch_size: 1
+      micro_batch_size: 1
       shuffle: False
       num_workers: 0
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
       drop_last: False
+      context_key: 'input'
       label_key: ${data.train_ds.label_key}
       add_eos: ${data.train_ds.add_eos}
       add_sep: ${data.train_ds.add_sep}
