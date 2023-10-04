@@ -898,13 +898,15 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             drop_last=cfg.get("drop_last", False),
         )
 
-    def replace_beam_with_sampling(self, topk=500):
+    def replace_beam_with_sampling(self, top_k: int = 500, temp: float = 1.0, top_p: Optional[float] = None):
         self.beam_search = TopKSequenceGenerator(
             embedding=self.decoder.embedding,
             decoder=self.decoder.decoder,
             log_softmax=self.log_softmax,
             max_sequence_length=self.beam_search.max_seq_length,
-            beam_size=topk,
+            beam_size=top_k,
+            temperature=temp,
+            top_p=top_p,
             bos=self.decoder_tokenizer.bos_id,
             pad=self.decoder_tokenizer.pad_id,
             eos=self.decoder_tokenizer.eos_id,

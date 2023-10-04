@@ -36,6 +36,7 @@ class SequenceGeneratorConfig:
     max_delta_length: int = -1
     temperature: float = 1.0  # for top-k sampling
     beam_size: int = 1  # K for top-k sampling, N for beam search
+    top_p: Optional[float] = None  # for top-k sampling, adds a top-p term
     len_pen: float = 0.0  # for beam-search
 
 
@@ -77,8 +78,15 @@ class SequenceGenerator:
         elif self._type == self.TYPE_TOPK:
             beam_size = cfg.get("beam_size", 1)
             temperature = cfg.get("temperature", 1.0)
+            top_p = cfg.get("top_p", None)
             self.generator = TopKSequenceGenerator(
-                embedding, decoder, log_softmax, beam_size, temperature, **common_args
+                embedding,
+                decoder,
+                log_softmax,
+                beam_size=beam_size,
+                temperature=temperature,
+                top_p=top_p,
+                **common_args,
             )
         elif self._type == self.TYPE_BEAM:
             beam_size = cfg.get("beam_size", 1)
