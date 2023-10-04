@@ -28,7 +28,8 @@ for full list of arguments >>
     output_filename: Optional - output filename where the transcriptions will be written.
 
     use_cer: Bool, whether to compute CER or WER
-    use_per: Bool, compute dataset Punctuation Error Rate
+    use_per: Bool, compute dataset Punctuation Error Rate (set the argument "text_processing.punctuation_marks"
+    to calculate punctuation rates by selected punctuation marks)
      
     tolerance: Float, minimum WER/CER required to pass some arbitrary tolerance.
 
@@ -174,7 +175,7 @@ def main(cfg: EvaluationConfig):
         per_data_obj = PERData(
             hypotheses=predicted_text,
             references=ground_truth_text,
-            punctuation_marks=cfg.text_processing.punctuation_marks,
+            punctuation_marks=list(cfg.text_processing.punctuation_marks),
         )
         per_data_obj.compute()
         per = per_data_obj.per
