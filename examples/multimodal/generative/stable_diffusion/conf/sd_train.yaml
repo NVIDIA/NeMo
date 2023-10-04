@@ -186,9 +186,11 @@ model:
 
   data:
       num_workers: 16
+      synthetic_data: False # dataset_path and local_root_path can be empty when using synthetic data
+      synthetic_data_length: 10000
       train:
           dataset_path:
-              - /datasets/coyo/test.pkl
+              - /datasets/coyo/wdinfo.pkl
           augmentations:
             resize_smallest_side: 512
             center_crop_h_w: 512, 512
