@@ -29,7 +29,8 @@ for full list of arguments >>
     metrics per sample will be written there too)
 
     use_cer: Bool, whether to compute CER or WER
-    use_per: Bool, compute dataset Punctuation Error Rate
+    use_per: Bool, compute dataset Punctuation Error Rate (set the punctuation marks for metrics computation with 
+    "text_processing.punctuation_marks")
      
     tolerance: Float, minimum WER/CER required to pass some arbitrary tolerance.
 
@@ -79,7 +80,6 @@ from nemo.utils import logging
 try:
     import pandas as pd
     from tabulate import tabulate
-
     HAVE_TABLUATE_AND_PANDAS = True
 except (ImportError, ModuleNotFoundError):
     HAVE_TABLUATE_AND_PANDAS = False
