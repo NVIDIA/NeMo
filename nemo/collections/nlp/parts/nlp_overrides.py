@@ -806,8 +806,11 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
                 checkpoint = {}
                 sharded_state_dict = instance.sharded_state_dict()
                 peft_state_dict = instance.get_peft_state_dict()
-                for k in peft_state_dict.keys():
-                    sharded_state_dict.pop(k)
+
+                if conf.peft.peft_scheme != "ptuning":
+                    for k in peft_state_dict.keys():
+                        sharded_state_dict.pop(k)
+
                 checkpoint['state_dict'] = sharded_state_dict
                 # remove model weights extension
                 tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
