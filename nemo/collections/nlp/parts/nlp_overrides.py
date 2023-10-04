@@ -589,6 +589,111 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
 
+        loaded_keys = state_dict.keys()
+        if 'model.model.diffusion_model.input_blocks.1.0.in_layers.2.weight' in loaded_keys:
+            new_state_dict = {}
+            # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
+            for key_ in state_dict.keys():
+                if key_ == "model.cond_stage_model.transformer.text_model.embeddings.position_ids":
+                    continue
+                if key_ in [
+                    "model.model.diffusion_model.input_blocks.1.0.in_layers.2.weight",
+                    "model.model.diffusion_model.input_blocks.1.0.in_layers.2.bias",
+                    "model.model.diffusion_model.input_blocks.1.0.out_layers.3.weight",
+                    "model.model.diffusion_model.input_blocks.1.0.out_layers.3.bias",
+                    "model.model.diffusion_model.input_blocks.2.0.in_layers.2.weight",
+                    "model.model.diffusion_model.input_blocks.2.0.in_layers.2.bias",
+                    "model.model.diffusion_model.input_blocks.2.0.out_layers.3.weight",
+                    "model.model.diffusion_model.input_blocks.2.0.out_layers.3.bias",
+                    "model.model.diffusion_model.input_blocks.4.0.in_layers.2.weight",
+                    "model.model.diffusion_model.input_blocks.4.0.in_layers.2.bias",
+                    "model.model.diffusion_model.input_blocks.4.0.out_layers.3.weight",
+                    "model.model.diffusion_model.input_blocks.4.0.out_layers.3.bias",
+                    "model.model.diffusion_model.input_blocks.5.0.in_layers.2.weight",
+                    "model.model.diffusion_model.input_blocks.5.0.in_layers.2.bias",
+                    "model.model.diffusion_model.input_blocks.5.0.out_layers.3.weight",
+                    "model.model.diffusion_model.input_blocks.5.0.out_layers.3.bias",
+                    "model.model.diffusion_model.input_blocks.7.0.in_layers.2.weight",
+                    "model.model.diffusion_model.input_blocks.7.0.in_layers.2.bias",
+                    "model.model.diffusion_model.input_blocks.7.0.out_layers.3.weight",
+                    "model.model.diffusion_model.input_blocks.7.0.out_layers.3.bias",
+                    "model.model.diffusion_model.input_blocks.8.0.in_layers.2.weight",
+                    "model.model.diffusion_model.input_blocks.8.0.in_layers.2.bias",
+                    "model.model.diffusion_model.input_blocks.8.0.out_layers.3.weight",
+                    "model.model.diffusion_model.input_blocks.8.0.out_layers.3.bias",
+                    "model.model.diffusion_model.input_blocks.10.0.in_layers.2.weight",
+                    "model.model.diffusion_model.input_blocks.10.0.in_layers.2.bias",
+                    "model.model.diffusion_model.input_blocks.10.0.out_layers.3.weight",
+                    "model.model.diffusion_model.input_blocks.10.0.out_layers.3.bias",
+                    "model.model.diffusion_model.input_blocks.11.0.in_layers.2.weight",
+                    "model.model.diffusion_model.input_blocks.11.0.in_layers.2.bias",
+                    "model.model.diffusion_model.input_blocks.11.0.out_layers.3.weight",
+                    "model.model.diffusion_model.input_blocks.11.0.out_layers.3.bias",
+                    "model.model.diffusion_model.middle_block.0.in_layers.2.weight",
+                    "model.model.diffusion_model.middle_block.0.in_layers.2.bias",
+                    "model.model.diffusion_model.middle_block.0.out_layers.3.weight",
+                    "model.model.diffusion_model.middle_block.0.out_layers.3.bias",
+                    "model.model.diffusion_model.middle_block.2.in_layers.2.weight",
+                    "model.model.diffusion_model.middle_block.2.in_layers.2.bias",
+                    "model.model.diffusion_model.middle_block.2.out_layers.3.weight",
+                    "model.model.diffusion_model.middle_block.2.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.0.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.0.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.0.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.0.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.1.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.1.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.1.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.1.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.2.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.2.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.2.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.2.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.3.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.3.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.3.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.3.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.4.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.4.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.4.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.4.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.5.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.5.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.5.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.5.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.6.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.6.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.6.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.6.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.7.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.7.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.7.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.7.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.8.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.8.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.8.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.8.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.9.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.9.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.9.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.9.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.10.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.10.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.10.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.10.0.out_layers.3.bias",
+                    "model.model.diffusion_model.output_blocks.11.0.in_layers.2.weight",
+                    "model.model.diffusion_model.output_blocks.11.0.in_layers.2.bias",
+                    "model.model.diffusion_model.output_blocks.11.0.out_layers.3.weight",
+                    "model.model.diffusion_model.output_blocks.11.0.out_layers.3.bias",
+                ]:
+                    s = key_.split('.')
+                    idx = int(s[-2])
+                    new_key_ = ".".join(s[:-2] + [str(int(idx - 1))] + [s[-1]])
+                    new_state_dict[new_key_] = state_dict[key_]
+                else:
+                    new_state_dict[key_] = state_dict[key_]
+            state_dict = new_state_dict
+
         return state_dict
 
     def _load_state_dict_from_disk(self, model_weights, map_location=None):

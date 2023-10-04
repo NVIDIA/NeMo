@@ -1,10 +1,10 @@
 name: Dreambooth
 
 trainer:
-  devices: 2
+  devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16
+  precision: bf16-mixed
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
@@ -23,7 +23,7 @@ exp_manager:
   create_checkpoint_callback: True
   create_tensorboard_logger: True
   checkpoint_callback_params:
-    every_n_train_steps: 100
+    every_n_train_steps: 200
     every_n_epochs: 0
     monitor: reduced_train_loss
     save_on_train_epoch_end: False
@@ -46,10 +46,10 @@ model:
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 2 # limited by GPU memory
-  global_batch_size: 4 # will use more micro batches to reach global batch size
+  global_batch_size: 2 # will use more micro batches to reach global batch size
 
   with_prior_preservation: False
-  pretrained_ckpt:
+  use_cached_latents: True
   prior_loss_weight: 0.5
   train_text_encoder: False
   restore_from_path: /ckpts/nemo-v1-5-188000-ema.nemo #This ckpt is only used to generate regularization images, thus .nemo ckpt is needed
@@ -63,7 +63,7 @@ model:
   log_every_t: 200
   timesteps: 1000
   first_stage_key: images
-  cond_stage_key: captions # txt for cifar, caption for pbss
+  cond_stage_key: captions
   image_size: 64
   channels: 4
   cond_stage_trainable: false
@@ -94,10 +94,11 @@ model:
   fused_opt: True
   inductor: False
   inductor_cudagraphs: False
+  channels_last: False
 
   unet_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel.UNetModel
-    from_pretrained: /ckpts/unet-v1-5.bin #load unet weights for finetuning, can use .ckpt ckpts from various sources
+    from_pretrained: /ckpts/unet.bin #load unet weights for finetuning, can use .ckpt ckpts from various sources
     from_NeMo: False #Must be specified when from pretrained is not None, False means loading unet from HF ckpt
     image_size: 32 # unused
     in_channels: 4
@@ -196,15 +197,16 @@ model:
   data:
     name: pbss
     num_workers: 4
-    instance_dir: /dataset/instance_dir
+    instance_dir: /datasets/instance_dir
     instance_prompt: a photo of a sks dog
-    regularization_dir: /dataset/nemo_dogs
+    regularization_dir: /datasets/nemo_dogs
     regularization_prompt: a photo of a dog
     num_reg_images: 200
     num_images_per_prompt: 4
-    train_batch_size: 2
     resolution: 512
     center_crop: True
+    cached_instance_dir: #/datasets/instance_dir_cached
+    cached_reg_dir: #/datasets/nemo_dogs_cached
 
 ##The below infer config is to use inference script generating regularization images
 infer:

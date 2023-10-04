@@ -104,11 +104,11 @@ def pipeline(model, cfg, verbose=True, rng=None):
         )
 
     # get autocast_dtype
-    if cfg.trainer.precision == 'bf16':
+    if cfg.trainer.precision in ['bf16', 'bf16-mixed']:
         autocast_dtype = torch.bfloat16
-    elif int(cfg.trainer.precision) == 32:
+    elif int(cfg.trainer.precision) in ['32', '32-tru']:
         autocast_dtype = torch.float
-    elif int(cfg.trainer.precision) == 16:
+    elif int(cfg.trainer.precision) in ['16', '16-mixed']:
         autocast_dtype = torch.half
     else:
         raise ValueError('precision must be in [32, 16, "bf16"]')

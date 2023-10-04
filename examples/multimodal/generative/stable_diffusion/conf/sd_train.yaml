@@ -89,14 +89,14 @@ model:
   cond_stage_forward:
   text_embedding_dropout_rate: 0.1
   fused_opt: True
-  inductor: True
+  inductor: False
   inductor_cudagraphs: False
   capture_cudagraph_iters: -1 # -1 to disable
   channels_last: True
 
   unet_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel.UNetModel
-    from_pretrained: /ckpts/nemo-v1-2.ckpt
+    from_pretrained: #/ckpts/nemo-v1-2.ckpt
     from_NeMo: True #Must be specified when from pretrained is not None, False means loading unet from HF ckpt
     image_size: 32 # unused
     in_channels: 4
