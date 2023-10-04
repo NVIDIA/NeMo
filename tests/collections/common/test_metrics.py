@@ -189,7 +189,9 @@ class TestPER:
 
     @pytest.mark.unit
     def test_per_function(self):
-        assert punctuation_error_rate([self.reference], [self.hypothesis], self.punctuation_marks) == self.reference_per
+        assert (
+            punctuation_error_rate([self.reference], [self.hypothesis], self.punctuation_marks) == self.reference_per
+        )
 
     @pytest.mark.unit
     def test_per_class(self):
