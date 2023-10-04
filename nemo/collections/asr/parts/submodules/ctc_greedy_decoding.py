@@ -253,9 +253,7 @@ class GreedyCTCInferConfig:
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     preserve_frame_confidence: bool = False
-    confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(
-        default_factory=lambda: ConfidenceMethodConfig()
-    )
+    confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
