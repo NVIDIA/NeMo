@@ -63,7 +63,7 @@ class LoraPEFTConfig(PEFTConfig):
         num_query_groups = cfg.get("num_query_groups", None)
         if num_query_groups is None:
             num_query_groups = cfg.num_attention_heads
-        qkv_projection_size = projection_size + 2 * kv_channels * num_query_groups
+        qkv_projection_size = projection_size + (2 * kv_channels * num_query_groups)
 
         config_args = {
             "in_features": cfg.hidden_size,
