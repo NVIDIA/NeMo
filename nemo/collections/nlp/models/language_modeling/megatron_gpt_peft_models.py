@@ -697,7 +697,7 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
                     activation="identity",
                     column_init_method=lora_cfg.get("column_init_method", "normal"),
                     row_init_method=lora_cfg.get("row_init_method", "zero"),
-                    gather_output=False,
+                    gather_output=True,
                     dropout=lora_cfg.adapter_dropout,
                 )
 
