@@ -617,10 +617,12 @@ class MegatronBaseModel(NLPModel):
                 num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])
                 num_parameters_on_device -= num_word_embedding_parameters
 
-        # to be summed across data parallel group
-        total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
-
-        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+        for group in parallel_state.get_model_parallel_groups():
+            # to be summed across data parallel group
+            # each model parallel group should have same number of parameters,
+            # so it doesn't matter if total_num_parameters is calculated multiple times
+            total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
+            torch.distributed.all_reduce(total_num_parameters, group=group)
 
         return num_parameters_on_device, total_num_parameters
 
