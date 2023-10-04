@@ -16,8 +16,9 @@ import re
 from collections import namedtuple
 from tqdm import tqdm
 
+from nemo.utils import logging
 
-def per(
+def punctuation_error_rate(
     references: list[str], hypotheses: list[str], punctuation_marks: list[str], punctuation_mask: str = "[PUNCT]",
 ) -> None:
 
@@ -402,6 +403,8 @@ class PERData:
                     for inner_key, value in inner_dict.items():
                         amounts[outer_key][inner_key] += value
             return amounts
+        
+        logging.info("Computing Punctuation Error Rate")
 
         for reference, hypothesis in tqdm(zip(self.references, self.hypotheses), total=len(self.references)):
             operation_amounts, substitution_amounts, punctuation_rates = self.per_obj.compute(reference, hypothesis)
