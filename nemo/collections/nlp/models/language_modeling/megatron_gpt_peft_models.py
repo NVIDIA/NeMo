@@ -846,7 +846,7 @@ class MegatronGPTNKBModel(MegatronGPTLayerwisePEFTModel):
         adapter_cfg = NeuralKnowledgeBankConfig(
             in_features=cfg.hidden_size,
             out_features=cfg.hidden_size,
-            dim=nkb_cfg.adapter_dim,
+            dim=cfg.ffn_hidden_size,
             column_init_method=nkb_cfg.get("column_init_method", "normal"),
             row_init_method=nkb_cfg.get("row_init_method", "zero"),
             dropout=nkb_cfg.adapter_dropout,
