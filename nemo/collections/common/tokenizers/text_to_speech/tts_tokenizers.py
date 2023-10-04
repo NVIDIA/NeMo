@@ -286,7 +286,7 @@ class FrenchCharsTokenizer(BaseCharsTokenizer):
             non_default_punct_list: List of punctuation marks which will be used instead default.
         """
 
-        fr_alphabet = get_grapheme_character_set("fr-FR")
+        fr_alphabet = get_grapheme_character_set(locale="fr-FR", case="mixed")
         super().__init__(
             chars=fr_alphabet,
             punct=punct,

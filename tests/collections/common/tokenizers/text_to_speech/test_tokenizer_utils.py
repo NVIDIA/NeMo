@@ -16,6 +16,7 @@ import pytest
 from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     any_locale_word_tokenize,
     english_word_tokenize,
+    french_text_preprocessing,
 )
 
 
@@ -119,4 +120,31 @@ class TestTokenizerUtils:
         )
 
         output = any_locale_word_tokenize(input_text)
+        assert output == expected_output
+    
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_french_text_preprocessing_lower(self):
+        input_text = "pomme banane poire"
+        expected_output = "pomme banane poire"
+
+        output = french_text_preprocessing(input_text)
+        assert output == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_french_text_preprocessing_mixed(self):
+        input_text = "BONJOUR le Monde!"
+        expected_output = "bonjour le monde!"
+
+        output = french_text_preprocessing(input_text)
+        assert output == expected_output
+    
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_french_text_preprocessing_upper(self):
+        input_text = "A BIENTÔT."
+        expected_output = "a bientôt."
+
+        output = french_text_preprocessing(input_text)
         assert output == expected_output

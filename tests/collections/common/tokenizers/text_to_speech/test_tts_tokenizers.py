@@ -16,6 +16,7 @@ import pytest
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     EnglishCharsTokenizer,
+    FrenchCharsTokenizer,
     GermanCharsTokenizer,
     IPATokenizer,
     ItalianCharsTokenizer,
@@ -109,6 +110,18 @@ class TestTTSTokenizers:
         expected_output = "¿cuál es su nombre?"
 
         tokenizer = SpanishCharsTokenizer()
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+        assert len(tokens) == len(input_text)
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_french_chars_tokenizer(self):
+        input_text = "Bon après-midi !"
+        expected_output = "bon après-midi !"
+
+        tokenizer = FrenchCharsTokenizer()
         chars, tokens = self._parse_text(tokenizer, input_text)
 
         assert chars == expected_output
