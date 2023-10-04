@@ -75,7 +75,9 @@ def prepare_reg_data(cfg):
         images_to_generate = cfg.model.data.num_reg_images - NUM_REG_IMAGES
         images_to_generate = images_to_generate // trainer.world_size
 
-        logging.info(f"No enough images in regularization folder, generating {images_to_generate} from provided ckpt")
+        logging.info(
+            f"No enough images in regularization folder, generating {images_to_generate} from provided ckpt on each device"
+        )
 
         for i in range(images_to_generate // num_images_per_prompt + 1):
             output = pipeline(model, cfg, verbose=False, rng=rng)
@@ -99,6 +101,9 @@ def main(cfg):
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     torch.backends.cuda.matmul.allow_tf32 = True
+
+    prepare_reg_data(cfg)
+    parallel_state.destroy_model_parallel()
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
 

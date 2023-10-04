@@ -31,6 +31,9 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
     make_beta_schedule,
     noise_like,
 )
+from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import (
+    DiagonalGaussianDistribution,
+)
 from nemo.collections.multimodal.parts.stable_diffusion.utils import default, exists
 from nemo.collections.multimodal.parts.utils import randn_like
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
@@ -90,7 +93,6 @@ class DreamBooth(torch.nn.Module, Serialization):
         self.config = model_parallel_config
         self.with_prior_preservation = self.cfg.with_prior_preservation
         self.num_reg_images = self.cfg.data.num_reg_images
-        self.pretrained_ckpt = self.cfg.pretrained_ckpt
         self.prior_loss_weight = self.cfg.prior_loss_weight
         self.num_images_per_prompt = self.cfg.data.num_images_per_prompt
 
@@ -110,6 +112,11 @@ class DreamBooth(torch.nn.Module, Serialization):
 
         self.model_type = None
         self.rng = torch.Generator(device=torch.cuda.current_device(),)
+
+        self.use_cached_latents = self.cfg.use_cached_latents
+
+        if self.cfg.channels_last:
+            self.unet = self.unet.to(memory_format=torch.channels_last)
 
     def instantiate_unet(self, cfg):
         self.unet = DreamBooth.from_config_dict(cfg)
@@ -145,10 +152,14 @@ class DreamBooth(torch.nn.Module, Serialization):
         self.noise_scheduler = model.eval()
 
     def forward(self, batch):
-        x, cond = batch
 
-        latents = self.vae.encode(x).sample().detach()
-        latents = latents * self.scale_factor
+        x, cond = batch
+        if self.use_cached_latents:
+            x = DiagonalGaussianDistribution(x)
+            latents = x.sample().detach() * self.scale_factor
+        else:
+            latents = self.vae.encode(x).sample().detach()
+            latents = latents * self.scale_factor
 
         noise = randn_like(latents, generator=self.rng)
         t = torch.randint(0, self.num_timesteps, (latents.shape[0],), generator=self.rng, device=latents.device).long()
@@ -177,7 +188,6 @@ class DreamBooth(torch.nn.Module, Serialization):
 
         else:
             loss = torch.nn.functional.mse_loss(target.float(), model_output.float(), reduction="mean")
-
         return loss
 
     def parameters(self):
@@ -326,7 +336,7 @@ class MegatronDreamBooth(MegatronBaseModel):
         if self.cfg.precision in [16, '16', '16-mixed']:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale, batch_size=1)
+                self.log('loss_scale', loss_scale, prog_bar=True, batch_size=1)
 
         self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
@@ -378,7 +388,6 @@ class MegatronDreamBooth(MegatronBaseModel):
         def process_batch(batch):
             # noise_map, condition
             prompts, images = batch
-
             # DB has more dedicated structure for encoding, so we enable autocasting here as well
             with torch.cuda.amp.autocast(
                 self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
@@ -461,17 +470,25 @@ class MegatronDreamBooth(MegatronBaseModel):
             if cfg.regularization_prompt is None:
                 raise ValueError("Regularization prompts must be provided to train with prior preservation loss")
 
-        train_dataset = DreamBoothDataset(
+        self.train_dataset = DreamBoothDataset(
             instance_data_root=cfg.instance_dir,
             instance_prompt=cfg.instance_prompt,
+            with_prior_preservation=self.cfg.with_prior_preservation,
             reg_data_root=cfg.regularization_dir if self.cfg.with_prior_preservation else None,
             reg_prompt=cfg.regularization_prompt if self.cfg.with_prior_preservation else None,
             size=cfg.resolution,
             center_crop=cfg.center_crop,
+            load_cache_latents=self.model.use_cached_latents,
+            cached_instance_data_root=self.cfg.data.get("cached_instance_dir", None),
+            cached_reg_data_root=self.cfg.data.get("cached_reg_dir", None)
+            if self.cfg.with_prior_preservation
+            else None,
+            vae=self.model.vae,
+            text_encoder=self.model.text_encoder,
         )
 
         batch_sampler = MegatronPretrainingRandomSampler(
-            total_samples=len(train_dataset),
+            total_samples=len(self.train_dataset),
             consumed_samples=self.compute_consumed_samples(0),
             micro_batch_size=self.cfg.micro_batch_size,
             global_batch_size=self.cfg.global_batch_size,
@@ -481,7 +498,7 @@ class MegatronDreamBooth(MegatronBaseModel):
         )
 
         self._train_dl = torch.utils.data.DataLoader(
-            train_dataset,
+            self.train_dataset,
             batch_sampler=batch_sampler,
             collate_fn=partial(_collate_fn, with_prior_preservation=self.cfg.with_prior_preservation),
             num_workers=cfg.num_workers,

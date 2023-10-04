@@ -11,13 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import pickle
 from pathlib import Path
 
 import torch
 from PIL import Image
+from pytorch_lightning.utilities import rank_zero_only
 from torch.utils.data import Dataset
 from torchvision import transforms
+from tqdm import tqdm
 
 
 class DreamBoothDataset(Dataset):
@@ -30,29 +33,37 @@ class DreamBoothDataset(Dataset):
         self,
         instance_data_root,
         instance_prompt,
+        with_prior_preservation=False,
         reg_data_root=None,
         reg_prompt=None,
         size=512,
-        center_crop=False,
-        repeat=100,
+        center_crop=True,
+        repeat=10000,
+        load_cache_latents=False,
+        cached_instance_data_root=None,
+        cached_reg_data_root=None,
+        vae=None,
+        text_encoder=None,
     ):
         self.size = size
         self.center_crop = center_crop
 
+        assert instance_data_root or cached_instance_data_root, "must provide instance images to start training."
         self.instance_data_root = Path(instance_data_root)
-        if not self.instance_data_root.exists():
-            raise ValueError("Instance images root doesn't exists.")
+        self.cached_instance_data_root = cached_instance_data_root
+        self.cached_reg_data_root = cached_reg_data_root
 
         self.instance_images_path = list(Path(instance_data_root).iterdir())
         self.num_instance_images = len(self.instance_images_path)
         self.instance_prompt = instance_prompt
         self._length = self.num_instance_images * repeat
+        self.load_cache_latents = load_cache_latents
+        self.with_prior_preservation = with_prior_preservation
 
         if reg_data_root is not None:
             self.reg_data_root = Path(reg_data_root)
             self.reg_images_path = list(self.reg_data_root.iterdir())
             self.num_reg_images = len(self.reg_images_path)
-            self._length = max(self.num_reg_images, self.num_instance_images)
             self.reg_prompt = reg_prompt
         else:
             self.reg_data_root = None
@@ -66,22 +77,75 @@ class DreamBoothDataset(Dataset):
             ]
         )
 
+        if self.load_cache_latents:
+            if (self.cached_instance_data_root is None) or (
+                self.with_prior_preservation and self.cached_reg_data_root is None
+            ):
+                self.cache_latents(vae, text_encoder)
+
+                self.cached_instance_data_root = f'{self.instance_data_root}_cached'
+                self.cached_reg_data_root = f'{self.reg_data_root}_cached'
+                self.instance_images_path = list(Path(self.cached_instance_data_root).iterdir())
+                self.num_instance_images = len(self.instance_images_path)
+                self.reg_images_path = list(Path(self.cached_reg_data_root).iterdir())
+                self.num_reg_images = len(self.reg_images_path)
+
+            if self.cached_instance_data_root:
+                self.instance_images_path = list(Path(self.cached_instance_data_root).iterdir())
+                self.num_instance_images = len(self.instance_images_path)
+            if self.with_prior_preservation and self.cached_reg_data_root:
+                self.reg_images_path = list(Path(self.cached_reg_data_root).iterdir())
+                self.num_reg_images = len(self.reg_images_path)
+
     def __len__(self):
         return self._length
 
+    def get_image(self, path):
+        image = Image.open(path)
+        if not image.mode == "RGB":
+            image = image.convert("RGB")
+        image = self.image_transforms(image)
+        return image
+
     def __getitem__(self, index):
         example = {}
-        instance_image = Image.open(self.instance_images_path[index % self.num_instance_images])
-        if not instance_image.mode == "RGB":
-            instance_image = instance_image.convert("RGB")
-        example["instance_images"] = self.image_transforms(instance_image)
+        if self.load_cache_latents:
+            example["instance_images"] = torch.load(self.instance_images_path[index % self.num_instance_images])
+        else:
+            example["instance_images"] = self.get_image(self.instance_images_path[index % self.num_instance_images])
         example["instance_prompt"] = self.instance_prompt
 
         if self.reg_data_root:
-            reg_image = Image.open(self.reg_images_path[index % self.num_reg_images])
-            if not reg_image.mode == "RGB":
-                reg_image = reg_image.convert("RGB")
-            example["reg_images"] = self.image_transforms(reg_image)
+            if self.load_cache_latents:
+                example["reg_images"] = torch.load(self.reg_images_path[index % self.num_reg_images])
+            else:
+                example["reg_images"] = self.get_image(self.reg_images_path[index % self.num_reg_images])
             example["reg_prompt"] = self.reg_prompt
 
         return example
+
+    @rank_zero_only
+    def cache_latents(self, vae, text_encoder):
+        os.makedirs(f'{self.instance_data_root}_cached', exist_ok=True)
+        self.cached_instance_data_root = f'{self.instance_data_root}_cached'
+        self.cached_reg_data_root = f'{self.reg_data_root}_cached'
+        if self.instance_data_root and (self.cached_instance_data_root is None):
+
+            for i in tqdm(range(self.num_instance_images)):
+                if len(os.listdir(self.cached_instance_data_root)) == self.num_instance_images:
+                    break
+                x = torch.Tensor(self.get_image(self.instance_images_path[i % self.num_instance_images]))
+                x = torch.unsqueeze(x, dim=0)
+                params = vae.encode(x).parameters.squeeze(dim=0)
+                torch.save(params, f'{self.instance_data_root}_cached/instance_image_cache_{i}.pt')
+
+        if self.with_prior_preservation and self.reg_data_root and (self.cached_reg_data_root is None):
+            os.makedirs(f'{self.reg_data_root}_cached', exist_ok=True)
+
+            for i in tqdm(range(self.num_reg_images)):
+                if len(os.listdir(self.cached_reg_data_root)) == self.num_reg_images:
+                    break
+                x = torch.Tensor(self.get_image(self.reg_images_path[i % self.num_reg_images]))
+                x = torch.unsqueeze(x, dim=0)
+                params = vae.encode(x).parameters.squeeze(dim=0)
+                torch.save(params, f'{self.reg_data_root}_cached/reg_image_cache_{i}.pt')
