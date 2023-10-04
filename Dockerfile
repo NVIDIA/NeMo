@@ -38,19 +38,19 @@ RUN apt-get update && \
   libsndfile1 sox \
   libfreetype6 \
   swig \
-  ffmpeg=ffmpeg_5.1.2-3ubuntu1 \
+  ffmpeg \
   libavdevice-dev && \
   rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/
-
 WORKDIR /tmp/
 
 # Distributed Adam support for multiple dtypes
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
   git checkout 52e18c894223800cb611682dce27d88050edf1de && \
-  pip3 install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+  rm pyproject.toml && \
+  pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # install megatron core, this can be removed once 0.3 pip package is released
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
@@ -59,7 +59,7 @@ RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   pip install -e .
 
 # uninstall stuff from base container
-RUN pip3 uninstall -y sacrebleu torchtext
+RUN pip uninstall -y sacrebleu torchtext
 
 # build torchaudio
 WORKDIR /tmp/torchaudio_build
@@ -76,7 +76,7 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/torchaudio_build/scripts/installers/install_tor
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
-RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 RUN pip install --no-deps encodec
 
 # install flash attention dependencies
@@ -98,11 +98,11 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh); I
   else echo "k2 installed successfully"; fi
 
 # copy nemo source into a scratch image
-FROM scratch as nemo-src
-COPY . .
+# FROM scratch as nemo-src
+# COPY . .
 
 # start building the final container
-FROM nemo-deps as nemo
+# FROM nemo-deps as nemo
 ARG NEMO_VERSION=1.21.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
@@ -112,7 +112,13 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
   /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
 
 # Install NeMo
-RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]"
+# RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]"
+
+WORKDIR /workspace
+COPY . /workspace/nemo
+WORKDIR /workspace/nemo
+RUN pip install ".[all]"
+
 
 # Check install
 RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
@@ -121,14 +127,11 @@ RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
 
 
 # copy scripts/examples/tests into container for end user
-WORKDIR /workspace/nemo
-COPY scripts /workspace/nemo/scripts
-COPY examples /workspace/nemo/examples
-COPY tests /workspace/nemo/tests
-COPY tutorials /workspace/nemo/tutorials
-COPY nemo /workspace/nemo/nemo
-COPY tools /workspace/nemo/tools
-COPY train.sh /workspace/nemo/train.sh
+# WORKDIR /workspace/nemo
+# COPY scripts /workspace/nemo/scripts
+# COPY examples /workspace/nemo/examples
+# COPY tests /workspace/nemo/tests
+# COPY tutorials /workspace/nemo/tutorials
 # COPY README.rst LICENSE /workspace/nemo/
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
