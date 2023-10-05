@@ -1,6 +1,7 @@
 attrdict
 einops
 jieba
+pkuseg
 kornia
 librosa
 matplotlib
