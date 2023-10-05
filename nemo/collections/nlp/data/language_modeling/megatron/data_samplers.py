@@ -79,12 +79,13 @@ class BaseMegatronSampler:
 
     def __len__(self):
         num_available_samples: int = self.total_samples - self.consumed_samples
-        if self.drop_last:
-            return num_available_samples // self.micro_batch_times_data_parallel_size
+        if self.global_batch_size is not None:
+            if self.drop_last:
+                return num_available_samples // self.global_batch_size
+            else:
+                return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
         else:
-            return (
-                num_available_samples + self.global_batch_size if self.global_batch_size is None else 0 - 1
-            ) // self.micro_batch_times_data_parallel_size
+            return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size + 1
 
     @abc.abstractmethod
     def __iter__(self):
@@ -151,12 +152,16 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
 
     def __len__(self):
         num_available_samples: int = self.total_samples
-        if self.drop_last:
-            return num_available_samples // self.micro_batch_times_data_parallel_size
+        if self.global_batch_size is not None:
+            if self.drop_last:
+                return num_available_samples // self.global_batch_size
+            else:
+                return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
         else:
-            return (
-                num_available_samples + self.global_batch_size if self.global_batch_size is not None else 0 - 1
-            ) // self.micro_batch_times_data_parallel_size
+            if self.drop_last:
+                return num_available_samples // self.micro_batch_times_data_parallel_size
+            else:
+                return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size
 
     def __iter__(self):
         active_total_samples = self.total_samples - self.last_batch_size
