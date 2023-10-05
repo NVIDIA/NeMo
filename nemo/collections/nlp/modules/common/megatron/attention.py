@@ -865,7 +865,12 @@ class CoreAttention(MegatronModule):
             # absolute positional embedding.
             # otherwise, only relative positional embedding takes effect
             # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
-
+            import math
+            scale = [1.0 if i <= 4096 else math.log(i, 4096) for i in range(1, key_layer.shape[0]+1)]
+            scale = torch.tensor(scale, device=query_layer.device)
+            scale = scale[-query_layer.shape[0]:, None, None, None]
+            query_layer = query_layer * scale
+            
         if self.position_embedding_type.lower() == 'xpos':
             query_layer = self.xpos(query_layer, offset=key_layer.shape[-2] - query_layer.shape[-2], downscale=False)
             key_layer = self.xpos(key_layer, offset=0, downscale=True)

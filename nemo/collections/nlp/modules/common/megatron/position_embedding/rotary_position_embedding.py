@@ -82,6 +82,7 @@ class RotaryEmbedding(nn.Module):
         super().__init__()
         self.use_yarn = use_yarn
         self.base = base
+        self.dim = dim
         self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
         self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
@@ -94,8 +95,7 @@ class RotaryEmbedding(nn.Module):
             self.attn_factor = attn_factor
             self.beta_fast = beta_fast
             self.beta_slow = beta_slow
-            self.dim = dim
-
+            
             self.yarn(self.seq_len_interpolation_factor)
 
             self.max_seq_len_cached = self.pretrained_max_position_embeddings * self.seq_len_interpolation_factor
@@ -149,7 +149,11 @@ class RotaryEmbedding(nn.Module):
         if self.pretrained_max_position_embeddings is not None and self.seq_len_interpolation_factor is not None:
             if max_seq_len > self.pretrained_max_position_embeddings * self.seq_len_interpolation_factor:
                 # dynamic linear scaling (length > position we have learned)
-                seq *= 1 / (max_seq_len / self.pretrained_max_position_embeddings)
+                # seq *= 1 / (max_seq_len / self.pretrained_max_position_embeddings)
+                scale = 2 * max_seq_len / (self.pretrained_max_position_embeddings * self.seq_len_interpolation_factor) - 1
+                base = self.base * (scale ** (self.dim / (self.dim-2)))
+                inv_freq = 1.0 / ((base ** (torch.arange(0, self.dim, 2, device=self.inv_freq.device).float() / self.dim)))
+                self.register_buffer("inv_freq", inv_freq)
             else:
                 # fixed linear scaling
                 seq *= 1 / self.seq_len_interpolation_factor
