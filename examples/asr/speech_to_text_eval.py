@@ -134,9 +134,6 @@ def main(cfg: EvaluationConfig):
         cfg.output_filename = cfg.dataset_manifest
         transcription_cfg = cfg
 
-    if cfg.scores_per_sample:
-        samples = []
-
     ground_truth_text = []
     predicted_text = []
     invalid_manifest = False
@@ -147,11 +144,6 @@ def main(cfg: EvaluationConfig):
             if 'pred_text' not in data:
                 invalid_manifest = True
                 break
-
-            if cfg.scores_per_sample:
-                samples.append(data)
-            else:
-                samples = None
 
             ground_truth_text.append(data['text'])
 
