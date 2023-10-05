@@ -72,7 +72,11 @@ import transcribe_speech
 from omegaconf import MISSING, OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig, compute_metrics_per_sample
+from nemo.collections.asr.parts.utils.transcribe_utils import (
+    PunctuationCapitalization,
+    TextProcessingConfig,
+    compute_metrics_per_sample,
+)
 from nemo.collections.common.metrics.punct_er import DatasetPunctuationErrorRate
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -178,7 +182,7 @@ def main(cfg: EvaluationConfig):
             f"Invalid manifest provided: {transcription_cfg.output_filename} does not "
             f"contain value for `pred_text`."
         )
-        
+
     if cfg.use_punct_er:
         dper_obj = DatasetPunctuationErrorRate(
             hypotheses=predicted_text,
@@ -190,18 +194,18 @@ def main(cfg: EvaluationConfig):
 
     if cfg.scores_per_sample:
         metrics_to_compute = ["wer", "cer"]
-        
+
         if cfg.use_punct_er:
             metrics_to_compute.append("punct_er")
-        
+
         samples_with_metrics = compute_metrics_per_sample(
             manifest_path=cfg.dataset_manifest,
             reference_field="text",
             hypothesis_field="pred_text",
             metrics=metrics_to_compute,
             punctuation_marks=cfg.text_processing.punctuation_marks,
-            output_manifest_path=cfg.output_filename
-            )
+            output_manifest_path=cfg.output_filename,
+        )
 
     # Compute the WER
     cer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=True)
