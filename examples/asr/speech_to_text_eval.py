@@ -182,7 +182,6 @@ def main(cfg: EvaluationConfig):
             punctuation_marks=list(cfg.text_processing.punctuation_marks),
         )
         dper_obj.compute()
-        punct_er = dper_obj.punct_er
 
     if cfg.scores_per_sample:
         metrics_to_compute = ["wer", "cer"]
@@ -220,6 +219,7 @@ def main(cfg: EvaluationConfig):
 
     if cfg.use_punct_er:
         dper_obj.print()
+        dper_obj.reset()
 
     # Inject the metric name and score into the config, and return the entire config
     with open_dict(cfg):

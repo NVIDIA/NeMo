@@ -437,6 +437,19 @@ class DatasetPunctuationErrorRate:
         self.substitutions_rate = overall_rates.substitutions_rate
         self.punct_er = overall_rates.punct_er
 
+    def reset(self):
+        self.operation_amounts = []
+        self.substitution_amounts = []
+        self.rates = []
+
+        self.operation_rates = None
+        self.substitution_rates = None
+        self.correct_rate = None
+        self.deletions_rate = None
+        self.insertions_rate = None
+        self.substitutions_rate = None
+        self.punct_er = None
+    
     def print(self):
         logging.info(f'Dataset PER ' + str(round(100 * self.punct_er, 2)) + '%')
 
