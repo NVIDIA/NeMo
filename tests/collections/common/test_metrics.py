@@ -16,7 +16,11 @@ import pytest
 import torch
 
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
-from nemo.collections.common.metrics.punct_er import OccurancePunctuationErrorRate, DatasetPunctuationErrorRate, punctuation_error_rate
+from nemo.collections.common.metrics.punct_er import (
+    DatasetPunctuationErrorRate,
+    OccurancePunctuationErrorRate,
+    punctuation_error_rate,
+)
 
 from .loss_inputs import ALL_NUM_MEASUREMENTS_ARE_ZERO, NO_ZERO_NUM_MEASUREMENTS, SOME_NUM_MEASUREMENTS_ARE_ZERO
 from .perplexity_inputs import NO_PROBS_NO_LOGITS, ONLY_LOGITS1, ONLY_LOGITS100, ONLY_PROBS, PROBS_AND_LOGITS
@@ -189,9 +193,7 @@ class TestPunctuationErrorRate:
 
     @pytest.mark.unit
     def test_punctuation_error_rate(self):
-        assert (
-            punctuation_error_rate([self.reference], [self.hypothesis], self.punctuation_marks) == self.punct_er
-        )
+        assert punctuation_error_rate([self.reference], [self.hypothesis], self.punctuation_marks) == self.punct_er
 
     @pytest.mark.unit
     def test_OccurancePunctuationErrorRate(self):

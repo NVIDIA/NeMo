@@ -381,7 +381,9 @@ class DatasetPunctuationErrorRate:
         self.punctuation_marks = punctuation_marks
         self.punctuation_mask = punctuation_mask
 
-        self.oper_obj = OccurancePunctuationErrorRate(punctuation_marks=self.punctuation_marks, punctuation_mask=self.punctuation_mask)
+        self.oper_obj = OccurancePunctuationErrorRate(
+            punctuation_marks=self.punctuation_marks, punctuation_mask=self.punctuation_mask
+        )
 
         self.operation_amounts = []
         self.substitution_amounts = []
