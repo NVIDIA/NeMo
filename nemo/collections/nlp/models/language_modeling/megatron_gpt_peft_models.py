@@ -46,6 +46,7 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
 @deprecated(
     explanation="Please use MegatronGPTSFTModel.add_adapter() for PEFT features."
     "See the updated `megatron_gpt_peft_tuning.py` for an example."
