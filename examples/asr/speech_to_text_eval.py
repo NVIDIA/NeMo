@@ -81,14 +81,6 @@ from nemo.collections.common.metrics.punct_er import DatasetPunctuationErrorRate
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
-try:
-    import pandas as pd
-    from tabulate import tabulate
-
-    HAVE_TABLUATE_AND_PANDAS = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_TABLUATE_AND_PANDAS = False
-
 
 @dataclass
 class EvaluationConfig(transcribe_speech.TranscriptionConfig):
@@ -227,28 +219,7 @@ def main(cfg: EvaluationConfig):
     logging.info(f'Dataset WER/CER ' + str(round(100 * wer, 2)) + "%/" + str(round(100 * cer, 2)) + "%")
 
     if cfg.use_punct_er:
-        logging.info(f'Dataset PER ' + str(round(100 * punct_er, 2)) + '%')
-
-        if HAVE_TABLUATE_AND_PANDAS:
-            rates_by_pm_df = pd.DataFrame(dper_obj.operation_rates) * 100
-            substitution_rates_by_pm_df = pd.DataFrame(dper_obj.substitution_rates) * 100
-
-            logging.info(
-                "Rates of punctuation correctness and errors (%):\n"
-                + tabulate(rates_by_pm_df, headers='keys', tablefmt='psql')
-            )
-            logging.info(
-                "Substitution rates between punctuation marks (%):\n"
-                + tabulate(substitution_rates_by_pm_df, headers='keys', tablefmt='psql')
-            )
-        else:
-            logging.warning("Some of the modules (pandas or tabulate) can't be imported")
-            logging.info(
-                f"Rates of punctuation correctness and errors (in range [0, 1]):\n{dper_obj.operation_rates}\n"
-            )
-            logging.info(
-                f"Substitution rates between punctuation marks (in range [0, 1]):\n{dper_obj.substitution_rates}\n"
-            )
+        dper_obj.print()
 
     # Inject the metric name and score into the config, and return the entire config
     with open_dict(cfg):

@@ -18,6 +18,14 @@ from tqdm import tqdm
 
 from nemo.utils import logging
 
+try:
+    import pandas as pd
+    from tabulate import tabulate
+
+    HAVE_TABLUATE_AND_PANDAS = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_TABLUATE_AND_PANDAS = False
+    
 
 def punctuation_error_rate(
     references: list[str], hypotheses: list[str], punctuation_marks: list[str], punctuation_mask: str = "[PUNCT]",
@@ -428,3 +436,28 @@ class DatasetPunctuationErrorRate:
         self.insertions_rate = overall_rates.insertions_rate
         self.substitutions_rate = overall_rates.substitutions_rate
         self.punct_er = overall_rates.punct_er
+        
+    def print(self):
+        logging.info(f'Dataset PER ' + str(round(100 * self.punct_er, 2)) + '%')
+        
+        if HAVE_TABLUATE_AND_PANDAS:
+            rates_by_pm_df = pd.DataFrame(self.operation_rates) * 100
+            substitution_rates_by_pm_df = pd.DataFrame(self.substitution_rates) * 100
+
+            logging.info(
+                "Rates of punctuation correctness and errors (%):\n"
+                + tabulate(rates_by_pm_df, headers='keys', tablefmt='psql')
+            )
+            logging.info(
+                "Substitution rates between punctuation marks (%):\n"
+                + tabulate(substitution_rates_by_pm_df, headers='keys', tablefmt='psql')
+            )
+        else:
+            logging.warning("Some of the modules (pandas or tabulate) can't be imported")
+            logging.info(
+                f"Rates of punctuation correctness and errors (in range [0, 1]):\n{self.operation_rates}\n"
+            )
+            logging.info(
+                f"Substitution rates between punctuation marks (in range [0, 1]):\n{self.substitution_rates}\n"
+            )
+            
