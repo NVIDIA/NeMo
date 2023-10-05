@@ -482,7 +482,7 @@ def compute_metrics_per_sample(
     punctuation_marks: list[str] = [".", ",", "?"],
     output_manifest_path: str = None,
 ) -> dict:
-    
+
     '''
     Computes metrics per sample for given manifest
     
