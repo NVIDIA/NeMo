@@ -49,11 +49,14 @@ class TestNemoExport:
                         )
                     )
                     Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
+
+                    prompt_embedding_table = np.random.rand(38, 1024)
                     trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
                     trt_llm_exporter.export(
                         nemo_checkpoint_path=model_info["checkpoint"],
                         model_type=model_info["model_type"],
                         n_gpus=n_gpu,
+                        prompt_embeddings_table=prompt_embedding_table,
                     )
                     output = trt_llm_exporter.forward(
                         input_texts=["Hi, how are you?", "I am good, thanks, how about you?"],
@@ -67,16 +70,6 @@ class TestNemoExport:
                         max_output_token = 200,
                     )
                     print("output 2: ", output)
-
-                    hs = trt_llm_exporter2.get_hidden_size()
-                    prompt_embedding_table = np.random.rand(38, hs)
-                    trt_llm_exporter2.set_prompt_embeddings(prompt_embedding_table)
-
-                    output = trt_llm_exporter2.forward(
-                        input_texts=["Let's see how this works", "Did you get the result yet?"],
-                        max_output_token = 200,
-                    )
-                    print("output 3: ", output)
 
                 test_at_least_one = True
 

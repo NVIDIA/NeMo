@@ -93,20 +93,14 @@ class TensorRTLLM(ITritonDeployable):
         path = Path(os.path.join(self.model_dir, "__prompt_embeddings__.npy"))
         if path.exists():
             self.prompt_table = torch.from_numpy(np.load(path))
-            if len(self.prompt_table.shape) > 2:
-                self.task_vocab_size = self.prompt_table.shape[1]
-                self.prompt_table = self.prompt_table.view(
-                    (self.prompt_table.shape[0] * self.prompt_table.shape[1], self.prompt_table.shape[2])
-                )
-            else:
-                self.task_vocab_size = 1
+            self.task_vocab_size = 1
 
             dtype = self.config['builder_config']['precision']
             self.prompt_table = self.prompt_table.cuda().to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype))
 
             if self.prompt_table.shape[1] != self.config["builder_config"]["hidden_size"]:
                 raise Exception(
-                    "Dimension of the prompt table and the hidden size do not match. Please make sure to use the correct prompt table."
+                    "Hidden dimension of the model is {0} and does not match with the dimension of the prompt table.".format(self.config["builder_config"]["hidden_size"])
                 )
         else:
             self.prompt_table = None
@@ -119,25 +113,17 @@ class TensorRTLLM(ITritonDeployable):
             with open(config_path, 'r') as f:
                 self.config = json.load(f)
         else:
-            raise FileNotFoundError("file: {0} could not be found.".format(config_path))
-
-    def _extract_prompt_embeddings(self, prompt_checkpoint_path):
-        if is_nemo_file(prompt_checkpoint_path):
-            vtokens_embeddings = get_prompt_embedding_table(prompt_checkpoint_path)
-            np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), torch_to_numpy(vtokens_embeddings))
-        else:
-            raise FileNotFoundError("file: {0} does not exist or is not a nemo file.".format(prompt_checkpoint_path))
+            raise FileNotFoundError("file: {0} could not be found.".format(config_path))  
 
     def export(
         self,
         nemo_checkpoint_path: str,
         model_type: str,
-        prompt_checkpoint_path: str = None,
+        prompt_embeddings_table = None,
         delete_existing_files: bool = True,
         n_gpus: int = 1,
         max_input_token: int = 512,
         max_output_token: int = 512,
-        max_prompt_embedding_table_size: int = 100,
         max_batch_size: int = 32,
         quantization: bool = None,
         parallel_build: bool = False,
@@ -148,16 +134,22 @@ class TensorRTLLM(ITritonDeployable):
         Args:
             nemo_checkpoint_path (str): path for the nemo checkpoint.
             model_type (str): type of the model. Currently supports "llama" and "gptnext".
-            prompt_checkpoint_path (str): path for the nemo checkpoint that includes prompt table.
+            prompt_embeddings_table (str): prompt embeddings table.
             delete_existing_files (bool): if Truen, deletes all the files in model_dir.
             n_gpus (int): number of GPUs to use for inference.
             max_input_token (int): max input length.
             max_output_token (int): max output length.
-            max_prompt_embedding_table_size (int): max prompt embedding table size.
             max_batch_size (int): max batch size.
             quantization (bool): if True, applies naive quantization.
             parallel_build (bool): build in parallel or not.
         """
+
+        if prompt_embeddings_table is not None:
+            if not isinstance(prompt_embeddings_table, np.ndarray):
+                raise TypeError("Only numpy array is allowed for the prompt embeddings table.")
+
+            if len(prompt_embeddings_table.shape) != 2:
+                raise Exception("A two dimensional prompt embeddings table for a sinlge task is only supported.")
 
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
@@ -182,8 +174,10 @@ class TensorRTLLM(ITritonDeployable):
             in_file=nemo_checkpoint_path, decoder_type=model_type, gpus=n_gpus, nemo_export_dir=nemo_export_dir
         )
 
-        if prompt_checkpoint_path is None:
+        if prompt_embeddings_table is None:
             max_prompt_embedding_table_size = 0
+        else:
+            max_prompt_embedding_table_size = len(prompt_embeddings_table)
 
         model_config_to_tensorrt_llm(
             model_configs,
@@ -195,8 +189,8 @@ class TensorRTLLM(ITritonDeployable):
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )
 
-        if prompt_checkpoint_path is not None:
-            self._extract_prompt_embeddings(prompt_checkpoint_path)
+        if prompt_embeddings_table is not None:
+            np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings_table)
 
         shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         shutil.rmtree(nemo_export_dir)
@@ -235,36 +229,7 @@ class TensorRTLLM(ITritonDeployable):
                 prompt_table=self.prompt_table,
                 task_vocab_size=self.task_vocab_size,
             )
-
-    def set_prompt_embeddings(self, prompt_embeddings):
-        """
-        Adds prompt embeddings
-
-        Args:
-            prompt_embeddings (Torch tensor or numpy array): prompt embeddings table.
-        """
-
-        if not isinstance(prompt_embeddings, np.ndarray):
-            raise TypeError("Only numpy array and torch tensor are allowed.")
-
-        if self.model_dir is None:
-            raise Exception("A model dir cannot be None.")
-
-        if len(prompt_embeddings.shape) != 2:
-            raise Exception("A two dimensional table for a sinlge task is only supported.")
-
-        if torch.is_tensor(prompt_embeddings):
-            prompt_embeddings = torch_to_numpy(prompt_embeddings)
-
-        hd = self.get_hidden_size() 
-        if hd is None:
-            raise Exception("Model config is not available. This means that no model has been loaded.")
-        else:
-            if hd != prompt_embeddings.shape[1]:
-                raise Exception("Model hidden size is {0} and prompt embedding table size has to match with model hidden size.".format(hd))
-
-        np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings)
-        self._load_prompt_table()
+        
 
     def get_hidden_size(self):
         if self.config is None:
