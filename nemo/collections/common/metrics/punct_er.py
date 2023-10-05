@@ -449,7 +449,7 @@ class DatasetPunctuationErrorRate:
         self.insertions_rate = None
         self.substitutions_rate = None
         self.punct_er = None
-    
+
     def print(self):
         logging.info(f'Dataset PER ' + str(round(100 * self.punct_er, 2)) + '%')
 
