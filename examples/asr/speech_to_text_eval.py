@@ -154,6 +154,8 @@ def main(cfg: EvaluationConfig):
 
             if cfg.scores_per_sample:
                 samples.append(data)
+            else:
+                samples = None
 
             ground_truth_text.append(data['text'])
 
