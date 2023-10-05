@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.06-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.08-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -45,17 +45,17 @@ RUN apt-get update && \
 WORKDIR /workspace/
 
 WORKDIR /tmp/
-# TODO: Remove once this Apex commit (5/12/23) is included in PyTorch
-# container
+
+# Distributed Adam support for multiple dtypes
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
-  git checkout 8b7a1ff183741dd8f9b87e7bafd04cfde99cea28 && \
-  pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+  git checkout 52e18c894223800cb611682dce27d88050edf1de && \
+  pip3 install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # install megatron core, this can be removed once 0.3 pip package is released
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout f24fac4ed0dcf0522056521a93445d9a82f501a9 && \
+  git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
   pip install -e .
 
 # uninstall stuff from base container
