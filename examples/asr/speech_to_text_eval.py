@@ -29,7 +29,7 @@ for full list of arguments >>
     metrics per sample will be written there too)
 
     use_cer: Bool, whether to compute CER or WER
-    use_per: Bool, compute dataset Punctuation Error Rate (set the punctuation marks for metrics computation with 
+    use_punct_er: Bool, compute dataset Punctuation Error Rate (set the punctuation marks for metrics computation with 
     "text_processing.punctuation_marks")
      
     tolerance: Float, minimum WER/CER required to pass some arbitrary tolerance.
@@ -73,7 +73,7 @@ from omegaconf import MISSING, OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
-from nemo.collections.common.metrics.per import PERData
+from nemo.collections.common.metrics.punct_er import DatasetPunctuationErrorRate
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -97,7 +97,7 @@ class EvaluationConfig(transcribe_speech.TranscriptionConfig):
     att_context_size: Optional[list] = None
 
     use_cer: bool = False
-    use_per: bool = False
+    use_punct_er: bool = False
     tolerance: Optional[float] = None
 
     only_score_manifest: bool = False
@@ -177,18 +177,18 @@ def main(cfg: EvaluationConfig):
             f"contain value for `pred_text`."
         )
 
-    if cfg.use_per:
-        per_data_obj = PERData(
+    if cfg.use_punct_er:
+        per_data_obj = DatasetPunctuationErrorRate(
             hypotheses=predicted_text,
             references=ground_truth_text,
             punctuation_marks=list(cfg.text_processing.punctuation_marks),
         )
         per_data_obj.compute()
-        per = per_data_obj.per
+        per = per_data_obj.punct_er
 
     if cfg.scores_per_sample:
         samples_with_metrics = []
-        if cfg.use_per:
+        if cfg.use_punct_er:
             for sample, punct_rates in zip(samples, per_data_obj.rates):
                 sample_cer = word_error_rate(
                     hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=True
@@ -202,7 +202,7 @@ def main(cfg: EvaluationConfig):
                 sample["punct_deletions_rate"] = round(100 * punct_rates.deletions_rate, 2)
                 sample["punct_insertions_rate"] = round(100 * punct_rates.insertions_rate, 2)
                 sample["punct_substitutions_rate"] = round(100 * punct_rates.substitution_rate, 2)
-                sample["per"] = round(100 * punct_rates.per, 2)
+                sample["punct_er"] = round(100 * punct_rates.punct_er, 2)
                 samples_with_metrics.append(sample)
         else:
             for sample in samples:
@@ -242,7 +242,7 @@ def main(cfg: EvaluationConfig):
 
     logging.info(f'Dataset WER/CER ' + str(round(100 * wer, 2)) + "%/" + str(round(100 * cer, 2)) + "%")
 
-    if cfg.use_per:
+    if cfg.use_punct_er:
         logging.info(f'Dataset PER ' + str(round(100 * per, 2)) + '%')
 
         if HAVE_TABLUATE_AND_PANDAS:

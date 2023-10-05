@@ -34,22 +34,22 @@ def punctuation_error_rate(
         given punctuation marks while edit distance calculation
         
     Return:
-        per (float) - Punctuation Error Rate
+        punct_er (float) - Punctuation Error Rate
     """
 
-    per_data_obj = PERData(
+    dper_obj = DatasetPunctuationErrorRate(
         references=references,
         hypotheses=hypotheses,
         punctuation_marks=punctuation_marks,
         punctuation_mask=punctuation_mask,
     )
 
-    per_data_obj.compute()
+    dper_obj.compute()
 
-    return per_data_obj.per
+    return dper_obj.punct_er
 
 
-class PER:
+class OccurancePunctuationErrorRate:
     """
     Class for computation puncutation-related absolute amounts of operations and thier rates
     between reference and hypothesis strings:
@@ -67,17 +67,17 @@ class PER:
         given punctuation marks while edit distance calculation 
     
     How to use:
-        1. Create object of PER class.
+        1. Create object of OccurancePunctuationErrorRate class.
            Example:
                 punctuation_marks = [".", ",", "!", "?"]
-                per_obj = PER(punctuation_marks)
+                oper_obj = OccurancePunctuationErrorRate(punctuation_marks)
         
         2. To compute punctuation metrics, pass reference and hypothesis string to the "compute" method
         of created object.
             Example:
                 reference_str = "Hi, dear! Nice to see you. What's"
                 hypothesis_str = "Hi dear! Nice to see you! What's?"
-                per_obj.compute(reference_str, hypothesis_str)
+                oper_obj.compute(reference_str, hypothesis_str)
 
     Output (listed in order of output):
         1. Dict of absolute operations amounts for each given punctuation mark:
@@ -103,8 +103,8 @@ class PER:
                 Example: insertions_rate=0.25
             3.4. substitution_rate - overall substitution_rate
                 Example: substitution_rate=0.25
-            3.5. per - Punctuation Error Rate
-                Example: per=0.75
+            3.5. punct_er - Punctuation Error Rate
+                Example: punct_er=0.75
             3.6. operation_rates - dict of operations rates for each given punctuation mark
                 Example: 
                 operation_rates={
@@ -170,7 +170,7 @@ class PER:
                 'deletions_rate',
                 'insertions_rate',
                 'substitution_rate',
-                'per',
+                'punct_er',
                 'operation_rates',
                 'substitution_rates',
             ],
@@ -183,14 +183,14 @@ class PER:
             deletions_rate = overall_amounts_by_operation["Deletions"] / overall_operations_amount
             insertions_rate = overall_amounts_by_operation["Insertions"] / overall_operations_amount
             substitution_rate = overall_amounts_by_operation["Substitutions"] / overall_operations_amount
-            per = deletions_rate + insertions_rate + substitution_rate
+            punct_er = deletions_rate + insertions_rate + substitution_rate
 
             rates = punctuation_rates(
                 correct_rate,
                 deletions_rate,
                 insertions_rate,
                 substitution_rate,
-                per,
+                punct_er,
                 operation_rates,
                 substitution_rates,
             )
@@ -310,7 +310,7 @@ class PER:
         return operation_amounts, substitution_amounts, punctuation_rates
 
 
-class PERData:
+class DatasetPunctuationErrorRate:
     """
     Class for computation the total puncutation-related absolute amounts of operations and their rates 
     in pairs of reference and hypothesis strins:
@@ -330,41 +330,41 @@ class PERData:
         given punctuation marks while edit distance calculation
         
     How to use:
-        1. Create object of PERData class.
+        1. Create object of DatasetPunctuationErrorRate class.
            Example:
                 references = ["Hi, dear! Nice to see you. What's"]
                 hypotheses = ["Hi dear! Nice to see you! What's?"]                
                 punctuation_marks = [".", ",", "!", "?"]
                 
-                per_data_obj = PERData(references, hypotheses, punctuation_marks)
+                dper_obj = DatasetPunctuationErrorRate(references, hypotheses, punctuation_marks)
                 
         2. To compute punctuation metrics, call the class method "compute()".
             Example:
-                per_data_obj.compute() 
+                dper_obj.compute() 
                 
     Result:
     The following atributes of class object will be updated with calculated metrics values.
     The values are available with calling the atributes:
         
-        per_data_obj.operation_rates - dict, rates of correctness and errors for each punctuation mark 
-        from `preset per_data_obj.punctuation_marks` list.
+        dper_obj.operation_rates - dict, rates of correctness and errors for each punctuation mark 
+        from `preset dper_obj.punctuation_marks` list.
         
-        per_data_obj.substitution_rates - dict, substitution rates between puncutation marks from
-        `preset per_data_obj.punctuation_marks` list.
+        dper_obj.substitution_rates - dict, substitution rates between puncutation marks from
+        `preset dper_obj.punctuation_marks` list.
         
-        per_data_obj.correct_rate - float, total rate of correctness between provided pairs of 
+        dper_obj.correct_rate - float, total rate of correctness between provided pairs of 
         references and hypotheses.
         
-        per_data_obj.deletions_rate - float, total rate of deletions between provided pairs of 
+        dper_obj.deletions_rate - float, total rate of deletions between provided pairs of 
         references and hypotheses.
         
-        per_data_obj.insertions_rate - float, total rate of insertions between provided pairs of 
+        dper_obj.insertions_rate - float, total rate of insertions between provided pairs of 
         references and hypotheses.
         
-        per_data_obj.substitution_rate - float, total rate of substitutions between provided pairs of 
+        dper_obj.substitution_rate - float, total rate of substitutions between provided pairs of 
         references and hypotheses.
         
-        per_data_obj.per - float, total Punctuation Error Rate between provided pairs of 
+        dper_obj.punct_er - float, total Punctuation Error Rate between provided pairs of 
         references and hypotheses.
     """
 
@@ -381,7 +381,7 @@ class PERData:
         self.punctuation_marks = punctuation_marks
         self.punctuation_mask = punctuation_mask
 
-        self.per_obj = PER(punctuation_marks=self.punctuation_marks, punctuation_mask=self.punctuation_mask)
+        self.oper_obj = OccurancePunctuationErrorRate(punctuation_marks=self.punctuation_marks, punctuation_mask=self.punctuation_mask)
 
         self.operation_amounts = []
         self.substitution_amounts = []
@@ -393,7 +393,7 @@ class PERData:
         self.deletions_rate = None
         self.insertions_rate = None
         self.substitution_rate = None
-        self.per = None
+        self.punct_er = None
 
     def compute(self):
         def sum_amounts(amounts_dicts: list[dict]):
@@ -408,14 +408,14 @@ class PERData:
         logging.info("Computing Punctuation Error Rate")
 
         for reference, hypothesis in tqdm(zip(self.references, self.hypotheses), total=len(self.references)):
-            operation_amounts, substitution_amounts, punctuation_rates = self.per_obj.compute(reference, hypothesis)
+            operation_amounts, substitution_amounts, punctuation_rates = self.oper_obj.compute(reference, hypothesis)
             self.operation_amounts.append(operation_amounts)
             self.substitution_amounts.append(substitution_amounts)
             self.rates.append(punctuation_rates)
 
         overall_operation_amounts = sum_amounts(self.operation_amounts)
         overall_substitution_amounts = sum_amounts(self.substitution_amounts)
-        overall_rates = self.per_obj.compute_rates(
+        overall_rates = self.oper_obj.compute_rates(
             operation_amounts=overall_operation_amounts, substitution_amounts=overall_substitution_amounts
         )
 
@@ -425,4 +425,4 @@ class PERData:
         self.deletions_rate = overall_rates.deletions_rate
         self.insertions_rate = overall_rates.insertions_rate
         self.substitution_rate = overall_rates.substitution_rate
-        self.per = overall_rates.per
+        self.punct_er = overall_rates.punct_er

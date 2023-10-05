@@ -16,7 +16,7 @@ import pytest
 import torch
 
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
-from nemo.collections.common.metrics.per import PER, PERData, punctuation_error_rate
+from nemo.collections.common.metrics.punct_er import OccurancePunctuationErrorRate, DatasetPunctuationErrorRate, punctuation_error_rate
 
 from .loss_inputs import ALL_NUM_MEASUREMENTS_ARE_ZERO, NO_ZERO_NUM_MEASUREMENTS, SOME_NUM_MEASUREMENTS_ARE_ZERO
 from .perplexity_inputs import NO_PROBS_NO_LOGITS, ONLY_LOGITS1, ONLY_LOGITS100, ONLY_PROBS, PROBS_AND_LOGITS
@@ -152,35 +152,35 @@ class TestLoss(LossTester):
         )
 
 
-class TestPER:
+class TestPunctuationErrorRate:
     reference = "Hi, dear! Nice to see you. What's"
     hypothesis = "Hi dear! Nice to see you! What's?"
     punctuation_marks = [".", ",", "!", "?"]
 
-    reference_operation_amounts = {
+    operation_amounts = {
         '.': {'Correct': 0, 'Deletions': 0, 'Insertions': 0, 'Substitutions': 1},
         ',': {'Correct': 0, 'Deletions': 1, 'Insertions': 0, 'Substitutions': 0},
         '!': {'Correct': 1, 'Deletions': 0, 'Insertions': 0, 'Substitutions': 0},
         '?': {'Correct': 0, 'Deletions': 0, 'Insertions': 1, 'Substitutions': 0},
     }
-    reference_substitution_amounts = {
+    substitution_amounts = {
         '.': {'.': 0, ',': 0, '!': 1, '?': 0},
         ',': {'.': 0, ',': 0, '!': 0, '?': 0},
         '!': {'.': 0, ',': 0, '!': 0, '?': 0},
         '?': {'.': 0, ',': 0, '!': 0, '?': 0},
     }
-    reference_correct_rate = 0.25
-    reference_deletions_rate = 0.25
-    reference_insertions_rate = 0.25
-    reference_substitution_rate = 0.25
-    reference_per = 0.75
-    reference_operation_rates = {
+    correct_rate = 0.25
+    deletions_rate = 0.25
+    insertions_rate = 0.25
+    substitution_rate = 0.25
+    punct_er = 0.75
+    operation_rates = {
         '.': {'Correct': 0.0, 'Deletions': 0.0, 'Insertions': 0.0, 'Substitutions': 1.0},
         ',': {'Correct': 0.0, 'Deletions': 1.0, 'Insertions': 0.0, 'Substitutions': 0.0},
         '!': {'Correct': 1.0, 'Deletions': 0.0, 'Insertions': 0.0, 'Substitutions': 0.0},
         '?': {'Correct': 0.0, 'Deletions': 0.0, 'Insertions': 1.0, 'Substitutions': 0.0},
     }
-    reference_substitution_rates = {
+    substitution_rates = {
         '.': {'.': 0.0, ',': 0.0, '!': 1.0, '?': 0.0},
         ',': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0},
         '!': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0},
@@ -188,35 +188,35 @@ class TestPER:
     }
 
     @pytest.mark.unit
-    def test_per_function(self):
+    def test_punctuation_error_rate(self):
         assert (
-            punctuation_error_rate([self.reference], [self.hypothesis], self.punctuation_marks) == self.reference_per
+            punctuation_error_rate([self.reference], [self.hypothesis], self.punctuation_marks) == self.punct_er
         )
 
     @pytest.mark.unit
-    def test_per_class(self):
-        per_obj = PER(self.punctuation_marks)
-        operation_amounts, substitution_amounts, punctuation_rates = per_obj.compute(self.reference, self.hypothesis)
+    def test_OccurancePunctuationErrorRate(self):
+        oper_obj = OccurancePunctuationErrorRate(self.punctuation_marks)
+        operation_amounts, substitution_amounts, punctuation_rates = oper_obj.compute(self.reference, self.hypothesis)
 
-        assert operation_amounts == self.reference_operation_amounts
-        assert substitution_amounts == self.reference_substitution_amounts
-        assert punctuation_rates.correct_rate == self.reference_correct_rate
-        assert punctuation_rates.deletions_rate == self.reference_deletions_rate
-        assert punctuation_rates.insertions_rate == self.reference_insertions_rate
-        assert punctuation_rates.substitution_rate == self.reference_substitution_rate
-        assert punctuation_rates.per == self.reference_per
-        assert punctuation_rates.operation_rates == self.reference_operation_rates
-        assert punctuation_rates.substitution_rates == self.reference_substitution_rates
+        assert operation_amounts == self.operation_amounts
+        assert substitution_amounts == self.substitution_amounts
+        assert punctuation_rates.correct_rate == self.correct_rate
+        assert punctuation_rates.deletions_rate == self.deletions_rate
+        assert punctuation_rates.insertions_rate == self.insertions_rate
+        assert punctuation_rates.substitution_rate == self.substitution_rate
+        assert punctuation_rates.punct_er == self.punct_er
+        assert punctuation_rates.operation_rates == self.operation_rates
+        assert punctuation_rates.substitution_rates == self.substitution_rates
 
     @pytest.mark.unit
-    def test_perdata_class(self):
-        per_data_obj = PERData([self.references], [self.hypotheses], self.punctuation_marks)
-        per_data_obj.compute()
+    def test_DatasetPunctuationErrorRate(self):
+        dper_obj = DatasetPunctuationErrorRate([self.reference], [self.hypothesis], self.punctuation_marks)
+        dper_obj.compute()
 
-        assert per_data_obj.correct_rate == self.reference_correct_rate
-        assert per_data_obj.deletions_rate == self.reference_deletions_rate
-        assert per_data_obj.insertions_rate == self.reference_insertions_rate
-        assert per_data_obj.substitution_rate == self.reference_substitution_rate
-        assert per_data_obj.per == self.reference_per
-        assert per_data_obj.operation_rates == self.reference_operation_rates
-        assert per_data_obj.substitution_rates == self.reference_substitution_rates
+        assert dper_obj.correct_rate == self.correct_rate
+        assert dper_obj.deletions_rate == self.deletions_rate
+        assert dper_obj.insertions_rate == self.insertions_rate
+        assert dper_obj.substitution_rate == self.substitution_rate
+        assert dper_obj.punct_er == self.punct_er
+        assert dper_obj.operation_rates == self.operation_rates
+        assert dper_obj.substitution_rates == self.substitution_rates
