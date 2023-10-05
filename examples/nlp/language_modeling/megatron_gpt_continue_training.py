@@ -23,6 +23,7 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import _Checkpoin
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
@@ -156,7 +157,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -182,9 +183,6 @@ def main(cfg) -> None:
         model = load_from_checkpoint_dir(MegatronGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
         print(' > WARNING: No checkpoint provided. Starting from scratch.')
-        # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-        with open_dict(cfg):
-            cfg.model.precision = cfg.trainer.precision
         model = MegatronGPTModel(cfg.model, trainer)
     trainer.fit(model)
 

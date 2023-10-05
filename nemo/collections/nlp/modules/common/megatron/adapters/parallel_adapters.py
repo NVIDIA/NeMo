@@ -26,8 +26,8 @@ from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
-from nemo.collections.nlp.modules.common.prompt_encoder import InferenceTable
 from nemo.core.classes.mixins import adapter_mixin_strategies
+
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
@@ -207,6 +207,12 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             raise NotImplementedError("out_init_method should be zero, normal or xavier")
         return init_fn
 
+    def adapter_unfreeze(self,):
+        """
+        Can be customized to allow for selective training of only some params in the PEFT.
+        """
+        super().adapter_unfreeze()
+
     def forward(self, x):
 
         if self.norm_position == 'pre':
@@ -322,7 +328,8 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         # (@adithyare) the persistent=False will not pollute the indices into the state_dict of this module.
         self.register_buffer("indices", torch.LongTensor(list(range(self.virtual_tokens))), persistent=False)
         self.embedding = torch.nn.Embedding(self.virtual_tokens, self.embedding_dim)
-        self.inference_table = InferenceTable("taskname", self.output_dim, self.virtual_tokens)
+        self.register_buffer("inference_table", torch.Tensor(self.virtual_tokens, self.output_dim), persistent=True)
+        self.is_inference_ready = False
         self.first = ColumnParallelLinear(
             self.embedding_dim,
             self.bottleneck_dim,
@@ -356,13 +363,16 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         This method caches the output representation from the Encoder and saves it inside `self.inference_table`.
         """
         prompt_representation = prompt_representation.detach().clone()
-        self.inference_table.set_prompt_table(prompt_representation)
+        self.inference_table.data = prompt_representation
+        self.is_inference_ready = True
+        return True
 
     def clear_inference_table(self,):
-        self.inference_table.clear_prompt_table()
+        self.inference_table.fill_(0.0)
+        self.is_inference_ready = False
 
     def get_inference_table(self,):
-        return self.inference_table.get_prompt_table()
+        return self.inference_table.data
 
     def inner_forward(self,):
         input_embeds = self.embedding(self.indices).unsqueeze(0)
@@ -381,11 +391,12 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
             output_embeds = self.get_inference_table().unsqueeze(1)
         else:
             if self.training:
-                if self.inference_table.is_inference_ready:
+                if self.is_inference_ready:
                     self.clear_inference_table()
                 output_embeds = self.inner_forward()
             else:
-                if not self.inference_table.is_inference_ready:
+                output_embeds = self.inner_forward()
+                if not self.is_inference_ready:
                     output_embeds = self.inner_forward()
                     self.set_inference_table(output_embeds.squeeze(1))
                 output_embeds = self.get_inference_table().unsqueeze(1)
@@ -424,6 +435,8 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         num_position_embeddings: int = 1,
         dim_position_embeddings: int = 1024,
         position_embedding_strategy: Optional[str] = "add",
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        **kwargs,
     ):
         self.position_embeddings = None
         self.mlp = None
@@ -452,6 +465,8 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             row_init_method,
             gather_output,
             dropout,
+            model_parallel_config,
+            **kwargs,
         )
         if self.position_embedding_strategy:
             self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)

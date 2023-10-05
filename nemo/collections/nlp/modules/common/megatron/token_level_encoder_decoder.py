@@ -15,6 +15,7 @@
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.nlp.modules.common.megatron.hiddens import get_hiddens_module
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
@@ -28,7 +29,6 @@ from nemo.collections.nlp.modules.common.megatron.position_embedding import (
     KERPLERelativePositionEmbedding,
     T5RelativePositionEmbedding,
 )
-from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hiddens import get_hiddens_module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -148,7 +148,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
         encoder, decoder = None, None
         if add_encoder:
