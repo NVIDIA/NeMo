@@ -482,6 +482,21 @@ def compute_metrics_per_sample(
     punctuation_marks: list[str] = [".", ",", "?"],
     output_manifest_path: str = None,
 ) -> dict:
+    
+    '''
+    Computes metrics per sample for given manifest
+    
+    Args:
+        manifest_path: str, Required - path to dataset JSON manifest file (in NeMo format)
+        reference_field: str, Optional - name of field in .json manifest with the reference text ("text" by default).
+        hypothesis_field: str, Optional - name of field in .json manifest with the hypothesis text ("pred_text" by default).
+        metrics: list[str], Optional - list of metrics to be computed (currently supported "wer", "cer", "punct_er")
+        punctuation_marks: list[str], Optional - list of punctuation marks for computing punctuation error rate ([".", ",", "?"] by default).
+        output_manifest_path: str, Optional - path where .json manifest with calculated metrics will be saved.
+    
+    Returns:
+        samples: dict - Dict of samples with calculated metrics
+    '''
 
     supported_metrics = ["wer", "cer", "punct_er"]
 
