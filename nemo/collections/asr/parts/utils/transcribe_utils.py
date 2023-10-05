@@ -26,7 +26,9 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
-from nemo.collections.common.parts.preprocessing.manifest import get_full_path
+from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path 
+from nemo.collections.common.metrics.punct_er import OccurancePunctuationErrorRate
 from nemo.utils import logging, model_utils
 
 
@@ -471,7 +473,78 @@ def transcribe_partial_audio(
         logging.set_verbosity(logging_level)
     return hypotheses
 
+def compute_metrics_per_sample(manifest_path: str, 
+                               reference_field: str = "text",
+                               hypothesis_field: str = "pred_text",
+                               metrics: list[str] = ["wer"],
+                               punctuation_marks: list[str] = [".", ",", "?"],
+                               output_manifest_path: str = None) -> dict:
+    
+    supported_metrics = ["wer", "cer", "punct_er"]
+        
+    if len(metrics) == 0:
+        raise AssertionError(f"'metrics' list is empty. \
+            Select the metrics from the supported: {supported_metrics}.")
+    
+    for metric in metrics:
+        if metric not in supported_metrics:
+            raise AssertionError(f"'{metric}' metric is not supported. \
+                Currently supported metrics are {supported_metrics}.")
+            
+    if "punct_er" in metrics:
+        if len(punctuation_marks) == 0:
+            raise AssertionError("punctuation_marks list can't be empty when 'punct_er' metric is enabled.")
+        else:
+            oper_obj = OccurancePunctuationErrorRate(punctuation_marks=punctuation_marks)
+    
+    use_wer = "wer" in metrics
+    use_cer = "cer" in metrics
+    use_punct_er = "punct_er" in metrics 
+        
+    with open(manifest_path, 'r') as manifest: 
+        lines = manifest.readlines()
+        samples = [json.loads(line) for line in lines]
+        samples_with_metrics = []
+        
+        logging.info(f"Computing {', '.join(metrics)} per sample")
+        
+        for sample in tqdm(samples):
+            reference = sample[reference_field]
+            hypothesis = sample[hypothesis_field]
+            
+            if use_wer:
+                sample_wer = word_error_rate(
+                    hypotheses=[hypothesis], references=[reference], use_cer=False
+                    )
+                sample["wer"] = round(100 * sample_wer, 2)
+            
+            if use_cer:
+                sample_cer = word_error_rate(
+                    hypotheses=[hypothesis], references=[reference], use_cer=True
+                    )
+                sample["cer"] = round(100 * sample_cer, 2)
+            
+            if use_punct_er:
+                operation_amounts, substitution_amounts, punctuation_rates = oper_obj.compute(
+                    reference=reference, hypothesis=hypothesis
+                    ) 
+                sample["punct_correct_rate"] = round(100 * punctuation_rates.correct_rate, 2)
+                sample["punct_deletions_rate"] = round(100 * punctuation_rates.deletions_rate, 2)
+                sample["punct_insertions_rate"] = round(100 * punctuation_rates.insertions_rate, 2)
+                sample["punct_substitutions_rate"] = round(100 * punctuation_rates.substitutions_rate, 2)
+                sample["punct_error_rate"] = round(100 * punctuation_rates.punct_er, 2)
 
+            samples_with_metrics.append(sample)
+    
+    if output_manifest_path is not None:
+        with open(output_manifest_path, 'w') as output:
+            for sample in samples_with_metrics:
+                line = json.dumps(sample)
+                output.writelines(f'{line}\n')
+        logging.info(f'Output manifest saved: {output_manifest_path}')
+
+    return samples_with_metrics
+        
 class PunctuationCapitalization:
     def __init__(self, punctuation_marks: str):
         """

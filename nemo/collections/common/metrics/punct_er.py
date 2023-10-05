@@ -101,8 +101,8 @@ class OccurancePunctuationErrorRate:
                 Example: deletions_rate=0.25
             3.3. insertions_rate - overall insertions rate
                 Example: insertions_rate=0.25
-            3.4. substitution_rate - overall substitution_rate
-                Example: substitution_rate=0.25
+            3.4. substitutions_rate - overall substitutions_rate
+                Example: substitutions_rate=0.25
             3.5. punct_er - Punctuation Error Rate
                 Example: punct_er=0.75
             3.6. operation_rates - dict of operations rates for each given punctuation mark
@@ -169,7 +169,7 @@ class OccurancePunctuationErrorRate:
                 'correct_rate',
                 'deletions_rate',
                 'insertions_rate',
-                'substitution_rate',
+                'substitutions_rate',
                 'punct_er',
                 'operation_rates',
                 'substitution_rates',
@@ -182,14 +182,14 @@ class OccurancePunctuationErrorRate:
             correct_rate = overall_amounts_by_operation["Correct"] / overall_operations_amount
             deletions_rate = overall_amounts_by_operation["Deletions"] / overall_operations_amount
             insertions_rate = overall_amounts_by_operation["Insertions"] / overall_operations_amount
-            substitution_rate = overall_amounts_by_operation["Substitutions"] / overall_operations_amount
-            punct_er = deletions_rate + insertions_rate + substitution_rate
+            substitutions_rate = overall_amounts_by_operation["Substitutions"] / overall_operations_amount
+            punct_er = deletions_rate + insertions_rate + substitutions_rate
 
             rates = punctuation_rates(
                 correct_rate,
                 deletions_rate,
                 insertions_rate,
-                substitution_rate,
+                substitutions_rate,
                 punct_er,
                 operation_rates,
                 substitution_rates,
@@ -361,7 +361,7 @@ class DatasetPunctuationErrorRate:
         dper_obj.insertions_rate - float, total rate of insertions between provided pairs of 
         references and hypotheses.
         
-        dper_obj.substitution_rate - float, total rate of substitutions between provided pairs of 
+        dper_obj.substitutions_rate - float, total rate of substitutions between provided pairs of 
         references and hypotheses.
         
         dper_obj.punct_er - float, total Punctuation Error Rate between provided pairs of 
@@ -394,7 +394,7 @@ class DatasetPunctuationErrorRate:
         self.correct_rate = None
         self.deletions_rate = None
         self.insertions_rate = None
-        self.substitution_rate = None
+        self.substitutions_rate = None
         self.punct_er = None
 
     def compute(self):
@@ -426,5 +426,5 @@ class DatasetPunctuationErrorRate:
         self.correct_rate = overall_rates.correct_rate
         self.deletions_rate = overall_rates.deletions_rate
         self.insertions_rate = overall_rates.insertions_rate
-        self.substitution_rate = overall_rates.substitution_rate
+        self.substitutions_rate = overall_rates.substitutions_rate
         self.punct_er = overall_rates.punct_er

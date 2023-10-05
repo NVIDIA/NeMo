@@ -72,7 +72,7 @@ import transcribe_speech
 from omegaconf import MISSING, OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
+from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig, compute_metrics_per_sample
 from nemo.collections.common.metrics.punct_er import DatasetPunctuationErrorRate
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -178,52 +178,30 @@ def main(cfg: EvaluationConfig):
             f"Invalid manifest provided: {transcription_cfg.output_filename} does not "
             f"contain value for `pred_text`."
         )
-
+        
     if cfg.use_punct_er:
-        per_data_obj = DatasetPunctuationErrorRate(
+        dper_obj = DatasetPunctuationErrorRate(
             hypotheses=predicted_text,
             references=ground_truth_text,
             punctuation_marks=list(cfg.text_processing.punctuation_marks),
         )
-        per_data_obj.compute()
-        per = per_data_obj.punct_er
+        dper_obj.compute()
+        punct_er = dper_obj.punct_er
 
     if cfg.scores_per_sample:
-        samples_with_metrics = []
+        metrics_to_compute = ["wer", "cer"]
+        
         if cfg.use_punct_er:
-            for sample, punct_rates in zip(samples, per_data_obj.rates):
-                sample_cer = word_error_rate(
-                    hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=True
-                )
-                sample_wer = word_error_rate(
-                    hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=False
-                )
-                sample["cer"] = round(100 * sample_cer, 2)
-                sample["wer"] = round(100 * sample_wer, 2)
-                sample["punct_correct_rate"] = round(100 * punct_rates.correct_rate, 2)
-                sample["punct_deletions_rate"] = round(100 * punct_rates.deletions_rate, 2)
-                sample["punct_insertions_rate"] = round(100 * punct_rates.insertions_rate, 2)
-                sample["punct_substitutions_rate"] = round(100 * punct_rates.substitution_rate, 2)
-                sample["punct_er"] = round(100 * punct_rates.punct_er, 2)
-                samples_with_metrics.append(sample)
-        else:
-            for sample in samples:
-                sample_cer = word_error_rate(
-                    hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=True
-                )
-                sample_wer = word_error_rate(
-                    hypotheses=[sample['text']], references=[sample['pred_text']], use_cer=False
-                )
-                sample["cer"] = round(100 * sample_cer, 2)
-                sample["wer"] = round(100 * sample_wer, 2)
-                samples_with_metrics.append(sample)
-
-        with open(cfg.output_filename, 'w') as manifest_with_scores:
-            for sample in samples_with_metrics:
-                line = json.dumps(sample)
-                manifest_with_scores.writelines(f'{line}\n')
-
-        logging.info(f'Output manifest saved: {cfg.output_filename}')
+            metrics_to_compute.append("punct_er")
+        
+        samples_with_metrics = compute_metrics_per_sample(
+            manifest_path=cfg.dataset_manifest,
+            reference_field="text",
+            hypothesis_field="pred_text",
+            metrics=metrics_to_compute,
+            punctuation_marks=cfg.text_processing.punctuation_marks,
+            output_manifest_path=cfg.output_filename
+            )
 
     # Compute the WER
     cer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=True)
@@ -245,11 +223,11 @@ def main(cfg: EvaluationConfig):
     logging.info(f'Dataset WER/CER ' + str(round(100 * wer, 2)) + "%/" + str(round(100 * cer, 2)) + "%")
 
     if cfg.use_punct_er:
-        logging.info(f'Dataset PER ' + str(round(100 * per, 2)) + '%')
+        logging.info(f'Dataset PER ' + str(round(100 * punct_er, 2)) + '%')
 
         if HAVE_TABLUATE_AND_PANDAS:
-            rates_by_pm_df = pd.DataFrame(per_data_obj.operation_rates) * 100
-            substitution_rates_by_pm_df = pd.DataFrame(per_data_obj.substitution_rates) * 100
+            rates_by_pm_df = pd.DataFrame(dper_obj.operation_rates) * 100
+            substitution_rates_by_pm_df = pd.DataFrame(dper_obj.substitution_rates) * 100
 
             logging.info(
                 "Rates of punctuation correctness and errors (%):\n"
@@ -262,10 +240,10 @@ def main(cfg: EvaluationConfig):
         else:
             logging.warning("Some of the modules (pandas or tabulate) can't be imported")
             logging.info(
-                f"Rates of punctuation correctness and errors (in range [0, 1]):\n{per_data_obj.operation_rates}\n"
+                f"Rates of punctuation correctness and errors (in range [0, 1]):\n{dper_obj.operation_rates}\n"
             )
             logging.info(
-                f"Substitution rates between punctuation marks (in range [0, 1]):\n{per_data_obj.substitution_rates}\n"
+                f"Substitution rates between punctuation marks (in range [0, 1]):\n{dper_obj.substitution_rates}\n"
             )
 
     # Inject the metric name and score into the config, and return the entire config

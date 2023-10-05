@@ -176,7 +176,7 @@ class TestPunctuationErrorRate:
     correct_rate = 0.25
     deletions_rate = 0.25
     insertions_rate = 0.25
-    substitution_rate = 0.25
+    substitutions_rate = 0.25
     punct_er = 0.75
     operation_rates = {
         '.': {'Correct': 0.0, 'Deletions': 0.0, 'Insertions': 0.0, 'Substitutions': 1.0},
@@ -205,7 +205,7 @@ class TestPunctuationErrorRate:
         assert punctuation_rates.correct_rate == self.correct_rate
         assert punctuation_rates.deletions_rate == self.deletions_rate
         assert punctuation_rates.insertions_rate == self.insertions_rate
-        assert punctuation_rates.substitution_rate == self.substitution_rate
+        assert punctuation_rates.substitutions_rate == self.substitutions_rate
         assert punctuation_rates.punct_er == self.punct_er
         assert punctuation_rates.operation_rates == self.operation_rates
         assert punctuation_rates.substitution_rates == self.substitution_rates
@@ -218,7 +218,7 @@ class TestPunctuationErrorRate:
         assert dper_obj.correct_rate == self.correct_rate
         assert dper_obj.deletions_rate == self.deletions_rate
         assert dper_obj.insertions_rate == self.insertions_rate
-        assert dper_obj.substitution_rate == self.substitution_rate
+        assert dper_obj.substitutions_rate == self.substitutions_rate
         assert dper_obj.punct_er == self.punct_er
         assert dper_obj.operation_rates == self.operation_rates
         assert dper_obj.substitution_rates == self.substitution_rates
