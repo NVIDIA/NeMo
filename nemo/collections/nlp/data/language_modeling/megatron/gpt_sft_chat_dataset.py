@@ -20,7 +20,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.utils import logging
 
-__all__ = ['GPTSFTChatDataset']
+__all__ = ['GPTSFTChatDataset', 'get_prompt_template_example']
 
 
 PREFIX_STR = (
@@ -34,6 +34,42 @@ TYPE_INSTRUCTION = {
     'TEXT_TO_VALUE': "",
     'VALUE_TO_TEXT': '',
 }
+
+
+def _get_header_conversation_type_mask_role(source, special_tokens):
+    END_SIGNAL = special_tokens['end_of_turn']
+    END_NAME_SIGNAL = special_tokens['end_of_name']
+
+    data_type = None
+    if 'type' in source:
+        data_type = source['type']
+        if data_type is not None:
+            assert data_type in TYPE_INSTRUCTION, f"source type {data_type} not supported"
+    # add end signal and concatenate together
+    conversation = source['system']
+    if data_type is not None:
+        if TYPE_INSTRUCTION[data_type] != '':
+            conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
+    mask_role = source.get('mask', 'User')
+    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{END_NAME_SIGNAL}{conversation}{END_SIGNAL}"
+    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
+    return header, conversation, data_type, mask_role
+
+
+def get_prompt_template_example(special_tokens):
+    source = {
+        'system': '{system message}',
+        'conversations': [
+            {'from': 'User', 'value': '{turn 1 user message}', 'label': None},
+            {'from': 'Assistant', 'value': '{turn 1 assistant message}', 'label': '{turn 1 assistant label}'},
+            {'from': 'User', 'value': '{turn 2 user message}', 'label': None},
+            {'from': 'Assistant', 'value': '{turn 2 assistant message}', 'label': '{turn 2 assistant label}'},
+        ],
+        "mask": "User",
+        "type": "VALUE_TO_TEXT",
+    }
+    _, conversation, _, _ = _get_header_conversation_type_mask_role(source, special_tokens)
+    return conversation
 
 
 def find_small_tensor(small, large):
@@ -211,26 +247,6 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
     return conversation
 
 
-def _get_header_conversation_type_mask_role(source, special_tokens):
-    END_SIGNAL = special_tokens['end_of_turn']
-    END_NAME_SIGNAL = special_tokens['end_of_name']
-
-    data_type = None
-    if 'type' in source:
-        data_type = source['type']
-        if data_type is not None:
-            assert data_type in TYPE_INSTRUCTION, f"source type {data_type} not supported"
-    # add end signal and concatenate together
-    conversation = source['system']
-    if data_type is not None:
-        if TYPE_INSTRUCTION[data_type] != '':
-            conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
-    mask_role = source.get('mask', 'User')
-    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{END_NAME_SIGNAL}{conversation}{END_SIGNAL}"
-    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
-    return header, conversation, data_type, mask_role
-
-
 def preprocess(
     source: dict,
     tokenizer: TokenizerSpec,
@@ -295,21 +311,6 @@ def preprocess(
 class GPTSFTChatDataset(GPTSFTDataset):
     def _maybe_validate_prompt_template(self):
         pass
-
-    def get_prompt_template_example(self):
-        source = {
-            'system': '{system message}',
-            'conversations': [
-                {'from': 'User', 'value': '{turn 1 user message}', 'label': None},
-                {'from': 'Assistant', 'value': '{turn 1 assistant message}', 'label': '{turn 1 assistant label}'},
-                {'from': 'User', 'value': '{turn 2 user message}', 'label': None},
-                {'from': 'Assistant', 'value': '{turn 2 assistant message}', 'label': '{turn 2 assistant label}'},
-            ],
-            "mask": "User",
-            "type": "VALUE_TO_TEXT",
-        }
-        _, conversation, _, _ = _get_header_conversation_type_mask_role(source, self.special_tokens)
-        return conversation
 
     def _build_samples_mapping(self):
         super()._build_samples_mapping()

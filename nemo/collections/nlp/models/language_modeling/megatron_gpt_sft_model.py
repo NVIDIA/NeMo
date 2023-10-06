@@ -296,16 +296,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 truncation_method=data_cfg.get(
                     'truncation_method', 'right'
                 ),  # used to choose truncation method. Options: ['random', 'left', 'right']
-                special_tokens=data_cfg.data.get(
+                special_tokens=self.cfg.data.get(
                     'chat_prompt_tokens', None
                 ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
             )
-            if self.cfg.data.get("chat", False):
-                # chat dataset, overwrite the prompt template with the one from the dataset
-                OmegaConf.set_struct(self.cfg, True)
-                with open_dict(self.cfg):
-                    self.cfg.prompt_format = dataset.get_prompt_template_example()
-
+            datasets.append(dataset)
         if is_train:
             dataset = BlendableDataset(
                 datasets=datasets, weights=data_cfg.concat_sampling_probabilities, size=num_train_samples_after_blend

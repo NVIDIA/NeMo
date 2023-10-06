@@ -75,8 +75,8 @@ model:
       system_turn_start: '<extra_id_0>'
       turn_start: '<extra_id_1>'
       label_start: '<extra_id_2>'
-      end_of_turn: '\n'
-      end_of_name: '\n'
+      end_of_turn: "\x0A"  # \0x0A is '\n'
+      end_of_name: "\x0A"  # \0x0A is '\n'
     train_ds:
       # Example of how to specify paths to multiple datasets
       # file_names: 

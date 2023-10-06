@@ -20,7 +20,10 @@ from functools import partial
 
 import pytest
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import (
+    GPTSFTChatDataset,
+    get_prompt_template_example,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 TOKENIZER_FILE_43B = '/home/TestData/nlp/megatron_sft/tokenizer.model'
@@ -270,7 +273,7 @@ class TestGPTSFTChatDataset:
                 hf_dataset=True,
                 special_tokens=self.special_tokens,
             )
-            conv = d.get_prompt_template_example()
+            conv = get_prompt_template_example(self.special_tokens)
             expected = (
                 self.special_tokens['system_turn_start']
                 + 'System'
