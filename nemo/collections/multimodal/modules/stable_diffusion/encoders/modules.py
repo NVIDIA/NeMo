@@ -34,7 +34,6 @@ from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.utils import logging
 
 
 class AbstractEncoder(nn.Module):
@@ -182,7 +181,7 @@ class FrozenCLIPEmbedder(AbstractEncoder):
     """Uses the CLIP transformer encoder for text (from Hugging Face)"""
 
     def __init__(
-        self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77, capture_cudagraph_iters: int = -1
+        self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77,
     ):
         super().__init__()
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
@@ -190,14 +189,6 @@ class FrozenCLIPEmbedder(AbstractEncoder):
         self.device = device
         self.max_length = max_length
         self.freeze()
-
-        # CUDA graph captured sub-modules
-        self.capture_cudagraph_iters = capture_cudagraph_iters
-        self.iterations = 0
-        self.stream = torch.cuda.Stream()
-        self.transformer_graph = torch.cuda.CUDAGraph()
-        self.static_tokens = None
-        self.static_outputs = None
 
     def freeze(self):
         self.transformer = self.transformer.eval()
@@ -214,35 +205,12 @@ class FrozenCLIPEmbedder(AbstractEncoder):
             padding="max_length",
             return_tensors="pt",
         )
-        if self.capture_cudagraph_iters < 0:
-            tokens = batch_encoding["input_ids"].to(self.device, non_blocking=True)
-            outputs = self.transformer(input_ids=tokens)
-            z = outputs.last_hidden_state
+        tokens = batch_encoding["input_ids"].to(self.device, non_blocking=True)
+        outputs = self.transformer(input_ids=tokens)
 
-        else:
-            if self.static_tokens is None:
-                self.static_tokens = batch_encoding["input_ids"].to(device=self.device, non_blocking=True)
-            self.static_tokens.copy_(batch_encoding["input_ids"], non_blocking=True)
+        z = outputs.last_hidden_state
 
-            if self.iterations == self.capture_cudagraph_iters:
-                # cuda graph capture
-                logging.info("Capturing CUDA graph for module: %s", self.transformer.__class__.__name__)
-                with torch.cuda.graph(self.transformer_graph):
-                    self.static_outputs = self.transformer(input_ids=self.static_tokens)
-
-            if 0 <= self.capture_cudagraph_iters <= self.iterations:
-                # cuda graph replay
-                self.transformer_graph.replay()
-            else:
-                # warmup
-                self.stream.wait_stream(torch.cuda.current_stream())
-                with torch.cuda.stream(self.stream):
-                    self.static_outputs = self.transformer(input_ids=self.static_tokens)
-                torch.cuda.current_stream().wait_stream(self.stream)
-            self.iterations += 1
-            z = self.static_outputs.last_hidden_state
-
-        # # Pad the seq length to multiple of 8
+        # Pad the seq length to multiple of 8
         seq_len = (z.shape[1] + 8 - 1) // 8 * 8
         z = torch.nn.functional.pad(z, (0, 0, 0, seq_len - z.shape[1]), value=0.0)
         return z

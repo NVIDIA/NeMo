@@ -134,7 +134,6 @@ class DDPM(torch.nn.Module):
             cfg.conditioning_key,
             cfg.inductor,
             cfg.inductor_cudagraphs,
-            cfg.get("capture_cudagraph_iters", -1),
         )
         self.model_type = None
         count_params(self.model, verbose=True)
@@ -2075,7 +2074,6 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
         conditioning_key,
         inductor: bool = False,
         inductor_cudagraphs: bool = False,
-        capture_cudagraph_iters: int = -1,
     ):
         super().__init__()
         self.diffusion_model = DiffusionWrapper.from_config_dict(diff_model_config)
@@ -2087,9 +2085,6 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
             # TorchInductor with CUDA graph can lead to OOM
             inductor_config.triton.cudagraphs = inductor_cudagraphs
             self.diffusion_model = torch.compile(self.diffusion_model)
-        # CUDA graph
-        self.capture_cudagraph_iters = capture_cudagraph_iters
-        self.iterations = 0
 
     def forward(self, x, t, c_concat: list = None, c_crossattn: list = None):
         if self.conditioning_key is None:
@@ -2099,15 +2094,7 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
             out = self.diffusion_model(xc, t)
         elif self.conditioning_key == 'crossattn':
             cc = torch.cat(c_crossattn, 1)
-            if self.iterations == self.capture_cudagraph_iters:
-                logging.info("Capturing CUDA graph for module: %s", self.diffusion_model.__class__.__name__)
-                self.diffusion_model = torch.cuda.make_graphed_callables(self.diffusion_model, (x, t, cc))
-
-            if 0 <= self.capture_cudagraph_iters <= self.iterations:
-                out = self.diffusion_model(x, t, cc)
-            else:
-                out = self.diffusion_model(x, t, context=cc)
-            self.iterations += 1
+            out = self.diffusion_model(x, t, context=cc)
         elif self.conditioning_key == 'hybrid':
             xc = torch.cat([x] + c_concat, dim=1)
             cc = torch.cat(c_crossattn, 1)

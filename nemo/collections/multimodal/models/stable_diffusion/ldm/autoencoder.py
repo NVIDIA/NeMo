@@ -318,7 +318,6 @@ class AutoencoderKL(pl.LightningModule):
         colorize_nlabels=None,
         monitor=None,
         from_pretrained: str = None,
-        capture_cudagraph_iters=-1,
     ):
         super().__init__()
         self.image_key = image_key
@@ -341,15 +340,6 @@ class AutoencoderKL(pl.LightningModule):
         if from_pretrained is not None:
             state_dict = load_state_dict(from_pretrained)
             self._load_pretrained_model(state_dict)
-
-        # CUDA graph captured sub-modules
-        self.capture_cudagraph_iters = capture_cudagraph_iters
-        self.stream = torch.cuda.Stream()
-        self.encoder_iterations = self.decoder_iterations = 0
-        self.encoder_graph = torch.cuda.CUDAGraph()  # eval
-        self.decoder_graph = torch.cuda.CUDAGraph()  # eval
-        self.static_x = self.static_moments = None
-        self.static_z = self.static_dec = None
 
     def _state_key_mapping(self, state_dict: dict):
         import re
@@ -473,82 +463,15 @@ class AutoencoderKL(pl.LightningModule):
         print(f"Restored from {path}")
 
     def encode(self, x):
-        if self.training:
-            if self.encoder_iterations == self.capture_cudagraph_iters:
-                logging.info("Capturing CUDA graph for module: %s", self.encoder.__class__.__name__)
-                self.encoder = torch.cuda.make_graphed_callables(self.encoder, (x,))
-
-            h = self.encoder(x)
-            self.encoder_iterations += 1
-
-            moments = self.quant_conv(h)
-            posterior = DiagonalGaussianDistribution(moments)
-            return posterior
-        else:
-            # create static input and copy input to static buffer
-            if self.static_x is None:
-                self.static_x = torch.randn_like(x)
-            self.static_x.copy_(x)
-
-            if self.encoder_iterations == self.capture_cudagraph_iters:
-                # cuda graph capture
-                logging.info("Capturing CUDA graph for module: %s", self.encoder.__class__.__name__)
-                with torch.cuda.graph(self.encoder_graph):
-                    h = self.encoder(self.static_x)
-                    self.static_moments = self.quant_conv(h)
-
-            if 0 <= self.capture_cudagraph_iters <= self.encoder_iterations:
-                # cuda graph replay
-                self.encoder_graph.replay()
-            else:
-                # warmup
-                self.stream.wait_stream(torch.cuda.current_stream())
-                with torch.cuda.stream(self.stream):
-                    h = self.encoder(self.static_x)
-                    self.static_moments = self.quant_conv(h)
-                torch.cuda.current_stream().wait_stream(self.stream)
-            self.encoder_iterations += 1
-
-            posterior = DiagonalGaussianDistribution(self.static_moments)
-            return posterior
+        h = self.encoder(x)
+        moments = self.quant_conv(h)
+        posterior = DiagonalGaussianDistribution(moments)
+        return posterior
 
     def decode(self, z):
-        if self.training:
-            if self.decoder_iterations == self.capture_cudagraph_iters:
-                logging.info("Capturing CUDA graph for module: %s", self.decoder.__class__.__name__)
-                self.decoder = torch.cuda.make_graphed_callables(self.decoder, (z,))
-
-            h = self.post_quant_conv(z)
-            dec = self.decoder(h)
-            self.decoder_iterations += 1
-
-            return dec
-        else:
-            # create static input and copy input to static buffer
-            if self.static_z is None:
-                self.static_z = torch.randn_like(z)
-            self.static_z.copy_(z)
-
-            if self.decoder_iterations == self.capture_cudagraph_iters:
-                # cuda graph capture
-                logging.info("Capturing CUDA graph for module: %s", self.decoder.__class__.__name__)
-                with torch.cuda.graph(self.decoder_graph):
-                    h = self.post_quant_conv(self.static_z)
-                    self.static_dec = self.decoder(h)
-
-            if 0 <= self.capture_cudagraph_iters <= self.decoder_iterations:
-                # cuda graph replay
-                self.decoder_graph.replay()
-            else:
-                # warmup
-                self.stream.wait_stream(torch.cuda.current_stream())
-                with torch.cuda.stream(self.stream):
-                    h = self.post_quant_conv(self.static_z)
-                    self.static_dec = self.decoder(h)
-                torch.cuda.current_stream().wait_stream(self.stream)
-            self.decoder_iterations += 1
-
-            return self.static_dec
+        z = self.post_quant_conv(z)
+        dec = self.decoder(z)
+        return dec
 
     def forward(self, input, sample_posterior=True):
         posterior = self.encode(input)

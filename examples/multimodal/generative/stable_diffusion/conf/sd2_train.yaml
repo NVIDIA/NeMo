@@ -86,7 +86,6 @@ model:
   fused_opt: True
   inductor: True
   inductor_cudagraphs: False
-  capture_cudagraph_iters: -1 # -1 to disable
   channels_last: True
 
   unet_config:
