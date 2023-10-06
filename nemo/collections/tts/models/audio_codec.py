@@ -49,6 +49,9 @@ class AudioCodecModel(ModelPT):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.num_nodes * trainer.num_devices
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -477,7 +480,8 @@ class AudioCodecModel(ModelPT):
     @staticmethod
     def _setup_train_dataloader(cfg):
         dataset = instantiate(cfg.dataset)
-        sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
+        # sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
+        sampler = None
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
         )
@@ -508,7 +512,7 @@ class AudioCodecModel(ModelPT):
 
         if "steps_per_epoch" in self._cfg:
             return self._cfg.max_epochs * self._cfg.steps_per_epoch
-
+        # logging.debug('Computing max steps')
         return compute_max_steps(
             max_epochs=self._cfg.max_epochs,
             accumulate_grad_batches=self.trainer.accumulate_grad_batches,
