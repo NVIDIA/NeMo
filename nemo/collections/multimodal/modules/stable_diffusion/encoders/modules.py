@@ -268,7 +268,11 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
             param.requires_grad = False
 
     def forward(self, text):
-        tokens = open_clip.tokenize(text)
+        if isinstance(text, list) and isinstance(text[0], str):
+            tokens = open_clip.tokenize(text)
+        else:
+            # tokenizer has been invoked before
+            tokens = text
         z = self.encode_with_transformer(tokens.to(self.device, non_blocking=True))
         return z
 

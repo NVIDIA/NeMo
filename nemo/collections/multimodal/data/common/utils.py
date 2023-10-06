@@ -12,6 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.utils.callbacks.nemo_model_checkpoint import NeMoModelCheckpoint
-from nemo.utils.callbacks.preemption import PreemptionCallback
-from nemo.utils.callbacks.cuda_graph import CUDAGraphCallback
+import torch
+import open_clip
+
+def get_collate_fn(first_stage_key="images_moments", cond_stage_key="captions"):
+    def collate_fn_with_tokenize(batch):
+        images_moments = [s[first_stage_key] for s in batch]
+        cond_inputs = [s[cond_stage_key] for s in batch]
+        if cond_stage_key == "captions":
+            tokens = open_clip.tokenize(cond_inputs)
+        else:
+            tokens = torch.cat(cond_inputs)
+        batch = {
+            "images_moments": torch.cat(images_moments),
+            "captions": tokens,
+        }
+        return batch
+    return collate_fn_with_tokenize
