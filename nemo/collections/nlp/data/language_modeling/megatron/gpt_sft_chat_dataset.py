@@ -208,6 +208,24 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
     return conversation
 
 
+def _get_header_conversation_type_mask_role(source, special_tokens):
+    END_SIGNAL = special_tokens['end_of_turn']
+    data_type = None
+    if 'type' in source:
+        data_type = source['type']
+        if data_type is not None:
+            assert data_type in TYPE_INSTRUCTION, f"source type {data_type} not supported"
+    # add end signal and concatenate together
+    conversation = source['system']
+    if data_type is not None:
+        if TYPE_INSTRUCTION[data_type] != '':
+            conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
+    mask_role = source.get('mask', 'User')
+    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{conversation}{END_SIGNAL}"
+    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
+    return header, conversation, data_type, mask_role
+
+
 def preprocess(
     source: dict,
     tokenizer: TokenizerSpec,
@@ -223,20 +241,7 @@ def preprocess(
     3. Tokenize the concatenated conversation;
     4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
     """
-    END_SIGNAL = special_tokens['end_of_turn']
-    data_type = None
-    if 'type' in source:
-        data_type = source['type']
-        if data_type is not None:
-            assert data_type in TYPE_INSTRUCTION, f"source type {data_type} not supported"
-    # add end signal and concatenate together
-    conversation = source['system']
-    if data_type is not None:
-        if TYPE_INSTRUCTION[data_type] != '':
-            conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
-    mask_role = source.get('mask', 'User')
-    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{conversation}{END_SIGNAL}"
-    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
+    header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
@@ -285,6 +290,21 @@ def preprocess(
 class GPTSFTChatDataset(GPTSFTDataset):
     def _maybe_validate_prompt_template(self):
         pass
+
+    def get_prompt_template_example(self):
+        source = {
+            'system': '{system message}',
+            'conversations': [
+                {'from': 'User', 'value': '{turn 1 user message}', 'label': None},
+                {'from': 'Assitant', 'value': '{turn 1 assistant message}', 'label': '{turn 1 assistant label}'},
+                {'from': 'User', 'value': '{turn 2 user message}', 'label': None},
+                {'from': 'Assitant', 'value': '{turn 2 assistant message}', 'label': '{turn 2 assistant label}'},
+            ],
+            "mask": "User",
+            "type": "VALUE_TO_TEXT",
+        }
+        _, conversation, _, _ = _get_header_conversation_type_mask_role(source, self.special_tokens)
+        return conversation
 
     def _build_samples_mapping(self):
         super()._build_samples_mapping()
