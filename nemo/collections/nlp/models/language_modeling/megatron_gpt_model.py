@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import itertools
-import os
 import queue
 import warnings
 from dataclasses import fields
@@ -197,8 +196,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+
         if not HAVE_MEGATRON_CORE:
-            logging.warning(
+            raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         # this prevents base constructor from initializing tokenizer
@@ -274,8 +274,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
-        self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
-        self.loss_broadcast_src_rank = None
 
         self.inference_params = None
 
@@ -384,6 +382,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 use_flash_attention=self.cfg.get('use_flash_attention', False),
                 megatron_legacy=self.cfg.get('megatron_legacy', False),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+                window_size=self.cfg.get('window_size', None),
             )
         return model
 
@@ -630,29 +629,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_first_last_embeddings()
 
         ## logging
-        if self.log_train_loss:
-            # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
-            # it should be casted to other pipeline stages for logging.
-            # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                if self.loss_broadcast_src_rank is None:
-                    dp_size = parallel_state.get_data_parallel_world_size()
-                    tp_size = parallel_state.get_tensor_model_parallel_world_size()
-                    pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-                    rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * tp_size)
-                    last_pipeline_stage_offset = (tp_size * dp_size) * (pp_size - 1)
-                    self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
-                torch.distributed.broadcast(
-                    loss_mean, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
-                )
-            self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        torch.distributed.broadcast(loss_mean, get_last_rank())
 
-            # (@adithyare) we need to check for the _scaler attribute to enable pp>1 for adapter training
-            if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
-                loss_scale = self.trainer.precision_plugin.scaler._scale
-                if loss_scale is not None:
-                    self.log('loss_scale', loss_scale, batch_size=1)
+        # (@adithyare) we need to check for the _scaler attribute to enable pp>1 for adapter training
+        if self.torch_dtype == torch.float16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale, batch_size=1)
 
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
         self.log(
@@ -977,19 +964,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
-        # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
-        # it should be casted to other pipeline stages for logging.
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            if self.loss_broadcast_src_rank is None:
-                dp_size = parallel_state.get_data_parallel_world_size()
-                tp_size = parallel_state.get_tensor_model_parallel_world_size()
-                pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-                rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * tp_size)
-                last_pipeline_stage_offset = (tp_size * dp_size) * (pp_size - 1)
-                self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
-            torch.distributed.broadcast(
-                averaged_loss, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
-            )
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        torch.distributed.broadcast(averaged_loss, get_last_rank())
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.validation_step_outputs.clear()  # free memory

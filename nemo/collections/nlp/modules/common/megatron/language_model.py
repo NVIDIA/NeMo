@@ -126,6 +126,7 @@ def get_language_model(
     ub_tp_comm_overlap=False,
     use_flash_attention=False,
     seq_len_interpolation_factor=None,
+    window_size=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -202,6 +203,7 @@ def get_language_model(
         ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
         seq_len_interpolation_factor=seq_len_interpolation_factor,
+        window_size=window_size,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -502,6 +504,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
+        window_size=window_size,
     ):
         super(TransformerLanguageModel, self).__init__(
             config=config, share_token_embeddings=share_embeddings_and_output_weights
@@ -525,6 +528,10 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = config.sequence_parallel
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
+        self.window_size=window_size
+
+        if self.window_size is not None:
+            assert (use_flash_attention == True ), 'window_size is only supported with Flash Attention'
         if kv_channels is None:
 
             assert (
@@ -645,6 +652,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             ub_tp_comm_overlap=ub_tp_comm_overlap,
             position_embedding_type=position_embedding_type,
             use_flash_attention=use_flash_attention,
+            window_size=window_size,
         )
         self._encoder_key = 'encoder'
 

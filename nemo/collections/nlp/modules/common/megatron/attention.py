@@ -136,6 +136,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         multi_query_attention=False,
         normalize_attention_scores=True,
         use_flash_attention=False,
+        window_size=None,
     ):
         super(ParallelAttention, self).__init__(config=config)
         self.layer_number = max(1, layer_number)
@@ -148,6 +149,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.megatron_legacy = megatron_legacy
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
+        self.window_size = window_size
+
         self.set_accepted_adapter_types(
             [
                 InfusedAdapterConfig._target_,
@@ -157,6 +160,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 LoraKQVAdapterWeightTyingConfig._target_,
             ]
         )
+        
+        if self.window_size is not None:
+            assert (use_flash_attention == True ), 'window_size is only supported with Flash Attention'
 
         if kv_channels is None:
             assert (
@@ -214,6 +220,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             normalize_attention_scores=normalize_attention_scores,
             position_embedding_type=position_embedding_type,
             use_flash_attention=use_flash_attention,
+            window_size=window_size,
         )
 
         # Output.
@@ -726,6 +733,7 @@ class CoreAttention(MegatronModule):
         multi_query_attention=False,
         position_embedding_type='learned_absolute',
         use_flash_attention=False,
+        window_size=None,
     ):
 
         super(CoreAttention, self).__init__(config=config)
@@ -751,6 +759,10 @@ class CoreAttention(MegatronModule):
         # If True, will scale attention scores by 1 / sqrt(hidden_size_per_attention_head).
         # This arg is been provided mostly to support weight conversion of Huggingface models. (ex: T5v1.1)
         self.normalize_attention_scores = normalize_attention_scores
+        self.window_size = window_size
+
+        if self.window_size is not None:
+            assert (use_flash_attention == True ), 'window_size is only supported with Flash Attention'
 
         if kv_channels is None:
             assert (
@@ -869,7 +881,7 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         context_layer = self.attn_fn(
-            query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode
+            query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode,
         )
 
         if headscale_tensor is not None:
@@ -958,7 +970,7 @@ class CoreAttention(MegatronModule):
                 query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,
             )
         else:
-            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal,)
+            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal)
 
     def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask, is_causal):
         batch_size, seqlen, nheads, _ = query_layer.shape
@@ -987,6 +999,7 @@ class CoreAttention(MegatronModule):
                 value_layer,
                 dropout_p=self.attention_dropout_p if self.training else 0.0,
                 causal=is_causal,
+                window_size = self.window_size,
             )
         else:
             q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
@@ -1003,6 +1016,7 @@ class CoreAttention(MegatronModule):
                 max_seqlen_k,
                 dropout_p=self.attention_dropout_p if self.training else 0.0,
                 causal=is_causal,
+                window_size = self.window_size,
             )
 
             # [b, sq, np, hn]

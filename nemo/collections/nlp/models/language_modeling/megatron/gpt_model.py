@@ -167,6 +167,7 @@ class GPTModel(MegatronModule):
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
+        window_size=None,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -177,6 +178,9 @@ class GPTModel(MegatronModule):
         self.sequence_parallel = self.config.sequence_parallel
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
+        self.window_size = window_size
+        if self.window_size is not None:
+            assert (use_flash_attention == True ), 'window_size is only supported with Flash Attention'
 
         if kv_channels is None:
             assert (
@@ -248,6 +252,7 @@ class GPTModel(MegatronModule):
             ub_tp_comm_overlap=ub_tp_comm_overlap,
             use_flash_attention=use_flash_attention,
             seq_len_interpolation_factor=seq_len_interpolation_factor,
+            window_size=window_size,
         )
 
         if self.share_embeddings_and_output_weights:

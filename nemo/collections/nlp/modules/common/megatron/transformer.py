@@ -173,6 +173,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
+        window_size=None,
     ):
         super(ParallelTransformerLayer_, self).__init__(config=config)
 
@@ -188,6 +189,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.transformer_block_type = transformer_block_type
         self.position_embedding_type = position_embedding_type
         self.param_dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
+
+        if window_size is not None:
+            assert (use_flash_attention == True ), 'window_size is only supported with Flash Attention'
 
         self.set_accepted_adapter_types(
             [
@@ -263,6 +267,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 position_embedding_type=position_embedding_type,
                 normalize_attention_scores=normalize_attention_scores,
                 use_flash_attention=use_flash_attention,
+                window_size=window_size,
             )
 
             if transformer_block_type == 'normformer':
@@ -685,6 +690,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
+        window_size=None,
     ):
         super(ParallelTransformerLayer, self).__init__(
             config=config,
@@ -726,6 +732,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             moe_frequency=moe_frequency,
             moe_dropout=moe_dropout,
             use_flash_attention=use_flash_attention,
+            window_size=window_size,
         )
 
         # Dtype for forward pass - ignore amp O2
@@ -941,6 +948,7 @@ class ParallelTransformer(MegatronModule):
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
+        window_size=None,
     ):
         super(ParallelTransformer, self).__init__(config=config)
 
@@ -1129,6 +1137,7 @@ class ParallelTransformer(MegatronModule):
                     moe_frequency=moe_frequency,
                     moe_dropout=moe_dropout,
                     use_flash_attention=use_flash_attention,
+                    window_size=window_size,
                 )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
