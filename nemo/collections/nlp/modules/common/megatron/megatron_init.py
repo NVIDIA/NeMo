@@ -150,6 +150,13 @@ def initialize_model_parallel_for_nemo(
 
     # only run this if using LayerUnitTestStrategy
     if parallelization_specs:
+        
+        # used for num_microbatch_calculator calculator,
+        # when using uniform data parallelism, the data parallel size will be the same for all components
+        # when using non-uniform data parallelism, we want the number of microbatches to match for all ranks,
+        # meaning for microbatch calculations we must use the largest data parallel group size
+        app_state.data_parallel_size = max(parallelization_specs[_]['data_parallel_group_size'] for _ in parallelization_specs)
+
         (
             app_state.pipeline_model_parallel_rank,
             app_state.pipeline_component_parallel_rank,
