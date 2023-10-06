@@ -259,47 +259,31 @@ class TestGPTSFTChatDataset:
 
     def _test_example_prompt(self, tokenizer):
         random.seed(5)
-        temp_file = '/tmp/test_file.jsonl'
-        turn_num = 5
-        records = 5
-        try:
-            data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
-            d = GPTSFTChatDataset(
-                temp_file,
-                tokenizer,
-                4096,
-                1,
-                index_mapping_dir='/tmp/',
-                hf_dataset=True,
-                special_tokens=self.special_tokens,
-            )
-            conv = get_prompt_template_example(self.special_tokens)
-            expected = (
-                self.special_tokens['system_turn_start']
-                + 'System'
+        conv = get_prompt_template_example(self.special_tokens)
+        expected = (
+            self.special_tokens['system_turn_start']
+            + 'System'
+            + self.special_tokens['end_of_name']
+            + '{system message}'
+            + self.special_tokens['end_of_turn']
+        )
+        for turn in range(2):
+            expected += (
+                self.special_tokens['turn_start']
+                + 'User'
                 + self.special_tokens['end_of_name']
-                + '{system message}'
+                + f'{{turn {turn + 1} user message}}'
                 + self.special_tokens['end_of_turn']
             )
-            for turn in range(2):
-                expected += (
-                    self.special_tokens['turn_start']
-                    + 'User'
-                    + self.special_tokens['end_of_name']
-                    + f'{{turn {turn + 1} user message}}'
-                    + self.special_tokens['end_of_turn']
-                )
-                expected += self.special_tokens['turn_start'] + 'Assistant' + self.special_tokens['end_of_name']
-                expected += (
-                    self.special_tokens['label_start']
-                    + f'{{turn {turn + 1} assistant label}}'
-                    + self.special_tokens['end_of_name']
-                )
-                expected += f'{{turn {turn + 1} assistant message}}' + self.special_tokens['end_of_turn']
-            expected += self.special_tokens['turn_start']
-            assert conv == expected
-        finally:
-            os.remove(temp_file)
+            expected += self.special_tokens['turn_start'] + 'Assistant' + self.special_tokens['end_of_name']
+            expected += (
+                self.special_tokens['label_start']
+                + f'{{turn {turn + 1} assistant label}}'
+                + self.special_tokens['end_of_name']
+            )
+            expected += f'{{turn {turn + 1} assistant message}}' + self.special_tokens['end_of_turn']
+        expected += self.special_tokens['turn_start']
+        assert conv == expected
 
     @pytest.mark.unit
     def test_43B_example_prompt(self):

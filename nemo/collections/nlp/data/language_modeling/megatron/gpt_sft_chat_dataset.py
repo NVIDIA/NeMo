@@ -72,7 +72,7 @@ def get_prompt_template_example(special_tokens):
     return conversation
 
 
-def find_small_tensor(small, large):
+def identify_start_index_of_subsequence(subsequence, sequence):
     """ find the location of the small tensor in the large tensor.
         e.g.  small = [1,3], large = [2,3,1,3], returns 2
               small = [3,2], large = [2,3,1,3], returns -1
@@ -80,8 +80,8 @@ def find_small_tensor(small, large):
         small (tensor): small tensor
         large (tensor): large tensor
     """
-    for i in range(large.size(0) - small.size(0) + 1):
-        if torch.equal(large[i : i + small.size(0)], small):
+    for i in range(sequence.size(0) - subsequence.size(0) + 1):
+        if torch.equal(sequence[i : i + subsequence.size(0)], subsequence):
             return i
     return -1
 
@@ -132,7 +132,7 @@ def _mask_targets(
             id1
         )  # s_ids[:skip_name_len] is the name part of the prompt 'TURN_TOKEN + speaker + END_NAME_SIGNAL'
         # get the position of the label start string in this turn
-        location = find_small_tensor(label_start_ids, s_id)
+        location = identify_start_index_of_subsequence(label_start_ids, s_id)
 
         if location >= 0:
             # if it contains the label start tokens
@@ -142,7 +142,7 @@ def _mask_targets(
                 assert skip_name_len == location
                 # find the first new line token after the label part, which indicates the end of the whole label string
                 # newline_loc = torch.where((s_id[skip_name_len:] == name_end_token_ids))[0]
-                newline_loc = find_small_tensor(name_end_token_ids, s_id[skip_name_len:])
+                newline_loc = identify_start_index_of_subsequence(name_end_token_ids, s_id[skip_name_len:])
                 if newline_loc < 0:
                     # cannot find new line token, which means the the whole turn is just a partial label string. Mask the whole turn
                     target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
@@ -322,13 +322,13 @@ class GPTSFTChatDataset(GPTSFTDataset):
         id2 = self.tokenizer.text_to_ids(PREFIX_STR + LABEL_START)
         self.label_start_tokens = id2[len(id1) :]
 
-        ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + END_NAME_SIGNAL)
-        ids_2 = self.tokenizer.text_to_ids(PREFIX_STR)
-        self.name_end_token_ids = ids_1[len(ids_2) :]
+        id1 = self.tokenizer.text_to_ids(PREFIX_STR + END_NAME_SIGNAL)
+        id2 = self.tokenizer.text_to_ids(PREFIX_STR)
+        self.name_end_token_ids = id1[len(id2) :]
 
-        ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens['turn_start'])
-        ids_2 = self.tokenizer.text_to_ids(PREFIX_STR)
-        self.num_turn_start_tokens = len(ids_1) - len(ids_2)
+        id1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens['turn_start'])
+        id2 = self.tokenizer.text_to_ids(PREFIX_STR)
+        self.num_turn_start_tokens = len(id1) - len(id2)
 
     def _process_example(self, example):
         """
