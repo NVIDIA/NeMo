@@ -42,7 +42,6 @@ RUN apt-get update && \
   libavdevice-dev && \
   rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace/
 WORKDIR /tmp/
 
 # Distributed Adam support for multiple dtypes
@@ -52,11 +51,15 @@ RUN git clone https://github.com/NVIDIA/apex.git && \
   rm pyproject.toml && \
   pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
+WORKDIR /workspace/
+
 # install megatron core, this can be removed once 0.3 pip package is released
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
   git checkout 8737bc11f74959f95b52e4c81515a2f3ff734f7b && \
   pip install -e .
+
+WORKDIR /tmp/
 
 # uninstall stuff from base container
 RUN pip uninstall -y sacrebleu torchtext
