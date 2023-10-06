@@ -16,12 +16,12 @@
 import json
 import os
 import random
+from functools import partial
 
 import pytest
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from functools import partial
 
 TOKENIZER_FILE_43B = '/home/TestData/nlp/megatron_sft/tokenizer.model'
 TOKENIZER_FILE_Llama2 = '/home/TestData/nlp/megatron_sft/llama2_tokenizer.model'
@@ -85,8 +85,6 @@ class TestGPTSFTChatDataset:
         cls.suffix = cls.special_tokens['end_of_turn'] + cls.special_tokens['turn_start']
         cls.label_suffix = '\n' + cls.special_tokens['turn_start']
 
-
-    
     def _mask_user_test(self, tokenizer, ids_to_text):
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
@@ -94,7 +92,15 @@ class TestGPTSFTChatDataset:
         records = 5
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
+            d = GPTSFTChatDataset(
+                temp_file,
+                tokenizer,
+                4096,
+                1,
+                index_mapping_dir='/tmp/',
+                hf_dataset=True,
+                special_tokens=self.special_tokens,
+            )
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -114,7 +120,15 @@ class TestGPTSFTChatDataset:
         records = 5
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
+            d = GPTSFTChatDataset(
+                temp_file,
+                tokenizer,
+                4096,
+                1,
+                index_mapping_dir='/tmp/',
+                hf_dataset=True,
+                special_tokens=self.special_tokens,
+            )
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -134,7 +148,15 @@ class TestGPTSFTChatDataset:
         records = 5
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=True)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
+            d = GPTSFTChatDataset(
+                temp_file,
+                tokenizer,
+                4096,
+                1,
+                index_mapping_dir='/tmp/',
+                hf_dataset=True,
+                special_tokens=self.special_tokens,
+            )
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -154,7 +176,15 @@ class TestGPTSFTChatDataset:
         records = 5
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=True)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
+            d = GPTSFTChatDataset(
+                temp_file,
+                tokenizer,
+                4096,
+                1,
+                index_mapping_dir='/tmp/',
+                hf_dataset=True,
+                special_tokens=self.special_tokens,
+            )
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -174,7 +204,15 @@ class TestGPTSFTChatDataset:
         records = 5
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False, label=False)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
+            d = GPTSFTChatDataset(
+                temp_file,
+                tokenizer,
+                4096,
+                1,
+                index_mapping_dir='/tmp/',
+                hf_dataset=True,
+                special_tokens=self.special_tokens,
+            )
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -194,7 +232,15 @@ class TestGPTSFTChatDataset:
         records = 5
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False, label=False)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
+            d = GPTSFTChatDataset(
+                temp_file,
+                tokenizer,
+                4096,
+                1,
+                index_mapping_dir='/tmp/',
+                hf_dataset=True,
+                special_tokens=self.special_tokens,
+            )
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -242,9 +288,7 @@ class TestGPTSFTChatDataset:
         tokenizer = get_nmt_tokenizer(
             library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
         )
-        tokenizer.add_special_tokens(
-            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
-        )
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']})
         self._mask_user_test(tokenizer, partial(ids_to_text, tokenizer))
 
     @pytest.mark.unit
@@ -252,9 +296,7 @@ class TestGPTSFTChatDataset:
         tokenizer = get_nmt_tokenizer(
             library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
         )
-        tokenizer.add_special_tokens(
-            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
-        )
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']})
         self._mask_assistant_test(tokenizer, partial(ids_to_text, tokenizer))
 
     @pytest.mark.unit
@@ -262,9 +304,7 @@ class TestGPTSFTChatDataset:
         tokenizer = get_nmt_tokenizer(
             library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
         )
-        tokenizer.add_special_tokens(
-            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
-        )
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']})
         self._mask_user_t2v_test(tokenizer, partial(ids_to_text, tokenizer))
 
     @pytest.mark.unit
@@ -272,9 +312,7 @@ class TestGPTSFTChatDataset:
         tokenizer = get_nmt_tokenizer(
             library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
         )
-        tokenizer.add_special_tokens(
-            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
-        )
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']})
         self._mask_assistant_t2v_test(tokenizer, partial(ids_to_text, tokenizer))
 
     @pytest.mark.unit
@@ -282,9 +320,7 @@ class TestGPTSFTChatDataset:
         tokenizer = get_nmt_tokenizer(
             library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
         )
-        tokenizer.add_special_tokens(
-            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
-        )
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']})
         self._mask_user_nolabel_test(tokenizer, partial(ids_to_text, tokenizer))
 
     @pytest.mark.unit
@@ -292,11 +328,9 @@ class TestGPTSFTChatDataset:
         tokenizer = get_nmt_tokenizer(
             library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
         )
-        tokenizer.add_special_tokens(
-            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
-        )
-        self._mask_assistant_nolabel_test(tokenizer,  partial(ids_to_text, tokenizer))
-       
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']})
+        self._mask_assistant_nolabel_test(tokenizer, partial(ids_to_text, tokenizer))
+
     @pytest.mark.unit
     def test_llama2_tokenizer_mask_user(self):
         tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
@@ -367,7 +401,7 @@ class TestGPTSFTChatDataset:
         tokenizer = get_nmt_tokenizer(
             library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
         )
-        self._mask_assistant_nolabel_test(tokenizer,  tokenizer.ids_to_text)
+        self._mask_assistant_nolabel_test(tokenizer, tokenizer.ids_to_text)
 
 
 class TestDifferentGPTSFTChatDataset(TestGPTSFTChatDataset):

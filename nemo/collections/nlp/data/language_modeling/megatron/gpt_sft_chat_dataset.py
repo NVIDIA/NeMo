@@ -24,7 +24,9 @@ from nemo.utils import logging
 __all__ = ['GPTSFTChatDataset']
 
 
-PREFIX_STR = "\x00" # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers
+PREFIX_STR = (
+    "\x00"  # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers
+)
 
 IGNORE_INDEX = -100
 END_NAME_SIGNAL = "\n"  # token to indicate the end of the name. The name can be system, user, assistant, etc.
@@ -45,7 +47,7 @@ def find_small_tensor(small, large):
         large (tensor): large tensor
     """
     for i in range(large.size(0) - small.size(0) + 1):
-        if torch.equal(large[i:i+small.size(0)], small):
+        if torch.equal(large[i : i + small.size(0)], small):
             return i
     return -1
 
@@ -90,7 +92,9 @@ def _mask_targets(
         # note, sentence piece will add extra empty token in front. has to compute the diff
         id1 = tokenizer.text_to_ids(PREFIX_STR)
         id2 = tokenizer.text_to_ids(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
-        skip_name_len = len(id2) - len(id1)  # s_ids[:skip_name_len] is the name part of the prompt 'TURN_TOKEN + speaker + END_NAME_SIGNAL'
+        skip_name_len = len(id2) - len(
+            id1
+        )  # s_ids[:skip_name_len] is the name part of the prompt 'TURN_TOKEN + speaker + END_NAME_SIGNAL'
         # get the position of the label start string in this turn
         location = find_small_tensor(label_start_ids, s_id)
 
@@ -172,7 +176,11 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
                 + role_token
                 + sentence_from
                 + END_NAME_SIGNAL
-                + (response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL) if 'label' in sentence else '')
+                + (
+                    response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL)
+                    if 'label' in sentence
+                    else ''
+                )
                 + sentence["value"]
                 + END_SIGNAL
             )
@@ -184,7 +192,11 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
                 + END_NAME_SIGNAL
                 + sentence["value"]
                 + END_SIGNAL
-                + (response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL) if 'label' in sentence else '')
+                + (
+                    response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL)
+                    if 'label' in sentence
+                    else ''
+                )
             )
         else:
             raise ValueError(
@@ -197,7 +209,14 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
     return conversation
 
 
-def preprocess(source: dict, tokenizer: TokenizerSpec, new_line_token_id: int, label_start_ids:list, special_tokens: dict, num_turn_start_tokens: int):
+def preprocess(
+    source: dict,
+    tokenizer: TokenizerSpec,
+    new_line_token_id: int,
+    label_start_ids: list,
+    special_tokens: dict,
+    num_turn_start_tokens: int,
+):
     """
     Given a conversation list. This transform:
     1. Add signal '### ' at the beginning each sentence, with end signal '\n';
@@ -227,12 +246,12 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, new_line_token_id: int, l
 
     ids = []
     tokenized_lens = []
-    assert torch.equal(torch.tensor(target[:header_len]), torch.tensor(header_tokens)) 
+    assert torch.equal(torch.tensor(target[:header_len]), torch.tensor(header_tokens))
     for s in source['conversations']:
         # hack to remove the extra empty token in front
         id1 = tokenizer.text_to_ids(PREFIX_STR + s["value"])
         id2 = tokenizer.text_to_ids(PREFIX_STR)
-        tokenized_sentence = id1[len(id2):]
+        tokenized_sentence = id1[len(id2) :]
         ids.append(torch.tensor(tokenized_sentence))
         tokenized_lens.append(len(tokenized_sentence))
     speakers = [sentence["from"] for sentence in source['conversations']]
@@ -253,7 +272,7 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, new_line_token_id: int, l
         new_line_token_id,
         special_tokens,
         label_start_ids,
-        num_turn_start_tokens
+        num_turn_start_tokens,
     )
     mask = (target != IGNORE_INDEX).bool()
     assert mask.sum().item() != 0, "mask is empty"
@@ -274,15 +293,14 @@ class GPTSFTChatDataset(GPTSFTDataset):
         LABEL_START = self.special_tokens['label_start']
         id1 = self.tokenizer.text_to_ids(PREFIX_STR)
         id2 = self.tokenizer.text_to_ids(PREFIX_STR + LABEL_START)
-        self.label_start_tokens = id2[len(id1):]
+        self.label_start_tokens = id2[len(id1) :]
         ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + '\n')
         ids_2 = self.tokenizer.text_to_ids(PREFIX_STR)
-        self.new_line_token_id = ids_1[len(ids_2):][0]
+        self.new_line_token_id = ids_1[len(ids_2) :][0]
 
         ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens['turn_start'])
         ids_2 = self.tokenizer.text_to_ids(PREFIX_STR)
         self.num_turn_start_tokens = len(ids_1) - len(ids_2)
-
 
     def _process_example(self, example):
         """
@@ -290,7 +308,14 @@ class GPTSFTChatDataset(GPTSFTDataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        result = preprocess(example, self.tokenizer, self.new_line_token_id, self.label_start_tokens, self.special_tokens, self.num_turn_start_tokens)
+        result = preprocess(
+            example,
+            self.tokenizer,
+            self.new_line_token_id,
+            self.label_start_tokens,
+            self.special_tokens,
+            self.num_turn_start_tokens,
+        )
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in ['conversations']}
