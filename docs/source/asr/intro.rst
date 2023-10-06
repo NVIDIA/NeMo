@@ -1,34 +1,52 @@
 Automatic Speech Recognition (ASR)
 ==================================
 
-ASR, or Automatic Speech Recognition, refers to the problem of getting a program to automatically transcribe spoken language 
-(speech-to-text). Our goal is usually to have a model that minimizes the Word Error Rate (WER) metric when transcribing speech input. 
-In other words, given some audio file (e.g. a WAV file) containing speech, how do we transform this into the corresponding text with 
-as few errors as possible?
+Automatic Speech Recognition (ASR), also known as Speech To Text (STT), refers to the problem of automatically transcribing spoken language.
+You can use NeMo to transcribe speech using open-sourced pretrained models in 14+ languages [link], or train your own ASR models[link].
 
-Traditional speech recognition takes a generative approach, modeling the full pipeline of how speech sounds are produced in order to 
-evaluate a speech sample. We would start from a language model that encapsulates the most likely orderings of words that are generated 
-(e.g. an n-gram model), to a pronunciation model for each word in that ordering (e.g. a pronunciation table), to an acoustic model that 
-translates those pronunciations to audio waveforms (e.g. a Gaussian Mixture Model).
+Transcribe speech with 3 lines of code
+----------------------------------------
+After installing NeMo [link], you can transcribe an audio file as follows:
 
-Then, if we receive some spoken input, our goal would be to find the most likely sequence of text that would result in the given audio 
-according to our generative pipeline of models. Overall, with traditional speech recognition, we try to model ``Pr(audio|transcript)*Pr(transcript)``, 
-and take the argmax of this over possible transcripts.
+.. code-block:: python
 
-Over time, neural nets advanced to the point where each component of the traditional speech recognition model could be replaced by a 
-neural model that had better performance and that had a greater potential for generalization. For example, we could replace an n-gram 
-model with a neural language model, and replace a pronunciation table with a neural pronunciation model, and so on. However, each of 
-these neural models need to be trained individually on different tasks, and errors in any model in the pipeline could throw off the 
-whole prediction.
+    import nemo.collections.asr as nemo_asr
+    asr_model = nemo_asr.models.ASRModel.from_pretrained("stt_en_fastconformer_transducer_large")
+    transcript = asr_model.transcribe(["path/to/audio_file.wav"])
 
-Thus, we can see the appeal of end-to-end ASR architectures: discriminative models that simply take an audio input and give a textual 
-output, and in which all components of the architecture are trained together towards the same goal. The model's encoder would be 
-akin to an acoustic model for extracting speech features, which can then be directly piped to a decoder which outputs text. If desired, 
-we could integrate a language model that would improve our predictions, as well.
+Obtain word timestamps
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-And the entire end-to-end ASR model can be trained at once--a much easier pipeline to handle!
+You can also obtain timestamps for each word in the transcription by adding a flag ``return_hypotheses=True``:
 
-A demo below allows evaluation of NeMo ASR models in multiple langauges from the browser:
+.. code-block:: python
+
+    # import nemo_asr and instantiate asr_model as above
+    import nemo.collections.asr as nemo_asr
+    asr_model = nemo_asr.models.ASRModel.from_pretrained("stt_en_fastconformer_transducer_large")
+    # specify flag `return_hypotheses=True``
+    transcript_and_timestamps = asr_model.transcribe(["path/to/audio_file.wav"], return_hypotheses=True)
+
+Transcribe speech via command line
+------------------------------------
+
+
+Incorporate a language model (LM) to improve ASR transcriptions
+-----------------------------------------------------------------
+
+
+Use real-time transcription
+---------------------------
+
+
+
+Try different ASR models
+------------------------
+
+
+Try out NeMo ASR models in your browser
+---------------------------------------
+You can try out the NeMo ASR model transcriptions without leaving your browser using the HuggingFace Space embedded below.
 
 .. raw:: html
 
