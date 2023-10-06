@@ -83,6 +83,8 @@ class TestGPTSFTChatDataset:
             "end_of_turn": "\n",
         }
         cls.suffix = cls.special_tokens['end_of_turn'] + cls.special_tokens['turn_start']
+        cls.label_suffix = '\n' + cls.special_tokens['turn_start']
+
 
     
     def _mask_user_test(self, tokenizer, ids_to_text):
@@ -140,7 +142,7 @@ class TestGPTSFTChatDataset:
                 text = ids_to_text(input_ids[mask].tolist())
                 expected_text = ''
                 for j in range(1, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['label'] + self.suffix
+                    expected_text += data_points[i]['conversations'][j]['label'] + self.label_suffix
                 assert text == expected_text
         finally:
             os.remove(temp_file)
@@ -160,7 +162,7 @@ class TestGPTSFTChatDataset:
                 text = ids_to_text(input_ids[mask].tolist())
                 expected_text = ''
                 for j in range(0, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['label'] + self.suffix
+                    expected_text += data_points[i]['conversations'][j]['label'] + self.label_suffix
                 assert text == expected_text
         finally:
             os.remove(temp_file)
@@ -375,6 +377,7 @@ class TestDifferentGPTSFTChatDataset(TestGPTSFTChatDataset):
             "system_turn_start": "<im start>",
             "turn_start": "<im start>",
             "label_start": "<label>",
-            "end_of_turn": "\n",
+            "end_of_turn": "[im end]",
         }
         cls.suffix = cls.special_tokens['end_of_turn'] + cls.special_tokens['turn_start']
+        cls.label_suffix = '\n' + cls.special_tokens['turn_start']

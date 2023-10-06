@@ -228,10 +228,12 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, new_line_token_id: int, l
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
-    header_len = len(tokenizer.text_to_ids(header))
+    header_tokens = tokenizer.text_to_ids(header)
+    header_len = len(header_tokens)
 
     ids = []
     tokenized_lens = []
+    assert torch.equal(torch.tensor(target[:header_len]), torch.tensor(header_tokens)) 
     for s in source['conversations']:
         # hack to remove the extra empty token in front
         id1 = tokenizer.text_to_ids(PREFIX_STR + s["value"])
