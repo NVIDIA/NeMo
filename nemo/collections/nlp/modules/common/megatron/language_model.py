@@ -504,7 +504,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
-        window_size=window_size,
+        window_size=None,
     ):
         super(TransformerLanguageModel, self).__init__(
             config=config, share_token_embeddings=share_embeddings_and_output_weights
