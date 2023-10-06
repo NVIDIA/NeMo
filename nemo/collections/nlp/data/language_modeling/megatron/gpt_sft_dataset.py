@@ -76,6 +76,7 @@ class GPTSFTDataset(Dataset):
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
         hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
         truncation_method: Truncation from which position. Options: ['left', 'right']
+        special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n'}
         """
         self.tokenizer = tokenizer
         self.file_path = file_path

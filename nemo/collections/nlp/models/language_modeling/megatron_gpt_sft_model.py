@@ -296,6 +296,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 truncation_method=data_cfg.get(
                     'truncation_method', 'right'
                 ),  # used to choose truncation method. Options: ['random', 'left', 'right']
+                special_tokens=data_cfg.data.get(
+                    'chat_prompt_tokens', None
+                ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n'}
             )
             datasets.append(dataset)
 
