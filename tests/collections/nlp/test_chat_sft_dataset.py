@@ -413,8 +413,7 @@ class TestDifferentGPTSFTChatDataset(TestGPTSFTChatDataset):
             "turn_start": "<im start>",
             "label_start": "<label>",
             "end_of_turn": "[im end]",
-            "end_of_name": "[name end]"
+            "end_of_name": "[name end]",
         }
         cls.suffix = cls.special_tokens['end_of_turn'] + cls.special_tokens['turn_start']
         cls.label_suffix = cls.special_tokens['end_of_name'] + cls.special_tokens['turn_start']
-

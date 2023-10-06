@@ -59,7 +59,7 @@ def _mask_targets(
     tokenizer,
     mask_role,
     gtype,
-    new_line_token_id,
+    name_end_token_ids,
     special_tokens,
     label_start_ids,
     num_turn_start_tokens,
@@ -76,7 +76,7 @@ def _mask_targets(
         tokenizer (TokenizerSpec): tokenizer object
         mask_role (str): the speaker id to be masked from loss computation
         gtype (str): either 'TEXT_TO_VALUE' or 'VALUE_TO_TEXT'
-        new_line_token_id (int): new line token id
+        name_end_token_ids (int): end of name token ids
         special_tokens (dict): special tokens used for the chat prompt. It has the keys: system_turn_start, turn_start, label_start, end_of_turn
         label_start_ids (list): list of label start token ids,
         num_turn_start_tokens (int): number of tokens of the turn_start str
@@ -84,7 +84,7 @@ def _mask_targets(
     TURN_TOKEN = special_tokens['turn_start']
     END_NAME_SIGNAL = special_tokens['end_of_name']
     label_start_ids = torch.tensor(label_start_ids)
-    new_line_token_id = torch.tensor(new_line_token_id)
+    name_end_token_ids = torch.tensor(name_end_token_ids)
 
     cur_idx = header_len
     tgt_len = target.shape[0]
@@ -105,14 +105,14 @@ def _mask_targets(
                 # the next token after the name part of the prompt is the beginning of the label start tokens
                 assert skip_name_len == location
                 # find the first new line token after the label part, which indicates the end of the whole label string
-                # newline_loc = torch.where((s_id[skip_name_len:] == new_line_token_id))[0]
-                newline_loc = find_small_tensor(new_line_token_id, s_id[skip_name_len:])
+                # newline_loc = torch.where((s_id[skip_name_len:] == name_end_token_ids))[0]
+                newline_loc = find_small_tensor(name_end_token_ids, s_id[skip_name_len:])
                 if newline_loc < 0:
                     # cannot find new line token, which means the the whole turn is just a partial label string. Mask the whole turn
                     target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
                     continue
                 # skip the label part and the new line token
-                more_skip_len = newline_loc + len(new_line_token_id)
+                more_skip_len = newline_loc + len(name_end_token_ids)
                 # skip the name part and the label part
                 skip_name_len += more_skip_len
             elif gtype == 'TEXT_TO_VALUE':
@@ -234,7 +234,7 @@ def _get_header_conversation_type_mask_role(source, special_tokens):
 def preprocess(
     source: dict,
     tokenizer: TokenizerSpec,
-    new_line_token_id: int,
+    name_end_token_ids: int,
     label_start_ids: list,
     special_tokens: dict,
     num_turn_start_tokens: int,
@@ -278,7 +278,7 @@ def preprocess(
         tokenizer,
         mask_role,
         data_type,
-        new_line_token_id,
+        name_end_token_ids,
         special_tokens,
         label_start_ids,
         num_turn_start_tokens,
@@ -323,7 +323,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
 
         ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + END_NAME_SIGNAL)
         ids_2 = self.tokenizer.text_to_ids(PREFIX_STR)
-        self.new_line_token_id = ids_1[len(ids_2) :]
+        self.name_end_token_ids = ids_1[len(ids_2) :]
 
         ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens['turn_start'])
         ids_2 = self.tokenizer.text_to_ids(PREFIX_STR)
@@ -338,7 +338,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         result = preprocess(
             example,
             self.tokenizer,
-            self.new_line_token_id,
+            self.name_end_token_ids,
             self.label_start_tokens,
             self.special_tokens,
             self.num_turn_start_tokens,

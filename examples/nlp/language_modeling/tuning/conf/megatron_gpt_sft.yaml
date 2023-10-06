@@ -76,6 +76,7 @@ model:
       turn_start: '<extra_id_1>'
       label_start: '<extra_id_2>'
       end_of_turn: '\n'
+      end_of_name: '\n'
     train_ds:
       # Example of how to specify paths to multiple datasets
       # file_names: 
