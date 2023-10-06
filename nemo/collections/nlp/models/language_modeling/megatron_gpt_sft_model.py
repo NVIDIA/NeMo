@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
@@ -33,7 +34,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
-
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
@@ -300,7 +300,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                     'chat_prompt_tokens', None
                 ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
             )
-            datasets.append(dataset)
+            if self.cfg.data.get("chat", False):
+                # chat dataset, overwrite the prompt template with the one from the dataset
+                OmegaConf.set_struct(self.cfg, True)
+                with open_dict(self.cfg):
+                    self.cfg.prompt_format = dataset.get_prompt_template_example()
 
         if is_train:
             dataset = BlendableDataset(

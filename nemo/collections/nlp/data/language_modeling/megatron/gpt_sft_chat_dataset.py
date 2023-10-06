@@ -301,9 +301,9 @@ class GPTSFTChatDataset(GPTSFTDataset):
             'system': '{system message}',
             'conversations': [
                 {'from': 'User', 'value': '{turn 1 user message}', 'label': None},
-                {'from': 'Assitant', 'value': '{turn 1 assistant message}', 'label': '{turn 1 assistant label}'},
+                {'from': 'Assistant', 'value': '{turn 1 assistant message}', 'label': '{turn 1 assistant label}'},
                 {'from': 'User', 'value': '{turn 2 user message}', 'label': None},
-                {'from': 'Assitant', 'value': '{turn 2 assistant message}', 'label': '{turn 2 assistant label}'},
+                {'from': 'Assistant', 'value': '{turn 2 assistant message}', 'label': '{turn 2 assistant label}'},
             ],
             "mask": "User",
             "type": "VALUE_TO_TEXT",
