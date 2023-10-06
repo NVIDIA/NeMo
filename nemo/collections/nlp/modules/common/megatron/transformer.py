@@ -1148,7 +1148,7 @@ class ParallelTransformer(MegatronModule):
             if parallelization_specs:
                 pipeline_parallel_rank = parallel_state.get_pipeline_component_parallel_rank()
             else:
-                pipeline_parallel_rank = parallel_state.get_pipeline_model_rank()
+                pipeline_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
 
             offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
                 num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()

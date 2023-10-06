@@ -89,10 +89,10 @@ def initialize_model_parallel_for_nemo(
     app_state.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
     app_state.use_fp8 = use_fp8
     app_state.init_mpi_proc_group = init_mpi_proc_group
-    
+
+    layer_unit_test_strategy_groups = {}
     if parallelization_specs:
         # setup groups used for fake initialization
-        layer_unit_test_strategy_groups = {}
         world_sizes = {}
         all_gpu_ranks = {}
         pipeline_model_parallel_group_sizes = {}
