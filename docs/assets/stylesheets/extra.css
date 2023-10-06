@@ -51,6 +51,28 @@
     margin-inline-end: 0px;
 }
 
+.post-author {
+    font-size: 0.875rem;
+    letter-spacing: 0.25px;
+    line-height: 0.5rem;
+    margin-bottom: 1.0rem;
+}
+
+/* Continue reading : right arrow */
+@media screen and (min-width: 768px)
+a.with-right-arrow, .md-button.with-right-arrow {
+    background-size: 8px 14px;
+    background-position: top 15px right 12px;
+    padding-right: 2rem;
+}
+a.with-right-arrow, .md-button.with-right-arrow {
+    padding-right: 2rem;
+    position: relative;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7.41' height='12' viewBox='0 0 7.41 12'%3E%3Cpath d='M10,6,8.59,7.41,13.17,12,8.59,16.59,10,18l6-6Z' transform='translate(-8.59 -6)' fill='%23fff'/%3E%3C/svg%3E");;
+    background-position: top 50% right 10%;
+    background-repeat: no-repeat;
+}
+
 /* .md-typeset .mdx-author p:first-child {
     flex-shrink: 0;
     margin-right: .8rem;
