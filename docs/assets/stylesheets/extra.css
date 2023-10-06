@@ -58,6 +58,12 @@
     margin-bottom: 1.0rem;
 }
 
+.post-author-long {
+    font-size: 0.875rem;
+    letter-spacing: 0.25px;
+    white-space: nowrap;
+}
+
 /* Continue reading : right arrow */
 @media screen and (min-width: 768px)
 a.with-right-arrow, .md-button.with-right-arrow {

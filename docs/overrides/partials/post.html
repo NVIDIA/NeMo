@@ -95,9 +95,16 @@
 
     <!-- Continue reading link -->
     <nav class="md-post__action" >
-      <a href="{{ post.url | url }}" class="md-button with-right-arrow">
+
+      <!-- First check for `post.meta.continue_url`; if present, use that redirect url; otherwise point to post -->
+      {% if post and post.meta and post.meta.continue_url %}
+        <a href="{{  post.meta.continue_url | url }}" class="md-button with-right-arrow">
+      {% else %}
+        <a href="{{  post.url | url }}" class="md-button with-right-arrow">
+      {% endif %}
+
         {{ lang.t("blog.continue") }}
-      </a>
+        </a>
     </nav>
 
     <!-- !!! MODIFICATION !!! : Add Horizontal Bar -->

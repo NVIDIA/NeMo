@@ -77,6 +77,11 @@ plugins:
       blog_toc: true
       post_url_date_format: yyyy
       post_url_format: "{date}/{file}"
+  - blog:
+      blog_dir: publications
+      blog_toc: true
+      post_url_date_format: yyyy
+      post_url_format: "{date}/{file}"
   - search
   - minify:
       minify_html: true
@@ -163,3 +168,6 @@ nav:
   # NeMo Blog Posts
   - Blog:
       - blogs/index.md
+  # NeMo Publications
+  - Publications:
+      - publications/index.md
