@@ -178,7 +178,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
                 + role_token
                 + sentence_from
                 + END_NAME_SIGNAL
-                + (response_value_formater(sentence['label'], LABEL_START, END_SIGNAL) if 'label' in sentence else '')
+                + (response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL) if 'label' in sentence else '')
                 + sentence["value"]
                 + END_SIGNAL
             )
@@ -190,7 +190,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
                 + END_NAME_SIGNAL
                 + sentence["value"]
                 + END_SIGNAL
-                + (response_value_formater(sentence['label'], LABEL_START, END_SIGNAL) if 'label' in sentence else '')
+                + (response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL) if 'label' in sentence else '')
             )
         else:
             raise ValueError(
