@@ -739,7 +739,6 @@ class CoreAttention(MegatronModule):
     ):
 
         super(CoreAttention, self).__init__(config=config)
-
         self.precision = precision
         self.fp16 = False
         self.bf16 = False
@@ -959,7 +958,7 @@ class CoreAttention(MegatronModule):
 
         is_causal = self.attn_mask_type == AttnMaskType.causal and not inference_mode
 
-        if attention_bias is not None
+        if attention_bias is not None:
             if HAVE_FLASH_ATTENTION_OCEAN:
                 return self.flash_attention_ocean(
                     query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,

@@ -1162,10 +1162,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             beam_alpha = sampling_kwargs['beam_alpha']
             keep_only_best_tokens = sampling_kwargs['keep_only_best_tokens']
             return_scores = sampling_kwargs['return_scores']
-            logging.info(f'Decoding using the beam search method with beam size={beam_size}...')
+            # logging.info(f'Decoding using the beam search method with beam size={beam_size}...')
             assert beam_size >= 1 and beam_alpha >= 0, 'Beam-search related parameters are misspecified'
-        else:
-            logging.info(f'Decoding using the {sampling_method} method...')
+        # else:
+            # logging.info(f'Decoding using the {sampling_method} method...')
 
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if not parallel_state.model_parallel_is_initialized():
