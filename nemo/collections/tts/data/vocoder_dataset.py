@@ -14,7 +14,12 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+<<<<<<< HEAD
 from typing import Dict, List, Optional
+=======
+from typing import Dict, List, Optional, Tuple
+import soundfile as sf
+>>>>>>> initial dirty working version
 
 import torch.utils.data
 from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
@@ -43,6 +48,7 @@ class DatasetMeta:
     manifest_path: Path
     audio_dir: Path
     sample_weight: float = 1.0
+    audio_tar_filepaths: Optional[List[str]] = None
 
 
 @dataclass
@@ -51,7 +57,7 @@ class DatasetSample:
     manifest_entry: dict
     audio_dir: Path
 
-def audio_collate_fn(self, batch: List[dict]):
+def audio_collate_fn(batch: List[dict]):
     dataset_name_list = []
     audio_filepath_list = []
     audio_list = []
@@ -210,8 +216,6 @@ class VocoderDataset(Dataset):
         return audio_collate_fn(batch)
 
 
-
-
 class _TarredVocoderDataset(IterableDataset):
     """
     A similar Dataset to the AudioToMultiLabelDataset, but which loads tarred audio files.
@@ -283,8 +287,6 @@ class _TarredVocoderDataset(IterableDataset):
 
     def __init__(self,
                 *,
-                audio_tar_filepaths: str,
-                manifest_filepath: str,
                 dataset_meta: Dict,
                 sample_rate: int,
                 n_samples: Optional[int] = None,
@@ -297,11 +299,9 @@ class _TarredVocoderDataset(IterableDataset):
                 num_audio_retries: int = 5,
                 shard_strategy: str = "scatter",
                 global_rank: int = 0,
-                world_size: int = 0,
+                world_size: int = 2,
     ):
         super().__init__()
-        cache_datastore_manifests(manifest_filepath, audio_tar_filepaths)
-
         self.sample_rate = sample_rate
         self.n_samples = n_samples
         self.weighted_sampling_steps_per_epoch = weighted_sampling_steps_per_epoch
@@ -321,7 +321,10 @@ class _TarredVocoderDataset(IterableDataset):
 
         self.data_samples = []
         self.sample_weights = []
+        self.audio_tar_filepaths = []
         for dataset_name, dataset_info in dataset_meta.items():
+            audio_tar_filepaths = dataset_info['audio_tar_filepaths']
+            self.audio_tar_filepaths += audio_tar_filepaths
             dataset = DatasetMeta(**dataset_info)
             samples, weights = VocoderDataset._preprocess_manifest(
                 dataset_name=dataset_name, dataset=dataset, min_duration=min_duration, max_duration=max_duration,
@@ -329,14 +332,16 @@ class _TarredVocoderDataset(IterableDataset):
             self.data_samples += samples
             self.sample_weights += weights
         
+        # cache_datastore_manifests(manifest_path, audio_tar_filepaths)
         self.mapping = {}
-        for sample in enumerate(self.data_samples):
+        for idx, sample in enumerate(self.data_samples):
             file_id = os.path.splitext(os.path.basename(sample.manifest_entry["audio_filepath"]))[0]
             if file_id not in self.mapping:
                 self.mapping[file_id] = sample
             else:
                 raise ValueError(f"Duplicate file_id {file_id} found in manifest {sample.manifest_entry['audio_filepath']}")
         
+        logging.info(f"world size: {world_size}")
         audio_tar_filepaths = expand_sharded_filepaths(
             sharded_filepaths=audio_tar_filepaths,
             global_rank=global_rank,
@@ -367,9 +372,6 @@ class _TarredVocoderDataset(IterableDataset):
         )
         return sampler
 
-    def __len__(self):
-        return len(self.data_samples)    
-
     def _filter(self, iterator):
         class FilteredIterator:
             def __init__(self, mapping):
@@ -393,7 +395,11 @@ class _TarredVocoderDataset(IterableDataset):
         file_id = os.path.splitext(os.path.basename(audio_filename))[0]
         data = self.mapping[file_id]
 
-        audio_array = io.BytesIO(audio_bytes)
+        audio_array, _ = sf.read(file=io.BytesIO(audio_bytes), dtype='float32')
+        audio_array = torch.from_numpy(audio_array)
+        if self.n_samples:
+            audio_array = audio_array[: self.n_samples]
+
         if self.trunc_samples:
             audio_array = audio_array[: self.trunc_samples]
         
@@ -413,6 +419,12 @@ class _TarredVocoderDataset(IterableDataset):
     
     def collate_fn(self, batch):
         return audio_collate_fn(batch)
+    
+    def __iter__(self):
+        return self._dataset.__iter__()
+    
+    def __len__(self):
+        return len(self.mapping)
 
 
 class TarredVocoderDataset(_TarredVocoderDataset):
