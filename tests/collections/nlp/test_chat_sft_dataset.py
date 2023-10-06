@@ -56,7 +56,7 @@ def create_data_points(mask_user, turn_num, records, temp_file, t2v, label=True)
     with open(temp_file, 'w', encoding='utf-8') as f:
         for r in range(records):
             record = {}
-            record['system'] = 'a chat\n\n'
+            record['system'] = 'a chat\n'
             record['type'] = 'TEXT_TO_VALUE' if t2v else 'VALUE_TO_TEXT'
             record['mask'] = 'User' if mask_user else 'Assistant'
             turns = []
@@ -274,7 +274,27 @@ class TestGPTSFTChatDataset:
             {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
         )
         self._mask_assistant_t2v_test(tokenizer, partial(ids_to_text, tokenizer))
-        
+
+    @pytest.mark.unit
+    def test_mpt_tokenizer_mask_user_nolabel(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        tokenizer.add_special_tokens(
+            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
+        )
+        self._mask_user_nolabel_test(tokenizer, partial(ids_to_text, tokenizer))
+
+    @pytest.mark.unit
+    def test_mpt_tokenizer_mask_assistant_nolabel(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        tokenizer.add_special_tokens(
+            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
+        )
+        self._mask_assistant_nolabel_test(tokenizer,  partial(ids_to_text, tokenizer))
+       
     @pytest.mark.unit
     def test_llama2_tokenizer_mask_user(self):
         tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
@@ -304,3 +324,46 @@ class TestGPTSFTChatDataset:
     def test_llama2_tokenizer_mask_assistant_nolabel(self):
         tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
         self._mask_assistant_nolabel_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_normal_mpt_tokenizer_mask_user(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        self._mask_user_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_normal_mpt_tokenizer_mask_assistant(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        self._mask_assistant_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_normal_mpt_tokenizer_mask_user_t2v(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        self._mask_user_t2v_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_normal_mpt_tokenizer_mask_assistant_t2v(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        self._mask_assistant_t2v_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_normal_mpt_tokenizer_mask_user_nolabel(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        self._mask_user_nolabel_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_normal_mpt_tokenizer_mask_assistant_nolabel(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        self._mask_assistant_nolabel_test(tokenizer,  tokenizer.ids_to_text)
+ 
