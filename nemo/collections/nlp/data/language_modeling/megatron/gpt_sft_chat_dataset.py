@@ -23,17 +23,31 @@ from nemo.utils import logging
 
 __all__ = ['GPTSFTChatDataset']
 
-IGNORE_INDEX = -100
-END_SIGNAL = "\n"
-END_NAME_SIGNAL = "\n"
 
-SYSTEM_TOKEN = "<extra_id_0>System\n"
-TURN_TOKEN = "<extra_id_1>"
+PREFIX_STR = "\x00"
+
+IGNORE_INDEX = -100
+END_NAME_SIGNAL = "\n"
+SYSTEM_TOKEN = "System" + END_NAME_SIGNAL
 
 TYPE_INSTRUCTION = {
     'TEXT_TO_VALUE': "",
     'VALUE_TO_TEXT': '',
 }
+
+
+def find_small_tensor(small, large):
+    """ find the location of the small tensor in the large tensor.
+        e.g.  small = [1,3], large = [2,3,1,3], returns 2
+              small = [3,2], large = [2,3,1,3], returns -1
+    Args:
+        small (tensor): small tensor
+        large (tensor): large tensor
+    """
+    for i in range(large.size(0) - small.size(0) + 1):
+        if torch.equal(large[i:i+small.size(0)], small):
+            return i
+    return -1
 
 
 def _mask_targets(
@@ -45,8 +59,10 @@ def _mask_targets(
     tokenizer,
     mask_role,
     gtype,
-    extra_id_2_token_id,
     new_line_token_id,
+    special_tokens,
+    label_start_ids,
+    num_turn_ids,
 ):
     """ This function masks the tokens so the loss is computed only on the non-masked role's responses.
     For 'TEXT_TO_VALUE' type, the loss is computed on the value attributes.
@@ -60,23 +76,32 @@ def _mask_targets(
         tokenizer (TokenizerSpec): tokenizer object
         mask_role (str): the speaker id to be masked from loss computation
         gtype (str): either 'TEXT_TO_VALUE' or 'VALUE_TO_TEXT'
-        extra_id_2_token_id (int): <extra_id_2> token id
         new_line_token_id (int): new line token id
 
     """
+    # self.special_tokens = {
+    #     "system_turn_start": "<extra_id_0>",
+    #     "turn_start": "<extra_id_1>",
+    #     "label_start": "<extra_id_2>",
+    #     "end_of_turn": "\n",
+    # }
+    TURN_TOKEN = special_tokens['turn_start']
+    label_start_ids = torch.tensor(label_start_ids)
+
     cur_idx = header_len
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. has to compute the diff
-        id1 = tokenizer.text_to_ids("<extra_id_1>")
-        id2 = tokenizer.text_to_ids("<extra_id_1>" + TURN_TOKEN + speaker + END_NAME_SIGNAL)
+        id1 = tokenizer.text_to_ids(PREFIX_STR)
+        id2 = tokenizer.text_to_ids(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
         skip_name_len = len(id2) - len(id1)
-        if extra_id_2_token_id is None:
-            raise ValueError("extra_id_2 is not in the vocabulary")
-        if (s_id == extra_id_2_token_id).any().item():
+        # check label start token inside
+        location = find_small_tensor(label_start_ids, s_id)
+
+        if location >= 0:
             if gtype == 'VALUE_TO_TEXT':
                 # if contains the token <extra_id_2>
-                assert skip_name_len == torch.where((s_id == extra_id_2_token_id))[0].item()
+                assert skip_name_len == location
                 # find new line token id 14
                 newline_loc = torch.where((s_id[skip_name_len:] == new_line_token_id))[0]
                 if len(newline_loc) == 0:
@@ -86,7 +111,7 @@ def _mask_targets(
                 more_skip_len = newline_loc[0].item() + 1
                 skip_name_len += more_skip_len
             elif gtype == 'TEXT_TO_VALUE':
-                skip_name_len = torch.where((s_id == extra_id_2_token_id))[0].item() + 1
+                skip_name_len = location + len(label_start_ids) + 1
         if cur_idx >= tgt_len:
             break
         elif cur_idx + tokenized_len < tgt_len:
@@ -100,10 +125,10 @@ def _mask_targets(
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
         elif speaker == mask_role and i == 1 and gtype == 'TEXT_TO_VALUE':
             # leave the first human tag unmasked
-            target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
+            target[cur_idx + num_turn_ids : cur_idx + tokenized_len] = IGNORE_INDEX
         elif speaker == mask_role and (i > 1):
             # leave the first human tag unmasked
-            target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
+            target[cur_idx + num_turn_ids : cur_idx + tokenized_len] = IGNORE_INDEX
         elif speaker == mask_role and (i <= 1):
             # mask out everything in the second turn
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
@@ -117,16 +142,26 @@ def cannonical_form_formater(cannoical_form):
     return f'<extra_id_2>{cannoical_form}\n'
 
 
-def response_value_formater(label):
+def response_value_formater(label, label_start, end_signal):
     if isinstance(label, str):
-        return '<extra_id_2>' + label + '\n'
+        return label_start + label + end_signal
     elif label is None:
         return ''
     else:
         raise ValueError(f'Unknown label type {type(label)}, only str type is supported')
 
 
-def _add_speaker_and_signal(header, source, mask_role, gtype):
+def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
+    # self.special_tokens = {
+    #     "system_turn_start": "<extra_id_0>",
+    #     "turn_start": "<extra_id_1>",
+    #     "label_start": "<extra_id_2>",
+    #     "end_of_turn": "\n",
+    # }
+    TURN_TOKEN = special_tokens['turn_start']
+    END_SIGNAL = special_tokens['end_of_turn']
+    LABEL_START = special_tokens['label_start']
+
     """Add speaker and start/end signal on each round."""
     BEGIN_SIGNAL = ""
     conversation = header
@@ -143,7 +178,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
                 + role_token
                 + sentence_from
                 + END_NAME_SIGNAL
-                + (response_value_formater(sentence['label']) if 'label' in sentence else '')
+                + (response_value_formater(sentence['label'], LABEL_START, END_SIGNAL) if 'label' in sentence else '')
                 + sentence["value"]
                 + END_SIGNAL
             )
@@ -155,7 +190,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
                 + END_NAME_SIGNAL
                 + sentence["value"]
                 + END_SIGNAL
-                + (response_value_formater(sentence['label']) if 'label' in sentence else '')
+                + (response_value_formater(sentence['label'], LABEL_START, END_SIGNAL) if 'label' in sentence else '')
             )
         else:
             raise ValueError(
@@ -168,7 +203,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
     return conversation
 
 
-def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int, new_line_token_id: int):
+def preprocess(source: dict, tokenizer: TokenizerSpec, new_line_token_id: int, label_start_ids:list, special_tokens: dict, num_turn_ids: int):
     """
     Given a conversation list. This transform:
     1. Add signal '### ' at the beginning each sentence, with end signal '\n';
@@ -187,8 +222,8 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
         if TYPE_INSTRUCTION[data_type] != '':
             conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
     mask_role = source.get('mask', 'User')
-    header = f"{SYSTEM_TOKEN}{conversation}"
-    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type)
+    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{conversation}"
+    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
@@ -197,16 +232,12 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
     ids = []
     tokenized_lens = []
     for s in source['conversations']:
-        if isinstance(tokenizer, SentencePieceTokenizer):
-            tokenized_sentence = tokenizer.text_to_ids(s["value"])
-            ids.append(torch.tensor(tokenized_sentence)[1:])
-            # remove one token as it adds an empty token in front
-            tokenized_lens.append(len(tokenized_sentence) - 1)
-        else:
-            tokenized_sentence = tokenizer.text_to_ids(s["value"])
-            ids.append(torch.tensor(tokenized_sentence))
-            # remove one token as it adds an empty token in front
-            tokenized_lens.append(len(tokenized_sentence))
+        # hack to remove the extra empty token in front
+        id1 = tokenizer.text_to_ids(PREFIX_STR + s["value"])
+        id2 = tokenizer.text_to_ids(PREFIX_STR)
+        tokenized_sentence = id1[len(id2):]
+        ids.append(torch.tensor(tokenized_sentence))
+        tokenized_lens.append(len(tokenized_sentence))
     speakers = [sentence["from"] for sentence in source['conversations']]
     assert mask_role in speakers, "mask role not in the conversation"
     target = torch.LongTensor(target)
@@ -222,8 +253,10 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
         tokenizer,
         mask_role,
         data_type,
-        extra_id_2_token_id,
         new_line_token_id,
+        special_tokens,
+        label_start_ids,
+        num_turn_ids
     )
     mask = (target != IGNORE_INDEX).bool()
     assert mask.sum().item() != 0, "mask is empty"
@@ -249,22 +282,31 @@ class GPTSFTChatDataset(GPTSFTDataset):
     def _build_samples_mapping(self):
         super()._build_samples_mapping()
         assert hasattr(self.tokenizer, "vocab"), "tokenizer should have vocab property, not supported"
-        assert _check_token_in_vocab(
-            self.tokenizer, '<extra_id_0>'
-        ), "<extra_id_0> not in the tokenizer vocab. not supported"
-        assert _check_token_in_vocab(
-            self.tokenizer, '<extra_id_1>'
-        ), "<extra_id_1> not in the tokenizer vocab. not supported"
+        # assert _check_token_in_vocab(
+        #     self.tokenizer, '<extra_id_0>'
+        # ), "<extra_id_0> not in the tokenizer vocab. not supported"
+        # assert _check_token_in_vocab(
+        #     self.tokenizer, '<extra_id_1>'
+        # ), "<extra_id_1> not in the tokenizer vocab. not supported"
         # calcuilate <extra_id_2> id value
-        if _check_token_in_vocab(self.tokenizer, '<extra_id_2>'):
-            ids_1 = self.tokenizer.text_to_ids('<extra_id_1><extra_id_2>')
-            ids_2 = self.tokenizer.text_to_ids('<extra_id_1>')
-            self.extra_id_2_token_id = ids_1[len(ids_2) :][0]
-        else:
-            self.extra_id_2_token_id = None
-        ids_1 = self.tokenizer.text_to_ids('<extra_id_1>\n')
-        ids_2 = self.tokenizer.text_to_ids('<extra_id_1>')
-        self.new_line_token_id = ids_1[len(ids_2) :][0]
+        # if _check_token_in_vocab(self.tokenizer, '<extra_id_2>'):
+        #     ids_1 = self.tokenizer.text_to_ids('<extra_id_1><extra_id_2>')
+        #     ids_2 = self.tokenizer.text_to_ids('<extra_id_1>')
+        #     self.extra_id_2_token_id = ids_1[len(ids_2) :][0]
+        # else:
+        #     self.extra_id_2_token_id = None
+        LABEL_START = self.special_tokens['label_start']
+        id1 = self.tokenizer.text_to_ids(PREFIX_STR)
+        id2 = self.tokenizer.text_to_ids(PREFIX_STR + LABEL_START)
+        self.label_start_tokens = id2[len(id1):]
+        ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + '\n')
+        ids_2 = self.tokenizer.text_to_ids(PREFIX_STR)
+        self.new_line_token_id = ids_1[len(ids_2):][0]
+
+        ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens['turn_start'])
+        ids_2 = self.tokenizer.text_to_ids(PREFIX_STR)
+        self.num_turn_ids = len(ids_1) - len(ids_2)
+
 
     def _process_example(self, example):
         """
@@ -272,7 +314,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        result = preprocess(example, self.tokenizer, self.extra_id_2_token_id, self.new_line_token_id)
+        result = preprocess(example, self.tokenizer, self.new_line_token_id, self.label_start_tokens, self.special_tokens, self.num_turn_ids)
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in ['conversations']}

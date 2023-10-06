@@ -23,6 +23,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset i
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 TOKENIZER_FILE_43B = '/home/TestData/nlp/megatron_sft/tokenizer.model'
+TOKENIZER_FILE_Llama2 = '/home/TestData/nlp/megatron_sft/llama2_tokenizer.model'
 MERGE_FILE = '/home/TestData/nlp/megatron_sft/merges.txt'
 VOCAB_FILE = '/home/TestData/nlp/megatron_sft/vocab.json'
 
@@ -77,15 +78,49 @@ class TestGPTSFTChatDataset:
         pass
 
     @pytest.mark.unit
+    def test_llama2_tokenizer_mask_user(self):
+        random.seed(5)
+        temp_file = '/tmp/test_file.jsonl'
+        turn_num = 5
+        records = 5
+        special_tokens = {
+            "system_turn_start": "<extra_id_0>",
+            "turn_start": "<extra_id_1>",
+            "label_start": "<extra_id_2>",
+            "end_of_turn": "\n",
+        }
+        try:
+            data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
+            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=special_tokens)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(1, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
+        finally:
+            os.remove(temp_file)
+
+    @pytest.mark.unit
     def test_43B_tokenizer_mask_user(self):
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
         records = 5
+        special_tokens = {
+            "system_turn_start": "<extra_id_0>",
+            "turn_start": "<extra_id_1>",
+            "label_start": "<extra_id_2>",
+            "end_of_turn": "\n",
+        }
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
