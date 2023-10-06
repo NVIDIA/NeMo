@@ -119,6 +119,9 @@ def main(cfg) -> None:
     else:
         model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
 
+    with open_dict(model_cfg):
+        model_cfg.window_size = cfg.model.window_size
+        
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
 
     if cfg.model.peft.restore_from_path:
