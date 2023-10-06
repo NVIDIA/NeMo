@@ -111,7 +111,7 @@ def _mask_targets(
                 more_skip_len = newline_loc[0].item() + 1
                 skip_name_len += more_skip_len
             elif gtype == 'TEXT_TO_VALUE':
-                skip_name_len = location + len(label_start_ids) + 1
+                skip_name_len = location + len(label_start_ids)
         if cur_idx >= tgt_len:
             break
         elif cur_idx + tokenized_len < tgt_len:

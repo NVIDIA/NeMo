@@ -75,7 +75,12 @@ def create_data_points(mask_user, turn_num, records, temp_file, t2v, label=True)
 class TestGPTSFTChatDataset:
     @classmethod
     def setup_class(cls):
-        pass
+        cls.special_tokens = {
+            "system_turn_start": "<extra_id_0>",
+            "turn_start": "<extra_id_1>",
+            "label_start": "<extra_id_2>",
+            "end_of_turn": "\n",
+        }
 
     @pytest.mark.unit
     def test_llama2_tokenizer_mask_user(self):
@@ -83,16 +88,10 @@ class TestGPTSFTChatDataset:
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
         records = 5
-        special_tokens = {
-            "system_turn_start": "<extra_id_0>",
-            "turn_start": "<extra_id_1>",
-            "label_start": "<extra_id_2>",
-            "end_of_turn": "\n",
-        }
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=special_tokens)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -111,16 +110,10 @@ class TestGPTSFTChatDataset:
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
         records = 5
-        special_tokens = {
-            "system_turn_start": "<extra_id_0>",
-            "turn_start": "<extra_id_1>",
-            "label_start": "<extra_id_2>",
-            "end_of_turn": "\n",
-        }
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=special_tokens)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -142,7 +135,7 @@ class TestGPTSFTChatDataset:
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -164,7 +157,7 @@ class TestGPTSFTChatDataset:
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=True)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -186,7 +179,7 @@ class TestGPTSFTChatDataset:
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=True)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -213,7 +206,7 @@ class TestGPTSFTChatDataset:
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -240,7 +233,7 @@ class TestGPTSFTChatDataset:
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -267,7 +260,7 @@ class TestGPTSFTChatDataset:
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -294,7 +287,7 @@ class TestGPTSFTChatDataset:
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -316,7 +309,7 @@ class TestGPTSFTChatDataset:
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False, label=False)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
@@ -338,7 +331,7 @@ class TestGPTSFTChatDataset:
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False, label=False)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
