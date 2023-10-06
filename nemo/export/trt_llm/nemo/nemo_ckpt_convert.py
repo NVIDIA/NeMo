@@ -25,6 +25,9 @@ from tensorrt_llm._utils import str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
 from transformers import GPT2Tokenizer, LlamaConfig, T5Tokenizer
 
+import tensorstore  # this is important even though not used
+import zarr
+
 from .convert import (
     cpu_map_location,
     gpu_map_location,
@@ -219,6 +222,87 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
 
     # AMMO modification.
     return weights_dict, llm_config, tokenizer
+
+
+def load_sharded_metadata(checkpoint_dir: str):
+    checkpoint_dir = Path(checkpoint_dir)
+    sharded_state_dict = {}
+    for subdir in checkpoint_dir.iterdir():
+        if not subdir.is_dir() or not (subdir / '.zarray').exists():
+            continue
+        key = subdir.name
+        arr = zarr.open(str(subdir), 'r')
+        sharded_state_dict[key] = arr[:]
+
+    return sharded_state_dict
+
+
+@torch.no_grad()
+def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args):
+    nemo_model_config = unpacked_checkpoints_dir.model_config
+    checkpoints_paths = unpacked_checkpoints_dir.checkpoints_dir / "model_weights"
+    # if checkpoints files could be found - start preparing output dir
+    out_dir = create_out_dir(args)
+
+    storage_type = str_dtype_to_torch(args.storage_type)
+    is_mcore = nemo_model_config.get("mcore_gpt", False)
+
+    # load position_embedding from rank 0
+    model = load_sharded_metadata(checkpoints_paths)
+    model_state_dict = model.get("state_dict", model)
+
+    '''
+    num_kv_heads = nemo_model_config.get("num_query_groups", 0)
+    multi_query_mode = nemo_model_config.get("multi_query_mode", False)
+    num_attention_heads = nemo_model_config["num_attention_heads"]
+    if num_kv_heads == 0:
+        if multi_query_mode:
+            num_kv_heads = 1
+        else:
+            num_kv_heads = num_attention_heads
+
+    export_config = {
+        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
+        "tp_size": training_tp_size,
+        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu") and (
+            args.decoder_type == "gptnext" or is_mcore
+        ),
+        "num_attention_heads": num_attention_heads,
+        "num_kv_heads": num_kv_heads,
+        "use_attention_nemo_shape": True,
+        "transpose_weights": True,
+    }
+
+
+    tokenizer_config = update_tokenizer_paths(
+        nemo_model_config["tokenizer"], unpacked_checkpoints_dir
+    )
+    copy_tokenizer_files(tokenizer_config, out_dir)
+    # AMMO modification.
+    tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
+    tokenizer = build_tokenizer(tokenizer_config)
+    llm_config = nemo_to_llm_config(
+        nemo_model_config,
+        vocab_size,
+        tokenizer.eos_token_id,
+        tokenizer.bos_token_id,
+        args.decoder_type,
+    )
+
+    llm_config.is_mcore = is_mcore
+
+    config = configparser.ConfigParser()
+    model_name = "llama" if isinstance(llm_config, LlamaConfig) else "gpt"
+    config[model_name] = {k: str(v) for k, v in vars(llm_config).items()}
+    config[model_name]["storage_dtype"] = args.storage_type
+    config_path = out_dir / "config.ini"
+    with config_path.open("w") as config_file:
+        config.write(config_file)
+
+    # AMMO modification.
+    return weights_dict, llm_config, tokenizer
+    '''
+    return None, None, None
 
 
 def create_out_dir(args):

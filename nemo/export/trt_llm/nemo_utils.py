@@ -38,7 +38,7 @@ from .model_config import (
     ModelConfig,
 )
 from .nemo.nemo import UnpackedNemoCheckpointDir, unpack_nemo_ckpt
-from .nemo.nemo_ckpt_convert import build_tokenizer, convert_checkpoint
+from .nemo.nemo_ckpt_convert import build_tokenizer, convert_checkpoint, convert_dist_checkpoint
 from .tensor_utils import get_tensor_from_dict, split
 
 LOGGER = logging.getLogger(__name__)
@@ -88,7 +88,11 @@ def _nemo_decode(
         )
 
         start_time = datetime.datetime.now()
-        weights_dict, llm_config, tokenizer = convert_checkpoint(unpacked_checkpoint_dir, args)
+        dist_ckpt_folder = checkpoint_dir_path / "model_weight"
+        if dist_ckpt_folder.exists():
+            weights_dict, llm_config, tokenizer = convert_dist_checkpoint(unpacked_checkpoint_dir, args)
+        else:
+            weights_dict, llm_config, tokenizer = convert_checkpoint(unpacked_checkpoint_dir, args)
         LOGGER.info("Spent %s (h:m:s) to convert the model", datetime.datetime.now() - start_time)
 
         return weights_dict, llm_config, tokenizer
