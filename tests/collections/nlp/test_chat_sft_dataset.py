@@ -21,6 +21,7 @@ import pytest
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from functools import partial
 
 TOKENIZER_FILE_43B = '/home/TestData/nlp/megatron_sft/tokenizer.model'
 TOKENIZER_FILE_Llama2 = '/home/TestData/nlp/megatron_sft/llama2_tokenizer.model'
@@ -81,265 +82,225 @@ class TestGPTSFTChatDataset:
             "label_start": "<extra_id_2>",
             "end_of_turn": "\n",
         }
+        cls.suffix = cls.special_tokens['end_of_turn'] + cls.special_tokens['turn_start']
 
-    @pytest.mark.unit
-    def test_llama2_tokenizer_mask_user(self):
+    
+    def _mask_user_test(self, tokenizer, ids_to_text):
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
         records = 5
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
                 mask = result['mask']
-                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                text = ids_to_text(input_ids[mask].tolist())
                 expected_text = ''
                 for j in range(1, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                    expected_text += data_points[i]['conversations'][j]['value'] + self.suffix
                 assert text == expected_text
         finally:
             os.remove(temp_file)
 
-    @pytest.mark.unit
-    def test_43B_tokenizer_mask_user(self):
-        random.seed(5)
-        temp_file = '/tmp/test_file.jsonl'
-        turn_num = 5
-        records = 5
-        try:
-            data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
-            for i in range(len(d)):
-                result = d[i]
-                input_ids = result['input_ids']
-                mask = result['mask']
-                text = tokenizer.ids_to_text(input_ids[mask].tolist())
-                expected_text = ''
-                for j in range(1, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
-                assert text == expected_text
-        finally:
-            os.remove(temp_file)
-
-    @pytest.mark.unit
-    def test_43B_tokenizer_mask_assistant(self):
+    def _mask_assistant_test(self, tokenizer, ids_to_text):
         random.seed(3)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
         records = 5
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
                 mask = result['mask']
-                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                text = ids_to_text(input_ids[mask].tolist())
                 expected_text = ''
                 for j in range(2, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                    expected_text += data_points[i]['conversations'][j]['value'] + self.suffix
                 assert text == expected_text
         finally:
             os.remove(temp_file)
 
-    @pytest.mark.unit
-    def test_43B_tokenizer_mask_user_t2v(self):
+    def _mask_user_t2v_test(self, tokenizer, ids_to_text):
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
         records = 5
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=True)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
                 mask = result['mask']
-                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                text = ids_to_text(input_ids[mask].tolist())
                 expected_text = ''
                 for j in range(1, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
+                    expected_text += data_points[i]['conversations'][j]['label'] + self.suffix
                 assert text == expected_text
         finally:
             os.remove(temp_file)
 
-    @pytest.mark.unit
-    def test_43B_tokenizer_mask_assistant_t2v(self):
+    def _mask_assistant_t2v_test(self, tokenizer, ids_to_text):
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
         records = 5
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=True)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
                 mask = result['mask']
-                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                text = ids_to_text(input_ids[mask].tolist())
                 expected_text = ''
                 for j in range(0, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
+                    expected_text += data_points[i]['conversations'][j]['label'] + self.suffix
                 assert text == expected_text
         finally:
             os.remove(temp_file)
 
-    @pytest.mark.unit
-    def test_mpt_tokenizer_mask_user(self):
-        random.seed(5)
-        temp_file = '/tmp/test_file.jsonl'
-        turn_num = 5
-        records = 5
-        try:
-            data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
-            tokenizer = get_nmt_tokenizer(
-                library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
-            )
-            tokenizer.add_special_tokens(
-                {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
-            )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
-            for i in range(len(d)):
-                result = d[i]
-                input_ids = result['input_ids']
-                mask = result['mask']
-                text = ids_to_text(tokenizer, input_ids[mask].tolist())
-                expected_text = ''
-                for j in range(1, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
-                assert text == expected_text
-        finally:
-            os.remove(temp_file)
-
-    @pytest.mark.unit
-    def test_mpt_tokenizer_mask_assistant(self):
-        random.seed(3)
-        temp_file = '/tmp/test_file.jsonl'
-        turn_num = 5
-        records = 5
-        try:
-            data_points = create_data_points(False, turn_num, records, temp_file, t2v=False)
-            tokenizer = get_nmt_tokenizer(
-                library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
-            )
-            tokenizer.add_special_tokens(
-                {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
-            )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
-            for i in range(len(d)):
-                result = d[i]
-                input_ids = result['input_ids']
-                mask = result['mask']
-                text = ids_to_text(tokenizer, input_ids[mask].tolist())
-                expected_text = ''
-                for j in range(2, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
-                assert text == expected_text
-        finally:
-            os.remove(temp_file)
-
-    @pytest.mark.unit
-    def test_mpt_tokenizer_mask_user_t2v(self):
-        random.seed(5)
-        temp_file = '/tmp/test_file.jsonl'
-        turn_num = 5
-        records = 5
-        try:
-            data_points = create_data_points(True, turn_num, records, temp_file, t2v=True)
-            tokenizer = get_nmt_tokenizer(
-                library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
-            )
-            tokenizer.add_special_tokens(
-                {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
-            )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
-            for i in range(len(d)):
-                result = d[i]
-                input_ids = result['input_ids']
-                mask = result['mask']
-                text = ids_to_text(tokenizer, input_ids[mask].tolist())
-                expected_text = ''
-                for j in range(1, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
-                assert text == expected_text
-        finally:
-            os.remove(temp_file)
-
-    @pytest.mark.unit
-    def test_mpt_tokenizer_mask_assistant_t2v(self):
-        random.seed(5)
-        temp_file = '/tmp/test_file.jsonl'
-        turn_num = 5
-        records = 5
-        try:
-            data_points = create_data_points(False, turn_num, records, temp_file, t2v=True)
-            tokenizer = get_nmt_tokenizer(
-                library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
-            )
-            tokenizer.add_special_tokens(
-                {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
-            )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
-            for i in range(len(d)):
-                result = d[i]
-                input_ids = result['input_ids']
-                mask = result['mask']
-                text = ids_to_text(tokenizer, input_ids[mask].tolist())
-                expected_text = ''
-                for j in range(0, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
-                assert text == expected_text
-        finally:
-            os.remove(temp_file)
-
-    @pytest.mark.unit
-    def test_43B_tokenizer_mask_user_nolabel(self):
+    def _mask_user_nolabel_test(self, tokenizer, ids_to_text):
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
         records = 5
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False, label=False)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
                 mask = result['mask']
-                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                text = ids_to_text(input_ids[mask].tolist())
                 expected_text = ''
                 for j in range(1, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                    expected_text += data_points[i]['conversations'][j]['value'] + self.suffix
                 assert text == expected_text
         finally:
             os.remove(temp_file)
 
-    @pytest.mark.unit
-    def test_43B_tokenizer_mask_assistant_nolabel(self):
+    def _mask_assistant_nolabel_test(self, tokenizer, ids_to_text):
         random.seed(3)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
         records = 5
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False, label=False)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True, special_tokens=self.special_tokens)
             for i in range(len(d)):
                 result = d[i]
                 input_ids = result['input_ids']
                 mask = result['mask']
-                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                text = ids_to_text(input_ids[mask].tolist())
                 expected_text = ''
                 for j in range(2, turn_num, 2):
-                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                    expected_text += data_points[i]['conversations'][j]['value'] + self.suffix
                 assert text == expected_text
         finally:
             os.remove(temp_file)
+
+    @pytest.mark.unit
+    def test_43B_tokenizer_mask_user(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
+        self._mask_user_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_43B_tokenizer_mask_assistant(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
+        self._mask_assistant_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_43B_tokenizer_mask_user_t2v(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
+        self._mask_user_t2v_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_43B_tokenizer_mask_assistant_t2v(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
+        self._mask_assistant_t2v_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_43B_tokenizer_mask_user_nolabel(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
+        self._mask_user_nolabel_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_43B_tokenizer_mask_assistant_nolabel(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
+        self._mask_assistant_nolabel_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_mpt_tokenizer_mask_user(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        tokenizer.add_special_tokens(
+            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
+        )
+        self._mask_user_test(tokenizer, partial(ids_to_text, tokenizer))
+
+    @pytest.mark.unit
+    def test_mpt_tokenizer_mask_assistant(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        tokenizer.add_special_tokens(
+            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
+        )
+        self._mask_assistant_test(tokenizer, partial(ids_to_text, tokenizer))
+
+    @pytest.mark.unit
+    def test_mpt_tokenizer_mask_user_t2v(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        tokenizer.add_special_tokens(
+            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
+        )
+        self._mask_user_t2v_test(tokenizer, partial(ids_to_text, tokenizer))
+
+    @pytest.mark.unit
+    def test_mpt_tokenizer_mask_assistant_t2v(self):
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+        )
+        tokenizer.add_special_tokens(
+            {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
+        )
+        self._mask_assistant_t2v_test(tokenizer, partial(ids_to_text, tokenizer))
+        
+    @pytest.mark.unit
+    def test_llama2_tokenizer_mask_user(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
+        self._mask_user_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_llama2_tokenizer_mask_assistant(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
+        self._mask_assistant_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_llama2_tokenizer_mask_user_t2v(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
+        self._mask_user_t2v_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_llama2_tokenizer_mask_assistant_t2v(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
+        self._mask_assistant_t2v_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_llama2_tokenizer_mask_user_nolabel(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
+        self._mask_user_nolabel_test(tokenizer, tokenizer.ids_to_text)
+
+    @pytest.mark.unit
+    def test_llama2_tokenizer_mask_assistant_nolabel(self):
+        tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_Llama2)
+        self._mask_assistant_nolabel_test(tokenizer, tokenizer.ids_to_text)
