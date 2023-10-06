@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import open_clip
+import torch
+
 
 def get_collate_fn(first_stage_key="images_moments", cond_stage_key="captions"):
     def collate_fn_with_tokenize(batch):
@@ -28,4 +29,5 @@ def get_collate_fn(first_stage_key="images_moments", cond_stage_key="captions"):
             "captions": tokens,
         }
         return batch
+
     return collate_fn_with_tokenize

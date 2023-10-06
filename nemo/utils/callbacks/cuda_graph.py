@@ -13,22 +13,21 @@
 # limitations under the License.
 
 import os
-import torch
-
-from typing import Any, Dict, List, Optional, Type
-from types import MethodType
-
 from dataclasses import dataclass
-from torch.nn.parallel import DistributedDataParallel
+from types import MethodType
+from typing import Any, Dict, List, Optional, Type
 
 import pytorch_lightning as pl
+import torch
 from pytorch_lightning.callbacks import Callback
-from pytorch_lightning.utilities.types import STEP_OUTPUT
-from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
-from pytorch_lightning.utilities.rank_zero import rank_zero_warn, rank_zero_info
 from pytorch_lightning.loops.optimization.optimizer_loop import ClosureResult
+from pytorch_lightning.utilities.rank_zero import rank_zero_info, rank_zero_warn
+from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
+from pytorch_lightning.utilities.types import STEP_OUTPUT
+from torch.nn.parallel import DistributedDataParallel
 
 __all__ = ["CUDAGraphCallback"]
+
 
 def struct_copy_one(src):
     if isinstance(src, tuple):
@@ -41,6 +40,7 @@ def struct_copy_one(src):
         return src.clone().detach().cuda()
     else:
         return src
+
 
 def struct_copy_two(tgt, src):
     if isinstance(src, tuple):
@@ -62,8 +62,10 @@ def struct_copy_two(tgt, src):
     else:
         raise Exception(f"Expect top-level as container type but got: {type(src)}")
 
+
 class StaticBufferLoader:
     """Load data to static buffers."""
+
     def __init__(self, loader):
         self.loader = loader
         self.stream = torch.cuda.Stream()
@@ -83,8 +85,10 @@ class StaticBufferLoader:
     def __len__(self):
         return len(self.loader)
 
+
 class StaticBufferLRScheduler:
     """Make sure LR updated in static buffers."""
+
     def __init__(self, lr_scheduler):
         self.lr_scheduler = lr_scheduler
 
@@ -99,13 +103,14 @@ class StaticBufferLRScheduler:
     def step(self, epoch=None):
         self.lr_scheduler.step(epoch)
 
+
 def zero_grad(optimizer, *args, **kwargs):
     # We invoke zero_grad before graph capturing.
     if torch.cuda.is_current_stream_capturing():
-        rank_zero_info("CUDAGraphCallback: set optimizer.zero_grad as nop "
-            "during graph capturing.")
+        rank_zero_info("CUDAGraphCallback: set optimizer.zero_grad as nop during graph capturing.")
     else:
         optimizer.__orig_zero_grad__(*args, **kwargs)
+
 
 def get_optimizer_step(state):
     def optimizer_step(
@@ -114,21 +119,21 @@ def get_optimizer_step(state):
         batch_idx,
         optimizer,
         optimizer_idx: int = 0,
-        optimizer_closure = None,
+        optimizer_closure=None,
         on_tpu: bool = False,
         using_lbfgs: bool = False,
     ) -> None:
         # Not all optimizer supports set_to_none.
         if not hasattr(optimizer, "support_set_to_none"):
             optimizer.support_set_to_none = is_param_in_hook_signature(
-                optimizer.zero_grad, "set_to_none", explicit=True)
+                optimizer.zero_grad, "set_to_none", explicit=True
+            )
         if optimizer.support_set_to_none:
             zero_grad_kwargs = {"set_to_none": True}
         else:
             zero_grad_kwargs = {}
 
-        if 0 <= state.current_iteration < state.capture_iteration or \
-                state.capture_iteration < 0:
+        if 0 <= state.current_iteration < state.capture_iteration or state.capture_iteration < 0:
             state.stream.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(state.stream):
                 optimizer.zero_grad(**zero_grad_kwargs)
@@ -146,8 +151,7 @@ def get_optimizer_step(state):
         if state.current_iteration == state.capture_iteration:
             optimizer.zero_grad(**zero_grad_kwargs)
             torch.cuda.synchronize()
-            rank_zero_info("CUDAGraphCallback: capturing CUDA graph for module %s.",
-                self.__class__.__name__)
+            rank_zero_info("CUDAGraphCallback: capturing CUDA graph for module %s.", self.__class__.__name__)
             with torch.cuda.graph(state.graph):
                 self.__orig_optimizer_step__(
                     epoch,
@@ -173,6 +177,7 @@ def get_optimizer_step(state):
 
     return optimizer_step
 
+
 def get_training_step(state):
     def training_step(self, batch, batch_idx):
         results = self.__orig_training_step__(batch, batch_idx)
@@ -183,7 +188,9 @@ def get_training_step(state):
         with torch.no_grad():
             struct_copy_two(state.output, results)
         return results
+
     return training_step
+
 
 def get_amp_autocast_init(state):
     def amp_autocast_init(self, *args, **kwargs):
@@ -192,14 +199,18 @@ def get_amp_autocast_init(state):
         if state.current_iteration == 0:
             rank_zero_info("CUDAGraphCallback: disable autocast cache.")
         return self.__orig_init__(*args, **kwargs)
+
     return amp_autocast_init
+
 
 def get_ddp_init(state):
     def init(self, *args, **kwargs):
         rank_zero_info("CUDAGraphCallback: init DDP on side stream.")
         with torch.cuda.stream(state.stream):
             self.__orig_init__(*args, **kwargs)
+
     return init
+
 
 @dataclass
 class CUDAGraphState:
@@ -209,25 +220,23 @@ class CUDAGraphState:
     graph: torch.cuda.CUDAGraph = None
     output: Any = None  # static forward output
 
+
 class CUDAGraphCallback(Callback):
     """Full iteration CUDA graph callback.
 
     Dataloader and LR scheduler are not included in the CUDA graph with this callback.
     """
+
     def __init__(self, capture_iteration=-1):
         super().__init__()
 
         # Required by CUDA graph with DDP
         # Ref: https://pytorch.org/docs/stable/notes/cuda.html#usage-with-distributeddataparallel
         if 0 <= capture_iteration <= 11:
-            raise Exception("Warmup must run at least 11 DDP-enabled eager "
-                "iterations before capture.")
+            raise Exception("Warmup must run at least 11 DDP-enabled eager iterations before capture.")
         os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0"
 
-        self.state = CUDAGraphState(
-            capture_iteration=capture_iteration,
-            stream=torch.cuda.Stream(),
-        )
+        self.state = CUDAGraphState(capture_iteration=capture_iteration, stream=torch.cuda.Stream(),)
         if capture_iteration > 0:
             self.state.graph = torch.cuda.CUDAGraph()
 
@@ -275,16 +284,16 @@ class CUDAGraphCallback(Callback):
 
         # Ensure training dataloader loads data to static buffer
         dataloader = trainer.train_dataloader.loaders
-        assert isinstance(dataloader, torch.utils.data.dataloader.DataLoader), \
-            f"Expect Dataloader type but got {type(dataloader)}"
+        assert isinstance(
+            dataloader, torch.utils.data.dataloader.DataLoader
+        ), f"Expect Dataloader type but got {type(dataloader)}"
         trainer.train_dataloader.__orig_dataloader__ = dataloader
         static_loader = StaticBufferLoader(dataloader)
         trainer.train_dataloader.loaders = static_loader
 
         # Warn if `optimizer.zero_grad()` invoked during graph capturing
         for optimizer in trainer.optimizers:
-            assert isinstance(optimizer, torch.optim.Optimizer), \
-                f"Expect Optimizer type but got {type(optimizer)}"
+            assert isinstance(optimizer, torch.optim.Optimizer), f"Expect Optimizer type but got {type(optimizer)}"
             optimizer.__orig_zero_grad__ = optimizer.zero_grad
             optimizer.zero_grad = MethodType(zero_grad, optimizer)
 
@@ -292,8 +301,9 @@ class CUDAGraphCallback(Callback):
         # We don't include LR scheduler in the full CUDA graph for now since
         # its overhead is very small.
         for config in trainer.lr_scheduler_configs:
-            assert isinstance(config.scheduler, torch.optim.lr_scheduler._LRScheduler), \
-                f"Expect _LRScheduler type but got {type(dataloader)}"
+            assert isinstance(
+                config.scheduler, torch.optim.lr_scheduler._LRScheduler
+            ), f"Expect _LRScheduler type but got {type(dataloader)}"
             config.__orig_scheduler__ = config.scheduler
             config.scheduler = StaticBufferLRScheduler(config.scheduler)
 
@@ -303,7 +313,7 @@ class CUDAGraphCallback(Callback):
         pl_module.training_step = MethodType(training_step, pl_module)
 
         # Capture CUDA graph from model forward propagation to optimizer step
-        pl_module.__orig_optimizer_step__ =  pl_module.optimizer_step
+        pl_module.__orig_optimizer_step__ = pl_module.optimizer_step
         optimizer_step = get_optimizer_step(self.state)
         pl_module.optimizer_step = MethodType(optimizer_step, pl_module)
 

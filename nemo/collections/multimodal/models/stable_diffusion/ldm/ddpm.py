@@ -130,12 +130,7 @@ class DDPM(torch.nn.Module):
         self.channels = cfg.channels
         self.channels_last = cfg.get("channels_last", False)
         self.use_positional_encodings = cfg.use_positional_encodings
-        self.model = DiffusionWrapper(
-            cfg.unet_config,
-            cfg.conditioning_key,
-            cfg.inductor,
-            cfg.inductor_cudagraphs,
-        )
+        self.model = DiffusionWrapper(cfg.unet_config, cfg.conditioning_key, cfg.inductor, cfg.inductor_cudagraphs,)
         self.model_type = None
         count_params(self.model, verbose=True)
 
@@ -2015,8 +2010,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
             collate_fn = get_collate_fn(
-                first_stage_key=self.cfg.first_stage_key,
-                cond_stage_key=self.cfg.cond_stage_key,
+                first_stage_key=self.cfg.first_stage_key, cond_stage_key=self.cfg.cond_stage_key,
             )
             self._train_dl = torch.utils.data.DataLoader(
                 self._train_ds,
@@ -2093,11 +2087,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
 class DiffusionWrapper(pl.LightningModule, Serialization):
     def __init__(
-        self,
-        diff_model_config,
-        conditioning_key,
-        inductor: bool = False,
-        inductor_cudagraphs: bool = False,
+        self, diff_model_config, conditioning_key, inductor: bool = False, inductor_cudagraphs: bool = False,
     ):
         super().__init__()
         self.diffusion_model = DiffusionWrapper.from_config_dict(diff_model_config)
