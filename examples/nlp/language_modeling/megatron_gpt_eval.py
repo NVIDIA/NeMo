@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import asyncio
+import datetime
 import os
 import threading
 from functools import partial
-import datetime
 
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -168,7 +168,11 @@ def remove_padded_prompts(response, nb_paddings):
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)), **cfg.trainer, callbacks=[CustomProgressBar()])
+    trainer = Trainer(
+        strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)),
+        **cfg.trainer,
+        callbacks=[CustomProgressBar()],
+    )
 
     if cfg.gpt_model_file is not None:
         if (
