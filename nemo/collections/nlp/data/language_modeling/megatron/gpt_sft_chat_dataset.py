@@ -28,8 +28,7 @@ PREFIX_STR = (
 )
 
 IGNORE_INDEX = -100
-END_NAME_SIGNAL = "\n"  # token to indicate the end of the name. The name can be system, user, assistant, etc.
-SYSTEM_TOKEN = "System" + END_NAME_SIGNAL
+SYSTEM_TOKEN = "System"
 
 TYPE_INSTRUCTION = {
     'TEXT_TO_VALUE': "",
@@ -83,7 +82,9 @@ def _mask_targets(
         num_turn_start_tokens (int): number of tokens of the turn_start str
     """
     TURN_TOKEN = special_tokens['turn_start']
+    END_NAME_SIGNAL = special_tokens['end_of_name']
     label_start_ids = torch.tensor(label_start_ids)
+    new_line_token_id = torch.tensor(new_line_token_id)
 
     cur_idx = header_len
     tgt_len = target.shape[0]
@@ -104,13 +105,14 @@ def _mask_targets(
                 # the next token after the name part of the prompt is the beginning of the label start tokens
                 assert skip_name_len == location
                 # find the first new line token after the label part, which indicates the end of the whole label string
-                newline_loc = torch.where((s_id[skip_name_len:] == new_line_token_id))[0]
-                if len(newline_loc) == 0:
+                # newline_loc = torch.where((s_id[skip_name_len:] == new_line_token_id))[0]
+                newline_loc = find_small_tensor(new_line_token_id, s_id[skip_name_len:])
+                if newline_loc < 0:
                     # cannot find new line token, which means the the whole turn is just a partial label string. Mask the whole turn
                     target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
                     continue
                 # skip the label part and the new line token
-                more_skip_len = newline_loc[0].item() + 1
+                more_skip_len = newline_loc + len(new_line_token_id)
                 # skip the name part and the label part
                 skip_name_len += more_skip_len
             elif gtype == 'TEXT_TO_VALUE':
@@ -158,6 +160,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
     TURN_TOKEN = special_tokens['turn_start']
     END_SIGNAL = special_tokens['end_of_turn']
     LABEL_START = special_tokens['label_start']
+    END_NAME_SIGNAL = special_tokens['end_of_name']
 
     """Add speaker and start/end signal on each round."""
     BEGIN_SIGNAL = ""
@@ -210,6 +213,8 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
 
 def _get_header_conversation_type_mask_role(source, special_tokens):
     END_SIGNAL = special_tokens['end_of_turn']
+    END_NAME_SIGNAL = special_tokens['end_of_name']
+
     data_type = None
     if 'type' in source:
         data_type = source['type']
@@ -221,7 +226,7 @@ def _get_header_conversation_type_mask_role(source, special_tokens):
         if TYPE_INSTRUCTION[data_type] != '':
             conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
     mask_role = source.get('mask', 'User')
-    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{conversation}{END_SIGNAL}"
+    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{END_NAME_SIGNAL}{conversation}{END_SIGNAL}"
     conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
     return header, conversation, data_type, mask_role
 
@@ -310,12 +315,15 @@ class GPTSFTChatDataset(GPTSFTDataset):
         super()._build_samples_mapping()
         assert hasattr(self.tokenizer, "vocab"), "tokenizer should have vocab property, not supported"
         LABEL_START = self.special_tokens['label_start']
+        END_NAME_SIGNAL = self.special_tokens['end_of_name']
+
         id1 = self.tokenizer.text_to_ids(PREFIX_STR)
         id2 = self.tokenizer.text_to_ids(PREFIX_STR + LABEL_START)
         self.label_start_tokens = id2[len(id1) :]
-        ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + '\n')
+
+        ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + END_NAME_SIGNAL)
         ids_2 = self.tokenizer.text_to_ids(PREFIX_STR)
-        self.new_line_token_id = ids_1[len(ids_2) :][0]
+        self.new_line_token_id = ids_1[len(ids_2) :]
 
         ids_1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens['turn_start'])
         ids_2 = self.tokenizer.text_to_ids(PREFIX_STR)
