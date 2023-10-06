@@ -281,6 +281,7 @@ def main(cfg) -> None:
         "all_probs": cfg.inference.all_probs,
         "compute_logprob": cfg.inference.compute_logprob,
         "end_strings": cfg.inference.end_strings,
+        "compute_attention_mask": cfg.inference.compute_attention_mask,
     }
 
     fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)

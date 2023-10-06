@@ -19,7 +19,7 @@ from functools import partial
 
 import torch
 import torch.multiprocessing as mp
-from omegaconf.omegaconf import OmegaConf
+from omegaconf.omegaconf import OmegaConf, open_dict
 
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
@@ -129,6 +129,7 @@ def main(cfg) -> None:
 
     if not cfg.model.get('use_flash_attention', False):
         cfg.inference.compute_attention_mask = True
+
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
 

@@ -46,6 +46,9 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
                 'Found validation_ds.tgt_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.'
             )
             t5_cfg.data.validation_ds.tgt_file_name = cfg.model.data.validation_ds.tgt_file_name
+            
+        if cfg.model.data.validation_ds.get('aux_file_name', None) is not None:
+            t5_cfg.data.validation_ds.aux_file_name = cfg.model.data.validation_ds.aux_file_name
 
         if "write_predictions_to_file" in cfg.model.data.validation_ds:
             t5_cfg.data.validation_ds.write_predictions_to_file = (

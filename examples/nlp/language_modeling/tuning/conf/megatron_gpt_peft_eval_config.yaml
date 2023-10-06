@@ -120,7 +120,7 @@ model:
       drop_last: False
       context_key: 'input'
       label_key: ${data.train_ds.label_key}
-      add_eos: ${data.train_ds.add_eos}
+      add_eos: False
       add_sep: ${data.train_ds.add_sep}
       add_bos: ${data.train_ds.add_bos}
       write_predictions_to_file: False

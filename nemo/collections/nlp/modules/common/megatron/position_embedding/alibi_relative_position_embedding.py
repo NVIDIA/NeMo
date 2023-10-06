@@ -17,6 +17,13 @@ import math
 
 import torch
 
+try:
+    import ocean
+
+    HAVE_OCEAN = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_OCEAN = False
+
 __all__ = ['ALiBiRelativePositionEmbedding']
 
 
@@ -48,9 +55,6 @@ def build_slopes(num_attention_heads, num_attention_heads_alibi):
         .unsqueeze(-1)
     )
 
-    if torch.cuda.is_available():
-        slopes = slopes.to(torch.cuda.current_device())
-
     return slopes
 
 
@@ -65,9 +69,6 @@ def build_relative_position(max_seq_len, full=True):
         memory_position = torch.arange(1 - max_seq_len, 1)[:, None].mul(-1)
         relative_position = torch.abs(memory_position - relative_position)  # (max_seq_len, max_seq_len)
 
-    if torch.cuda.is_available():
-        relative_position = relative_position.to(torch.cuda.current_device())
-
     return relative_position
 
 
@@ -79,7 +80,14 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
     """
 
     def __init__(
-        self, bidirectional, num_attention_heads, layer_type, num_attention_heads_alibi=None, max_seq_len=512,
+        self,
+        bidirectional,
+        num_attention_heads,
+        layer_type,
+        num_attention_heads_alibi=None,
+        max_seq_len=512,
+        use_FA=False,
+        seq_len_interpolation_factor=1,
     ):
         """
         Args:
@@ -108,9 +116,11 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         self.num_attention_heads_alibi = num_attention_heads_alibi
         # Larger sizes will result in more memory usage by computing alibi mask on-the-fly.
         self.max_seq_len = max_seq_len
-
+        self.use_FA = use_FA
+        self.seq_len_interpolation_factor = seq_len_interpolation_factor
         # cache the slopes
-        self.slopes = build_slopes(num_attention_heads, num_attention_heads_alibi)
+        slopes = build_slopes(num_attention_heads, num_attention_heads_alibi)
+        self.register_buffer('slopes', slopes)
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
         # if we use causal attention (not bidrectional), we can use singleton relative position
         self.relative_position = (
@@ -119,6 +129,14 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
 
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
+        slopes = self.slopes
+
+        if self.seq_len_interpolation_factor is not None:
+            slopes = self.slopes * 1.0 / self.seq_len_interpolation_factor
+
+        if self.use_FA and HAVE_OCEAN:
+            return slopes.unsqueeze(0)
+
         max_seq_len = max(query_seq_length, key_seq_length)
         if max_seq_len > self.max_seq_len:
             relative_position = (
@@ -133,4 +151,5 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         # if not bidirectional, mask out the future positions
 
         # shape (1, num_heads, query_length, key_length)
-        return -relative_position.unsqueeze(0) * self.slopes
+        relative_position = relative_position.to(slopes.device)
+        return -relative_position.unsqueeze(0) * slopes

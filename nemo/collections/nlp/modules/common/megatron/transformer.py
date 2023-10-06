@@ -335,6 +335,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 bias=bias,
                 headscale=headscale,
                 normalize_attention_scores=normalize_attention_scores,
+                use_flash_attention=use_flash_attention,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':

@@ -89,6 +89,16 @@ except (ImportError, ModuleNotFoundError):
         flash_attn_unpadded_func, flash_attn_func_triton, flash_attn_func = None, None, None
         unpad_input, pad_input = None, None
 
+try:
+    from ocean.nn.flash_attention import flash_attention as flash_attn_func_ocean
+
+    HAVE_FLASH_ATTENTION_OCEAN = True
+
+except (ImportError, ModuleNotFoundError):
+
+    flash_attn_func_ocean = None
+    HAVE_FLASH_ATTENTION_OCEAN = False
+
 """ We use the following notation throughout this file:
      h: hidden size
      n: number of attention heads
@@ -941,10 +951,6 @@ class CoreAttention(MegatronModule):
         return context_layer
 
     def flash_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode):
-        query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
-        key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
-        value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
-
         # Use to ensure dtype cast to fp16 or bf16
         query_layer = _cast_if_autocast_enabled(query_layer)
         key_layer = _cast_if_autocast_enabled(key_layer)
@@ -953,14 +959,22 @@ class CoreAttention(MegatronModule):
 
         is_causal = self.attn_mask_type == AttnMaskType.causal and not inference_mode
 
-        if attention_bias is not None:
-            return self.flash_attention_triton(
-                query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,
-            )
+        if attention_bias is not None
+            if HAVE_FLASH_ATTENTION_OCEAN:
+                return self.flash_attention_ocean(
+                    query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,
+                )
+            else:
+                return self.flash_attention_triton(
+                    query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,
+                )
         else:
             return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal,)
 
     def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask, is_causal):
+        query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
+        key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
+        value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
         batch_size, seqlen, nheads, _ = query_layer.shape
 
         # True: attend / False: not attend
@@ -1013,6 +1027,9 @@ class CoreAttention(MegatronModule):
         return context_layer
 
     def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal):
+        query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
+        key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
+        value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
         if self.attention_dropout_p > 0.0:
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
 
@@ -1039,5 +1056,52 @@ class CoreAttention(MegatronModule):
 
         if attention_mask is not None:
             context_layer = context_layer * attention_mask_q
+
+        return context_layer
+
+    def flash_attention_ocean(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal):
+        q_len, kv_len = None, None
+
+        if attention_mask is not None:
+            """
+            attention_mask: 0 is not masked; 1 is masked
+            """
+            if len(attention_mask.shape) == 4:
+                # [b, 1, sq, sk]
+                q_len = torch.any(torch.eq(attention_mask, False), dim=3).sum(-1).squeeze()
+                kv_len = torch.any(torch.eq(attention_mask, False), dim=2).sum(-1).squeeze()
+            else:
+                # [b, s]
+                assert len(attention_mask.shape) == 2
+                q_len = (~attention_mask).sum(-1).squeeze()
+                kv_len = (~attention_mask).sum(-1).squeeze()
+
+        if self.position_embedding_type == 'alibi':
+            bias_type = 'alibi'
+            attention_bias = attention_bias.squeeze()
+            assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales.'
+        else:
+            bias_type = 'matrix'
+            assert len(attention_bias.size()) == 4
+
+        context_layer = flash_attn_func_ocean(
+            q=query_layer,
+            k=key_layer,
+            v=value_layer,
+            q_len=q_len,
+            kv_len=kv_len,
+            softmax_scale=(1.0 / math.sqrt(self.hidden_size_per_attention_head))
+            if self.normalize_attention_scores
+            else 1.0,
+            causal=is_causal,
+            bias=attention_bias,
+            bias_type=bias_type,
+            dropout=self.attention_dropout_p if self.training else 0.0,
+            seed=torch.seed(),
+            layout='sbnd',
+        )
+
+        # [sq, b, np, hn] -> [b, np, sq, hn]
+        context_layer = context_layer.permute(1, 2, 0, 3)
 
         return context_layer

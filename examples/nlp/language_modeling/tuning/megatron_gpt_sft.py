@@ -70,6 +70,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.tensor_model_parallel_size = cfg.model.get('tensor_model_parallel_size', 1)
         gpt_cfg.pipeline_model_parallel_size = cfg.model.get('pipeline_model_parallel_size', 1)
         gpt_cfg.pipeline_model_parallel_split_rank = cfg.model.get('pipeline_model_parallel_split_rank', 0)
+        gpt_cfg.enforce_fp32_pos_idx = cfg.model.get('enforce_fp32_pos_idx', False)
 
         sft_cls = MegatronGPTSFTModel
         gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
