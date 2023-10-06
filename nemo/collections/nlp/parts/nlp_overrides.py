@@ -365,8 +365,19 @@ class LayerUnitTestStrategy(NLPDDPStrategy):
             parallelization_specs["stimulus"]["data_parallel_group_size"]) or ( \
             parallelization_specs["test"]["data_parallel_group_size"] != \
             parallelization_specs["response"]["data_parallel_group_size"]):
-            print('Warning, non-uniform data parallelism is extremly experimental and most likely has bugs!')
+            print('Warning, non-uniform data parallelism is extremly experimental and may have bugs!')
+            
+            assert parallelization_specs["stimulus"]["data_parallel_group_size"] == parallelization_specs["response"]["data_parallel_group_size"], \
+                "non-uniform data parallelism support only has been tested for when" \
+                " stimulus and response components have same data_parallel_group_size"
+            
+            assert parallelization_specs["stimulus"]["data_parallel_group_size"] > parallelization_specs["test"]["data_parallel_group_size"], \
+                "non-uniform data parallelism support only has been tested for when stimulus and response components" \
+                " have a larger data_parallel_group_size than the test component"
 
+            assert parallelization_specs["stimulus"]["data_parallel_group_size"] % parallelization_specs["test"]["data_parallel_group_size"] == 0, \
+                "non-uniform data parallelism support was only designed for evenly divisble fan-in and fan-out between components"
+            
         # make sure stimulus -> test -> response
         ordered_parallelization_specs = {}
         ordered_parallelization_specs["stimulus"] = parallelization_specs["stimulus"]
