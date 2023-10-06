@@ -211,6 +211,7 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, new_line_token_id: int, l
     3. Tokenize the concatenated conversation;
     4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
     """
+    END_SIGNAL = special_tokens['end_of_turn']
     data_type = None
     if 'type' in source:
         data_type = source['type']
@@ -222,7 +223,7 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, new_line_token_id: int, l
         if TYPE_INSTRUCTION[data_type] != '':
             conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
     mask_role = source.get('mask', 'User')
-    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{conversation}"
+    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{conversation}{END_SIGNAL}"
     conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)

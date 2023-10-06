@@ -56,7 +56,7 @@ def create_data_points(mask_user, turn_num, records, temp_file, t2v, label=True)
     with open(temp_file, 'w', encoding='utf-8') as f:
         for r in range(records):
             record = {}
-            record['system'] = 'a chat\n'
+            record['system'] = 'a chat'
             record['type'] = 'TEXT_TO_VALUE' if t2v else 'VALUE_TO_TEXT'
             record['mask'] = 'User' if mask_user else 'Assistant'
             turns = []
@@ -366,4 +366,15 @@ class TestGPTSFTChatDataset:
             library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
         )
         self._mask_assistant_nolabel_test(tokenizer,  tokenizer.ids_to_text)
- 
+
+
+class TestDifferentGPTSFTChatDataset(TestGPTSFTChatDataset):
+    @classmethod
+    def setup_class(cls):
+        cls.special_tokens = {
+            "system_turn_start": "<im start>",
+            "turn_start": "<im start>",
+            "label_start": "<label>",
+            "end_of_turn": "\n",
+        }
+        cls.suffix = cls.special_tokens['end_of_turn'] + cls.special_tokens['turn_start']
