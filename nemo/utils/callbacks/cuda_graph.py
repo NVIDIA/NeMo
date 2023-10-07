@@ -86,22 +86,13 @@ class StaticBufferLoader:
         return len(self.loader)
 
 
-class StaticBufferLRScheduler:
-    """Make sure LR updated in static buffers."""
-
-    def __init__(self, lr_scheduler):
-        self.lr_scheduler = lr_scheduler
-
-    def get_lr(self):
-        lrs = self.lr_scheduler.get_lr()
-        if not hasattr(self, "static_lrs"):
-            self.static_lrs = lrs
-        for i in range(len(lrs)):
-            self.static_lrs[i].copy_(lrs[i])
-        return self.static_lrs
-
-    def step(self, epoch=None):
-        self.lr_scheduler.step(epoch)
+def get_lr(lr_scheduler):
+    lrs = lr_scheduler.__orig_get_lr__()
+    if not hasattr(lr_scheduler, "static_lrs"):
+        lr_scheduler.static_lrs = lrs
+    for i in range(len(lrs)):
+        lr_scheduler.static_lrs[i].copy_(lrs[i])
+    return lr_scheduler.static_lrs
 
 
 def zero_grad(optimizer, *args, **kwargs):
@@ -316,8 +307,8 @@ class CUDAGraphCallback(Callback):
             assert isinstance(
                 config.scheduler, torch.optim.lr_scheduler._LRScheduler
             ), f"Expect _LRScheduler type but got {type(dataloader)}"
-            config.__orig_scheduler__ = config.scheduler
-            config.scheduler = StaticBufferLRScheduler(config.scheduler)
+            config.scheduler.__orig_get_lr__ = config.scheduler.get_lr
+            config.scheduler.get_lr = MethodType(get_lr, config.scheduler)
 
         # Save model outputs to static buffer for PL states reconstruct
         pl_module.__orig_training_step__ = pl_module.training_step
@@ -343,8 +334,8 @@ class CUDAGraphCallback(Callback):
             del optimizer.__orig_zero_grad__
 
         for config in trainer.lr_scheduler_configs:
-            config.scheduler = config.__orig_scheduler__
-            del config.__orig_scheduler__
+            config.scheduler.get_lr = config.scheduler.__orig_get_lr__
+            del config.scheduler.__orig_get_lr__
 
         pl_module.training_step = pl_module.__orig_training_step__
         del pl_module.__orig_training_step__
@@ -382,3 +373,29 @@ class CUDAGraphCallback(Callback):
             loss returned from ``training_step``.
         """
         pass
+
+    def on_save_checkpoint(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", checkpoint: Dict[str, Any]
+    ) -> None:
+        r"""
+        Called when saving a checkpoint to give you a chance to store anything else you might want to save.
+
+        Args:
+            trainer: the current :class:`~pytorch_lightning.trainer.Trainer` instance.
+            pl_module: the current :class:`~pytorch_lightning.core.module.LightningModule` instance.
+            checkpoint: the checkpoint dictionary that will be saved.
+        """
+        # Since we've add bound method to optimizer and lr_scheduler, it can lead to more
+        # CUDA tensors passed to consumer process unexpectedly.
+        if "optimizer_states" in checkpoint:
+            for optimizer_state in checkpoint["optimizer_states"]:
+                for k in list(optimizer_state.keys()):
+                    v = optimizer_state[k]
+                    if isinstance(v, MethodType) and hasattr(v, "__self__"):
+                        del optimizer_state[k]
+        if "lr_schedulers" in checkpoint:
+            for lr_scheduler in checkpoint["lr_schedulers"]:
+                for k in list(lr_scheduler.keys()):
+                    v = lr_scheduler[k]
+                    if isinstance(v, MethodType) and hasattr(v, "__self__"):
+                        del lr_scheduler[k]
