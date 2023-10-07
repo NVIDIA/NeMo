@@ -70,7 +70,7 @@ def _get_feature_filepath(
     Get the absolute path for the feature file corresponding to the input manifest entry
 
     Example: audio_filepath "<audio_dir>/speaker1/audio1.wav" becomes
-        feature_filepath "<feature_dir>/<feature_name>/speaker1/audio1.pt"
+        feature_filepath "<feature_dir>/<feature_name>/speaker1/audio1.npy"
     """
     _, audio_filepath_rel = get_audio_filepaths(manifest_entry=manifest_entry, audio_dir=audio_dir)
     feature_filepath = feature_dir / feature_name / audio_filepath_rel.with_suffix(".npy")
@@ -99,7 +99,7 @@ def _save_feature(
     feature_dir: Path,
 ) -> None:
     """
-    If feature_name is provided, save feature as .pt file.
+    If feature_name is provided, save feature as .npy file.
     """
     if feature_name is None:
         return
@@ -120,7 +120,7 @@ def _load_feature(
     indices: Optional[Tuple[int, int]] = None,
 ) -> None:
     """
-    If feature_name is provided, load feature into feature_dict from .pt file.
+    If feature_name is provided, load feature into feature_dict from .npy file.
     """
     if feature_name is None:
         return
