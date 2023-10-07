@@ -107,7 +107,8 @@ class GPTSFTDataset(Dataset):
                 "end_of_turn": "\n",
                 "end_of_name": "\n",
             }
-        self.special_tokens = special_tokens
+        else:
+            self.special_tokens = special_tokens
 
         if hf_dataset:
             self.indexed_dataset = load_dataset(
