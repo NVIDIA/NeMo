@@ -18,7 +18,6 @@ from typing import Any, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig
-from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
