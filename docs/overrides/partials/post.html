@@ -24,18 +24,37 @@
 
 <!-- Post excerpt -->
 <article class="md-post md-post--excerpt">
+
+  <!-- Specifically for cases where we have the continue_url override, we add the author list to the preview -->
+  {% if post and post.meta and post.meta.continue_url and post.meta.author %}
+  <header class="md-post__header">
+    <nav class="">
+      {% for author in post.meta.author %}
+        <span class="post-author__small">
+        <b>{{ author }}</b>
+
+        <!-- Add comma if not last author -->
+        {% if not loop.last %}
+        ,
+        {% endif %}
+        </span>
+      {% endfor %}
+    </nav>
+  </header>
+  {% endif %}
+
   <header class="md-post__header">
 
     <!-- Post authors -->
-    {% if post.authors %}
-      <nav class="md-post__authors md-typeset">
-        {% for author in post.authors %}
-          <span class="md-author">
-            <img src="{{ author.avatar }}" alt="{{ author.name }}" />
-          </span>
-        {% endfor %}
-      </nav>
-    {% endif %}
+<!--    {% if post.authors %}-->
+<!--      <nav class="md-post__authors md-typeset">-->
+<!--        {% for author in post.authors %}-->
+<!--          <span class="md-author">-->
+<!--            <img src="{{ author.avatar }}" alt="{{ author.name }}" />-->
+<!--          </span>-->
+<!--        {% endfor %}-->
+<!--      </nav>-->
+<!--    {% endif %}-->
 
     <!-- Post metadata -->
     <div class="md-post__meta md-meta">

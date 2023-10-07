@@ -58,11 +58,12 @@
     margin-bottom: 1.0rem;
 }
 
-.post-author-long {
+.post-author__small {
     font-size: 0.875rem;
     letter-spacing: 0.25px;
-    white-space: nowrap;
+    margin-bottom: 0.0rem;
 }
+
 
 /* Continue reading : right arrow */
 @media screen and (min-width: 768px)
