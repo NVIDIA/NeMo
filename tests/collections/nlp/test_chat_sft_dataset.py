@@ -445,11 +445,11 @@ class TestDifferentGPTSFTChatDataset(TestGPTSFTChatDataset):
     @classmethod
     def setup_class(cls):
         cls.special_tokens = {
-            "system_turn_start": "<im start>",
-            "turn_start": "<im start>",
-            "label_start": "<label>",
-            "end_of_turn": "[im end]",
-            "end_of_name": "[name end]",
+            "system_turn_start": "<|im_start|>",
+            "turn_start": "<|im_start|>",
+            "label_start": "<|label|>",
+            "end_of_turn": "<|im_end|>\n",
+            "end_of_name": "\n",
         }
         cls.suffix = cls.special_tokens['end_of_turn'] + cls.special_tokens['turn_start']
         cls.label_suffix = cls.special_tokens['end_of_name'] + cls.special_tokens['turn_start']
