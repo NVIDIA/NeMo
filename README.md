@@ -102,6 +102,18 @@ up during the PR it must be a branch directly from NVIDIA/NeMo.
    - `OSS Community`: Contains the text regarding the NeMo integration with PTL and Hydra.
    - `RIVA`: Contains the text regarding NVIDIA RIVA.
 
+# Steps to add a publication
+
+Most of the instructions for adding a publication are similar to the instructions for adding a new post above. The differences are 
+
+* Open the directory **docs/publications/** folder. Here you will find template.md - copy the contents of this template file.
+* Follow the above steps for blog posts, inside of the `publications` folder.
+
+There is one additional argument that is accepted by the header at the top of the page -
+
+- **continue_url (optional):** A str url that overrides the url of the `Continue reading >` button at the root of the publications page. If you want to link your publication to a different page, such as Arxiv.org, it is recommented to use this URL.
+
+
 # Publishing content
 
 Once your post content is ready (blogpost, website), you can now begin to publish it on Github Pages.
@@ -114,7 +126,6 @@ Once your post content is ready (blogpost, website), you can now begin to publis
    - Inside **site** folder, open the **index.md** file.
    - Then browse to your actual blogpost. **Note: You may need to reclick the page url if it doesnt auto show up.**
 3) Submit your changes to the `gh-pages-src` branch following [instructions above](#workflow)
-
 
 
 # Note about Images:
