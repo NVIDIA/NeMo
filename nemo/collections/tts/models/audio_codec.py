@@ -41,6 +41,7 @@ from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
 from nemo.collections.tts.data.vocoder_dataset import TarredVocoderDataset
+from math import ceil
 
 
 @experimental
@@ -485,6 +486,7 @@ class AudioCodecModel(ModelPT):
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
         )
+        
         return data_loader
 
     @staticmethod
@@ -495,6 +497,28 @@ class AudioCodecModel(ModelPT):
 
     def setup_training_data(self, cfg):
         self._train_dl = self._setup_train_dataloader(cfg)
+        batch_size = cfg['dataloader_params']['batch_size']
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if (
+            self._train_dl is not None
+            and hasattr(self._train_dl, 'dataset')
+            and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
+        ):
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches
+                    * ceil((len(self._train_dl.dataset) / self.world_size) / batch_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
 
     def setup_validation_data(self, cfg):
         self._validation_dl = self._setup_test_dataloader(cfg)
