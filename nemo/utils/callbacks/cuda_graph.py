@@ -215,7 +215,7 @@ def get_ddp_init(state):
 @dataclass
 class CUDAGraphState:
     current_iteration: int = 0
-    capture_iteration: int = -1
+    capture_iteration: int = -1  # -1 to disable
     stream: torch.cuda.Stream = None
     graph: torch.cuda.CUDAGraph = None
     output: Any = None  # static forward output
@@ -236,12 +236,13 @@ class CUDAGraphCallback(Callback):
             raise Exception("Warmup must run at least 11 DDP-enabled eager iterations before capture.")
         os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0"
 
-        self.state = CUDAGraphState(capture_iteration=capture_iteration, stream=torch.cuda.Stream(),)
-        if capture_iteration > 0:
-            self.state.graph = torch.cuda.CUDAGraph()
+        self.state = CUDAGraphState(capture_iteration=capture_iteration)
 
     def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:
         """Called when fit, validate, test, predict, or tune begins."""
+        if self.state.capture_iteration < 0:
+            return
+
         # Hack to avoid CUDA graph issue with AMP, PyTorch Lightning doesn't support
         # changing autocast arguments for now.
         # https://github.com/pytorch/pytorch/blob/v1.13.1/torch/cuda/graphs.py#L234
@@ -256,6 +257,9 @@ class CUDAGraphCallback(Callback):
 
     def teardown(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:
         """Called when fit, validate, test, predict, or tune ends."""
+        if self.state.capture_iteration < 0:
+            return
+
         torch.autocast.__init__ = torch.autocast.__orig_init__
         del torch.autocast.__orig_init__
 
@@ -264,6 +268,9 @@ class CUDAGraphCallback(Callback):
 
     def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         """Called when fit begins."""
+        if self.state.capture_iteration < 0:
+            return
+
         if is_param_in_hook_signature(pl_module, "dataloader_iter", explicit=True):
             raise Exception(
                 "Found `dataloader_iter` argument in the `training_step`. This is "
@@ -273,9 +280,14 @@ class CUDAGraphCallback(Callback):
                 "`next(dataloader_iter)` from `training_step`."
             )
 
+        # Now that CUDA device has been set, we can init stream and graph now
+        self.state.stream = torch.cuda.Stream()
+        self.state.graph = torch.cuda.CUDAGraph()
+
     def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         """Called when fit ends."""
-        pass
+        if self.state.capture_iteration < 0:
+            return
 
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         """Called when the train begins."""
