@@ -156,7 +156,7 @@ class DDPM(torch.nn.Module):
 
         cuda_graph_enabled = cfg.get("capture_cudagraph_iters", -1) >= 0
         if not cuda_graph_enabled:
-            logging.info("Use random generator with seed %d", self.cfg.seed)
+            logging.info("Use custom random generator")
             self.rng = torch.Generator(device=torch.cuda.current_device(),)
         else:
             logging.info("Use system random generator since CUDA graph enabled")
@@ -1796,6 +1796,10 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         with torch.no_grad():
             self.loss_mean.copy_(loss_mean)
             self.loss_dict = loss_dict
+        # this function is invoked by callback if with cuda graph, otherwise
+        # invoke it by ourselves
+        if self.cfg.get("capture_cudagraph_iters", -1) < 0:
+            self.non_cuda_graph_capturable()
 
         return loss_mean
 
