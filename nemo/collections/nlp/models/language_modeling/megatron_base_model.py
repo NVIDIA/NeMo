@@ -14,11 +14,11 @@
 
 import gc
 import itertools
+import math
 import os
 import re
 from dataclasses import fields
 from typing import Any, Dict, Optional, Union
-import math
 
 import omegaconf
 import torch
@@ -482,18 +482,17 @@ class MegatronBaseModel(NLPModel):
             cfg = optim_config if optim_config else self._cfg.optim
             if type(cfg) is dict:
                 cfg = OmegaConf.create(cfg)
-            if cfg.get('bucket_cap_mb', 'auto') == 'auto':
-                assert hasattr(self, 'distributed_adam_buckets'), \
-                    "The bucket_cap_mb calculation depends on the " \
-                    "distributed_adam_buckets parameter, make sure " \
-                    "it is configured correctly."
-                
+            if cfg.get('bucket_cap_mb', 'auto') == 'auto' \
+                    and hasattr(self, 'distributed_adam_buckets'):
                 grad_sync_dtype = cfg.get("grad_sync_dtype", optim_dtype)
                 optim_kwargs['bucket_cap_mb'] = search_best_bucket_cap_mb(
-                    self.distributed_adam_buckets, grad_sync_dtype)
-                logging.info("Check that you have set bucket_cap_mb=auto, "
-                             "search and set bucket_cap_mb to "
-                             f"{optim_kwargs['bucket_cap_mb']}.")
+                    self.distributed_adam_buckets, grad_sync_dtype
+                )
+                logging.info(
+                    "Check the bucket_cap_mb=auto configuration, and"
+                    "automatically search for the best configuration, "
+                    f"bucket_cap_mb={optim_kwargs['bucket_cap_mb']}."
+                )
 
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
@@ -861,9 +860,9 @@ def search_best_bucket_cap_mb(distributed_adam_buckets, grad_sync_dtype):
     """
     dtype_size = torch.finfo(grad_sync_dtype).bits // 8
 
-    total_params_mb = sum([
-        sum(p.numel() for p in bucket) for bucket in distributed_adam_buckets
-    ]) * dtype_size / 1024**2
+    total_params_mb = (
+        sum([sum(p.numel() for p in bucket) for bucket in distributed_adam_buckets]) * dtype_size / 1024 ** 2
+    )
 
     # Test bucket_cap_mb in the range of 1 to 500 and find the size with
     # the smallest loss. When multiple sizes have similar losses, the largest
@@ -874,7 +873,7 @@ def search_best_bucket_cap_mb(distributed_adam_buckets, grad_sync_dtype):
         total_bucket_size_mb = 0
         for bucket in distributed_adam_buckets:
             n_params = sum(p.numel() for p in bucket)
-            n_bucket = math.ceil(n_params*dtype_size / (bucket_cap_mb*1024**2))
+            n_bucket = math.ceil(n_params * dtype_size / (bucket_cap_mb * 1024 ** 2))
             total_bucket_size_mb += n_bucket * bucket_cap_mb
 
         loss = abs(total_bucket_size_mb - total_params_mb) / total_params_mb
@@ -883,7 +882,7 @@ def search_best_bucket_cap_mb(distributed_adam_buckets, grad_sync_dtype):
         max_loss = max(max_loss, loss * 10)
 
     result = None
-    for loss_limit in range(5, int(max_loss)+10, 2):
+    for loss_limit in range(5, int(max_loss) + 10, 2):
         for bucket_cap_mb, loss in reversed(candidate_results):
             if loss <= loss_limit:
                 result = bucket_cap_mb
