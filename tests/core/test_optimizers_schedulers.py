@@ -15,6 +15,8 @@
 import math
 import random
 
+import numpy as np
+import numpy.testing as npt
 import omegaconf
 import pytest
 import pytorch_lightning as pl
@@ -23,7 +25,7 @@ import torch.optim
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import config, optim
-from nemo.core.optim.lr_scheduler import AVAILABLE_SCHEDULERS
+from nemo.core.optim.lr_scheduler import AVAILABLE_SCHEDULERS, get_scheduler
 from nemo.core.optim.optimizers import AVAILABLE_OPTIMIZERS
 from nemo.utils import logging
 
@@ -918,6 +920,33 @@ class TestOptimizersSchedulers:
         # update step = true number of updates performed after some number of skipped steps
         true_end_lr = policy._get_lr(step=update_steps)[0]
         assert final_lr == true_end_lr
+
+    @pytest.mark.unit
+    def test_LinearWarmupHoldDecayPolicy(self):
+        scheduler_cls = get_scheduler('LinearWarmupHoldDecayPolicy')
+        n_steps = 12
+        lr = 0.1
+        exp_values = [0.02, 0.04, 0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.05, 0.025, 0, 0, ]
+
+        model = [torch.nn.Parameter(torch.randn(2, 2, requires_grad=True))]
+        optimizer = torch.optim.Adam(lr=lr, params=model)
+
+        warmup_steps =  4
+
+        scheduler = scheduler_cls(
+            optimizer=optimizer,
+            warmup_steps=warmup_steps,
+            constant_steps=3,
+            max_steps=10,
+            min_lr=0,
+        )
+
+        lrs = np.zeros(n_steps)
+        for i in range(n_steps):
+            lrs[i] = scheduler.get_lr()[0]
+            scheduler.step()
+
+        npt.assert_allclose(lrs, exp_values)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('CPU')
