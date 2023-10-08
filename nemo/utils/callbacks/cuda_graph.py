@@ -143,7 +143,7 @@ def get_optimizer_step(state):
             optimizer.zero_grad(**zero_grad_kwargs)
             torch.cuda.synchronize()
             rank_zero_info("CUDAGraphCallback: capturing CUDA graph for module %s.", self.__class__.__name__)
-            with torch.cuda.graph(state.graph, stream=self.state.stream):
+            with torch.cuda.graph(state.graph, stream=state.stream):
                 self.__orig_optimizer_step__(
                     epoch,
                     batch_idx,
