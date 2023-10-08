@@ -103,7 +103,8 @@ class MegatronMMGPTSFTModel(MegatronGPTSFTModel):
         self.num_audio_codebooks = cfg.get('num_audio_codebooks', 1)
         self.audio_codebook_size = cfg.get('audio_codebook_size', 1024)     
         self.audio_token_offset = cfg.get('audio_token_offset', 0)     
-        
+        self.pad_audio_to_length = cfg.get('pad_audio_to_length', 0)    # this is just for logging purposes; param is passed directly to dataloader
+
         audio_embedding_layers = []
         for _ in range(self.num_audio_codebooks-1):
             audio_embedding_layers.append(
@@ -203,6 +204,7 @@ class MegatronMMGPTSFTModel(MegatronGPTSFTModel):
                 num_audio_codebooks=data_cfg.get('num_audio_codebooks', 1),
                 audio_codebook_size=data_cfg.get('audio_codebook_size', 1024),
                 audio_token_offset=data_cfg.get('audio_token_offset', 256003),
+                pad_audio_to_length=data_cfg.get('pad_audio_to_length', 0),
             )
             datasets.append(dataset)
 

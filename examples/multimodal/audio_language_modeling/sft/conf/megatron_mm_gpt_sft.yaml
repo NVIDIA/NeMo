@@ -74,6 +74,7 @@ model:
   num_audio_codebooks: 8
   audio_codebook_size: 1024
   audio_token_offset: 256003      # vocab size of text tokenizer
+  pad_audio_to_length: 0
 
   data:
     train_ds:
@@ -113,6 +114,7 @@ model:
       num_audio_codebooks: ${model.num_audio_codebooks}
       audio_codebook_size: ${model.audio_codebook_size}
       audio_token_offset: ${model.audio_token_offset}
+      pad_audio_to_length: ${model.pad_audio_to_length}
 
 
     validation_ds:
@@ -143,6 +145,7 @@ model:
       num_audio_codebooks: ${model.num_audio_codebooks}
       audio_codebook_size: ${model.audio_codebook_size}
       audio_token_offset: ${model.audio_token_offset}
+      pad_audio_to_length: ${model.pad_audio_to_length}
 
       metric:
         name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
@@ -177,6 +180,7 @@ model:
       num_audio_codebooks: ${model.num_audio_codebooks}
       audio_codebook_size: ${model.audio_codebook_size}
       audio_token_offset: ${model.audio_token_offset}
+      pad_audio_to_length: ${model.pad_audio_to_length}
       
       metric:
         name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']

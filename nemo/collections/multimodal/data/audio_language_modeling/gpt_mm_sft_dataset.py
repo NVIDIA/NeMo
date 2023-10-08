@@ -56,6 +56,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
         num_audio_codebooks: int = 1,
         audio_codebook_size: int = 1024,
         audio_token_offset: int = 256003,
+        pad_audio_to_length: int = 0,
     ):
         """
         see GPTSFTDataset for description of non-audio args
@@ -87,6 +88,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
         self.num_audio_codebooks = num_audio_codebooks
         self.audio_codebook_size = audio_codebook_size
         self.audio_token_offset = audio_token_offset
+        self.pad_audio_to_length = pad_audio_to_length
 
 
     # @kpuvvada: this is deprecated; not used - remove
@@ -98,7 +100,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
         """
         return "".join([f"<audio_id_{x}>" for x in audio_codes])
 
-    def _load_audio_data(self, filepath, num_codebooks_to_load=8, keep_dims_for_audio=True):
+    def _load_audio_data(self, filepath, num_codebooks_to_load=8, keep_dims_for_audio=True, pad_to_length=1500, pad_id=None):
         """
         load audio data from npz file
         keep_dims_for_audio: if False, applies squeeze to audio_codes
@@ -116,6 +118,14 @@ class MMGPTSFTDataset(GPTSFTDataset):
         
         audio_codes = audio_codes + self.audio_token_offset
         # return self._audio_codes_to_text(audio_codes)
+
+        # pad to length after adding offset so that audio masking works as expected
+        if pad_to_length > 0:
+            assert pad_id is not None, "pad_id should be provided if pad_to_length is > 0"
+            pad_len = pad_to_length - audio_codes.shape[0]
+            if pad_len > 0:
+                pad_matrix = np.ones((pad_len, audio_codes.shape[1]), dtype=audio_codes.dtype) * pad_id
+                audio_codes = np.concatenate((audio_codes, pad_matrix), axis=0)
         return audio_codes.tolist()
 
 
@@ -247,7 +257,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
         if 'audio_codes' in template_strings_keys:
             # find the respective index
             audio_codes_idx = template_strings_keys.index('audio_codes')
-            audio_ids = self._load_audio_data(example['audio_codes'], num_codebooks_to_load=self.num_audio_codebooks, keep_dims_for_audio=True)
+            audio_ids = self._load_audio_data(example['audio_codes'], num_codebooks_to_load=self.num_audio_codebooks, keep_dims_for_audio=True, pad_to_length=self.pad_audio_to_length, pad_id=self.tokenizer.eos_id)
             template_ids[audio_codes_idx] = audio_ids
         
         # pad all entries to same dimension
@@ -298,7 +308,20 @@ class MMGPTSFTDataset(GPTSFTDataset):
 
         return processed_example
 
-
+    
+    @torch.no_grad()
+    def _create_attention_mask(self, max_length):
+        """Create `attention_mask`.
+        Args:
+            input_ids: A 1D tensor that holds the indices of tokens.
+        """
+        # seq_length = len(input_ids)
+        # `attention_mask` has the shape of [1, seq_length, seq_length]
+        attention_mask = torch.tril(torch.ones((max_length, max_length))).unsqueeze(0)
+        attention_mask = attention_mask < 0.5
+        return attention_mask
+    
+    
     def _collate_item(self, item, max_length, pad_id):
         item = self._maybe_cast_to_list(item)
         # max_length = max([len(x) for x in item]) if item else 0
