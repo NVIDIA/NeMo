@@ -27,7 +27,10 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
+from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
+from nemo.collections.asr.modules.conv_asr import ConvASRDecoder
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.multimodal.speechllm.data.audio_text_qa_dataset import (
@@ -35,7 +38,10 @@ from nemo.collections.multimodal.speechllm.data.audio_text_qa_dataset import (
     get_tarred_aqa_dataset_from_config,
 )
 from nemo.collections.multimodal.speechllm.modules.common.audio_text_generation_utils import generate
-from nemo.collections.multimodal.speechllm.modules.speechllm_perception import AudioPerceptionModel
+from nemo.collections.multimodal.speechllm.modules.speechllm_perception import (
+    AudioPerceptionModel,
+    LmAttendAudioPerceptionModel,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -272,7 +278,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             loss_mask, input_length, encoded_len, encoder_max_length, pad_token=0
         )
 
-        return encoder_input, attention_mask, labels, loss_mask, encoder_length
+        return encoder_input, attention_mask, labels, loss_mask, encoder_length, {}
 
     def forward(
         self, audio_batch, checkpoint_activations_all_layers,
@@ -282,7 +288,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         We prepend audio embeddings to the instruction and label text tokens 
         as the LLM input.
         """
-        encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
+        encoder_input, attention_mask, labels, loss_mask, _, aux_loss = self.prepare_llm_input(audio_batch)
         output = self.model(
             input_ids=None,
             position_ids=None,
@@ -292,7 +298,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             checkpoint_activations_all_layers=checkpoint_activations_all_layers,
         )
 
-        return output, loss_mask
+        return output, loss_mask, aux_loss
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
@@ -336,7 +342,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             batch = next(dataloader_iter)
             batch = {key: val.cuda(non_blocking=True) for key, val in batch.items()}
-            output_tensor, loss_mask = self.forward(
+            output_tensor, loss_mask, aux_loss = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
             output_tensor = output_tensor[0]  # get loss only, ingore logits
@@ -344,6 +350,10 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(loss_mask, output_tensor)
+                self.log('raw_lm_loss', loss_for_ub, prog_bar=True, rank_zero_only=True, batch_size=1)
+                for k, v in aux_loss.items():
+                    self.log(k, v, prog_bar=True, rank_zero_only=True, batch_size=1)
+                    loss_for_ub += v
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['loss_mask'].sum()
                     if loss_for_ub.isnan():
@@ -476,6 +486,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
             gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
             gpt_cfg.freeze_modality_adapter = cfg.model.get('freeze_modality_adapter', False)
+            # TODO
+            gpt_cfg.ctc_aux_loss_weight = cfg.model.get('ctc_aux_loss_weight', 0.0)
             gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
             gpt_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
             gpt_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
@@ -1013,3 +1025,78 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
             dataloaders.append(eval_dl)
         return dataloaders
+
+
+class AlignedModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
+    """Modularized speech GPT model."""
+
+    def setup_ctc_decoder(self):
+        self.ctc_decoder = ConvASRDecoder(self.cfg.perception.output_dim, self.tokenizer.vocab_size)
+        self.ctc_loss = CTCLoss(
+            num_classes=self.ctc_decoder.num_classes_with_blank - 1, zero_infinity=True, reduction="mean_batch",
+        )
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        self.cfg = cfg
+        super(ModularAudioGPTLoRAModel, self).__init__(cfg, trainer)
+        # Used other keys from metadata to calulate metrics
+        if hasattr(self.cfg.data, "test_ds") and hasattr(self.cfg.data.test_ds, "metric"):
+            self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
+        if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
+            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+
+        self.perception = LmAttendAudioPerceptionModel(
+            cfg=cfg.perception, lm_embedding=self.model.language_model.embedding.word_embeddings
+        )
+        self.setup_optimizer_param_groups()
+        self.configure_optimizers()
+
+        if cfg.ctc_aux_loss_weight > 0:
+            self.setup_ctc_decoder()
+
+        self.summarize(max_depth=2)
+
+    def prepare_llm_input(self, audio_batch):
+
+        input_signal = audio_batch['audio_signal']
+        input_signal_length = audio_batch['audio_signal_length']
+
+        input_ids, input_length, labels, loss_mask = (
+            audio_batch['tokens'],
+            audio_batch['tokens_length'],
+            audio_batch['labels'],
+            audio_batch['loss_mask'],
+        )
+
+        # [b, t, c]
+        encoded, encoded_len = self.perception(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
+        )
+
+        aux_loss = {}
+        if self.cfg.ctc_aux_loss_weight > 0:
+            ctc_labels = []
+            ctc_labels_len = loss_mask.sum(dim=1).long()
+            for label, input_len, ctc_label_len in zip(labels, input_length, ctc_labels_len):
+                ctc_label = torch.zeros_like(label)
+                ctc_label[:ctc_label_len] = label[input_len - ctc_label_len : input_len]
+                ctc_labels.append(ctc_label)
+            ctc_labels = torch.stack(ctc_labels, dim=0)
+            log_probs = self.ctc_decoder(encoder_output=encoded.transpose(1, 2))
+            ctc_loss = self.ctc_loss(
+                log_probs=log_probs, targets=ctc_labels, input_lengths=encoded_len, target_lengths=ctc_labels_len
+            )
+            aux_loss['train_ctc_loss'] = ctc_loss
+
+        encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
+            encoded, encoded_len, input_ids, input_length
+        )
+        labels = self._shift_labels_by_emb_len(labels, input_length, encoded_len, encoder_max_length, pad_token=0)
+        # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
+        loss_mask = self._shift_labels_by_emb_len(
+            loss_mask, input_length, encoded_len, encoder_max_length, pad_token=0
+        )
+        return encoder_input, attention_mask, labels, loss_mask, encoder_length, aux_loss

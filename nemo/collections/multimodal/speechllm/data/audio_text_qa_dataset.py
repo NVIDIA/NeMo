@@ -145,8 +145,8 @@ def _audio_text_collate_fn(
 
     position_ids = [list(range(max_length)) for _ in batch]
     position_ids = torch.LongTensor(position_ids)
-    input_ids = torch.LongTensor(_collate_item(input_ids, max_length=max_length, pad_id=text_pad_id))
     input_length = torch.LongTensor([len(x) for x in input_ids])
+    input_ids = torch.LongTensor(_collate_item(input_ids, max_length=max_length, pad_id=text_pad_id))
     labels = torch.LongTensor(_collate_item(labels, max_length=max_length, pad_id=text_pad_id))
     loss_mask = torch.LongTensor(_collate_item(loss_mask, max_length=max_length, pad_id=0))
     contexts = torch.LongTensor(_collate_item(contexts, max_length=max_length, pad_id=text_pad_id))

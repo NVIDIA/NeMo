@@ -69,6 +69,7 @@ model:
   freeze_audio_encoder: False
   freeze_modality_adapter: False
   load_audio_encoder: True
+  ctc_aux_loss_weight: 0.0
 
   global_batch_size: 128
   micro_batch_size: 4
@@ -129,6 +130,10 @@ model:
       init_std: 0.023
 
   perception:
+    lm_attention:
+      _target_:  nemo.collections.nlp.modules.common.megatron.attention.ParallelAttention
+      init_method: 'xavier'
+      output_layer_init_method: 
     modality_adapter: 
       _target_: nemo.collections.asr.modules.ConformerEncoder
       feat_in: 1024

@@ -18,8 +18,15 @@ from typing import Any, Dict, Optional
 import torch
 import torch.distributed
 import torch.nn as nn
+from apex.transformer.enums import AttnMaskType, AttnType
 from omegaconf.dictconfig import DictConfig
 
+from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    build_attention_mask_3d,
+    init_method_normal,
+    scaled_init_method_normal,
+)
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
@@ -108,5 +115,51 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         encoded, encoded_len = self.modality_adapter(audio_signal=encoded, length=encoded_len)
         # b, t, c
         encoded = self.proj(encoded.transpose(1, 2))
+
+        return encoded, encoded_len
+
+
+class LmAttendAudioPerceptionModel(AudioPerceptionModel):
+    """Audio perception model with extra attention to match LM."""
+
+    def __init__(self, cfg: DictConfig, lm_embedding):
+        super().__init__(cfg)
+        self.lm_embedding = lm_embedding
+        num_layers = 1
+        init_method_std = 0.02
+        num_attention_heads = 8
+        scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
+        init_method = init_method_normal(init_method_std)
+        scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
+        self.lm_attention = ParallelAttention(
+            init_method=init_method,
+            output_layer_init_method=scaled_init_method,
+            layer_number=num_layers,
+            num_attention_heads=num_attention_heads,
+            hidden_size=cfg.output_dim,
+            attention_type=AttnType.cross_attn,
+        )
+
+    @typecheck()
+    def forward(
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+    ):
+        encoded, encoded_len = super().forward(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
+        )
+
+        # TODO(zhehuai): explore causal-ish attention mask
+        max_len = encoded.size(1)
+        b = encoded.size(0)
+        attention_mask = torch.ones(b, 1, max_len, self.lm_embedding.weight.shape[0], device=encoded.device) < 0.5
+        encoded, _ = self.lm_attention(
+            encoded.transpose(0, 1).contiguous(),
+            attention_mask,
+            encoder_output=self.lm_embedding.weight.expand(b, -1, -1).transpose(0, 1).contiguous(),
+        )
+        encoded = encoded.transpose(0, 1)
 
         return encoded, encoded_len
