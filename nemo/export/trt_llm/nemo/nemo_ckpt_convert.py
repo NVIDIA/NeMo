@@ -217,10 +217,6 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
             # AMMO modification
             weights_dict.update(weights_dict_local)
 
-    print("")
-    print("******* weights_dict keys: ", weights_dict.keys())
-    print("")
-
     for key, values in model_level_weights.items():
         model_level_weights[key] = np.concatenate(values, axis=0)
         # AMMO modification
@@ -252,10 +248,6 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
     with config_path.open("w") as config_file:
         config.write(config_file)
 
-    print("")
-    print("******* weights_dict keys: ", weights_dict.keys())
-    print("")
-
     # AMMO modification.
     return weights_dict, llm_config, tokenizer
 
@@ -268,7 +260,7 @@ def load_sharded_metadata(checkpoint_dir: str):
             continue
         key = subdir.name
         arr = zarr.open(str(subdir), 'r')
-        sharded_state_dict[key] = arr[:]
+        sharded_state_dict[key] = torch.from_numpy(arr[:].astype(np.float))
 
     return sharded_state_dict
 
@@ -329,12 +321,15 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         if tp_idx == 0 and pp_idx == 0:
             if has_position_embedding:
                 val = model[get_layer_name("position_embedding", is_mcore)]
+                val = torch_to_numpy(val.to(storage_type).cpu())
                 model_level_weights["model.wpe.bin"].append(val)
         if pp_idx == 0:
             val = model.get("state_dict", model)[get_layer_name("word_embedding", is_mcore)]
+            val = torch_to_numpy(val.to(storage_type).cpu())
             model_level_weights["model.wte.bin"].append(val)
         if has_lm_head and pp_idx == training_pp_size - 1:
             val = model.get("state_dict", model)[get_layer_name("output_layer", is_mcore)]
+            val = torch_to_numpy(val.to(storage_type).cpu())
             model_level_weights["model.lm_head.weight.bin"].append(val)
 
     # AMMO modification
