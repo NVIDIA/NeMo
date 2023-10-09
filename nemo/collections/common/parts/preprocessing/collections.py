@@ -17,7 +17,7 @@ import json
 import os
 from itertools import combinations
 from typing import Any, Dict, Iterable, List, Optional, Union
-
+import numpy as np
 import pandas as pd
 
 from nemo.collections.common.parts.preprocessing import manifest, parsers
@@ -233,6 +233,251 @@ class ASRAudioText(AudioText):
         super().__init__(
             ids, audio_files, durations, texts, offsets, speakers, orig_srs, token_labels, langs, *args, **kwargs
         )
+
+
+class ALMAudioText(_Collection):
+    """List of audio-transcript text correspondence with preprocessing.
+    
+    All of the audio, duration, question, answer are optional.
+    If answer is not present, text is treated as the answer.
+    """
+
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='AudioQAEntity', field_names='id audio_file duration question answer offset speaker orig_sr lang',
+    )
+
+    def __init__(
+        self,
+        ids: List[int],
+        audio_files: List[str],
+        durations: List[float],
+        questions: List[str],
+        answers: List[str],
+        offsets: List[str],
+        speakers: List[Optional[int]],
+        orig_sampling_rates: List[Optional[int]],
+        langs: List[Optional[str]],
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        max_number: Optional[int] = None,
+        do_sort_by_duration: bool = False,
+        index_by_file_id: bool = False,
+        max_num_samples: Optional[int] = None,
+    ):
+        """Instantiates audio-question-answer manifest with filters and preprocessing.
+
+
+        Args:
+            ids: List of examples positions.
+            audio_files: List of audio files.
+            durations: List of float durations.
+            questions: List of raw text transcripts.
+            answers: List of raw text transcripts.
+            offsets: List of duration offsets or None.
+            speakers: List of optional speakers ids.
+            orig_sampling_rates: List of original sampling rates of audio files.
+            langs: List of language ids, one for eadh sample, or None.
+            min_duration: Minimum duration to keep entry with (default: None).
+            max_duration: Maximum duration to keep entry with (default: None).
+            max_number: Maximum number of samples to collect.
+            do_sort_by_duration: True if sort samples list by duration. Not compatible with index_by_file_id.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
+        """
+
+        output_type = self.OUTPUT_TYPE
+        data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
+        if index_by_file_id:
+            self.mapping = {}
+
+        for id_, audio_file, duration, offset, question, answer, speaker, orig_sr, lang in zip(
+            ids, audio_files, durations, offsets, questions, answers, speakers, orig_sampling_rates, langs
+        ):
+            # Duration filters.
+            if duration is not None:
+                if min_duration is not None and duration < min_duration:
+                    duration_filtered += duration
+                    num_filtered += 1
+                    continue
+
+                if max_duration is not None and duration > max_duration:
+                    duration_filtered += duration
+                    num_filtered += 1
+                    continue
+                total_duration += duration
+
+            if answer is None:
+                duration_filtered += duration
+                num_filtered += 1
+                continue
+
+            data.append(output_type(id_, audio_file, duration, question, answer, offset, speaker, orig_sr, lang))
+            if index_by_file_id and audio_file is not None:
+                file_id, _ = os.path.splitext(os.path.basename(audio_file))
+                if file_id not in self.mapping:
+                    self.mapping[file_id] = []
+                self.mapping[file_id].append(len(data) - 1)
+
+            # Max number of entities filter.
+            if len(data) == max_number:
+                break
+
+        if max_num_samples is not None and not index_by_file_id:
+            if max_num_samples <= len(data):
+                logging.info(f"Subsampling dataset from {len(data)} to {max_num_samples} samples")
+                data = data[:max_num_samples]
+            else:
+                logging.info(f"Oversampling dataset from {len(data)} to {max_num_samples} samples")
+                data = data * (max_num_samples // len(data))
+                res_num = max_num_samples % len(data)
+                res_data = [data[idx] for idx in np.random.choice(len(data), res_num, replace=False)]
+                data.extend(res_data)
+        elif max_num_samples is not None and index_by_file_id:
+            logging.warning("Tried to subsample dataset by max_num_samples, but cannot since index_by_file_id is set.")
+
+        if do_sort_by_duration:
+            if index_by_file_id:
+                logging.warning("Tried to sort dataset by duration, but cannot since index_by_file_id is set.")
+            else:
+                data.sort(key=lambda entity: entity.duration)
+
+        logging.info("Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600)
+        logging.info("%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600)
+
+        super().__init__(data)
+
+
+class ALMAudioTextCollection(ALMAudioText):
+    """`ALMAudioText` collector from audio-LM json files.
+    
+    This collector also keeps backward compatibility with ASRFeatureLabel.
+    """
+
+    def __init__(
+        self,
+        manifests_files: Union[str, List[str]],
+        question_file: Optional[str] = None,
+        random_context_prob: Optional[float] = None,
+        random_context_num: Optional[int] = 3,
+        random_context_positive_percent: Optional[float] = 0.1,
+        *args,
+        **kwargs,
+    ):
+        """Parse lists of audio files, durations and transcripts texts.
+
+        Args:
+            manifests_files: Either single string file or list of such -
+                manifests to yield items from.
+            *args: Args to pass to `AudioText` constructor.
+            **kwargs: Kwargs to pass to `AudioText` constructor.
+        """
+
+        ids, audio_files, durations, questions, answers, offsets, = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
+        speakers, orig_srs, langs = (
+            [],
+            [],
+            [],
+        )
+        if question_file is not None:
+            self.random_questions = open(question_file).readlines()
+            print(f"Use random questions from {question_file} for {manifests_files}")
+        else:
+            self.random_questions = None
+        self.random_context_prob = random_context_prob
+        self.random_context_num = random_context_num
+        self.random_context_positive_percent = random_context_positive_percent
+        self.random_context = []
+        for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
+            ids.append(item['id'])
+            audio_files.append(item['audio_file'])
+            durations.append(item['duration'])
+            questions.append(item['question'])
+            answers.append(item['answer'])
+            offsets.append(item['offset'])
+            speakers.append(item['speaker'])
+            orig_srs.append(item['orig_sr'])
+            langs.append(item['lang'])
+        super().__init__(
+            ids, audio_files, durations, questions, answers, offsets, speakers, orig_srs, langs, *args, **kwargs
+        )
+
+    def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
+        item = json.loads(line)
+
+        # Audio file
+        if 'audio_filename' in item:
+            item['audio_file'] = item.pop('audio_filename')
+        elif 'audio_filepath' in item:
+            item['audio_file'] = item.pop('audio_filepath')
+        elif 'audio_file' not in item:
+            item['audio_file'] = None
+
+        # If the audio path is a relative path and does not exist,
+        # try to attach the parent directory of manifest to the audio path.
+        # Revert to the original path if the new path still doesn't exist.
+        # Assume that the audio path is like "wavs/xxxxxx.wav".
+        if item['audio_file'] is not None:
+            item['audio_file'] = manifest.get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+
+        # Duration.
+        if 'duration' not in item:
+            item['duration'] = None
+
+        # Answer.
+        if 'answer' in item:
+            pass
+        elif 'text' in item:
+            item['answer'] = item.pop('text')
+        elif 'text_filepath' in item:
+            with open(item.pop('text_filepath'), 'r') as f:
+                item['answer'] = f.read().replace('\n', '')
+        elif 'normalized_text' in item:
+            item['answer'] = item['normalized_text']
+        else:
+            item['answer'] = ""
+
+        # Question.
+        if 'question' in item:
+            pass
+        elif 'question_filepath' in item:
+            with open(item.pop('text_filepath'), 'r') as f:
+                item['question'] = f.read().replace('\n', '')
+        elif 'normalized_text' in item:
+            item['question'] = item['normalized_text']
+        elif self.random_questions is None:
+            item['question'] = "what does this audio mean"
+        else:
+            question = np.random.choice(self.random_questions).strip()
+            if self.random_context_prob is not None:
+                current_words = item['answer'].strip().split()
+                if np.random.random() < self.random_context_prob and self.random_context:
+                    positive_num = int(self.random_context_num * self.random_context_positive_percent)
+                    positives = np.random.choice(current_words, positive_num)
+                    negatives = np.random.choice(self.random_context, self.random_context_num - positive_num)
+                    candidate_words = np.concatenate((positives, negatives))
+                    np.random.shuffle(candidate_words)
+                    context = f"Following words may occur in audio: {candidate_words} ".replace('\n', '')
+                    question = context + question
+                self.random_context = current_words
+            item['question'] = question
+
+        item = dict(
+            audio_file=item['audio_file'],
+            duration=item['duration'],
+            question=item['question'],
+            answer=item['answer'],
+            offset=item.get('offset', None),
+            speaker=item.get('speaker', None),
+            orig_sr=item.get('orig_sample_rate', None),
+            lang=item.get('lang', None),
+        )
+        return item
 
 
 class SpeechLabel(_Collection):
