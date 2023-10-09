@@ -18,7 +18,7 @@ import subprocess
 import sys
 import time
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
@@ -146,30 +146,34 @@ class ExpManagerConfig:
     create_wandb_logger: Optional[bool] = False
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     create_mlflow_logger: Optional[bool] = False
-    mlflow_logger_kwargs: Optional[MLFlowParams] = MLFlowParams()
+    mlflow_logger_kwargs: Optional[MLFlowParams] = field(default_factory=lambda: MLFlowParams())
     create_dllogger_logger: Optional[bool] = False
-    dllogger_logger_kwargs: Optional[DLLoggerParams] = DLLoggerParams()
+    dllogger_logger_kwargs: Optional[DLLoggerParams] = field(default_factory=lambda: DLLoggerParams())
     create_clearml_logger: Optional[bool] = False
-    clearml_logger_kwargs: Optional[ClearMLParams] = ClearMLParams()
+    clearml_logger_kwargs: Optional[ClearMLParams] = field(default_factory=lambda: ClearMLParams())
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
-    checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
+    checkpoint_callback_params: Optional[CallbackParams] = field(default_factory=lambda: CallbackParams())
     create_early_stopping_callback: Optional[bool] = False
-    early_stopping_callback_params: Optional[EarlyStoppingParams] = EarlyStoppingParams()
+    early_stopping_callback_params: Optional[EarlyStoppingParams] = field(
+        default_factory=lambda: EarlyStoppingParams()
+    )
     create_preemption_callback: Optional[bool] = True
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
-    step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
+    step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
     log_global_rank_0_only: Optional[bool] = False
     # disable initial validation when resuming from a checkpoint saved during validation
     disable_validation_on_resume: Optional[bool] = True
-    ema: Optional[EMAParams] = EMAParams()
+    ema: Optional[EMAParams] = field(default_factory=lambda: EMAParams())
     # Wall clock time limit
     max_time_per_run: Optional[str] = None
+    # time to sleep non 0 ranks during initialization
+    seconds_to_sleep: float = 5
 
 
 class TimingCallback(Callback):
@@ -301,6 +305,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
             - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want 
                 a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
+            - seconds_to_sleep (float): seconds to sleep non rank 0 processes for. Used to give enough time for rank 0 to initialize
 
     returns:
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
@@ -501,6 +506,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         # Add lightning file logging to global_rank zero
         add_filehandlers_to_pl_logger(log_dir / 'lightning_logs.txt', log_dir / 'nemo_error_log.txt')
 
+    elif trainer.num_nodes * trainer.num_devices > 1:
+        # sleep other ranks so rank 0 can finish
+        # doing the initialization such as moving files
+        time.sleep(cfg.seconds_to_sleep)
+
     return log_dir
 
 
@@ -578,8 +588,8 @@ def check_resume(
         end_dist_checkpoints = [d for d in dist_checkpoints if d.match("*end")]
         last_dist_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
 
-        end_checkpoints = end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.glob("*end.ckpt"))
-        last_checkpoints = last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.glob("*last.ckpt"))
+        end_checkpoints = end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
+        last_checkpoints = last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
 
         if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
             if resume_ignore_no_checkpoint:
