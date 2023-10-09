@@ -50,6 +50,7 @@ WORKDIR /tmp/
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
   git checkout 52e18c894223800cb611682dce27d88050edf1de && \
+  rm pyproject.toml && \
   pip3 install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # install megatron core, this can be removed once 0.3 pip package is released
