@@ -68,6 +68,29 @@ def rename_key(old_key: str, pp_rank: int, num_layers: int, pp_size: int):
 
         if "self_attention" in new_key:
             new_key = new_key.replace("self_attention", "attention")
+        if "attention.linear_qkv.layer_norm_weight" in new_key:
+            new_key = new_key.replace("attention.linear_qkv.layer_norm_weight", "input_layernorm.weight")
+        if "mlp.linear_fc1.layer_norm_weight" in new_key:
+            new_key = new_key.replace("mlp.linear_fc1.layer_norm_weight", "post_attention_layernorm.weight")
+
+    return new_key
+
+
+def rename_key_dist_ckpt(old_key: str, layer: int):
+    new_key = old_key
+
+    if "layers." in old_key:
+        split_key = old_key.split(".")
+        split_key.insert(1, str(layer))
+        new_key = ".".join(split_key)
+
+        if "self_attention" in new_key:
+            new_key = new_key.replace("self_attention", "attention")
+        if "attention.linear_qkv.layer_norm_weight" in new_key:
+            new_key = new_key.replace("attention.linear_qkv.layer_norm_weight", "input_layernorm.weight")
+        if "mlp.linear_fc1.layer_norm_weight" in new_key:
+            new_key = new_key.replace("mlp.linear_fc1.layer_norm_weight", "post_attention_layernorm.weight")
+
     return new_key
 
 
@@ -162,6 +185,7 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
             for key in models[0].keys():
                 # Skipping the extra state as it is not a part of the model state dict
                 if "_extra_state" not in key:
+                    # print("*** rename_key: ", rename_key(key, pp_rank, num_layers, training_pp_size))
                     starmap_args.append(
                         (
                             tp_rank,
@@ -174,6 +198,10 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
                             export_config,
                         )
                     )
+
+            print("")
+            print("*** starmap_args: ", starmap_args)
+
             starmap_args = tqdm(starmap_args, desc="saving weights")
 
             if args.processes > 1:
@@ -240,18 +268,26 @@ def load_sharded_metadata(checkpoint_dir: str):
 @torch.no_grad()
 def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args):
     nemo_model_config = unpacked_checkpoints_dir.model_config
-    checkpoints_paths = unpacked_checkpoints_dir.checkpoints_dir / "model_weights"
+    checkpoints_path = unpacked_checkpoints_dir.checkpoints_dir / "model_weights"
+
     # if checkpoints files could be found - start preparing output dir
     out_dir = create_out_dir(args)
 
+    map_location_fn = gpu_map_location if args.load_checkpoints_on_gpu else cpu_map_location
     storage_type = str_dtype_to_torch(args.storage_type)
     is_mcore = nemo_model_config.get("mcore_gpt", False)
 
     # load position_embedding from rank 0
-    model = load_sharded_metadata(checkpoints_paths)
-    model_state_dict = model.get("state_dict", model)
+    model_00 = load_sharded_metadata(checkpoints_path)
+    model_00 = model_00.get("state_dict", model_00)
 
-    '''
+    has_position_embedding = get_layer_name("position_embedding", is_mcore) in model_00
+    has_lm_head = get_layer_name("output_layer", is_mcore) in model_00
+
+    num_layers = nemo_model_config["num_layers"]
+    training_tp_size = nemo_model_config.get("tensor_model_parallel_size", 1)
+    training_pp_size = nemo_model_config.get("pipeline_model_parallel_size", 1)
+    inference_tp_size = args.tensor_parallelism
     num_kv_heads = nemo_model_config.get("num_query_groups", 0)
     multi_query_mode = nemo_model_config.get("multi_query_mode", False)
     num_attention_heads = nemo_model_config["num_attention_heads"]
@@ -265,7 +301,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": training_tp_size,
         "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu") and (
-            args.decoder_type == "gptnext" or is_mcore
+                args.decoder_type == "gptnext" or is_mcore
         ),
         "num_attention_heads": num_attention_heads,
         "num_kv_heads": num_kv_heads,
@@ -273,6 +309,81 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         "transpose_weights": True,
     }
 
+    # merge_factor: how many TP training nodes are merged into an inference TP node
+    # split_factor: in how many parts a TP training node is split
+
+    merge_factor = 1
+    split_factor = inference_tp_size
+
+    model_level_weights = defaultdict(list)
+
+    def handle_model_level_weights(model, tp_idx: int, pp_idx: int):
+        if tp_idx == 0 and pp_idx == 0:
+            if has_position_embedding:
+                val = model[get_layer_name("position_embedding", is_mcore)]
+                model_level_weights["model.wpe.bin"].append(val)
+        if pp_idx == 0:
+            val = model.get("state_dict", model)[get_layer_name("word_embedding", is_mcore)]
+            model_level_weights["model.wte.bin"].append(val)
+        if has_lm_head and pp_idx == training_pp_size - 1:
+            val = model.get("state_dict", model)[get_layer_name("output_layer", is_mcore)]
+            model_level_weights["model.lm_head.weight.bin"].append(val)
+
+    # AMMO modification
+    weights_dict = {}
+
+    tp_rank = 1
+
+    model = load_sharded_metadata(checkpoints_path)
+    handle_model_level_weights(model, 0, 0)
+    prefix = "model.decoder." if is_mcore else "model.language_model.encoder."
+    model = extract_layers_with_prefix(model, prefix)
+
+    starmap_args = []
+    for key in model.keys():
+        for i in range(num_layers):
+            # Skipping the extra state as it is not a part of the model state dict
+            if "_extra_state" not in key:
+                # print("****** rename_key: ", rename_key_dist_ckpt(key, i))
+                starmap_args.append(
+                    (
+                        tp_rank,
+                        out_dir,
+                        split_factor,
+                        # Let's rename/map the key to the old layer name previously. You can try printing out
+                        # the rename_key output of the old llama checkpoint and compare.
+                        rename_key_dist_ckpt(key, i),
+                        # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                        [model[key][i]],
+                        storage_type,
+                        None,
+                        export_config,
+                    )
+                )
+
+    # print("")
+    # print("*** starmap_args: ", starmap_args)
+
+    starmap_args = tqdm(starmap_args, desc="saving weights")
+
+    if args.processes > 1:
+        with multiprocessing.Pool(args.processes) as pool:
+            # AMMO modification
+            weights_dicts = pool.starmap(split_and_save_weight, starmap_args)
+            weights_dict_local = {k: v for d in weights_dicts for k, v in d.items()}
+    else:
+        # simpler for debug situations
+        for starmap_arg in starmap_args:
+            # AMMO modification
+            weights_dict_local = split_and_save_weight(*starmap_arg)
+    # AMMO modification
+    weights_dict.update(weights_dict_local)
+
+    for key, values in model_level_weights.items():
+        model_level_weights[key] = np.concatenate(values, axis=0)
+        # AMMO modification
+        weights_dict[key] = model_level_weights[key]
+    vocab_size = model_level_weights["model.wte.bin"].shape[0]
 
     tokenizer_config = update_tokenizer_paths(
         nemo_model_config["tokenizer"], unpacked_checkpoints_dir
@@ -301,8 +412,6 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
 
     # AMMO modification.
     return weights_dict, llm_config, tokenizer
-    '''
-    return None, None, None
 
 
 def create_out_dir(args):

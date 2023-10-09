@@ -88,7 +88,8 @@ def _nemo_decode(
         )
 
         start_time = datetime.datetime.now()
-        dist_ckpt_folder = checkpoint_dir_path / "model_weight"
+        dist_ckpt_folder = checkpoint_dir_path / "model_weights"
+
         if dist_ckpt_folder.exists():
             weights_dict, llm_config, tokenizer = convert_dist_checkpoint(unpacked_checkpoint_dir, args)
         else:
