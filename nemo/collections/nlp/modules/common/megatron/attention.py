@@ -160,9 +160,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 LoraKQVAdapterWeightTyingConfig._target_,
             ]
         )
-        
+
         if self.window_size is not None:
-            assert (use_flash_attention == True ), 'window_size is only supported with Flash Attention'
+            assert use_flash_attention == True, 'window_size is only supported with Flash Attention'
 
         if kv_channels is None:
             assert (
@@ -762,7 +762,7 @@ class CoreAttention(MegatronModule):
         self.window_size = window_size
 
         if self.window_size is not None:
-            assert (use_flash_attention == True ), 'window_size is only supported with Flash Attention'
+            assert use_flash_attention == True, 'window_size is only supported with Flash Attention'
 
         if kv_channels is None:
             assert (
@@ -999,7 +999,7 @@ class CoreAttention(MegatronModule):
                 value_layer,
                 dropout_p=self.attention_dropout_p if self.training else 0.0,
                 causal=is_causal,
-                window_size = self.window_size,
+                window_size=self.window_size,
             )
         else:
             q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
@@ -1016,7 +1016,7 @@ class CoreAttention(MegatronModule):
                 max_seqlen_k,
                 dropout_p=self.attention_dropout_p if self.training else 0.0,
                 causal=is_causal,
-                window_size = self.window_size,
+                window_size=self.window_size,
             )
 
             # [b, sq, np, hn]
