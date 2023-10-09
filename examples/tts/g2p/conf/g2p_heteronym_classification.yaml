@@ -85,7 +85,7 @@ trainer:
   max_epochs: 10
   num_nodes: 1
   accelerator: gpu
-  strategy: ddp
+  strategy: ddp_find_unused_parameters_true
   accumulate_grad_batches: 1
   enable_checkpointing: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager

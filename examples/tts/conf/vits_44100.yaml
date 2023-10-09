@@ -185,7 +185,7 @@ trainer:
   num_nodes: 1
   devices: 2
   accelerator: gpu
-  strategy: ddp
+  strategy: ddp_find_unused_parameters_true
   precision: 32
   # amp_backend: 'apex'
   # amp_level: 'O2'
