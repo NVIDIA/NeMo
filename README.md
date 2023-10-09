@@ -104,7 +104,7 @@ up during the PR it must be a branch directly from NVIDIA/NeMo.
 
 # Steps to add a publication
 
-Most of the instructions for adding a publication are similar to the instructions for adding a new post above. The differences are 
+Most of the instructions for adding a publication are similar to the instructions for adding a new post above. The differences are: 
 
 * Open the directory **docs/publications/** folder. Here you will find template.md - copy the contents of this template file.
 * Follow the above steps for blog posts, inside of the `publications` folder.

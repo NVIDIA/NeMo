@@ -27,7 +27,11 @@ categories: "List categories that this blog post belongs to. They will be displa
 - Edit the contents.
 - Add a `<!-- more -->` tag to the blog post to indicate where it should say 'Continue reading' in the blogpost preview.
 - Send PR and merge.
-- ASSETS: All blog images and external content must be hosted somewhere else. Do NOT add things to github for blog contents!
+- ASSETS: All blog images and external content must be hosted somewhere else. Do NOT add things to GitHub for blog contents!
+
+## Note about `continue_url`
+    
+If "continue_url" is set, AND a URL is specified in "# [Article Title](Article URL)", then there will be no links to the full blog post on the website, although the full blog post will be accessible if a user knows the URL to look for. So the content under the 'more' tag won't be findable by clicking, but will be findable if someone looks for the exact blog post link.
 
 # [Article Title](Article URL)
 
