@@ -1,0 +1,133 @@
+<!-- Docs: https://github.com/squidfunk/mkdocs-material/blob/27a1e7c3eea7d9ca212f1e82cae37d5424303bce/src/templates/partials/post.html#L92 -->
+
+<!--
+  Copyright (c) 2016-2023 Martin Donath <martin.donath@squidfunk.com>
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to
+  deal in the Software without restriction, including without limitation the
+  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+  sell copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+  IN THE SOFTWARE.
+-->
+
+<!-- Post excerpt -->
+<article class="md-post md-post--excerpt">
+
+  <!-- Specifically for cases where we have the continue_url override, we add the author list to the preview -->
+  {% if post and post.meta and post.meta.continue_url and post.meta.author %}
+  <header class="md-post__header">
+    <nav class="">
+      {% for author in post.meta.author %}
+        <span class="post-author__small">
+        <b>{{ author }}</b>
+
+        <!-- Add comma if not last author -->
+        {% if not loop.last %}
+        ,
+        {% endif %}
+        </span>
+      {% endfor %}
+    </nav>
+  </header>
+  {% endif %}
+
+  <header class="md-post__header">
+
+    <!-- Post authors -->
+<!--    {% if post.authors %}-->
+<!--      <nav class="md-post__authors md-typeset">-->
+<!--        {% for author in post.authors %}-->
+<!--          <span class="md-author">-->
+<!--            <img src="{{ author.avatar }}" alt="{{ author.name }}" />-->
+<!--          </span>-->
+<!--        {% endfor %}-->
+<!--      </nav>-->
+<!--    {% endif %}-->
+
+    <!-- Post metadata -->
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+
+        <!-- Post date -->
+        <li class="md-meta__item">
+          <time datetime="{{ post.config.date.created }}">
+            {{- post.config.date.created | date -}}
+          </time>
+          {#- Collapse whitespace -#}
+        </li>
+
+        <!-- Post categories -->
+        {% if post.categories %}
+          <li class="md-meta__item">
+            {{ lang.t("blog.categories.in") }}
+            {% for category in post.categories %}
+              <a
+                href="{{ category.url | url }}"
+                class="md-meta__link"
+              >
+                {{- category.title -}}
+              </a>
+              {%- if loop.revindex > 1 %}, {% endif -%}
+            {% endfor -%}
+          </li>
+        {% endif %}
+
+        <!-- Post readtime -->
+        {% if post.config.readtime %}
+          {% set time = post.config.readtime %}
+          <li class="md-meta__item">
+            {% if time == 1 %}
+              {{ lang.t("readtime.one") }}
+            {% else %}
+              {{ lang.t("readtime.other") | replace("#", time) }}
+            {% endif %}
+          </li>
+        {% endif %}
+      </ul>
+
+      <!-- Draft marker -->
+      {% if post.config.draft %}
+        <span class="md-draft">
+          {{ lang.t("blog.draft") }}
+        </span>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- Post content -->
+  <div class="md-post__content md-typeset">
+    {{ post.content }}
+
+    <!-- !!! MODIFICATION !!! : Wrap <a> in the .md-button .md-button--primary css classes -->
+
+    <!-- Continue reading link -->
+    <nav class="md-post__action" >
+
+      <!-- First check for `post.meta.continue_url`; if present, use that redirect url; otherwise point to post -->
+      {% if post and post.meta and post.meta.continue_url %}
+        <a href="{{  post.meta.continue_url | url }}" class="md-button with-right-arrow">
+      {% else %}
+        <a href="{{  post.url | url }}" class="md-button with-right-arrow">
+      {% endif %}
+
+        {{ lang.t("blog.continue") }}
+        </a>
+    </nav>
+
+    <!-- !!! MODIFICATION !!! : Add Horizontal Bar -->
+    <hr />
+
+  </div>
+</article>

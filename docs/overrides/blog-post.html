@@ -25,20 +25,39 @@
 </a>
 
 <!-- Blogging Markup -->
-{% if page and page.meta and page.meta.author_gh_user %}
+{% if page and page.meta and page.meta.author %}
 
-    {% for gh_author in page.meta.author_gh_user %}
+    {% for author in page.meta.author %}
 
-    <aside class="mdx-author">
 <!--        <p class="p-blog">-->
 <!--        <img src="https://avatars.githubusercontent.com/{{ gh_author }}" alt="@{{ gh_author }}">-->
 <!--        </p>-->
 <!--        <p class="p-blog">-->
-        <span> 
-        <b>{{ page.meta.author[loop.index0] }}</b> · <a href="https://github.com/{{ gh_author }}">@{{ gh_author }}</a>
+
+        <!-- If number of authors of less than 3, put on new lines -->
+        {% if page.meta.author|length <= 3 %}
+        <aside class="mdx-author">
+        {% endif %}
+
+        <!-- Add author name -->
+        <span class="post-author">
+        <b>{{ author }}</b>
+
+        <!-- Add author GitHub link if 1:1 map exists between author names and author gh ids -->
+        {% if page.meta.author|length == page.meta.author_gh_user|length %}
+        · <a href="https://github.com/{{ page.meta.author_gh_user[loop.index0] }}">@{{ page.meta.author_gh_user[loop.index0] }}</a>
+        {% endif %}
+
+        <!-- Add comma if not last author -->
+        {% if page.meta.author|length > 3 and not loop.last %}
+        ,
+        {% endif %}
         </span>
-<!--        </p>-->
-    </aside>
+
+        <!-- If number of authors is less than 3, put on new lines -->
+        {% if page.meta.author|length <= 3 %}
+        </aside>
+        {% endif %}
 
     {% endfor %}
 
