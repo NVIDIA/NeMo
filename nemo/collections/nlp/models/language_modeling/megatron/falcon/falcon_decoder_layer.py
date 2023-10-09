@@ -31,6 +31,7 @@ from megatron.core.utils import make_viewless_tensor
         hyperparameters: transformer hyperparameters
 """
 
+
 @dataclass
 class FalconTransformerLayerSubmodules:
     input_layernorm: Union[ModuleSpec, type] = IdentityOp
@@ -38,7 +39,7 @@ class FalconTransformerLayerSubmodules:
     self_attn_bda: Union[ModuleSpec, type] = IdentityFuncOp
 
     post_self_attn_layernorm: Union[ModuleSpec, type] = IdentityOp
-    
+
     pre_mlp_layernorm: Union[ModuleSpec, type] = IdentityOp
     mlp: Union[ModuleSpec, type] = IdentityOp
     mlp_bda: Union[ModuleSpec, type] = IdentityFuncOp
@@ -54,14 +55,13 @@ class FalconTransformerLayer(MegatronModule):
 
     def __init__(
         self,
-        config: TransformerConfig, # should come from FalconTransformerConfig class
+        config: TransformerConfig,  # should come from FalconTransformerConfig class
         submodules: FalconTransformerLayerSubmodules,
         layer_number: int = 1,
         self_attn_mask_type=AttnMaskType.padding,
     ):
         super().__init__(config=config)
         self.config: TransformerConfig = config
-        
 
         self.layer_number = layer_number + self._get_layer_offset()
 
@@ -70,13 +70,12 @@ class FalconTransformerLayer(MegatronModule):
         if hasattr(self.config, 'new_decoder_architecture'):
             self.new_decoder_architecture = self.config.new_decoder_architecture
         else:
-            self.new_decoder_architecture = None  
-        
+            self.new_decoder_architecture = None
+
         if hasattr(self.config, 'parallel_attention'):
             self.parallel_attention = self.config.parallel_attention
         else:
-            self.parallel_attention = None 
-
+            self.parallel_attention = None
 
         ## [Module 1: Input Layernorm] Optional Layernorm on the input data
         # TODO: add pytorch only layernorm
@@ -92,9 +91,7 @@ class FalconTransformerLayer(MegatronModule):
         )
 
         ## [Module 2: SelfAttention]
-        self.self_attention = build_module(
-            submodules.self_attention, config=self.config, layer_number=layer_number,
-        )
+        self.self_attention = build_module(submodules.self_attention, config=self.config, layer_number=layer_number,)
 
         ## [Module 3: BiasDropoutFusion] Optional
         self.self_attn_bda = build_module(submodules.self_attn_bda)
@@ -115,23 +112,27 @@ class FalconTransformerLayer(MegatronModule):
             )
 
         ## [Module 5: pre mlp layernorm] Optional Layernorm before MLP, used in Falcon's new decoder architecture
-        self.pre_mlp_layernorm = build_module(
-            submodules.pre_mlp_layernorm,
-            config=self.config,
-            hidden_size=self.config.hidden_size,
-            eps=self.config.layernorm_epsilon,
-            persist_layer_norm=self.config.persist_layer_norm,
-            sequence_parallel=self.config.sequence_parallel,
-            zero_centered_gamma=self.config.layernorm_zero_centered_gamma,
-            normalization=self.config.normalization,
-        ) if self.new_decoder_architecture else None
+        self.pre_mlp_layernorm = (
+            build_module(
+                submodules.pre_mlp_layernorm,
+                config=self.config,
+                hidden_size=self.config.hidden_size,
+                eps=self.config.layernorm_epsilon,
+                persist_layer_norm=self.config.persist_layer_norm,
+                sequence_parallel=self.config.sequence_parallel,
+                zero_centered_gamma=self.config.layernorm_zero_centered_gamma,
+                normalization=self.config.normalization,
+            )
+            if self.new_decoder_architecture
+            else None
+        )
 
         ## [Module 6: MLP block]
         self.mlp = build_module(submodules.mlp, config=self.config)
 
         ## [Module 7: BiasDropoutFusion] Optional
         self.mlp_bda = build_module(submodules.mlp_bda)
-        
+
         # @jcasper how should we handle nvfuser?
         # Set bias+dropout+add fusion grad_enable execution handler.
         # TORCH_MAJOR = int(torch.__version__.split('.')[0])
@@ -151,7 +152,7 @@ class FalconTransformerLayer(MegatronModule):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
             vp_rank = parallel_state.get_virtual_pipeline_model_parallel_rank()
             vp_size = parallel_state.get_virtual_pipeline_model_parallel_world_size()
-            
+
             total_num_layers = self.config.num_layers
             num_layers_per_virtual_rank = num_layers_per_pipeline_rank // vp_size
             total_virtual_chunks = total_num_layers // vp_size
@@ -163,7 +164,7 @@ class FalconTransformerLayer(MegatronModule):
                 offset = pipeline_rank * num_layers_per_pipeline_rank
             else:
                 offset = 0
-                
+
         return offset
 
     def forward(
@@ -176,13 +177,13 @@ class FalconTransformerLayer(MegatronModule):
         rotary_pos_emb=None,
     ):
         # hidden_states: [s, b, h]
-        
+
         # Residual connection.
         residual = hidden_states
-        
+
         if self.new_decoder_architecture:
             mlp_ln_output = self.pre_mlp_layernorm(hidden_states)
-        
+
         # Optional Input Layer norm
         input_layernorm_output = self.input_layernorm(hidden_states)
 
@@ -195,7 +196,7 @@ class FalconTransformerLayer(MegatronModule):
             inference_params=inference_params,
             rotary_pos_emb=rotary_pos_emb,
         )
-        
+
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
@@ -214,11 +215,11 @@ class FalconTransformerLayer(MegatronModule):
             layernorm_output = mlp_ln_output
 
         mlp_output_with_bias = self.mlp(layernorm_output)
-        
+
         # falcon specific:
         if self.new_decoder_architecture or self.parallel_attention:
-            mlp_output= mlp_output_with_bias[0]
-            attn_output= attention_output_with_bias[0]
+            mlp_output = mlp_output_with_bias[0]
+            attn_output = attention_output_with_bias[0]
             mlp_output_without_bias = mlp_output + attn_output
             mlp_output_with_bias = (mlp_output_without_bias, None)
 
@@ -235,9 +236,7 @@ class FalconTransformerLayer(MegatronModule):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(
-            inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
-        )
+        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
 
         return output
 
@@ -279,18 +278,13 @@ class FalconTransformerLayer(MegatronModule):
                 replica_id = parallel_state.get_data_parallel_rank()
             else:
                 replica_id = (
-                    parallel_state.get_data_parallel_rank()
-                    * parallel_state.get_data_parallel_world_size()
+                    parallel_state.get_data_parallel_rank() * parallel_state.get_data_parallel_world_size()
                     + parallel_state.get_tensor_model_parallel_rank()
                 )
 
             if layer_name.endswith('._extra_state'):
                 sharded_state_dict[layer_key] = ShardedObject(
-                    f'{prefix}{layer_name}',
-                    tensor,
-                    (num_layers,),
-                    (global_layer_offset,),
-                    replica_id,
+                    f'{prefix}{layer_name}', tensor, (num_layers,), (global_layer_offset,), replica_id,
                 )
 
             else:

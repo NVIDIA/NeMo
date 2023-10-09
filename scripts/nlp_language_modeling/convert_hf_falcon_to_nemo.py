@@ -32,18 +32,19 @@ Example to run this conversion script:
 
 import argparse
 import os
-from typing import Dict
 import time
+from typing import Dict
 
 import pytorch_lightning as pl
 import torch
 import yaml
 from omegaconf import OmegaConf
-from transformers import FalconConfig, AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, FalconConfig
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
+
 
 def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
     def get_new_key(old_key):
@@ -53,10 +54,10 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
             return old_key.replace("transformer.ln_f", "decoder.final_layernorm")
         elif old_key.startswith("lm_head"):
             return old_key.replace("lm_head", "output_layer")
-        
+
         # For the rest, a base transformation
         key = old_key.replace("transformer.h", "decoder.layers")
-        
+
         # Handling the layer normalization replacements
         if falcon_config.new_decoder_architecture:
             key = key.replace("ln_attn", "input_layernorm")
@@ -65,7 +66,7 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
             key = key.replace("input_layernorm", "input_layernorm")
             if not falcon_config.parallel_attn:
                 key = key.replace("post_attention_layernorm", "post_self_attn_layernorm")
-            
+
         key = key.replace("self_attention.dense", "self_attention.linear_proj")
         key = key.replace("self_attention.query_key_value", "self_attention.linear_qkv")
         key = key.replace("dense_h_to_4h", "linear_fc1")
@@ -82,6 +83,7 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
         new_dict[new_key] = val
 
     return new_dict
+
 
 def load_falcon_config(args) -> FalconConfig:
     """ Helper utility to load FalconConfig.
@@ -114,39 +116,37 @@ def load_falcon_config(args) -> FalconConfig:
     config.model_type = 'falcon'
     return config
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, required=True, help="Path to the megatron_gpt_config.yaml file")
     parser.add_argument(
-        "--config", type=str, required=True, help="Path to the megatron_gpt_config.yaml file"
+        "--input",
+        type=str,
+        required=True,
+        help="Falcon variants from HuggingFace hub or local dir with downloaded model",
     )
-    parser.add_argument(
-        "--input", type=str, required=True, help="Falcon variants from HuggingFace hub or local dir with downloaded model"
-    )
-    parser.add_argument(
-        "--output", type=str, default=".", help="Path to dir where to store output .nemo file"
-    )
+    parser.add_argument("--output", type=str, default=".", help="Path to dir where to store output .nemo file")
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
-    parser.add_argument(
-        "--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving"
-    )
-    
+    parser.add_argument("--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving")
+
     args = parser.parse_args()
 
     if not os.path.isdir(args.output):
         raise FileNotFoundError(f"Output directory '{args.output}' does not exist")
-    
+
     falcon_config = load_falcon_config(args)
     logging.info(f"falcon_config, {falcon_config}")
     with open(args.config, "r", encoding="utf_8") as f:
         orig_cfg = yaml.safe_load(f)
-    
+
     model_dict = orig_cfg["model"]
-    
+
     if "data" in model_dict:
         del model_dict["data"]
-    
+
     override_model_dict = {
         "micro_batch_size": 1,
         "global_batch_size": 1,
@@ -226,26 +226,25 @@ if __name__ == "__main__":
             override_model_dict["num_query_groups"] = falcon_config.num_kv_heads
         elif falcon_config.multi_query:
             override_model_dict["num_query_groups"] = 1
-        
+
     # Additional logic for bias fusion
     if falcon_config.bias:
         override_model_dict["bias_activation_fusion"] = True
         override_model_dict["bias_dropout_add_fusion"] = True
-    
+
     # Addtional logic for rope scaling
     if falcon_config.rope_scaling is not None:
         if falcon_config.rope_scaling.type == 'linear':
             override_model_dict['seq_len_interpolation_factor'] = falcon_config.rope_scaling.factor
         else:
             raise ValueError("Only linear rope scaling type is supported now")
-        
-    
+
     model_dict.update(override_model_dict)
     model_dict["tokenizer"] = tokenizer_dict
     model_dict["name"] = 'megatron_falcon_gpt'
 
     omega_cfg = OmegaConf.create(model_dict)
-    
+
     # output_path = "./falcon_megatron_config.yaml"
     # OmegaConf.save(config=omega_cfg, f=output_path)
 

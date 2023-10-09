@@ -3,16 +3,17 @@ from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.custom_layers.transformer_engine import (
+    TEColumnParallelLinear,
     TEDotProductAttention,
     TELayerNormColumnParallelLinear,
-    TERowParallelLinear,
     TENorm,
-    TEColumnParallelLinear,
+    TERowParallelLinear,
 )
 from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
+
 from .falcon_decoder_layer import FalconTransformerLayer, FalconTransformerLayerSubmodules
 
 # Use this spec for an implementation using modules in TE
@@ -33,10 +34,7 @@ falcon_layer_spec = ModuleSpec(
         post_self_attn_layernorm=TENorm,
         pre_mlp_layernorm=TENorm,
         mlp=ModuleSpec(
-            module=MLP,
-            submodules=MLPSubmodules(
-                linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,
-            ),
+            module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
         ),
         mlp_bda=get_bias_dropout_add,
     ),

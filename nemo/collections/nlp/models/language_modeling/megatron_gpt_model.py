@@ -16,7 +16,7 @@ import itertools
 import os
 import queue
 import warnings
-from dataclasses import fields, dataclass
+from dataclasses import dataclass, fields
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
 
@@ -76,12 +76,12 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.models.gpt.gpt_layer_specs import gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.spec_utils import import_module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
-    from megatron.core.models.gpt.gpt_layer_specs import gpt_layer_with_transformer_engine_spec
-    from megatron.core.transformer.spec_utils import import_module
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -103,25 +103,29 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
+
 def import_falcon_gpt_model():
     """Conditionally import FalconGPTModel.
     """
     try:
-        #from megatron.core.models.falcon.falcon_gpt_model import FalconGPTModel
+        # from megatron.core.models.falcon.falcon_gpt_model import FalconGPTModel
         from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_gpt_model import FalconGPTModel
         from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import falcon_layer_spec
+
         return FalconGPTModel, falcon_layer_spec
     except (ImportError, ModuleNotFoundError):
         raise ImportError("Failed to import FalconGPTModel. Please ensure the necessary dependencies are installed.")
 
-@dataclass      
+
+@dataclass
 class FalconTransformerConfig(TransformerConfig):
     """
     Transformer Config for Falcon Variants
     """
-    
+
     new_decoder_architecture: bool = False
     parallel_attention: bool = False
+
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     """
@@ -239,7 +243,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.falcon_name = cfg.get('name', 'megatron_falcon_gpt')
         self.new_decoder_architecture = cfg.get('new_decoder_architecture', False)
         self.parallel_attention = cfg.get('parallel_attention', False)
-        
+
         self.rampup_batch_size = self.cfg.get('rampup_batch_size', None)
         if self.rampup_batch_size:
             self.prev_consumed_samples = 0
@@ -334,7 +338,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             transformer_layer_spec = falcon_layer_spec
             model = FalconGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec = transformer_layer_spec,
+                transformer_layer_spec=transformer_layer_spec,
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
@@ -345,13 +349,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             )
-            
-            
+
         elif self.mcore_gpt:
             transformer_layer_spec = gpt_layer_with_transformer_engine_spec
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec = transformer_layer_spec,
+                transformer_layer_spec=transformer_layer_spec,
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
@@ -1562,7 +1565,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         mcore_gpt = self.cfg.get('mcore_gpt', False)
         new_decoder_architecture = self.cfg.get('new_decoder_architecture', False)
         parallel_attention = self.cfg.get('parallel_attention', False)
-        
+
         normalization = self.cfg.get('normalization', 'layernorm')
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
@@ -1644,12 +1647,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     f"The model: {self} does not have field.name: {field.name} in its cfg. "
                     f"Add this key to cfg or config_mapping to make to make it configurable."
                 )
-                
+
         if mcore_gpt and (new_decoder_architecture or parallel_attention):
             transformer_config = FalconTransformerConfig(
                 **transformer_config_dict,
-                new_decoder_architecture = new_decoder_architecture,
-                parallel_attention = parallel_attention,
+                new_decoder_architecture=new_decoder_architecture,
+                parallel_attention=parallel_attention,
             )
         else:
             transformer_config = TransformerConfig(**transformer_config_dict)

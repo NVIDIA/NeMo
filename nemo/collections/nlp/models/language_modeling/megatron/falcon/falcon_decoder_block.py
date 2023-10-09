@@ -4,7 +4,6 @@ import re
 from contextlib import nullcontext
 
 import torch
-
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.transformer.custom_layers.transformer_engine import TENorm
@@ -12,8 +11,9 @@ from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from .falcon_decoder_layer import FalconTransformerLayer, FalconTransformerLayerSubmodules
 from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_viewless_tensor
+
+from .falcon_decoder_layer import FalconTransformerLayer, FalconTransformerLayerSubmodules
 
 
 class FalconTransformerBlock(MegatronModule):
@@ -205,10 +205,8 @@ class FalconTransformerBlock(MegatronModule):
         #   likely redundant, since p2p_communication.py (likely originator)
         #   already creates viewless tensors. That said, make_viewless_tensor()
         #   is called here to be future-proof and corner-case-proof.
-        hidden_states = make_viewless_tensor(
-            inp=hidden_states, requires_grad=True, keep_graph=True,
-        )
-        
+        hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True,)
+
         if self.config.sequence_parallel:
             rng_context = tensor_parallel.get_cuda_rng_tracker().fork()
         else:
@@ -245,9 +243,7 @@ class FalconTransformerBlock(MegatronModule):
             # Forward pass.
             if self.config.recompute_granularity == 'full':
                 hidden_states = self._checkpointed_forward(
-                    hidden_states=hidden_states,
-                    attention_mask=attention_mask,
-                    rotary_pos_emb=rotary_pos_emb,
+                    hidden_states=hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb,
                 )
             else:
                 for idx, layer in enumerate(self.layers):
@@ -283,8 +279,6 @@ class FalconTransformerBlock(MegatronModule):
             if 'final_layernorm.bias' in state_dict.keys():
                 tensor = state_dict['final_layernorm.bias']
                 layer_name = f'{prefix}final_layernorm.bias'
-                sharded_state_dict[layer_name] = make_sharded_tensor_for_checkpoint(
-                    tensor, layer_name
-                )
+                sharded_state_dict[layer_name] = make_sharded_tensor_for_checkpoint(tensor, layer_name)
 
         return sharded_state_dict
