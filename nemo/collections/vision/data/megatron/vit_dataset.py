@@ -35,6 +35,7 @@ def _to_torch_data_type(precision):
     else:
         raise ValueError(f"Cannot recognize precision {precision}")
 
+
 class RandomSeedDataset(Dataset):
     def __init__(self, dataset, seed=1234):
         self.base_seed = seed

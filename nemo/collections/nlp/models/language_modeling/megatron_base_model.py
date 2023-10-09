@@ -78,8 +78,9 @@ class MegatronBaseModel(NLPModel):
       with O2 level optimizations and/or model parallelism.
     - Perform gradient clipping: `grad_clip_pl_default` triggers
       the PyTorch Lightning default implementation, `with_distributed_adam` triggers
-      the distributed optimizer's implementation, `megatron_amp_O2` triggers gradient clipping on the main grads,
-      and otherwise gradient clipping is performed on the model grads.
+      the distributed optimizer's implementation, `with_megatron_fused_adam` triggers
+      the optimizer's implementation, `megatron_amp_O2` triggers gradient clipping
+      on the main grads, and otherwise gradient clipping is performed on the model grads.
 
     """
 
@@ -122,6 +123,7 @@ class MegatronBaseModel(NLPModel):
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
+        self.with_megatron_fused_adam = cfg.optim.get('name') == 'megatron_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
@@ -337,6 +339,10 @@ class MegatronBaseModel(NLPModel):
 
         clip_val = float(clip_val)
         if clip_val <= 0:
+            return
+
+        if self.with_megatron_fused_adam:
+            # Gradient clipping is done in optimizer step
             return
 
         if self.grad_clip_pl_default:
