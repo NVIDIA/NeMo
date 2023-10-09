@@ -180,7 +180,7 @@ class GPTModel(MegatronModule):
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
         self.window_size = window_size
         if self.window_size is not None:
-            assert (use_flash_attention == True ), 'window_size is only supported with Flash Attention'
+            assert use_flash_attention == True, 'window_size is only supported with Flash Attention'
 
         if kv_channels is None:
             assert (
