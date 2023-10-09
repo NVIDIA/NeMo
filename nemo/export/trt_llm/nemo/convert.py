@@ -234,6 +234,7 @@ def split_and_save_weight(
         cat_dim = -1
         val = np.concatenate(vals, axis=cat_dim)
         split_vals = np.split(val, split_factor, axis=cat_dim)
+
         if "mlp.linear_fc1.weight" in key:
             key = key.replace("mlp.linear_fc1.weight", "mlp.dense_h_to_4h.weight")
         save_split(split_vals, saved_dir, key, tp_rank, split_factor)

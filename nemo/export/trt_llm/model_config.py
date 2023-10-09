@@ -258,6 +258,9 @@ class MLPConfig:
         mlp.fc.weight = get_tensor_from_dict(
             weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.weight.{rank}"
         )
+
+        # print("********** mlp.fc.weight : ", mlp.fc.weight )
+
         mlp.fc.bias = get_tensor_from_dict(
             weights_dict,
             f"layers.{layer_id}.mlp.dense_h_to_4h.bias.{rank}",
