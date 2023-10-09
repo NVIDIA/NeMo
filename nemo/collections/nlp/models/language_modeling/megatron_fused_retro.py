@@ -409,24 +409,30 @@ class MegatronFusedRetrievalLoraModel(MegatronRetrievalModel):
         logging.info(f'Before adding adapters:\n{self.model.summarize()}')
 
         self.model.freeze()
-        if cfg.adapter_tuning.pre_decoder is True:
-            logging.info(f'Adding pre decoder adapters')
-            adapter_cfg = self._get_adapter_cfg(cfg.adapter_tuning.adapter_key, frozen_model_cfg.hidden_size, frozen_model_cfg.num_attention_heads, cfg.adapter_tuning.adapter_dim)
-            for _, module in self.model.model.pre_decoder.named_modules():
-                if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                    self.add_adapters_init(module, adapter_cfg)
-        if cfg.adapter_tuning.post_decoder is True:
-            adapter_cfg = self._get_adapter_cfg(cfg.adapter_tuning.adapter_key, frozen_model_cfg.hidden_size, frozen_model_cfg.num_attention_heads, cfg.adapter_tuning.adapter_dim)
-            logging.info(f'Adding post decoder adapters')
-            for _, module in self.model.model.post_decoder.named_modules():
-                if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                    self.add_adapters_init(module, adapter_cfg)
-        if cfg.adapter_tuning.encoder is True:
-            adapter_cfg = self._get_adapter_cfg(cfg.adapter_tuning.adapter_key, frozen_model_cfg.hidden_size, frozen_model_cfg.num_attention_heads, cfg.adapter_tuning.adapter_dim)
-            logging.info(f'Adding encoder adapters')
-            for _, module in self.model.model.encoder.named_modules():
-                if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                    self.add_adapters_init(module, adapter_cfg)
+        # if cfg.adapter_tuning.pre_decoder is True:
+        #     logging.info(f'Adding pre decoder adapters')
+        #     adapter_cfg = self._get_adapter_cfg(cfg.adapter_tuning.adapter_key, frozen_model_cfg.hidden_size, frozen_model_cfg.num_attention_heads, cfg.adapter_tuning.adapter_dim)
+        #     for _, module in self.model.model.pre_decoder.named_modules():
+        #         if isinstance(module, adapter_mixins.AdapterModuleMixin):
+        #             self.add_adapters_init(module, adapter_cfg)
+        # if cfg.adapter_tuning.post_decoder is True:
+        #     adapter_cfg = self._get_adapter_cfg(cfg.adapter_tuning.adapter_key, frozen_model_cfg.hidden_size, frozen_model_cfg.num_attention_heads, cfg.adapter_tuning.adapter_dim)
+        #     logging.info(f'Adding post decoder adapters')
+        #     for _, module in self.model.model.post_decoder.named_modules():
+        #         if isinstance(module, adapter_mixins.AdapterModuleMixin):
+        #             self.add_adapters_init(module, adapter_cfg)
+        # if cfg.adapter_tuning.encoder is True:
+        #     adapter_cfg = self._get_adapter_cfg(cfg.adapter_tuning.adapter_key, frozen_model_cfg.hidden_size, frozen_model_cfg.num_attention_heads, cfg.adapter_tuning.adapter_dim)
+        #     logging.info(f'Adding encoder adapters')
+        #     for _, module in self.model.model.encoder.named_modules():
+        #         if isinstance(module, adapter_mixins.AdapterModuleMixin):
+        #             self.add_adapters_init(module, adapter_cfg)
+
+        logging.info(f'Adding pre decoder adapters')
+        adapter_cfg = self._get_adapter_cfg(cfg.adapter_tuning.adapter_key, frozen_model_cfg.hidden_size, frozen_model_cfg.num_attention_heads, cfg.adapter_tuning.adapter_dim)
+        for _, module in self.model.model.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                self.add_adapters_init(module, adapter_cfg)
 
         logging.info(f'After adding adapters:\n{self.model.summarize()}')
 

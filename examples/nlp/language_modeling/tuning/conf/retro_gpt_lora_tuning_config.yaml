@@ -2,12 +2,13 @@ defaults:
   - .@model: megatron_model_base_config
 
 name: test_retro
-restore_from_path: "/raid/users/aficek/retro/megatron_retro_converted_9B"
-# restore_from_path: /raid/users/aficek/retro/retro_1100m_final.nemo
+# restore_from_path: "/raid/users/aficek/retro/megatron_retro_converted_9B"
+restore_from_path: /raid/users/aficek/retro/retro_1100m_final.nemo
+# restore_from_path: /raid/users/aficek/gpt/retro_v2/retro_v2_800m.nemo
 
 
 trainer:
-  devices: 4
+  devices: 1
   num_nodes: 1
   accelerator: gpu
   precision: 16
@@ -55,8 +56,8 @@ exp_manager:
 
 model:
   # model parallelism 
-  micro_batch_size: 2
-  tensor_model_parallel_size: 4
+  micro_batch_size: 1
+  tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
 
   # model architecture
@@ -84,8 +85,10 @@ model:
   megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
   grad_allreduce_chunk_size_mb: 125
 
-  restore_from_path: "/raid/users/aficek/retro/megatron_retro_converted_9B"
-  # restore_from_path: /raid/users/aficek/retro/retro_1100m_final.nemo
+  # bias_gelu_fusion: False
+  # restore_from_path: "/raid/users/aficek/retro/megatron_retro_converted_9B"
+  restore_from_path: /raid/users/aficek/retro/retro_1100m_final.nemo
+  # restore_from_path: /raid/users/aficek/gpt/retro_v2/retro_v2_800m.nemo
 
   eval: False
   save_nemo_on_validation_end: True
