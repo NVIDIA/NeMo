@@ -67,6 +67,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             input_signal_length=audio_length,
             processed_signal=None,
             processed_signal_length=None,
+            lm_embedding=self.model.model.language_model.embedding.word_embeddings,
         )
 
         encoder_input, attention_mask, _, position_ids, encoder_max_length = self.model.inject_perception_input(

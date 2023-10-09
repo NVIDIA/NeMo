@@ -1045,9 +1045,7 @@ class AlignedModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
         if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
             self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
 
-        self.perception = LmAttendAudioPerceptionModel(
-            cfg=cfg.perception, lm_embedding=self.model.language_model.embedding.word_embeddings
-        )
+        self.perception = LmAttendAudioPerceptionModel(cfg=cfg.perception)
         self.setup_optimizer_param_groups()
         self.configure_optimizers()
 
@@ -1069,11 +1067,13 @@ class AlignedModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
         )
 
         # [b, t, c]
+        lm_embedding = self.model.language_model.embedding.word_embeddings
         encoded, encoded_len = self.perception(
             input_signal=input_signal,
             input_signal_length=input_signal_length,
             processed_signal=None,
             processed_signal_length=None,
+            lm_embedding=lm_embedding,
         )
 
         aux_loss = {}

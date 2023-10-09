@@ -122,9 +122,8 @@ class AudioPerceptionModel(NeuralModule, Exportable):
 class LmAttendAudioPerceptionModel(AudioPerceptionModel):
     """Audio perception model with extra attention to match LM."""
 
-    def __init__(self, cfg: DictConfig, lm_embedding):
+    def __init__(self, cfg: DictConfig):
         super().__init__(cfg)
-        self.lm_embedding = lm_embedding
         num_layers = 1
         init_method_std = 0.02
         num_attention_heads = 8
@@ -140,9 +139,13 @@ class LmAttendAudioPerceptionModel(AudioPerceptionModel):
             attention_type=AttnType.cross_attn,
         )
 
-    @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
+        lm_embedding=None,
     ):
         encoded, encoded_len = super().forward(
             input_signal=input_signal,
@@ -154,11 +157,11 @@ class LmAttendAudioPerceptionModel(AudioPerceptionModel):
         # TODO(zhehuai): explore causal-ish attention mask
         max_len = encoded.size(1)
         b = encoded.size(0)
-        attention_mask = torch.ones(b, 1, max_len, self.lm_embedding.weight.shape[0], device=encoded.device) < 0.5
+        attention_mask = torch.ones(b, 1, max_len, lm_embedding.weight.shape[0], device=encoded.device) < 0.5
         encoded, _ = self.lm_attention(
             encoded.transpose(0, 1).contiguous(),
             attention_mask,
-            encoder_output=self.lm_embedding.weight.expand(b, -1, -1).transpose(0, 1).contiguous(),
+            encoder_output=lm_embedding.weight.expand(b, -1, -1).transpose(0, 1).contiguous(),
         )
         encoded = encoded.transpose(0, 1)
 
