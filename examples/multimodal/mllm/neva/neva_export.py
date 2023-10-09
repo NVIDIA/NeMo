@@ -144,7 +144,9 @@ def build_vision_encoder(model_path, clip_path, precision, bs_min, bs_opt, bs_ma
     LOGGER.info('Exporting TRT')
     engine = engine_from_network(
         network_from_onnx_path('./onnx/vision_encoder.onnx'),
-        config=CreateConfig(fp16=precision in [16, '16', '16-mixed'], bf16=precision in ['bf16', 'bf16-mixed'], profiles=[p],),
+        config=CreateConfig(
+            fp16=precision in [16, '16', '16-mixed'], bf16=precision in ['bf16', 'bf16-mixed'], profiles=[p],
+        ),
     )
     save_engine(engine, path=os.path.join(out_dir, 'vision_encoder.plan'))
 

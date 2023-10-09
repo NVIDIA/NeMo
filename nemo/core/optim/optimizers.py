@@ -64,6 +64,14 @@ if HAVE_APEX:
     except (ImportError, ModuleNotFoundError):
         HAVE_APEX_DISTRIBUTED_ADAM = False
 
+    try:
+        # Try importing wrapper for Apex FusedAdam optimizer
+        from nemo.core.optim.fused_adam import MegatronFusedAdam
+
+        AVAILABLE_OPTIMIZERS['megatron_fused_adam'] = MegatronFusedAdam
+    except (ImportError, ModuleNotFoundError):
+        logging.warning("Could not import MegatronFusedAdam optimizer")
+
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 
 

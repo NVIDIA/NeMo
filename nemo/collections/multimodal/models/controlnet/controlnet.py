@@ -161,6 +161,8 @@ class ControlLDM(LatentDiffusion):
 
         log = dict()
         batch = next(batch)
+        batch['images'] = batch['images'].to(torch.cuda.current_device())
+        batch['hint'] = batch['hint'].to(torch.cuda.current_device())
         N = batch['images'].shape[0]
         z, c = self.get_input(batch, self.first_stage_key, bs=N)
         c_cat, c = c["c_concat"][:N], c["c_crossattn"][:N]
