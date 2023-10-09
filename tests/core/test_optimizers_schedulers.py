@@ -926,19 +926,28 @@ class TestOptimizersSchedulers:
         scheduler_cls = get_scheduler('LinearWarmupHoldDecayPolicy')
         n_steps = 12
         lr = 0.1
-        exp_values = [0.02, 0.04, 0.06, 0.08, 0.1, 0.1, 0.1, 0.1, 0.05, 0.025, 0, 0, ]
+        exp_values = [
+            0.02,
+            0.04,
+            0.06,
+            0.08,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.05,
+            0.025,
+            0,
+            0,
+        ]
 
         model = [torch.nn.Parameter(torch.randn(2, 2, requires_grad=True))]
         optimizer = torch.optim.Adam(lr=lr, params=model)
 
-        warmup_steps =  4
+        warmup_steps = 4
 
         scheduler = scheduler_cls(
-            optimizer=optimizer,
-            warmup_steps=warmup_steps,
-            constant_steps=3,
-            max_steps=10,
-            min_lr=0,
+            optimizer=optimizer, warmup_steps=warmup_steps, constant_steps=3, max_steps=10, min_lr=0,
         )
 
         lrs = np.zeros(n_steps)
