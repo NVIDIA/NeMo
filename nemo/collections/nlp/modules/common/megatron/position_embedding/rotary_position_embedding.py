@@ -26,7 +26,8 @@ class RotaryEmbedding(nn.Module):
     """
 
     def __init__(
-        self, dim: int, seq_len_interpolation_factor: int = None, pretrained_max_position_embeddings: int = None
+        self, dim: int, seq_len_interpolation_factor: int = None, pretrained_max_position_embeddings: int = None,
+        window_size = None,
     ):
         """
         Args:
@@ -35,12 +36,18 @@ class RotaryEmbedding(nn.Module):
             seq_len_interpolation_factor (int): if not None, discrete positions will be interpolated
             by this factor via the trick in https://arxiv.org/abs/2306.15595.
             pretrained_max_position_embeddings (int): pre-trained max_position_embeddings before position interpolation.
+            window_size (list): sliding window (left, right); (-1,-1) for full attention
         """
         super().__init__()
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
         inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
         self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
+
+        if window_size is not None and window_size[0] != -1 and window_size[1] != -1:
+            self.window_width = window_size[0] + window_size[1]
+        else:
+            self.window_width = None
 
     def forward(self, max_seq_len, offset=0):
         seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
@@ -53,6 +60,9 @@ class RotaryEmbedding(nn.Module):
             else:
                 # fixed linear scaling
                 seq *= 1 / self.seq_len_interpolation_factor
+   
+        if self.window_width is not None and self.window_width < max_seq_len:
+            seq *= self.window_width / max_seq_len
 
         freqs = einsum('i , j -> i j', seq, self.inv_freq)
         # first part even vector components, second part odd vector components,
