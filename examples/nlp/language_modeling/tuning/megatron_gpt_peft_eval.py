@@ -120,7 +120,7 @@ def main(cfg) -> None:
         model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
 
     with open_dict(model_cfg):
-        model_cfg.window_size = cfg.model.get('window_size', None)
+        model_cfg.window_size = cfg.model.get('window_size', model_cfg.get('window_size', None))
 
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
 

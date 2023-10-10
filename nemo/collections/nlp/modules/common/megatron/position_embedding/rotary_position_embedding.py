@@ -64,10 +64,6 @@ class RotaryEmbedding(nn.Module):
                 # fixed linear scaling
                 seq *= 1 / self.seq_len_interpolation_factor
 
-        # D.R. this isn't over and needs to be fixed :-)
-        # if self.window_width is not None and self.window_width < max_seq_len:
-        #    seq *= self.window_width / max_seq_len
-
         freqs = einsum('i , j -> i j', seq, self.inv_freq)
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size
