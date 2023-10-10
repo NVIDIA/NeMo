@@ -89,6 +89,7 @@ Key Features
 
 * Speech processing
     * `HuggingFace Space for Audio Transcription (File, Microphone and YouTube) <https://huggingface.co/spaces/smajumdar/nemo_multilingual_language_id>`_
+    * `Pretrained models <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_ available in 14+ languages
     * `Automatic Speech Recognition (ASR) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html>`_
         * Supported ASR `models <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html>`_:
             * Jasper, QuartzNet, CitriNet, ContextNet
@@ -113,8 +114,6 @@ Key Features
         * Clustering Diarizer: TitaNet, ECAPA_TDNN, SpeakerNet
         * Neural Diarizer: MSDD (Multi-scale Diarization Decoder)
     * `Speech Intent Detection and Slot Filling <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_intent_slot/intro.html>`_: Conformer-Transformer
-    * `Pretrained models on different languages. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_: English, Spanish, German, Russian, Chinese, French, Italian, Polish and more.
-    * `NGC collection of pre-trained speech processing models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_
 * Natural Language Processing
     * `NeMo Megatron pre-training of Large Language Models <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/nemo_megatron/intro.html>`_
     * `Neural Machine Translation (NMT) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/machine_translation/machine_translation.html>`_
@@ -151,7 +150,7 @@ Requirements
 
 1) Python 3.10 or above
 2) Pytorch 1.13.1 or above
-3) NVIDIA GPU for training
+3) NVIDIA GPU, if you intend to do model training
 
 Documentation
 -------------
@@ -365,7 +364,7 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.06-py3 and then installing from GitHub.
+If you choose to work with the main branch, we recommend using NVIDIA's PyTorch container version 23.06-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
