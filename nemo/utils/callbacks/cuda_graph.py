@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import time
 from dataclasses import dataclass
 from types import MethodType
 from typing import Any, Dict, List, Optional, Type
@@ -142,6 +143,8 @@ def get_optimizer_step(state):
         if state.current_iteration == state.capture_iteration:
             optimizer.zero_grad(**zero_grad_kwargs)
             torch.cuda.synchronize()
+            # Sleep for one second to let environment stable
+            time.sleep(1)
             rank_zero_info("CUDAGraphCallback: capturing CUDA graph for module %s.", self.__class__.__name__)
             with torch.cuda.graph(state.graph, stream=state.stream):
                 self.__orig_optimizer_step__(
@@ -225,6 +228,8 @@ class CUDAGraphCallback(Callback):
         # Ref: https://pytorch.org/docs/stable/notes/cuda.html#usage-with-distributeddataparallel
         if 0 <= capture_iteration <= 11:
             raise Exception("Warmup must run at least 11 DDP-enabled eager iterations before capture.")
+        if torch.distributed.is_initialized():
+            raise Exception("CUDAGraphCallback should be initialized before process group.")
         os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0"
 
         self.state = CUDAGraphState(capture_iteration=capture_iteration)
