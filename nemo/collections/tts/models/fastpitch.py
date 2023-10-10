@@ -217,12 +217,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
                 raise ImportError(
                     "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
                 )
-            # fmt: off
-            import pkg_resources
-            # safeguard to the version 0.1.8rc0 to avoid unexpected normalized outputs for Chinese. Will remove the guard once
-            # next-text-processing new release fixes the bug. Tracking bugfix in https://github.com/NVIDIA/NeMo-text-processing/issues/109.
-            pkg_resources.require("nemo_text_processing==0.1.8rc0")
-            # fmt: on
 
             self.text_normalizer_call = self.normalizer.normalize
             if "text_normalizer_call_kwargs" in cfg:

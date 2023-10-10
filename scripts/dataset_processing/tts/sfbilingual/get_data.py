@@ -31,13 +31,6 @@ except (ImportError, ModuleNotFoundError):
         "this script"
     )
 
-# fmt: off
-import pkg_resources
-# safeguard to the version 0.1.8rc0 to avoid unexpected normalized outputs for Chinese. Will remove the guard once
-# next-text-processing new release fixes the bug. Tracking bugfix in https://github.com/NVIDIA/NeMo-text-processing/issues/109.
-pkg_resources.require("nemo_text_processing==0.1.8rc0")
-# fmt: on
-
 
 def get_args():
     parser = argparse.ArgumentParser(
