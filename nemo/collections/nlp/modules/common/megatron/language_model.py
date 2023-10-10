@@ -779,12 +779,12 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         rotary_pos_emb = None
         encoder_self_attention_relative_position_bias = None
         if self.position_embedding_type == 'rope':
-            if window_size is not None:
-                if window_size[0] == -1 and window_size[1] == -1:
+            if self.window_size is not None:
+                if self.window_size[0] == -1 and self.window_size[1] == -1:
                     rotary_pos_emb = self.rotary_pos_emb(enc_seq_length)
                 else:
-                    pos_emb_len = min(enc_seq_length, window_size[0] + window_size[1])
-                    logging.info(f'using pos emb len {pos_emb_len}, seq len: {enc_seq_length}, window_size: {window_size[0]}, {window_size[1]}')
+                    pos_emb_len = min(enc_seq_length, self.window_size[0] + self.window_size[1])
+                    logging.info(f'using pos emb len {pos_emb_len}, seq len: {enc_seq_length}, window_size: {self.window_size[0]}, {self.window_size[1]}')
                     rotary_pos_emb = self.rotary_pos_emb(pos_emb_len)
             else:
                 rotary_pos_emb = self.rotary_pos_emb(enc_seq_length)
