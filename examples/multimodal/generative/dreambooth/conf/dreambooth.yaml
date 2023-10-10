@@ -201,7 +201,7 @@ model:
     instance_prompt: a photo of a sks dog
     regularization_dir: /datasets/nemo_dogs
     regularization_prompt: a photo of a dog
-    num_reg_images: 200
+    num_reg_images: 10
     num_images_per_prompt: 4
     resolution: 512
     center_crop: True

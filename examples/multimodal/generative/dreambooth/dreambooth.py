@@ -102,7 +102,8 @@ def main(cfg):
 
     torch.backends.cuda.matmul.allow_tf32 = True
 
-    prepare_reg_data(cfg)
+    if cfg.model.with_prior_preservation:
+        prepare_reg_data(cfg)
     parallel_state.destroy_model_parallel()
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
