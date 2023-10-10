@@ -50,13 +50,13 @@ class TestNemoExport:
                     )
                     Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
 
-                    prompt_embedding_table = np.random.rand(38, 1024)
+                    # prompt_embedding_table = np.random.rand(38, 1024)
                     trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
                     trt_llm_exporter.export(
                         nemo_checkpoint_path=model_info["checkpoint"],
                         model_type=model_info["model_type"],
                         n_gpus=n_gpu,
-                        prompt_embeddings_table=prompt_embedding_table,
+                        #prompt_embeddings_table=prompt_embedding_table,
                     )
                     output = trt_llm_exporter.forward(
                         input_texts=["Hi, how are you?", "I am good, thanks, how about you?"],
