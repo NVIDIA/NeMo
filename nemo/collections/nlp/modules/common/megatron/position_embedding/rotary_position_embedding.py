@@ -26,8 +26,11 @@ class RotaryEmbedding(nn.Module):
     """
 
     def __init__(
-        self, dim: int, seq_len_interpolation_factor: int = None, pretrained_max_position_embeddings: int = None,
-        window_size = None,
+        self,
+        dim: int,
+        seq_len_interpolation_factor: int = None,
+        pretrained_max_position_embeddings: int = None,
+        window_size=None,
     ):
         """
         Args:
@@ -60,7 +63,7 @@ class RotaryEmbedding(nn.Module):
             else:
                 # fixed linear scaling
                 seq *= 1 / self.seq_len_interpolation_factor
-   
+
         if self.window_width is not None and self.window_width < max_seq_len:
             seq *= self.window_width / max_seq_len
 
