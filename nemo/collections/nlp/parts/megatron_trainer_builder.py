@@ -162,3 +162,29 @@ class MegatronNoDistAdamTrainerBuilder(MegatronTrainerBuilder):
             plugins.append(TorchElasticEnvironment())
 
         return plugins
+
+
+class MegatronT5NoDistAdamTrainerBuilder(MegatronT5TrainerBuilder):
+    """Builder for T5 models where distributed_fused_adam is not possible"""
+
+    def _plugins(self) -> list:
+        megatron_amp_o2 = self.cfg.model.get('megatron_amp_O2', False)
+
+        plugins = []
+        if self.cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
+            scaler = None
+            if self.cfg.trainer.precision in [16, '16', '16-mixed']:
+                scaler = self._grad_scaler()
+                plugin_precision = '16-mixed'
+            else:
+                plugin_precision = 'bf16-mixed'
+
+            if megatron_amp_o2:
+                plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+            else:
+                plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+
+        if self.cfg.get('cluster_type', None) == 'BCP':
+            plugins.append(TorchElasticEnvironment())
+
+        return plugins

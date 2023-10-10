@@ -25,6 +25,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_glue_model import Me
 from nemo.collections.nlp.models.language_modeling.megatron_t0_model import MegatronT0Model
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronT5NoDistAdamTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import (
     CustomProgressBar,
     GradScaler,
@@ -151,35 +152,7 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
-    plugins = []
-    strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,
-        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-        find_unused_parameters=False,
-    )
-    if cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
-        scaler = None
-        if cfg.trainer.precision in [16, '16', '16-mixed']:
-            scaler = GradScaler(
-                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-                hysteresis=cfg.model.get('hysteresis', 2),
-            )
-            # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
-            plugin_precision = '16-mixed'
-        else:
-            plugin_precision = 'bf16-mixed'
-        if megatron_amp_o2:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-        else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-
-    if cfg.get('cluster_type', None) == 'BCP':
-        plugins.append(TorchElasticEnvironment())
-
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
-
+    trainer = MegatronT5NoDistAdamTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
