@@ -87,8 +87,10 @@ class DreamBoothDataset(Dataset):
                 self.cached_reg_data_root = f'{self.reg_data_root}_cached'
                 self.instance_images_path = list(Path(self.cached_instance_data_root).iterdir())
                 self.num_instance_images = len(self.instance_images_path)
-                self.reg_images_path = list(Path(self.cached_reg_data_root).iterdir())
-                self.num_reg_images = len(self.reg_images_path)
+
+                if self.with_prior_preservation:
+                    self.reg_images_path = list(Path(self.cached_reg_data_root).iterdir())
+                    self.num_reg_images = len(self.reg_images_path)
 
             if self.cached_instance_data_root:
                 self.instance_images_path = list(Path(self.cached_instance_data_root).iterdir())
@@ -129,23 +131,18 @@ class DreamBoothDataset(Dataset):
         os.makedirs(f'{self.instance_data_root}_cached', exist_ok=True)
         self.cached_instance_data_root = f'{self.instance_data_root}_cached'
         self.cached_reg_data_root = f'{self.reg_data_root}_cached'
-        if self.instance_data_root and (self.cached_instance_data_root is None):
-
+        if self.instance_data_root and (len(os.listdir(self.cached_instance_data_root)) < self.num_instance_images):
             for i in tqdm(range(self.num_instance_images)):
-                if len(os.listdir(self.cached_instance_data_root)) == self.num_instance_images:
-                    break
                 x = torch.Tensor(self.get_image(self.instance_images_path[i % self.num_instance_images]))
                 x = torch.unsqueeze(x, dim=0)
                 params = vae.encode(x).parameters.squeeze(dim=0)
                 torch.save(params, f'{self.instance_data_root}_cached/instance_image_cache_{i}.pt')
 
-        if self.with_prior_preservation and self.reg_data_root and (self.cached_reg_data_root is None):
+        if self.with_prior_preservation:
             os.makedirs(f'{self.reg_data_root}_cached', exist_ok=True)
-
-            for i in tqdm(range(self.num_reg_images)):
-                if len(os.listdir(self.cached_reg_data_root)) == self.num_reg_images:
-                    break
-                x = torch.Tensor(self.get_image(self.reg_images_path[i % self.num_reg_images]))
-                x = torch.unsqueeze(x, dim=0)
-                params = vae.encode(x).parameters.squeeze(dim=0)
-                torch.save(params, f'{self.reg_data_root}_cached/reg_image_cache_{i}.pt')
+            if self.reg_data_root and (len(os.listdir(self.cached_reg_data_root)) < self.num_reg_images):
+                for i in tqdm(range(self.num_reg_images)):
+                    x = torch.Tensor(self.get_image(self.reg_images_path[i % self.num_reg_images]))
+                    x = torch.unsqueeze(x, dim=0)
+                    params = vae.encode(x).parameters.squeeze(dim=0)
+                    torch.save(params, f'{self.reg_data_root}_cached/reg_image_cache_{i}.pt')
