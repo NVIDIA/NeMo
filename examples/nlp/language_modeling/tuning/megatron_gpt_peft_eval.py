@@ -130,7 +130,7 @@ def main(cfg) -> None:
     custom_strategy = None
     if cfg.bcm:
         custom_strategy = BCMStrategy()
-    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer(custom_strategy=BCMStrategy())
+    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer(custom_strategy=custom_strategy)
 
     # loading base model cfg
     model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
