@@ -143,7 +143,7 @@ You can load the checkpoints automatically using the ``ASRModel.from_pretrained(
     # you can also load open-sourced NeMo models released by other HF users using:
     #asr_model = nemo_asr.models.ASRModel.from_pretrained("<HF username>/<model name>")
 
-See further documentation about :doc:`loading checkpoints <./results>`, a full :ref:`list <asr-checkpoint-list-by-language>` of models [link] and their :doc:`benchmark scores <./score>`.
+See further documentation about :doc:`loading checkpoints <./results>`, a full :ref:`list <asr-checkpoint-list-by-language>` of models and their :doc:`benchmark scores <./score>`.
 
 There is also more information about the ASR model architectures available in NeMo :doc:`here <./models>`.
 
