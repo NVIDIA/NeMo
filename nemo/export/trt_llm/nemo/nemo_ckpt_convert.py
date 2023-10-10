@@ -343,11 +343,10 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     model = extract_layers_with_prefix(model, prefix)
 
     starmap_args = []
-    for key in model.keys():
-        for i in range(num_layers):
+    for key, val in model.items():
+        if len(val.size()) == 1:
             # Skipping the extra state as it is not a part of the model state dict
             if "_extra_state" not in key:
-                # print("****** rename_key: ", rename_key_dist_ckpt(key, i))
                 starmap_args.append(
                     (
                         tp_rank,
@@ -355,14 +354,33 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
                         split_factor,
                         # Let's rename/map the key to the old layer name previously. You can try printing out
                         # the rename_key output of the old llama checkpoint and compare.
-                        rename_key_dist_ckpt(key, i),
+                        rename_key_dist_ckpt(key, 0),
                         # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
-                        [model[key][i]],
+                        [val],
                         storage_type,
                         None,
                         export_config,
                     )
                 )
+        else:
+            for i in range(num_layers):
+                # Skipping the extra state as it is not a part of the model state dict
+                if "_extra_state" not in key:
+                    starmap_args.append(
+                        (
+                            tp_rank,
+                            out_dir,
+                            split_factor,
+                            # Let's rename/map the key to the old layer name previously. You can try printing out
+                            # the rename_key output of the old llama checkpoint and compare.
+                            rename_key_dist_ckpt(key, i),
+                            # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                            [val[i]],
+                            storage_type,
+                            None,
+                            export_config,
+                        )
+                    )
 
     # print("")
     # print("*** starmap_args: ", starmap_args)

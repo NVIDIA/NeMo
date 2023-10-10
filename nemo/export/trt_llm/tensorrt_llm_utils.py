@@ -53,8 +53,6 @@ def build_layernorm_from_config(config: LayernormConfig, dtype: trt.DataType):
         trt_layernorm.weight.value = config.weight
         trt_layernorm.bias.value = config.bias
     elif config.layernorm_type == LAYERNORM_RMS:
-        if not isinstance(config.weight, list):
-            config.weight = np.array([config.weight])
         trt_layernorm = RmsNorm(normalized_shape=config.weight.shape[0], dtype=dtype)
         trt_layernorm.weight.value = config.weight
     else:
