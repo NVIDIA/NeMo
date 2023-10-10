@@ -240,6 +240,34 @@ Use this installation mode if you are contributing to NeMo.
 If you only want the toolkit without additional conda-based dependencies, you may replace ``reinstall.sh``
 with ``pip install -e .`` when your PWD is the root of the NeMo repository.
 
+Mac computers with Apple silicon
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+To install NeMo on Mac with Apple M-Series GPU:
+
+- install `Homebrew <https://brew.sh>`_ package manager
+
+- create a new Conda environment
+
+- install PyTorch 2.0 or higher
+
+- run the following code:
+
+.. code-block:: shell
+
+    # install mecab using Homebrew, required for sacrebleu for NLP collection
+    brew install mecab
+
+    # install pynini using Conda, required for text normalization
+    conda install -c conda-forge pynini
+
+    # install Cython manually
+    pip install cython
+
+    # clone the repo and install in development mode
+    git clone https://github.com/NVIDIA/NeMo
+    cd NeMo
+    ./reinstall.sh
+
 RNNT
 ~~~~
 Note that RNNT requires numba to be installed from conda.
