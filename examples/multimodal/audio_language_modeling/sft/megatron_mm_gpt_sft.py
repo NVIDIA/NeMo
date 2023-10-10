@@ -77,11 +77,13 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         if cfg.model.get('seq_len_interpolation_factor', None) is not None:
             gpt_cfg.seq_len_interpolation_factor = cfg.model.seq_len_interpolation_factor
 
+        gpt_cfg.get_attention_mask_from_fusion = cfg.model.get('get_attention_mask_from_fusion', True)
+        
         # =====> Audio related configs
         # Update Tokenizer Config
-        gpt_cfg.tokenizer.sentencepiece_legacy = True
-        gpt_cfg.tokenizer.expand_tokens_dataset_type = "audio"      # is there any better name? 
-        gpt_cfg.tokenizer.num_sentinel_tokens = 1000
+        gpt_cfg.tokenizer.sentencepiece_legacy = cfg.model.tokenizer.get('sentencepiece_legacy', False)
+        gpt_cfg.tokenizer.expand_tokens_dataset_type = cfg.model.tokenizer.get('expand_tokens_dataset_type', "audio")      # is there any better name? 
+        gpt_cfg.tokenizer.num_sentinel_tokens = cfg.model.tokenizer.get('num_sentinel_tokens', 1000)
         
         gpt_cfg.num_audio_codebooks = cfg.model.get('num_audio_codebooks', 1)
         gpt_cfg.audio_codebook_size = cfg.model.get('audio_codebook_size', 1024)
