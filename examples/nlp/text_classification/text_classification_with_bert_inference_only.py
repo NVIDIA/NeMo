@@ -245,16 +245,7 @@ def main(cfg: DictConfig) -> None:
         gt_labels = []
         samples = []
         for line in lines:
-            if cfg.model.test_ds.file_path.endswith(".tsv"):
-                elements = line.split("\t")
-                if len(elements) == 2:
-                    sentence, gt_label = elements
-                else:
-                    sentence = line
-                    gt_label = 0
-                if len(sentence) < 1:
-                    sentence = " "
-            elif cfg.model.test_ds.file_path.endswith(".jsonl"):
+            if cfg.model.test_ds.file_path.endswith(".jsonl"):
                 try:
                     sample = json.loads(line)
                 except:
@@ -267,47 +258,15 @@ def main(cfg: DictConfig) -> None:
             samples.append(sample)
             # if len(sentences) == 100:
             #     break
-        # perform inference on a list of queries.
-        # if "infer_samples" in cfg.model and cfg.model.infer_samples:
         logging.info("===========================================================================================")
         logging.info("Starting the inference on some sample queries...")
 
-        if 'prediction_filename' in cfg.model.test_ds:
-
-            if 'perspective' in cfg.model.test_ds.prediction_filename:
-                pool = mp.Pool(25)
-                results = []
-
-                # if 'severe_toxicity' in cfg.model.test_ds.prediction_filename:
-                #     aspect = 'severe_toxicity'
-                # elif 'sexually_explicit' in cfg.model.test_ds.prediction_filename:
-                #     aspect = 'sexually_explicit'
-                # elif 'threat' in cfg.model.test_ds.prediction_filename:
-                #     aspect = 'threat'
-                # elif 'profanity' in cfg.model.test_ds.prediction_filename:
-                #     aspect = 'profanity'
-                # elif 'identity_attack' in cfg.model.test_ds.prediction_filename:
-                #     aspect = 'identity_attack'
-                # else:
-                #     aspect = 'toxicity'
-
-                #get_perspective_score_aspect = partial(get_perspective_score, aspect=aspect)
-                delayed_scores = pool.imap(get_perspective_score, sentences, 25)
-                for score in tqdm(delayed_scores, total=len(sentences)):
-                    results.append(score)
-                #print("Average: ", sum(results)/len(results))
-            else:
-                #print("reached here")
+            if True:
                 # max_seq_length=512 is the maximum length BERT supports.
                 # set -1 for no truncation
                 results = model.classifytext(queries=sentences, batch_size=16, max_seq_length=512) #-1
 
             save_predictions(cfg.model.test_ds.prediction_filename, results, samples)
-        # raise ValueError
-        # logging.info('The prediction results of some sample queries with the trained model:')
-        # for query, result in zip(sentences[:5], results):
-        #     logging.info(f'Query : {query}')
-        #     logging.info(f'Predicted label: {result}')
 
 
 if __name__ == '__main__':

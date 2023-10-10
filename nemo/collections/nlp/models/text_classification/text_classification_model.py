@@ -249,67 +249,19 @@ class TextClassificationModel(NLPModel, Exportable):
             self.eval()
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
-            dataloader_cfg = {"batch_size": batch_size, "num_workers": 20, "pin_memory": False}
+            dataloader_cfg = {"batch_size": batch_size, "num_workers": self.dataset_cfg.inference_num_workers, "pin_memory": False}
             infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, max_seq_length)
             softmax_layer = torch.nn.Softmax(dim=-1)
             for i, batch in tqdm(enumerate(infer_datalayer), total=len(queries)//batch_size + 1):
                 input_ids, input_type_ids, input_mask, subtokens_mask = batch
-                # logits = self.forward(
-                #     input_ids=input_ids.to(device),
-                #     token_type_ids=input_type_ids.to(device),
-                #     attention_mask=input_mask.to(device),
-                # )
-                
-                # logits_softmax = softmax_layer(logits)
-                # toxic_prob = logits_softmax[:, 1]
-                all_trunc_toxic_prob = []
-                #all_trunc_input_mask_sum = []
-
-
-                stride = 511
-                if input_ids.size(-1) == 1 and False:
-                    logits = self.forward(
-                        input_ids=input_ids.to(device),
-                        token_type_ids=input_type_ids.to(device),
-                        attention_mask=input_mask.to(device),
+                logits = self.forward(
+                    input_ids=input_ids.to(device),
+                    token_type_ids=input_type_ids.to(device),
+                    attention_mask=input_mask.to(device),
                     )
-                    logits_softmax = softmax_layer(logits)
-                    toxic_prob = logits_softmax[:, 1]
-                else:
-                    for j in range(1, input_ids.size(-1), stride):
-                        #add one for the CLS token
-                        trunc_input_ids = torch.cat((input_ids[:, :1], input_ids[:, j:j+stride]), dim=1)
-                        trunc_input_type_ids = torch.cat((input_type_ids[:, :1], input_type_ids[:, j:j+stride]), dim=1)
-                        trunc_input_mask = torch.cat((input_mask[:, :1], input_mask[:,  j:j+stride]), dim=1)
-                        # print("j: ", j)
-                        # print("trunc_input_type_ids: ", trunc_input_type_ids.size())
-                        # print("trunc_input_mask: ", trunc_input_mask.size())
-                        
-
-                        logits = self.forward(
-                            input_ids=trunc_input_ids.to(device),
-                            token_type_ids=trunc_input_type_ids.to(device),
-                            attention_mask=trunc_input_mask.to(device),
-                        )
-                        
-                        trunc_logits_softmax = softmax_layer(logits)
-                        trunc_toxic_prob = trunc_logits_softmax[:, 1]
-
-                        trunc_input_mask_sum = torch.sum(trunc_input_mask,dim=1)
-                        trunc_toxic_prob[trunc_input_mask_sum == 1] = float('nan')
-                        # print("logits_softmax: ", trunc_logits_softmax)
-                        # print("toxic_prob: ", trunc_toxic_prob)
-                        all_trunc_toxic_prob.append(trunc_toxic_prob)
-                    
-                    #mean
-                    #toxic_prob = torch.nanmean(torch.stack(all_trunc_toxic_prob, dim=1), dim=1)
-                    #max
-                    toxic_prob = torch.max(torch.nan_to_num(torch.stack(all_trunc_toxic_prob, dim=1)), dim=1).values
-                    # raise ValueError
-                # logits_softmax = softmax_layer(logits)
-                # toxic_prob = logits_softmax[:, 1]
                 
-                
+                logits_softmax = softmax_layer(logits)
+                toxic_prob = logits_softmax[:, 1]
                 preds = tensor2list(toxic_prob)
                 all_preds.extend(preds)
        
