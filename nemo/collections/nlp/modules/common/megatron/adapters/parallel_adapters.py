@@ -115,6 +115,7 @@ class MLPInfusedAdapterConfig(InfusedAdapterConfig):
 
 
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
+    name = None
     def __init__(
         self,
         in_features: int,
@@ -145,14 +146,24 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if model_parallel_config is None:
             model_parallel_config = ModelParallelConfig()
 
-        self.linear_in = ColumnParallelLinear(
-            in_features,
-            dim,
-            config=model_parallel_config,
-            bias=False,
-            gather_output=True,
-            init_method=self._get_init_fn(column_init_method),
-        )
+        if self.name == "4HtoH":
+            self.linear_in = RowParallelLinear(
+                in_features,
+                dim,
+                config=model_parallel_config,
+                input_is_parallel=True,
+                bias=False,
+                init_method=self._get_init_fn(column_init_method),
+            )
+        else:
+            self.linear_in = ColumnParallelLinear(
+                in_features,
+                dim,
+                config=model_parallel_config,
+                bias=False,
+                gather_output=True,
+                init_method=self._get_init_fn(column_init_method),
+            )
         if gather_output:
             self.linear_out = RowParallelLinear(
                 dim,
@@ -169,7 +180,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 out_features,
                 config=model_parallel_config,
                 bias=False,
-                gather_output=False,
+                gather_output=True if self.name == "4HtoH" else False,
                 init_method=self._get_init_fn(row_init_method),
             )
 
@@ -375,7 +386,7 @@ class LoraHto4HAdapter(ParallelLinearAdapter):
     Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
     and they do not use an bottleneck activation function
     """
-
+    name = "Hto4H"
     pass
 
 
@@ -384,7 +395,7 @@ class Lora4HtoHAdapter(ParallelLinearAdapter):
     Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
     and they do not use an bottleneck activation function
     """
-
+    name = "4HtoH"
     pass
 
 
