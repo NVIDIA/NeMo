@@ -35,7 +35,7 @@ Before you begin using NeMo, it's assumed you meet the following prerequisites.
 Quick Start Guide
 -----------------
 
-You can try out NeMo's ASR, NLP and TTS functionality with the example below, which borrows from the `Audio Translation <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/AudioTranslationSample.ipynb>`_ tutorial.
+You can try out NeMo's ASR, NLP and TTS functionality with the example below, which is based on the `Audio Translation <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/AudioTranslationSample.ipynb>`_ tutorial.
 
 Once you have :ref:`installed NeMo <installation>`, then you can run the code below:
 
