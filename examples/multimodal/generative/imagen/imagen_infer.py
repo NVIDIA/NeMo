@@ -23,7 +23,7 @@ from nemo.core.config import hydra_runner
 def main(inference_config):
     if inference_config.get('infer'):
         # invoking from launcher
-        trainer = Trainer(inference_config.trainer)
+        trainer = Trainer(**inference_config.trainer)
         inference_config = inference_config.infer
     else:
         trainer = Trainer()
