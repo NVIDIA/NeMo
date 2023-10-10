@@ -104,6 +104,7 @@ Below we is the code snippet of Audio Translator application.
       return audio.to('cpu').numpy()
     audio = text_to_audio(english_text[0])
 
+.. _installation:
 
 Installation
 ------------

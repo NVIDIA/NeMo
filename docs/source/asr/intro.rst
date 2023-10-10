@@ -2,11 +2,13 @@ Automatic Speech Recognition (ASR)
 ==================================
 
 Automatic Speech Recognition (ASR), also known as Speech To Text (STT), refers to the problem of automatically transcribing spoken language.
-You can use NeMo to transcribe speech using open-sourced pretrained models in 14+ languages [link], or train your own ASR models[link].
+You can use NeMo to transcribe speech using open-sourced pretrained models in :ref:`14+ languages <asr-checkpoint-list-by-language>`, or :doc:`train your own<./examples/kinyarwanda_asr>` ASR models.
+
+
 
 Transcribe speech with 3 lines of code
 ----------------------------------------
-After installing NeMo [link], you can transcribe an audio file as follows:
+After :ref:`installing NeMo<installation>`, you can transcribe an audio file as follows:
 
 .. code-block:: python
 
@@ -40,7 +42,7 @@ You can also transcribe speech via the command line using the following `script 
 The script will save all transcriptions in a JSONL file where each line corresponds to an audio file in ``<audio_dir>``.
 This file will correspond to a format that NeMo commonly uses for saving model predictions, and also for storing 
 input data for training and evaluation. You can learn more about the format that NeMo uses for these files 
-(which we refer to as "manifest files") here [link].
+(which we refer to as "manifest files") :ref:`here<section-with-manifest-format-explanation>`.
 
 You can also specify the files to be transcribed inside a manifest file, and pass that in using the argument 
 ``dataset_manifest=<path to manifest specifying audio files to transcribe>`` instead of ``audio_dir``.
@@ -52,9 +54,9 @@ Incorporate a language model (LM) to improve ASR transcriptions
 You can often get a boost to transcription accuracy by using a Language Model to help choose words that are more likely
 to be spoken in a sentence.
 
-You can get a good improvment in transcription accuracy even using a simple N-gram LM.
+You can get a good improvement in transcription accuracy even using a simple N-gram LM.
 
-After training an N-gram LM [link], or using one provided by NeMo[link], you can incorporate it into your ASR model as follows:
+After :ref:`training <train-ngram-lm>` an N-gram LM, or using one provided by NeMo, you can use it for transcribing audio as follows:
 
 1. Install the OpenSeq2Seq beam search decoding and KenLM libraries using `this script <scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh>`_.
 2. Perform transcription using `this script <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram.py>`_:
@@ -62,17 +64,17 @@ After training an N-gram LM [link], or using one provided by NeMo[link], you can
 .. code-block:: bash
 
     python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
-    input_manifest=<path to the evaluation JSON manifest file \
-    kenlm_model_file=<path to the binary KenLM model> \
-    beam_width=[<list of the beam widths, separated with commas>] \
-    beam_alpha=[<list of the beam alphas, separated with commas>] \
-    beam_beta=[<list of the beam betas, separated with commas>] \
-    preds_output_folder=<optional folder to store the predictions> \
-    probs_cache_file=null \
-    decoding_mode=beamsearch_ngram \
-    decoding_strategy="<Beam library such as beam, pyctcdecode or flashlight>"
+        input_manifest=<path to the evaluation JSON manifest file \
+        kenlm_model_file=<path to the binary KenLM model> \
+        beam_width=[<list of the beam widths, separated with commas>] \
+        beam_alpha=[<list of the beam alphas, separated with commas>] \
+        beam_beta=[<list of the beam betas, separated with commas>] \
+        preds_output_folder=<optional folder to store the predictions> \
+        probs_cache_file=null \
+        decoding_mode=beamsearch_ngram \
+        decoding_strategy="<Beam library such as beam, pyctcdecode or flashlight>"
 
-[ todo: simplify command and/or explain args]
+See more information about LM decoding :doc:`here <./asr_language_modeling>`.
 
 Use real-time transcription
 ---------------------------
@@ -84,10 +86,42 @@ this in the following `notebook tutorial <https://github.com/NVIDIA/NeMo/blob/ma
 Try different ASR models
 ------------------------
 
+NeMo offers a variety of open-sourced pretrained ASR models that vary by model architecture:
 
-Try out NeMo ASR models in your browser
----------------------------------------
-You can try out the NeMo ASR model transcriptions without leaving your browser using the HuggingFace Space embedded below.
+* **encoder architecture** (FastConformer, Conformer, Citrinet, etc.),
+* **decoder architecture** (Transducer, CTC & hybrid of the two),
+* **size** of the model (small, medium, large, etc.).
+
+The pretrained models also vary by:
+
+* **language** (English, Spanish, etc., including some **multilingual** and **code-switching** models),
+* whether the output text contains **punctuation & capitalization** or not.
+
+The NeMo ASR checkpoints can be found on `HuggingFace <https://huggingface.co/nvidia>`_, or on `NGC <https://catalog.ngc.nvidia.com/models>`_. All models released by the NeMo team can be found on NGC, and some of those are also available on HuggingFace. 
+
+All NeMo ASR checkpoints open-sourced by the NeMo team follow the following naming convention: 
+``stt_{language}_{encoder name}_{decoder name}_{model size}{_optional descriptor}``.
+
+You can load the checkpoints automatically using the ``ASRModel.from_pretrained()`` class method, for example:
+
+.. code-block:: python
+
+    import nemo.collections.asr as nemo_asr
+    # model will be fetched from NGC
+    asr_model = nemo_asr.models.ASRModel.from_pretrained("stt_en_fastconformer_transducer_large")
+    # if model name is prepended with "nvidia/", the model will be fetched from huggingface
+    asr_model = nemo_asr.models.ASRModel.from_pretrained("nvidia/stt_en_fastconformer_transducer_large")
+    # you can also load open-sourced NeMo models released by other HF users using:
+    #asr_model = nemo_asr.models.ASRModel.from_pretrained("<HF username>/<model name>")
+
+See further documentation about :doc:`loading checkpoints <./results>`, a full :ref:`list <asr-checkpoint-list-by-language>` of models [link] and their :doc:`benchmark scores <./score>`.
+
+There is also more information about the ASR model architectures available in NeMo :doc:`here <./models>`.
+
+
+Try out NeMo ASR transcription in your browser
+----------------------------------------------
+You can try out transcription with NeMo ASR models without leaving your browser, by using the HuggingFace Space embedded below.
 
 .. raw:: html
 
@@ -99,10 +133,27 @@ You can try out the NeMo ASR model transcriptions without leaving your browser u
     </script>
 
 
-The full documentation tree is as follows:
+ASR tutorial notebooks
+----------------------
+Hands-on speech recognition tutorial notebooks can be found under `the ASR tutorials folder <https://github.com/NVIDIA/NeMo/tree/main/tutorials/asr>`_.
+If you are a beginner to NeMo, consider trying out the `ASR with NeMo <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_with_NeMo.ipynb>`_ tutorial.
+This and most other tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
+
+ASR model configuration
+-----------------------
+Documentation regarding the configuration files specific to the ``nemo_asr`` models can be found in the :doc:`Configuration Files <./configs>` section.
+
+Preparing ASR datasets
+----------------------
+NeMo includes preprocessing scripts for several common ASR datasets. The :doc:`Datasets <./datasets>` section contains instructions on
+running those scripts. It also includes guidance for creating your own NeMo-compatible dataset, if you have your own data.
+
+Further information 
+-------------------
+For more information, see additional sections in the ASR docs on the left-hand-side menu or in the list below:
 
 .. toctree::
-   :maxdepth: 8
+   :maxdepth: 1
 
    models
    datasets
@@ -113,5 +164,3 @@ The full documentation tree is as follows:
    api
    resources
    examples/kinyarwanda_asr.rst
-
-.. include:: resources.rst
