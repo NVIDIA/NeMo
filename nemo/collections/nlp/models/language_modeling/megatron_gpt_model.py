@@ -74,12 +74,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import InferenceParams, parallel_state
-    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core import parallel_state
+    from megatron.model import GPTModel as MCoreGPTModel
+    from megatron.model.module import Float16Module as MCoreFloat16Module
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.text_generation.forward_step import InferenceParams
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
