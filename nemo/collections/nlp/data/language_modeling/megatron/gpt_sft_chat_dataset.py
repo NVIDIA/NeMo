@@ -165,10 +165,10 @@ def _mask_targets(
             # mask the first turn completely to provide at least one turn as context for the rest
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
         elif speaker == mask_role and i == 1 and gtype == 'TEXT_TO_VALUE':
-            # leave the first turn start tag unmasked, servers serves as the end of turn signal
+            # leave the first turn start tag unmasked, servers severs as the end of turn signal
             target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = IGNORE_INDEX
         elif speaker == mask_role and (i > 1):
-            # leave the first turn start tag unmasked, which servers as the end of turn signal
+            # leave the first turn start tag unmasked, which severs as the end of turn signal
             target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = IGNORE_INDEX
         elif speaker == mask_role and (i <= 1):
             # mask out everything in the second turn
@@ -177,10 +177,6 @@ def _mask_targets(
             # mask up to name part, label part for VALUE_TO_TEXT, or name part, response and label start tokens for TEXT_TO_VALUE, or just the name part if gtype is None
             target[cur_idx : cur_idx + skip_name_len] = IGNORE_INDEX
         cur_idx += tokenized_len
-
-
-def cannonical_form_formater(cannoical_form):
-    return f'<extra_id_2>{cannoical_form}\n'
 
 
 def response_value_formater(label, label_start, end_signal):
