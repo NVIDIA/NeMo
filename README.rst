@@ -345,7 +345,7 @@ We welcome community contributions! Please refer to the  `CONTRIBUTING.md <https
 Publications
 ------------
 
-We provide an ever growing list of `publications <https://nvidia.github.io/NeMo/publications/>`_ that utilize the NeMo framework.
+We provide an ever-growing list of `publications <https://nvidia.github.io/NeMo/publications/>`_ that utilize the NeMo framework.
 
 If you would like to add your own article to the list, you are welcome to do so via a pull request to this repository's `gh-pages-src` branch.
 Please refer to the instructions in the `README of that branch <https://github.com/NVIDIA/NeMo/tree/gh-pages-src#readme>`_.
