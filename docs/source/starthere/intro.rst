@@ -10,7 +10,7 @@ Introduction
 
 `NVIDIA NeMo <https://github.com/NVIDIA/NeMo>`_, part of the NVIDIA AI platform, is a toolkit for building new state-of-the-art
 conversational AI models. NeMo has separate collections for Automatic Speech Recognition (ASR),
-Natural Language Processing (NLP), and Text-to-Speech (TTS) synthesis models. Each collection consists of
+Natural Language Processing (NLP), and Text-to-Speech (TTS) models. Each collection consists of
 prebuilt modules that include everything needed to train on your data.
 Every module can easily be customized, extended, and composed to create new conversational AI
 model architectures.
@@ -18,6 +18,9 @@ model architectures.
 Conversational AI architectures are typically large and require a lot of data and compute
 for training. NeMo uses `PyTorch Lightning <https://www.pytorchlightning.ai/>`_ for easy and performant multi-GPU/multi-node
 mixed-precision training.
+
+`Pre-trained NeMo models <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ are available
+in 14+ languages.
 
 Prerequisites
 -------------
@@ -132,6 +135,10 @@ Use this installation mode if you want the latest released version.
     pip install nemo_toolkit['all']
 
 Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
+
+Discussion board
+----------------
+For more information and questions, visit the `NVIDIA NeMo Discussion Board <https://github.com/NVIDIA/NeMo/discussions>`_.
 
 Contributing
 ------------
