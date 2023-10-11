@@ -393,4 +393,4 @@ Please refer to the instructions in the `README of that branch <https://github.c
 
 License
 -------
-NeMo is under `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/stable/LICENSE>`_.
+NeMo is released under an `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/stable/LICENSE>`_.
