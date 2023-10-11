@@ -306,6 +306,153 @@ class VideoText(_Collection):
 
         super().__init__(data)
 
+class InstructionTuningText(_Collection):
+    """List of audio-transcript text correspondence with preprocessing."""
+
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='InstructionTuningText',
+        field_names='id context context_type context_duration question question_type answer answer_type answer_duration speaker',
+    )
+
+    def __init__(
+        self,
+        ids: List[int],
+        contexts: List[str],
+        context_types: List[str],
+        questions: List[str],
+        question_types: List[str],
+        answers: List[str],
+        answer_types: List[str],
+        context_durations: List[Optional[float]],
+        answer_durations: List[Optional[float]],
+        speakers: List[Optional[int]],
+        tasks: List[str],
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        max_seq_length: Optional[float] = None,
+        max_number: Optional[int] = None,
+        do_sort_by_duration: bool = False,
+        index_by_file_id: bool = False,
+    ):
+        """Instantiates audio-text manifest with filters and preprocessing.
+        Args:
+            ids: List of examples positions.
+            audio_files: List of audio files.
+            durations: List of float durations.
+            texts: List of raw text transcripts.
+            offsets: List of duration offsets or None.
+            speakers: List of optional speakers ids.
+            orig_sampling_rates: List of original sampling rates of audio files.
+            langs: List of language ids, one for eadh sample, or None.
+            min_duration: Minimum duration to keep entry with (default: None).
+            max_duration: Maximum duration to keep entry with (default: None).
+            max_number: Maximum number of samples to collect.
+            do_sort_by_duration: True if sort samples list by duration. Not compatible with index_by_file_id.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
+        """
+
+        output_type = self.OUTPUT_TYPE
+        data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
+        if index_by_file_id:
+            self.mapping = {}
+
+        for id_, context, context_type, context_duration, question, question_type, answer, answer_type, answer_duration, speaker, task in zip(
+            ids, contexts, context_types, context_durations, questions, question_types, answers, answer_types, answer_durations, speakers, tasks
+        ):
+            # Duration filters.
+            task = 'tts' if task is None else task
+            duration = answer_duration if task == 'tts' else context_duration
+            if min_duration is not None and duration < min_duration:
+                duration_filtered += duration
+                num_filtered += 1
+                continue
+
+            if max_duration is not None and duration > max_duration:
+                duration_filtered += duration
+                num_filtered += 1
+                continue
+
+            # Check segment length
+            approx_context_len = min(context_duration * 76 * 0.3, 400)
+            approx_question_len = len(question.split(' ')) + 3
+
+            if answer_type == "SPEECH":
+                approx_answer_len = answer_duration * 76
+            else:
+                approx_answer_len = len(answer.split(' ')) + 3
+
+            if (
+                approx_context_len + approx_question_len >= max_seq_length
+                or approx_answer_len >= max_seq_length
+            ):
+                duration_filtered += duration
+                num_filtered += 1
+                continue
+
+            total_duration += duration
+            data.append(output_type(id_, context, context_type, context_duration, question, question_type, answer, answer_type, answer_duration, speaker))
+
+            if index_by_file_id:
+                file_id, _ = os.path.splitext(os.path.basename(context))
+                if ".context" in file_id:
+                    file_id = file_id[:-8]
+                if file_id not in self.mapping:
+                    self.mapping[file_id] = []
+                self.mapping[file_id].append(len(data) - 1)
+
+            # Max number of entities filter.
+            if len(data) == max_number:
+                break
+
+        if do_sort_by_duration:
+            if index_by_file_id:
+                logging.warning("Tried to sort dataset by duration, but cannot since index_by_file_id is set.")
+            else:
+                data.sort(key=lambda entity: entity.duration)
+
+        logging.info("Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600)
+        logging.info("%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600)
+
+        super().__init__(data)
+
+
+class InstructionTuningAudioText(InstructionTuningText):
+    """`AudioText` collector from asr structured json files."""
+
+    def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
+        """Parse lists of audio files, durations and transcripts texts.
+        Args:
+            manifests_files: Either single string file or list of such -
+                manifests to yield items from.
+            *args: Args to pass to `AudioText` constructor.
+            **kwargs: Kwargs to pass to `AudioText` constructor.
+        """
+
+        ids, contexts, context_durations, context_types, speakers, tasks, = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
+        questions, question_types = [], []
+        answers, answer_durations, answer_types = [], [], []
+        for item in manifest.item_iter(manifests_files):
+            ids.append(item['id'])
+            contexts.append(item['context'])
+            context_durations.append(item['context_duration'])
+            context_types.append(item['context_type'])
+            questions.append(item['question'])
+            question_types.append(item['question_type'])
+            speakers.append(item['speaker'])
+            answers.append(item['answer'])
+            answer_durations.append(item['answer_duration'])
+            answer_types.append(item['answer_type'])
+            tasks.append(item['task'])
+        super().__init__(
+            ids, contexts, context_types, questions, question_types, answers, answer_types, context_durations, answer_durations, speakers, tasks, *args, **kwargs
+        )
 
 class ASRAudioText(AudioText):
     """`AudioText` collector from asr structured json files."""

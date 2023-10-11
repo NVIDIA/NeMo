@@ -33,6 +33,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import GPTSpeechLMDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_tarred_dataset import GPTSpeechLMTarredDataset
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common import VirtualPromptSource, VirtualPromptPlaceholderToken
@@ -1853,6 +1854,17 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
             )
+        elif self.cfg.data.get('train_manifest', None):
+            self._train_ds, self._train_dl = self.build_virtual_prompt_tarred_dataset(
+                dataset_paths=self.cfg.data.train_manifest,
+                audio_path=self.cfg.data.train_audio_path,
+                batch_size=self.cfg.global_batch_size,
+                for_train=True,
+                drop_last=True,
+                shuffle=self.cfg.data.shuffle,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
 
     def setup_validation_data(self, cfg):
         if self.cfg.data.get('validation_ds', None):
@@ -1862,6 +1874,17 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
                 for_train=True,
                 drop_last=self.cfg.get("validation_drop_last", True),
                 shuffle=False,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+        elif self.cfg.data.get('validation_manifest', None):
+            self._validation_ds, self._validation_dl = self.build_virtual_prompt_tarred_dataset(
+                dataset_paths=self.cfg.data.validation_manifest,
+                audio_path=self.cfg.data.validation_audio_path,
+                batch_size=self.cfg.get("validation_global_batch_size", self.cfg.global_batch_size),
+                for_train=True,
+                drop_last=self.cfg.get("validation_drop_last", True),
+                shuffle=0,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
             )
@@ -1922,6 +1945,61 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
             else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
 
+        print('build success', len(dataloader), dataset_paths)
+        return dataset, dataloader
+
+    def build_virtual_prompt_tarred_dataset(
+        self, dataset_paths, audio_path, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
+    ):
+        dataset = GPTSpeechLMTarredDataset(
+            audio_tar_filepaths=audio_path,
+            manifest_filepath=dataset_paths,
+            tokenizer=self.tokenizer,
+            sample_rate=self.cfg.data.get('sample_rate', 24000),
+            virtual_prompt_source=self.virtual_prompt_source,
+            task_templates=self.task_templates,
+            pseudo_tokens=self.pseudo_tokens,
+            pad_token_id=self.pad_token_id,
+            max_seq_length=self.cfg.data.get('max_seq_length', self.frozen_model.cfg.max_position_embeddings),
+            min_seq_length=self.cfg.data.get('min_seq_length', 1),
+            shuffle_n=shuffle,
+            add_bos=self.cfg.data.get('add_bos', False),
+            add_eos=self.cfg.data.get('add_eos', True),
+            decoder_starts_with_pad=self.cfg.data.get('decoder_starts_with_pad', False),
+            add_eos_to_decoder_output=self.cfg.data.get('add_eos_to_decoder_output', True),
+            add_sentinel_to_input=self.cfg.data.get('add_sentinel_to_input', True),
+            ul2_prompt_token=self.cfg.data.get('ul2_prompt_token', None),
+            for_train=for_train,
+            segment_max_duration=self.cfg.data.get('segment_max_duration', None),
+            trim=self.cfg.data.get('trim', None),
+            trim_ref=self.cfg.data.get('trim_ref', None),
+            trim_top_db=self.cfg.data.get('trim_top_db', None),
+            trim_frame_length=self.cfg.data.get('trim_frame_length', None),
+            trim_hop_length=self.cfg.data.get('trim_hop_length', None),
+            pad_multiple=self.cfg.data.get('pad_multiple', 1),
+            pitch_augment=self.cfg.data.get('pitch_augment', None),
+            speech_offset=self.cfg.data.get('speech_offset', None),
+            train_task=self.cfg.data.get('train_task', "tts"),
+            seq_pattern=self.cfg.get('seq_pattern', 'delay_parallel'),
+        )
+
+        rank = parallel_state.get_data_parallel_rank()
+        world_size = parallel_state.get_data_parallel_world_size()
+        # sampler = torch.utils.data.distributed.DistributedSampler(
+        #     dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
+        # )
+
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=dataset.collate_fn,
+            batch_size=batch_size // world_size,
+            drop_last=drop_last,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            persistent_workers=True
+            if num_workers > 0
+            else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
+        )
         print('build success', len(dataloader), dataset_paths)
         return dataset, dataloader
 

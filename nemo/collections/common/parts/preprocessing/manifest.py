@@ -91,6 +91,8 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['audio_file'] = item.pop('audio_filename')
     elif 'audio_filepath' in item:
         item['audio_file'] = item.pop('audio_filepath')
+    elif 'context' in item:
+        item['audio_file'] = item['context']
 
     # Video File
     if 'video_filename' in item:
@@ -113,7 +115,9 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['video_file'] = get_full_path(audio_file=item['video_file'], manifest_file=manifest_file)
 
     # Duration.
-    if 'duration' not in item:
+    if 'context_duration' in item and 'duration' not in item:
+        item['duration'] = item['context_duration']
+    elif 'duration' not in item:
         raise ValueError(
             f"Manifest file {manifest_file} has invalid json line structure: {line} without proper duration key."
         )
@@ -165,6 +169,15 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         orig_sr=item.get('orig_sample_rate', None),
         token_labels=item.get('token_labels', None),
         lang=item.get('lang', None),
+        context=item.get('context', None),
+        context_type=item.get('context_type', None),
+        context_duration=item.get('context_duration', None),
+        answer=item.get('answer', None),
+        answer_type=item.get('answer_type', None),
+        answer_duration=item.get('answer_duration', None),
+        question=item.get('question', None),
+        question_type=item.get('question_type', None),
+        task=item.get('task', None),
     )
     return item
 

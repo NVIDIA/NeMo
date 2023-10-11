@@ -47,6 +47,7 @@ __all__ = [
     'AudioToBPEDataset',
     'TarredAudioToCharDataset',
     'TarredAudioToBPEDataset',
+    '_TarredInstructionTuningDataset',
 ]
 
 
@@ -102,6 +103,45 @@ def _speech_collate_fn(batch, pad_id):
     else:
         sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
         return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
+
+class InstructionTuningManifestProcessor:
+    """
+    Class that processes a manifest json file containing paths to audio files, transcripts, and durations (in seconds).
+    Each new line is a different sample. Example below:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath": "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
+        parser: Str for a language specific preprocessor or a callable.
+        max_duration: If audio exceeds this length, do not include in dataset.
+        min_duration: If audio is less than this length, do not include in dataset.
+        max_utts: Limit number of utterances.
+        bos_id: Id of beginning of sequence symbol to append if not None.
+        eos_id: Id of end of sequence symbol to append if not None.
+        pad_id: Id of pad symbol. Defaults to 0.
+    """
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = None,
+        max_seq_length: Optional[float] = None,
+        max_utts: int = 0,
+        index_by_file_id: bool = False,
+    ):
+
+        # ASRAudioText(
+        self.collection = collections.InstructionTuningAudioText(
+            manifests_files=manifest_filepath,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_seq_length=max_seq_length,
+            max_number=max_utts,
+            index_by_file_id=index_by_file_id,
+        )
 
 
 class ASRManifestProcessor:
@@ -704,6 +744,162 @@ class AudioToBPEDataset(_AudioTextDataset):
             channel_selector=channel_selector,
         )
 
+class _TarredInstructionTuningDataset(IterableDataset):
+    """
+    A similar Dataset to the AudioToCharDataset/AudioToBPEDataset, but which loads tarred audio files.
+    """
+
+    def __init__(
+        self,
+        audio_tar_filepaths: Union[str, List[str]],
+        manifest_filepath: str,
+        sample_rate: int,
+        shuffle_n: int = 0,
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        max_seq_length: Optional[float] = None,
+        shard_strategy: str = "scatter",
+        shard_manifests: bool = False,
+        global_rank: int = 0,
+        world_size: int = 0,
+        return_sample_id: bool = False,
+    ):
+        self.shard_manifests = shard_manifests
+
+        # Shard manifests if necessary and possible and then expand the paths
+        manifest_filepath = shard_manifests_if_needed(
+            shard_manifests=shard_manifests,
+            shard_strategy=shard_strategy,
+            manifest_filepaths=manifest_filepath,
+            world_size=world_size,
+            global_rank=global_rank,
+        )
+
+        # If necessary, cache manifests from object store
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath)
+
+        self.manifest_processor = InstructionTuningManifestProcessor(
+            manifest_filepath=manifest_filepath,
+            max_duration=max_duration,
+            min_duration=min_duration,
+            max_seq_length=max_seq_length,
+            max_utts=0,
+            index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
+        )
+
+        self.len = self._compute_len()
+        self.return_sample_id = return_sample_id
+
+        audio_tar_filepaths = expand_sharded_filepaths(
+            sharded_filepaths=audio_tar_filepaths,
+            shard_strategy=shard_strategy,
+            world_size=world_size,
+            global_rank=global_rank,
+        )
+
+        self.sample_rate = sample_rate
+
+        # Put together WebDataset
+        self._dataset = wd.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
+
+        if shuffle_n > 0:
+            self._dataset = self._dataset.shuffle(shuffle_n)
+        else:
+            logging.info("WebDataset will not shuffle files within the tar files.")
+
+        self._dataset = (
+            self._dataset.rename(key='__key__', answer='pt', context='context.pt')
+            .to_tuple('key', 'answer', 'context')
+            .pipe(self._filter)
+            .pipe(self._loop_offsets)
+            .map(f=self._build_sample)
+        )
+
+    def _filter(self, iterator):
+        """This function is used to remove samples that have been filtered out by ASRAudioText already.
+        Otherwise, we would get a KeyError as _build_sample attempts to find the manifest entry for a sample
+        that was filtered out (e.g. for duration).
+        Note that if using multi-GPU training, filtering may lead to an imbalance in samples in each shard,
+        which may make your code hang as one process will finish before the other.
+        """
+
+        class TarredAudioFilter:
+            def __init__(self, collection):
+                self.iterator = iterator
+                self.collection = collection
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                while True:
+                    audio_filename, answer_bytes, context_bytes = next(self.iterator)
+                    file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+                    if file_id in self.collection.mapping:
+                        return audio_filename, answer_bytes, context_bytes
+
+        return TarredAudioFilter(self.manifest_processor.collection)
+
+    def _loop_offsets(self, iterator):
+        """This function is used to iterate through utterances with different offsets for each file.
+        """
+
+        class TarredAudioLoopOffsets:
+            def __init__(self, collection):
+                self.iterator = iterator
+                self.collection = collection
+                self.current_fn = None
+                self.current_bytes = None
+                self.current_context_bytes = None
+                self.offset_id = 0
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                if self.current_fn is None:
+                    self.current_fn, self.current_bytes, self.current_context_bytes = next(self.iterator)
+                    self.offset_id = 0
+                else:
+                    offset_list = self.collection.mapping[self.current_fn]
+                    if len(offset_list) == self.offset_id + 1:
+                        self.current_fn, self.current_bytes, self.current_context_bytes = next(self.iterator)
+                        self.offset_id = 0
+                    else:
+                        self.offset_id += 1
+
+                return self.current_fn, self.current_bytes, self.current_context_bytes, self.offset_id
+
+        return TarredAudioLoopOffsets(self.manifest_processor.collection)
+
+    def _collate_fn(self, batch):
+        return _speech_collate_fn(batch)
+
+    def _build_sample(self, tup):
+        """Builds the training sample by combining the data from the WebDataset with the manifest info.
+        """
+        audio_filename, encodec, ref_encodec, offset_id = tup
+        return audio_filename, encodec, ref_encodec, offset_id
+
+    def get_manifest_sample(self, sample_id):
+        return self.manifest_processor.collection[sample_id]
+
+    def __iter__(self):
+        return self._dataset.__iter__()
+
+    def _compute_len(self):
+        if self.shard_manifests and torch.distributed.is_available() and torch.distributed.is_initialized():
+            my_len = torch.tensor(len(self.manifest_processor.collection), dtype=torch.int32).cuda()
+            torch.distributed.all_reduce(my_len)
+            my_len = my_len.int()
+            logging.info(f'Sharded manifests: Total length: {my_len}')
+        else:
+            my_len = len(self.manifest_processor.collection)
+
+        return my_len
+
+    def __len__(self):
+        return self.len
 
 class _TarredAudioToTextDataset(IterableDataset):
     """

@@ -173,8 +173,14 @@ model:
   speech_residual_model: 'conv' # one of conv or linear
 
   data:
-    train_ds: ["/Data/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
-    validation_ds: ["/Data/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
+    ## Individal wav files
+    # train_ds: ["/Data/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
+    # validation_ds: ["/Data/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
+    ## Tarred
+    train_manifest: ["/data/speech/val_clean_300_speechlm_alltasks.json"]
+    train_audio_path: "/data2/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
+    validation_manifest: ["/data/speech/val_clean_300_speechlm_alltasks.json"]
+    validation_audio_path: "/data2/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
     max_seq_length: 512
     sample_rate: 24000
     add_eos: true
