@@ -389,7 +389,7 @@ Publications
 We provide an ever growing list of `publications <https://nvidia.github.io/NeMo/publications/>`_ that utilize the NeMo framework.
 
 If you would like to add your own article to the list, you may do so via a pull request to the NeMo `gh-pages-src` branch.
-Please refer to the instructions in the `README of that branch <https://github.com/NVIDIA/NeMo/tree/gh-pages-src>`_.
+Please refer to the instructions in the `README of that branch <https://github.com/NVIDIA/NeMo/tree/gh-pages-src#readme>`_.
 
 License
 -------
