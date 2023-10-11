@@ -1554,7 +1554,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         recompute_method = self.cfg.get('activations_checkpoint_method', None)
         recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
 
-        ub_tp_comm_overlap = self.cfg.get('ub_tp_comm_overlap',False)
+        ub_tp_comm_overlap = self.cfg.get('ub_tp_comm_overlap', False)
 
         if not self.cfg.get('fp8', False):
             fp8 = None
