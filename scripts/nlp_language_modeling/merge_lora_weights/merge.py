@@ -23,10 +23,9 @@ import tempfile
 from typing import Any, Dict
 
 import torch
-from omegaconf import OmegaConf, open_dict
+from omegaconf import ListConfig, OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
-from omegaconf import ListConfig
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTLoRAModel
@@ -121,6 +120,7 @@ def merge(
         print("merging for weight", key_self_attn_kqv)
     return base_model_state_dict
 
+
 def merge_mlp(
     base_model_state_dict: Dict[str, Any],
     lora_state_dict: Dict[int, Any],
@@ -148,10 +148,18 @@ def merge_mlp(
         else:
             key_hto4h = f'model.language_model.encoder.layers.{nl}.mlp.dense_h_to_4h.weight'
             key_4htoh = f'model.language_model.encoder.layers.{nl}.mlp.dense_4h_to_h.weight'
-            key_hto4h_lora_in = f'model.language_model.encoder.layers.{nl}.mlp.adapter_layer.lora_hto4h_adapter.linear_in.weight'
-            key_hto4h_lora_out = f'model.language_model.encoder.layers.{nl}.mlp.adapter_layer.lora_hto4h_adapter.linear_out.weight'
-            key_4htoh_lora_in = f'model.language_model.encoder.layers.{nl}.mlp.adapter_layer.lora_4htoh_adapter.linear_in.weight'
-            key_4htoh_lora_out = f'model.language_model.encoder.layers.{nl}.mlp.adapter_layer.lora_4htoh_adapter.linear_out.weight'
+            key_hto4h_lora_in = (
+                f'model.language_model.encoder.layers.{nl}.mlp.adapter_layer.lora_hto4h_adapter.linear_in.weight'
+            )
+            key_hto4h_lora_out = (
+                f'model.language_model.encoder.layers.{nl}.mlp.adapter_layer.lora_hto4h_adapter.linear_out.weight'
+            )
+            key_4htoh_lora_in = (
+                f'model.language_model.encoder.layers.{nl}.mlp.adapter_layer.lora_4htoh_adapter.linear_in.weight'
+            )
+            key_4htoh_lora_out = (
+                f'model.language_model.encoder.layers.{nl}.mlp.adapter_layer.lora_4htoh_adapter.linear_out.weight'
+            )
         wt_hto4h_lora_in = torch.cat([lora_state_dict[_tp][key_hto4h_lora_in] for _tp in range(tp)], dim=0)
         wt_4htoh_lora_in = torch.cat([lora_state_dict[_tp][key_4htoh_lora_in] for _tp in range(tp)], dim=0)
         wt_hto4h_lora_out = lora_state_dict[curr_rank][key_hto4h_lora_out]
@@ -164,6 +172,7 @@ def merge_mlp(
         base_model_state_dict[key_4htoh] = wt_4htoh + wt_4htoh_lora.type_as(wt_4htoh)
         print(f"merging for weights:\n{key_hto4h}\n{key_4htoh}")
     return base_model_state_dict
+
 
 @hydra_runner(config_path="conf", config_name="merge_lora_weights")
 def main(cfg) -> None:
@@ -239,9 +248,9 @@ def main(cfg) -> None:
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
-    #lora_model_cfg = MegatronGPTLoRAModel.restore_from(
+    # lora_model_cfg = MegatronGPTLoRAModel.restore_from(
     #    restore_path=cfg.lora_model_path, trainer=trainer, return_config=True, mcore=model.mcore_gpt,
-    #)
+    # )
 
     lora_model_cfg = MegatronGPTLoRAModel.restore_from(
         restore_path=cfg.lora_model_path, trainer=trainer, return_config=True,
@@ -266,7 +275,7 @@ def main(cfg) -> None:
             tp=model.cfg.tensor_model_parallel_size,
             num_layers=model.cfg.num_layers,
             curr_rank=model.global_rank,
-        )        
+        )
 
     # load the merged_weights back into the base model, for this current rank.
     if model.cfg.megatron_amp_O2:

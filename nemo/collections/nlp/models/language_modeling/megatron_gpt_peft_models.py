@@ -32,10 +32,10 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
+    NeuralKnowledgeBankConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
-    NeuralKnowledgeBankConfig,
 )
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
@@ -51,6 +51,7 @@ except (ImportError, ModuleNotFoundError):
 
 QKV_LORA_KEYS = [AdapterName.LORA_KQV_ADAPTER]
 MLP_LORA_KEYS = [AdapterName.LORA_Hto4H_ADAPTER] + [AdapterName.LORA_4HtoH_ADAPTER]
+
 
 class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     """
@@ -239,7 +240,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             opt_params = self.setup_optimizer_param_groups_joint_training()
         self._optimizer_param_groups = ({"params": opt_params},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
-    
+
     def setup_optimizer_param_groups_inverse_training(self):
         """
         Invert optimizer params...
@@ -263,7 +264,8 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             p.requires_grad = True
             opt_params += [p]
         return opt_params
-    
+
+
 class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer,
@@ -369,8 +371,11 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
         super().__init__(cfg, trainer)
         self.inverse_peft = adapter_tuning_cfg.get("inverse_peft", False)
         self.joint_peft = adapter_tuning_cfg.get("joint_peft", False)
-        assert (self.inverse_peft != self.joint_peft or (not self.inverse_peft and not self.joint_peft)), f"Invalid configuration: Both inverse and joint training is set to True" # Only one can be set to True        
-        
+        assert self.inverse_peft != self.joint_peft or (
+            not self.inverse_peft and not self.joint_peft
+        ), f"Invalid configuration: Both inverse and joint training is set to True"  # Only one can be set to True
+
+
 class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
     TODO 
@@ -724,9 +729,11 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
         super().__init__(cfg, trainer)
         self.inverse_peft = lora_cfg.get("inverse_peft", False)
         self.joint_peft = lora_cfg.get("joint_peft", False)
-        assert (self.inverse_peft != self.joint_peft or (not self.inverse_peft and not self.joint_peft)), f"Invalid configuration: Both inverse and joint training is set to True" # Only one can be set to True        
+        assert self.inverse_peft != self.joint_peft or (
+            not self.inverse_peft and not self.joint_peft
+        ), f"Invalid configuration: Both inverse and joint training is set to True"  # Only one can be set to True
 
- 
+
 class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
     TODO 
@@ -840,9 +847,9 @@ class MegatronGPTNKBModel(MegatronGPTLayerwisePEFTModel):
         nkb_cfg = cfg.peft.nkb_tuning
 
         # Set the PEFT keys
-        self.peft_name_keys = [AdapterName.NKB_FFN_ADAPTER] 
-        
-        # Build the adapter config        
+        self.peft_name_keys = [AdapterName.NKB_FFN_ADAPTER]
+
+        # Build the adapter config
         adapter_cfg = NeuralKnowledgeBankConfig(
             in_features=cfg.hidden_size,
             out_features=cfg.hidden_size,
@@ -857,11 +864,13 @@ class MegatronGPTNKBModel(MegatronGPTLayerwisePEFTModel):
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
             self.name_key_to_mcore_mixins[k] = None
-        
+
         self.layer_selection = nkb_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
         self.inverse_peft = nkb_cfg.get("inverse_peft", False)
         self.joint_peft = nkb_cfg.get("joint_peft", False)
-        assert (self.inverse_peft != self.joint_peft or (not self.inverse_peft and not self.joint_peft)), f"Invalid configuration: Both inverse and joint training is set to True" # Only one can be set to True
+        assert self.inverse_peft != self.joint_peft or (
+            not self.inverse_peft and not self.joint_peft
+        ), f"Invalid configuration: Both inverse and joint training is set to True"  # Only one can be set to True
