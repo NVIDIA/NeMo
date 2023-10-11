@@ -141,7 +141,7 @@ You can load the checkpoints automatically using the ``ASRModel.from_pretrained(
     # if model name is prepended with "nvidia/", the model will be fetched from huggingface
     asr_model = nemo_asr.models.ASRModel.from_pretrained("nvidia/stt_en_fastconformer_transducer_large")
     # you can also load open-sourced NeMo models released by other HF users using:
-    #asr_model = nemo_asr.models.ASRModel.from_pretrained("<HF username>/<model name>")
+    # asr_model = nemo_asr.models.ASRModel.from_pretrained("<HF username>/<model name>")
 
 See further documentation about :doc:`loading checkpoints <./results>`, a full :ref:`list <asr-checkpoint-list-by-language>` of models and their :doc:`benchmark scores <./score>`.
 

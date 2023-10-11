@@ -235,8 +235,6 @@ Mac computers with Apple silicon
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 To install NeMo on Mac with Apple M-Series GPU:
 
-- install `Homebrew <https://brew.sh>`_ package manager
-
 - create a new Conda environment
 
 - install PyTorch 2.0 or higher
@@ -245,10 +243,11 @@ To install NeMo on Mac with Apple M-Series GPU:
 
 .. code-block:: shell
 
-    # install mecab using Homebrew, required for sacrebleu for NLP collection
+    # [optional] install mecab using Homebrew, to use sacrebleu for NLP collection
+    # you can install Homebrew here: https://brew.sh
     brew install mecab
 
-    # install pynini using Conda, required for text normalization
+    # [optional] install pynini using Conda, to use text normalization
     conda install -c conda-forge pynini
 
     # install Cython manually
