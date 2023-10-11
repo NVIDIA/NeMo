@@ -4,8 +4,10 @@ jieba
 kornia
 librosa
 matplotlib
-# pynini does not currently support aarch, disable nemo_text_processing for now
-nemo_text_processing; 'arm' not in platform_machine and 'aarch' not in platform_machine
+# 1. safeguard to the version 0.1.8rc0 to avoid unexpected normalized outputs for Chinese. Will remove the guard once
+# next-text-processing new release fixes the bug. Tracking bugfix in https://github.com/NVIDIA/NeMo-text-processing/issues/109.
+# 2. pynini does not currently support aarch, disable nemo_text_processing for now
+nemo_text_processing<=0.1.8rc0; 'arm' not in platform_machine and 'aarch' not in platform_machine
 nltk
 pandas
 pypinyin
