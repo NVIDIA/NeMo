@@ -95,7 +95,8 @@ def get_base_model(trainer, cfg):
             wait_time = int(cfg.get('exp_manager', {}).get('seconds_to_sleep', 60))
             if wait_time < 60:
                 wait_time = 60
-                logging.info("Sleeping for at least 60 seconds to wait for model download to finish.")
+
+            logging.info(f"Sleeping for at least {wait_time} seconds to wait for model download to finish.")
 
             time.sleep(wait_time)
 
