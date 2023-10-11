@@ -1198,7 +1198,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.setup_transformer_engine_tp_groups()
-            self.setup_transformer_engine_cp_running()
+            self.setup_transformer_engine_cp_groups()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -1257,7 +1257,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             if self.cfg.get('transformer_engine', False):
                 self.setup_transformer_engine_tp_groups()
-                self.setup_transformer_engine_cp_running()
+                self.setup_transformer_engine_cp_groups()
 
         # set the default sampling params if it is None.
         # default do greedy sampling
@@ -1349,7 +1349,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     tp_group = parallel_state.get_tensor_model_parallel_group()
                     child.set_tensor_parallel_group(tp_group)
 
-    def setup_transformer_engine_cp_running(self):
+    def setup_transformer_engine_cp_groups(self):
         """ This should be called after context parallel groups have been initialized
             and only needs to be called when using Transformer Engine.
         """
@@ -1363,8 +1363,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for index, child in enumerate(module.modules()):
                 if index == 0:
                     continue
-                if hasattr(child, "set_context_parallel_running"):
-                    child.set_context_parallel_running(
+                if hasattr(child, "set_context_parallel_group"):
+                    child.set_context_parallel_group(
                         parallel_state.get_context_parallel_group(),
                         parallel_state.get_context_parallel_global_ranks(),
                         cp_stream,
