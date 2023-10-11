@@ -230,7 +230,7 @@ class TextClassificationModel(NLPModel, Exportable):
         )
 
     @torch.no_grad()
-    def classifytext(self, queries: List[str], batch_size: int = 1, max_seq_length: int = -1) -> List[int]:
+    def classifytext(self, queries: List[str], batch_size: int = 1, max_seq_length: int = -1, inference_num_workers: int = 3) -> List[int]:
         """
         Get prediction for the queries
         Args:
@@ -249,7 +249,7 @@ class TextClassificationModel(NLPModel, Exportable):
             self.eval()
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
-            dataloader_cfg = {"batch_size": batch_size, "num_workers": self.dataset_cfg.inference_num_workers, "pin_memory": False}
+            dataloader_cfg = {"batch_size": batch_size, "num_workers": inference_num_workers, "pin_memory": False}
             infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, max_seq_length)
             softmax_layer = torch.nn.Softmax(dim=-1)
             for i, batch in tqdm(enumerate(infer_datalayer), total=len(queries)//batch_size + 1):

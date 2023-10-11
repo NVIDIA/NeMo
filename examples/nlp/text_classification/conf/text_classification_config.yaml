@@ -58,7 +58,6 @@ model:
     max_seq_length: 256 # the maximum length BERT supports is 512
     class_balancing: null # null or 'weighted_loss'. 'weighted_loss' enables the weighted class balancing of the loss, may be used for handling unbalanced classes
     use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up
-    inference_num_workers: 3
 
   train_ds:
     file_path: null
