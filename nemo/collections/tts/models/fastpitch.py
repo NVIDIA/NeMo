@@ -851,7 +851,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             inputs.pop('batch_lengths', None)
         return (inputs,)
 
-    def forward_for_export(self, text, pitch, pace, volume=None, batch_lengths=None, speaker=None):
+    def forward_for_export(self, text, pitch, pace, batch_lengths=None, volume=None, speaker=None):
         if self.export_config["enable_ragged_batches"]:
             text, pitch, pace, volume_tensor, lens = batch_from_ragged(
                 text, pitch, pace, batch_lengths, padding_idx=self.fastpitch.encoder.padding_idx, volume=volume

@@ -433,14 +433,23 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         # Output FFT
         dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=spk_emb)
         spect = self.proj(dec_out).transpose(1, 2)
-        return (
-            spect.to(torch.float),
-            dec_lens,
-            durs_predicted,
-            log_durs_predicted,
-            pitch_predicted,
-            volume_extended,
-        )
+        if volume is not None:
+            return (
+                spect.to(torch.float),
+                dec_lens,
+                durs_predicted,
+                log_durs_predicted,
+                pitch_predicted,
+                volume_extended,
+            )
+        else:
+            return (
+                spect.to(torch.float),
+                dec_lens,
+                durs_predicted,
+                log_durs_predicted,
+                pitch_predicted,
+            )
 
 
 class FastPitchSSLModule(NeuralModule):

@@ -67,6 +67,14 @@ class TestExportable:
             filename = os.path.join(tmpdir, 'fp.onnx')
             model.export(output=filename, verbose=True, onnx_opset_version=14, check_trace=True)
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_FastPitchModel_export_to_torchscript(self, fastpitch_model):
+        model = fastpitch_model.cuda()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'fp.pt')
+            model.export(output=filename, verbose=True, onnx_opset_version=14, check_trace=True)
+
     @pytest.mark.with_downloads()
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
