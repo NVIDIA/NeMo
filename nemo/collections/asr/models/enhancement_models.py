@@ -135,7 +135,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
                 temporary_manifest_filepath = os.path.join(tmpdir, 'manifest.json')
                 with open(temporary_manifest_filepath, 'w', encoding='utf-8') as fp:
                     for audio_file in paths2audio_files:
-                        entry = {'input_filepath': audio_file, 'duration': librosa.get_duration(path=audio_file)}
+                        entry = {'input_filepath': audio_file, 'duration': librosa.get_duration(filename=audio_file)}
                         fp.write(json.dumps(entry) + '\n')
 
                 config = {
