@@ -25,7 +25,10 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.multimodal.speechllm.models.speechllm_models import AlignedModularAudioGPTLoRAModel
+from nemo.collections.multimodal.speechllm.models.speechllm_models import (
+    AlignedModularAudioGPTLoRAModel,
+    PseudoAlignedModularAudioGPTLoRAModel,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
     MegatronGPTAdapterModel,
     MegatronGPTAdapterPTuningModel,
@@ -121,7 +124,7 @@ def main(cfg) -> None:
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
-    model = AlignedModularAudioGPTLoRAModel.restore_from_pretrained_models(cfg, trainer=trainer)
+    model = PseudoAlignedModularAudioGPTLoRAModel.restore_from_pretrained_models(cfg, trainer=trainer)
 
     trainer.fit(model)
 

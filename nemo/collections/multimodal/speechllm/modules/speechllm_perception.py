@@ -21,6 +21,7 @@ import torch.nn as nn
 from apex.transformer.enums import AttnMaskType, AttnType
 from omegaconf.dictconfig import DictConfig
 
+from nemo.collections.asr.models import ASRModel
 from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention
 from nemo.collections.nlp.modules.common.megatron.utils import (
     build_attention_mask_3d,
@@ -31,6 +32,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
+from nemo.utils import logging
 
 __all__ = ["AudioPerceptionModel"]
 
@@ -166,3 +168,128 @@ class LmAttendAudioPerceptionModel(AudioPerceptionModel):
         encoded = encoded.transpose(0, 1)
 
         return encoded, encoded_len
+
+
+class AmQueryAudioPerceptionModel(AudioPerceptionModel):
+    """Audio perception model with extra attention to match LM."""
+
+    def __init__(self, cfg: DictConfig, pretrained_audio_model: str, llm_tokenizer):
+        super(AudioPerceptionModel, self).__init__()
+        if pretrained_audio_model.endswith('.nemo'):
+            logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+            self.asr_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
+        else:
+            logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+            self.asr_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
+        if 'spec_augment' in cfg and cfg.spec_augment is not None:
+            self.asr_model.spec_augmentation = self.from_config_dict(cfg.spec_augment)
+        else:
+            self.asr_model.spec_augmentation = None
+
+        self.preprocessor = self.asr_model.preprocessor
+        self.encoder = self.asr_model.encoder
+        self.spec_augmentation = self.asr_model.spec_augmentation
+
+        self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
+        self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
+
+        num_layers = 1
+        init_method_std = 0.02
+        num_attention_heads = 8
+        scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
+        init_method = init_method_normal(init_method_std)
+        scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
+        self.lm_attention = ParallelAttention(
+            init_method=init_method,
+            output_layer_init_method=scaled_init_method,
+            layer_number=num_layers,
+            num_attention_heads=num_attention_heads,
+            hidden_size=cfg.output_dim,
+            attention_type=AttnType.cross_attn,
+        )
+        self.llm_tokenizer = llm_tokenizer
+        self.cfg = cfg
+
+    def get_am_text_output(self, encoded, logits_len):
+        with torch.no_grad():
+            logits = self.asr_model.decoder(encoder_output=encoded)
+            greedy_predictions = logits.argmax(dim=-1, keepdim=False)
+
+            current_hypotheses, _ = self.asr_model.decoding.ctc_decoder_predictions_tensor(
+                logits, decoder_lengths=logits_len, return_hypotheses=False,
+            )
+            # TODO: add hypotheses/logits logging
+            # logging.info(f"CTC hyps: {current_hypotheses[0]}")
+            return current_hypotheses
+
+    def get_text_embed(self, inputs, lm_embedding, pad_id=0):
+        with torch.no_grad():
+            input_ids = self.llm_tokenizer.text_to_ids(inputs)
+            input_length = torch.LongTensor([len(x) for x in input_ids]).to(lm_embedding.weight.device)
+            max_length = max(input_length)
+            input_ids = torch.LongTensor([x + [pad_id] * (max_length - len(x)) for x in input_ids]).to(
+                lm_embedding.weight.device
+            )
+            input_embeds = lm_embedding(input_ids)
+            return input_embeds, input_length
+
+    def cross_attend(self, encoded, encoded_len, llm_encoded, llm_encoded_len):
+        # TODO(zhehuai): explore causal-ish attention mask
+        max_len = encoded.size(1)
+        b = encoded.size(0)
+        attention_mask = torch.ones(b, 1, max_len, llm_encoded.shape[1], device=encoded.device) < 0.5
+        # AM output as query
+        attended_encoded, _ = self.lm_attention(
+            encoded.transpose(0, 1).contiguous(),
+            attention_mask,
+            encoder_output=llm_encoded.transpose(0, 1).contiguous(),
+        )
+        attended_encoded = attended_encoded.transpose(0, 1)
+        aux_loss = {}
+        loss_func = torch.nn.MSELoss()
+        # TODO: consider pad_id
+        consistency_loss_weight = self.cfg.get('consistency_loss_weight', 0.0)
+        aux_loss['consistency_loss'] = loss_func(attended_encoded, encoded.detach()) * consistency_loss_weight
+
+        return attended_encoded, encoded_len, aux_loss
+
+    def forward(
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
+        lm_embedding=None,
+    ):
+        processed_signal, processed_signal_length = self.maybe_preprocess_audio(
+            input_signal, input_signal_length, processed_signal, processed_signal_length
+        )
+
+        # Spec augment is not applied during evaluation/testing
+        if self.spec_augmentation is not None and self.training:
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+
+        am_encoded, am_encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        encoded, encoded_len = self.modality_adapter(audio_signal=am_encoded, length=am_encoded_len)
+        # b, t, c
+        encoded = self.proj(encoded.transpose(1, 2))
+
+        am_hyps_text = self.get_am_text_output(am_encoded, am_encoded_len)
+        llm_encoded, llm_encoded_len = self.get_text_embed(am_hyps_text, lm_embedding)
+        encoded, encoded_len, aux_loss = self.cross_attend(encoded, encoded_len, llm_encoded, llm_encoded_len)
+
+        return encoded, encoded_len, aux_loss
+
+
+class LmQueryAudioPerceptionModel(AmQueryAudioPerceptionModel):
+    """Audio perception model with extra attention to match LM."""
+
+    def cross_attend(self, encoded, encoded_len, llm_encoded, llm_encoded_len):
+        return super().cross_attend(llm_encoded, llm_encoded_len, encoded, encoded_len)
+
+
+class CascadedAudioPerceptionModel(AmQueryAudioPerceptionModel):
+    """Audio perception model with extra attention to match LM."""
+
+    def cross_attend(self, encoded, encoded_len, llm_encoded, llm_encoded_len):
+        return llm_encoded, llm_encoded_len, {}

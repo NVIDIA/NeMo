@@ -41,6 +41,7 @@ from nemo.collections.multimodal.speechllm.modules.common.audio_text_generation_
 from nemo.collections.multimodal.speechllm.modules.speechllm_perception import (
     AudioPerceptionModel,
     LmAttendAudioPerceptionModel,
+    LmQueryAudioPerceptionModel,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
@@ -262,12 +263,14 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             audio_batch['loss_mask'],
         )
 
+        lm_embedding = self.model.language_model.embedding.word_embeddings
         # [b, t, c]
-        encoded, encoded_len = self.perception(
+        encoded, encoded_len, aux_loss = self.perception(
             input_signal=input_signal,
             input_signal_length=input_signal_length,
             processed_signal=None,
             processed_signal_length=None,
+            lm_embedding=lm_embedding,
         )
         encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
             encoded, encoded_len, input_ids, input_length
@@ -278,7 +281,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             loss_mask, input_length, encoded_len, encoder_max_length, pad_token=0
         )
 
-        return encoder_input, attention_mask, labels, loss_mask, encoder_length, {}
+        return encoder_input, attention_mask, labels, loss_mask, encoder_length, aux_loss
 
     def forward(
         self, audio_batch, checkpoint_activations_all_layers,
@@ -486,6 +489,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
             gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
             gpt_cfg.freeze_modality_adapter = cfg.model.get('freeze_modality_adapter', False)
+            gpt_cfg.pretrained_audio_model = cfg.model.get('pretrained_audio_model', None)
             # TODO
             gpt_cfg.ctc_aux_loss_weight = cfg.model.get('ctc_aux_loss_weight', 0.0)
             gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
@@ -1068,7 +1072,7 @@ class AlignedModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
 
         # [b, t, c]
         lm_embedding = self.model.language_model.embedding.word_embeddings
-        encoded, encoded_len = self.perception(
+        encoded, encoded_len, aux_loss = self.perception(
             input_signal=input_signal,
             input_signal_length=input_signal_length,
             processed_signal=None,
@@ -1076,7 +1080,6 @@ class AlignedModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
             lm_embedding=lm_embedding,
         )
 
-        aux_loss = {}
         if self.cfg.ctc_aux_loss_weight > 0:
             ctc_labels = []
             ctc_labels_len = loss_mask.sum(dim=1).long()
@@ -1100,3 +1103,32 @@ class AlignedModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
             loss_mask, input_length, encoded_len, encoder_max_length, pad_token=0
         )
         return encoder_input, attention_mask, labels, loss_mask, encoder_length, aux_loss
+
+
+class PseudoAlignedModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
+    """Modularized speech GPT model."""
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        self.cfg = cfg
+        super(ModularAudioGPTLoRAModel, self).__init__(cfg, trainer)
+        # Used other keys from metadata to calulate metrics
+        if hasattr(self.cfg.data, "test_ds") and hasattr(self.cfg.data.test_ds, "metric"):
+            self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
+        if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
+            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+
+        imported_cls = model_utils.import_class_by_path(cfg.perception.target)
+        self.perception = imported_cls(
+            cfg=cfg.perception, pretrained_audio_model=cfg.pretrained_audio_model, llm_tokenizer=self.tokenizer
+        )
+        self.setup_optimizer_param_groups()
+        self.configure_optimizers()
+        self.summarize(max_depth=3)
+
+    @classmethod
+    def restore_from_pretrained_models(
+        cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
+    ):
+        # has been done in the perception model
+        cfg.model.load_audio_encoder = False
+        return super().restore_from_pretrained_models(cfg, trainer)

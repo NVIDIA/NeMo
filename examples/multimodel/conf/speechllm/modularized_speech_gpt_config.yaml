@@ -130,10 +130,8 @@ model:
       init_std: 0.023
 
   perception:
-    lm_attention:
-      _target_:  nemo.collections.nlp.modules.common.megatron.attention.ParallelAttention
-      init_method: 'xavier'
-      output_layer_init_method: 
+    target: nemo.collections.multimodal.speechllm.modules.speechllm_perception.AmQueryAudioPerceptionModel
+    consistency_loss_weight: 0.0
     modality_adapter: 
       _target_: nemo.collections.asr.modules.ConformerEncoder
       feat_in: 1024
@@ -187,8 +185,8 @@ model:
 
     spec_augment:
       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-      freq_masks: 2 # set to zero to disable it
-      time_masks: 10 # set to zero to disable it
+      freq_masks: 0 # set to zero to disable it
+      time_masks: 0 # set to zero to disable it
       freq_width: 27
       time_width: 0.05
 
