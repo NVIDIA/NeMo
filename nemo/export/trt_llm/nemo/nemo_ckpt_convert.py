@@ -285,8 +285,8 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     has_lm_head = get_layer_name("output_layer", is_mcore) in model_00
 
     num_layers = nemo_model_config["num_layers"]
-    training_tp_size = nemo_model_config.get("tensor_model_parallel_size", 1)
-    training_pp_size = nemo_model_config.get("pipeline_model_parallel_size", 1)
+    training_tp_size = 1
+    training_pp_size = 1
     inference_tp_size = args.tensor_parallelism
     num_kv_heads = nemo_model_config.get("num_query_groups", 0)
     multi_query_mode = nemo_model_config.get("multi_query_mode", False)
