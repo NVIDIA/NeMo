@@ -116,11 +116,12 @@ model:
 
     # Used for neural knowledge bank adapter training 
     nkb_tuning:
-      adapter_dim: 10880
       adapter_dropout: 0.05
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       layer_selection:  [32]  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+      inverse_peft: False # train only the base model
+      joint_peft: True # train base + peft modules
 
   data:
     train_ds:

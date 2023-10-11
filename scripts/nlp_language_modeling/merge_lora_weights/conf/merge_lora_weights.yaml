@@ -14,3 +14,4 @@ checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint l
 hparams_file: null # model configuration file, only used for PTL checkpoint loading
 lora_model_path: ???
 merged_model_path: ???
+target_modules: ['attention'] # ['attention','mlp']

@@ -32,10 +32,10 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
+    NeuralKnowledgeBankConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
-    NeuralKnowledgeBankConfig,
 )
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
@@ -52,6 +52,7 @@ except (ImportError, ModuleNotFoundError):
 QKV_LORA_KEYS = [AdapterName.LORA_KQV_ADAPTER]
 MLP_LORA_KEYS = [AdapterName.LORA_Hto4H_ADAPTER] + [AdapterName.LORA_4HtoH_ADAPTER]
 
+
 class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     """
     base class for all mixin based adapter models
@@ -61,6 +62,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         super().__init__(cfg, trainer)
         self.setup_complete = False
         self.inverse_peft = False
+        self.joint_peft = False
         self.base_keys = self.get_all_keys()
         self.freeze()
         self.init_peft_modules()
@@ -151,7 +153,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        if self.setup_complete:
+        if self.setup_complete and not self.joint_peft:
             # Once setup is complete we no longer need to track the frozen part of the model. Only there adapter state dict keeps changing so state_dict only track these.
             return self.get_peft_state_dict()
         else:
@@ -169,7 +171,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     def load_state_dict(self, state_dict, strict: bool = True):
         if len(state_dict) == 0:
             return  # checkpoint is loaded in on_load_checkpoint()
-        if self.setup_complete:
+        if self.setup_complete and not self.joint_peft:
             # at this stage only PEFT params will appear in the state_dict arg
             # so we only update those while the rest of the model is frozen.
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
@@ -234,9 +236,11 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
 
         if self.inverse_peft:
             opt_params = self.setup_optimizer_param_groups_inverse_training()
+        if self.joint_peft:
+            opt_params = self.setup_optimizer_param_groups_joint_training()
         self._optimizer_param_groups = ({"params": opt_params},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
-    
+
     def setup_optimizer_param_groups_inverse_training(self):
         """
         Invert optimizer params...
@@ -248,6 +252,19 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             p.requires_grad = not p.requires_grad
             opt_params += [p]
         return opt_params
+
+    def setup_optimizer_param_groups_joint_training(self):
+        """
+        Include all optimizer params.
+        Make all params trainable: base and peft
+        """
+        opt_params = []
+        # make all parameters trainable.
+        for n, p in self.named_parameters():
+            p.requires_grad = True
+            opt_params += [p]
+        return opt_params
+
 
 class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
     def __init__(
@@ -353,6 +370,10 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
         self.inverse_peft = adapter_tuning_cfg.get("inverse_peft", False)
+        self.joint_peft = adapter_tuning_cfg.get("joint_peft", False)
+        assert self.inverse_peft != self.joint_peft or (
+            not self.inverse_peft and not self.joint_peft
+        ), f"Invalid configuration: Both inverse and joint training is set to True"  # Only one can be set to True
 
 
 class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
@@ -681,7 +702,7 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
                     activation="identity",
                     column_init_method=lora_cfg.get("column_init_method", "normal"),
                     row_init_method=lora_cfg.get("row_init_method", "zero"),
-                    gather_output=False,
+                    gather_output=True,
                     dropout=lora_cfg.adapter_dropout,
                 )
 
@@ -707,8 +728,12 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
         self.inverse_peft = lora_cfg.get("inverse_peft", False)
+        self.joint_peft = lora_cfg.get("joint_peft", False)
+        assert self.inverse_peft != self.joint_peft or (
+            not self.inverse_peft and not self.joint_peft
+        ), f"Invalid configuration: Both inverse and joint training is set to True"  # Only one can be set to True
 
- 
+
 class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
     TODO 
@@ -806,6 +831,7 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
                 adapter_l.tie_weights(pos_idx, adapter_0)
                 pos_idx += 1
 
+
 class MegatronGPTNKBModel(MegatronGPTLayerwisePEFTModel):
     """
     MegatronGPTNKBModel is a model that combines a base model (GPTSFTModel) with a Neural Knowledge Bank (NKB) layer.
@@ -821,13 +847,13 @@ class MegatronGPTNKBModel(MegatronGPTLayerwisePEFTModel):
         nkb_cfg = cfg.peft.nkb_tuning
 
         # Set the PEFT keys
-        self.peft_name_keys = [AdapterName.NKB_FFN_ADAPTER] 
-        
-        # Build the adapter config        
+        self.peft_name_keys = [AdapterName.NKB_FFN_ADAPTER]
+
+        # Build the adapter config
         adapter_cfg = NeuralKnowledgeBankConfig(
             in_features=cfg.hidden_size,
             out_features=cfg.hidden_size,
-            dim=nkb_cfg.adapter_dim,
+            dim=cfg.ffn_hidden_size,
             column_init_method=nkb_cfg.get("column_init_method", "normal"),
             row_init_method=nkb_cfg.get("row_init_method", "zero"),
             dropout=nkb_cfg.adapter_dropout,
@@ -838,8 +864,13 @@ class MegatronGPTNKBModel(MegatronGPTLayerwisePEFTModel):
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
             self.name_key_to_mcore_mixins[k] = None
-        
+
         self.layer_selection = nkb_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
+        self.inverse_peft = nkb_cfg.get("inverse_peft", False)
+        self.joint_peft = nkb_cfg.get("joint_peft", False)
+        assert self.inverse_peft != self.joint_peft or (
+            not self.inverse_peft and not self.joint_peft
+        ), f"Invalid configuration: Both inverse and joint training is set to True"  # Only one can be set to True

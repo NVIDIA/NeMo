@@ -18,16 +18,17 @@ import enum
 import logging
 from dataclasses import dataclass
 from typing import Optional
+
 import torch
 import torch.nn as nn
-import torch.nn.init as init
 import torch.nn.functional as F
+import torch.nn.init as init
+
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
 from nemo.core.classes.mixins import adapter_mixin_strategies
-
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
@@ -68,6 +69,7 @@ class AdapterName(str, enum.Enum):
     LORA_Hto4H_ADAPTER = "lora_hto4h_adapter"
     LORA_4HtoH_ADAPTER = "lora_4htoh_adapter"
     NKB_FFN_ADAPTER = "nkb_ffn_adapter"
+
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
@@ -115,6 +117,8 @@ class MLPInfusedAdapterConfig(InfusedAdapterConfig):
 
 
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
+    name = None
+
     def __init__(
         self,
         in_features: int,
@@ -145,14 +149,24 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if model_parallel_config is None:
             model_parallel_config = ModelParallelConfig()
 
-        self.linear_in = ColumnParallelLinear(
-            in_features,
-            dim,
-            config=model_parallel_config,
-            bias=False,
-            gather_output=True,
-            init_method=self._get_init_fn(column_init_method),
-        )
+        if self.name == "4HtoH":
+            self.linear_in = RowParallelLinear(
+                in_features,
+                dim,
+                config=model_parallel_config,
+                input_is_parallel=True,
+                bias=False,
+                init_method=self._get_init_fn(column_init_method),
+            )
+        else:
+            self.linear_in = ColumnParallelLinear(
+                in_features,
+                dim,
+                config=model_parallel_config,
+                bias=False,
+                gather_output=True,
+                init_method=self._get_init_fn(column_init_method),
+            )
         if gather_output:
             self.linear_out = RowParallelLinear(
                 dim,
@@ -169,7 +183,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 out_features,
                 config=model_parallel_config,
                 bias=False,
-                gather_output=False,
+                gather_output=True if self.name == "4HtoH" else False,
                 init_method=self._get_init_fn(row_init_method),
             )
 
@@ -240,7 +254,7 @@ class NeuralKnowledgeBank(nn.Module, AdapterModuleUtil):
         out_features: int,
         dim: int,
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
-        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.        
+        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
@@ -308,7 +322,9 @@ class NeuralKnowledgeBank(nn.Module, AdapterModuleUtil):
 
     def forward(self, x):
 
-        intermediate_parallel, _ = self.linear_in(x)  # ColumnLinear returns output and bias, we are ignoring the bias term.
+        intermediate_parallel, _ = self.linear_in(
+            x
+        )  # ColumnLinear returns output and bias, we are ignoring the bias term.
         intermediate_parallel, intermediate_parallel_2 = torch.chunk(intermediate_parallel, 2, dim=-1)
         intermediate_parallel = self.activation(intermediate_parallel) * intermediate_parallel_2
 
@@ -318,6 +334,7 @@ class NeuralKnowledgeBank(nn.Module, AdapterModuleUtil):
         output, _ = self.linear_out(intermediate_parallel)
 
         return output
+
 
 @dataclass
 class ParallelLinearAdapterConfig:
@@ -333,6 +350,7 @@ class ParallelLinearAdapterConfig:
     dropout: float = 0.0
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
 
+
 @dataclass
 class NeuralKnowledgeBankConfig:
     in_features: int
@@ -342,6 +360,7 @@ class NeuralKnowledgeBankConfig:
     row_init_method: str = 'zero'
     dropout: float = 0.0
     _target_: str = "{0}.{1}".format(NeuralKnowledgeBank.__module__, NeuralKnowledgeBank.__name__)
+
 
 class LoraKQVAdapter(ParallelLinearAdapter):
     """
@@ -376,6 +395,7 @@ class LoraHto4HAdapter(ParallelLinearAdapter):
     and they do not use an bottleneck activation function
     """
 
+    name = "Hto4H"
     pass
 
 
@@ -385,6 +405,7 @@ class Lora4HtoHAdapter(ParallelLinearAdapter):
     and they do not use an bottleneck activation function
     """
 
+    name = "4HtoH"
     pass
 
 
@@ -568,7 +589,7 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
     ):
-        
+
         self.position_embeddings = None
         self.mlp = None
         self.position_embedding_strategy = position_embedding_strategy
