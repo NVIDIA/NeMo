@@ -1956,11 +1956,11 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
             manifest_filepath=dataset_paths,
             tokenizer=self.tokenizer,
             sample_rate=self.cfg.data.get('sample_rate', 24000),
-            virtual_prompt_source=self.virtual_prompt_source,
+            virtual_prompt_source=VirtualPromptSource.PROMPT_ENCODER,
             task_templates=self.task_templates,
             pseudo_tokens=self.pseudo_tokens,
             pad_token_id=self.pad_token_id,
-            max_seq_length=self.cfg.data.get('max_seq_length', self.frozen_model.cfg.max_position_embeddings),
+            max_seq_length=self.cfg.data.max_seq_length,
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
             shuffle_n=shuffle,
             add_bos=self.cfg.data.get('add_bos', False),
@@ -1981,6 +1981,7 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
             speech_offset=self.cfg.data.get('speech_offset', None),
             train_task=self.cfg.data.get('train_task', "tts"),
             seq_pattern=self.cfg.get('seq_pattern', 'delay_parallel'),
+            decoder_only_model=True
         )
 
         rank = parallel_state.get_data_parallel_rank()

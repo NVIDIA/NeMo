@@ -176,6 +176,7 @@ model:
     ## Individal wav files
     # train_ds: ["/Data/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
     # validation_ds: ["/Data/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
+    # sup_data_path: ???
     ## Tarred
     train_manifest: ["/data/speech/val_clean_300_speechlm_alltasks.json"]
     train_audio_path: "/data2/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
@@ -194,7 +195,6 @@ model:
     pin_memory: true
     speech_offset: ???
     train_task: tts
-    sup_data_path: ???
 
   # Nsys profiling options
   nsys_profile:

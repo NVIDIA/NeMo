@@ -333,6 +333,7 @@ class InstructionTuningText(_Collection):
         max_number: Optional[int] = None,
         do_sort_by_duration: bool = False,
         index_by_file_id: bool = False,
+        decoder_only_model: bool = False,
     ):
         """Instantiates audio-text manifest with filters and preprocessing.
         Args:
@@ -355,6 +356,7 @@ class InstructionTuningText(_Collection):
         data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
         if index_by_file_id:
             self.mapping = {}
+
 
         for id_, context, context_type, context_duration, question, question_type, answer, answer_type, answer_duration, speaker, task in zip(
             ids, contexts, context_types, context_durations, questions, question_types, answers, answer_types, answer_durations, speakers, tasks
@@ -381,7 +383,7 @@ class InstructionTuningText(_Collection):
             else:
                 approx_answer_len = len(answer.split(' ')) + 3
 
-            if (
+            if (decoder_only_model and approx_context_len + approx_question_len + approx_answer_len >= max_seq_length) or (
                 approx_context_len + approx_question_len >= max_seq_length
                 or approx_answer_len >= max_seq_length
             ):
