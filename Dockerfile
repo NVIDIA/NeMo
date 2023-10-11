@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=us-central1-docker.pkg.dev/supercomputer-testing/redrock-dev/nemo-deps:20230828-004520
+ARG BASE_IMAGE=us-central1-docker.pkg.dev/supercomputer-testing/redrock-dev/nemo-deps:20231011-205139
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
