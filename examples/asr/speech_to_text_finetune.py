@@ -49,7 +49,7 @@ python <NEMO_ROOT>/examples/asr/speech_to_text_finetune.py \
 For documentation on fine-tuning this model, please visit:
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
 """
-
+import time
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
@@ -94,7 +94,10 @@ def get_base_model(trainer, cfg):
             # Sleep on all ranks for at least 60 seconds
             wait_time = int(cfg.get('exp_manager', {}).get('seconds_to_sleep', 60))
             if wait_time < 60:
+                wait_time = 60
                 logging.info("Sleeping for at least 60 seconds to wait for model download to finish.")
+
+            time.sleep(wait_time)
 
             # restore model from cached model dir
             asr_model = ASRModel.from_pretrained(model_name=pretrained_name)
