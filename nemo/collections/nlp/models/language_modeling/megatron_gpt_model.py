@@ -882,21 +882,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         all_speech_logits = torch.stack(all_speech_logits, dim=-1) # (T, B, 1024, 8)
                         all_speech_token_preds = torch.stack(all_speech_token_preds, dim=-1) # (T, B, 8)
                         speech_token_preds_example = all_speech_token_preds[:,0,:].permute(1,0) # (8, T)
-                        speech_token_preds_example = self.convert_tokens_to_range(speech_token_preds_example)
+                        start_of_speech = 0 if self.pretraining else torch.count_nonzero(~batch["loss_mask"][0] * batch['tokens'][0][0]) + 2
+                        speech_token_preds_example = self.convert_tokens_to_range(speech_token_preds_example, start_of_speech=start_of_speech)
 
                         input_tokens_example = batch['tokens'][0]
-                        input_tokens_example = self.convert_tokens_to_range(input_tokens_example, offset_first_layer=True, offset_all_layers=True)
+                        input_tokens_example = self.convert_tokens_to_range(input_tokens_example, offset_first_layer=True, offset_all_layers=True, start_of_speech=start_of_speech)
 
                         labels_example = batch['labels'][0]
-                        labels_example = self.convert_tokens_to_range(labels_example, offset_first_layer=True, offset_all_layers=False)
+                        labels_example = self.convert_tokens_to_range(labels_example, offset_first_layer=True, offset_all_layers=False, start_of_speech=start_of_speech)
 
                         label_wav = self.additional_models['encodec'].decode([[labels_example[None], None]])[0, 0]
                         dec_input_wav = self.additional_models['encodec'].decode([[input_tokens_example[None], None]])[0, 0]
                         pred_wav = self.additional_models['encodec'].decode([[speech_token_preds_example[None], None]])[0, 0]
 
-                        self.logger.experiment.add_audio('train_label_wav', label_wav, self.trainer.global_step, sample_rate=22050)
-                        self.logger.experiment.add_audio('train_dec_input_wav', dec_input_wav, self.trainer.global_step, sample_rate=22050)
-                        self.logger.experiment.add_audio('train_greedy_pred_wav', pred_wav, self.trainer.global_step, sample_rate=22050)
+                        self.logger.experiment.add_audio('train_label_wav', label_wav, self.trainer.global_step, sample_rate=24000)
+                        self.logger.experiment.add_audio('train_dec_input_wav', dec_input_wav, self.trainer.global_step, sample_rate=24000)
+                        self.logger.experiment.add_audio('train_tf_pred_wav', pred_wav, self.trainer.global_step, sample_rate=24000)
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
@@ -1730,20 +1731,28 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         encodec_model.cuda()
         encodec_model.eval()
         self.additional_models = {'encodec': encodec_model}
+        self.pretraining = True
 
-    def convert_tokens_to_range(self, tokens, offset_first_layer=False, offset_all_layers=False):
+    def convert_tokens_to_range(self, tokens, offset_first_layer=False, offset_all_layers=False, start_of_speech=0):
         # offset tokens to be in range [0, 1024] and convert delay parallel to parallel
+        offset = self.cfg.data.get('speech_offset', self.tokenizer.vocab_size)
         output_tokens = tokens.clone()
         if offset_first_layer:
-            output_tokens[0] = output_tokens[0] - self.tokenizer.vocab_size
+            output_tokens[0] = output_tokens[0] - offset
 
         output_tokens_new = []
         for _c in range(output_tokens.shape[0]):
             si = _c
             ei = _c + output_tokens.shape[1] - 8
             if offset_all_layers and _c > 0:
-                output_tokens[_c, si:ei] -= (self.tokenizer.vocab_size + _c*1024)
-            output_tokens_new.append(output_tokens[_c, si:ei])
+                output_tokens[_c, :] -= (offset + _c*1024)
+            if start_of_speech != 0:
+                context_and_text = output_tokens[_c,:start_of_speech]
+                speech = output_tokens[_c,start_of_speech+si:ei]
+                context_text_speech = torch.cat([context_and_text, speech], dim=-1)
+                output_tokens_new.append(context_text_speech)
+            else:
+                output_tokens_new.append(output_tokens[_c, si:ei])
         output_tokens_new = torch.stack(output_tokens_new)
         output_tokens = output_tokens_new
         output_tokens = torch.clamp(output_tokens, min=0, max=1023)
@@ -1839,6 +1848,7 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.load_task_templates(self.cfg.task_templates)
         self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
+        self.pretraining = False
 
     def build_train_valid_test_datasets(self):
         pass
