@@ -352,10 +352,13 @@ class GPTModel(MegatronModule):
         inference_max_sequence_len=None,
         checkpoint_activations_all_layers=None,
         speech_mask=None,
+        return_logits=None,
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
         # attention_mask: [1, 1, s, s]
+        if return_logits is None:
+            return_logits = encoder_input is not None
 
         lm_output = self.language_model(
             input_ids,
@@ -386,7 +389,7 @@ class GPTModel(MegatronModule):
                 self.parallel_output,
                 forward_method_parallel_output,
                 self.fp16_lm_cross_entropy,
-                return_logits=encoder_input is not None,
+                return_logits=return_logits,
                 sequence_parallel=self.sequence_parallel,
                 speech_mask=speech_mask,
                 speech_residual_model=self.speech_residual_model,

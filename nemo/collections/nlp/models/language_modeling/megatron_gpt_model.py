@@ -25,6 +25,7 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
+from encodec import EncodecModel
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -850,7 +851,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'attention_mask': batch['attention_mask'],
                 'labels': batch['labels'],
                 'loss_mask': batch['loss_mask'],
-                'speech_mask': batch['speech_mask']
+                'speech_mask': batch['speech_mask'],
+                'return_logits': True,
             }
 
             if not self.mcore_gpt:
@@ -860,7 +862,40 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 # TODO: @eharper can we add this to mcore?
                 forward_args.pop('loss_mask')
-            output_tensor = model(**forward_args)
+            output_tensor, logits = model(**forward_args)
+
+            check_interval = 100
+            if self.trainer.val_check_interval is not None:
+                check_interval = self.trainer.val_check_interval
+            if self.trainer.global_step % check_interval == 0 and batch['speech_mask'][0].sum() != 0:
+                # Logs every if the first item in the batch is speech
+                with torch.no_grad():
+                    with torch.cuda.amp.autocast(enabled=False):
+                        all_speech_logits = []
+                        all_speech_token_preds = []
+                        for _i in range(8):
+                            vsi = self.tokenizer.vocab_size + _i*1024
+                            layer_logits = logits[:,:,vsi:vsi+1024]
+                            all_speech_token_preds.append(layer_logits.argmax(dim=-1))
+                            all_speech_logits.append(layer_logits)
+                        all_speech_logits = torch.stack(all_speech_logits, dim=-1) # (T, B, 1024, 8)
+                        all_speech_token_preds = torch.stack(all_speech_token_preds, dim=-1) # (T, B, 8)
+                        speech_token_preds_example = all_speech_token_preds[:,0,:].permute(1,0) # (8, T)
+                        speech_token_preds_example = self.convert_tokens_to_range(speech_token_preds_example)
+
+                        input_tokens_example = batch['tokens'][0]
+                        input_tokens_example = self.convert_tokens_to_range(input_tokens_example, offset_first_layer=True, offset_all_layers=True)
+
+                        labels_example = batch['labels'][0]
+                        labels_example = self.convert_tokens_to_range(labels_example, offset_first_layer=True, offset_all_layers=False)
+
+                        label_wav = self.additional_models['encodec'].decode([[labels_example[None], None]])[0, 0]
+                        dec_input_wav = self.additional_models['encodec'].decode([[input_tokens_example[None], None]])[0, 0]
+                        pred_wav = self.additional_models['encodec'].decode([[speech_token_preds_example[None], None]])[0, 0]
+
+                        self.logger.experiment.add_audio('train_label_wav', label_wav, self.trainer.global_step, sample_rate=22050)
+                        self.logger.experiment.add_audio('train_dec_input_wav', dec_input_wav, self.trainer.global_step, sample_rate=22050)
+                        self.logger.experiment.add_audio('train_greedy_pred_wav', pred_wav, self.trainer.global_step, sample_rate=22050)
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
@@ -1688,6 +1723,31 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             base_module.speech_residual_model = SimplestModule(hidden_size, 1024)
         elif self.cfg.get('speech_residual_model', None) == 'linear':
             base_module.speech_residual_model = LinearModule(hidden_size, 1024)
+
+        encodec_model = EncodecModel.encodec_model_24khz()
+        encodec_model.set_target_bandwidth(6.0)
+        encodec_model.cuda()
+        encodec_model.eval()
+        self.additional_models = {'encodec': encodec_model}
+
+    def convert_tokens_to_range(self, tokens, offset_first_layer=False, offset_all_layers=False):
+        # offset tokens to be in range [0, 1024] and convert delay parallel to parallel
+        output_tokens = tokens.clone()
+        if offset_first_layer:
+            output_tokens[0] = output_tokens[0] - self.tokenizer.vocab_size
+
+        output_tokens_new = []
+        for _c in range(output_tokens.shape[0]):
+            si = _c
+            ei = _c + output_tokens.shape[1] - 8
+            if offset_all_layers and _c > 0:
+                output_tokens[_c, si:ei] -= (self.tokenizer.vocab_size + _c*1024)
+            output_tokens_new.append(output_tokens[_c, si:ei])
+        output_tokens_new = torch.stack(output_tokens_new)
+        output_tokens = output_tokens_new
+        output_tokens = torch.clamp(output_tokens, min=0, max=1023)
+
+        return output_tokens
 
     def model_provider_func(self, pre_process, post_process):
         """Very small override of base model so we can have different embedding and output layer size"""
