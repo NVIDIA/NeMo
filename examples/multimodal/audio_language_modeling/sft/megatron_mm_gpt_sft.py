@@ -79,6 +79,14 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
 
         gpt_cfg.get_attention_mask_from_fusion = cfg.model.get('get_attention_mask_from_fusion', True)
         
+        
+        # =====> Attn masking related params
+        gpt_cfg.attn_mask_type = cfg.model.get('attn_mask_type', 'causal')
+        # if mask is not causal and padding, go through torch
+        if not gpt_cfg.attn_mask_type  in ['causal', 'padding']:
+            gpt_cfg.masked_softmax_fusion = False
+        # end Attn masking related params <=====
+
         # =====> Audio related configs
         # Update Tokenizer Config
         gpt_cfg.tokenizer.sentencepiece_legacy = cfg.model.tokenizer.get('sentencepiece_legacy', False)

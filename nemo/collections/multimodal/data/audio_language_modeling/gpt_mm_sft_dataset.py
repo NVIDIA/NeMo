@@ -57,6 +57,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
         audio_codebook_size: int = 1024,
         audio_token_offset: int = 256003,
         pad_audio_to_length: int = 0,
+        attn_mask_type: str = 'causal',
     ):
         """
         see GPTSFTDataset for description of non-audio args
@@ -89,6 +90,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
         self.audio_codebook_size = audio_codebook_size
         self.audio_token_offset = audio_token_offset
         self.pad_audio_to_length = pad_audio_to_length
+        self.attn_mask_type = attn_mask_type
 
 
     # @kpuvvada: this is deprecated; not used - remove
@@ -109,7 +111,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
         assert filepath.endswith('.npz'), f"audio_codes should be npz file, got {filepath}"
 
         audio_codes = np.load(filepath)['codes'][:num_codebooks_to_load, :] # (num_codebooks, num_frames)
-        audio_codes = np.transpose(audio_codes) # (num_frames, num_codebooks
+        audio_codes = np.transpose(audio_codes) # (num_frames, num_codebooks)
         if not keep_dims_for_audio:
             audio_codes = np.squeeze(audio_codes)
         
@@ -310,7 +312,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
 
     
     @torch.no_grad()
-    def _create_attention_mask(self, max_length):
+    def _create_attention_mask(self, max_length, context_length=None):
         """Create `attention_mask`.
         Args:
             input_ids: A 1D tensor that holds the indices of tokens.
@@ -319,7 +321,16 @@ class MMGPTSFTDataset(GPTSFTDataset):
         # `attention_mask` has the shape of [1, seq_length, seq_length]
         attention_mask = torch.tril(torch.ones((max_length, max_length))).unsqueeze(0)
         attention_mask = attention_mask < 0.5
-        return attention_mask
+
+        if self.attn_mask_type == 'causal':
+            return attention_mask
+        elif self.attn_mask_type == 'prefix':
+            assert context_length is not None, "context_length is required for prefix attention mask"
+
+            attention_mask[:, :context_length, :context_length] = False
+            return attention_mask
+        else:
+            raise NotImplementedError(f"attn_mask_type {self.attn_mask_type} not implemented")
     
     
     def _collate_item(self, item, max_length, pad_id):
@@ -351,7 +362,8 @@ class MMGPTSFTDataset(GPTSFTDataset):
         else:
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
         assert max_length <= self.max_seq_length
-        attention_mask = [self._create_attention_mask(max_length) for _ in batch]
+        # attention_mask = [self._create_attention_mask(max_length) for _ in batch]
+        attention_mask = [self._create_attention_mask(max_length, context_lengths[i].item()) for i, _ in enumerate(batch)]
         attention_mask = torch.stack(attention_mask)
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)

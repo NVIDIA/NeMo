@@ -49,6 +49,34 @@ class MMGPTModelGenerationStrategy(text_generation_strategy.GPTModelTextGenerati
     def __init__(self, model, **kwargs):
         super().__init__(model)
 
+    def init_batch(self, context_tokens: torch.Tensor, context_lengths: List[int], compute_attention_mask: bool):
+        """initialize the batch data before the inference steps."""
+        # Move to GPU.
+        tokenizer = self.model.tokenizer
+        tokens = context_tokens.contiguous().cuda()
+        # Get the attention mask and postition ids.
+        self.attention_mask, _, self.position_ids = get_ltor_masks_and_position_ids(
+            tokens,
+            tokenizer.eos_id,
+            self.model.cfg.get('reset_position_ids', False),
+            self.model.cfg.get('reset_attention_mask', False),
+            self.model.cfg.get('eod_mask_loss', False),
+            compute_attention_mask=compute_attention_mask,
+        )
+        if self.model.cfg.get('attn_mask_type', 'causal') == 'prefix':
+            if self.model.cfg.get('reset_attention_mask', False):
+                raise ValueError('reset attention mask is not supported for prefix attn_mask_type')
+
+            # self.position_ids is already [b, seq_len] on right GPU
+            # replace self.attention_mask with prefix mask
+            
+            micro_batch_size = tokens.shape[0]
+            self.attention_mask = self.attention_mask.repeat(micro_batch_size, 1, 1, 1)
+            # repeat copies; is there better way than hardcoding (x, 1, 1, 1)
+            for i, context_length in enumerate(context_lengths):
+                self.attention_mask[i, :, :context_length, :context_length] = False    
+    
+    
     def prepare_batch_at_step(
         self,
         tokens: torch.Tensor,
@@ -89,7 +117,11 @@ class MMGPTModelGenerationStrategy(text_generation_strategy.GPTModelTextGenerati
         """Prepare batch for each of the inference steps"""
         attention_mask_repeat = None
         if compute_attention_mask:
-            attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
+            if self.model.cfg.get('attn_mask_type', 'causal') == 'prefix':
+                # attention mask is already computed in init_batch
+                attention_mask_repeat = self.attention_mask
+            else:
+                attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
 
         setkey_value_array = torch.tensor(
             [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()

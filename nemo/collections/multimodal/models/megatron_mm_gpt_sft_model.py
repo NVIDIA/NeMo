@@ -104,6 +104,12 @@ class MegatronMMGPTSFTModel(MegatronGPTSFTModel):
         self.audio_codebook_size = cfg.get('audio_codebook_size', 1024)     
         self.audio_token_offset = cfg.get('audio_token_offset', 0)     
         self.pad_audio_to_length = cfg.get('pad_audio_to_length', 0)    # this is just for logging purposes; param is passed directly to dataloader
+        self.attn_mask_type = cfg.get('attn_mask_type', 'causal')   
+        # attn_mask_type is not passed down to GPT model
+        # it currently hardcoded in gpt_model.py as encoder_attn_mask_type=AttnMaskType.causal
+        # to use the custom mask, make "masked_softmax_fusion=False" in config file
+        # or set it based on attn_mask_type in launch script 
+        # this will use torch softmax instead of cuda fused softmax
 
         audio_embedding_layers = []
         for _ in range(self.num_audio_codebooks-1):
@@ -205,6 +211,7 @@ class MegatronMMGPTSFTModel(MegatronGPTSFTModel):
                 audio_codebook_size=data_cfg.get('audio_codebook_size', 1024),
                 audio_token_offset=data_cfg.get('audio_token_offset', 256003),
                 pad_audio_to_length=data_cfg.get('pad_audio_to_length', 0),
+                attn_mask_type=data_cfg.get('attn_mask_type', 'causal'),
             )
             datasets.append(dataset)
 
@@ -369,7 +376,9 @@ class MegatronMMGPTSFTModel(MegatronGPTSFTModel):
                 position_ids = position_ids.cuda()
                 if attention_mask is not None:
                     attention_mask = attention_mask.cuda()
-                    attention_mask = attention_mask[0:1]
+                    # attention_mask = attention_mask[0:1]
+                    # why only first mask?? 
+                    # commenting this to accomodate prefix attention mask
                 if self.mcore_gpt:
                     # if first step, then clear KV cache, otherwise reuse inference_paarms
                     if set_inference_key_value_memory[0].item():
