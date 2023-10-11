@@ -14,12 +14,8 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-<<<<<<< HEAD
-from typing import Dict, List, Optional
-=======
 from typing import Dict, List, Optional, Tuple
 import soundfile as sf
->>>>>>> initial dirty working version
 
 import torch.utils.data
 from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths

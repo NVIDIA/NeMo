@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+from math import ceil
 from pathlib import Path
 from typing import List, Tuple
 
@@ -23,6 +24,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.tts.data.vocoder_dataset import TarredVocoderDataset
 from nemo.collections.tts.losses.audio_codec_loss import (
     MultiResolutionMelLoss,
     MultiResolutionSTFTLoss,
@@ -40,8 +42,6 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
-from nemo.collections.tts.data.vocoder_dataset import TarredVocoderDataset
-from math import ceil
 
 
 @experimental
@@ -479,14 +479,29 @@ class AudioCodecModel(ModelPT):
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
 
     @staticmethod
+    def get_dataset(cfg):
+        if 'is_sharded' in cfg.dataset:
+            is_sharded = cfg.dataset.is_sharded
+            del cfg.dataset.is_sharded
+        else:
+            is_sharded = False
+
+        if is_sharded:
+            cfg.dataset._target_ = 'nemo.collections.tts.data.vocoder_dataset.TarredVocoderDataset'
+            dataset = instantiate(cfg.dataset)
+            sampler = None
+        else:
+            dataset = instantiate(cfg.dataset)
+            sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
+        return dataset, sampler
+
+    @staticmethod
     def _setup_train_dataloader(cfg):
-        dataset = instantiate(cfg.dataset)
-        # sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
-        sampler = None
+        dataset, sampler = AudioCodecModel.get_dataset(cfg)
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
         )
-        
+
         return data_loader
 
     @staticmethod
