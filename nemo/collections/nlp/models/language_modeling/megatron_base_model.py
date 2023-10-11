@@ -112,6 +112,13 @@ class MegatronBaseModel(NLPModel):
             init_global_rank = trainer.global_rank
             init_local_rank = trainer.local_rank
 
+        parallelization_specs = None
+        if self.cfg.get('parallelization_specs', None) is not None:
+            parallelization_specs = {}
+            parallelization_specs["stimulus"] = self.cfg.parallelization_specs["stimulus"]
+            parallelization_specs["test"] = self.cfg.parallelization_specs["test"]
+            parallelization_specs["response"] = self.cfg.parallelization_specs["response"]
+
         initialize_model_parallel_for_nemo(
             world_size=init_world_size,
             global_rank=init_global_rank,
@@ -127,7 +134,7 @@ class MegatronBaseModel(NLPModel):
             init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
-            parallelization_specs=self.cfg.get('parallelization_specs', None),
+            parallelization_specs=parallelization_specs,
         )
 
         # This must be called after initialize model parallel since it needs to know the data parallel size
@@ -610,10 +617,12 @@ class MegatronBaseModel(NLPModel):
                 num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])
                 num_parameters_on_device -= num_word_embedding_parameters
 
-        # to be summed across data parallel group
-        total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
-
-        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+        for group in parallel_state.get_model_parallel_groups():
+            # to be summed across data parallel group
+            # each model parallel group should have same number of parameters,
+            # so it doesn't matter if total_num_parameters is calculated multiple times
+            total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
+            torch.distributed.all_reduce(total_num_parameters, group=group)
 
         return num_parameters_on_device, total_num_parameters
 
