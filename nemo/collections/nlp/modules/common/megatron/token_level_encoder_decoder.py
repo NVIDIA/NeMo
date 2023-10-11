@@ -258,6 +258,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 moe_dropout=encoder_cfg.get('moe_dropout', 0.0),
                 position_embedding_type=encoder_cfg.get('position_embedding_type', 'learned_absolute'),
                 use_flash_attention=encoder_cfg.get('use_flash_attention', False),
+                window_size=encoder_cfg.get('window_size', None),
             )
 
         if add_decoder:
