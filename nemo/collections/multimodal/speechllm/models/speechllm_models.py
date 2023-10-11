@@ -1132,3 +1132,47 @@ class PseudoAlignedModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
         # has been done in the perception model
         cfg.model.load_audio_encoder = False
         return super().restore_from_pretrained_models(cfg, trainer)
+
+    def get_speech_labels(self, llm_labels, llm_input_length, loss_mask):
+        asr_labels = []
+        asr_labels_len = loss_mask.sum(dim=1).long()
+        for label, input_len, ctc_label_len in zip(llm_labels, llm_input_length, asr_labels_len):
+            ctc_label = torch.zeros_like(label)
+            ctc_label[:ctc_label_len] = label[input_len - ctc_label_len : input_len]
+            asr_labels.append(ctc_label)
+        asr_labels = torch.stack(asr_labels, dim=0)
+        return asr_labels, asr_labels_len
+
+    def prepare_llm_input(self, audio_batch):
+
+        input_signal = audio_batch['audio_signal']
+        input_signal_length = audio_batch['audio_signal_length']
+
+        input_ids, input_length, labels, loss_mask = (
+            audio_batch['tokens'],
+            audio_batch['tokens_length'],
+            audio_batch['labels'],
+            audio_batch['loss_mask'],
+        )
+        asr_labels, asr_labels_len = self.get_speech_labels(labels, input_length, loss_mask)
+
+        # [b, t, c]
+        lm_embedding = self.model.language_model.embedding.word_embeddings
+        encoded, encoded_len, aux_loss = self.perception(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
+            lm_embedding=lm_embedding,
+            labels=asr_labels,
+            labels_len=asr_labels_len,
+        )
+        encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
+            encoded, encoded_len, input_ids, input_length
+        )
+        labels = self._shift_labels_by_emb_len(labels, input_length, encoded_len, encoder_max_length, pad_token=0)
+        # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
+        loss_mask = self._shift_labels_by_emb_len(
+            loss_mask, input_length, encoded_len, encoder_max_length, pad_token=0
+        )
+        return encoder_input, attention_mask, labels, loss_mask, encoder_length, aux_loss

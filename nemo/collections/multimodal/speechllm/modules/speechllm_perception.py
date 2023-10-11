@@ -206,6 +206,7 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
             num_attention_heads=num_attention_heads,
             hidden_size=cfg.output_dim,
             attention_type=AttnType.cross_attn,
+            precision=32,
         )
         self.llm_tokenizer = llm_tokenizer
         self.cfg = cfg
@@ -220,7 +221,7 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
             )
             # TODO: add hypotheses/logits logging
             # logging.info(f"CTC hyps: {current_hypotheses[0]}")
-            return current_hypotheses
+            return current_hypotheses, logits
 
     def get_text_embed(self, inputs, lm_embedding, pad_id=0):
         with torch.no_grad():
@@ -260,6 +261,9 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
         processed_signal=None,
         processed_signal_length=None,
         lm_embedding=None,
+        labels=None,
+        labels_len=None,
+        pad_id=0,
     ):
         processed_signal, processed_signal_length = self.maybe_preprocess_audio(
             input_signal, input_signal_length, processed_signal, processed_signal_length
@@ -274,10 +278,26 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
         # b, t, c
         encoded = self.proj(encoded.transpose(1, 2))
 
-        am_hyps_text = self.get_am_text_output(am_encoded, am_encoded_len)
-        llm_encoded, llm_encoded_len = self.get_text_embed(am_hyps_text, lm_embedding)
-        encoded, encoded_len, aux_loss = self.cross_attend(encoded, encoded_len, llm_encoded, llm_encoded_len)
+        am_hyps_text, log_probs = self.get_am_text_output(am_encoded, am_encoded_len)
+        llm_encoded, llm_encoded_len = self.get_text_embed(am_hyps_text, lm_embedding, pad_id=pad_id)
+        with torch.autocast(device_type="cuda", dtype=llm_encoded.dtype):
+            encoded, encoded_len, aux_loss = self.cross_attend(encoded, encoded_len, llm_encoded, llm_encoded_len)
 
+        asr_loss_weight = self.cfg.get('asr_loss_weight', 0.0)
+        if labels is not None and asr_loss_weight > 0.0:
+            assert labels_len is not None
+            text = self.llm_tokenizer.ids_to_text(labels.tolist())
+            text = [x[:-2] for x in text]  # remove end string
+            transcript = self.asr_model.tokenizer.text_to_ids(text)
+            transcript_len = torch.LongTensor([len(x) for x in transcript]).to(lm_embedding.weight.device)
+            max_length = max(transcript_len)
+            transcript = torch.LongTensor([x + [pad_id] * (max_length - len(x)) for x in transcript]).to(
+                lm_embedding.weight.device
+            )
+            asr_loss = self.asr_model.loss(
+                log_probs=log_probs, targets=transcript, input_lengths=am_encoded_len, target_lengths=transcript_len
+            )
+            aux_loss['asr_loss'] = asr_loss * asr_loss_weight
         return encoded, encoded_len, aux_loss
 
 

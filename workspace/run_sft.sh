@@ -2,8 +2,10 @@ NEMO_DIR=/workspace/nemo/works/mod_speech_llm/NeMo_clean
 export PYTHONPATH=$NEMO_DIR:$PYTHONPATH
 
 MEGATRON_CKPT=/media/data3/pretrained_models/megatron_gpt/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo
+MEGATRON_CKPT=../../models/llm/megatron_gpt_sft_kickass_snake--validation_loss-1.886-step-1000-consumed_samples-127872.0.nemo
 ASR_MODEL="ssl_en_conformer_large"
 ASR_MODEL="stt_en_fastconformer_transducer_large"
+ASR_MODEL="stt_en_fastconformer_ctc_large"
 GLOBAL_BATCH=2
 MICRO_BATCH=2
 
@@ -17,6 +19,7 @@ TRAIN_MANIFESTS=[/media/data/datasets/LibriSpeech/dev_clean_10.json,/media/data/
 TRAIN_MANIFESTS=[/media/data/datasets/LibriSpeech/dev_clean_10_text.json,/media/data/datasets/LibriSpeech/dev_clean_10_text.json]
 train_questions=[/media/data/datasets/LibriSpeech/dev_clean_10_q_set.json,/media/data/datasets/LibriSpeech/dev_clean_11_q_set.json]
 TRAIN_MANIFESTS=[/media/data/datasets/LibriSpeech/dev_clean_10_text.json,/media/data/datasets/LibriSpeech/dev_clean_10.json]
+TRAIN_MANIFESTS=[/media/data/datasets/LibriSpeech/dev_clean_10.json,/media/data/datasets/LibriSpeech/dev_clean_10.json]
 VAL_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean_150_r.json
 VAL_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean_2.json
 VAL_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean_300.json
@@ -26,6 +29,7 @@ VAL_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean_10.json
 VAL_MANIFESTS=[/media/data/datasets/LibriSpeech/dev_clean_10.json,/media/data/datasets/LibriSpeech/dev_clean_11.json]
 valid_questions=[/media/data/datasets/LibriSpeech/dev_clean_10_q_set.json,/media/data/datasets/LibriSpeech/dev_clean_11_q_set.json]
 VAL_MANIFESTS=[/media/data/datasets/LibriSpeech/dev_clean_10_text.json,/media/data/datasets/LibriSpeech/dev_clean_10.json]
+VAL_MANIFESTS=[/media/data/datasets/LibriSpeech/dev_clean_10.json,/media/data/datasets/LibriSpeech/dev_clean_10.json]
 
 #python \
 python -m pdb -c continue \

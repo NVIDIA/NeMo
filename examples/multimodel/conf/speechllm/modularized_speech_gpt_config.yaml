@@ -132,6 +132,7 @@ model:
   perception:
     target: nemo.collections.multimodal.speechllm.modules.speechllm_perception.AmQueryAudioPerceptionModel
     consistency_loss_weight: 0.0
+    asr_loss_weight: 0.0
     modality_adapter: 
       _target_: nemo.collections.asr.modules.ConformerEncoder
       feat_in: 1024
