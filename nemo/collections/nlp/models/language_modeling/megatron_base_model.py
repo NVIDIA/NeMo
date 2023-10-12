@@ -486,9 +486,7 @@ class MegatronBaseModel(NLPModel):
                 cfg = OmegaConf.create(cfg)
             if cfg.get('bucket_cap_mb', 'auto') == 'auto' and hasattr(self, 'distributed_adam_buckets'):
                 grad_sync_dtype = cfg.get("grad_sync_dtype", optim_dtype)
-                best_bucket_cap_mb = search_best_bucket_cap_mb(
-                    self.distributed_adam_buckets, grad_sync_dtype
-                )
+                best_bucket_cap_mb = search_best_bucket_cap_mb(self.distributed_adam_buckets, grad_sync_dtype)
                 if best_bucket_cap_mb:
                     optim_kwargs['bucket_cap_mb'] = best_bucket_cap_mb
                     logging.info(
