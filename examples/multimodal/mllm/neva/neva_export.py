@@ -38,6 +38,7 @@ from transformers import CLIPImageProcessor, CLIPVisionModel
 from nemo.core.classes.exportable import Exportable
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
+from nemo.export import TensorRTLLM
 
 LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ def build_vision_encoder(model_path, clip_path, precision, bs_min, bs_opt, bs_ma
         state_dict = connector._load_state_dict_from_disk(path)
         LOGGER.info('Done')
 
-    vision_connector = torch.nn.Linear(config.vision.hidden_size, config.llm.hidden_size, bias=True,)
+    vision_connector = torch.nn.Linear(config.mm_cfg.vision_encoder.hidden_size, config.hidden_size, bias=True,)
     vision_encoder = CLIPVisionModel.from_pretrained(clip_path, torch_dtype=torch_precision)
     image_size = vision_encoder.vision_model.config.image_size
 
@@ -143,10 +144,12 @@ def build_vision_encoder(model_path, clip_path, precision, bs_min, bs_opt, bs_ma
 
     LOGGER.info('Exporting TRT')
     engine = engine_from_network(
-        network_from_onnx_path('./onnx/vision_encoder.onnx'),
+        network_from_onnx_path('/tmp/onnx/vision_encoder.onnx'),
         config=CreateConfig(
-            fp16=precision in [16, '16', '16-mixed'], bf16=precision in ['bf16', 'bf16-mixed'], profiles=[p],
-        ),
+            tf32=precision in [32, '32', '32-true'],
+            fp16=precision in [16, '16', '16-mixed'],
+            bf16=precision in ['bf16', 'bf16-mixed'],
+            profiles=[p],),
     )
     save_engine(engine, path=os.path.join(out_dir, 'vision_encoder.plan'))
 
@@ -155,74 +158,32 @@ def build_vision_encoder(model_path, clip_path, precision, bs_min, bs_opt, bs_ma
     LOGGER.info('Done')
 
 
-def build_trtllm_engines(
-    tekit_path, in_file, out_dir, tensor_parallelism, precision, max_input_len, max_output_len, max_batch_size
-):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        gpt_example_path = f'{tekit_path}/examples/gpt'
-        build_precision = 'bfloat16' if precision in ['bf16', 'bf16-mixed'] else 'float16'
-        LOGGER.info('Converting model weights')
-        convert_command = [
-            'python3',
-            'nemo_ckpt_convert.py',
-            f'--out-dir={temp_dir}',
-            f'--in-file={in_file}',
-            f'--tensor-parallelism={tensor_parallelism}',
-            f'--storage-type={build_precision}',
-            '--verbose',
-        ]
-        convert_process = subprocess.Popen(
-            convert_command, cwd=gpt_example_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        stdout, stderr = convert_process.communicate()
-        print(stdout.decode())
-        assert convert_process.returncode == 0, stderr.decode()
-        LOGGER.info('Done')
-
-        shutil.copy(os.path.join(temp_dir, f'{tensor_parallelism}-gpu/tokenizer.model'), out_dir)
-
-        LOGGER.info('Building TRT-LLM engines')
-        build_command = [
-            'python3',
-            'build.py',
-            f'--model_dir={temp_dir}/{tensor_parallelism}-gpu',
-            f'--dtype={build_precision}',
-            f'--output_dir={os.path.abspath(out_dir)}',
-            f'--use_gpt_attention_plugin={build_precision}',
-            f'--world_size={tensor_parallelism}',
-            f'--max_input_len={max_input_len}',
-            f'--max_output_len={max_output_len}',
-            f'--max_batch_size={max_batch_size}',
-            f'--use_layernorm_plugin={build_precision}',
-            f'--use_gemm_plugin={build_precision}',
-            f'--max_prompt_embedding_table_size={max_batch_size*max_input_len}',
-            '--parallel_build',
-            '--enable_context_fmha',
-            '--remove_input_padding',
-            '--log_level=verbose',
-        ]
-        build_process = subprocess.Popen(
-            build_command, cwd=gpt_example_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        stdout, stderr = build_process.communicate()
-        print(stdout.decode())
-        assert build_process.returncode == 0, stderr.decode()
-        LOGGER.info('Done')
+def build_trtllm_engines(in_file, out_dir, tensor_parallelism, max_input_len, max_output_len, max_batch_size):
+    trt_llm_exporter = TensorRTLLM(model_dir=out_dir)
+    trt_llm_exporter.export(
+        nemo_checkpoint_path=in_file,
+        model_type="llama",
+        n_gpus=tensor_parallelism,
+        max_input_token=max_input_len,
+        max_output_token=max_output_len,
+        max_batch_size=max_batch_size,
+        max_prompt_embedding_table_size=max_batch_size * max_input_len,
+    )
+    LOGGER.info('Done')
 
 
 @hydra_runner(config_path='conf', config_name='neva_export')
 def main(cfg):
     precision = cfg.model.get('precision', 16)
     assert precision != 32, 'FP32 export not supported'
+    plan_dir = os.path.join(cfg.infer.out_dir, 'plan')
 
-    os.makedirs(cfg.infer.out_dir, exist_ok=True)
+    os.makedirs(plan_dir, exist_ok=True)
     LOGGER.info('Building TRT-LLM engines')
     build_trtllm_engines(
-        cfg.infer.llm.tekit_path,
         cfg.model.restore_from_path,
-        cfg.infer.out_dir,
+        plan_dir,
         cfg.infer.llm.get('tensor_parallelism', 1),
-        precision,
         cfg.infer.llm.get('max_input_len', 2048),
         cfg.infer.llm.get('max_output_len', 2048),
         cfg.infer.llm.get('max_batch_size', 1),
@@ -232,11 +193,11 @@ def main(cfg):
     build_vision_encoder(
         cfg.model.restore_from_path,
         cfg.infer.vision.clip,
-        32,  # WAR for TRT precision issue
+        32,
         cfg.infer.vision.get('min_batch_size', 1),
         cfg.infer.vision.get('opt_batch_size', 1),
         cfg.infer.vision.get('max_batch_size', 1),
-        cfg.infer.out_dir,
+        plan_dir,
     )
 
 
