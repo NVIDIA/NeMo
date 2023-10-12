@@ -29,6 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     InfusedAdapterConfig,
     Lora4HtoHAdapterConfig,
     LoraHto4HAdapterConfig,
+    LoraDenseAttentionAdapterConfig,
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
@@ -48,9 +49,6 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-
-QKV_LORA_KEYS = [AdapterName.LORA_KQV_ADAPTER]
-MLP_LORA_KEYS = [AdapterName.LORA_Hto4H_ADAPTER] + [AdapterName.LORA_4HtoH_ADAPTER]
 
 
 class MegatronGPTPEFTModel(MegatronGPTSFTModel):
@@ -635,94 +633,108 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
         self, cfg: DictConfig, trainer: Trainer,
     ):
         lora_cfg = cfg.peft.lora_tuning
-        target_modules = lora_cfg.get("target_modules", ['attention'])
+        target_modules = lora_cfg.get("target_modules", ['attention']) # by default lora is applied to QKV proj.
         if not isinstance(target_modules, ListConfig):
             target_modules = [target_modules]
-
+        
+        # calculate the qkv projection size
+        if cfg.get("kv_channels", None) is None:
+            assert (
+                cfg.hidden_size % cfg.num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = cfg.hidden_size // cfg.num_attention_heads
+        else:
+            kv_channels = cfg.kv_channels
+        projection_size = kv_channels * cfg.num_attention_heads
+        num_query_groups = cfg.get("num_query_groups", None)
+        if num_query_groups is None:
+            num_query_groups = cfg.num_attention_heads
+        qkv_projection_size = projection_size + 2 * kv_channels * num_query_groups
+            
         self.peft_name_keys = []
-        for target_module in target_modules:
-            if target_module == 'attention':
-                # Update the PEFT keys
-                self.peft_name_keys += QKV_LORA_KEYS
-                # Build the adapter config
-                if cfg.get("kv_channels", None) is None:
-                    assert (
-                        cfg.hidden_size % cfg.num_attention_heads == 0
-                    ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
-                    kv_channels = cfg.hidden_size // cfg.num_attention_heads
-                else:
-                    kv_channels = cfg.kv_channels
-                projection_size = kv_channels * cfg.num_attention_heads
-                num_query_groups = cfg.get("num_query_groups", None)
-                if num_query_groups is None:
-                    num_query_groups = cfg.num_attention_heads
-                qkv_projection_size = projection_size + 2 * kv_channels * num_query_groups
-
-                adapter_qkv_cfg = LoraKQVAdapterConfig(
-                    in_features=cfg.hidden_size,
-                    out_features=qkv_projection_size,
-                    dim=lora_cfg.adapter_dim,
-                    norm_position=None,
-                    norm_type=None,
-                    activation="identity",
-                    column_init_method=lora_cfg.get("column_init_method", "normal"),
-                    row_init_method=lora_cfg.get("row_init_method", "zero"),
-                    gather_output=False,
-                    dropout=lora_cfg.adapter_dropout,
-                )
-
-            elif target_module == 'mlp':
-                # Update the PEFT keys
-                self.peft_name_keys += MLP_LORA_KEYS
-                # Build the adapter config
-                fast_glu_activation = cfg.activation in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
-                assert (
-                    fast_glu_activation
-                ), "Only fast_glu_activations are supported: ['fast-geglu', 'fast-swiglu', 'fast-reglu']"
-                intermediate_size = cfg.ffn_hidden_size * 2 if fast_glu_activation else cfg.ffn_hidden_size
-                adapter_hto4h_cfg = LoraHto4HAdapterConfig(
-                    in_features=cfg.hidden_size,
-                    out_features=intermediate_size,
-                    dim=lora_cfg.adapter_dim,
-                    norm_position=None,
-                    norm_type=None,
-                    activation="identity",
-                    column_init_method=lora_cfg.get("column_init_method", "normal"),
-                    row_init_method=lora_cfg.get("row_init_method", "zero"),
-                    gather_output=False,
-                    dropout=lora_cfg.adapter_dropout,
-                )
-
-                adapter_4htoh_cfg = Lora4HtoHAdapterConfig(
-                    in_features=cfg.ffn_hidden_size,
-                    out_features=cfg.hidden_size,
-                    dim=lora_cfg.adapter_dim,
-                    norm_position=None,
-                    norm_type=None,
-                    activation="identity",
-                    column_init_method=lora_cfg.get("column_init_method", "normal"),
-                    row_init_method=lora_cfg.get("row_init_method", "zero"),
-                    gather_output=True,
-                    dropout=lora_cfg.adapter_dropout,
-                )
-
-            else:
-                NotImplementedError(
-                    f'Unsupported LoRA module: {target_module}. The valid options are "attention" and "mlp".'
-                )
-
         self.name_key_to_cfg = {}
         self.name_key_to_mcore_mixins = {}  # maps peft_key to a list of tuples (mcore_target, mcore_mixin)
-        for k in self.peft_name_keys:
-            if k == AdapterName.LORA_KQV_ADAPTER:
-                adapter_cfg = adapter_qkv_cfg
-                # @TODO (tkonuk): Add LoRA MLP support for MCore GPT
-                self.name_key_to_mcore_mixins[k] = (
-                    [("self_attention", MCoreSelfAttentionMixin)] if target_module == 'attention' else None
-                )
-            else:
-                adapter_cfg = adapter_hto4h_cfg if k == AdapterName.LORA_Hto4H_ADAPTER else adapter_4htoh_cfg
-            self.name_key_to_cfg[k] = adapter_cfg
+        if "attention" in target_modules:
+            # Build the adapter config
+            adapter_qkv_cfg = LoraKQVAdapterConfig(
+                in_features=cfg.hidden_size,
+                out_features=qkv_projection_size,
+                dim=lora_cfg.adapter_dim,
+                norm_position=None,
+                norm_type=None,
+                activation="identity",
+                column_init_method=lora_cfg.get("column_init_method", "normal"),
+                row_init_method=lora_cfg.get("row_init_method", "zero"),
+                gather_output=False,
+                dropout=lora_cfg.adapter_dropout,
+            )
+            # Update the PEFT keys
+            self.peft_name_keys.append(AdapterName.LORA_KQV_ADAPTER)
+            self.name_key_to_cfg[AdapterName.LORA_KQV_ADAPTER] = adapter_qkv_cfg
+            self.name_key_to_mcore_mixins[AdapterName.LORA_KQV_ADAPTER] = [("self_attention", MCoreSelfAttentionMixin)]
+
+        if "mlp" in target_modules:
+            # Build the adapter config
+            fast_glu_activation = cfg.activation in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
+            assert (
+                fast_glu_activation
+            ), "Only fast_glu_activations are supported: ['fast-geglu', 'fast-swiglu', 'fast-reglu']"
+            intermediate_size = cfg.ffn_hidden_size * 2 if fast_glu_activation else cfg.ffn_hidden_size
+            adapter_hto4h_cfg = LoraHto4HAdapterConfig(
+                in_features=cfg.hidden_size,
+                out_features=intermediate_size,
+                dim=lora_cfg.adapter_dim,
+                norm_position=None,
+                norm_type=None,
+                activation="identity",
+                column_init_method=lora_cfg.get("column_init_method", "normal"),
+                row_init_method=lora_cfg.get("row_init_method", "zero"),
+                gather_output=False,
+                dropout=lora_cfg.adapter_dropout,
+            )
+            # Update the PEFT keys
+            self.peft_name_keys.append(AdapterName.LORA_Hto4H_ADAPTER)
+            self.name_key_to_cfg[AdapterName.LORA_Hto4H_ADAPTER] = adapter_hto4h_cfg 
+            #TODO: no mcore supprt for LORA_Hto4H_ADAPTER 
+
+            # Build the adapter config
+            adapter_4htoh_cfg = Lora4HtoHAdapterConfig(
+                in_features=cfg.ffn_hidden_size,
+                out_features=cfg.hidden_size,
+                dim=lora_cfg.adapter_dim,
+                norm_position=None,
+                norm_type=None,
+                activation="identity",
+                column_init_method=lora_cfg.get("column_init_method", "normal"),
+                row_init_method=lora_cfg.get("row_init_method", "zero"),
+                gather_output=True,
+                dropout=lora_cfg.adapter_dropout,
+            )
+            # Update the PEFT keys
+            self.peft_name_keys.append(AdapterName.LORA_4HtoH_ADAPTER)
+            self.name_key_to_cfg[AdapterName.LORA_4HtoH_ADAPTER] = adapter_4htoh_cfg 
+            #TODO: no mcore supprt for LORA_4HtoH_ADAPTER 
+            
+        if "dense" in target_modules:
+            
+            # Build the adapter config
+            adapter_dense_attn_cfg = LoraDenseAttentionAdapterConfig(
+                in_features=cfg.hidden_size,
+                out_features=cfg.hidden_size,
+                dim=lora_cfg.adapter_dim,
+                norm_position=None,
+                norm_type=None,
+                activation="identity",
+                column_init_method=lora_cfg.get("column_init_method", "normal"),
+                row_init_method=lora_cfg.get("row_init_method", "zero"),
+                gather_output=False,
+                dropout=lora_cfg.adapter_dropout,
+            )
+            # Update the PEFT keys
+            self.peft_name_keys.append(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
+            self.name_key_to_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER] = adapter_dense_attn_cfg 
+            #TODO: no mcore supprt for LORA_DENSE_ATTENTION_ADAPTER 
+
         self.layer_selection = lora_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))

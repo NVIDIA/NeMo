@@ -69,6 +69,7 @@ class AdapterName(str, enum.Enum):
     LORA_Hto4H_ADAPTER = "lora_hto4h_adapter"
     LORA_4HtoH_ADAPTER = "lora_4htoh_adapter"
     NKB_FFN_ADAPTER = "nkb_ffn_adapter"
+    LORA_DENSE_ATTENTION_ADAPTER = "lora_dense_attention_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
@@ -149,7 +150,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if model_parallel_config is None:
             model_parallel_config = ModelParallelConfig()
 
-        if self.name == "4HtoH":
+        if self.name == "4HtoH" or self.name == "DenseAttn": # TODO: hacky method to set Row/Col Parallel linear should be improved...
             self.linear_in = RowParallelLinear(
                 in_features,
                 dim,
@@ -395,7 +396,7 @@ class LoraHto4HAdapter(ParallelLinearAdapter):
     and they do not use an bottleneck activation function
     """
 
-    name = "Hto4H"
+    name = "Hto4H" #TODO: hacky solution to assign class types to linear_in and linear_out linear layers in lora
     pass
 
 
@@ -405,9 +406,18 @@ class Lora4HtoHAdapter(ParallelLinearAdapter):
     and they do not use an bottleneck activation function
     """
 
-    name = "4HtoH"
+    name = "4HtoH" #TODO: hacky solution to assign class types to linear_in and linear_out linear layers in lora
     pass
 
+
+class LoraDenseAttentionAdapter(ParallelLinearAdapter):
+    """
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    and they do not use an bottleneck activation function
+    """
+
+    name = "DenseAttn" #TODO: hacky solution to assign class types to linear_in and linear_out linear layers in lora
+    pass
 
 @dataclass
 class LoraKQVAdapterConfig(ParallelLinearAdapterConfig):
@@ -433,6 +443,10 @@ class LoraHto4HAdapterConfig(ParallelLinearAdapterConfig):
 class Lora4HtoHAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(Lora4HtoHAdapter.__module__, Lora4HtoHAdapter.__name__)
 
+
+@dataclass
+class LoraDenseAttentionAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(LoraDenseAttentionAdapter.__module__, LoraDenseAttentionAdapter.__name__)
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
