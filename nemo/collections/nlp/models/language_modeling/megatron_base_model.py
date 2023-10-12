@@ -487,14 +487,19 @@ class MegatronBaseModel(NLPModel):
             if cfg.get('bucket_cap_mb', 'auto') == 'auto' \
                     and hasattr(self, 'distributed_adam_buckets'):
                 grad_sync_dtype = cfg.get("grad_sync_dtype", optim_dtype)
-                optim_kwargs['bucket_cap_mb'] = search_best_bucket_cap_mb(
+                best_bucket_cap_mb = search_best_bucket_cap_mb(
                     self.distributed_adam_buckets, grad_sync_dtype
                 )
-                logging.info(
-                    "Check the bucket_cap_mb=auto configuration, and"
-                    "automatically search for the best configuration, "
-                    f"bucket_cap_mb={optim_kwargs['bucket_cap_mb']}."
-                )
+                if best_bucket_cap_mb:
+                    optim_kwargs['bucket_cap_mb'] = best_bucket_cap_mb
+                    logging.info(
+                        "Check the bucket_cap_mb=auto configuration, and"
+                        "automatically search for the best configuration, "
+                        f"bucket_cap_mb={optim_kwargs['bucket_cap_mb']}."
+                    )
+                else:
+                    # if no best_bucket_cap_mb is found, delete it from optim_kwargs
+                    del optim_kwargs['bucket_cap_mb']
 
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
@@ -853,8 +858,12 @@ class MegatronBaseModel(NLPModel):
         return itertools.chain([element], iterator), False
 
 
-def search_best_bucket_cap_mb(distributed_adam_buckets, grad_sync_dtype):
-    """Search the best bucket_cap_mb for distributed fused adam.
+def search_best_bucket_cap_mb(distributed_adam_buckets, grad_sync_dtype, max_bucket_cap_mb=500):
+    """Implement a ladder search to identify the largest bucket that adheres to 
+    specific memory loss constraints. The search should consider bucket 
+    capacities ranging from 1 to max_bucket_cap_mb in megabytes. The maximum 
+    allowable memory loss for the ladder search is set at 100%. If this 
+    threshold is exceeded, the function should return None.
 
     Args:
         distributed_adam_buckets: list of buckets
@@ -866,30 +875,16 @@ def search_best_bucket_cap_mb(distributed_adam_buckets, grad_sync_dtype):
         sum([sum(p.numel() for p in bucket) for bucket in distributed_adam_buckets]) * dtype_size / 1024 ** 2
     )
 
-    # Test bucket_cap_mb in the range of 1 to 500 and find the size with
-    # the smallest loss. When multiple sizes have similar losses, the largest
-    # size is considered for computation efficiency.
-    candidate_results = []
-    max_loss = 0
-    for bucket_cap_mb in range(1, 501):
-        total_bucket_size_mb = 0
-        for bucket in distributed_adam_buckets:
-            n_params = sum(p.numel() for p in bucket)
-            n_bucket = math.ceil(n_params * dtype_size / (bucket_cap_mb * 1024 ** 2))
-            total_bucket_size_mb += n_bucket * bucket_cap_mb
+    for memory_loss_limit in range(5, 101, 5):
+        for bucket_cap_mb in range(max_bucket_cap_mb, 0, -1):
+            total_bucket_size_mb = 0
+            for bucket in distributed_adam_buckets:
+                n_params = sum(p.numel() for p in bucket)
+                n_bucket = math.ceil(n_params * dtype_size / (bucket_cap_mb * 1024 ** 2))
+                total_bucket_size_mb += n_bucket * bucket_cap_mb
 
-        loss = abs(total_bucket_size_mb - total_params_mb) / total_params_mb
+            loss_rate = abs(total_bucket_size_mb - total_params_mb) / total_params_mb
+            if loss_rate <= memory_loss_limit:
+                return bucket_cap_mb
 
-        candidate_results.append((bucket_cap_mb, loss * 100))
-        max_loss = max(max_loss, loss * 10)
-
-    result = None
-    for loss_limit in range(5, int(max_loss) + 10, 2):
-        for bucket_cap_mb, loss in reversed(candidate_results):
-            if loss <= loss_limit:
-                result = bucket_cap_mb
-                break
-        if result:
-            break
-
-    return result
+    return None
