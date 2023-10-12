@@ -181,89 +181,25 @@ class TextClassificationDataset(Dataset):
     def __getitem__(self, idx):
         return self.features[idx]
 
-    def _collate_fn(self, batch):
-        """collate batch of input_ids, segment_ids, input_mask, and label
-        Args:
-            batch:  A list of tuples of (input_ids, segment_ids, input_mask, label).
-        """
-        max_length = 0
-        for input_ids, segment_ids, input_mask, label in batch:
-            if len(input_ids) > max_length:
-                max_length = len(input_ids)
-
-        padded_input_ids = []
-        padded_segment_ids = []
-        padded_input_mask = []
-        labels = []
-        for input_ids, segment_ids, input_mask, label in batch:
-            if len(input_ids) < max_length:
-                pad_width = max_length - len(input_ids)
-                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_width], constant_values=self.pad_id))
-                padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_width], constant_values=self.pad_id))
-                padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_width], constant_values=self.pad_id))
-            else:
-                padded_input_ids.append(input_ids)
-                padded_segment_ids.append(segment_ids)
-                padded_input_mask.append(input_mask)
-            labels.append(label)
-
-        return (
-            torch.LongTensor(padded_input_ids),
-            torch.LongTensor(padded_segment_ids),
-            torch.LongTensor(padded_input_mask),
-            torch.LongTensor(labels),
-        )
-
     @staticmethod
     def get_features(all_sents, tokenizer, max_seq_length, labels=None, verbose=True):
         """Encode a list of sentences into a list of tuples of (input_ids, segment_ids, input_mask, label)."""
-        features = []
-        sent_lengths = []
-        too_long_count = 0
-        for sent_id, sent in tqdm(enumerate(all_sents)):
-            if sent_id % 1000 == 0:
-                logging.debug(f"Encoding sentence {sent_id}/{len(all_sents)}")
-            sent_subtokens = [tokenizer.cls_token]
-            for word in sent:
-                word_tokens = tokenizer.text_to_tokens(word)
-                sent_subtokens.extend(word_tokens)
-            
-            if max_seq_length > 0 and len(sent_subtokens) + 1 > max_seq_length:
-                sent_subtokens = sent_subtokens[: max_seq_length - 1]
-                too_long_count += 1
-
-            sent_subtokens.append(tokenizer.sep_token)
-            sent_lengths.append(len(sent_subtokens))
-
-            input_ids = [tokenizer.tokens_to_ids(t) for t in sent_subtokens]
-            
-            # The mask has 1 for real tokens and 0 for padding tokens.
-            # Only real tokens are attended to.
-            input_mask = [1] * len(input_ids)
-            segment_ids = [0] * len(input_ids)
-
-            if verbose and sent_id < 2:
-                logging.info("*** Example ***")
-                logging.info(f"example {sent_id}: {sent}")
-                logging.info("subtokens: %s" % " ".join(sent_subtokens))
-                logging.info("input_ids: %s" % list2str(input_ids))
-                logging.info("segment_ids: %s" % list2str(segment_ids))
-                logging.info("input_mask: %s" % list2str(input_mask))
-                logging.info("label: %s" % labels[sent_id] if labels else "**Not Provided**")
-
-            label = labels[sent_id] if labels else 0
-            features.append([np.asarray(input_ids), np.asarray(segment_ids), np.asarray(input_mask), label])
-            # print("len sent: ", len(sent), " words")
-            # print("len input_ids: ", len(input_ids))
-            # raise ValueError
-
-        if max_seq_length > -1 and too_long_count > 0:
-            logging.warning(
-                f'Found {too_long_count} out of {len(all_sents)} sentences with more than {max_seq_length} subtokens. '
-                f'Truncated long sentences from the end.'
+        output = tokenizer.tokenizer.batch_encode_plus(
+                all_sents,
+                return_tensors="np",
+                add_special_tokens=True,
+                max_length=max_seq_length,
+                pad_to_max_length=True,
+                is_split_into_words=True,
+                truncation=True,
+                return_token_type_ids=True,
             )
-        if verbose:
-            get_stats(sent_lengths)
+        segment_ids = output.token_type_ids
+        input_ids = output.input_ids
+        input_mask = output.attention_mask
+        labels = labels
+
+        features = [(input_ids[i], segment_ids[i], input_mask[i], labels[i]) for i in range(len(input_ids))]
         return features
 
 
