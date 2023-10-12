@@ -168,6 +168,7 @@ class GPTModel(MegatronModule):
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
         window_size=None,
+        limited_context_decoding=None,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -253,6 +254,7 @@ class GPTModel(MegatronModule):
             use_flash_attention=use_flash_attention,
             seq_len_interpolation_factor=seq_len_interpolation_factor,
             window_size=window_size,
+            limited_context_decoding=limited_context_decoding,
         )
 
         if self.share_embeddings_and_output_weights:

@@ -137,6 +137,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         normalize_attention_scores=True,
         use_flash_attention=False,
         window_size=None,
+        limited_context_decoding=None,
     ):
         super(ParallelAttention, self).__init__(config=config)
         self.layer_number = max(1, layer_number)

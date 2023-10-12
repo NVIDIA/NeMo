@@ -385,6 +385,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 megatron_legacy=self.cfg.get('megatron_legacy', False),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 window_size=self.cfg.get('window_size', None),
+                limited_context_decoding=self.cfg.get('limited_context_decoding', None),
             )
         return model
 
