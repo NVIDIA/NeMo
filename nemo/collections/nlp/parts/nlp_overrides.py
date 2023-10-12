@@ -291,6 +291,10 @@ class NLPDDPStrategy(DDPStrategy):
             checkpoint_dir = ckpt_to_dir(filepath)
 
             fs = get_filesystem(checkpoint_dir)
+            if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
+                logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
+                return
+
             if is_global_rank_zero():
                 fs.makedirs(checkpoint_dir, exist_ok=True)
 
@@ -432,6 +436,18 @@ class NLPDDPStrategy(DDPStrategy):
         return True
 
 
+class NLPDDPStrategyNotebook(NLPDDPStrategy):
+    """ Version of NLPDDPStrategy to be used in a Jupyter Notebook
+    A large portion of Megatron code has DDP dependency, so it has been necessary to use NLPDDPStrategy even for
+    single-GPU training (e.g. in a Jupyter notebook)
+    A PTL 2.0 changes has prevented DDPStrategy to be used in a notebook.
+    This version of NLPDDPStrategy enables megatron training in a notebook in PTL 2.0.
+    """
+
+    def _configure_launcher(self):
+        self._launcher = None
+
+
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         if not HAVE_APEX:
@@ -465,19 +481,24 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 # model weights is a directory
                 dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
                 fs = get_filesystem(dist_ckpt_dir)
-                if is_global_rank_zero():
-                    fs.makedirs(dist_ckpt_dir, exist_ok=True)
-                sharded_state_dict = model.sharded_state_dict()
-                # dist checkpoint needs torch.distributed to save the checkpoint
-                if parallel_state.is_unitialized():
 
-                    def dummy():
-                        return
+                if fs.isdir(dist_ckpt_dir) and dist_checkpointing.check_is_distributed_checkpoint(dist_ckpt_dir):
+                    logging.info(f'Distributed checkpoint at path {dist_ckpt_dir} already exists, skipping saving')
+                else:
+                    if is_global_rank_zero():
+                        fs.makedirs(dist_ckpt_dir, exist_ok=True)
 
-                    if model.trainer.strategy.launcher is not None:
-                        model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
-                    model.trainer.strategy.setup_environment()
-                dist_checkpointing.save(sharded_state_dict=sharded_state_dict, checkpoint_dir=dist_ckpt_dir)
+                    sharded_state_dict = model.sharded_state_dict()
+                    # dist checkpoint needs torch.distributed to save the checkpoint
+                    if parallel_state.is_unitialized():
+
+                        def dummy():
+                            return
+
+                        if model.trainer.strategy.launcher is not None:
+                            model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
+                        model.trainer.strategy.setup_environment()
+                    dist_checkpointing.save(sharded_state_dict=sharded_state_dict, checkpoint_dir=dist_ckpt_dir)
 
             else:
 
@@ -723,24 +744,26 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         """
         # first load based model weights
         base_model_state_dict = super()._load_state_dict_from_disk(model_weights, map_location)
-        # Next, We want to load PEFT model's weights
-        if self.peft_model_nemo_path:
-            # if the PEFT weights are provided in a .nemo file
-            # we need to untar the .nemo if its still tarred
-            with tempfile.TemporaryDirectory() as tmpdir:
-                self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir)
-                model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.peft_model_ckpt_name)
-                peft_state_dict = torch.load(model_weights_path, map_location)
-        elif self.peft_model_ckpt_dir:
-            # if the PEFT weights are provided in a ckpt path file
-            # we don't need to untar
-            model_weights_path = self._inject_model_parallel_rank_for_ckpt(
-                self.peft_model_ckpt_dir, self.peft_model_ckpt_name
-            )
-            peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
-        else:
-            peft_state_dict = {}
+
+        # if distributed checkpointing, load peft weights in restore_from
         if base_model_state_dict:
+            # Next, We want to load PEFT model's weights
+            if self.peft_model_nemo_path:
+                # if the PEFT weights are provided in a .nemo file
+                # we need to untar the .nemo if its still tarred
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir)
+                    model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.peft_model_ckpt_name)
+                    peft_state_dict = torch.load(model_weights_path, map_location)
+            elif self.peft_model_ckpt_dir:
+                # if the PEFT weights are provided in a ckpt path file
+                # we don't need to untar
+                model_weights_path = self._inject_model_parallel_rank_for_ckpt(
+                    self.peft_model_ckpt_dir, self.peft_model_ckpt_name
+                )
+                peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
+            else:
+                peft_state_dict = {}
             base_model_state_dict.update(peft_state_dict)  # add the PEFT state_dict into the base model's state_dict
         return base_model_state_dict
 
@@ -796,9 +819,31 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
                     )
                 checkpoint = {}
                 sharded_state_dict = instance.sharded_state_dict()
-                peft_state_dict = instance.get_peft_state_dict()
-                for k in peft_state_dict.keys():
-                    sharded_state_dict.pop(k)
+
+                # if distributed checkpointing, load peft weights here instead of in _load_state_dict_from_disk
+                if self.peft_model_nemo_path:
+                    # if the PEFT weights are provided in a .nemo file
+                    # we need to untar the .nemo if its still tarred
+                    with tempfile.TemporaryDirectory() as tmpdir2:
+                        self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir2)
+                        model_weights_path = self._inject_model_parallel_rank_for_ckpt(
+                            tmpdir2, self.peft_model_ckpt_name
+                        )
+                        peft_state_dict = torch.load(model_weights_path, map_location)
+                elif self.peft_model_ckpt_dir:
+                    # if the PEFT weights are provided in a ckpt path file
+                    # we don't need to untar
+                    model_weights_path = self._inject_model_parallel_rank_for_ckpt(
+                        self.peft_model_ckpt_dir, self.peft_model_ckpt_name
+                    )
+                    peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
+                else:
+                    peft_state_dict = instance.get_peft_state_dict()
+
+                if conf.peft.peft_scheme != "ptuning":
+                    for k in peft_state_dict.keys():
+                        sharded_state_dict.pop(k)
+
                 checkpoint['state_dict'] = sharded_state_dict
                 # remove model weights extension
                 tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
@@ -1132,6 +1177,12 @@ class CustomProgressBar(TQDMProgressBar):
     for megatron models
     """
 
+    def get_current_epoch_step(self, trainer):
+        """
+        Get the value of step within an epoch
+        """
+        return trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed
+
     def init_train_tqdm(self):
         """
         Override bar_format to not have 's/it'
@@ -1140,11 +1191,22 @@ class CustomProgressBar(TQDMProgressBar):
         self.bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
         return self.bar
 
+    def on_train_epoch_start(self, trainer, *_):
+        if trainer.max_steps > 0 and (trainer.ckpt_path is not None):
+            # while resuming from a ckpt use trainer.max_steps as the total for progress bar as trainer.num_training_batches
+            # is truncated to max_steps - step being resumed at
+            num_training_batches = trainer.max_steps
+        else:
+            num_training_batches = trainer.num_training_batches
+        self.train_progress_bar.reset(num_training_batches)
+        self.train_progress_bar.initial = 0
+        self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
+
     def on_train_batch_end(self, trainer, pl_module, *_, **__):
         """
-        Override parent class on_train_batch_end to update progress bar per global_step instead of per microbatch
+        Override parent class on_train_batch_end to update progress bar per global batch instead of per microbatch
         """
-        n = trainer.global_step
+        n = self.get_current_epoch_step(trainer)
         if self._should_update(n, self.train_progress_bar.total):
             _update_n(self.train_progress_bar, n)
             self.train_progress_bar.set_postfix(self.get_metrics(trainer, pl_module))
