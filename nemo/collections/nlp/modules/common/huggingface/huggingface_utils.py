@@ -86,6 +86,7 @@ VOCAB_FILE_NAME = {
     'AlbertTokenizer': "spiece.model",
     'RobertaTokenizer': "vocab.json",
     'BertTokenizer': "vocab.txt",
+    'BertTokenizerFast': "vocab.txt",
     'DistilBertTokenizer': "vocab.txt",
     'CamembertTokenizer': "sentencepiece.bpe.model",
     'GPT2Tokenizer': "vocab.json",
