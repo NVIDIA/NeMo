@@ -31,6 +31,7 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.position_embedding import (
     ALiBiRelativePositionEmbedding,
     KERPLERelativePositionEmbedding,
+    RotaryEmbedding,
     T5RelativePositionEmbedding,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -193,6 +194,18 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     max_seq_len=max_position_embeddings,
                 )
                 self._encoder_relative_position_embedding_key = "encoder_alibi_position_embedding"
+            elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'rope':
+                rotary_dim = self.encoder_cfg.hidden_size // self.encoder_cfg.num_attention_heads if encoder_kv_channels is None else encoder_kv_channels
+                rotary_percentage=self.encoder_cfg.get('rotary_percentage', 1.0)
+                assert 0 < rotary_percentage <= 1
+                if rotary_percentage < 1:
+                    rotary_dim = int(rotary_dim * rotary_percentage)
+                self.encoder_relative_position_embedding = RotaryEmbedding(
+                    rotary_dim,
+                    seq_len_interpolation_factor=self.encoder_cfg.get('seq_len_interpolation_factor', None),
+                    pretrained_max_position_embeddings=self.encoder_cfg.get('max_position_embeddings', None),
+                    window_size=self.encoder_cfg.get('window_size', None),
+                )    
             elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'kerple':
                 self.encoder_relative_position_embedding = KERPLERelativePositionEmbedding(
                     bidirectional=True,
@@ -333,6 +346,18 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     max_seq_len=max_position_embeddings,
                 )
                 self._decoder_relative_position_embedding_key = "decoder_alibi_position_embedding"
+            elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'rope':
+                rotary_dim = self.decoder_cfg.hidden_size // self.decoder_cfg.num_attention_heads if decoder_kv_channels is None else decoder_kv_channels
+                rotary_percentage=self.decoder_cfg.get('rotary_percentage', 1.0)
+                assert 0 < rotary_percentage <= 1
+                if rotary_percentage < 1:
+                    rotary_dim = int(rotary_dim * rotary_percentage)
+                self.decoder_relative_position_embedding = RotaryEmbedding(
+                    rotary_dim,
+                    seq_len_interpolation_factor=self.decoder_cfg.get('seq_len_interpolation_factor', None),
+                    pretrained_max_position_embeddings=self.decoder_cfg.get('max_position_embeddings', None),
+                    window_size=self.decoder_cfg.get('window_size', None),
+                )
             elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'kerple':
                 self.decoder_relative_position_embedding = KERPLERelativePositionEmbedding(
                     bidirectional=False,
