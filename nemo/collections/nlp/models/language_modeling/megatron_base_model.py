@@ -882,7 +882,7 @@ def search_best_bucket_cap_mb(distributed_adam_buckets, grad_sync_dtype, max_buc
                 n_bucket = math.ceil(n_params * dtype_size / (bucket_cap_mb * 1024 ** 2))
                 total_bucket_size_mb += n_bucket * bucket_cap_mb
 
-            loss_rate = abs(total_bucket_size_mb - total_params_mb) / total_params_mb
+            loss_rate = abs(total_bucket_size_mb - total_params_mb) / total_params_mb * 100
             if loss_rate <= memory_loss_limit:
                 return bucket_cap_mb
 
