@@ -185,7 +185,6 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
             for key in models[0].keys():
                 # Skipping the extra state as it is not a part of the model state dict
                 if "_extra_state" not in key:
-                    #print("*** rename_key: ", rename_key(key, pp_rank, num_layers, training_pp_size))
                     starmap_args.append(
                         (
                             tp_rank,
@@ -198,9 +197,6 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
                             export_config,
                         )
                     )
-
-            #print("")
-            #print("*** starmap_args: ", starmap_args)
 
             starmap_args = tqdm(starmap_args, desc="saving weights")
 
@@ -344,9 +340,8 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
 
     starmap_args = []
     for key, val in model.items():
-        if len(val.size()) == 1:
-            # Skipping the extra state as it is not a part of the model state dict
-            if "_extra_state" not in key:
+        if "_extra_state" not in key:
+            if len(val.size()) == 1:
                 starmap_args.append(
                     (
                         tp_rank,
@@ -362,10 +357,8 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
                         export_config,
                     )
                 )
-        else:
-            for i in range(num_layers):
-                # Skipping the extra state as it is not a part of the model state dict
-                if "_extra_state" not in key:
+            else:
+                for i in range(num_layers):
                     starmap_args.append(
                         (
                             tp_rank,
@@ -381,9 +374,6 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
                             export_config,
                         )
                     )
-
-    # print("")
-    # print("*** starmap_args: ", starmap_args)
 
     starmap_args = tqdm(starmap_args, desc="saving weights")
 
@@ -430,10 +420,6 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     config_path = out_dir / "config.ini"
     with config_path.open("w") as config_file:
         config.write(config_file)
-
-    # print("")
-    # print("******* weights_dict keys: ", weights_dict.keys())
-    # print("")
 
     # AMMO modification.
     return weights_dict, llm_config, tokenizer
