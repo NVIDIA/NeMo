@@ -161,8 +161,6 @@ class MultimodalModel(ModelPT, Exportable):
                 ## Append some dummy configs that DB didn't support
                 if not cfg.get('channels_last'):
                     cfg.channels_last = True
-                if not cfg.get('capture_cudagraph_iters'):
-                    cfg.capture_cudagraph_iters = -1
 
             # compatibility for stable diffusion old checkpoint tweaks
             first_key = list(checkpoint['state_dict'].keys())[0]

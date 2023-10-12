@@ -32,6 +32,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from torchvision.utils import make_grid
 from tqdm import tqdm
 
+from nemo.collections.multimodal.data.common.utils import get_collate_fn
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
     build_train_valid_datasets,
     build_train_valid_precached_datasets,
@@ -129,13 +130,7 @@ class DDPM(torch.nn.Module):
         self.channels = cfg.channels
         self.channels_last = cfg.get("channels_last", False)
         self.use_positional_encodings = cfg.use_positional_encodings
-        self.model = DiffusionWrapper(
-            cfg.unet_config,
-            cfg.conditioning_key,
-            cfg.inductor,
-            cfg.inductor_cudagraphs,
-            cfg.get("capture_cudagraph_iters", -1),
-        )
+        self.model = DiffusionWrapper(cfg.unet_config, cfg.conditioning_key, cfg.inductor, cfg.inductor_cudagraphs,)
         self.model_type = None
         count_params(self.model, verbose=True)
 
@@ -159,7 +154,13 @@ class DDPM(torch.nn.Module):
         if self.learn_logvar:
             self.logvar = nn.Parameter(self.logvar, requires_grad=True)
 
-        self.rng = torch.Generator(device=torch.cuda.current_device(),)
+        cuda_graph_enabled = cfg.get("capture_cudagraph_iters", -1) >= 0
+        if not cuda_graph_enabled:
+            logging.info("Use custom random generator")
+            self.rng = torch.Generator(device=torch.cuda.current_device(),)
+        else:
+            logging.info("Use system random generator since CUDA graph enabled")
+            self.rng = None
 
     def register_schedule(
         self,
@@ -1709,7 +1710,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
             self.model.on_train_batch_start(batch, batch_idx)
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, batch, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -1729,7 +1730,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
+            data_iterator=batch,
             model=[self.model],
             num_microbatches=get_num_microbatches(),
             forward_only=False,
@@ -1769,7 +1770,6 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
                 torch.distributed.broadcast(
                     loss_mean, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
                 )
-            self.log('reduced_train_loss', loss_mean, prog_bar=False, rank_zero_only=True, batch_size=1)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -1789,12 +1789,30 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
+        # for cuda graph with pytorch lightning
+        # these values will be used outside the capturing range
+        if not hasattr(self, "loss_mean"):
+            self.loss_mean = torch.empty_like(loss_mean)
+        with torch.no_grad():
+            self.loss_mean.copy_(loss_mean)
+            self.loss_dict = loss_dict
+        # this function is invoked by callback if with cuda graph, otherwise
+        # invoke it by ourselves
+        if self.cfg.get("capture_cudagraph_iters", -1) < 0:
+            self.non_cuda_graph_capturable()
+
+        return loss_mean
+
+    def non_cuda_graph_capturable(self):
+        if self.log_train_loss:
+            self.log('reduced_train_loss', self.loss_mean, prog_bar=False, rank_zero_only=True, batch_size=1)
+
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
+        self.log_dict(self.loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, prog_bar=False, rank_zero_only=True, batch_size=1)
         self.log('global_step', self.trainer.global_step + 1, prog_bar=False, rank_zero_only=True, batch_size=1)
@@ -1808,7 +1826,6 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
         ts = torch.tensor(int(time.time() * 1e3), dtype=torch.float64)
         self.log("timestamp", ts, batch_size=1, rank_zero_only=True)
-        return loss_mean
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
@@ -1860,8 +1877,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             c_list = [c[key] for key in self.conditioning_keys]
             return [x, *c_list]
 
-        def fwd_output_and_loss_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+        def fwd_output_and_loss_func(batch, model):
             batch = process_batch(batch)
             batch = [x.cuda(non_blocking=True) for x in batch]
             if len(self.conditioning_keys) == 0:
@@ -1921,7 +1937,8 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-        self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
+        if self.model.rng:
+            self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
 
         # log number of parameters
         if isinstance(self.model, list):
@@ -1996,6 +2013,9 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
+            collate_fn = get_collate_fn(
+                first_stage_key=self.cfg.first_stage_key, cond_stage_key=self.cfg.cond_stage_key,
+            )
             self._train_dl = torch.utils.data.DataLoader(
                 self._train_ds,
                 batch_size=self._micro_batch_size,
@@ -2003,6 +2023,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
                 pin_memory=True,
                 drop_last=True,
                 persistent_workers=True,
+                collate_fn=collate_fn,
             )
 
     def setup_validation_data(self, cfg):
@@ -2070,12 +2091,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
 class DiffusionWrapper(pl.LightningModule, Serialization):
     def __init__(
-        self,
-        diff_model_config,
-        conditioning_key,
-        inductor: bool = False,
-        inductor_cudagraphs: bool = False,
-        capture_cudagraph_iters: int = -1,
+        self, diff_model_config, conditioning_key, inductor: bool = False, inductor_cudagraphs: bool = False,
     ):
         super().__init__()
         self.diffusion_model = DiffusionWrapper.from_config_dict(diff_model_config)
@@ -2087,9 +2103,6 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
             # TorchInductor with CUDA graph can lead to OOM
             inductor_config.triton.cudagraphs = inductor_cudagraphs
             self.diffusion_model = torch.compile(self.diffusion_model)
-        # CUDA graph
-        self.capture_cudagraph_iters = capture_cudagraph_iters
-        self.iterations = 0
 
     def forward(self, x, t, c_concat: list = None, c_crossattn: list = None):
         if self.conditioning_key is None:
@@ -2099,15 +2112,7 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
             out = self.diffusion_model(xc, t)
         elif self.conditioning_key == 'crossattn':
             cc = torch.cat(c_crossattn, 1)
-            if self.iterations == self.capture_cudagraph_iters:
-                logging.info("Capturing CUDA graph for module: %s", self.diffusion_model.__class__.__name__)
-                self.diffusion_model = torch.cuda.make_graphed_callables(self.diffusion_model, (x, t, cc))
-
-            if 0 <= self.capture_cudagraph_iters <= self.iterations:
-                out = self.diffusion_model(x, t, cc)
-            else:
-                out = self.diffusion_model(x, t, context=cc)
-            self.iterations += 1
+            out = self.diffusion_model(x, t, context=cc)
         elif self.conditioning_key == 'hybrid':
             xc = torch.cat([x] + c_concat, dim=1)
             cc = torch.cat(c_crossattn, 1)
