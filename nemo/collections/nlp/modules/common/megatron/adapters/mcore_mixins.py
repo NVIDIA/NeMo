@@ -57,13 +57,21 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         Derives `query`, `key` and `value` tensors from `hidden_states`.
         """
         # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
-        (mixed_qkv, layernorm_output), _ = self.linear_qkv(hidden_states)
+        linear_qkv_output, _ = self.linear_qkv(hidden_states)
+        layernorm_output = None
+        if isinstance(linear_qkv_output, tuple): #if LN and linear fused, both will be returned
+            mixed_qkv, layernorm_output = linear_qkv_output 
+        else: # otherwise only mixed_qkv
+            mixed_qkv = linear_qkv_output
 
         # LoRA logic
         if self.is_adapter_available():
             lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
             if lora_kqv_adapter:
-                lora_mixed_qkv = lora_kqv_adapter(layernorm_output)
+                if layernorm_output:
+                    lora_mixed_qkv = lora_kqv_adapter(layernorm_output)
+                else:
+                    lora_mixed_qkv = lora_kqv_adapter(hidden_states)
                 mixed_qkv = mixed_qkv + lora_mixed_qkv
 
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
