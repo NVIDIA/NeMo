@@ -92,9 +92,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if not isinstance(param_groups[0], dict):
             param_groups = [{'params': param_groups}]
 
-        # bucket_cap_mb=auto is a high-level logic of NeMo. After applying 
-        # this configuration, bucket_cap_mb will be automatically found and set 
-        # according to the model. If the appropriate value is still not found 
+        # bucket_cap_mb=auto is a high-level logic of NeMo. After applying
+        # this configuration, bucket_cap_mb will be automatically found and set
+        # according to the model. If the appropriate value is still not found
         # here, it should not be passed down.
         if kwargs.get("bucket_cap_mb") == "auto":
             del kwargs["bucket_cap_mb"]
