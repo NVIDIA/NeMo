@@ -466,7 +466,11 @@ def model_inference_strategy_dispatcher(model, **args):
     elif isinstance(model, MegatronGPTModel):
         if hasattr(model.model, 'limited_context_decoding') and model.model.limited_context_decoding:
             return LimitedContextGPTModelTextGenerationStrategy(model)
-        if hasattr(model.model, 'module') and hasattr(model.model.module, 'language_model') and model.model.module.language_model.limited_context_decoding:
+        if (
+            hasattr(model.model, 'module')
+            and hasattr(model.model.module, 'language_model')
+            and model.model.module.language_model.limited_context_decoding
+        ):
             return LimitedContextGPTModelTextGenerationStrategy(model)
         return GPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):

@@ -766,7 +766,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             pass
 
         # enc_attn_mask: [1, 1, s, s]
-        if inference_max_sequence_len is not None:
+        if inference_max_sequence_len is not None and not set_inference_key_value_memory:
             enc_seq_length = inference_max_sequence_len
         elif self.encoder.input_tensor is not None:
             if self.sequence_parallel:

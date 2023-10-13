@@ -151,6 +151,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
         self.window_size = window_size
+        self.limited_context_decoding = limited_context_decoding
+        self.sink_tokens = 4
 
         self.set_accepted_adapter_types(
             [
@@ -385,7 +387,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             self.inference_current_sequence_len = 0
 
         # Some consistency check.
-        if inference_max_sequence_len:
+        if inference_max_sequence_len and not self.limited_context_decoding:
             assert self.inference_current_sequence_len < self.inference_key_memory.size(0)
             assert inference_max_sequence_len == self.inference_key_memory.size(0)
         # This is added for safety. In case inference_max_sequence_len
@@ -479,29 +481,59 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             rotary_pos_emb = rotary_pos_emb if isinstance(rotary_pos_emb, tuple) else ((rotary_pos_emb,) * 2)
 
         if inference_max_sequence_len:
+
+            new_keys = key_layer.size(0)
+
+            if self.limited_context_decoding is not None and self.window_size is not None:
+                local_context_past = self.window_size[0]
+                retain_kv = min(new_keys, local_context_past)
+                if self.inference_current_sequence_len >= local_context_past:
+                    if self.limited_context_decoding == "local_with_sink":
+                        start_rotate = self.sink_tokens
+                    else:
+                        start_rotate = 0
+                    self.inference_key_memory[
+                        start_rotate : self.inference_current_sequence_len - retain_kv
+                    ] = self.inference_key_memory[
+                        start_rotate + retain_kv : self.inference_current_sequence_len
+                    ].clone()
+                    self.inference_value_memory[
+                        start_rotate : self.inference_current_sequence_len - retain_kv
+                    ] = self.inference_value_memory[
+                        start_rotate + retain_kv : self.inference_current_sequence_len
+                    ].clone()
+                    self.inference_current_sequence_len -= retain_kv
+                elif self.inference_current_sequence_len == 0 and self.limited_context_decoding == "local_with_sink":
+                    self.inference_key_memory[: self.sink_tokens] = key_layer[: self.sink_tokens]
+                    self.inference_value_memory[: self.sink_tokens] = value_layer[: self.sink_tokens]
+                    self.inference_current_sequence_len += self.sink_tokens
+                    retain_kv -= self.sink_tokens
+
+            else:
+                retain_kv = new_keys
+
             # Adjust the range variables.
             start = self.inference_current_sequence_len
-            self.inference_current_sequence_len += key_layer.size(0)
+            self.inference_current_sequence_len += retain_kv
             end = self.inference_current_sequence_len
             # Copy key and values.
-            self.inference_key_memory[start:end, ...] = key_layer
-            self.inference_value_memory[start:end, ...] = value_layer
-            key_layer = self.inference_key_memory[:end, ...]
-            value_layer = self.inference_value_memory[:end, ...]
-            # Adjust attention mask
-            if attention_mask is not None:
-                attention_mask = attention_mask[..., start:end, :end]
-            # adjust the key rotary positional embedding
-            if rotary_pos_emb is not None:
-                q_pos_emb, k_pos_emb = rotary_pos_emb
-                if not set_inference_key_value_memory:
-                    # In inference, we compute one token at a time.
-                    # Select the correct positional embedding.
-                    q_pos_emb = q_pos_emb[end - 1 : end]
-                else:
-                    q_pos_emb = q_pos_emb[:end, :, :, :]
-                k_pos_emb = k_pos_emb[:end, :, :, :]
-                rotary_pos_emb = (q_pos_emb, k_pos_emb)
+            self.inference_key_memory[start:end, ...] = key_layer[-retain_kv:, ...]
+            self.inference_value_memory[start:end, ...] = value_layer[-retain_kv:, ...]
+            if not set_inference_key_value_memory:
+                key_layer = self.inference_key_memory[:end, ...]
+                value_layer = self.inference_value_memory[:end, ...]
+                # Adjust attention mask
+                if attention_mask is not None:
+                    attention_mask = attention_mask[..., start:end, :end]
+                # adjust the key rotary positional embedding
+                if rotary_pos_emb is not None:
+                    q_pos_emb, k_pos_emb = rotary_pos_emb
+                    if not set_inference_key_value_memory:
+                        # In inference, we compute one token at a time.
+                        # Select the correct positional embedding.
+                        q_pos_emb = q_pos_emb[end - 1 : end]
+                    k_pos_emb = k_pos_emb[:end, :, :, :]
+                    rotary_pos_emb = (q_pos_emb, k_pos_emb)
 
         if layer_past is not None:
             past_key, past_value = layer_past
@@ -520,7 +552,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
                 headscale_tensor=self.head_scale_tensor if self.headscale else None,
-                inference_mode=inference_max_sequence_len is not None and query_layer.shape[0] == 1,
+                inference_mode=inference_max_sequence_len is not None and not set_inference_key_value_memory,
             )
         else:
             context_layer = self.core_attention(
@@ -533,7 +565,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
                 headscale_tensor=self.head_scale_tensor if self.headscale else None,
-                inference_mode=inference_max_sequence_len is not None and query_layer.shape[0] == 1,
+                inference_mode=inference_max_sequence_len is not None and not set_inference_key_value_memory,
             )
 
         # =================
@@ -760,7 +792,10 @@ class CoreAttention(MegatronModule):
         # If True, will scale attention scores by 1 / sqrt(hidden_size_per_attention_head).
         # This arg is been provided mostly to support weight conversion of Huggingface models. (ex: T5v1.1)
         self.normalize_attention_scores = normalize_attention_scores
-        self.window_size = window_size
+        if window_size is None:
+            self.window_size = [-1, -1]
+        else:
+            self.window_size = window_size
 
         if self.window_size is not None:
             assert use_flash_attention == True, 'window_size is only supported with Flash Attention'
@@ -971,9 +1006,11 @@ class CoreAttention(MegatronModule):
                 query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,
             )
         else:
-            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal)
+            return self.flash_attention_cuda(
+                query_layer, key_layer, value_layer, attention_mask, is_causal, inference_mode
+            )
 
-    def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask, is_causal):
+    def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask, is_causal, inference_mode):
         batch_size, seqlen, nheads, _ = query_layer.shape
 
         # True: attend / False: not attend
@@ -992,6 +1029,12 @@ class CoreAttention(MegatronModule):
         seqlens_q_in_batch = len(attention_mask_q.sum(dim=-1, dtype=torch.int32).unique())
         seqlens_kv_in_batch = len(attention_mask_kv.sum(dim=-1, dtype=torch.int32).unique())
 
+        if inference_mode:
+            # we are doing decoding, local context is handled by cache
+            window_size = [-1, -1]
+        else:
+            window_size = self.window_size
+
         if seqlens_q_in_batch == 1 and seqlens_kv_in_batch == 1 and flash_attn_func is not None:
             # [b, sq, np, hn]
             context_layer = flash_attn_func(
@@ -1000,7 +1043,7 @@ class CoreAttention(MegatronModule):
                 value_layer,
                 dropout_p=self.attention_dropout_p if self.training else 0.0,
                 causal=is_causal,
-                window_size=self.window_size,
+                window_size=window_size,
             )
         else:
             q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
