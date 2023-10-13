@@ -174,62 +174,30 @@ def _audio_text_collate_fn(
 def _multi_audio_text_collate_fn(
     batch: Dict, tokens_to_generate: int, pad_to_max_length: bool, max_seq_length: int, text_pad_id: int,
 ):
-    sample_ids = [x["idx"] for x in batch]
-    sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
+    """Collate function for multi audio case."""
+    context_start_idx = [item['context_start_idx'] for item in batch]
 
     audio_signals = [x["audio_signal"] for x in batch]
     audio_lengths = [x["audio_length"] for x in batch]
     num_audios = [len(x) for x in audio_signals]
 
     # put all audios from all samples in one batch
-    audio_signals = [item for audio_list in audio_signals for item in audio_list]
-    audio_lengths = [item for length_list in audio_lengths for item in length_list]
-    audio_signals, audio_lengths = _audio_collate_fn(audio_signals, audio_lengths)
+    audio_signals_merged = [item for audio_list in audio_signals for item in audio_list]
+    audio_lengths_merged = [item for length_list in audio_lengths for item in length_list]
+    audio_signals_merged, audio_lengths_merged = _audio_collate_fn(audio_signals_merged, audio_lengths_merged)
 
-    input_ids = [item['input_ids'][:-1] for item in batch]
-    labels = [item['input_ids'][1:] for item in batch]
-    contexts = [item['context_ids'] for item in batch]
-    context_lengths = torch.LongTensor([item['context_length'] for item in batch])
-    context_start_idx = [item['context_start_idx'] for item in batch]
+    for i in range(len(batch)):
+        # create dummy audio_signal and audio_length for _audio_text_collate_fn()
+        batch[i]["audio_signal"] = audio_signals[i][0]
+        batch[i]["audio_length"] = audio_lengths[i][0]
 
-    answers = [item['answer_ids'] for item in batch]
+    batch = _audio_text_collate_fn(batch, tokens_to_generate, pad_to_max_length, max_seq_length, text_pad_id)
 
-    loss_mask = [_build_loss_mask(item)[1:] for item in batch]
-
-    max_length = max([len(x) for x in input_ids]) + tokens_to_generate
-    # increase max length to nearest multiple of 4 or 8
-    if pad_to_max_length:
-        max_length = max_seq_length
-    else:
-        max_length = min(max_seq_length, ceil_to_nearest(max_length, 8))
-    assert max_length <= max_seq_length
-
-    position_ids = [list(range(max_length)) for _ in batch]
-    position_ids = torch.LongTensor(position_ids)
-    input_ids = torch.LongTensor(_collate_item(input_ids, max_length=max_length, pad_id=text_pad_id))
-    input_length = torch.LongTensor([len(x) for x in input_ids])
-    labels = torch.LongTensor(_collate_item(labels, max_length=max_length, pad_id=text_pad_id))
-    loss_mask = torch.LongTensor(_collate_item(loss_mask, max_length=max_length, pad_id=0))
-    contexts = torch.LongTensor(_collate_item(contexts, max_length=max_length, pad_id=text_pad_id))
-    answers = torch.LongTensor(_collate_item(answers, max_length=max_length, pad_id=text_pad_id))
-
-    batch = {
-        'sample_ids': sample_ids,
-        'audio_signal': audio_signals,
-        'audio_signal_length': audio_lengths,
-        'tokens': input_ids,
-        'tokens_length': input_length,
-        'labels': labels,
-        'loss_mask': loss_mask,
-        'position_ids': position_ids,
-        'contexts': contexts,
-        'context_lengths': context_lengths,
-        'answers': answers,
-        'max_length': torch.LongTensor(max_length),
-        'metadata': [x['metadata'] for x in batch],
-        'context_start_idx': context_start_idx,  # List[List[int]]
-        'num_audios': torch.LongTensor(num_audios),
-    }
+    # add multi audio specific fields
+    batch['context_start_idx'] = context_start_idx
+    batch['num_audios'] = torch.LongTensor(num_audios)
+    batch['audio_signal'] = audio_signals_merged
+    batch['audio_signal_length'] = audio_lengths_merged
 
     return batch
 
@@ -353,9 +321,11 @@ class TextProcessing:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
 
         if self.audio_locator is None:
+            # signle audio case
             context_ids = self.tokenizer.text_to_ids(context)
             context_start_idx = [0]
         else:
+            # multiple audio case
             context_ids = []
             context_start_idx = []
             for context_seg in context.split(self.audio_locator):

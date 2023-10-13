@@ -72,6 +72,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         )
 
         if num_audios is not None:
+            # multiple audio files per sample
             audio_feats = audio_feats.split(num_audios)
             audio_feat_lens = audio_feat_lens.split(num_audios)
 

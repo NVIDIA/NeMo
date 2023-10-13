@@ -201,12 +201,21 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         concat_len = torch.stack(concat_len, dim=0)
         return concat_emb, concat_len
 
-    def _concat_multi_features(self, encoded, encoded_len, input_embeds, input_length, context_start_idx):
+    def _concat_multi_features(
+        self,
+        encoded: List[torch.Tensor],
+        encoded_len: List[torch.Tensor],
+        input_embeds: torch.Tensor,
+        input_length: torch.Tensor,
+        context_start_idx: List[List[int]],
+    ):
         encoder_input_list, encoder_length_list = [], []
         batch_size = input_embeds.size(0)
         max_length = 0
         for i in range(batch_size):
-            start_idx_list_i = context_start_idx[i] + [input_embeds.size(1)]
+            start_idx_list_i = context_start_idx[i] + [
+                input_embeds.size(1)
+            ]  # use input_embeds instead of input_length to handle tokens_to_generate in inference
             input_len_list = [start_idx_list_i[j + 1] - start_idx_list_i[j] for j in range(len(start_idx_list_i) - 1)]
             input_emb_list = input_embeds[i].split(input_len_list)
             encoder_input_i = [input_emb_list[0]]
@@ -214,7 +223,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 encoder_input_i.append(encoded[i][j - 1][: encoded_len[i][j - 1]])
                 encoder_input_i.append(input_emb_list[j])
             encoder_input_i = torch.cat(encoder_input_i)  # T, C
-            encoder_length_i = encoder_input_i.size(0)
+            encoder_length_i = encoded_len[i].sum() + input_length[i]  # total length of audio and text features
             max_length = max(max_length, encoder_length_i)
             encoder_input_list.append(encoder_input_i)
             encoder_length_list.append(encoder_length_i)
@@ -226,7 +235,12 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         return encoder_input, encoder_length
 
     def inject_perception_input(
-        self, encoded, encoded_len, input_ids, input_length, context_start_idx: Optional[List[List[int]]] = None
+        self,
+        encoded: Union[torch.Tensor, List[torch.Tensor]],
+        encoded_len: Union[torch.Tensor, List[torch.Tensor]],
+        input_ids: torch.Tensor,
+        input_length: torch.Tensor,
+        context_start_idx: Optional[List[List[int]]] = None,
     ):
         # [b, t, c]
         lm_embedding = self.model.language_model.embedding
@@ -297,7 +311,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         )
 
         if num_audios is not None:
-            # split the encoded and encoded_len by num_audios
+            # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
             encoded = encoded.split(num_audios)
             encoded_len = encoded_len.split(num_audios)
         encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
