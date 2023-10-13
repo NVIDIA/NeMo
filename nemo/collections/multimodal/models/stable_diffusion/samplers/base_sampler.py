@@ -219,59 +219,117 @@ class AbstractBaseSampler(ABC):
         iterator = tqdm(time_range, desc=f"{self.sampler.name} Sampler", total=total_steps)
         old_eps = []
         for i, step in enumerate(iterator):
-            index = total_steps - i - 1
-            ts = torch.full((b,), step, device=device, dtype=torch.long)
-            if self.sampler is Sampler.PLMS:
-                ts_next = torch.full(
-                    (b,), time_range[min(i + 1, len(time_range) - 1)], device=device, dtype=torch.long,
+            print("i ====== ", i)
+            print('*'*100)
+            if i < 9:
+                with torch.no_grad():
+                    index = total_steps - i - 1
+                    ts = torch.full((b,), step, device=device, dtype=torch.long)
+                    if self.sampler is Sampler.PLMS:
+                        ts_next = torch.full(
+                            (b,), time_range[min(i + 1, len(time_range) - 1)], device=device, dtype=torch.long,
+                        )
+                    else:
+                        old_eps = None
+                        ts_next = None
+                    if mask is not None:
+                        assert x0 is not None
+                        img_orig = self.model.q_sample(x0, ts)  # TODO: deterministic forward pass?
+                        img = img_orig * mask + (1.0 - mask) * img
+                    if self.supports_logprobs:
+                        logprob_args = {'return_logprobs': return_logprobs, 'return_mean_var': return_mean_var}
+                    else:
+                        logprob_args = {}
+                    outs = self.p_sampling_fn(
+                        img,
+                        cond,
+                        ts,
+                        index=index,
+                        use_original_steps=ddim_use_original_steps,
+                        quantize_denoised=quantize_denoised,
+                        temperature=temperature,
+                        noise_dropout=noise_dropout,
+                        score_corrector=score_corrector,
+                        corrector_kwargs=corrector_kwargs,
+                        unconditional_guidance_scale=unconditional_guidance_scale,
+                        unconditional_conditioning=unconditional_conditioning,
+                        old_eps=old_eps,
+                        t_next=ts_next,
+                        **logprob_args
+                    )
+                    img, pred_x0 = outs[0], outs[1]
+                    if self.sampler is Sampler.PLMS:
+                        e_t = outs[2]
+                        old_eps.append(e_t)
+                        if len(old_eps) >= 4:
+                            old_eps.pop(0)
+                    if return_logprobs:
+                        logprobs.append(outs[2])
+                    if return_mean_var:
+                        offset = return_logprobs
+                        means.append(outs[2 + offset])
+                        vars.append(outs[3 + offset])
+                    if callback:
+                        callback(i)
+                    if img_callback:
+                        img_callback(pred_x0, i)
+                    if index % log_every_t == 0 or index == total_steps - 1:
+                        intermediates["x_inter"].append(img)
+                        intermediates["pred_x0"].append(pred_x0)
+            else:
+                index = total_steps - i - 1
+                ts = torch.full((b,), step, device=device, dtype=torch.long)
+                if self.sampler is Sampler.PLMS:
+                    ts_next = torch.full(
+                        (b,), time_range[min(i + 1, len(time_range) - 1)], device=device, dtype=torch.long,
+                    )
+                else:
+                    old_eps = None
+                    ts_next = None
+                if mask is not None:
+                    assert x0 is not None
+                    img_orig = self.model.q_sample(x0, ts)  # TODO: deterministic forward pass?
+                    img = img_orig * mask + (1.0 - mask) * img
+                if self.supports_logprobs:
+                    logprob_args = {'return_logprobs': return_logprobs, 'return_mean_var': return_mean_var}
+                else:
+                    logprob_args = {}
+                outs = self.p_sampling_fn(
+                    img,
+                    cond,
+                    ts,
+                    index=index,
+                    use_original_steps=ddim_use_original_steps,
+                    quantize_denoised=quantize_denoised,
+                    temperature=temperature,
+                    noise_dropout=noise_dropout,
+                    score_corrector=score_corrector,
+                    corrector_kwargs=corrector_kwargs,
+                    unconditional_guidance_scale=unconditional_guidance_scale,
+                    unconditional_conditioning=unconditional_conditioning,
+                    old_eps=old_eps,
+                    t_next=ts_next,
+                    **logprob_args
                 )
-            else:
-                old_eps = None
-                ts_next = None
-            if mask is not None:
-                assert x0 is not None
-                img_orig = self.model.q_sample(x0, ts)  # TODO: deterministic forward pass?
-                img = img_orig * mask + (1.0 - mask) * img
-            if self.supports_logprobs:
-                logprob_args = {'return_logprobs': return_logprobs, 'return_mean_var': return_mean_var}
-            else:
-                logprob_args = {}
-            outs = self.p_sampling_fn(
-                img,
-                cond,
-                ts,
-                index=index,
-                use_original_steps=ddim_use_original_steps,
-                quantize_denoised=quantize_denoised,
-                temperature=temperature,
-                noise_dropout=noise_dropout,
-                score_corrector=score_corrector,
-                corrector_kwargs=corrector_kwargs,
-                unconditional_guidance_scale=unconditional_guidance_scale,
-                unconditional_conditioning=unconditional_conditioning,
-                old_eps=old_eps,
-                t_next=ts_next,
-                **logprob_args
-            )
-            img, pred_x0 = outs[0], outs[1]
-            if self.sampler is Sampler.PLMS:
-                e_t = outs[2]
-                old_eps.append(e_t)
-                if len(old_eps) >= 4:
-                    old_eps.pop(0)
-            if return_logprobs:
-                logprobs.append(outs[2])
-            if return_mean_var:
-                offset = return_logprobs
-                means.append(outs[2 + offset])
-                vars.append(outs[3 + offset])
-            if callback:
-                callback(i)
-            if img_callback:
-                img_callback(pred_x0, i)
-            if index % log_every_t == 0 or index == total_steps - 1:
-                intermediates["x_inter"].append(img)
-                intermediates["pred_x0"].append(pred_x0)
+                img, pred_x0 = outs[0], outs[1]
+                if self.sampler is Sampler.PLMS:
+                    e_t = outs[2]
+                    old_eps.append(e_t)
+                    if len(old_eps) >= 4:
+                        old_eps.pop(0)
+                if return_logprobs:
+                    logprobs.append(outs[2])
+                if return_mean_var:
+                    offset = return_logprobs
+                    means.append(outs[2 + offset])
+                    vars.append(outs[3 + offset])
+                if callback:
+                    callback(i)
+                if img_callback:
+                    img_callback(pred_x0, i)
+                if index % log_every_t == 0 or index == total_steps - 1:
+                    intermediates["x_inter"].append(img)
+                    intermediates["pred_x0"].append(pred_x0)  
         return img, intermediates, logprobs, means, vars
 
     def _get_model_output(
