@@ -496,7 +496,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if rotary_pos_emb is not None:
             # self attention pos_emb is (q, q)
             self_attention_pos_emb = (rotary_pos_emb[0], rotary_pos_emb[0])
-            cross_attention_pos_emb = (rotary_pos_emb[1], rotary_pos_emb[2])
+            if rotary_pos_emb[1] is not None and rotary_pos_emb[2] is not None:
+                cross_attention_pos_emb = (rotary_pos_emb[1], rotary_pos_emb[2])
+            else:
+                cross_attention_pos_emb = None
         else:
             self_attention_pos_emb = None
             cross_attention_pos_emb = None
