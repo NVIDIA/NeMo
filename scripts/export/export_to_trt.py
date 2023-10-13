@@ -16,6 +16,7 @@ import argparse
 import sys, os
 from pathlib import Path
 
+from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
 from nemo.utils import logging
 
@@ -29,60 +30,109 @@ except ImportError:
 def get_args(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description=f"Export models to TRT LLM",
+        description=f"Exports nemo models stored in nemo checkpoints to TensorRT-LLM",
     )
-    parser.add_argument("--nemo_checkpoint", required=True, type=str, help="Source .nemo file")
+
     parser.add_argument(
+        "-nc",
+        "--nemo_checkpoint",
+        required=True,
+        type=str,
+        help="Source .nemo file"
+    )
+
+    parser.add_argument(
+        "-mt",
         "--model_type",
-        type=str, default="gptnext",
+        type=str,
+        default="gptnext",
         choices=["gptnext", "llama"],
         help="Type of the model. gpt or llama are only supported."
     )
-    parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
-    parser.add_argument("--num_gpu", default=1, type=int, help="Number of GPUs that will deploy the model")
+
     parser.add_argument(
+        "-tmr",
+        "--triton_model_repository",
+        required=True,
+        default=None,
+        type=str,
+        help="Folder for the trt-llm model files"
+    )
+
+    parser.add_argument(
+        "-ng",
+        "--num_gpus",
+        default=1,
+        type=int,
+        help="Number of GPUs for the deployment"
+    )
+
+    parser.add_argument(
+        "-dt",
         "--dtype",
-        choices=["bfloat16", "float16", "fp8", "int8"],
-        default="bfloat16",
+        choices=["bf16", "fp16", "fp8", "int8"],
+        default="bf16",
         type=str,
         help="dtype of the model on TensorRT-LLM",
+    )
+
+    parser.add_argument(
+        "-mil",
+        "--max_input_len",
+        default=200,
+        type=int,
+        help="Max input length of the model"
+    )
+
+    parser.add_argument(
+        "-mol",
+        "--max_output_len",
+        default=200,
+        type=int,
+        help="Max output length of the model"
+    )
+
+    parser.add_argument(
+        "-mbs",
+        "--max_batch_size",
+        default=200,
+        type=int,
+        help="Max batch size of the model"
     )
 
     args = parser.parse_args(argv)
     return args
 
 
-def nemo_convert(argv):
+def nemo_export(argv):
     args = get_args(argv)
     loglevel = logging.INFO
     logging.setLevel(loglevel)
     logging.info("Logging level set to {}".format(loglevel))
     logging.info(args)
 
-    if args.dtype != "bfloat16":
-        logging.error("Only bfloat16 is currently supported for the optimized deployment with TensorRT-LLM.")
+    if args.dtype != "bf16":
+        logging.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
+                      "Support for the other precisions will be added in the coming releases.")
         return
 
-    trt_llm_path = args.trt_llm_folder
+    try:
+        trt_llm_exporter = TensorRTLLM(model_dir=args.triton_model_repository)
 
-    if trt_llm_path is None:
-        trt_llm_path = "/tmp/trt_llm_model_dir/"
-        logging.info(
-            "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
-            "Please set this parameter if you'd like to use a path that has already"
-            "included the TensorRT LLM model files."
+        logging.info("Export to TensorRT-LLM function is called.")
+        trt_llm_exporter.export(
+            nemo_checkpoint_path=args.nemo_checkpoint,
+            model_type=args.model_type,
+            n_gpus=args.num_gpus,
+            max_input_token=args.max_input_len,
+            max_output_token=args.max_output_len,
+            max_batch_size=args.max_batch_size,
         )
-    if os.path.isfile(trt_llm_path):
-        logging.error(
-            "TensorRT LLM folder is pointing to a file. "
-            "Please set this to a folder location."
-        )
-    Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
 
-    trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
-    trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, model_type=args.model_type, n_gpus=args.num_gpu)
+        logging.info("Export is successful.")
+    except Exception as error:
+        logging.error("Error message: " + str(error))
 
 
 if __name__ == '__main__':
-    nemo_convert(sys.argv[1:])
-
+    nemo_export(sys.argv[1:])
