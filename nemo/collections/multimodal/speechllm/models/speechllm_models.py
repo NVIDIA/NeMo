@@ -575,9 +575,16 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             gpt_cfg.perception = cfg.model.perception
             gpt_cfg.perception.preprocessor = audio_cfg.preprocessor
             gpt_cfg.perception.encoder = audio_cfg.encoder
-            modality_adapter_cfg = gpt_cfg.perception.modality_adapter
-            modality_adapter_cfg.feat_in = audio_cfg.encoder.d_model
             gpt_cfg.perception.output_dim = gpt_cfg.hidden_size
+
+            modality_adapter_cfg = gpt_cfg.perception.modality_adapter
+            if 'feat_in' in modality_adapter_cfg:  # conformer encoder
+                modality_adapter_cfg.feat_in = audio_cfg.encoder.d_model
+            if 'input_dim' in modality_adapter_cfg:
+                modality_adapter_cfg.input_dim = audio_cfg.encoder.d_model
+            if 'output_dim' in modality_adapter_cfg:
+                modality_adapter_cfg.output_dim = gpt_cfg.hidden_size
+
             override_vocab_size = cfg.model.get('override_vocab_size', None)
             if override_vocab_size is not None:
                 gpt_cfg.override_vocab_size = override_vocab_size
