@@ -185,6 +185,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     pretrained_max_position_embeddings=self.encoder_cfg.get('max_position_embeddings', None),
                     window_size=self.encoder_cfg.get('window_size', None),
                 ) 
+                self.encoder_relative_position_embedding = None
             elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
                 self.encoder_relative_position_embedding = T5RelativePositionEmbedding(
                     init_method=init_method_normal(embedding_init_method_std),
@@ -315,6 +316,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     pretrained_max_position_embeddings=self.decoder_cfg.get('max_position_embeddings', None),
                     window_size=self.decoder_cfg.get('window_size', None),
                 )
+                self.decoder_relative_position_embedding = None
             elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
                 self.decoder_relative_position_embedding = T5RelativePositionEmbedding(
                     init_method=init_method_normal(embedding_init_method_std),
