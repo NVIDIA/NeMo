@@ -171,6 +171,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             get_key_value=dec_get_key_value,
             enc_output=enc_output,
             enc_attn_mask=enc_attn_mask,
+            rotary_pos_emb=rotary_pos_emb,
             dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
         )
@@ -205,7 +206,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                     enc_layer_past=enc_layer_past,
                     enc_get_key_value=enc_get_key_value,
                     enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
-                    rotary_pos_emb[0] if rotary_pos_emb is not None else None,
+                    rotary_pos_emb=rotary_pos_emb[0] if rotary_pos_emb is not None else None,
                     batch_data=batch_data,
                 )
             else:
@@ -230,7 +231,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_get_key_value=dec_get_key_value,
             dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
-            rotary_pos_emb[1] if rotary_pos_emb is not None else None,
+            rotary_pos_emb=rotary_pos_emb[1] if rotary_pos_emb is not None else None,
         )
 
         # if self.hiddens_module is not None enc_output is a dict, else it is a torch.tensor
