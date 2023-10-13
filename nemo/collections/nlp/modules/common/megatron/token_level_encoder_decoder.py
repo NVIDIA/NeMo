@@ -172,6 +172,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 )
                 self._encoder_embedding_key = "encoder_embedding"
 
+            self.encoder_rotary_pos_emb = None
             if self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'rope':
                 rotary_dim = self.encoder_cfg.hidden_size // self.encoder_cfg.num_attention_heads if encoder_kv_channels is None else encoder_kv_channels
                 rotary_percentage=self.encoder_cfg.get('rotary_percentage', 1.0)
@@ -301,6 +302,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
 
                 self._decoder_embedding_key = "decoder_embedding"
 
+            self.decoder_rotary_pos_emb = None
             if self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'rope':
                 rotary_dim = self.decoder_cfg.hidden_size // self.decoder_cfg.num_attention_heads if decoder_kv_channels is None else decoder_kv_channels
                 rotary_percentage=self.decoder_cfg.get('rotary_percentage', 1.0)
