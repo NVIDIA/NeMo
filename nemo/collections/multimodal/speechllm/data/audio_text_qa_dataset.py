@@ -565,6 +565,26 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
 
 
 class MultiAudioQuestionAnswerDataset(AudioQuestionAnswerDataset):
+    """
+    Dataset for having multi audios per sample, for example in few-shot in-context learning.
+    To use this dataset, you need to specify the `audio_locator` field in the dataset config,
+    and use that to specify the locations of the audio files in your manifest. In this case, 
+    the `audio_filepath` field in the manifest is a list of audio filepaths, and the `duration`
+    field is a list of durations, one for each audio file. The `offset` field is optional, and
+    if not specified, it is assumed to be 0.0. The `offset` field is also a list of offsets if specified.
+
+    Example manifest item for audio_locator='|audio|':
+    {
+    "audio_filepath": ["1.wav","2.wav","3.wav"], 
+    "duration": [1.05,1.05,2.0],
+    "answer": "this was her dream as nearly as she could recall it", 
+    "question": "Following are examples of speech audios and their transcriptions. 
+        Example 1: audio is |audio|, transcription is 'I have a dream'. 
+        Example 2: audio is |audio|, transcription is ' I don't have a dream'. 
+        Given the following audio |audio|, transcribe the audio into words."
+    }
+    """
+
     def __init__(
         self, *args, **kwargs,
     ):
