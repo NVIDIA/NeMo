@@ -114,6 +114,7 @@ class AbstractBaseSampler(ABC):
         log_every_t=100,
         unconditional_guidance_scale=1.0,
         unconditional_conditioning=None,
+        truncation_steps = 1,
         return_logprobs=False,
         return_mean_var=False,
         # this has to come in the same format as the conditioning, # e.g. as encoded tokens, ...
@@ -165,6 +166,7 @@ class AbstractBaseSampler(ABC):
             log_every_t=log_every_t,
             unconditional_guidance_scale=unconditional_guidance_scale,
             unconditional_conditioning=unconditional_conditioning,
+            truncation_steps = truncation_steps,
             return_logprobs=return_logprobs,
             return_mean_var=return_mean_var,
         )
@@ -189,6 +191,7 @@ class AbstractBaseSampler(ABC):
         corrector_kwargs=None,
         unconditional_guidance_scale=1.0,
         unconditional_conditioning=None,
+        truncation_steps = 1,
         return_logprobs=False,
         return_mean_var=False,
     ):
@@ -219,9 +222,8 @@ class AbstractBaseSampler(ABC):
         iterator = tqdm(time_range, desc=f"{self.sampler.name} Sampler", total=total_steps)
         old_eps = []
         for i, step in enumerate(iterator):
-            print("i ====== ", i)
-            print('*'*100)
-            if i < 9:
+
+            if i < total_steps - truncation_steps:
                 with torch.no_grad():
                     index = total_steps - i - 1
                     ts = torch.full((b,), step, device=device, dtype=torch.long)
@@ -277,6 +279,8 @@ class AbstractBaseSampler(ABC):
                         intermediates["x_inter"].append(img)
                         intermediates["pred_x0"].append(pred_x0)
             else:
+                print("i = ", i)
+                print("*"*50)
                 index = total_steps - i - 1
                 ts = torch.full((b,), step, device=device, dtype=torch.long)
                 if self.sampler is Sampler.PLMS:

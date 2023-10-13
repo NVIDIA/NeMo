@@ -275,9 +275,11 @@ class WebDatasetCommon(NeMoIterableDataset):
     def __iter__(self):
         ds_iter = self._dataset.__iter__()
         while self.skip_ahead > 0 and not self.infinite_sampler:
+
             try:
                 _ = next(ds_iter)
                 self.skip_ahead -= self.data_parallel_size * self.num_workers
+
             except StopIteration:
                 self.skip_ahead = 0
         return ds_iter
