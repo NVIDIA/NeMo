@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import torch
+
 from nemo.collections.multimodal.data.common.webdataset import WebDatasetCommon
 from nemo.collections.multimodal.data.imagen.augmentations.augmentations import (
     PickleTransform,
@@ -21,7 +23,40 @@ from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentation
     construct_image_augmentations,
     identical_transform,
 )
+from nemo.core.classes import Dataset as NeMoDataset
 from nemo.utils import logging
+
+
+class ImagenSyntheticDataset(NeMoDataset):
+    def __init__(
+        self, res, conditioning_cfg, fake_len=100000, no_embedding=False,
+    ):
+        super().__init__()
+        self.fake_len = fake_len
+        self.res = res
+        self.no_embedding = no_embedding
+        if not no_embedding:
+            self.out_key = conditioning_cfg.out_key if conditioning_cfg.out_key else conditioning_cfg.precached_key
+            self.token_length = conditioning_cfg.token_length
+            self.embed_dim = conditioning_cfg.embed_dim
+
+    def __getitem__(self, index):
+        item = {}
+        if isinstance(self.res, list):
+            for resolution in self.res:
+                image_key = f'images_{resolution}'
+                item[image_key] = torch.randn(3, resolution, resolution)
+        else:
+            item['images'] = torch.randn(3, self.res, self.res)
+
+        item['raw_text'] = f'fake text {index}'
+        if not self.no_embedding:
+            item[f'{self.out_key}_embeddings'] = torch.randn(self.token_length, self.embed_dim)
+            item[f'{self.out_key}_mask'] = torch.ones(self.token_length, dtype=torch.long)
+        return item
+
+    def __len__(self):
+        return self.fake_len
 
 
 def _build_functions_with_pickles(data_cfg, condition_cfg):
@@ -72,6 +107,16 @@ def build_train_valid_datasets(
 ):
     data_cfg = model_cfg.data
     condition_cfg = model_cfg.conditioning
+
+    if data_cfg.get('synthetic_data', False):
+        logging.info(f'Creating Synthetic Datasaet.')
+        train_data = ImagenSyntheticDataset(
+            res=data_cfg.train.get('target_resolutions', 64),
+            conditioning_cfg=condition_cfg,
+            fake_len=data_cfg.get('synthetic_data_length', 10000),
+            no_embedding=condition_cfg.get("online_encoding", False),
+        )
+        return train_data, None
     # This function maps data that are tuples to dictionary.
     if condition_cfg.get("online_encoding", False):
         tuple_to_dict, transform_fn = _build_functions_no_pickles(data_cfg)

@@ -149,7 +149,8 @@ def build_vision_encoder(model_path, clip_path, precision, bs_min, bs_opt, bs_ma
             tf32=precision in [32, '32', '32-true'],
             fp16=precision in [16, '16', '16-mixed'],
             bf16=precision in ['bf16', 'bf16-mixed'],
-            profiles=[p],),
+            profiles=[p],
+        ),
     )
     save_engine(engine, path=os.path.join(out_dir, 'vision_encoder.plan'))
 

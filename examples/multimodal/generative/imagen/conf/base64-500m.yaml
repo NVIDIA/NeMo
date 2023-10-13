@@ -112,6 +112,8 @@ model:
 
   data:
     num_workers: 16
+    synthetic_data: False
+    synthetic_data_length: 800000
     train:
       dataset_path:
         - datasets/laion_aesthetic/wdinfo-selene.pkl #   48,874,000
