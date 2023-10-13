@@ -79,39 +79,44 @@ class TestStochasticDepth:
 
     def test_stochastic_depth_forward(self):
         """Testing that forward works and we get randomness during training, but not during eval."""
-        random_input = torch.rand((1, 2, 2))
-        random_length = torch.tensor([2, 2], dtype=torch.int64)
+        # number of times to repeat the test
+        num_tests = 100
 
-        model = ConformerEncoder(
-            feat_in=2,
-            n_layers=3,
-            d_model=4,
-            feat_out=4,
-            stochastic_depth_drop_prob=0.8,
-            dropout=0.0,
-            dropout_pre_encoder=0.0,
-            dropout_emb=0.0,
-            conv_norm_type="layer_norm",
-            conv_kernel_size=3,
-        )
-        model.train()
-        outputs = [None] * 5
-        for i in range(5):
-            outputs[i] = model(audio_signal=random_input, length=random_length)[0]
-        # checking that not all outputs are the same
-        num_diff = 0
-        for i in range(1, 5):
-            if not torch.allclose(outputs[i], outputs[0]):
-                num_diff += 1
-        assert num_diff > 0
+        for n in range(num_tests):
 
-        model.eval()
-        outputs = [None] * 5
-        for i in range(5):
-            outputs[i] = model(audio_signal=random_input, length=random_length)[0]
-        # checking that not all outputs are the same
-        num_diff = 0
-        for i in range(1, 5):
-            if not torch.allclose(outputs[i], outputs[0]):
-                num_diff += 1
-        assert num_diff == 0
+            random_input = torch.rand((1, 2, 2))
+            random_length = torch.tensor([2, 2], dtype=torch.int64)
+
+            model = ConformerEncoder(
+                feat_in=2,
+                n_layers=3,
+                d_model=4,
+                feat_out=4,
+                stochastic_depth_drop_prob=0.8,
+                dropout=0.0,
+                dropout_pre_encoder=0.0,
+                dropout_emb=0.0,
+                conv_norm_type="layer_norm",
+                conv_kernel_size=3,
+            )
+            model.train()
+            outputs = [None] * 5
+            for i in range(5):
+                outputs[i] = model(audio_signal=random_input, length=random_length)[0]
+            # checking that not all outputs are the same
+            num_diff = 0
+            for i in range(1, 5):
+                if not torch.allclose(outputs[i], outputs[0]):
+                    num_diff += 1
+            assert num_diff > 0, f'Failed in test {n}'
+
+            model.eval()
+            outputs = [None] * 5
+            for i in range(5):
+                outputs[i] = model(audio_signal=random_input, length=random_length)[0]
+            # checking that not all outputs are the same
+            num_diff = 0
+            for i in range(1, 5):
+                if not torch.allclose(outputs[i], outputs[0]):
+                    num_diff += 1
+            assert num_diff == 0, f'Failed in test {n}'

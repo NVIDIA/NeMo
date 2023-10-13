@@ -649,6 +649,9 @@ class TestEncDecRNNTModel:
         "greedy_class", [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
     )
     def test_greedy_decoding_preserve_alignment(self, greedy_class):
+        # number of times to repeat the test
+        num_tests = 100
+
         token_list = [" ", "a", "b", "c"]
         vocab_size = len(token_list)
 
@@ -678,31 +681,32 @@ class TestEncDecRNNTModel:
                 max_symbols_per_step=max_symbols_per_step,
             )
 
-            # (B, D, T)
-            enc_out = torch.randn(1, encoder_output_size, 30)
-            enc_len = torch.tensor([30], dtype=torch.int32)
+            for n in range(num_tests):
+                # (B, D, T)
+                enc_out = torch.randn(1, encoder_output_size, 30)
+                enc_len = torch.tensor([30], dtype=torch.int32)
 
-            with torch.no_grad():
-                hyp = greedy(encoder_output=enc_out, encoded_lengths=enc_len)[0][0]  # type: rnnt_utils.Hypothesis
-                assert hyp.alignments is not None
+                with torch.no_grad():
+                    hyp = greedy(encoder_output=enc_out, encoded_lengths=enc_len)[0][0]  # type: rnnt_utils.Hypothesis
+                    assert hyp.alignments is not None, f'Failed in test {n}'
 
-                timestep_count = {
-                    u.item(): c.item() for u, c in zip(*torch.unique(torch.tensor(hyp.timestep), return_counts=True))
-                }
-                for t in range(len(hyp.alignments)):
+                    timestep_count = {
+                        u.item(): c.item() for u, c in zip(*torch.unique(torch.tensor(hyp.timestep), return_counts=True))
+                    }
+                    for t in range(len(hyp.alignments)):
 
-                    # check that the number of alignment elements is consistent with hyp.timestep
-                    alignment_len = len(hyp.alignments[t])
-                    assert alignment_len <= max_symbols_per_step
-                    if t in timestep_count:  # non-blank
-                        assert alignment_len == timestep_count[t] + (1 if alignment_len < max_symbols_per_step else 0)
-                    else:  # blank
-                        assert alignment_len == 1
+                        # check that the number of alignment elements is consistent with hyp.timestep
+                        alignment_len = len(hyp.alignments[t])
+                        assert alignment_len <= max_symbols_per_step
+                        if t in timestep_count:  # non-blank
+                            assert alignment_len == timestep_count[t] + (1 if alignment_len < max_symbols_per_step else 0), f'Failed in test {n}'
+                        else:  # blank
+                            assert alignment_len == 1, f'Failed in test {n}'
 
-                    for u in range(alignment_len):
-                        logp, label = hyp.alignments[t][u]
-                        assert torch.is_tensor(logp)
-                        assert torch.is_tensor(label)
+                        for u in range(alignment_len):
+                            logp, label = hyp.alignments[t][u]
+                            assert torch.is_tensor(logp), f'Failed in test {n}'
+                            assert torch.is_tensor(label), f'Failed in test {n}'
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
@@ -712,6 +716,9 @@ class TestEncDecRNNTModel:
         "greedy_class", [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
     )
     def test_greedy_decoding_preserve_frame_confidence(self, greedy_class):
+        # number of times to repeat the test
+        num_tests = 100
+
         token_list = [" ", "a", "b", "c"]
         vocab_size = len(token_list)
 
@@ -741,32 +748,33 @@ class TestEncDecRNNTModel:
                 max_symbols_per_step=max_symbols_per_step,
             )
 
-            # (B, D, T)
-            enc_out = torch.randn(1, encoder_output_size, 30)
-            enc_len = torch.tensor([30], dtype=torch.int32)
+            for n in range(num_tests):
+                # (B, D, T)
+                enc_out = torch.randn(1, encoder_output_size, 30)
+                enc_len = torch.tensor([30], dtype=torch.int32)
 
-            with torch.no_grad():
-                hyp = greedy(encoder_output=enc_out, encoded_lengths=enc_len)[0][0]  # type: rnnt_utils.Hypothesis
-                assert hyp.frame_confidence is not None
+                with torch.no_grad():
+                    hyp = greedy(encoder_output=enc_out, encoded_lengths=enc_len)[0][0]  # type: rnnt_utils.Hypothesis
+                    assert hyp.frame_confidence is not None, f'Failed in test {n}'
 
-                timestep_count = {
-                    u.item(): c.item() for u, c in zip(*torch.unique(torch.tensor(hyp.timestep), return_counts=True))
-                }
-                for t in range(len(hyp.frame_confidence)):
+                    timestep_count = {
+                        u.item(): c.item() for u, c in zip(*torch.unique(torch.tensor(hyp.timestep), return_counts=True))
+                    }
+                    for t in range(len(hyp.frame_confidence)):
 
-                    # check that the number of confidence elements is consistent with hyp.timestep
-                    confidence_len = len(hyp.frame_confidence[t])
-                    assert confidence_len <= max_symbols_per_step
-                    if t in timestep_count:  # non-blank
-                        assert confidence_len == timestep_count[t] + (
-                            1 if confidence_len < max_symbols_per_step else 0
-                        )
-                    else:  # blank
-                        assert confidence_len == 1
+                        # check that the number of confidence elements is consistent with hyp.timestep
+                        confidence_len = len(hyp.frame_confidence[t])
+                        assert confidence_len <= max_symbols_per_step
+                        if t in timestep_count:  # non-blank
+                            assert confidence_len == timestep_count[t] + (
+                                1 if confidence_len < max_symbols_per_step else 0
+                            ), f'Failed in test {n}'
+                        else:  # blank
+                            assert confidence_len == 1, f'Failed in test {n}'
 
-                    for u in range(confidence_len):
-                        score = hyp.frame_confidence[t][u]
-                        assert 0 <= score <= 1
+                        for u in range(confidence_len):
+                            score = hyp.frame_confidence[t][u]
+                            assert 0 <= score <= 1, f'Failed in test {n}'
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
