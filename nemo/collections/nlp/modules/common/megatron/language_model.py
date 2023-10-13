@@ -568,7 +568,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 rotary_dim,
                 seq_len_interpolation_factor=seq_len_interpolation_factor,
                 pretrained_max_position_embeddings=max_position_embeddings,
-                window_size=window_size,
             )
 
         elif position_embedding_type == 'alibi':
