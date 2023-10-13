@@ -43,6 +43,7 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import Tensor
 
+from nemo.collections.asr.parts.utils.activations import Snake
 from nemo.collections.tts.losses.audio_codec_loss import MaskedMSELoss
 from nemo.collections.tts.modules.audio_codec_modules import (
     CodecActivation,
@@ -59,7 +60,25 @@ from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, 
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from nemo.collections.asr.parts.utils.activations import Snake
+
+
+class CodecActivation(nn.Module):
+    """
+    Choose between snake or Elu activation based on the input parameter.
+    """
+
+    def __init__(self, activation: str = "elu", channels: int = 1):
+        super().__init__()
+        activation = activation.lower()
+        if activation == "snake":
+            self.activation = Snake(channels)
+        elif activation == "elu":
+            self.activation = nn.ELU()
+        else:
+            raise ValueError(f"Unknown activation {activation}")
+
+    def forward(self, x):
+        return self.activation(x)
 
 
 class SEANetResnetBlock(NeuralModule):

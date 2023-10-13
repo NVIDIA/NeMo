@@ -14,7 +14,6 @@
 
 import torch
 import torch.nn as nn
-import torch 
 
 __all__ = ['Swish', 'Snake']
 
@@ -52,16 +51,19 @@ def snake(x, alpha: torch.Tensor):
     x = x.reshape(shape)
     return x
 
+
 class Snake(nn.Module):
     """
     Snake activation function introduced in 'https://arxiv.org/abs/2006.08195'
     """
+
     def __init__(self, channels):
         super().__init__()
         self.alpha = nn.Parameter(torch.ones(1, channels, 1))
 
     def forward(self, x):
         return snake(x, self.alpha)
+
 
 class Swish(nn.SiLU):
     """
