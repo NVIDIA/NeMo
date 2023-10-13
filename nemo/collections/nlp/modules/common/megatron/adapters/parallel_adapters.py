@@ -179,12 +179,14 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         else:
             # (@adithyare) we use this option to mirror the behavior a column parallel layer with two low-rank column parallel layers
             # if the original column parallel layer uses gather_output=False, then we will use the self.liner_out layer defined below.
+            if self.name == "4HtoH" or self.name == "DenseAttn":
+                gather_output = True
             self.linear_out = ColumnParallelLinear(
                 dim,
                 out_features,
                 config=model_parallel_config,
                 bias=False,
-                gather_output=True if self.name == "4HtoH" else False,
+                gather_output=gather_output,
                 init_method=self._get_init_fn(row_init_method),
             )
 
