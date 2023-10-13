@@ -21,10 +21,14 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
+from lightning_fabric.utilities.cloud_io import _load as pl_load
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.utilities.distributed import rank_zero_only
+from pytorch_lightning.core.saving import _load_state as ptl_load_state
+from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
+from pytorch_lightning.utilities.migration import pl_legacy_patch
+from pytorch_lightning.utilities.rank_zero import rank_zero_only
 from torch._dynamo import optimize
 from torch._inductor import config as inductor_config
 from torch.optim.lr_scheduler import LambdaLR
@@ -35,7 +39,6 @@ from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset 
     build_train_valid_datasets,
     build_train_valid_precached_datasets,
 )
-from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
 from nemo.collections.multimodal.models.stable_diffusion.diffusion_model import DiffusionModel
 from nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder import (
     AutoencoderKL,
@@ -62,7 +65,9 @@ from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     mean_flat,
 )
 from nemo.collections.multimodal.parts.utils import randn_like
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization
 from nemo.utils import logging
@@ -98,7 +103,7 @@ def random_dropout(embeddings, drop_rate):
         drop_rate (float): Rate of dropping the embedding.
     """
     nsamples = embeddings.shape[0]
-    zero_flag = torch.ones(nsamples, 1, 1).to(embeddings.dtype) * (1 - drop_rate)
+    zero_flag = torch.ones(nsamples, 1, 1, device=torch.cuda.current_device()).to(embeddings.dtype) * (1 - drop_rate)
     zero_flag = torch.bernoulli(zero_flag).cuda(non_blocking=True)
     embeddings = embeddings * zero_flag
     return embeddings
@@ -117,7 +122,7 @@ def uniform_on_device(r1, r2, shape, device):
 class DDPM(torch.nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        assert cfg.parameterization in ["eps", "x0"], 'currently only supporting "eps" and "x0"'
+        assert cfg.parameterization in ["eps", "x0", "v"], 'currently only supporting "eps" and "x0" and "v"'
         self.parameterization = cfg.parameterization
         logging.info(f"{self.__class__.__name__}: Running in {self.parameterization}-prediction mode")
         self.cond_stage_model = None
@@ -126,8 +131,15 @@ class DDPM(torch.nn.Module):
         self.first_stage_key = cfg.first_stage_key
         self.image_size = cfg.image_size  # try conv?
         self.channels = cfg.channels
+        self.channels_last = cfg.get("channels_last", False)
         self.use_positional_encodings = cfg.use_positional_encodings
-        self.model = DiffusionWrapper(cfg.unet_config, cfg.conditioning_key)
+        self.model = DiffusionWrapper(
+            cfg.unet_config,
+            cfg.conditioning_key,
+            cfg.inductor,
+            cfg.inductor_cudagraphs,
+            cfg.get("capture_cudagraph_iters", -1),
+        )
         self.model_type = None
         count_params(self.model, verbose=True)
 
@@ -212,6 +224,10 @@ class DDPM(torch.nn.Module):
             )
         elif self.parameterization == "x0":
             lvlb_weights = 0.5 * np.sqrt(torch.Tensor(alphas_cumprod)) / (2.0 * 1 - torch.Tensor(alphas_cumprod))
+        elif self.parameterization == "v":
+            lvlb_weights = torch.ones_like(
+                self.betas ** 2 / (2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod))
+            )
         else:
             raise NotImplementedError("mu not supported")
         # TODO how to choose this term
@@ -270,6 +286,18 @@ class DDPM(torch.nn.Module):
         return (
             extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t
             - extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
+        )
+
+    def predict_start_from_z_and_v(self, x_t, t, v):
+        return (
+            extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * x_t
+            - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * v
+        )
+
+    def predict_eps_from_z_and_v(self, x_t, t, v):
+        return (
+            extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * v
+            + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * x_t
         )
 
     def q_posterior(self, x_start, x_t, t):
@@ -333,6 +361,12 @@ class DDPM(torch.nn.Module):
             + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         )
 
+    def get_v(self, x, noise, t):
+        return (
+            extract_into_tensor(self.sqrt_alphas_cumprod, t, x.shape) * noise
+            - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * x
+        )
+
     def get_loss(self, pred, target, mean=True):
         if self.loss_type == 'l1':
             loss = (target - pred).abs()
@@ -358,6 +392,8 @@ class DDPM(torch.nn.Module):
             target = noise
         elif self.parameterization == "x0":
             target = x_start
+        elif self.parameterization == "v":
+            target = self.get_v(x_start, noise, t)
         else:
             raise NotImplementedError(f"Paramterization {self.parameterization} not yet supported")
 
@@ -387,8 +423,11 @@ class DDPM(torch.nn.Module):
         x = batch[k]
         if len(x.shape) == 3:
             x = x[..., None]
-        x = rearrange(x, 'b h w c -> b c h w')
-        x = x.to(memory_format=torch.contiguous_format)
+        if self.channels_last:
+            x = x.permute(0, 3, 1, 2).to(non_blocking=True)
+        else:
+            x = rearrange(x, "b h w c -> b c h w")
+            x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
         return x
 
     def shared_step(self, batch):
@@ -445,7 +484,8 @@ class DDPM(torch.nn.Module):
 class LatentDiffusion(DDPM, Serialization):
     """main class"""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, model_parallel_config):
+        self.config = model_parallel_config
         self.num_timesteps_cond = default(cfg.num_timesteps_cond, 1)
         self.scale_by_std = cfg.scale_by_std
         assert self.num_timesteps_cond <= cfg.timesteps
@@ -460,6 +500,7 @@ class LatentDiffusion(DDPM, Serialization):
         ignore_keys = cfg.ignore_keys
         cfg.conditioning_key = conditioning_key
         super().__init__(cfg=cfg)
+        self.precision = cfg.precision
         self.concat_mode = cfg.concat_mode
         self.cond_stage_trainable = cfg.cond_stage_trainable
         self.cond_stage_key = cfg.cond_stage_key
@@ -484,11 +525,9 @@ class LatentDiffusion(DDPM, Serialization):
             self.init_from_ckpt(ckpt_path, ignore_keys)
             self.restarted_from_ckpt = True
 
-        # Fusing VAE and CLIP doesn't give benefit
-        if cfg.get("inductor", False):
-            # TorchInductor with CUDA graph can lead to OOM
-            inductor_config.triton.cudagraphs = cfg.get("inductor_cudagraphs", False)
-            self.model = optimize("inductor")(self.model)
+        if self.channels_last:
+            self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
+            self.model = self.model.to(memory_format=torch.channels_last)
 
     def make_cond_schedule(self,):
         self.cond_ids = torch.full(size=(self.num_timesteps,), fill_value=self.num_timesteps - 1, dtype=torch.long)
@@ -1085,9 +1124,13 @@ class LatentDiffusion(DDPM, Serialization):
             target = x_start
         elif self.parameterization == "eps":
             target = noise
+        elif self.parameterization == "v":
+            target = self.get_v(x_start, noise, t)
         else:
             raise NotImplementedError()
 
+        if (self.precision in ['bf16', 'bf16-mixed']) or (self.precision in [16, '16', '16-mixed']):
+            model_output = model_output.type(torch.float32)
         loss_simple = self.get_loss(model_output, target, mean=False).mean([1, 2, 3])
         loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
         self.logvar = self.logvar.cuda(non_blocking=True)
@@ -1564,7 +1607,7 @@ class LatentDiffusion(DDPM, Serialization):
         pass
 
 
-class MegatronLatentDiffusion(MegatronMultimodalModel):
+class MegatronLatentDiffusion(MegatronBaseModel):
     """Megatron LatentDiffusion Model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -1590,14 +1633,14 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
         self.conditioning_keys = []
 
-        if self.trainer.precision == 'bf16':
+        if self.trainer.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision in [16, '16', '16-mixed']:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
     def get_module_list(self):
         if isinstance(self.model, list):
@@ -1609,7 +1652,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
-        model = LatentDiffusion(cfg=self.cfg)
+        model = LatentDiffusion(cfg=self.cfg, model_parallel_config=self.model_parallel_config)
         return model
 
     def forward(self, x, c, *args, **kwargs):
@@ -1624,6 +1667,54 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
             self.model.on_train_batch_start(batch, batch_idx)
 
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+        tensor_shape = None  # Placeholder
+
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+
+        # pipeline schedules will get these from self.model.config
+        for module in self.get_module_list():
+            module.config.no_sync_func = no_sync_func
+
+        # run forward and backwards passes for an entire global batch
+        # we do this inside training_step to support pipeline parallelism
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=dataloader_iter,
+            model=self.model,
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            seq_length=None,
+            micro_batch_size=self.cfg.micro_batch_size,
+        )
+
+        # losses_reduced_per_micro_batch is a list of dictionaries
+        # [{"loss": 0.1}, {"loss": 0.2}, ...] which are from gradient accumulation steps
+        # only the last stages of the pipeline return losses
+        loss_dict = {}
+        if losses_reduced_per_micro_batch:
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                for key in losses_reduced_per_micro_batch[0]:
+                    loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
+                    loss_tensor = torch.stack(loss_tensors_list)
+                    loss_dict[key] = loss_tensor.mean()
+                loss_mean = loss_dict["val/loss"] if forward_only else loss_dict["train/loss"]
+            else:
+                raise NotImplementedError("Losses of micro batches sizes must be uniform!")
+        else:
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+
+        return loss_mean, loss_dict
+
     def training_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
@@ -1633,41 +1724,11 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             Microbatches are then moved to GPU during the pipeline.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        tensor_shape = None  # Placeholder
 
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
 
-        # run forward and backwards passes for an entire global batch
-        # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=False,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        # losses_reduced_per_micro_batch is a list of dictionaries
-        # [{"loss": 0.1}, {"loss": 0.2}, ...] which are from gradient accumulation steps
-        # only the last stages of the pipeline return losses
-        loss_dict = {}
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            for key in losses_reduced_per_micro_batch[0]:
-                loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.stack(loss_tensors_list)
-                loss_dict[key] = loss_tensor.mean()
-            loss_mean = loss_dict["train/loss"]
-        else:
-            loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+        loss_mean, loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
 
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
@@ -1684,12 +1745,12 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             #     # main grads are stored in the MainParamsOptimizer wrapper
             #     self._optimizer.allreduce_main_grads()
             self._optimizer.allreduce_main_grads()
-        else:
+        elif not self.cfg.get('ddp_overlap', True):
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        if self.cfg.precision == 16:
+        if self.cfg.precision in [16, '16', '16-mixed']:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
@@ -1786,31 +1847,11 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         return fwd_output_only_func
 
     def validation_step(self, dataloader_iter, batch_idx):
-        tensor_shape = None  # Placeholder
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        # only the last stages of the pipeline return losses
-        val_loss_dict = {}
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            for key in losses_reduced_per_micro_batch[0]:
-                loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.stack(loss_tensors_list)
-                val_loss_dict[key] = loss_tensor.mean()
+        loss, val_loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
         self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True, batch_size=1)
+
+        return loss
 
     def setup(self, stage=None):
         """ PTL hook that is executed after DDP spawns.
@@ -1841,7 +1882,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             f'Total number of model parameters: {total_num_parameters:.2e}.'
         )
 
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -1951,13 +1992,156 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         else:
             return self.model.parameters()
 
+    def save_to(self, save_path: str):
+        # Replace .nemo path in config for NeMo CLIP
+        cfg = self._cfg
+        if cfg.get('cond_stage_config').get('restore_from_path'):
+            with open_dict(cfg):
+                cfg.cond_stage_config.restore_from_path = None
+                cfg.cond_stage_config.cfg = self.model.cond_stage_model.cfg
+            self._cfg = cfg
+        super().save_to(save_path)
+
+    @classmethod
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: str,
+        map_location: Any = None,
+        hparams_file: Optional[str] = None,
+        strict: bool = True,
+        **kwargs,
+    ):
+        """
+        Loads ModelPT from checkpoint, with some maintenance of restoration.
+        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+        """
+        checkpoint = None
+        try:
+            cls._set_model_restore_state(is_being_restored=True)
+            # TODO: replace with proper PTL API
+            with pl_legacy_patch():
+                if map_location is not None:
+                    checkpoint = pl_load(checkpoint_path, map_location=map_location)
+                else:
+                    checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
+
+            if hparams_file is not None:
+                extension = hparams_file.split(".")[-1]
+                if extension.lower() == "csv":
+                    hparams = load_hparams_from_tags_csv(hparams_file)
+                elif extension.lower() in ("yml", "yaml"):
+                    hparams = load_hparams_from_yaml(hparams_file)
+                else:
+                    raise ValueError(".csv, .yml or .yaml is required for `hparams_file`")
+
+                hparams["on_gpu"] = False
+
+                # overwrite hparams by the given file
+                checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = hparams
+
+            # for past checkpoint need to add the new key
+            if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
+                checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
+            # override the hparams with values that were passed in
+            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].get('cfg', checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
+            # TODO: can we do this without overriding?
+            config_kwargs = kwargs.copy()
+            if 'trainer' in config_kwargs:
+                config_kwargs.pop('trainer')
+            cfg.update(config_kwargs)
+
+            # Disable individual unet/vae weights loading otherwise the model will look for these partial ckpts and raise error
+            if cfg:
+                if cfg.get('unet_config') and cfg.get('unet_config').get('from_pretrained'):
+                    cfg.unet_config.from_pretrained = None
+                if cfg.get('first_stage_config') and cfg.get('first_stage_config').get('from_pretrained'):
+                    cfg.first_stage_config.from_pretrained = None
+                ## Now when we covert ckpt to nemo, let's always get rid of those _orig_mod
+                if cfg.get('inductor'):
+                    cfg.inductor = False
+                ## Append some dummy configs that DB didn't support
+                if not cfg.get('channels_last'):
+                    cfg.channels_last = True
+                if not cfg.get('capture_cudagraph_iters'):
+                    cfg.capture_cudagraph_iters = -1
+
+            # compatibility for stable diffusion old checkpoint tweaks
+            first_key = list(checkpoint['state_dict'].keys())[0]
+            if first_key == "betas":
+                # insert "model." into for megatron wrapper
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = "model." + key
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+            elif (
+                first_key == 'model.text_encoder.transformer.text_model.embeddings.position_ids'
+                or first_key == 'model.text_encoder.model.language_model.embedding.position_embeddings'
+            ):
+                # remap state keys from dreambooth when using HF clip
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('._orig_mod', "")
+                    new_key = new_key.replace('unet', 'model.diffusion_model')
+                    new_key = new_key.replace('vae', 'first_stage_model')
+                    new_key = new_key.replace('text_encoder', 'cond_stage_model')
+                    new_key = new_key.replace('.noise_scheduler', '')
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
+            # compatibility for inductor in inference
+            if not cfg.get('inductor', False):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('._orig_mod', '', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
+            if cfg.get('megatron_amp_O2', False):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('model.', 'model.module.', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
+            if 'cfg' in kwargs:
+                model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
+            else:
+                model = ptl_load_state(cls, checkpoint, strict=strict, cfg=cfg, **kwargs)
+                # cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
+
+            checkpoint = model
+
+        finally:
+            cls._set_model_restore_state(is_being_restored=False)
+        return checkpoint
+
 
 class DiffusionWrapper(pl.LightningModule, Serialization):
-    def __init__(self, diff_model_config, conditioning_key):
+    def __init__(
+        self,
+        diff_model_config,
+        conditioning_key,
+        inductor: bool = False,
+        inductor_cudagraphs: bool = False,
+        capture_cudagraph_iters: int = -1,
+    ):
         super().__init__()
         self.diffusion_model = DiffusionWrapper.from_config_dict(diff_model_config)
         self.conditioning_key = conditioning_key
         assert self.conditioning_key in [None, 'concat', 'crossattn', 'hybrid', 'adm']
+
+        # Fusing VAE and CLIP doesn't give benefit
+        if inductor:
+            # TorchInductor with CUDA graph can lead to OOM
+            torch._dynamo.config.dynamic_shapes = False
+            torch._dynamo.config.automatic_dynamic_shapes = False
+            inductor_config.triton.cudagraphs = inductor_cudagraphs
+            self.diffusion_model = torch.compile(self.diffusion_model)
+        # CUDA graph
+        self.capture_cudagraph_iters = capture_cudagraph_iters
+        self.iterations = 0
+        self.graphed_diffusion_model = None
 
     def forward(self, x, t, c_concat: list = None, c_crossattn: list = None):
         if self.conditioning_key is None:
@@ -1967,7 +2151,15 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
             out = self.diffusion_model(xc, t)
         elif self.conditioning_key == 'crossattn':
             cc = torch.cat(c_crossattn, 1)
-            out = self.diffusion_model(x, t, context=cc)
+            if self.iterations == self.capture_cudagraph_iters:
+                logging.info("Capturing CUDA graph for module: %s", self.diffusion_model.__class__.__name__)
+                self.graphed_diffusion_model = torch.cuda.make_graphed_callables(self.diffusion_model, (x, t, cc))
+
+            if 0 <= self.capture_cudagraph_iters <= self.iterations:
+                out = self.graphed_diffusion_model(x, t, cc)
+            else:
+                out = self.diffusion_model(x, t, context=cc)
+            self.iterations += 1
         elif self.conditioning_key == 'hybrid':
             xc = torch.cat([x] + c_concat, dim=1)
             cc = torch.cat(c_crossattn, 1)

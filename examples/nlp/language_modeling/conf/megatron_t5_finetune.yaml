@@ -7,7 +7,7 @@ trainer:
   precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: 10
   max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
@@ -87,7 +87,7 @@ model:
       add_bos_to_input: ${data.train_ds.add_bos_to_input}
       add_eos_to_input: ${data.train_ds.add_eos_to_input}
       metric:
-        name: "exact_string_match" # Name of the evaluation metric to use.
+        name: "exact_string_match" # Name of the evaluation metric to use. Supported metrics: [`exact_string_match`, `rouge`, `pearson_corr_coef`, `spearman_corr_coef`, `f1`, `accuracy`, `average_precision`]
         average: micro # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null # Number of classes for the metric. Works only for 'F1', 'accuracy' and 'average_precision' etc. Refer to torchmetrics for metrics where this is supported.
         class_labels: null # If the targets in your dataset are strings and not integers/float, you need to provide a list of class labels (size = num_classes) so we can convert from strings to integer categories to compute the metric.

@@ -92,6 +92,13 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         )
         result.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="titanet_small",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:titanet_small",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/titanet_small/versions/1.19.0/files/titanet-s.nemo",
+        )
+        result.append(model)
+
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -268,7 +275,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'is_tarred' in train_data_layer_config and train_data_layer_config['is_tarred']:
+        if (
+            self._train_dl is not None
+            and hasattr(self._train_dl, 'dataset')
+            and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
+        ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
@@ -362,13 +373,25 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._macro_accuracy.update(preds=logits, target=labels)
         stats = self._macro_accuracy._final_state()
 
-        return {
+        output = {
             f'{tag}_loss': loss_value,
             f'{tag}_correct_counts': correct_counts,
             f'{tag}_total_counts': total_counts,
             f'{tag}_acc_micro_top_k': acc_top_k,
             f'{tag}_acc_macro_stats': stats,
         }
+        if tag == 'val':
+            if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(output)
+            else:
+                self.validation_step_outputs.append(output)
+        else:
+            if isinstance(self.trainer.test_dataloaders, (list, tuple)) and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(output)
+            else:
+                self.test_step_outputs.append(output)
+
+        return output
 
     def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
         loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()

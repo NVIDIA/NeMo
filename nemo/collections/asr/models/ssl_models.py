@@ -94,6 +94,9 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
             # need to be separate for moduledict
 
             for decoder_loss_name, decoder_loss_cfg in self._cfg.loss_list.items():
+                if not decoder_loss_cfg.get("is_active", True):  # active by default
+                    continue
+
                 new_decoder_loss = {
                     'decoder': SpeechEncDecSelfSupervisedModel.from_config_dict(decoder_loss_cfg.decoder),
                     'loss': SpeechEncDecSelfSupervisedModel.from_config_dict(decoder_loss_cfg.loss),
@@ -231,7 +234,11 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+        if (
+            self._train_dl is not None
+            and hasattr(self._train_dl, 'dataset')
+            and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
+        ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
@@ -267,7 +274,11 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'is_tarred' in val_data_config and val_data_config['is_tarred']:
+        if (
+            self._validation_dl is not None
+            and hasattr(self._validation_dl, 'dataset')
+            and isinstance(self._validation_dl.dataset, torch.utils.data.IterableDataset)
+        ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
@@ -516,7 +527,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def validation_pass(self, batch, batch_idx, dataloader_idx=0):
         # Set flag to register tensors
         self._in_validation_step = True
 
@@ -543,9 +554,17 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         self.reset_registry()
         del self._in_validation_step
 
-        return {
-            'val_loss': loss_value,
-        }
+        metrics = {'val_loss': loss_value}
+
+        return metrics
+
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        metrics = self.validation_pass(batch, batch_idx, dataloader_idx)
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
+        return metrics
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()

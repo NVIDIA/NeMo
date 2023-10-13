@@ -45,7 +45,7 @@ def model_cfg():
       pipeline_model_parallel_size: 1 # inter-layer model parallelism
       virtual_pipeline_model_parallel_size: null # interleaved pipeline
     
-      restore_from_pretrained: null # used in fine-tuning
+      restore_from_path: null # used in fine-tuning
       # multimodal configs
       output_dim: 64
       local_loss: False # calculate loss w/ local features @ global (instead of realizing full global @ global matrix)
@@ -252,7 +252,7 @@ def trainer_cfg():
         precision: 16
         logger: False
         enable_checkpointing: False
-        replace_sampler_ddp: False
+        use_distributed_sampler: False
         max_epochs: -1
         max_steps: 4
         log_every_n_steps: 1
@@ -377,11 +377,11 @@ class TestMegatronCLIPModel:
         trainer, clip_model = clip_trainer_and_model
 
         dtype = None
-        if clip_model.cfg['precision'] == 32:
+        if clip_model.cfg['precision'] in [32, '32', '32-true']:
             dtype = torch.float
-        elif clip_model.cfg['precision'] == 16:
+        elif clip_model.cfg['precision'] in [16, '16', '16-mixed']:
             dtype = torch.float16
-        elif clip_model.cfg['precision'] == 'bf16':
+        elif clip_model.cfg['precision'] in ['bf16', 'bf16-mixed']:
             dtype = torch.bfloat16
         else:
             raise ValueError(f"precision: {clip_model.cfg['precision']} is not supported.")
@@ -420,11 +420,11 @@ class TestMegatronCLIPModel:
     #     )
     #
     #     dtype = None
-    #     if trainer_cfg['precision'] == 32:
+    #     if trainer_cfg['precision'] in [32, '32', '32-true']:
     #         dtype = torch.float
-    #     elif trainer_cfg['precision'] == 16:
+    #     elif trainer_cfg['precision'] in [16, '16', '16-mixed']:
     #         dtype = torch.float16
-    #     elif trainer_cfg['precision'] == 'bf16':
+    #     elif trainer_cfg['precision'] in ['bf16', 'bf16-mixed']:
     #         dtype = torch.bfloat16
     #     else:
     #         raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")
@@ -456,11 +456,11 @@ class TestMegatronCLIPModel:
     # @pytest.mark.unit
     # def test_vit_head(self, model_cfg, trainer_cfg, precision):
     #     dtype = None
-    #     if trainer_cfg['precision'] == 32:
+    #     if trainer_cfg['precision'] in [32, '32', '32-true']:
     #         dtype = torch.float
-    #     elif trainer_cfg['precision'] == 16:
+    #     elif trainer_cfg['precision'] in [16, '16', '16-mixed']:
     #         dtype = torch.float16
-    #     elif trainer_cfg['precision'] == 'bf16':
+    #     elif trainer_cfg['precision'] in ['bf16', 'bf16-mixed']:
     #         dtype = torch.bfloat16
     #     else:
     #         raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")

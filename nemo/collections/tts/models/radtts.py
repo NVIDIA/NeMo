@@ -24,6 +24,7 @@ from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RA
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.parts.utils.helpers import (
     batch_from_ragged,
+    g2p_backward_compatible_support,
     plot_alignment_to_numpy,
     regulate_len,
     sample_tts_input,
@@ -224,23 +225,25 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             binarization_loss = torch.zeros_like(loss)
         loss_outputs['binarization_loss'] = binarization_loss
 
-        return {
+        val_outputs = {
             "loss_outputs": loss_outputs,
             "attn": outputs["attn"] if batch_idx == 0 else None,
             "attn_soft": outputs["attn_soft"] if batch_idx == 0 else None,
             "audiopaths": "audio_1" if batch_idx == 0 else None,
         }
+        self.validation_step_outputs.append(val_outputs)
+        return val_outputs
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
 
-        loss_outputs = outputs[0]["loss_outputs"]
+        loss_outputs = self.validation_step_outputs[0]["loss_outputs"]
 
         for k, v in loss_outputs.items():
             if k != "binarization_loss":
                 self.log("val/" + k, loss_outputs[k][0], sync_dist=True, on_epoch=True)
 
-        attn = outputs[0]["attn"]
-        attn_soft = outputs[0]["attn_soft"]
+        attn = self.validation_step_outputs[0]["attn"]
+        attn_soft = self.validation_step_outputs[0]["attn_soft"]
 
         self.tb_logger.add_image(
             'attention_weights_mas',
@@ -256,6 +259,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             dataformats='HWC',
         )
         self.log_train_images = True
+        self.validation_step_outputs.clear()  # free memory
 
     def configure_optimizers(self):
         logging.info("Initializing %s optimizer" % (self.optim.name))
@@ -333,11 +337,14 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
             # for backward compatibility
-            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
-                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
-                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+            if (
+                self._is_model_being_restored()
+                and (cfg.text_tokenizer.g2p.get('_target_', None) is not None)
+                and cfg.text_tokenizer.g2p["_target_"].startswith("nemo_text_processing.g2p")
+            ):
+                cfg.text_tokenizer.g2p["_target_"] = g2p_backward_compatible_support(
+                    cfg.text_tokenizer.g2p["_target_"]
                 )
-                logging.warning("This checkpoint support will be dropped after r1.18.0.")
 
             g2p_kwargs = {}
 

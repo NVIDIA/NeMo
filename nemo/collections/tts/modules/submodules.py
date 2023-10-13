@@ -509,7 +509,7 @@ class ConditionalInput(torch.nn.Module):
                 inputs = inputs + conditioning
 
             if "concat" in self.condition_types:
-                conditioning = conditionting.repeat(1, inputs.shape[1], 1)
+                conditioning = conditioning.repeat(1, inputs.shape[1], 1)
                 inputs = torch.cat([inputs, conditioning])
                 inputs = self.concat_proj(inputs)
 
@@ -709,18 +709,29 @@ class SpeakerEncoder(NeuralModule):
     This module can combine GST (global style token) based speaker embeddings and lookup table speaker embeddings.
     """
 
-    def __init__(self, lookup_module=None, gst_module=None):
+    def __init__(self, lookup_module=None, gst_module=None, precomputed_embedding_dim=None):
         """
         lookup_module: Torch module to get lookup based speaker embedding
         gst_module: Neural module to get GST based speaker embedding
+        precomputed_embedding_dim: Give precomputed speaker embedding dimension to use precompute speaker embedding
         """
         super(SpeakerEncoder, self).__init__()
+
+        # Multi-speaker embedding
         self.lookup_module = lookup_module
+
+        # Reference speaker embedding
         self.gst_module = gst_module
+
+        if precomputed_embedding_dim is not None:
+            self.precomputed_emb = torch.nn.Parameter(torch.empty(precomputed_embedding_dim))
+        else:
+            self.precomputed_emb = None
 
     @property
     def input_types(self):
         return {
+            "batch_size": NeuralType(optional=True),
             "speaker": NeuralType(('B'), Index(), optional=True),
             "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
@@ -732,23 +743,26 @@ class SpeakerEncoder(NeuralModule):
             "embs": NeuralType(('B', 'D'), EncodedRepresentation()),
         }
 
-    def forward(self, speaker=None, reference_spec=None, reference_spec_lens=None):
+    def overwrite_precomputed_emb(self, emb):
+        self.precomputed_emb = torch.nn.Parameter(emb)
+
+    def forward(self, batch_size=None, speaker=None, reference_spec=None, reference_spec_lens=None):
         embs = None
+
+        # Get Precomputed speaker embedding
+        if self.precomputed_emb is not None:
+            return self.precomputed_emb.unsqueeze(0).repeat(batch_size, 1)
 
         # Get Lookup table speaker embedding
         if self.lookup_module is not None and speaker is not None:
             embs = self.lookup_module(speaker)
 
         # Get GST based speaker embedding
-        if self.gst_module is not None:
-            if reference_spec is None or reference_spec_lens is None:
-                raise ValueError(
-                    "You should add `reference_audio` in sup_data_types or remove `speaker_encoder`in config."
-                )
-            out = self.gst_module(reference_spec, reference_spec_lens)
-            embs = out if embs is None else embs + out
-
-        elif self.gst_module is None and reference_spec is not None and reference_spec_lens is not None:
-            logging.warning("You may add `gst_module` in speaker_encoder to use reference_audio.")
+        if reference_spec is not None and reference_spec_lens is not None:
+            if self.gst_module is not None:
+                out = self.gst_module(reference_spec, reference_spec_lens)
+                embs = out if embs is None else embs + out
+            else:
+                logging.warning("You may add `gst_module` in speaker_encoder to use reference_audio.")
 
         return embs

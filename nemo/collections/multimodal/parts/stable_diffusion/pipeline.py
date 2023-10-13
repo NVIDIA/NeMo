@@ -19,8 +19,10 @@ import torch
 from PIL import Image
 
 from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
+from nemo.collections.multimodal.models.stable_diffusion.samplers.para_ddim import ParaDDIMSampler
 from nemo.collections.multimodal.models.stable_diffusion.samplers.plms import PLMSSampler
 from nemo.collections.multimodal.models.stable_diffusion.samplers.sampler_dpm import DPMSolverSampler
+from nemo.collections.multimodal.parts.stable_diffusion.utils import DataParallelWrapper
 
 
 def encode_prompt(cond_stage_model, prompt, unconditional_guidance_scale, batch_size):
@@ -46,6 +48,8 @@ def initialize_sampler(model, sampler_type):
         sampler = PLMSSampler(model)
     elif sampler_type == 'DPM':
         sampler = DPMSolverSampler(model)
+    elif sampler_type == 'PARA_DDIM':
+        sampler = ParaDDIMSampler(model)
     else:
         raise ValueError(f'Sampler {sampler_type} is not supported.')
     return sampler
@@ -85,6 +89,8 @@ def pipeline(model, cfg, verbose=True, rng=None):
     width = cfg.infer.get('width', 512)
     downsampling_factor = cfg.infer.get('down_factor', 8)
     sampler_type = cfg.infer.get('sampler_type', 'DDIM')
+    sampler_parallelism = cfg.infer.get('sampler_parallelism', 1)
+    sampler_tolerance = cfg.infer.get('sampler_tolerance', 0.1)
     inference_steps = cfg.infer.get('inference_steps', 50)
     output_type = cfg.infer.get('output_type', 'pil')
     save_to_file = cfg.infer.get('save_to_file', True)
@@ -93,11 +99,11 @@ def pipeline(model, cfg, verbose=True, rng=None):
     return_logprobs=cfg.infer.get('get_logprobs', False)
 
     # get autocast_dtype
-    if cfg.trainer.precision == 'bf16':
+    if cfg.trainer.precision in ['bf16', 'bf16-mixed']:
         autocast_dtype = torch.bfloat16
-    elif int(cfg.trainer.precision) == 32:
+    elif cfg.trainer.precision in [32, '32', '32-true']:
         autocast_dtype = torch.float
-    elif int(cfg.trainer.precision) == 16:
+    elif cfg.trainer.precision in [16, '16', '16-mixed']:
         autocast_dtype = torch.half
     else:
         raise ValueError('precision must be in [32, 16, "bf16"]')
@@ -123,7 +129,7 @@ def pipeline(model, cfg, verbose=True, rng=None):
             toc = time.perf_counter()
             conditioning_time = toc - tic
 
-            latent_shape = [batch_size, height // downsampling_factor, width // downsampling_factor]
+            latent_shape = [in_channels, height // downsampling_factor, width // downsampling_factor]
             latents = torch.randn(
                 [batch_size, in_channels, height // downsampling_factor, width // downsampling_factor], generator=rng
             ).to(torch.cuda.current_device())

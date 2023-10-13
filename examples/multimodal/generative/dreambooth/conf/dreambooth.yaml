@@ -1,13 +1,13 @@
 name: Dreambooth
 
 trainer:
-  devices: 2
+  devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16
+  precision: bf16-mixed
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
   max_steps: 400 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
@@ -15,6 +15,7 @@ trainer:
   gradient_clip_val: 1.0
   benchmark: False
   enable_model_summary: True
+  limit_val_batches: 0
 
 exp_manager:
   exp_dir: null
@@ -22,7 +23,7 @@ exp_manager:
   create_checkpoint_callback: True
   create_tensorboard_logger: True
   checkpoint_callback_params:
-    every_n_train_steps: 100
+    every_n_train_steps: 200
     every_n_epochs: 0
     monitor: reduced_train_loss
     save_on_train_epoch_end: False
@@ -30,6 +31,7 @@ exp_manager:
     save_top_k: -1
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
+  resume_from_checkpoint: ${model.resume_from_checkpoint}
   ema:
     enable: False
     decay: 0.9999
@@ -44,13 +46,13 @@ model:
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 2 # limited by GPU memory
-  global_batch_size: 4 # will use more micro batches to reach global batch size
+  global_batch_size: 2 # will use more micro batches to reach global batch size
 
-  with_prior_preservation: True
-  pretrained_ckpt:
+  with_prior_preservation: False
+  use_cached_latents: True
   prior_loss_weight: 0.5
   train_text_encoder: False
-  restore_from_path: /ckpts/v1-5-pruned.ckpt #This ckpt is only used to generate regularization images, thus .nemo ckpt is needed
+  restore_from_path: /ckpts/nemo-v1-5-188000-ema.nemo #This ckpt is only used to generate regularization images, thus .nemo ckpt is needed
 
 
 
@@ -61,7 +63,7 @@ model:
   log_every_t: 200
   timesteps: 1000
   first_stage_key: images
-  cond_stage_key: captions # txt for cifar, caption for pbss
+  cond_stage_key: captions
   image_size: 64
   channels: 4
   cond_stage_trainable: false
@@ -92,10 +94,11 @@ model:
   fused_opt: True
   inductor: False
   inductor_cudagraphs: False
+  channels_last: False
 
   unet_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel.UNetModel
-    from_pretrained: /ckpts/unet-v1-5.bin #load unet weights for finetuning, can use .ckpt ckpts from various sources
+    from_pretrained: /ckpts/unet.bin #load unet weights for finetuning, can use .ckpt ckpts from various sources
     from_NeMo: False #Must be specified when from pretrained is not None, False means loading unet from HF ckpt
     image_size: 32 # unused
     in_channels: 4
@@ -143,10 +146,16 @@ model:
       target: torch.nn.Identity
 
   cond_stage_config:
-    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder
-    version: openai/clip-vit-large-patch14
+    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
+    restore_from_path: /ckpts/openai.nemo
     device: cuda
-    max_length: 77
+    freeze: True
+    layer: "last"
+    #    For compatibility of history version that uses HF clip model
+    #    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder
+    #    version: openai/clip-vit-large-patch14
+    #    device: cuda
+    #    max_length: 77
 
   noise_scheduler:
     _target_: nemo.collections.multimodal.models.dreambooth.util.sd_noise_scheduler
@@ -192,11 +201,12 @@ model:
     instance_prompt: a photo of a sks dog
     regularization_dir: /datasets/nemo_dogs
     regularization_prompt: a photo of a dog
-    num_reg_images: 200
+    num_reg_images: 10
     num_images_per_prompt: 4
-    train_batch_size: 2
     resolution: 512
     center_crop: True
+    cached_instance_dir: #/datasets/instance_dir_cached
+    cached_reg_dir: #/datasets/nemo_dogs_cached
 
 ##The below infer config is to use inference script generating regularization images
 infer:

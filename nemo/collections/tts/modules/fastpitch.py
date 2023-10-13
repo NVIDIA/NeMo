@@ -80,6 +80,12 @@ def average_features(pitch, durs):
     return pitch_avg
 
 
+def log_to_duration(log_dur, min_dur, max_dur, mask):
+    dur = torch.clamp(torch.exp(log_dur) - 1.0, min_dur, max_dur)
+    dur *= mask.squeeze(2)
+    return dur
+
+
 class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
     def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0, condition_dim=384, condition_types=[]):
         super(ConvReLUNorm, self).__init__()
@@ -163,7 +169,9 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         pitch_embedding_kernel_size: int,
         energy_embedding_kernel_size: int,
         n_mel_channels: int = 80,
+        min_token_duration: int = 0,
         max_token_duration: int = 75,
+        use_log_energy: bool = True,
     ):
         super().__init__()
 
@@ -177,6 +185,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         self.learn_alignment = aligner is not None
         self.use_duration_predictor = True
         self.binarize = False
+        self.use_log_energy = use_log_energy
 
         # TODO: combine self.speaker_emb with self.speaker_encoder
         # cfg: remove `n_speakers`, create `speaker_encoder.lookup_module`
@@ -186,8 +195,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         else:
             self.speaker_emb = None
 
+        self.min_token_duration = min_token_duration
         self.max_token_duration = max_token_duration
-        self.min_token_duration = 0
 
         self.pitch_emb = torch.nn.Conv1d(
             1,
@@ -244,10 +253,10 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             "energy_tgt": NeuralType(('B', 'T_audio'), RegressionValuesType()),
         }
 
-    def get_speaker_embedding(self, speaker, reference_spec, reference_spec_lens):
+    def get_speaker_embedding(self, batch_size, speaker, reference_spec, reference_spec_lens):
         """spk_emb: Bx1xD"""
         if self.speaker_encoder is not None:
-            spk_emb = self.speaker_encoder(speaker, reference_spec, reference_spec_lens).unsqueeze(1)
+            spk_emb = self.speaker_encoder(batch_size, speaker, reference_spec, reference_spec_lens).unsqueeze(1)
         elif self.speaker_emb is not None:
             if speaker is None:
                 raise ValueError('Please give speaker id to get lookup speaker embedding.')
@@ -281,7 +290,10 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
 
         # Calculate speaker embedding
         spk_emb = self.get_speaker_embedding(
-            speaker=speaker, reference_spec=reference_spec, reference_spec_lens=reference_spec_lens,
+            batch_size=text.shape[0],
+            speaker=speaker,
+            reference_spec=reference_spec,
+            reference_spec_lens=reference_spec_lens,
         )
 
         # Input FFT
@@ -289,7 +301,9 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
 
         # Predict duration
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=spk_emb)
-        durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
+        durs_predicted = log_to_duration(
+            log_dur=log_durs_predicted, min_dur=self.min_token_duration, max_dur=self.max_token_duration, mask=enc_mask
+        )
 
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
         if self.learn_alignment and spec is not None:
@@ -317,7 +331,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
 
         # Predict energy
         if self.energy_predictor is not None:
-            energy_pred = self.energy_predictor(prosody_input, enc_mask).squeeze(-1)
+            energy_pred = self.energy_predictor(enc_out, enc_mask, conditioning=spk_emb).squeeze(-1)
 
             if energy is not None:
                 # Average energy over characters
@@ -325,7 +339,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
                     energy_tgt = average_features(energy.unsqueeze(1), attn_hard_dur)
                 else:
                     energy_tgt = average_features(energy.unsqueeze(1), durs_predicted)
-                energy_tgt = torch.log(1.0 + energy_tgt)
+                if self.use_log_energy:
+                    energy_tgt = torch.log(1.0 + energy_tgt)
                 energy_emb = self.energy_emb(energy_tgt)
                 energy_tgt = energy_tgt.squeeze(1)
             else:
@@ -379,10 +394,12 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         reference_spec=None,
         reference_spec_lens=None,
     ):
-
         # Calculate speaker embedding
         spk_emb = self.get_speaker_embedding(
-            speaker=speaker, reference_spec=reference_spec, reference_spec_lens=reference_spec_lens,
+            batch_size=text.shape[0],
+            speaker=speaker,
+            reference_spec=reference_spec,
+            reference_spec_lens=reference_spec_lens,
         )
 
         # Input FFT
@@ -390,8 +407,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
 
         # Predict duration and pitch
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=spk_emb)
-        durs_predicted = torch.clamp(
-            torch.exp(log_durs_predicted) - 1.0, self.min_token_duration, self.max_token_duration
+        durs_predicted = log_to_duration(
+            log_dur=log_durs_predicted, min_dur=self.min_token_duration, max_dur=self.max_token_duration, mask=enc_mask
         )
         pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=spk_emb) + pitch
         pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
@@ -402,7 +419,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
                 assert energy.shape[-1] == text.shape[-1], f"energy.shape[-1]: {energy.shape[-1]} != len(text)"
                 energy_emb = self.energy_emb(energy)
             else:
-                energy_pred = self.energy_predictor(prosody_input, enc_mask).squeeze(-1)
+                energy_pred = self.energy_predictor(enc_out, enc_mask, conditioning=spk_emb).squeeze(-1)
                 energy_emb = self.energy_emb(energy_pred.unsqueeze(1))
             enc_out = enc_out + energy_emb.transpose(1, 2)
 
@@ -436,6 +453,7 @@ class FastPitchSSLModule(NeuralModule):
         symbols_embedding_dim: int,
         pitch_embedding_kernel_size: int,
         n_mel_channels: int = 80,
+        min_token_duration: int = 0,
         max_token_duration: int = 75,
     ):
         super().__init__()
@@ -445,8 +463,8 @@ class FastPitchSSLModule(NeuralModule):
         self.duration_predictor = duration_predictor
         self.pitch_predictor = pitch_predictor
 
+        self.min_token_duration = min_token_duration
         self.max_token_duration = max_token_duration
-        self.min_token_duration = 0
 
         if self.pitch_predictor is not None:
             self.pitch_emb = torch.nn.Conv1d(
@@ -489,7 +507,12 @@ class FastPitchSSLModule(NeuralModule):
         log_durs_predicted, durs_predicted = None, None
         if self.duration_predictor is not None:
             log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
-            durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
+            durs_predicted = log_to_duration(
+                log_dur=log_durs_predicted,
+                min_dur=self.min_token_duration,
+                max_dur=self.max_token_duration,
+                mask=enc_mask,
+            )
 
         # Predict pitch
         pitch_predicted = None

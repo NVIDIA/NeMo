@@ -159,6 +159,9 @@ class AudioText(_Collection):
                     if hasattr(parser, "is_aggregate") and parser.is_aggregate and isinstance(text, str):
                         if lang is not None:
                             text_tokens = parser(text, lang)
+                        # for future use if want to add language bypass to audio_to_text classes
+                        # elif hasattr(parser, "lang") and parser.lang is not None:
+                        #    text_tokens = parser(text, parser.lang)
                         else:
                             raise ValueError("lang required in manifest when using aggregate tokenizers")
                     else:
@@ -176,6 +179,114 @@ class AudioText(_Collection):
             data.append(output_type(id_, audio_file, duration, text_tokens, offset, text, speaker, orig_sr, lang))
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
+                if file_id not in self.mapping:
+                    self.mapping[file_id] = []
+                self.mapping[file_id].append(len(data) - 1)
+
+            # Max number of entities filter.
+            if len(data) == max_number:
+                break
+
+        if do_sort_by_duration:
+            if index_by_file_id:
+                logging.warning("Tried to sort dataset by duration, but cannot since index_by_file_id is set.")
+            else:
+                data.sort(key=lambda entity: entity.duration)
+
+        logging.info("Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600)
+        logging.info("%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600)
+
+        super().__init__(data)
+
+
+class VideoText(_Collection):
+    """List of video-transcript text correspondence with preprocessing."""
+
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='AudioTextEntity',
+        field_names='id video_file duration text_tokens offset text_raw speaker orig_sr lang',
+    )
+
+    def __init__(
+        self,
+        ids: List[int],
+        video_files: List[str],
+        durations: List[float],
+        texts: List[str],
+        offsets: List[str],
+        speakers: List[Optional[int]],
+        orig_sampling_rates: List[Optional[int]],
+        token_labels: List[Optional[int]],
+        langs: List[Optional[str]],
+        parser: parsers.CharParser,
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        max_number: Optional[int] = None,
+        do_sort_by_duration: bool = False,
+        index_by_file_id: bool = False,
+    ):
+        """Instantiates video-text manifest with filters and preprocessing.
+
+        Args:
+            ids: List of examples positions.
+            video_files: List of video files.
+            durations: List of float durations.
+            texts: List of raw text transcripts.
+            offsets: List of duration offsets or None.
+            speakers: List of optional speakers ids.
+            orig_sampling_rates: List of original sampling rates of audio files.
+            langs: List of language ids, one for eadh sample, or None.
+            parser: Instance of `CharParser` to convert string to tokens.
+            min_duration: Minimum duration to keep entry with (default: None).
+            max_duration: Maximum duration to keep entry with (default: None).
+            max_number: Maximum number of samples to collect.
+            do_sort_by_duration: True if sort samples list by duration. Not compatible with index_by_file_id.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
+        """
+
+        output_type = self.OUTPUT_TYPE
+        data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
+        if index_by_file_id:
+            self.mapping = {}
+
+        for id_, video_file, duration, offset, text, speaker, orig_sr, token_labels, lang in zip(
+            ids, video_files, durations, offsets, texts, speakers, orig_sampling_rates, token_labels, langs
+        ):
+            # Duration filters.
+            if min_duration is not None and duration < min_duration:
+                duration_filtered += duration
+                num_filtered += 1
+                continue
+
+            if max_duration is not None and duration > max_duration:
+                duration_filtered += duration
+                num_filtered += 1
+                continue
+
+            if token_labels is not None:
+                text_tokens = token_labels
+            else:
+                if text != '':
+                    if hasattr(parser, "is_aggregate") and parser.is_aggregate and isinstance(text, str):
+                        if lang is not None:
+                            text_tokens = parser(text, lang)
+                        else:
+                            raise ValueError("lang required in manifest when using aggregate tokenizers")
+                    else:
+                        text_tokens = parser(text)
+                else:
+                    text_tokens = []
+
+                if text_tokens is None:
+                    duration_filtered += duration
+                    num_filtered += 1
+                    continue
+
+            total_duration += duration
+
+            data.append(output_type(id_, video_file, duration, text_tokens, offset, text, speaker, orig_sr, lang))
+            if index_by_file_id:
+                file_id, _ = os.path.splitext(os.path.basename(video_file))
                 if file_id not in self.mapping:
                     self.mapping[file_id] = []
                 self.mapping[file_id].append(len(data) - 1)
@@ -229,6 +340,42 @@ class ASRAudioText(AudioText):
             langs.append(item['lang'])
         super().__init__(
             ids, audio_files, durations, texts, offsets, speakers, orig_srs, token_labels, langs, *args, **kwargs
+        )
+
+
+class ASRVideoText(VideoText):
+    """`VideoText` collector from cv structured json files."""
+
+    def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
+        """Parse lists of video files, durations and transcripts texts.
+
+        Args:
+            manifests_files: Either single string file or list of such -
+                manifests to yield items from.
+            *args: Args to pass to `VideoText` constructor.
+            **kwargs: Kwargs to pass to `VideoText` constructor.
+        """
+
+        ids, video_files, durations, texts, offsets, = (
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
+        speakers, orig_srs, token_labels, langs = [], [], [], []
+        for item in manifest.item_iter(manifests_files):
+            ids.append(item['id'])
+            video_files.append(item['video_file'])
+            durations.append(item['duration'])
+            texts.append(item['text'])
+            offsets.append(item['offset'])
+            speakers.append(item['speaker'])
+            orig_srs.append(item['orig_sr'])
+            token_labels.append(item['token_labels'])
+            langs.append(item['lang'])
+        super().__init__(
+            ids, video_files, durations, texts, offsets, speakers, orig_srs, token_labels, langs, *args, **kwargs
         )
 
 
@@ -295,9 +442,7 @@ class SpeechLabel(_Collection):
             else:
                 data.sort(key=lambda entity: entity.duration)
 
-        logging.info(
-            "Filtered duration for loading collection is %f.", duration_filtered,
-        )
+        logging.info(f"Filtered duration for loading collection is {duration_filtered / 3600: .2f} hours.")
         logging.info(f"Dataset loaded with {len(data)} items, total duration of {total_duration / 3600: .2f} hours.")
         self.uniq_labels = sorted(set(map(lambda x: x.label, data)))
         logging.info("# {} files loaded accounting to # {} labels".format(len(data), len(self.uniq_labels)))
@@ -313,6 +458,7 @@ class ASRSpeechLabel(SpeechLabel):
         manifests_files: Union[str, List[str]],
         is_regression_task=False,
         cal_labels_occurrence=False,
+        delimiter=None,
         *args,
         **kwargs,
     ):
@@ -323,24 +469,27 @@ class ASRSpeechLabel(SpeechLabel):
                 manifests to yield items from.
             is_regression_task: It's a regression task.
             cal_labels_occurrence: whether to calculate occurence of labels.
+            delimiter: separator for labels strings.
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
         audio_files, durations, labels, offsets = [], [], [], []
-
+        all_labels = []
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
             if not is_regression_task:
                 label = item['label']
+                label_list = label.split() if not delimiter else label.split(delimiter)
             else:
                 label = float(item['label'])
+                label_list = [label]
 
             labels.append(label)
             offsets.append(item['offset'])
-
+            all_labels.extend(label_list)
         if cal_labels_occurrence:
-            self.labels_occurrence = collections.Counter(labels)
+            self.labels_occurrence = collections.Counter(all_labels)
 
         super().__init__(audio_files, durations, labels, offsets, *args, **kwargs)
 
@@ -968,13 +1117,17 @@ class AudioCollection(Audio):
 class FeatureLabel(_Collection):
     """List of feature sequence and their label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='FeatureLabelEntity', field_names='feature_file label',)
+    OUTPUT_TYPE = collections.namedtuple(typename='FeatureLabelEntity', field_names='feature_file label duration',)
 
     def __init__(
         self,
         feature_files: List[str],
         labels: List[str],
+        durations: List[float],
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
         max_number: Optional[int] = None,
+        do_sort_by_duration: bool = False,
         index_by_file_id: bool = False,
     ):
         """Instantiates feature-SequenceLabel manifest with filters and preprocessing.
@@ -988,16 +1141,26 @@ class FeatureLabel(_Collection):
 
         output_type = self.OUTPUT_TYPE
         data = []
-
+        duration_filtered = 0.0
+        total_duration = 0.0
         self.uniq_labels = set()
 
         if index_by_file_id:
             self.mapping = {}
 
-        for feature_file, label in zip(feature_files, labels):
+        for feature_file, label, duration in zip(feature_files, labels, durations):
+            # Duration filters.
+            if min_duration is not None and duration < min_duration:
+                duration_filtered += duration
+                continue
 
-            data.append(output_type(feature_file, label))
+            if max_duration is not None and duration > max_duration:
+                duration_filtered += duration
+                continue
+
+            data.append(output_type(feature_file, label, duration))
             self.uniq_labels |= set(label)
+            total_duration += duration
 
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(feature_file))
@@ -1007,6 +1170,14 @@ class FeatureLabel(_Collection):
             if len(data) == max_number:
                 break
 
+        if do_sort_by_duration:
+            if index_by_file_id:
+                logging.warning("Tried to sort dataset by duration, but cannot since index_by_file_id is set.")
+            else:
+                data.sort(key=lambda entity: entity.duration)
+
+        logging.info(f"Filtered duration for loading collection is {duration_filtered / 2600:.2f} hours.")
+        logging.info(f"Dataset loaded with {len(data)} items, total duration of {total_duration / 3600: .2f} hours.")
         logging.info("# {} files loaded including # {} unique labels".format(len(data), len(self.uniq_labels)))
         super().__init__(data)
 
@@ -1015,7 +1186,13 @@ class ASRFeatureLabel(FeatureLabel):
     """`FeatureLabel` collector from asr structured json files."""
 
     def __init__(
-        self, manifests_files: Union[str, List[str]], max_number: Optional[int] = None, index_by_file_id: bool = False,
+        self,
+        manifests_files: Union[str, List[str]],
+        is_regression_task: bool = False,
+        cal_labels_occurrence: bool = False,
+        delimiter: Optional[str] = None,
+        *args,
+        **kwargs,
     ):
 
         """Parse lists of feature files and sequences of labels.
@@ -1027,12 +1204,25 @@ class ASRFeatureLabel(FeatureLabel):
             index_by_file_id: If True, saves a mapping from filename base (ID) to index in data; pass to `FeatureSequenceLabel` constructor.
         """
 
-        feature_files, labels = [], []
+        feature_files, labels, durations = [], [], []
+        all_labels = []
         for item in manifest.item_iter(manifests_files, parse_func=self._parse_item):
             feature_files.append(item['feature_file'])
-            labels.append(item['label'])
+            durations.append(item['duration'])
 
-        super().__init__(feature_files, labels, max_number, index_by_file_id)
+            if not is_regression_task:
+                label = item['label']
+                label_list = label.split() if not delimiter else label.split(delimiter)
+            else:
+                label = float(item['label'])
+                label_list = [label]
+
+            labels.append(label)
+            all_labels.extend(label_list)
+        if cal_labels_occurrence:
+            self.labels_occurrence = collections.Counter(all_labels)
+
+        super().__init__(feature_files, labels, durations, *args, **kwargs)
 
     def _parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
         item = json.loads(line)
@@ -1046,7 +1236,7 @@ class ASRFeatureLabel(FeatureLabel):
             raise ValueError(
                 f"Manifest file has invalid json line " f"structure: {line} without proper 'feature_file' key."
             )
-        item['feature_file'] = os.path.expanduser(item['feature_file'])
+        item['feature_file'] = manifest.get_full_path(audio_file=item['feature_file'], manifest_file=manifest_file)
 
         # Label.
         if 'label' in item:
@@ -1054,7 +1244,7 @@ class ASRFeatureLabel(FeatureLabel):
         else:
             raise ValueError(f"Manifest file has invalid json line structure: {line} without proper 'label' key.")
 
-        item = dict(feature_file=item['feature_file'], label=item['label'],)
+        item = dict(feature_file=item['feature_file'], label=item['label'], duration=item['duration'])
 
         return item
 

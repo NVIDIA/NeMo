@@ -27,7 +27,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 from einops import repeat
+from group_norm import GroupNormOpt
 from torch._dynamo import disable
+from torch.cuda.amp import custom_bwd, custom_fwd
 
 
 def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
@@ -74,14 +76,15 @@ def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta, verbose=True):
     alphas_prev = np.asarray([alphacums[0]] + alphacums[ddim_timesteps[:-1]].tolist())
 
     # according the the formula provided in https://arxiv.org/abs/2010.02502
-    sigmas = eta * np.sqrt((1 - alphas_prev) / (1 - alphas) * (1 - alphas / alphas_prev))
+    variance = (1 - alphas_prev) / (1 - alphas) * (1 - alphas / alphas_prev)
+    sigmas = eta * np.sqrt(variance)
     if verbose:
         print(f"Selected alphas for ddim sampler: a_t: {alphas}; a_(t-1): {alphas_prev}")
         print(
             f"For the chosen value of eta, which is {eta}, "
             f"this results in the following sigma_t schedule for ddim sampler {sigmas}"
         )
-    return sigmas, alphas, alphas_prev
+    return sigmas, alphas, alphas_prev, variance
 
 
 def betas_for_alpha_bar(num_diffusion_timesteps, alpha_bar, max_beta=0.999):
@@ -128,6 +131,7 @@ def checkpoint(func, inputs, params, flag):
 
 class CheckpointFunction(torch.autograd.Function):
     @staticmethod
+    @custom_fwd
     def forward(ctx, run_function, length, *args):
         ctx.run_function = run_function
         ctx.input_tensors = list(args[:length])
@@ -138,6 +142,7 @@ class CheckpointFunction(torch.autograd.Function):
         return output_tensors
 
     @staticmethod
+    @custom_bwd
     def backward(ctx, *output_grads):
         ctx.input_tensors = [x.detach().requires_grad_(True) for x in ctx.input_tensors]
         with torch.enable_grad():
@@ -209,13 +214,13 @@ def mean_flat(tensor):
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def normalization(channels):
+def normalization(channels, act=""):
     """
     Make a standard normalization layer.
     :param channels: number of input channels.
     :return: an nn.Module for normalization.
     """
-    return GroupNorm32(32, channels)
+    return GroupNormOpt(32, channels, act=act)
 
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.

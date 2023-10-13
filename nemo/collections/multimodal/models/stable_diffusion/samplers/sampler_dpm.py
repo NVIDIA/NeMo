@@ -20,6 +20,8 @@ from nemo.collections.multimodal.models.stable_diffusion.samplers.base_sampler i
 
 from .dpmsolver import DPMSolver, NoiseScheduleVP, model_wrapper
 
+MODEL_TYPES = {"eps": "noise", "v": "v"}
+
 
 class DPMSolverSampler(AbstractBaseSampler):
     def __init__(self, model, **kwargs):
@@ -61,7 +63,7 @@ class DPMSolverSampler(AbstractBaseSampler):
         model_fn = model_wrapper(
             lambda x, t, c: self.model.apply_model(x, t, c),
             ns,
-            model_type="noise",
+            model_type=MODEL_TYPES[self.model.parameterization],
             guidance_type="classifier-free",
             condition=conditioning,
             unconditional_condition=unconditional_conditioning,

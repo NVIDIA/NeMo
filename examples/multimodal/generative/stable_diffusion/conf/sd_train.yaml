@@ -7,7 +7,7 @@ trainer:
   precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: 2 # PTL default. In practice, max_steps will be reached first.
   max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
@@ -15,6 +15,8 @@ trainer:
   gradient_clip_val: 1.0
   benchmark: False
   enable_model_summary: True
+  limit_val_batches: 0
+
 
 exp_manager:
   exp_dir: null
@@ -34,6 +36,7 @@ exp_manager:
     filename: '${name}--{reduced_train_loss:.2f}-{step}-{consumed_samples}'
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
+  resume_from_checkpoint: ${model.resume_from_checkpoint}
   ema:
     enable: True
     decay: 0.9999
@@ -48,6 +51,8 @@ model:
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 1 # limited by GPU memory
   global_batch_size: 1 # will use more micro batches to reach global batch size
+  native_amp_init_scale: 65536.0 # Init scale for grad scaler used at fp16
+
 
   linear_start: 0.00085
   linear_end: 0.012
@@ -86,10 +91,12 @@ model:
   fused_opt: True
   inductor: False
   inductor_cudagraphs: False
+  capture_cudagraph_iters: -1 # -1 to disable
+  channels_last: True
 
   unet_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel.UNetModel
-    from_pretrained: /ckpts/nemo-v1-2.ckpt
+    from_pretrained: #/ckpts/nemo-v1-2.ckpt
     from_NeMo: True #Must be specified when from pretrained is not None, False means loading unet from HF ckpt
     image_size: 32 # unused
     in_channels: 4
@@ -111,7 +118,8 @@ model:
     context_dim: 768
     use_checkpoint: False
     legacy: False
-    use_flash_attention: False
+    use_flash_attention: True
+    enable_amp_o2_fp16: True
 
   first_stage_config:
     _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
@@ -135,22 +143,32 @@ model:
       dropout: 0.0
     lossconfig:
       target: torch.nn.Identity
+    capture_cudagraph_iters: ${model.capture_cudagraph_iters}
 
   cond_stage_config:
-    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder
-    version: openai/clip-vit-large-patch14
+    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
+    restore_from_path: /ckpts/openai.nemo
     device: cuda
-    max_length: 77
+    freeze: True
+    layer: "last"
+    #    For compatibility of history version that uses HF clip model
+    #    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder
+    #    version: openai/clip-vit-large-patch14
+    #    device: cuda
+    #    max_length: 77
+    #    capture_cudagraph_iters: {$model.capture_cudagraph_iters}
+
 
   # miscellaneous
   seed: 1234
   resume_from_checkpoint: null # manually set the checkpoint file to load from
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  ddp_overlap: True # True for using PyTorch DDP overlap.
 
   optim:
-    name: fused_adam
-    lr: 1e-4
+    name: megatron_fused_adam
+    lr: null
     weight_decay: 0.
     betas:
       - 0.9
@@ -159,6 +177,9 @@ model:
       name: WarmupHoldPolicy
       warmup_steps: 10000
       hold_steps: 10000000000000 # Incredibly large value to hold the lr as constant
+    capturable: True
+    master_weights: True
+    max_norm: ${trainer.gradient_clip_val}
 
   # Nsys profiling options
   nsys_profile:
@@ -170,9 +191,11 @@ model:
 
   data:
       num_workers: 16
+      synthetic_data: False # dataset_path and local_root_path can be empty when using synthetic data
+      synthetic_data_length: 10000
       train:
           dataset_path:
-              - /datasets/coyo/test.pkl
+              - /datasets/coyo/wdinfo.pkl
           augmentations:
             resize_smallest_side: 512
             center_crop_h_w: 512, 512

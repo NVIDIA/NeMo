@@ -17,6 +17,7 @@ from inspect import isfunction
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
+from group_norm import GroupNormOpt
 from torch import einsum, nn
 from torch._dynamo import disable
 
@@ -37,15 +38,15 @@ def check_cuda():
 
 
 try:
-    from flash_attn.flash_attention import FlashAttention
-    from flash_attn.flash_attn_interface import flash_attn_unpadded_kvpacked_func
+    import torch.nn as nn
+    from flash_attn.modules.mha import FlashCrossAttention, FlashSelfAttention
 
     flash_attn_installed = check_cuda()
     print("FlashAttention Installed")
 
     # Disable TorchDynamo on FlashAttention
-    flash_attn_unpadded_kvpacked_func = disable(flash_attn_unpadded_kvpacked_func)
-    FlashAttention.forward = disable(FlashAttention.forward)
+    FlashSelfAttention.forward = disable(FlashSelfAttention.forward)
+    FlashCrossAttention.forward = disable(FlashCrossAttention.forward)
 except ImportError:
     flash_attn_installed = False
 
@@ -111,7 +112,7 @@ def zero_module(module):
 
 
 def Normalize(in_channels):
-    return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+    return GroupNormOpt(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
 
 
 class LinearAttention(nn.Module):
@@ -203,8 +204,11 @@ class CrossAttention(nn.Module):
         self.to_out = nn.Sequential(nn.Linear(inner_dim, query_dim), nn.Dropout(dropout))
         self.use_flash_attention = use_flash_attention
 
-        if context_dim == query_dim and dim_head <= 128 and (dim_head % 8) == 0 and flash_attn_installed:
-            self.flash_attn = FlashAttention(self.scale)
+        if dim_head <= 160 and (dim_head % 8) == 0 and flash_attn_installed:
+            if context_dim == query_dim:
+                self.flash_attn = FlashSelfAttention(softmax_scale=self.scale)
+            else:
+                self.flash_attn = FlashCrossAttention(softmax_scale=self.scale)
 
     def forward(self, x, context=None, mask=None):
         h = self.heads
@@ -225,7 +229,7 @@ class CrossAttention(nn.Module):
             not flash_attn_installed
             or not self.use_flash_attention
             or q.dtype == torch.float32
-            or (self.dim_head > 128 or (self.dim_head % 8) != 0)
+            or (self.dim_head > 160 or (self.dim_head % 8) != 0)
             or mask is not None
         ):
             # original implementation
@@ -257,7 +261,7 @@ class CrossAttention(nn.Module):
             d = hd // h
             qkv = qkv.view(b, s, t, h, d)
 
-            out, _ = self.flash_attn(qkv)
+            out = self.flash_attn(qkv)
             out = out.view(b, s, hd)
         else:
             # cross-attention
@@ -267,14 +271,10 @@ class CrossAttention(nn.Module):
             b, s_kv, t, hd = kv.shape
             d = hd // h
 
-            q = q.view(b * s_q, h, d)
-            kv = kv.view(b * s_kv, t, h, d)
+            q = q.view(b, s_q, h, d)
+            kv = kv.view(b, s_kv, t, h, d)
 
-            cu_seqlens_q = torch.arange(0, (b + 1) * s_q, step=s_q, dtype=torch.int32, device=q.device)
-            cu_seqlens_k = torch.arange(0, (b + 1) * s_kv, step=s_kv, dtype=torch.int32, device=kv.device)
-
-            out = flash_attn_unpadded_kvpacked_func(q, kv, cu_seqlens_q, cu_seqlens_k, s_q, s_kv, 0.0, self.scale)
-
+            out = self.flash_attn(q, kv)
             out = out.view(b, s_q, hd)
 
         return out
@@ -291,10 +291,17 @@ class BasicTransformerBlock(nn.Module):
         gated_ff=True,
         use_checkpoint=False,
         use_flash_attention=False,
+        disable_self_attn=False,
     ):
         super().__init__()
+        self.disable_self_attn = disable_self_attn
         self.attn1 = CrossAttention(
-            query_dim=dim, heads=n_heads, dim_head=d_head, dropout=dropout, use_flash_attention=use_flash_attention
+            query_dim=dim,
+            heads=n_heads,
+            dim_head=d_head,
+            dropout=dropout,
+            use_flash_attention=use_flash_attention,
+            context_dim=context_dim if self.disable_self_attn else None,
         )  # is a self-attention
         self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
         self.attn2 = CrossAttention(
@@ -311,10 +318,13 @@ class BasicTransformerBlock(nn.Module):
         self.use_checkpoint = use_checkpoint
 
     def forward(self, x, context=None):
-        return checkpoint(self._forward, (x, context), self.parameters(), self.use_checkpoint)
+        if self.use_checkpoint:
+            return checkpoint(self._forward, (x, context), self.parameters(), self.use_checkpoint)
+        else:
+            return self._forward(x, context)
 
     def _forward(self, x, context=None):
-        x = self.attn1(self.norm1(x)) + x
+        x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None) + x
         x = self.attn2(self.norm2(x), context=context) + x
         x = self.ff(self.norm3(x)) + x
         return x
@@ -337,15 +347,22 @@ class SpatialTransformer(nn.Module):
         depth=1,
         dropout=0.0,
         context_dim=None,
+        disable_self_attn=False,
+        use_linear=False,
         use_checkpoint=False,
         use_flash_attention=False,
     ):
         super().__init__()
+        if exists(context_dim) and not isinstance(context_dim, list):
+            context_dim = [context_dim]
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
         self.norm = Normalize(in_channels)
 
-        self.proj_in = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+        if not use_linear:
+            self.proj_in = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+        else:
+            self.proj_in = nn.Linear(in_channels, inner_dim)
 
         self.transformer_blocks = nn.ModuleList(
             [
@@ -354,27 +371,38 @@ class SpatialTransformer(nn.Module):
                     n_heads,
                     d_head,
                     dropout=dropout,
-                    context_dim=context_dim,
+                    context_dim=context_dim[d],
                     use_checkpoint=use_checkpoint,
                     use_flash_attention=use_flash_attention,
+                    disable_self_attn=disable_self_attn,
                 )
                 for d in range(depth)
             ]
         )
 
-        self.proj_out = zero_module(nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
+        if not use_linear:
+            self.proj_out = zero_module(nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
+        else:
+            self.proj_out = zero_module(nn.Linear(in_channels, inner_dim))
+        self.use_linear = use_linear
 
     def forward(self, x, context=None):
         # note: if no context is given, cross-attention defaults to self-attention
+        if not isinstance(context, list):
+            context = [context]
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)
-        x = self.proj_in(x)
+        if not self.use_linear:
+            x = self.proj_in(x)
         x = x.view(b, c, -1).transpose(1, 2)  # b c h w -> b (h w) c
-        x = x.contiguous()  # workaround for dynamo ddp bug
-        for block in self.transformer_blocks:
-            x = block(x, context=context)
+        if self.use_linear:
+            x = self.proj_in(x)
+        for i, block in enumerate(self.transformer_blocks):
+            x = block(x, context=context[i])
+        if self.use_linear:
+            x = self.proj_out(x)
         x = x.transpose(1, 2).view(b, c, h, w)  # b (h w) c -> b c h w
-        x = x.contiguous()  # workaround for dynamo ddp bug
-        x = self.proj_out(x)
+        if not self.use_linear:
+            x = self.proj_out(x)
         return x + x_in

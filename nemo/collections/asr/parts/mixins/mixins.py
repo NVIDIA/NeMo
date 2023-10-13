@@ -412,6 +412,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             update_config (bool): Whether to update the config or not with the new attention model.
                 Defaults to True.
         """
+        if self_attention_model is None and att_context_size is None:
+            return
+
         if not hasattr(self, 'encoder'):
             logging.info(
                 "Could not change the self_attention_model in encoder "
@@ -425,8 +428,37 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
         self.encoder.change_attention_model(self_attention_model, att_context_size, update_config, self.device)
         if update_config:
-            self.cfg.encoder.self_attention_model = self_attention_model
-            self.cfg.encoder.att_context_size = att_context_size
+            with open_dict(self.cfg):
+                self.cfg.encoder.self_attention_model = self_attention_model
+                self.cfg.encoder.att_context_size = att_context_size
+
+    def change_subsampling_conv_chunking_factor(
+        self, subsampling_conv_chunking_factor: int, update_config: bool = True
+    ):
+        """
+        Update the conv_chunking_factor (int) if function is available in encoder.
+        Default is 1 (auto)
+        Set it to -1 (disabled) or to a specific value (power of 2) if you OOM in the conv subsampling layers
+
+        Args:
+            conv_chunking_factor (int)
+        """
+
+        if not hasattr(self, 'encoder'):
+            logging.info(
+                "Could not call the change_subsampling_conv_chunking_factor method in encoder "
+                "since the model provided does not contain an `encoder` module in its config."
+            )
+            return
+
+        if not hasattr(self.encoder, "change_subsampling_conv_chunking_factor"):
+            logging.info("Model encoder doesn't have a change_subsampling_conv_chunking_factor method ")
+            return
+
+        self.encoder.change_subsampling_conv_chunking_factor(subsampling_conv_chunking_factor)
+        if update_config:
+            with open_dict(self.cfg):
+                self.cfg.encoder.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
     def conformer_stream_step(
         self,
@@ -440,6 +472,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         previous_pred_out: torch.Tensor = None,
         drop_extra_pre_encoded: int = None,
         return_transcription: bool = True,
+        return_log_probs: bool = False,
     ):
         """
         It simulates a forward step with caching for streaming purposes.
@@ -455,6 +488,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             previous_pred_out: the predicted outputs from the previous step for CTC models
             drop_extra_pre_encoded: number of steps to drop from the beginning of the outputs after the downsampling module. This can be used if extra paddings are added on the left side of the input.
             return_transcription: whether to decode and return the transcriptions. It can not get disabled for Transducer models.
+            return_log_probs: whether to return the log probs, only valid for ctc model
 
         Returns:
             greedy_predictions: the greedy predictions from the decoder
@@ -463,6 +497,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             cache_last_time_next: the updated tensor cache for last time layers to be used for next streaming step
             cache_last_channel_next_len: the updated lengths for cache_last_channel
             best_hyp: the best hypotheses for the Transducer models
+
+            log_probs: the logits tensor of current streaming chunk, only returned when return_log_probs=True
+            encoded_len: the length of the output log_probs + history chunk log_probs, only returned when return_log_probs=True
         """
         if not isinstance(self, asr_models.EncDecRNNTModel) and not isinstance(self, asr_models.EncDecCTCModel):
             raise NotImplementedError(f"stream_step does not support {type(self)}!")
@@ -474,6 +511,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             logging.info(
                 "return_transcription can not be False for Transducer models as decoder returns the transcriptions too."
             )
+
+        if not isinstance(self, asr_models.EncDecCTCModel) and return_log_probs is True:
+            logging.info("return_log_probs can only be True for CTC models.")
 
         (
             encoded,
@@ -491,8 +531,17 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             drop_extra_pre_encoded=drop_extra_pre_encoded,
         )
 
-        if isinstance(self, asr_models.EncDecCTCModel):
-            log_probs = self.decoder(encoder_output=encoded)
+        if isinstance(self, asr_models.EncDecCTCModel) or (
+            isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "ctc"
+        ):
+            if hasattr(self, "ctc_decoder"):
+                decoding = self.ctc_decoding
+                decoder = self.ctc_decoder
+            else:
+                decoding = self.decoding
+                decoder = self.decoder
+
+            log_probs = decoder(encoder_output=encoded)
             predictions_tensor = log_probs.argmax(dim=-1, keepdim=False)
 
             # Concatenate the previous predictions with the current one to have the full predictions.
@@ -517,7 +566,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                 # TODO: make decoding more efficient by avoiding the decoding process from the beginning
                 if return_transcription:
-                    decoded_out = self.decoding.ctc_decoder_predictions_tensor(
+                    decoded_out = decoding.ctc_decoder_predictions_tensor(
                         decoder_outputs=greedy_predictions_concat.unsqueeze(0),
                         decoder_lengths=encoded_len[preds_idx : preds_idx + 1],
                         return_hypotheses=False,
@@ -536,14 +585,159 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             if all_hyp_or_transcribed_texts is None:
                 all_hyp_or_transcribed_texts = best_hyp
 
-        return (
+        result = [
             greedy_predictions,
             all_hyp_or_transcribed_texts,
             cache_last_channel_next,
             cache_last_time_next,
             cache_last_channel_next_len,
             best_hyp,
-        )
+        ]
+        if return_log_probs:
+            result.append(log_probs)
+            result.append(encoded_len)
+
+        return tuple(result)
+
+    @torch.no_grad()
+    def transcribe_simulate_cache_aware_streaming(
+        self,
+        paths2audio_files: List[str],
+        batch_size: int = 4,
+        logprobs: bool = False,
+        return_hypotheses: bool = False,
+        online_normalization: bool = False,
+    ):
+        """
+        Args:
+            paths2audio_files: (a list) of paths to audio files.
+            batch_size: (int) batch size to use during inference.
+                Bigger will result in better throughput performance but would use more memory.
+            logprobs: (bool) pass True to get log probabilities instead of transcripts.
+            return_hypotheses: (bool) Either return hypotheses or text
+                With hypotheses can do some postprocessing like getting timestamp or rescoring
+            online_normalization: (bool) Perform normalization on the run per chunk.
+        Returns:
+            A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
+        """
+        if paths2audio_files is None or len(paths2audio_files) == 0:
+            return {}
+
+        if return_hypotheses and logprobs:
+            raise ValueError(
+                "Either `return_hypotheses` or `logprobs` can be True at any given time."
+                "Returned hypotheses will contain the logprobs."
+            )
+
+        if not isinstance(self, asr_models.EncDecCTCModel):
+            raise NotImplementedError(f"simulate streaming does not support {type(self)}!")
+
+        if not isinstance(self.encoder, StreamingEncoder):
+            raise NotImplementedError(f"Encoder of this model does not support streaming!")
+
+        data_loader = self._setup_streaming_transcribe_dataloader(paths2audio_files, batch_size, online_normalization)
+
+        total_log_probs = []
+        total_texts = []
+
+        for streaming_buffer in data_loader:
+            streaming_buffer_iter = iter(streaming_buffer)
+            batch_size = len(streaming_buffer.streams_length)
+            cache_last_channel, cache_last_time, cache_last_channel_len = self.encoder.get_initial_cache_state(
+                batch_size=batch_size
+            )
+            previous_hypotheses = None
+            pred_out_stream = None
+            encoded_len = None
+            transcribed_texts = None
+            batch_log_probs = []
+
+            for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
+                drop_extra_pre_encoded = self.encoder.streaming_cfg.drop_extra_pre_encoded if step_num != 0 else 0
+                with torch.inference_mode():
+                    result = self.conformer_stream_step(
+                        processed_signal=chunk_audio,
+                        processed_signal_length=chunk_lengths,
+                        cache_last_channel=cache_last_channel,
+                        cache_last_time=cache_last_time,
+                        cache_last_channel_len=cache_last_channel_len,
+                        keep_all_outputs=streaming_buffer.is_buffer_empty(),
+                        previous_hypotheses=previous_hypotheses,
+                        previous_pred_out=pred_out_stream,
+                        drop_extra_pre_encoded=drop_extra_pre_encoded,
+                        return_transcription=True,
+                        return_log_probs=logprobs or return_hypotheses,
+                    )
+                    if logprobs or return_hypotheses:
+                        (
+                            pred_out_stream,
+                            transcribed_texts,
+                            cache_last_channel,
+                            cache_last_time,
+                            cache_last_channel_len,
+                            previous_hypotheses,
+                            cur_chunk_log_probs,
+                            encoded_len,
+                        ) = result
+                        batch_log_probs.append(cur_chunk_log_probs.cpu())
+                    else:
+                        (
+                            pred_out_stream,
+                            transcribed_texts,
+                            cache_last_channel,
+                            cache_last_time,
+                            cache_last_channel_len,
+                            previous_hypotheses,
+                        ) = result
+
+            if logprobs or return_hypotheses:
+                # concatenate chunk log probs on T dim
+                batch_log_probs = torch.cat(batch_log_probs, axis=1)
+                for log_probs, log_prob_len in zip(batch_log_probs, encoded_len):
+                    total_log_probs.append(log_probs[0:log_prob_len])
+
+            if transcribed_texts is None:
+                total_texts += [''] * batch_size
+            else:
+                total_texts += transcribed_texts
+
+        if logprobs:
+            return total_log_probs
+
+        if not return_hypotheses:
+            return total_texts
+
+        hyps = []
+        for log_probs, text in zip(total_log_probs, total_texts):
+            hyps.append(Hypothesis(y_sequence=log_probs, text=text, score=0.0, dec_state=None))
+        return hyps
+
+    def _setup_streaming_transcribe_dataloader(
+        self, paths2audio_files: List[str], batch_size: int, online_normalization=False
+    ):
+        """
+        Setup function for a temporary data loader which wraps the provided audio file.
+
+        Args:
+            paths2audio_files: (a list) of paths to audio files.
+            batch_size: (int) batch size to use during inference. \
+                Bigger will result in better throughput performance but would use more memory.
+            online_normalization: whether to do online normalization
+        Returns:
+            a new batch streaming buffer
+        """
+        from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
+
+        streaming_buffer = CacheAwareStreamingAudioBuffer(model=self, online_normalization=online_normalization)
+        for sample_idx, sample in enumerate(paths2audio_files):
+            processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
+                sample, stream_id=-1
+            )
+            logging.info(f'Added this sample to the buffer: {sample}')
+            if (sample_idx + 1) % batch_size == 0 or sample_idx == len(paths2audio_files) - 1:
+                logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
+                yield streaming_buffer
+                streaming_buffer.reset_buffer()
 
 
 class DiarizationMixin(ABC):

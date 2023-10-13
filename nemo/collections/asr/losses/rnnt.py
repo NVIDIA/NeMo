@@ -27,18 +27,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import operator
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.losses.rnnt_pytorch import MultiblankRNNTLossPytorch, RNNTLossPytorch
+from nemo.collections.asr.losses.rnnt_pytorch import MultiblankRNNTLossPytorch, RNNTLossPytorch, TDTLossPytorch
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
+from nemo.core.utils import numba_utils
+from nemo.core.utils.k2_utils import K2_INSTALLATION_MESSAGE
 from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
-from nemo.utils import logging, model_utils
+from nemo.utils import logging, logging_mode, model_utils
 
 try:
     import warprnnt_pytorch as warprnnt
@@ -48,12 +51,19 @@ except (ImportError, ModuleNotFoundError):
     WARP_RNNT_AVAILABLE = False
 
 try:
-    from nemo.collections.asr.parts.numba.rnnt_loss import MultiblankRNNTLossNumba, RNNTLossNumba
+    from nemo.collections.asr.parts.numba.rnnt_loss import MultiblankRNNTLossNumba, RNNTLossNumba, TDTLossNumba
 
     NUMBA_RNNT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     NUMBA_RNNT_AVAILABLE = False
 
+try:
+    from nemo.collections.asr.parts.k2.graph_transducer import GraphRnntLoss
+    from nemo.collections.asr.parts.k2.w_transducer import GraphWTransducerLoss
+
+    K2_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    K2_AVAILABLE = False
 
 WARP_RNNT_INSTALLATION_MESSAGE = (
     "Could not import `warprnnt_pytorch`.\n"
@@ -71,6 +81,7 @@ class RNNTLossConfig:
     is_available: bool = False
     installation_msg: str = ""
     min_version: Optional[str] = None
+    force_float32: bool = True  # default True for now for all losses except graph-based
 
 
 # Resolved list of available RNNT losses
@@ -80,6 +91,7 @@ RNNT_LOSS_RESOLVER = {
         lib_name="warprnnt_pytorch",
         is_available=WARP_RNNT_AVAILABLE,
         installation_msg=WARP_RNNT_INSTALLATION_MESSAGE,
+        force_float32=True,
     ),
     "warprnnt_numba": RNNTLossConfig(
         loss_name="warprnnt_numba",
@@ -87,6 +99,7 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.53.0',
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
+        force_float32=False,  # This is only temporarily false, will be dynamically updated during resolution
     ),
     "pytorch": RNNTLossConfig(
         loss_name="pytorch",
@@ -94,6 +107,7 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.0',
         is_available=True,
         installation_msg="Pure Pytorch implementation of RNN-T loss. Slow and for debugging purposes only.",
+        force_float32=True,
     ),
     "multiblank_rnnt": RNNTLossConfig(
         loss_name="multiblank_rnnt",
@@ -101,6 +115,7 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.53.0',
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
+        force_float32=True,
     ),
     "multiblank_rnnt_pytorch": RNNTLossConfig(
         loss_name="pytorch",
@@ -108,6 +123,35 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.0',
         is_available=True,
         installation_msg="Pure Pytorch implementation of Multiblank RNN-T loss. Slow and for debugging purposes only.",
+        force_float32=True,
+    ),
+    "graph_w_transducer": RNNTLossConfig(
+        loss_name="graph_w_transducer",
+        lib_name="k2",
+        is_available=K2_AVAILABLE,
+        installation_msg=K2_INSTALLATION_MESSAGE,
+        force_float32=False,
+    ),
+    "graph_rnnt": RNNTLossConfig(
+        loss_name="graph_rnnt",
+        lib_name="k2",
+        is_available=K2_AVAILABLE,
+        installation_msg=K2_INSTALLATION_MESSAGE,
+        force_float32=False,
+    ),
+    "tdt": RNNTLossConfig(
+        loss_name="tdt",
+        lib_name="numba",
+        min_version='0.53.0',
+        is_available=NUMBA_RNNT_AVAILABLE,
+        installation_msg=NUMBA_INSTALLATION_MESSAGE,
+    ),
+    "tdt_pytorch": RNNTLossConfig(
+        loss_name="tdt_pytorch",
+        lib_name="torch",
+        min_version='0.0',
+        is_available=True,
+        installation_msg="Pure Pytorch implementation of TDT loss. Slow and for debugging purposes only.",
     ),
 }
 
@@ -121,6 +165,38 @@ def _warn_unused_additional_kwargs(loss_name, kwargs):
             f"however they were ignored as it is unused.\n"
             f"{kwargs}"
         )
+
+
+def _clean_kwargs(
+    loss_name: str, kwargs: Optional[Dict[str, Any]], init_method: Callable, ignore_params: Optional[Set[str]] = None
+) -> Dict[str, Any]:
+    """
+    Cleans kwargs for the given loss function. Warn if there are unused kwargs.
+
+    Args:
+        loss_name: name of the loss function
+        kwargs: kwargs to clean
+        init_method: LossClass.__init__ method
+        ignore_params: set of argument names for init_method to ignore
+
+    Returns:
+        only used kwargs for the given `init_method`
+    """
+    if not kwargs:
+        return {}
+    init_params = set(inspect.signature(init_method).parameters.keys()) - {"self"}
+    if ignore_params is not None:
+        init_params -= ignore_params
+    unused_kwargs = dict()
+    used_kwargs = dict()
+    for key, value in kwargs.items():
+        if key not in init_params:
+            unused_kwargs[key] = value
+        else:
+            used_kwargs[key] = value
+    if len(unused_kwargs) > 0:
+        _warn_unused_additional_kwargs(loss_name, unused_kwargs)
+    return used_kwargs
 
 
 def resolve_rnnt_default_loss_name() -> str:
@@ -182,6 +258,9 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == 'warprnnt_numba':
+        # Update loss config's forced float32 flag if set to None
+        loss_config.force_float32 = not numba_utils.is_numba_cuda_fp16_supported()
+
         fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
         clamp = loss_kwargs.pop('clamp', -1.0)
         loss_func = RNNTLossNumba(blank=blank_idx, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp)
@@ -214,6 +293,35 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         )
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
+    elif loss_name == 'tdt':
+        fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
+        clamp = loss_kwargs.pop('clamp', -1.0)
+        durations = loss_kwargs.pop('durations', None)
+        sigma = loss_kwargs.pop('sigma', 0.0)
+        omega = loss_kwargs.pop('omega', 0.0)
+        loss_func = TDTLossNumba(
+            blank=blank_idx,
+            durations=durations,
+            reduction='none',
+            fastemit_lambda=fastemit_lambda,
+            clamp=clamp,
+            sigma=sigma,
+            omega=omega,
+        )
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
+
+    elif loss_name == 'tdt_pytorch':
+        durations = loss_kwargs.pop('durations', None)
+        sigma = loss_kwargs.pop('sigma', 0.0)
+        loss_func = TDTLossPytorch(blank=blank_idx, durations=durations, reduction='none', sigma=sigma)
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
+
+    elif loss_name == "graph_rnnt":
+        loss_kwargs = _clean_kwargs(loss_name, loss_kwargs, GraphRnntLoss.__init__, ignore_params={"blank"})
+        loss_func = GraphRnntLoss(blank=blank_idx, **loss_kwargs)
+    elif loss_name == "graph_w_transducer":
+        loss_kwargs = _clean_kwargs(loss_name, loss_kwargs, GraphWTransducerLoss.__init__, ignore_params={"blank"})
+        loss_func = GraphWTransducerLoss(blank=blank_idx, **loss_kwargs)
     else:
         raise ValueError(
             f"Invalid value of `loss_name`: {loss_name}. Allowed loss names are :" f"{loss_function_names}"
@@ -279,7 +387,13 @@ class RNNTLoss(Loss):
 
         Args:
             num_classes: Number of target classes for the joint network to predict.
-                (Excluding the RNN-T blank token).
+                In all cases (conventional RNNT, multi-blank RNNT, and TDT model), this equals the token-id
+                for the standard "blank" symbol. In particular, say V is the number of non-blank tokens in
+                the vocabulary, then in the case of,
+                standard RNNT: num_classes = V
+                multiblank RNNT: num_classes = V + number-big-blanks (since we store big-blanks before
+                                 standard blank, and the standard blank is the last symbol in the vocab)
+                TDT: num_classes = V. Note, V here does not include any of the "duration outputs".
 
             reduction: Type of reduction to perform on loss. Possible values are 
                 `mean_batch`, 'mean_volume`, `mean`, `sum` or None.
@@ -302,6 +416,8 @@ class RNNTLoss(Loss):
         self._blank = num_classes
         self.reduction = reduction
         self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs)
+        self._force_float32 = RNNT_LOSS_RESOLVER[loss_name].force_float32
+        self._fp16_compat_checked = False
 
     def reduce(self, losses, target_lengths):
 
@@ -331,8 +447,22 @@ class RNNTLoss(Loss):
         max_targets_len = target_lengths.max()
 
         # Force cast joint to float32
-        # TODO: Remove once Numba supports FP16
-        if log_probs.dtype != torch.float32:
+        if not self._force_float32 and numba_utils.is_numba_cuda_fp16_supported():
+            # Execute the kernel in fp16
+            pass
+        elif self._force_float32 and log_probs.dtype != torch.float32:
+            # Log just once if fp16 tensor was passed and fp16 Numba CUDA loss could not be used.
+            if log_probs.dtype == torch.float16 and not self._fp16_compat_checked:
+                _, reason = numba_utils.is_numba_cuda_fp16_supported(return_reason=True)
+                logging.warning(
+                    f"Provided RNNT Joint tensor is of dtype {log_probs.dtype}, but RNNT loss could not be calculated "
+                    f"in fp16 due to following reason stated below. Loss will be calculated in fp32. \n\n"
+                    f"{reason}",
+                    mode=logging_mode.ONCE,
+                )
+                self._fp16_compat_checked = True
+
+            # Upcast the activation tensor and compute loss and grads in fp32
             logits_orig = log_probs
             log_probs = log_probs.float()
             del logits_orig  # save memory *before* computing the loss

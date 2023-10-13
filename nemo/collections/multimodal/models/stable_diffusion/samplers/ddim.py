@@ -27,7 +27,6 @@ class DDIMSampler(AbstractBaseSampler):
     def __init__(self, model, schedule="linear", **kwargs):
         super().__init__(model, sampler=Sampler.DDIM, schedule="linear", supports_logprobs=True, **kwargs)
 
-    @torch.no_grad()
     def p_sampling_fn(
         self,
         x,
@@ -49,7 +48,7 @@ class DDIMSampler(AbstractBaseSampler):
         return_mean_var=False,
     ):
         b, *_, device = *x.shape, x.device
-        e_t = self._get_model_output(
+        e_t, model_output = self._get_model_output(
             x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs
         )
         # x_prev, pred_x0 = self._get_x_prev_and_pred_x0(

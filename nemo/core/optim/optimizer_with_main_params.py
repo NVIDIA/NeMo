@@ -254,6 +254,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             fp32_from_float16_params_this_group = []
             # For all the parameters in this group:
             for j, param in enumerate(param_group['params']):
+                main_param = None
                 if param.requires_grad:
                     # float16 params:
                     if param.type() in ['torch.cuda.HalfTensor', 'torch.cuda.BFloat16Tensor']:
@@ -297,7 +298,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         )
 
                 # Add gradient accumulation hook for fp32 grad accumulation
-                if self._fp32_grad_accum and param.requires_grad:
+                if main_param is not None and self._fp32_grad_accum and param.requires_grad:
                     # Expand so we get access to grad_fn
                     param_tmp = param.expand_as(param)
                     # Get the gradient accumulator function.
@@ -308,6 +309,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             self.float16_groups.append(float16_params_this_group)
             self.fp32_from_float16_groups.append(fp32_from_float16_params_this_group)
             self.fp32_from_fp32_groups.append(fp32_params_this_group)
+
+        # init exp_avg and exp_avg_sq before loading optimizer state, needed for dist checkpointing
+        self._init_opt_state()
 
         # Leverage state_dict() and load_state_dict() to
         # recast preexisting per-param state tensors
@@ -488,11 +492,12 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     def fp32_grad_accumulation(self):
         return self._fp32_grad_accum
 
-    def get_parameters(self):
+    def get_parameters_with_grad(self):
         params = []
         for param_group in self.optimizer.param_groups:
             for param in param_group['params']:
-                params.append(param)
+                if param.grad is not None:  # (@adithyare) added to enable pp>1 training for adapters
+                    params.append(param)
         return params
 
     # Promote state so it can be retrieved or set via
@@ -534,3 +539,13 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         self.optimizer.defaults = value
 
     defaults = property(_get_defaults, _set_defaults)
+
+    def _init_opt_state(self):
+        """
+        Initialize the optimizer state with zero tensors for 'exp_avg' and 'exp_avg_sq' of each parameter.
+        """
+        for group in self.optimizer.param_groups:
+            for p in group['params']:
+                if len(self.optimizer.state[p]) == 0:
+                    self.optimizer.state[p]['exp_avg'] = torch.zeros_like(p.data)
+                    self.optimizer.state[p]['exp_avg_sq'] = torch.zeros_like(p.data)

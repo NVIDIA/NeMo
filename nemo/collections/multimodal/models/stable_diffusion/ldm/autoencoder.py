@@ -314,6 +314,7 @@ class AutoencoderKL(pl.LightningModule):
         colorize_nlabels=None,
         monitor=None,
         from_pretrained: str = None,
+        capture_cudagraph_iters=-1,
     ):
         super().__init__()
         self.image_key = image_key
@@ -331,11 +332,20 @@ class AutoencoderKL(pl.LightningModule):
             self.monitor = monitor
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
-        from diffusers.modeling_utils import load_state_dict
 
         if from_pretrained is not None:
-            state_dict = load_state_dict(from_pretrained)
+            state_dict = torch.load(from_pretrained)
             self._load_pretrained_model(state_dict)
+
+        # CUDA graph captured sub-modules
+        self.capture_cudagraph_iters = capture_cudagraph_iters
+        self.stream = torch.cuda.Stream()
+        self.encoder_iterations = self.decoder_iterations = 0
+        self.encoder_graph = torch.cuda.CUDAGraph()  # eval
+        self.decoder_graph = torch.cuda.CUDAGraph()  # eval
+        self.graphed_encoder = self.graphed_decoder = None  # train
+        self.static_x = self.static_moments = None
+        self.static_z = self.static_dec = None
 
     def _state_key_mapping(self, state_dict: dict):
         import re
@@ -405,6 +415,19 @@ class AutoencoderKL(pl.LightningModule):
                         )
                         del state_dict[checkpoint_key]
             return mismatched_keys
+
+        if state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512]):
+            for key in [
+                'encoder.mid.attn_1.q.weight',
+                'decoder.mid.attn_1.q.weight',
+                'encoder.mid.attn_1.v.weight',
+                'decoder.mid.attn_1.v.weight',
+                'encoder.mid.attn_1.k.weight',
+                'decoder.mid.attn_1.k.weight',
+                'encoder.mid.attn_1.proj_out.weight',
+                'decoder.mid.attn_1.proj_out.weight',
+            ]:
+                state_dict[key] = state_dict[key].unsqueeze(2).unsqueeze(3)
 
         if state_dict is not None:
             # Whole checkpoint

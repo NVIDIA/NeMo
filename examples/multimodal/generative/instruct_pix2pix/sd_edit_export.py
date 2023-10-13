@@ -17,6 +17,7 @@ import os
 import random
 import sys
 from argparse import ArgumentParser
+from typing import Dict, List, Optional
 
 import einops
 import numpy as np
@@ -28,9 +29,12 @@ from PIL import Image, ImageOps
 
 from nemo.collections.multimodal.models.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
 from nemo.collections.multimodal.models.stable_diffusion.samplers.k_diffusion import DiscreteEpsDDPMDenoiser
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import FrozenCLIPEmbedder
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.core.classes.exportable import Exportable
 from nemo.core.config import hydra_runner
+from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 from nemo.utils.trt_utils import build_engine
 
@@ -58,7 +62,7 @@ def main(cfg):
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
     fp16 = 16 == cfg.trainer.get("precision", 32)
-    if cfg.trainer.get("precision", 32) == "bf16":
+    if cfg.trainer.get("precision", 32) in ['bf16', 'bf16-mixed']:
         print("BF16 not supported for export, will use fp32")
     with open_dict(cfg):
         edit_cfg = cfg.pop("edit")
@@ -79,14 +83,18 @@ def main(cfg):
     model_wrap_cfg = CFGDenoiser(model_wrap)
     null_token = model.get_learned_conditioning([""])
 
-    input_image = Image.open(edit_cfg.input).convert("RGB")
-    width, height = input_image.size
-    factor = edit_cfg.resolution / max(width, height)
-    factor = math.ceil(min(width, height) * factor / 64) * 64 / min(width, height)
-    width = int((width * factor) // 64) * 64
-    height = int((height * factor) // 64) * 64
-    input_image = ImageOps.fit(input_image, (width, height), method=Image.Resampling.LANCZOS)
+    # input_image = Image.open(edit_cfg.input).convert("RGB")
+    # width, height = input_image.size
+    # factor = edit_cfg.resolution / max(width, height)
+    # factor = math.ceil(min(width, height) * factor / 64) * 64 / min(width, height)
+    # width = int((width * factor) // 64) * 64
+    # height = int((height * factor) // 64) * 64
+    # input_image = ImageOps.fit(input_image, (width, height), method=Image.Resampling.LANCZOS)
+    input_image = np.random.rand(edit_cfg.resolution, edit_cfg.resolution, 3) * 255
+    input_image = Image.fromarray(input_image.astype('uint8')).convert('RGB')
     batch_size = edit_cfg.get("num_images_per_prompt", 1)
+    height = edit_cfg.resolution
+    width = edit_cfg.resolution
 
     output_dir = edit_cfg.out_path
 
@@ -182,8 +190,9 @@ def main(cfg):
             self.model = model
 
         def forward(self, z):
-            outputs = self.model.decode(z=z)
-            return outputs
+            h = self.model.post_quant_conv(z)
+            dec = self.model.decoder(h)
+            return dec
 
     input_names = ["z"]
     output_names = ["logits"]
@@ -214,21 +223,60 @@ def main(cfg):
             outputs = self.model(input_ids=input_ids)
             return outputs.last_hidden_state
 
-    input_names = ["tokens"]
-    output_names = ["logits"]
+    class OpenCLIPWrapper(nn.Module, Exportable):
+        def __init__(self, model):
+            super().__init__()
+            self.model = model
+
+        def forward(self, input_ids):
+            outputs = self.model.encode_with_transformer(input_ids)
+            return outputs
+
+        def input_example(self, max_text=64):
+            sample = next(self.parameters())
+            tokens = torch.randint(high=10, size=(1, self.model.max_length)).to(sample.device)
+            return (tokens,)
+
+        @property
+        def input_types(self) -> Optional[Dict[str, NeuralType]]:
+            return {
+                "tokens": NeuralType(('H', 'D'), ChannelType()),
+            }
+
+        @property
+        def output_types(self) -> Optional[Dict[str, NeuralType]]:
+            return {"logits": NeuralType(('B', 'H'), ChannelType())}
+
+        @property
+        def input_names(self) -> List[str]:
+            return ['tokens']
+
+        @property
+        def output_names(self) -> List[str]:
+            return ['logits']
+
+    openai_clip = isinstance(model.cond_stage_model, FrozenCLIPEmbedder)
     tokens = torch.randint(high=10, size=(1, model.cond_stage_model.max_length), device="cuda")
-    torch.onnx.export(
-        CLIPWrapper(model.cond_stage_model.transformer),
-        (tokens,),
-        f"{output_dir}/onnx/clip/clip.onnx",
-        verbose=False,
-        input_names=input_names,
-        output_names=output_names,
-        dynamic_axes={"tokens": {0: 'B'}, "logits": {0: 'B'}},
-        opset_version=17,
-        do_constant_folding=True,
-        export_params=True,
-    )
+
+    if openai_clip:
+        input_names = ["tokens"]
+        output_names = ["logits"]
+        torch.onnx.export(
+            CLIPWrapper(model.cond_stage_model.transformer),
+            (tokens,),
+            f"{output_dir}/onnx/clip/clip.onnx",
+            verbose=False,
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes={"tokens": {0: 'B'}, "logits": {0: 'B'}},
+            opset_version=17,
+            do_constant_folding=True,
+            export_params=True,
+        )
+    else:
+        clip_model = OpenCLIPWrapper(model.cond_stage_model)
+        clip_model.export(f"{output_dir}/onnx/clip/clip.onnx")
+
     input_profile_clip = {}
     input_profile_clip["tokens"] = [(1, *(tokens.shape[1:]))] * 3
     deployment_conf.clip.tokens = input_profile_clip["tokens"][0]

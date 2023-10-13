@@ -34,13 +34,16 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
 )
 
 
-# dummy replace
-def convert_module_to_f16(x):
-    pass
+def convert_module_to_dtype(module, dtype):
+    # Convert module parameters to dtype
+    if isinstance(module, (torch.nn.Conv1d, torch.nn.Conv2d, torch.nn.Linear)):
+        module.weight.data = module.weight.data.to(dtype)
+        if module.bias is not None:
+            module.bias.data = module.bias.data.to(dtype)
 
 
-def convert_module_to_f32(x):
-    pass
+def convert_module_to_fp16(module):
+    convert_module_to_dtype(module, torch.float16)
 
 
 ## go
@@ -218,7 +221,7 @@ class ResBlock(TimestepBlock):
         self.use_scale_shift_norm = use_scale_shift_norm
 
         self.in_layers = nn.Sequential(
-            normalization(channels), nn.SiLU(), conv_nd(dims, channels, self.out_channels, 3, padding=1),
+            normalization(channels, act="silu"), conv_nd(dims, channels, self.out_channels, 3, padding=1),
         )
 
         self.updown = up or down
@@ -236,8 +239,7 @@ class ResBlock(TimestepBlock):
             nn.SiLU(), linear(emb_channels, 2 * self.out_channels if use_scale_shift_norm else self.out_channels,),
         )
         self.out_layers = nn.Sequential(
-            normalization(self.out_channels),
-            nn.SiLU(),
+            normalization(self.out_channels, act="silu"),
             nn.Dropout(p=dropout),
             zero_module(conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)),
         )
@@ -256,7 +258,10 @@ class ResBlock(TimestepBlock):
         :param emb: an [N x emb_channels] Tensor of timestep embeddings.
         :return: an [N x C x ...] Tensor of outputs.
         """
-        return checkpoint(self._forward, (x, emb), self.parameters(), self.use_checkpoint)
+        if self.use_checkpoint:
+            return checkpoint(self._forward, (x, emb), self.parameters(), self.use_checkpoint)
+        else:
+            return self._forward(x, emb)
 
     def _forward(self, x, emb):
         if self.updown:
@@ -466,10 +471,12 @@ class UNetModel(nn.Module):
         context_dim=None,  # custom transformer support
         n_embed=None,  # custom support for prediction of discrete ids into codebook of first stage vq model
         legacy=True,
+        use_linear_in_transformer=False,
         from_pretrained: str = None,
         from_NeMo=False,
         # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
         use_flash_attention: bool = False,
+        enable_amp_o2_fp16: bool = False,
     ):
         super().__init__()
         if use_spatial_transformer:
@@ -563,6 +570,7 @@ class UNetModel(nn.Module):
                             dim_head,
                             depth=transformer_depth,
                             context_dim=context_dim,
+                            use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
                         )
@@ -624,6 +632,7 @@ class UNetModel(nn.Module):
                 dim_head,
                 depth=transformer_depth,
                 context_dim=context_dim,
+                use_linear=use_linear_in_transformer,
                 use_checkpoint=use_checkpoint,
                 use_flash_attention=use_flash_attention,
             ),
@@ -678,6 +687,7 @@ class UNetModel(nn.Module):
                             dim_head,
                             depth=transformer_depth,
                             context_dim=context_dim,
+                            use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
                         )
@@ -711,15 +721,23 @@ class UNetModel(nn.Module):
                 conv_nd(dims, model_channels, n_embed, 1),
                 # nn.LogSoftmax(dim=1)  # change to cross_entropy and produce non-normalized logits
             )
-        from diffusers.modeling_utils import load_state_dict
 
         if from_pretrained is not None:
             if from_NeMo:
                 state_dict = torch.load(from_pretrained, map_location='cpu')
-                self._load_pretrained_model(state_dict['state_dict'], from_NeMo=True)
+                missing_key, _, _, _ = self._load_pretrained_model(state_dict['state_dict'], from_NeMo=True)
             else:
-                state_dict = load_state_dict(from_pretrained)
-                self._load_pretrained_model(state_dict)
+                state_dict = torch.load(from_pretrained, map_location='cpu')
+                if 'state_dict' in state_dict.keys():
+                    state_dict = state_dict['state_dict']
+                missing_key, _, _, _ = self._load_pretrained_model(state_dict)
+            if len(missing_key) > 0:
+                print(
+                    'Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
+                )
+
+        if enable_amp_o2_fp16:
+            self.convert_to_fp16()
 
     def _input_blocks_mapping(self, input_dict):
         res_dict = {}
@@ -858,6 +876,21 @@ class UNetModel(nn.Module):
         missing_keys = list(set(expected_keys) - set(loaded_keys))
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
+        if (
+            'input_blocks.1.0.in_layers.2.weight' in loaded_keys
+            and 'input_blocks.1.0.in_layers.1.weight' in expected_keys
+        ):
+            # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
+            for key_ in missing_keys:
+                s = key_.split('.')
+                idx = int(s[-2])
+                new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
+                state_dict[key_] = state_dict[new_key_]
+
+            loaded_keys = list(state_dict.keys())
+            missing_keys = list(set(expected_keys) - set(loaded_keys))
+            unexpected_keys = list(set(loaded_keys) - set(expected_keys))
+
         def _find_mismatched_keys(
             state_dict, model_state_dict, loaded_keys, ignore_mismatched_sizes,
         ):
@@ -896,6 +929,8 @@ class UNetModel(nn.Module):
                 re_state_dict[key_.replace('model._orig_mod.diffusion_model.', '')] = value_
             if key_.startswith('model.model._orig_mod.diffusion_model.'):
                 re_state_dict[key_.replace('model.model._orig_mod.diffusion_model.', '')] = value_
+            if key_.startswith('model.model.diffusion_model._orig_mod.'):
+                re_state_dict[key_.replace('model.model.diffusion_model._orig_mod.', '')] = value_
         return re_state_dict
 
     def _load_state_dict_into_model(self, state_dict):
@@ -922,17 +957,7 @@ class UNetModel(nn.Module):
         """
         Convert the torso of the model to float16.
         """
-        self.input_blocks.apply(convert_module_to_f16)
-        self.middle_block.apply(convert_module_to_f16)
-        self.output_blocks.apply(convert_module_to_f16)
-
-    def convert_to_fp32(self):
-        """
-        Convert the torso of the model to float32.
-        """
-        self.input_blocks.apply(convert_module_to_f32)
-        self.middle_block.apply(convert_module_to_f32)
-        self.output_blocks.apply(convert_module_to_f32)
+        self.apply(convert_module_to_fp16)
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         """
@@ -1136,15 +1161,8 @@ class EncoderUNetModel(nn.Module):
         """
         Convert the torso of the model to float16.
         """
-        self.input_blocks.apply(convert_module_to_f16)
-        self.middle_block.apply(convert_module_to_f16)
-
-    def convert_to_fp32(self):
-        """
-        Convert the torso of the model to float32.
-        """
-        self.input_blocks.apply(convert_module_to_f32)
-        self.middle_block.apply(convert_module_to_f32)
+        self.input_blocks.apply(convert_module_to_fp16)
+        self.middle_block.apply(convert_module_to_fp16)
 
     def forward(self, x, timesteps):
         """

@@ -30,7 +30,7 @@ from nemo.collections.multimodal.data.clip.clip_dataset import (
     tokenize,
 )
 from nemo.collections.multimodal.losses.clip_loss import ClipLoss
-from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
@@ -71,7 +71,7 @@ except (ImportError, ModuleNotFoundError):
 class CLIPVisionTransformer(MegatronModule):
     """Vision Transformer Model."""
 
-    def __init__(self, model_cfg, pre_process=True, post_process=True):
+    def __init__(self, model_cfg, model_parallel_config, pre_process=True, post_process=True, skip_head=False):
         super(CLIPVisionTransformer, self).__init__()
 
         scaled_init_method = (
@@ -80,11 +80,12 @@ class CLIPVisionTransformer(MegatronModule):
             else init_method_normal(model_cfg.init_method_std)
         )
 
+        self.config = model_parallel_config
         self.hidden_size = model_cfg.hidden_size
-        self.output_dim = model_cfg.output_dim
         self.global_average_pool = model_cfg.global_average_pool
         self.pre_process = pre_process
         self.post_process = post_process
+        self.skip_head = skip_head
 
         if model_cfg.get("class_token_length") is None or model_cfg.get("class_token_length") <= 0:
             class_token = False
@@ -92,6 +93,7 @@ class CLIPVisionTransformer(MegatronModule):
             class_token = True
         self.backbone = VitBackbone(
             model_cfg,
+            model_parallel_config,
             init_method=init_method_normal(model_cfg.init_method_std),
             scaled_init_method=scaled_init_method,
             pre_process=self.pre_process,
@@ -100,7 +102,8 @@ class CLIPVisionTransformer(MegatronModule):
             single_token_output=False,
         )
 
-        if self.post_process:
+        if self.post_process and not skip_head:
+            self.output_dim = model_cfg.output_dim
             self.head = torch.nn.Linear(self.hidden_size, self.output_dim, bias=False,)
 
     def set_input_tensor(self, input_tensor):
@@ -110,7 +113,7 @@ class CLIPVisionTransformer(MegatronModule):
     def forward(self, input):
         hidden_states = self.backbone(input)
 
-        if self.post_process:
+        if self.post_process and not self.skip_head:
             if self.global_average_pool:
                 hidden_states = hidden_states.mean(dim=1)
             else:
@@ -123,10 +126,10 @@ class CLIPVisionTransformer(MegatronModule):
 class CLIPTextTransformer(MegatronModule):
     """Text Transformer Model."""
 
-    def __init__(self, model_cfg, padded_vocab_size, pre_process=True, post_process=True):
+    def __init__(self, model_cfg, model_parallel_config, padded_vocab_size, pre_process=True, post_process=True):
         super(CLIPTextTransformer, self).__init__()
 
-        self.output_dim = model_cfg.output_dim
+        self.config = model_parallel_config
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = model_cfg.fp16_lm_cross_entropy
@@ -139,6 +142,7 @@ class CLIPTextTransformer(MegatronModule):
             else init_method_normal(model_cfg.init_method_std)
         )
         self.language_model, self._language_model_key = get_language_model(
+            config=model_parallel_config,
             vocab_size=padded_vocab_size,
             hidden_size=model_cfg.hidden_size,
             hidden_dropout=model_cfg.hidden_dropout,
@@ -158,7 +162,6 @@ class CLIPTextTransformer(MegatronModule):
             pre_process=self.pre_process,
             post_process=self.post_process,
             init_method_std=model_cfg.init_method_std,
-            use_cpu_initialization=model_cfg.use_cpu_initialization,
             precision=model_cfg.precision,
             fp32_residual_connection=model_cfg.fp32_residual_connection,
             activations_checkpoint_granularity=model_cfg.activations_checkpoint_granularity,
@@ -170,12 +173,10 @@ class CLIPTextTransformer(MegatronModule):
             bias_activation_fusion=model_cfg.bias_activation_fusion,
             bias_dropout_add_fusion=model_cfg.bias_dropout_add_fusion,
             masked_softmax_fusion=model_cfg.masked_softmax_fusion,
-            gradient_accumulation_fusion=model_cfg.gradient_accumulation_fusion,
             persist_layer_norm=model_cfg.persist_layer_norm,
             openai_gelu=model_cfg.openai_gelu,
             onnx_safe=model_cfg.onnx_safe,
             megatron_legacy=model_cfg.megatron_legacy,
-            sequence_parallel=model_cfg.sequence_parallel,
             transformer_engine=model_cfg.transformer_engine,
             fp8=model_cfg.fp8,
             fp8_e4m3=model_cfg.fp8_e4m3,
@@ -186,6 +187,8 @@ class CLIPTextTransformer(MegatronModule):
             fp8_amax_compute_algo=model_cfg.fp8_amax_compute_algo,
             reduce_amax=model_cfg.get('reduce_amax', True),
             use_emha=model_cfg.use_emha,
+            activation=model_cfg.get('activation', 'gelu'),
+            use_flash_attention=model_cfg.get('flash_attention', False),
         )
 
         self.initialize_word_embeddings(
@@ -200,6 +203,7 @@ class CLIPTextTransformer(MegatronModule):
             self.position_ids = torch.arange(model_cfg.max_position_embeddings).expand(1, -1).cuda()
 
         if self.post_process:
+            self.output_dim = model_cfg.output_dim
             self.head = torch.nn.Linear(model_cfg.hidden_size, self.output_dim, bias=False,)
 
         self.attn_mask = self.build_attention_mask(model_cfg.max_position_embeddings)
@@ -248,16 +252,21 @@ class CLIPTextTransformer(MegatronModule):
 class CLIPModel(MegatronModule):
     """CLIP Model"""
 
-    def __init__(self, model_cfg, padded_vocab_size, pre_process=True, post_process=True):
+    def __init__(self, model_cfg, model_parallel_config, padded_vocab_size, pre_process=True, post_process=True):
         super(CLIPModel, self).__init__()
 
+        self.config = model_parallel_config
         self.pre_process = pre_process
         self.post_process = post_process
         self.vision_encoder = CLIPVisionTransformer(
-            model_cfg.vision, pre_process=self.pre_process, post_process=self.post_process,
+            model_cfg.vision, model_parallel_config, pre_process=self.pre_process, post_process=self.post_process,
         )
         self.text_encoder = CLIPTextTransformer(
-            model_cfg.text, padded_vocab_size, pre_process=self.pre_process, post_process=self.post_process,
+            model_cfg.text,
+            model_parallel_config,
+            padded_vocab_size,
+            pre_process=self.pre_process,
+            post_process=self.post_process,
         )
 
         self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
@@ -277,7 +286,7 @@ class CLIPModel(MegatronModule):
         return image_features, text_features
 
 
-class MegatronCLIPModel(MegatronMultimodalModel):
+class MegatronCLIPModel(MegatronBaseModel):
     """Megatron CLIP Model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -336,19 +345,39 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             if isinstance(self.model, list):
                 converted_model = []
                 for module in self.model:
-                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
+                    converted_model.append(
+                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                    )
                     self.model = converted_model
             else:
-                self.model = Float16Module(module=self.model, precision=cfg.precision)
+                self.model = Float16Module(
+                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                )
 
-        if self.trainer.precision == 'bf16':
+        if self.trainer.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision in [16, '16', '16-mixed']:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+
+        self.enable_autocast = (
+            True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
+
+        self.transformer_engine = cfg.get('transformer_engine', False)
+
+        # Convert the global-batch-based profile index to micro-batch index
+        if hasattr(self, '_nsys_profile_enabled'):
+            mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
+            data_parallel_world_size = trainer.world_size // mp_size
+            grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
+            self._nsys_profile_start_step *= grad_accum_steps
+            self._nsys_profile_end_step *= grad_accum_steps
+        self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
+        self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
 
     def get_module_list(self):
         if isinstance(self.model, list):
@@ -362,6 +391,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         """Model depends on pipeline paralellism."""
         model = CLIPModel(
             model_cfg=self.cfg,
+            model_parallel_config=self.model_parallel_config,
             padded_vocab_size=self.padded_vocab_size,
             pre_process=pre_process,
             post_process=post_process,
@@ -391,6 +421,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
                         module = self.model[0]  # only the first virtual rank has the embeddings
                     else:
                         module = self.model
+                    # TODO (yuya): text transformer's embedding needs to be taken care of when PP>1
                     # if module.share_token_embeddings:
                     #     param = module.word_embeddings_weight()
                     #     param._disable_greedy_grad_copy = not self.megatron_amp_O2
@@ -408,15 +439,124 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
             for param in self.parameters():
-                if getattr(param, 'sequence_parallel_enabled', False):
+                if getattr(param, 'sequence_parallel', False):
                     param._disable_greedy_grad_copy = not self.megatron_amp_O2
                     param._disable_overlap_grad_sync = True
+
+            # Initialize parameter buckets for overlapped grad and param syncs
+            # Note: Params with disabled overlapping are put in the
+            # last param bucket
+            buckets = []
+            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+                # Initialize a bucket for each virtual pipeline stage
+                for module in self.model:
+                    if isinstance(module, Float16Module):
+                        module = module.module
+                    stage_bucket = []
+                    for layer in itertools.chain(
+                        module.vision_encoder.backbone.transformer.layers,
+                        module.text_encoder.language_model.encoder.layers,
+                    ):
+                        stage_bucket.extend(
+                            p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+                        )
+                    buckets.append(stage_bucket)
+            else:
+                # Initialize a bucket for each Transformer layer
+                modules = self.model if isinstance(self.model, list) else [self.model]
+                for module in modules:
+                    if isinstance(module, Float16Module):
+                        module = module.module
+                    for layer in itertools.chain(
+                        module.vision_encoder.backbone.transformer.layers,
+                        module.text_encoder.language_model.encoder.layers,
+                    ):
+                        buckets.append(
+                            [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
+                        )
+            buckets.reverse()
+            used_params = set()
+            for bucket in buckets:
+                used_params.update(bucket)
+            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
+            self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
 
     def forward(self, image, text):
         output_tensor = self.model(image, text)
         return output_tensor
+
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        grad_sync_func = None
+        param_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+            grad_sync_func = self.reduce_overlap_gradients
+            param_sync_func = self.sync_overlap_parameters
+
+        # pipeline schedules will get these from self.model.config
+        for module in self.get_module_list():
+            module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
+            module.config.param_sync_func = param_sync_func
+
+        # run forward and backwards passes for an entire global batch
+        # we do this inside training_step to support pipeline parallelism
+        fwd_bwd_function = get_forward_backward_func()
+
+        # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=dataloader_iter,
+            model=self.model,
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            seq_length=None,
+            micro_batch_size=self.cfg.micro_batch_size,
+        )
+
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensor = torch.stack(loss_tensors_list)
+                loss_mean = loss_tensor.mean()
+            else:
+                # Get the total loss since micro batches sizes are not uniform
+                raise NotImplementedError("Losses of micro batches sizes must be uniform!")
+        else:
+            # we're not on the last pipeline stage so no losses
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0).cuda()
+
+        return loss_mean
+
+    def initialize_ub_func(self):
+        ub_cfgs = self.cfg.get('ub_tp_comm_overlap_cfg', None)
+        if ub_cfgs is None:
+            warnings.warn(
+                "Couldn't find TP config. Please check the path correctness. Initializing TP comm overlap with the default config."
+            )
+
+        input_shape = [
+            self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
+            self.cfg.get('hidden_size'),
+        ]
+
+        te_module.base.initialize_ub(
+            shape=input_shape,
+            tp_size=self.cfg.get('tensor_model_parallel_size'),
+            use_fp8=self.cfg.get('fp8'),
+            ub_cfgs=ub_cfgs,
+        )
+        self.initialize_ub = False
 
     def training_step(self, dataloader_iter, batch_idx):
         """
@@ -427,58 +567,53 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             Microbatches are then moved to GPU during the pipeline.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
+        # Initialize userbuffer communicators.
+        if self.initialize_ub:
+            self.initialize_ub_func()
 
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
 
-        # TODO (yuya): fix this shape
-        tensor_shape = None
+        if self.with_distributed_adam:
+            # hack to enable overlapping param sync and forward compute
+            # note: the distributed optimizer monkey-patches each
+            # parameter's __getattribute__ function so that it can
+            # launch parameter all-gathers the first time the
+            # parameter is accessed after the optimizer step. However,
+            # PyTorch directly passes embedding parameters into a C++,
+            # bypassing this process. A quick-and-dirty hack is to
+            # manually interact with the parameter.
+            modules = self.model if isinstance(self.model, list) else [self.model]
+            for module in modules:
+                if isinstance(module, Float16Module):
+                    module = module.module
+                module = module.text_encoder.language_model
+                if hasattr(module, 'embedding'):
+                    for param in module.embedding.parameters():
+                        param.data_ptr()
 
-        # run forward and backwards passes for an entire global batch
-        # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=False,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.stack(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            loss_mean = torch.tensor(0.0).cuda()
+        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
             self.allreduce_sequence_parallel_gradients()
 
         if self.with_distributed_adam:
-            # gradients are reduced internally in distributed optimizer
-            pass
+            # synchronize asynchronous grad reductions
+            # note: not necessary, but reduces performance degradation
+            # from multiple simultaneous NCCL calls
+            self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_O2:
-            # # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+            # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
             # if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
             #     # main grads are stored in the MainParamsOptimizer wrapper
-            #     self._optimizer.allreduce_main_grads()
             self._optimizer.allreduce_main_grads()
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        # TODO (yuya): check if this is needed in text transformer
+        # TODO (yuya): check if this is needed in text transformer when PP>1
         # if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
         #     # when using pipeline parallelism the first and last stage must keep embeddings in sync
         #     self.allreduce_first_last_embeddings()
@@ -488,7 +623,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.cfg.precision == 16:
+        if self.cfg.precision in [16, '16', '16-mixed']:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
@@ -650,40 +785,18 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             a number of microbatches depending on the global batch size and model parallel size
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.        """
+        # Initialize userbuffer communicators.
+        if self.initialize_ub:
+            self.initialize_ub_func()
 
-        tensor_shape = None  # Placeholder
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        self.validation_step_outputs.append(loss)
 
-        # run forward passes for an entire global batch
-        # we do this inside validation_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
+        return loss
 
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        def _get_metric(metric_key):
-            # only the last stage of the pipeline returns losses
-            if losses_reduced_per_micro_batch:
-                loss_tensors_list = [loss_reduced[metric_key] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.vstack(loss_tensors_list)
-                loss_mean = loss_tensor.mean(axis=0)
-            else:
-                loss_mean = torch.tensor([0.0]).cuda()
-            return loss_mean[0]
-
-        return _get_metric('loss')
-
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         # TODO (yuya): need fix later, check with Sean
-        if not outputs:
+        if not self.validation_step_outputs:
             return
 
         # Run zero shot imagenet evaluation
@@ -695,7 +808,9 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             self.log('imagenet_top5', imagenet_metric[1], prog_bar=True, rank_zero_only=True, batch_size=1)
 
         if parallel_state.is_pipeline_last_stage():
-            averaged_metrics = torch.tensor([torch.stack(outputs).mean()], dtype=torch.float32, device='cuda')
+            averaged_metrics = torch.tensor(
+                [torch.stack(self.validation_step_outputs).mean()], dtype=torch.float32, device='cuda'
+            )
         else:
             averaged_metrics = torch.tensor([0.0], dtype=torch.float32, device='cuda')
 
@@ -705,6 +820,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
 
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.validation_step_outputs.clear()  # free memory
 
         return averaged_loss
 
@@ -777,7 +893,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             f'Total number of model parameters: {total_num_parameters:.2e}.'
         )
 
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:

@@ -18,9 +18,13 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.losses.rnnt import MultiblankRNNTLossPytorch, RNNTLossPytorch
+from nemo.collections.asr.losses.rnnt import MultiblankRNNTLossPytorch, RNNTLossPytorch, TDTLossPytorch
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
-from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import MultiblankRNNTLossNumba, RNNTLossNumba
+from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import (
+    MultiblankRNNTLossNumba,
+    RNNTLossNumba,
+    TDTLossNumba,
+)
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
@@ -30,9 +34,14 @@ if torch.cuda.is_available():
     DEVICES.append('cuda')
 
 
+DTYPES = [np.float32]
+if numba_utils.is_numba_cuda_fp16_supported():
+    DTYPES.append(np.float16)
+
+
 def wrap_and_call(fn, acts, labels, device):
     if not torch.is_tensor(acts):
-        acts = torch.FloatTensor(acts)
+        acts = torch.tensor(acts)
 
     if 'cuda' in device:
         acts = acts.cuda()
@@ -68,7 +77,8 @@ def wrap_and_call(fn, acts, labels, device):
 class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_small(self, device):
+    @pytest.mark.parametrize('dtype', DTYPES)
+    def test_case_small(self, device, dtype):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -79,8 +89,12 @@ class TestRNNTLossPytorch:
                     [[0.1, 0.6, 0.1, 0.1, 0.1], [0.1, 0.1, 0.2, 0.1, 0.1], [0.7, 0.1, 0.2, 0.1, 0.1]],
                 ]
             ]
-        )
+        ).astype(dtype)
         labels = [[1, 2]]
+
+        cost_threshold = 1e-8 if dtype == np.float32 else 5e-4
+        grad_threshold = 1e-8 if dtype == np.float32 else 1e-4
+        rtol = 1e-5 if dtype == np.float32 else 1e-3
 
         fn_pt = RNNTLossNumba(blank=0, reduction='sum')
         pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
@@ -109,23 +123,28 @@ class TestRNNTLossPytorch:
             ]
         )
 
-        assert np.allclose(pt_cost, expected_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(pt_grads, expected_grads), "small_test gradient mismatch."
+        assert np.allclose(pt_cost, expected_cost, atol=cost_threshold, rtol=1e-6), "small_test costs mismatch."
+        assert np.allclose(pt_grads, expected_grads, atol=grad_threshold, rtol=rtol), "small_test gradient mismatch."
 
-        assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(pt_grads, np_grads), "small_test gradient mismatch."
+        assert np.allclose(pt_cost, np_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads, atol=grad_threshold, rtol=rtol), "small_test gradient mismatch."
 
-        assert np.allclose(ag_cost, np_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(ag_grads, np_grads), "small_test gradient mismatch."
+        assert np.allclose(ag_cost, np_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(ag_grads, np_grads, atol=cost_threshold, rtol=rtol), "small_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_small_random(self, device):
+    @pytest.mark.parametrize('dtype', DTYPES)
+    def test_case_small_random(self, device, dtype):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
+        cost_threshold = 1e-8 if dtype == np.float32 else 5e-4
+        grad_threshold = 1e-8 if dtype == np.float32 else 1e-4
+        rtol = 1e-5 if dtype == np.float32 else 1e-3
+
         rng = np.random.RandomState(0)
-        acts = rng.randn(1, 4, 3, 3)
+        acts = rng.randn(1, 4, 3, 3).astype(dtype)
         labels = [[1, 2]]
 
         fn_pt = RNNTLossNumba(blank=0, reduction='sum')
@@ -137,16 +156,17 @@ class TestRNNTLossPytorch:
         fn_ag = RNNTLossPytorch(blank=0, reduction='sum')  # ag for automatic gradient computation
         ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)
 
-        assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_random_test costs mismatch."
-        assert np.allclose(pt_grads, np_grads), "small_random_test gradient mismatch."
+        assert np.allclose(pt_cost, np_cost, atol=cost_threshold, rtol=rtol), "small_random_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads, atol=grad_threshold, rtol=rtol), "small_random_test gradient mismatch."
 
-        assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "small_random_test costs mismatch."
-        assert np.allclose(pt_grads, ag_grads), "small_random_test gradient mismatch."
+        assert np.allclose(pt_cost, ag_cost, atol=cost_threshold, rtol=rtol), "small_random_test costs mismatch."
+        assert np.allclose(pt_grads, ag_grads, atol=grad_threshold, rtol=rtol), "small_random_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
+    @pytest.mark.parametrize('dtype', DTYPES)
     @pytest.mark.parametrize('fastemit_lambda', [1.0, 0.01, 0.00001])
-    def test_case_small_random_fastemit_reg(self, device, fastemit_lambda):
+    def test_case_small_random_fastemit_reg(self, device, dtype, fastemit_lambda):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -161,11 +181,12 @@ class TestRNNTLossPytorch:
         np_cost, np_grads = wrap_and_call(fn_np, acts, labels, device)
 
         assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_random_test costs mismatch."
-        assert np.allclose(pt_grads, np_grads, atol=1e-5, rtol=1e-5), "small_random_test gradient mismatch."
+        assert np.allclose(pt_grads, np_grads, rtol=1e-5), "small_random_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_big_tensor(self, device):
+    @pytest.mark.parametrize('dtype', DTYPES)
+    def test_case_big_tensor(self, device, dtype):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -265,8 +286,12 @@ class TestRNNTLossPytorch:
             ],
         ]
 
-        activations = np.array(activations)
+        activations = np.array(activations).astype(dtype)
         labels = [[1, 2], [1, 1]]
+
+        cost_threshold = 1e-8 if dtype == np.float32 else 5e-4
+        grad_threshold = 1e-8 if dtype == np.float32 else 1e-4
+        rtol = 1e-3 if dtype == np.float32 else 0.1
 
         fn_pt = RNNTLossNumba(blank=0, reduction='sum')
         pt_costs, pt_grads = wrap_and_call(fn_pt, activations, labels, device)
@@ -277,29 +302,40 @@ class TestRNNTLossPytorch:
         fn_ag = RNNTLossPytorch(blank=0, reduction='sum')
         ag_costs, ag_grads = wrap_and_call(fn_ag, activations, labels, device)
 
-        assert np.allclose(pt_costs, sum(expected_costs)), "big_test average costs mismatch."
-        assert np.allclose(pt_grads, expected_grads, rtol=1e-3), "big_test grads for average cost mismatch."
+        assert np.allclose(pt_costs, sum(expected_costs), atol=cost_threshold), "big_test average costs mismatch."
+        assert np.allclose(
+            pt_grads, expected_grads, atol=grad_threshold, rtol=1e-3
+        ), "big_test grads for average cost mismatch."
 
-        assert np.allclose(pt_costs, np_costs), "big_test average costs mismatch."
-        assert np.allclose(pt_grads, np_grads, rtol=1e-3), "big_test grads for average cost mismatch."
+        assert np.allclose(pt_costs, np_costs, atol=cost_threshold, rtol=rtol), "big_test average costs mismatch."
+        assert np.allclose(
+            pt_grads, np_grads, atol=grad_threshold, rtol=rtol
+        ), "big_test grads for average cost mismatch."
 
-        assert np.allclose(pt_costs, ag_costs), "big_test average costs mismatch."
-        assert np.allclose(pt_grads, ag_grads, rtol=1e-3), "big_test grads for average cost mismatch."
+        assert np.allclose(pt_costs, ag_costs, atol=cost_threshold, rtol=rtol), "big_test average costs mismatch."
+        assert np.allclose(
+            pt_grads, ag_grads, atol=grad_threshold, rtol=rtol
+        ), "big_test grads for average cost mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_large_random(self, device):
+    @pytest.mark.parametrize('dtype', DTYPES)
+    def test_case_large_random(self, device, dtype):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         rng = np.random.RandomState(0)
-        acts = rng.randn(4, 8, 11, 5)
+        acts = rng.randn(4, 8, 11, 5).astype(dtype)
         labels = [
             [1, 2, 4, 3, 2, 2, 1, 1, 1, 1],
             [3, 2, 2, 3, 4, 1, 1, 1, 1, 1],
             [4, 4, 1, 2, 1, 3, 4, 3, 1, 2],
             [1, 1, 2, 1, 2, 3, 3, 1, 1, 1],
         ]
+
+        cost_threshold = 1e-8 if dtype == np.float32 else 5e-4
+        grad_threshold = 1e-8 if dtype == np.float32 else 1e-4
+        rtol = 1e-3 if dtype == np.float32 else 5e-2
 
         fn_pt = RNNTLossNumba(blank=0, reduction='sum')
         pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
@@ -310,14 +346,15 @@ class TestRNNTLossPytorch:
         fn_ag = RNNTLossPytorch(blank=0, reduction='sum')
         ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)
 
-        assert np.allclose(pt_cost, np_cost, atol=1e-5, rtol=1e-3), "large_random_test costs mismatch."
-        assert np.allclose(ag_cost, np_cost, atol=1e-5, rtol=1e-3), "large_random_test costs mismatch."
-        assert np.allclose(pt_grads, np_grads, atol=1e-5, rtol=1e-3), "large_random_test gradient mismatch."
-        assert np.allclose(ag_grads, np_grads, atol=1e-5, rtol=1e-3), "large_random_test gradient mismatch."
+        assert np.allclose(pt_cost, np_cost, atol=cost_threshold, rtol=rtol), "large_random_test costs mismatch."
+        assert np.allclose(ag_cost, np_cost, atol=cost_threshold, rtol=rtol), "large_random_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads, atol=grad_threshold, rtol=rtol), "large_random_test gradient mismatch."
+        assert np.allclose(ag_grads, np_grads, atol=grad_threshold, rtol=rtol), "large_random_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_small_clamp(self, device):
+    @pytest.mark.parametrize('dtype', DTYPES)
+    def test_case_small_clamp(self, device, dtype):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -329,8 +366,12 @@ class TestRNNTLossPytorch:
                     [[0.1, 0.6, 0.1, 0.1, 0.1], [0.1, 0.1, 0.2, 0.1, 0.1], [0.7, 0.1, 0.2, 0.1, 0.1]],
                 ]
             ]
-        )
+        ).astype(dtype)
         labels = [[1, 2]]
+
+        cost_threshold = 1e-8 if dtype == np.float32 else 5e-4
+        grad_threshold = 1e-8 if dtype == np.float32 else 5e-5
+        rtol = 1e-5 if dtype == np.float32 else 1e-3
 
         fn_pt = RNNTLossNumba(blank=0, reduction='sum', clamp=GRAD_CLAMP)
         pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
@@ -356,16 +397,17 @@ class TestRNNTLossPytorch:
             ]
         )
 
-        assert np.allclose(pt_cost, expected_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(pt_grads, expected_grads), "small_test gradient mismatch."
+        assert np.allclose(pt_cost, expected_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(pt_grads, expected_grads, atol=grad_threshold, rtol=rtol), "small_test gradient mismatch."
 
-        assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(pt_grads, np_grads), "small_test gradient mismatch."
+        assert np.allclose(pt_cost, np_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads, atol=grad_threshold, rtol=rtol), "small_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
+    @pytest.mark.parametrize('dtype', DTYPES)
     @pytest.mark.parametrize('fastemit_lambda', [1.0, 0.01, 0.00001])
-    def test_case_small_fastemit_clamp(self, device, fastemit_lambda):
+    def test_case_small_fastemit_clamp(self, device, dtype, fastemit_lambda):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -377,8 +419,12 @@ class TestRNNTLossPytorch:
                     [[0.1, 0.6, 0.1, 0.1, 0.1], [0.1, 0.1, 0.2, 0.1, 0.1], [0.7, 0.1, 0.2, 0.1, 0.1]],
                 ]
             ]
-        )
+        ).astype(dtype)
         labels = [[1, 2]]
+
+        cost_threshold = 1e-8 if dtype == np.float32 else 1e-3
+        grad_threshold = 1e-8 if dtype == np.float32 else 5e-4
+        rtol = 1e-5 if dtype == np.float32 else 1e-3
 
         fn_pt = RNNTLossNumba(blank=0, reduction='sum', fastemit_lambda=fastemit_lambda, clamp=GRAD_CLAMP)
         pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
@@ -389,9 +435,9 @@ class TestRNNTLossPytorch:
         expected_cost = 4.495666
         expected_cost += expected_cost * fastemit_lambda
 
-        assert np.allclose(pt_cost, expected_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(pt_grads, np_grads), "small_test gradient mismatch."
+        assert np.allclose(pt_cost, expected_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(pt_cost, np_cost, atol=cost_threshold, rtol=rtol), "small_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads, atol=grad_threshold, rtol=rtol), "small_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
@@ -492,6 +538,69 @@ class TestMultiblankRNNTLoss:
 
             assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "multi-blank costs mismatch."
             assert np.allclose(pt_grads, ag_grads, rtol=1e-2), "multi-blank gradient mismatch."
+
+
+class TestTDTLoss:
+    @pytest.mark.unit
+    @pytest.mark.parametrize('device', DEVICES)
+    def test_case_randomized_act_label(self, device):
+        if device == 'cuda':
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
+            B, T, U, V = 4, 8, 4, 8  # here V is number of non blank labels
+            durations = [0, 1, 2, 3, 4, 5]
+            sigma = 0.05
+
+            acts = torch.rand([B, T, U, V + 1 + len(durations)])
+            labels = [[random.randrange(0, V) for i in range(U - 1)] for j in range(B)]
+
+            fn_pt = TDTLossNumba(blank=V, reduction='sum', durations=durations, sigma=sigma)
+            pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
+
+            fn_ag = TDTLossPytorch(
+                blank=V, reduction='sum', durations=durations, sigma=sigma
+            )  # ag for automatic gradient computation
+            ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)
+
+            assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "tdt costs mismatch."
+            assert np.allclose(pt_grads, ag_grads, rtol=1e-2), "td gradient mismatch."
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('device', DEVICES)
+    def test_case_fixed_case_act_label(self, device):
+        if device == 'cuda':
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
+            B, T, U, V = 1, 3, 2, 3  # here V is number of non blank labels
+            durations = [0, 1, 2]
+            sigma = 0.05
+
+            acts = torch.zeros([B, T, U, V + 1 + len(durations)])
+            labels = [[(i + j) % (V - 1) for i in range(U - 1)] for j in range(B)]
+
+            fn_pt = TDTLossNumba(blank=V, reduction='sum', durations=durations, sigma=sigma)
+            pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
+
+            expected_cost = 4.155739
+            expected_grads = [
+                [
+                    [
+                        [-0.64962804, 0.25, 0.25, 0.14962798, 0.2672583, -0.16792619, -0.09933221],
+                        [0.01651875, 0.01651875, 0.01651875, -0.04955626, 0.022025, -0.01227201, -0.009753],
+                    ],
+                    [
+                        [-0.04892651, 0.01714851, 0.01714851, 0.01462949, -0.01143234, -0.01143234, 0.02286467],
+                        [0.12531489, 0.12531489, 0.12531489, -0.37594467, 0.16708651, 0.13027048, -0.29735702],
+                    ],
+                    [
+                        [-0.02572276, 0.00857425, 0.00857425, 0.00857425, -0.02286468, 0.01143234, 0.01143234],
+                        [0.13388914, 0.13388914, 0.13388914, -0.40166742, 0.17851885, -0.35703772, 0.17851885],
+                    ],
+                ]
+            ]
+
+            assert np.allclose(pt_cost, expected_cost, rtol=1e-6), "tdt costs mismatch."
+            assert np.allclose(pt_grads, expected_grads, rtol=1e-2), "td gradient mismatch."
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 edit:
   resolution: 256
   steps: 100
-  input: path/to/input/picture
   out_path: "instruct_pix2pix"
   cfg_text: 7.5
   cfg_image: 1.2

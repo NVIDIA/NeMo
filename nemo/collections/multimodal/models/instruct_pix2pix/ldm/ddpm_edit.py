@@ -23,7 +23,6 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
-from pytorch_lightning.utilities.distributed import rank_zero_only
 from torch.optim.lr_scheduler import LambdaLR
 from torchvision.utils import make_grid
 from tqdm import tqdm
@@ -145,7 +144,7 @@ class LatentDiffusionEdit(LatentDiffusion):
 class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
-        model = LatentDiffusionEdit(cfg=self.cfg)
+        model = LatentDiffusionEdit(cfg=self.cfg, model_parallel_config=self.model_parallel_config)
         return model
 
     def setup(self, stage=None):
@@ -177,7 +176,7 @@ class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
             f'Total number of model parameters: {total_num_parameters:.2e}.'
         )
 
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:

@@ -108,7 +108,7 @@ def main(cfg) -> None:
     build_engine(
         f"{output_dir}/onnx/vit.onnx",
         f"{output_dir}/plan/vit.plan",
-        fp16=(trt_precision == 16),
+        fp16=(trt_precision in [16, '16', '16-mixed']),
         input_profile=input_profile,
         timing_cache=None,
         workspace_size=0,

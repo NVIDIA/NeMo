@@ -31,7 +31,10 @@ from nemo.collections.asr.data.text_to_text import (
     TextToTextDataset,
     TextToTextIterableDataset,
 )
-from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
+from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
+from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.parts.preprocessing.features import clean_spectrogram_batch, normalize_batch
 from nemo.collections.asr.parts.submodules.batchnorm import replace_bn_with_fused_bn_all
@@ -87,7 +90,7 @@ class ASRWithTTSModel(ASRModel):
     Text-only data can be mixed with audio-text pairs
     """
 
-    asr_model: Union[EncDecRNNTBPEModel, EncDecCTCModelBPE]
+    asr_model: Union[EncDecRNNTBPEModel, EncDecCTCModelBPE, EncDecHybridRNNTCTCBPEModel]
     tts_model: FastPitchModel
     enhancer_model: Optional[SpectrogramEnhancerModel]
 
@@ -98,6 +101,7 @@ class ASRWithTTSModel(ASRModel):
 
         RNNT_BPE = "rnnt_bpe"
         CTC_BPE = "ctc_bpe"
+        HYBRID_RNNT_CTC_BPE = "hybrid_rnnt_ctc_bpe"
 
         @classmethod
         def from_asr_model(cls, model: Any):
@@ -105,6 +109,8 @@ class ASRWithTTSModel(ASRModel):
                 return cls.RNNT_BPE
             if isinstance(model, EncDecCTCModelBPE):
                 return cls.CTC_BPE
+            if isinstance(model, EncDecHybridRNNTCTCBPEModel):
+                return cls.HYBRID_RNNT_CTC_BPE
             raise ValueError(f"Unsupported model type: {type(model)}")
 
         def get_asr_cls(self):
@@ -112,6 +118,8 @@ class ASRWithTTSModel(ASRModel):
                 return EncDecRNNTBPEModel
             if self == self.CTC_BPE:
                 return EncDecCTCModelBPE
+            if self == self.HYBRID_RNNT_CTC_BPE:
+                return EncDecHybridRNNTCTCBPEModel
             raise NotImplementedError(f"Not implemented for value {self.value}")
 
     @classmethod
@@ -303,8 +311,10 @@ class ASRWithTTSModel(ASRModel):
                 )
             )
         else:
+            cfg = copy.deepcopy(cfg)  # copy to avoid modifying original config
             cfg.tts_model_path = f"{tts_model_path}"
             cfg.asr_model_path = f"{asr_model_path}"
+            cfg.enhancer_model_path = f"{enhancer_model_path}" if enhancer_model_path is not None else None
         return ASRWithTTSModel(cfg, trainer=trainer)
 
     def __setattr__(self, name, value):
@@ -361,19 +371,20 @@ class ASRWithTTSModel(ASRModel):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """Validation step, forward to ASR model"""
-        return self.asr_model.validation_step(batch=batch, batch_idx=batch_idx, dataloader_idx=dataloader_idx)
+        loss = self.asr_model.validation_step(batch=batch, batch_idx=batch_idx, dataloader_idx=dataloader_idx)
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(loss)
+        else:
+            self.validation_step_outputs.append(loss)
+        return loss
 
-    def validation_epoch_end(
-        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
-    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+    def on_validation_epoch_end(self) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """Validation epoch end hook, forward to ASR model"""
-        return self.asr_model.validation_epoch_end(outputs=outputs)
+        return self.asr_model.on_validation_epoch_end()
 
-    def test_epoch_end(
-        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
-    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+    def on_test_epoch_end(self) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """Test epoch end hook, forward to ASR model"""
-        return self.asr_model.test_epoch_end(outputs=outputs)
+        return self.asr_model.on_test_epoch_end()
 
     def val_dataloader(self):
         """Get valudation dataloader from ASR model"""
@@ -538,7 +549,7 @@ class ASRWithTTSModel(ASRModel):
                 manifest_filepath=text_data_config.manifest_filepath,
                 speakers_filepath=text_data_config.speakers_filepath,
                 asr_tokenizer=self.asr_model.tokenizer,
-                asr_use_start_end_token=train_data_config.use_start_end_token,
+                asr_use_start_end_token=train_data_config.get("use_start_end_token", False),
                 tts_parser=self.tts_model.parser,
                 tts_text_pad_id=self.tts_model.vocab.pad,
                 tts_text_normalizer=self.tts_model.normalizer,
@@ -554,7 +565,7 @@ class ASRWithTTSModel(ASRModel):
                 manifest_filepath=text_data_config.manifest_filepath,
                 speakers_filepath=text_data_config.speakers_filepath,
                 asr_tokenizer=self.asr_model.tokenizer,
-                asr_use_start_end_token=train_data_config.use_start_end_token,
+                asr_use_start_end_token=train_data_config.get("use_start_end_token", False),
                 tts_parser=self.tts_model.parser,
                 tts_text_pad_id=self.tts_model.vocab.pad,
                 tts_text_normalizer=self.tts_model.normalizer,

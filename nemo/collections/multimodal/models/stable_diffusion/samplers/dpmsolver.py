@@ -169,6 +169,13 @@ def model_wrapper(
             )
             dims = x.dim()
             return (x - expand_dims(alpha_t, dims) * output) / expand_dims(sigma_t, dims)
+        elif model_type == "v":
+            alpha_t, sigma_t = (
+                noise_schedule.marginal_alpha(t_continuous),
+                noise_schedule.marginal_std(t_continuous),
+            )
+            dims = x.dim()
+            return expand_dims(alpha_t, dims) * output + expand_dims(sigma_t, dims) * x
 
     def cond_grad_fn(x, t_input):
         """
@@ -204,7 +211,7 @@ def model_wrapper(
                 noise_uncond, noise = noise_pred_fn(x_in, t_in, cond=c_in).chunk(2)
                 return noise_uncond + guidance_scale * (noise - noise_uncond)
 
-    assert model_type in ["noise", "x_start"]
+    assert model_type in ["noise", "x_start", "v"]
     assert guidance_type in ["uncond", "classifier", "classifier-free"]
     return model_fn
 

@@ -114,7 +114,8 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         Used for generate method only for now.
         """
 
-        def fwd_output_only_func(batch, model):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             extra_arg = {}
             (
                 tokens,
@@ -222,7 +223,7 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.cfg.precision == 16:
+        if self.torch_dtype == torch.float16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
@@ -272,6 +273,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
         if cfg.adapter_tuning.type == "parallel_adapter":
             adapter_cfg = ParallelLinearAdapterConfig(
                 in_features=self.frozen_model_cfg.hidden_size,
+                out_features=self.frozen_model_cfg.hidden_size,
                 dim=cfg.adapter_tuning.adapter_dim,
                 norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
                 norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
