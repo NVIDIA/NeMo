@@ -23,10 +23,10 @@ def get_collate_fn(first_stage_key="images_moments", cond_stage_key="captions"):
         if cond_stage_key == "captions":
             tokens = open_clip.tokenize(cond_inputs)
         else:
-            tokens = torch.cat(cond_inputs)
+            tokens = torch.stack(cond_inputs)
         batch = {
-            "images_moments": torch.cat(images_moments),
-            "captions": tokens,
+            first_stage_key: torch.cat(images_moments),
+            cond_stage_key: tokens,
         }
         return batch
 
