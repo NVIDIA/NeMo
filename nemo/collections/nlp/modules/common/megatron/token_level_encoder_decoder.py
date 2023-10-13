@@ -207,7 +207,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     num_attention_heads_alibi=None,
                     max_seq_len=max_position_embeddings,
                 )
-                self._encoder_relative_position_embedding_key = "encoder_alibi_position_embedding"   
+                self._encoder_relative_position_embedding_key = "encoder_alibi_position_embedding"
             elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'kerple':
                 self.encoder_relative_position_embedding = KERPLERelativePositionEmbedding(
                     bidirectional=True,
