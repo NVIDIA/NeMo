@@ -294,19 +294,22 @@ class ALMAudioText(_Collection):
         ):
             # Duration filters.
             if duration is not None:
-                if min_duration is not None and duration < min_duration:
-                    duration_filtered += duration
+                curr_min_dur = min(duration) if isinstance(duration, list) else duration
+                curr_max_dur = max(duration) if isinstance(duration, list) else duration
+                curr_sum_dur = sum(duration) if isinstance(duration, list) else duration
+                if min_duration is not None and curr_min_dur < min_duration:
+                    duration_filtered += curr_sum_dur
                     num_filtered += 1
                     continue
 
-                if max_duration is not None and duration > max_duration:
-                    duration_filtered += duration
+                if max_duration is not None and curr_max_dur > max_duration:
+                    duration_filtered += curr_sum_dur
                     num_filtered += 1
                     continue
-                total_duration += duration
+                total_duration += curr_sum_dur
 
             if answer is None:
-                duration_filtered += duration
+                duration_filtered += curr_sum_dur
                 num_filtered += 1
                 continue
 
