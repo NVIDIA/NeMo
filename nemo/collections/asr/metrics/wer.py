@@ -14,7 +14,7 @@
 
 import re
 from abc import abstractmethod
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import editdistance
@@ -35,14 +35,17 @@ __all__ = ['word_error_rate', 'word_error_rate_detail', 'WER', 'move_dimension_t
 def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False) -> float:
     """
     Computes Average Word Error rate between two texts represented as
-    corresponding lists of string. Hypotheses and references must have same
-    length.
+    corresponding lists of string.
+
+    Hypotheses and references must have same length.
+
     Args:
-      hypotheses: list of hypotheses
-      references: list of references
-      use_cer: bool, set True to enable cer
+        hypotheses (list): list of hypotheses
+        references(list) : list of references
+        use_cer (bool): set True to enable cer
+
     Returns:
-      (float) average word error rate
+        wer (float): average word error rate
     """
     scores = 0
     words = 0
@@ -78,17 +81,18 @@ def word_error_rate_detail(
     between two texts represented as corresponding lists of string.
 
     Hypotheses and references must have same length.
-    Args:
-      hypotheses (list): list of hypotheses
-      references(list) : list of references
-      use_cer (bool): set True to enable cer
-    Returns:
-      wer (float): average word error rate
-      words (int):  Total number of words/charactors of given reference texts
-      ins_rate (float): average insertion error rate
-      del_rate (float): average deletion error rate
-      sub_rate (float): average substitution error rate
 
+    Args:
+        hypotheses (list): list of hypotheses
+        references(list) : list of references
+        use_cer (bool): set True to enable cer
+
+    Returns:
+        wer (float): average word error rate
+        words (int):  Total number of words/charactors of given reference texts
+        ins_rate (float): average insertion error rate
+        del_rate (float): average deletion error rate
+        sub_rate (float): average substitution error rate
     """
     scores = 0
     words = 0
@@ -139,6 +143,68 @@ def word_error_rate_detail(
         wer, ins_rate, del_rate, sub_rate = float('inf'), float('inf'), float('inf'), float('inf')
 
     return wer, words, ins_rate, del_rate, sub_rate
+
+
+def word_error_rate_per_utt(hypotheses: List[str], references: List[str], use_cer=False) -> Tuple[List[float], float]:
+    """
+    Computes Word Error Rate per utterance and the average WER
+    between two texts represented as corresponding lists of string. 
+    
+    Hypotheses and references must have same length.
+
+    Args:
+        hypotheses (list): list of hypotheses
+        references(list) : list of references
+        use_cer (bool): set True to enable cer
+
+    Returns:
+        wer_per_utt (List[float]): word error rate per utterance
+        avg_wer (float): average word error rate
+    """
+    scores = 0
+    words = 0
+    wer_per_utt = []
+
+    if len(hypotheses) != len(references):
+        raise ValueError(
+            "In word error rate calculation, hypotheses and reference"
+            " lists must have the same number of elements. But I got:"
+            "{0} and {1} correspondingly".format(len(hypotheses), len(references))
+        )
+
+    for h, r in zip(hypotheses, references):
+        if use_cer:
+            h_list = list(h)
+            r_list = list(r)
+        else:
+            h_list = h.split()
+            r_list = r.split()
+
+        # To get rid of the issue that jiwer does not allow empty string
+        if len(r_list) == 0:
+            if len(h_list) != 0:
+                errors = len(h_list)
+                wer_per_utt.append(float('inf'))
+        else:
+            if use_cer:
+                measures = jiwer.cer(r, h, return_dict=True)
+                er = measures['cer']
+            else:
+                measures = jiwer.compute_measures(r, h)
+                er = measures['wer']
+
+            errors = measures['insertions'] + measures['deletions'] + measures['substitutions']
+            wer_per_utt.append(er)
+
+        scores += errors
+        words += len(r_list)
+
+    if words != 0:
+        avg_wer = 1.0 * scores / words
+    else:
+        avg_wer = float('inf')
+
+    return wer_per_utt, avg_wer
 
 
 def move_dimension_to_the_front(tensor, dim_index):
@@ -203,21 +269,22 @@ class AbstractCTCDecoding(ConfidenceMixin):
                     entropy_type: Which type of entropy to use (str).
                         Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
-                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                                Note that for this entropy, the temperature should comply the following inequality:
-                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
-                            - 'renui' for the Rényi entropy.
+                            - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                        When the temperature equals one, scaling is not applied to 'max_prob',
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
@@ -233,6 +300,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
                 preserve_frame_confidence: Same as above, overrides above value.
+                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -301,6 +369,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
+
+        # Confidence estimation is not implemented for strategies other than `greedy`
+        if (
+            not self.preserve_frame_confidence
+            and self.cfg.strategy != 'greedy'
+            and self.cfg.beam.get('preserve_frame_confidence', False)
+        ):
+            raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
 
         # we need timestamps to extract non-blank per-frame confidence
         if self.compute_timestamps is not None:
@@ -972,21 +1048,22 @@ class CTCDecoding(AbstractCTCDecoding):
                     entropy_type: Which type of entropy to use (str).
                         Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
-                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                                Note that for this entropy, the temperature should comply the following inequality:
-                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
-                            - 'renui' for the Rényi entropy.
+                            - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                        When the temperature equals one, scaling is not applied to 'max_prob',
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
@@ -1002,6 +1079,7 @@ class CTCDecoding(AbstractCTCDecoding):
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
                 preserve_frame_confidence: Same as above, overrides above value.
+                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -1095,13 +1173,15 @@ class WER(Metric):
         def validation_step(self, batch, batch_idx):
             ...
             wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
-            return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            self.val_outputs = {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            return self.val_outputs
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self):
             ...
-            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            wer_num = torch.stack([x['val_wer_num'] for x in self.val_outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in self.val_outputs]).sum()
             tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+            self.val_outputs.clear()  # free memory
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
@@ -1125,7 +1205,7 @@ class WER(Metric):
         fold_consecutive=True,
         dist_sync_on_step=False,
     ):
-        super().__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=False)
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
 
         self.decoding = decoding
         self.use_cer = use_cer
@@ -1217,13 +1297,17 @@ class CTCDecodingConfig:
     batch_dim_index: int = 0
 
     # greedy decoding config
-    greedy: ctc_greedy_decoding.GreedyCTCInferConfig = ctc_greedy_decoding.GreedyCTCInferConfig()
+    greedy: ctc_greedy_decoding.GreedyCTCInferConfig = field(
+        default_factory=lambda: ctc_greedy_decoding.GreedyCTCInferConfig()
+    )
 
     # beam decoding config
-    beam: ctc_beam_decoding.BeamCTCInferConfig = ctc_beam_decoding.BeamCTCInferConfig(beam_size=4)
+    beam: ctc_beam_decoding.BeamCTCInferConfig = field(
+        default_factory=lambda: ctc_beam_decoding.BeamCTCInferConfig(beam_size=4)
+    )
 
     # confidence config
-    confidence_cfg: ConfidenceConfig = ConfidenceConfig()
+    confidence_cfg: ConfidenceConfig = field(default_factory=lambda: ConfidenceConfig())
 
     # can be used to change temperature for decoding
     temperature: float = 1.0

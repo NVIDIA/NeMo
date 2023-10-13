@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import torch
@@ -147,18 +147,18 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AdapterM
         # reset parameters for Q to be identity operation
         self.reset_parameters()
 
-    def forward(self, query, key, value, mask, pos_emb=None, cache=None, cache_next=None):
+    def forward(self, query, key, value, mask, pos_emb=None, cache=None):
         """Compute 'Scaled Dot Product Attention'.
         Args:
             query (torch.Tensor): (batch, time1, size)
             key (torch.Tensor): (batch, time2, size)
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
-            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
-            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+            cache (torch.Tensor) : (batch, time_cache, size)
 
         returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+            cache  (torch.Tensor) : (batch, time_cache_next, size)
         """
         # Need to perform duplicate computations as at this point the tensors have been
         # separated by the adapter forward
@@ -166,7 +166,7 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AdapterM
         key = self.pre_norm(key)
         value = self.pre_norm(value)
 
-        return super().forward(query, key, value, mask, pos_emb, cache=cache, cache_next=cache_next)
+        return super().forward(query, key, value, mask, pos_emb, cache=cache)
 
     def reset_parameters(self):
         with torch.no_grad():
@@ -183,7 +183,7 @@ class MultiHeadAttentionAdapterConfig:
     n_feat: int
     dropout_rate: float = 0.0
     proj_dim: Optional[int] = None
-    adapter_strategy: Optional[Any] = MHAResidualAddAdapterStrategyConfig()
+    adapter_strategy: Optional[Any] = field(default_factory=lambda: MHAResidualAddAdapterStrategyConfig())
     _target_: str = "{0}.{1}".format(MultiHeadAttentionAdapter.__module__, MultiHeadAttentionAdapter.__name__)
 
 
@@ -242,7 +242,7 @@ class RelPositionMultiHeadAttentionAdapter(mha.RelPositionMultiHeadAttention, ad
         # reset parameters for Q to be identity operation
         self.reset_parameters()
 
-    def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
+    def forward(self, query, key, value, mask, pos_emb, cache=None):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
         Args:
             query (torch.Tensor): (batch, time1, size)
@@ -250,10 +250,10 @@ class RelPositionMultiHeadAttentionAdapter(mha.RelPositionMultiHeadAttention, ad
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
             pos_emb (torch.Tensor) : (batch, time1, size)
-            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
-            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+            cache (torch.Tensor) : (batch, time_cache, size)
         Returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+            cache_next (torch.Tensor) : (batch, time_cache_next, size)
         """
         # Need to perform duplicate computations as at this point the tensors have been
         # separated by the adapter forward
@@ -261,7 +261,7 @@ class RelPositionMultiHeadAttentionAdapter(mha.RelPositionMultiHeadAttention, ad
         key = self.pre_norm(key)
         value = self.pre_norm(value)
 
-        return super().forward(query, key, value, mask, pos_emb, cache=cache, cache_next=cache_next)
+        return super().forward(query, key, value, mask, pos_emb, cache=cache)
 
     def reset_parameters(self):
         with torch.no_grad():
@@ -287,7 +287,7 @@ class RelPositionMultiHeadAttentionAdapterConfig:
     n_feat: int
     dropout_rate: float = 0.0
     proj_dim: Optional[int] = None
-    adapter_strategy: Optional[Any] = MHAResidualAddAdapterStrategyConfig()
+    adapter_strategy: Optional[Any] = field(default_factory=lambda: MHAResidualAddAdapterStrategyConfig())
     _target_: str = "{0}.{1}".format(
         RelPositionMultiHeadAttentionAdapter.__module__, RelPositionMultiHeadAttentionAdapter.__name__
     )
@@ -336,7 +336,9 @@ class PositionalEncodingAdapterConfig:
     d_model: int
     max_len: int = 5000
     xscale: float = 1.0
-    adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    adapter_strategy: Optional[Any] = field(
+        default_factory=lambda: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    )
     _target_: str = "{0}.{1}".format(PositionalEncodingAdapter.__module__, PositionalEncodingAdapter.__name__)
 
 
@@ -378,5 +380,7 @@ class RelPositionalEncodingAdapterConfig:
     d_model: int
     max_len: int = 5000
     xscale: float = 1.0
-    adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    adapter_strategy: Optional[Any] = field(
+        default_factory=lambda: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    )
     _target_: str = "{0}.{1}".format(RelPositionalEncodingAdapter.__module__, RelPositionalEncodingAdapter.__name__)

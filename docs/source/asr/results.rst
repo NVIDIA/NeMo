@@ -157,6 +157,9 @@ Language Models for ASR
 
 |
 
+
+.. _asr-checkpoint-list-by-language:
+
 Speech Recognition (Languages)
 ------------------------------
 
@@ -295,6 +298,26 @@ Ukrainian
 ^^^^^^^^^^^
 .. csv-table::
    :file: data/benchmark_ua.csv
+   :align: left
+   :widths: 40, 10, 50
+   :header-rows: 1
+
+-----------------------------
+
+Multilingual
+^^^^^^^^^^^
+.. csv-table::
+   :file: data/benchmark_multilingual.csv
+   :align: left
+   :widths: 40, 10, 50
+   :header-rows: 1
+
+-----------------------------
+
+Code-Switching
+^^^^^^^^^^^
+.. csv-table::
+   :file: data/benchmark_code_switching.csv
    :align: left
    :widths: 40, 10, 50
    :header-rows: 1

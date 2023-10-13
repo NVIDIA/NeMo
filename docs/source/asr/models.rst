@@ -142,7 +142,7 @@ With local attention, inference is possible on audios >1 hrs (256 subsampling ch
 
 Fast Conformer models were trained using CosineAnnealing (instead of Noam) as the scheduler.
 
-You may find the example CTC config at 
+You may find the example CTC config at
 ``<NeMo_git_root>/examples/asr/conf/fastconformer/fast-conformer_ctc_bpe.yaml`` and
 the transducer config at ``<NeMo_git_root>/examples/asr/conf/fastconformer/fast-conformer_transducer_bpe.yaml``
 
@@ -175,7 +175,7 @@ We support the following three right context modeling:
 *  fully causal model with zero look-ahead: tokens would not see any future tokens. convolution layers are all causal and right tokens are masked for self-attention.
 
 It gives zero latency but with limited accuracy.
-To train such a model, you need to set `encoder.att_context_size=[left_context, 0]` and `encoder.conv_context_size=causal` in the config.
+To train such a model, you need to set `model.encoder.att_context_size=[left_context,0]` and `model.encoder.conv_context_size=causal` in the config.
 
 *  regular look-ahead: convolutions would be able to see few future frames, and self-attention would also see the same number of future tokens.
 
@@ -186,13 +186,11 @@ For example for a model of 17 layers with 4x downsampling and 10ms window shift,
 
 For example, in a model which chunk size of 20 tokens, tokens at the first position of each chunk would see all the next 19 tokens while the last token would see zero future tokens.
 This approach is more efficient than regular look-ahead in terms of computations as the activations for most of the look-ahead part would be cached and there is close to zero duplications in the calculations.
-In terms of accuracy, this approach gives similar or even better results in term of accuracy than regular look-ahead as each token in each layer have access to more tokens on average. That is why we recommend to use this approach for streaming.
-
+In terms of accuracy, this approach gives similar or even better results in term of accuracy than regular look-ahead as each token in each layer have access to more tokens on average. That is why we recommend to use this approach for streaming. Therefore we recommend to use the chunk-aware for cache-aware models.
 
 ** Note: Latencies are based on the assumption that the forward time of the network is zero and it just estimates the time needed after a frame would be available until it is passed through the model.
 
-Approaches with non-zero look-ahead can give significantly better accuracy by sacrificing latency. The latency can get controlled by the left context size. Increasing the right context would help the accuracy to a limit but would increase the compuation time.
-
+Approaches with non-zero look-ahead can give significantly better accuracy by sacrificing latency. The latency can get controlled by the left context size. Increasing the right context would help the accuracy to a limit but would increase the computation time.
 
 In all modes, left context can be controlled by the number of tokens to be visible in the self-attention and the kernel size of the convolutions.
 For example, if left context of self-attention in each layer is set to 20 tokens and there are 10 layers of Conformer, then effective left context is 20*10=200 tokens.
@@ -202,18 +200,39 @@ Left context of convolutions is dependent to the their kernel size while it can 
 Self-attention left context of around 6 secs would give close result to have unlimited left context. For a model with 4x downsampling and shift window of 10ms in the preprocessor, each token corresponds to 4*10=40ms.
 
 If striding approach is used for downsampling, all the convolutions in downsampling would be fully causal and don't see future tokens.
-You may use stacking for downsampling in the streaming models which is significantly faster and uses less memory.
-It also does not some of the the limitations with striding and vggnet and you may use any downsampling rate.
 
-You may find the example config files of cache-aware streaming Conformer models at
-``<NeMo_git_root>/examples/asr/conf/conformer/streaming/conformer_transducer_bpe_streaming.yaml`` for Transducer variant and
-at ``<NeMo_git_root>/examples/asr/conf/conformer/streaming/conformer_ctc_bpe.yaml`` for CTC variant.
+*  Multiple Look-aheads
+We support multiple look-aheads for cahce-aware models. You may specify a list of context sizes for att_context_size.
+During the training, different context sizes would be used randomly with the distribution specified by att_context_probs.
+For example you may enable multiple look-aheads by setting `model.encoder.att_context_size=[[70,13],[70,6],[70,1],[70,0]]` for the training.
+The first item in the list would be the default during test/validation/inference. To switch between different look-aheads, you may use the method `asr_model.encoder.set_default_att_context_size(att_context_size)` or set the att_context_size like the following when using the script `speech_transcribe.py`:
+
+.. code-block:: bash
+
+    python [NEMO_GIT_FOLDER]/examples/asr/transcribe_speech.py \
+    pretrained_name="stt_en_fastconformer_hybrid_large_streaming_multi" \
+    audio_dir="<DIRECTORY CONTAINING AUDIO FILES>" \
+    att_context_size=[70,0]
+
+..
+
+You may find the example config files for cache-aware streaming FastConformer models at
+``<NeMo_git_root>/examples/asr/conf/fastconformer/cache_aware_streaming/conformer_transducer_bpe_streaming.yaml`` for Transducer variant and
+at ``<NeMo_git_root>/examples/asr/conf/conformer/cache_aware_streaming/conformer_ctc_bpe.yaml`` for CTC variant. It is recommended to use FastConformer as they are more than 2X faster in both training and inference than regular Conformer.
+The hybrid versions of FastConformer can be found here: ``<NeMo_git_root>/examples/asr/conf/conformer/hybrid_cache_aware_streaming/``
+
+Examples for regular Conformer can be found at
+``<NeMo_git_root>/examples/asr/conf/conformer/cache_aware_streaming/conformer_transducer_bpe_streaming.yaml`` for Transducer variant and
+at ``<NeMo_git_root>/examples/asr/conf/conformer/cache_aware_streaming/conformer_ctc_bpe.yaml`` for CTC variant.
 
 To simulate cache-aware streaming, you may use the script at ``<NeMo_git_root>/examples/asr/asr_cache_aware_streaming/speech_to_text_cache_aware_streaming_infer.py``. It can simulate streaming in single stream or multi-stream mode (in batches) for an ASR model.
 This script can be used for models trained offline with full-context but the accuracy would not be great unless the chunk size is large enough which would result in high latency.
 It is recommended to train a model in streaming model with limited context for this script. More info can be found in the script.
 
-You may find FastConformer variants of cache-aware streaming models under ``<NeMo_git_root>/examples/asr/conf/fastconformer/``.
+Note cache-aware streaming models are being exported without caching support by default.
+To include caching support, `model.set_export_config({'cache_support' : 'True'})` should be called before export.
+Or, if ``<NeMo_git_root>/scripts/export.py`` is being used:
+`python export.py cache_aware_conformer.nemo cache_aware_conformer.onnx --export-config cache_support=True`
 
 .. _LSTM-Transducer_model:
 
@@ -291,6 +310,11 @@ Similar example configs for FastConformer variants of Hybrid models can be found
 ``<NeMo_git_root>/examples/asr/conf/fastconformer/hybrid_transducer_ctc/``
 ``<NeMo_git_root>/examples/asr/conf/fastconformer/hybrid_cache_aware_streaming/``
 
+Note Hybrid models are being exported as RNNT (encoder and decoder+joint parts) by default.
+To export as CTC (single encoder+decoder graph), `model.set_export_config({'decoder_type' : 'ctc'})` should be called before export.
+Or, if ``<NeMo_git_root>/scripts/export.py`` is being used:
+`python export.py hybrid_transducer.nemo hybrid_transducer.onnx --export-config decoder_type=ctc`
+
 .. _Conformer-HAT_model:
 
 Conformer-HAT (Hybrid Autoregressive Transducer)
@@ -300,7 +324,7 @@ The main idea is to separate labels and blank score predictions, which allows to
 When external LM is available for inference, the internal LM can be subtracted from HAT model prediction in beamsearch decoding to improve external LM efficiency.
 It can be helpful in the case of text-only adaptation for new domains.
 
-The only difference from the standard Conformer-Transducer model (RNNT) is the use of `"HATJiont" <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/asr/modules/hybrid_autoregressive_transducer.py#L39>`_ 
+The only difference from the standard Conformer-Transducer model (RNNT) is the use of `"HATJiont" <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/asr/modules/hybrid_autoregressive_transducer.py#L39>`_
 class (instead of "RNNTJoint") for joint module. The all HAT logic is implemented in the "HATJiont" class.
 
     .. image:: images/hat.png
@@ -341,6 +365,38 @@ For the detailed information see:
 
 * :ref:`Text-only dataset <Hybrid-ASR-TTS_model__Text-Only-Data>` preparation
 * :ref:`Configs and training <Hybrid-ASR-TTS_model__Config>`
+
+
+.. _Confidence-Ensembles:
+
+Confidence-based Ensembles
+--------------------------
+
+Confidence-based ensemble is a simple way to combine multiple models into a single system by only retaining the
+output of the most confident model. Below is a schematic illustration of how such ensembles work.
+
+    .. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.19.0/conf-ensembles-overview.png
+        :align: center
+        :alt: confidence-based ensembles
+        :scale: 50%
+
+For more details about this model, see the `paper <https://arxiv.org/abs/2306.15824>`_
+or read our `tutorial <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Confidence_Ensembles.ipynb>`_.
+
+NeMo support Confidence-based Ensembles through the
+:ref:`nemo.collections.asr.models.confidence_ensembles.ConfidenceEnsembleModel <confidence-ensembles-api>` class.
+
+A typical workflow to create and use the ensemble is like this
+
+1. Run `scripts/confidence_ensembles/build_ensemble.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/confidence_ensembles/build_ensemble.py>`_
+   script to create ensemble from existing models. See the documentation inside the script for usage examples
+   and description of all the supported functionality.
+2. The script outputs a checkpoint that combines all the models in an ensemble. It can be directly used to transcribe
+   speech by calling ``.trascribe()`` method or using
+   `examples/asr/transcribe_speech.py <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/transcribe_speech.py>`_.
+
+Note that the ensemble cannot be modified after construction (e.g. it does not support finetuning) and only
+transcribe functionality is supported (e.g., ``.forward()`` is not properly defined).
 
 
 References

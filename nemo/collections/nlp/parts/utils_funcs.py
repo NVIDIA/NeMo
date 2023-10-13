@@ -16,26 +16,31 @@ __all__ = ['list2str', 'tensor2list', 'plot_confusion_matrix', 'get_classificati
 
 import os
 import time
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from matplotlib import pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
 from torch import Tensor
 
+from nemo.collections.nlp.modules.common.megatron.utils import erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
+from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
 from nemo.utils import logging
 
 
-def dtype_from_precision(precision: Union[int, str], megatron_amp_O2: Optional[bool]) -> torch.dtype:
+def torch_dtype_from_precision(precision: Union[int, str], megatron_amp_O2: Optional[bool] = None) -> torch.dtype:
+    """ Mapping from PTL precision types to corresponding PyTorch parameter datatype."""
     if megatron_amp_O2 is not None and megatron_amp_O2 is False:
         return torch.float32
 
-    if precision == 'bf16':
+    if precision in ['bf16', 'bf16-mixed']:
         return torch.bfloat16
-    elif int(precision) == 16:
+    elif precision in [16, '16', '16-mixed']:
         return torch.float16
-    elif int(precision) == 32:
+    elif precision in [32, '32', '32-true']:
         return torch.float32
     else:
         raise ValueError(f"Could not parse the precision of `{precision}` to a valid torch.dtype")
@@ -151,3 +156,48 @@ def is_last_rank():
 
 def get_last_rank():
     return torch.distributed.get_world_size() - 1
+
+
+def activation_to_func(activation: str, openai_gelu: bool = False, onnx_safe: bool = False) -> Callable:
+    """ Converts an activation function represented as a string to a function.
+
+    Args:
+        activation (str): string representation of an activation function, typically gotten from the model config.
+        openai_gelu (bool): whether to use the OpenAI GELU implementation. Used with HF compatibility.
+        onnx_safe (bool): whether to use the ONNX-compatible implementation of GELU.
+    
+    Returns:
+        Callable: the activation function.
+    """
+
+    supported_activations = [
+        'gelu',
+        'geglu',
+        'reglu',
+        'swiglu',
+        'squared-relu',
+        'fast-geglu',
+        'fast-swiglu',
+        'fast-reglu',
+    ]
+
+    if activation not in supported_activations:
+        raise ValueError(f"Unsupported activation {activation}. Supported activations: {supported_activations} ")
+
+    # Give openai_gelu precedence over other activations if set, for HF compatibility.
+    # Normally this is off and shouldn't affect regular model training.
+    if openai_gelu:
+        activation_func = openai_gelu_func
+    elif activation in ["gelu", "geglu", "fast-geglu"]:
+        activation_func = F.gelu
+    elif onnx_safe:
+        activation_func = erf_gelu
+    elif activation in ["reglu", "fast-reglu"]:
+        activation_func = F.relu
+    elif activation in ["swiglu", "fast-swiglu"]:
+        # SiLU or sigmoid linear unit is the same as swish with beta = 1 (which is what https://arxiv.org/pdf/2002.05202.pdf uses.)
+        activation_func = F.silu
+    elif activation == 'squared-relu':
+        activation_func = squared_relu
+
+    return activation_func

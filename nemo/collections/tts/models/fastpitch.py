@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
@@ -70,12 +70,12 @@ class TextTokenizer:
     apostrophe: bool = True
     pad_with_space: bool = True
     add_blank_at: bool = True
-    g2p: G2PConfig = G2PConfig()
+    g2p: G2PConfig = field(default_factory=lambda: G2PConfig())
 
 
 @dataclass
 class TextTokenizerConfig:
-    text_tokenizer: TextTokenizer = TextTokenizer()
+    text_tokenizer: TextTokenizer = field(default_factory=lambda: TextTokenizer())
 
 
 class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixin):
@@ -121,16 +121,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         self.log_images = cfg.get("log_images", False)
         self.log_train_images = False
 
-        loss_scale = 0.1 if self.learn_alignment else 1.0
-        dur_loss_scale = loss_scale
-        pitch_loss_scale = loss_scale
-        energy_loss_scale = loss_scale
-        if "dur_loss_scale" in cfg:
-            dur_loss_scale = cfg.dur_loss_scale
-        if "pitch_loss_scale" in cfg:
-            pitch_loss_scale = cfg.pitch_loss_scale
-        if "energy_loss_scale" in cfg:
-            energy_loss_scale = cfg.energy_loss_scale
+        default_prosody_loss_scale = 0.1 if self.learn_alignment else 1.0
+        dur_loss_scale = cfg.get("dur_loss_scale", default_prosody_loss_scale)
+        pitch_loss_scale = cfg.get("pitch_loss_scale", default_prosody_loss_scale)
+        energy_loss_scale = cfg.get("energy_loss_scale", default_prosody_loss_scale)
 
         self.mel_loss_fn = MelLoss()
         self.pitch_loss_fn = PitchLoss(loss_scale=pitch_loss_scale)
@@ -139,7 +133,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
         self.aligner = None
         if self.learn_alignment:
-            aligner_loss_scale = cfg.aligner_loss_scale if "aligner_loss_scale" in cfg else 1.0
+            aligner_loss_scale = cfg.get("aligner_loss_scale", 1.0)
             self.aligner = instantiate(self._cfg.alignment_module)
             self.forward_sum_loss_fn = ForwardSumLoss(loss_scale=aligner_loss_scale)
             self.bin_loss_fn = BinLoss(loss_scale=aligner_loss_scale)
@@ -556,7 +550,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, length=text_lens)
         loss = mel_loss + dur_loss + pitch_loss + energy_loss
 
-        return {
+        val_outputs = {
             "val_loss": loss,
             "mel_loss": mel_loss,
             "dur_loss": dur_loss,
@@ -565,9 +559,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             "mel_target": mels if batch_idx == 0 else None,
             "mel_pred": mels_pred if batch_idx == 0 else None,
         }
+        self.validation_step_outputs.append(val_outputs)
+        return val_outputs
 
-    def validation_epoch_end(self, outputs):
-        collect = lambda key: torch.stack([x[key] for x in outputs]).mean()
+    def on_validation_epoch_end(self):
+        collect = lambda key: torch.stack([x[key] for x in self.validation_step_outputs]).mean()
         val_loss = collect("val_loss")
         mel_loss = collect("mel_loss")
         dur_loss = collect("dur_loss")
@@ -576,11 +572,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         self.log("val_mel_loss", mel_loss, sync_dist=True)
         self.log("val_dur_loss", dur_loss, sync_dist=True)
         self.log("val_pitch_loss", pitch_loss, sync_dist=True)
-        if outputs[0]["energy_loss"] is not None:
+        if self.validation_step_outputs[0]["energy_loss"] is not None:
             energy_loss = collect("energy_loss")
             self.log("val_energy_loss", energy_loss, sync_dist=True)
 
-        _, _, _, _, _, spec_target, spec_predict = outputs[0].values()
+        _, _, _, _, _, spec_target, spec_predict = self.validation_step_outputs[0].values()
 
         if self.log_images and isinstance(self.logger, TensorBoardLogger):
             self.tb_logger.add_image(
@@ -594,6 +590,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
                 "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
             self.log_train_images = True
+        self.validation_step_outputs.clear()  # free memory)
 
     def _setup_train_dataloader(self, cfg):
         phon_mode = contextlib.nullcontext()
@@ -774,6 +771,20 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             description="This model is trained on a single female speaker in SFSpeech Bilingual Chinese/English dataset"
             " sampled at 22050Hz and can be used to generate female Mandarin Chinese voices. It is improved"
             " using richer dict and jieba word segmenter for polyphone disambiguation.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # en, multi speaker, LibriTTS, 16000 Hz
+        # stft 25ms 10ms matching ASR params
+        # for use during Enhlish ASR training/adaptation
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_fastpitch_for_asr_finetuning",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch_spectrogram_enhancer_for_asr_finetuning/versions/1.20.0/files/tts_en_fastpitch_for_asr_finetuning.nemo",
+            description="This model is trained on LibriSpeech, train-960 subset."
+            " STFT parameters follow those commonly used in ASR: 25 ms window, 10 ms hop."
+            " This model is supposed to be used with its companion SpetrogramEnhancer for "
+            " ASR fine-tuning. Usage for regular TTS tasks is not advised.",
             class_=cls,
         )
         list_of_models.append(model)

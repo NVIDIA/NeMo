@@ -26,6 +26,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model im
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 mp.set_start_method("spawn", force=True)
 
@@ -46,6 +48,10 @@ if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
 
 
+@deprecated(
+    explanation=f"{__file__} is deprecated. Please use MegatronGPTSFTModel.add_adapter() for PEFT features."
+    "See updated scripts `megatron_gpt_peft_tuning.py` and `megatron_gpt_peft_eval.py` for examples."
+)
 @hydra_runner(config_path="conf", config_name="megatron_gpt_adapter_inference")
 def main(cfg) -> None:
 
@@ -147,4 +153,10 @@ def main(cfg) -> None:
 
 
 if __name__ == '__main__':
+    dep_msg = "* Please switch to using examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py *"
+    dep = "Deprecation Notice!!".center(len(dep_msg) - 2, " ")
+    banner = "*" * len(dep_msg)
+    spacer = " " * (len(dep_msg) - 2)
+    logging.warning(f"\n\n{banner}\n*{spacer}*\n*{dep}*\n{dep_msg}\n*{spacer}*\n{banner}\n\n")
     main()  # noqa pylint: disable=no-value-for-parameter
+    logging.warning(f"\n\n{banner}\n*{spacer}*\n*{dep}*\n{dep_msg}\n*{spacer}*\n{banner}\n\n")

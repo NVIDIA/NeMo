@@ -15,7 +15,7 @@
 import copy
 import re
 from abc import abstractmethod
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import editdistance
@@ -111,21 +111,22 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     entropy_type: Which type of entropy to use (str).
                         Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
-                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                                Note that for this entropy, the temperature should comply the following inequality:
-                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
-                            - 'renui' for the Rényi entropy.
+                            - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                        When the temperature equals one, scaling is not applied to 'max_prob',
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
@@ -139,7 +140,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     timestep during greedy decoding. Setting to larger values allows longer sentences
                     to be decoded, at the cost of increased execution time.
                 preserve_frame_confidence: Same as above, overrides above value.
-                confidence_method: Same as above, overrides confidence_cfg.method.
+                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -255,15 +256,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
-        # Update preserve frame confidence
-        if self.preserve_frame_confidence is False:
-            if self.cfg.strategy in ['greedy', 'greedy_batch']:
-                self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
-                self.confidence_method_cfg = self.cfg.greedy.get('confidence_method_cfg', None)
-
-            elif self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']:
-                # Not implemented
-                pass
+        # Confidence estimation is not implemented for these strategies
+        if (
+            not self.preserve_frame_confidence
+            and self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']
+            and self.cfg.beam.get('preserve_frame_confidence', False)
+        ):
+            raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
 
         if self.cfg.strategy == 'greedy':
             if self.big_blank_durations is None:
@@ -1017,21 +1016,22 @@ class RNNTDecoding(AbstractRNNTDecoding):
                     entropy_type: Which type of entropy to use (str).
                         Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
-                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                                Note that for this entropy, the temperature should comply the following inequality:
-                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
-                            - 'renui' for the Rényi entropy.
+                            - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                        When the temperature equals one, scaling is not applied to 'max_prob',
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
@@ -1047,7 +1047,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
 
                 preserve_frame_confidence: Same as above, overrides above value.
 
-                confidence_method: Same as above, overrides confidence_cfg.method.
+                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -1199,13 +1199,15 @@ class RNNTWER(Metric):
         def validation_step(self, batch, batch_idx):
             ...
             wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
-            return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            self.val_outputs = {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            return self.val_outputs
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self):
             ...
-            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            wer_num = torch.stack([x['val_wer_num'] for x in self.val_outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in self.val_outputs]).sum()
             tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+            self.val_outputs.clear()  # free memory
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
@@ -1224,7 +1226,7 @@ class RNNTWER(Metric):
     def __init__(
         self, decoding: RNNTDecoding, batch_dim_index=0, use_cer=False, log_prediction=True, dist_sync_on_step=False
     ):
-        super(RNNTWER, self).__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=False)
+        super(RNNTWER, self).__init__(dist_sync_on_step=dist_sync_on_step)
         self.decoding = decoding
         self.batch_dim_index = batch_dim_index
         self.use_cer = use_cer
@@ -1297,7 +1299,7 @@ class RNNTDecodingConfig:
     preserve_alignments: Optional[bool] = None
 
     #  confidence config
-    confidence_cfg: ConfidenceConfig = ConfidenceConfig()
+    confidence_cfg: ConfidenceConfig = field(default_factory=lambda: ConfidenceConfig())
 
     # RNNT Joint fused batch size
     fused_batch_size: Optional[int] = None
@@ -1315,10 +1317,10 @@ class RNNTDecodingConfig:
     rnnt_timestamp_type: str = "all"  # can be char, word or all for both
 
     # greedy decoding config
-    greedy: greedy_decode.GreedyRNNTInferConfig = greedy_decode.GreedyRNNTInferConfig()
+    greedy: greedy_decode.GreedyRNNTInferConfig = field(default_factory=lambda: greedy_decode.GreedyRNNTInferConfig())
 
     # beam decoding config
-    beam: beam_decode.BeamRNNTInferConfig = beam_decode.BeamRNNTInferConfig(beam_size=4)
+    beam: beam_decode.BeamRNNTInferConfig = field(default_factory=lambda: beam_decode.BeamRNNTInferConfig(beam_size=4))
 
     # can be used to change temperature for decoding
     temperature: float = 1.0
