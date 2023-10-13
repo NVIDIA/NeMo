@@ -80,6 +80,12 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         if cfg.model.get('seq_len_interpolation_factor', None) is not None:
             gpt_cfg.seq_len_interpolation_factor = cfg.model.seq_len_interpolation_factor
 
+        if cfg.model.get('window_size', None) is not None:
+            gpt_cfg.window_size = cfg.model.window_size
+
+        if cfg.model.get('limited_context_decoding', None) is not None:
+            gpt_cfg.limited_context_decoding = cfg.model.limited_context_decoding
+
         sft_cls = MegatronGPTSFTModel
         gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
 

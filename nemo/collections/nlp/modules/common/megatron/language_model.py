@@ -127,6 +127,7 @@ def get_language_model(
     use_flash_attention=False,
     seq_len_interpolation_factor=None,
     window_size=None,
+    limited_context_decoding=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -204,6 +205,7 @@ def get_language_model(
         use_flash_attention=use_flash_attention,
         seq_len_interpolation_factor=seq_len_interpolation_factor,
         window_size=window_size,
+        limited_context_decoding=limited_context_decoding,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -505,6 +507,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
         window_size=None,
+        limited_context_decoding=None,
     ):
         super(TransformerLanguageModel, self).__init__(
             config=config, share_token_embeddings=share_embeddings_and_output_weights
@@ -529,6 +532,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.sequence_parallel = config.sequence_parallel
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
         self.window_size = window_size
+        self.limited_context_decoding = limited_context_decoding
 
         if self.window_size is not None:
             assert use_flash_attention == True, 'window_size is only supported with Flash Attention'
@@ -654,6 +658,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             position_embedding_type=position_embedding_type,
             use_flash_attention=use_flash_attention,
             window_size=window_size,
+            limited_context_decoding=limited_context_decoding,
         )
         self._encoder_key = 'encoder'
 
@@ -761,7 +766,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             pass
 
         # enc_attn_mask: [1, 1, s, s]
-        if inference_max_sequence_len is not None:
+        if inference_max_sequence_len is not None and not set_inference_key_value_memory:
             enc_seq_length = inference_max_sequence_len
         elif self.encoder.input_tensor is not None:
             if self.sequence_parallel:

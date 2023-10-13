@@ -174,6 +174,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         moe_dropout=0.0,
         use_flash_attention=False,
         window_size=None,
+        limited_context_decoding=None,
     ):
         super(ParallelTransformerLayer_, self).__init__(config=config)
 
@@ -268,6 +269,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 normalize_attention_scores=normalize_attention_scores,
                 use_flash_attention=use_flash_attention,
                 window_size=window_size,
+                limited_context_decoding=limited_context_decoding,
             )
 
             if transformer_block_type == 'normformer':
@@ -694,6 +696,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         moe_dropout=0.0,
         use_flash_attention=False,
         window_size=None,
+        limited_context_decoding=None,
     ):
         super(ParallelTransformerLayer, self).__init__(
             config=config,
@@ -736,6 +739,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             moe_dropout=moe_dropout,
             use_flash_attention=use_flash_attention,
             window_size=window_size,
+            limited_context_decoding=limited_context_decoding,
         )
 
         # Dtype for forward pass - ignore amp O2
@@ -952,6 +956,7 @@ class ParallelTransformer(MegatronModule):
         moe_dropout=0.0,
         use_flash_attention=False,
         window_size=None,
+        limited_context_decoding=None,
     ):
         super(ParallelTransformer, self).__init__(config=config)
 
@@ -1141,6 +1146,7 @@ class ParallelTransformer(MegatronModule):
                     moe_dropout=moe_dropout,
                     use_flash_attention=use_flash_attention,
                     window_size=window_size,
+                    limited_context_decoding=limited_context_decoding,
                 )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:

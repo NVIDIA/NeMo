@@ -402,6 +402,53 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
             tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
 
 
+class LimitedContextGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
+    def __init__(self, model):
+        super().__init__(model)
+
+    def prepare_batch_at_step(
+        self,
+        tokens: torch.Tensor,
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
+        context_length: int,
+        compute_attention_mask: bool = True,
+    ) -> Tuple[List[torch.Tensor], List[int]]:
+        """
+        generate the batch used in inference for each of the steps
+        """
+        if step == 0:
+            # Allocate memory for the local+global past
+            set_inference_key_value_memory = True
+            tokens2use = tokens[:, :context_length]
+            positions2use = self.position_ids[:, :context_length]
+        else:
+            # Set this to false so the memory is not reallocated.
+            set_inference_key_value_memory = False
+            tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
+            positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+
+        """Prepare batch for each of the inference steps"""
+        attention_mask_repeat = None
+        # if compute_attention_mask:
+        #    attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
+
+        past_len = self.model.cfg.get("window_size", [4096, 0])[0]
+
+        setkey_value_array = torch.tensor(
+            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+        )
+        len_array = torch.tensor([past_len] * micro_batch_size, device=torch.cuda.current_device())
+
+        batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+        tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
+        return batch, tensor_shape
+
+
 def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
@@ -417,6 +464,14 @@ def model_inference_strategy_dispatcher(model, **args):
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel):
+        if hasattr(model.model, 'limited_context_decoding') and model.model.limited_context_decoding:
+            return LimitedContextGPTModelTextGenerationStrategy(model)
+        if (
+            hasattr(model.model, 'module')
+            and hasattr(model.model.module, 'language_model')
+            and model.model.module.language_model.limited_context_decoding
+        ):
+            return LimitedContextGPTModelTextGenerationStrategy(model)
         return GPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):
         strategy_name = args['strategy']
