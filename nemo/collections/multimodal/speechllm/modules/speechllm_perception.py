@@ -73,7 +73,10 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         else:
             self.spec_augmentation = None
         self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
-        self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
+        if 'output_dim' not in cfg.modality_adapter and "d_model" in cfg.modality_adapter:  # e.g., conformer encoder
+            self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
+        else:
+            self.proj = nn.Identity()
 
     def maybe_preprocess_audio(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
