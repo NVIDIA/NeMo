@@ -171,7 +171,20 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     position_embedding_type=encoder_cfg.get('position_embedding_type', 'learned_absolute'),
                 )
                 self._encoder_embedding_key = "encoder_embedding"
-            if self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
+
+            if self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'rope':
+                rotary_dim = self.encoder_cfg.hidden_size // self.encoder_cfg.num_attention_heads if encoder_kv_channels is None else encoder_kv_channels
+                rotary_percentage=self.encoder_cfg.get('rotary_percentage', 1.0)
+                assert 0 < rotary_percentage <= 1
+                if rotary_percentage < 1:
+                    rotary_dim = int(rotary_dim * rotary_percentage)
+                self.encoder_rotary_pos_emb = RotaryEmbedding(
+                    rotary_dim,
+                    seq_len_interpolation_factor=self.encoder_cfg.get('seq_len_interpolation_factor', None),
+                    pretrained_max_position_embeddings=self.encoder_cfg.get('max_position_embeddings', None),
+                    window_size=self.encoder_cfg.get('window_size', None),
+                ) 
+            elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
                 self.encoder_relative_position_embedding = T5RelativePositionEmbedding(
                     init_method=init_method_normal(embedding_init_method_std),
                     num_attention_heads=encoder_cfg.num_attention_heads,
@@ -193,19 +206,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     num_attention_heads_alibi=None,
                     max_seq_len=max_position_embeddings,
                 )
-                self._encoder_relative_position_embedding_key = "encoder_alibi_position_embedding"
-            elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'rope':
-                rotary_dim = self.encoder_cfg.hidden_size // self.encoder_cfg.num_attention_heads if encoder_kv_channels is None else encoder_kv_channels
-                rotary_percentage=self.encoder_cfg.get('rotary_percentage', 1.0)
-                assert 0 < rotary_percentage <= 1
-                if rotary_percentage < 1:
-                    rotary_dim = int(rotary_dim * rotary_percentage)
-                self.encoder_relative_position_embedding = RotaryEmbedding(
-                    rotary_dim,
-                    seq_len_interpolation_factor=self.encoder_cfg.get('seq_len_interpolation_factor', None),
-                    pretrained_max_position_embeddings=self.encoder_cfg.get('max_position_embeddings', None),
-                    window_size=self.encoder_cfg.get('window_size', None),
-                )    
+                self._encoder_relative_position_embedding_key = "encoder_alibi_position_embedding"   
             elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'kerple':
                 self.encoder_relative_position_embedding = KERPLERelativePositionEmbedding(
                     bidirectional=True,
@@ -300,7 +301,19 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
 
                 self._decoder_embedding_key = "decoder_embedding"
 
-            if self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
+            if self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'rope':
+                rotary_dim = self.decoder_cfg.hidden_size // self.decoder_cfg.num_attention_heads if decoder_kv_channels is None else decoder_kv_channels
+                rotary_percentage=self.decoder_cfg.get('rotary_percentage', 1.0)
+                assert 0 < rotary_percentage <= 1
+                if rotary_percentage < 1:
+                    rotary_dim = int(rotary_dim * rotary_percentage)
+                self.decoder_rotary_pos_emb = RotaryEmbedding(
+                    rotary_dim,
+                    seq_len_interpolation_factor=self.decoder_cfg.get('seq_len_interpolation_factor', None),
+                    pretrained_max_position_embeddings=self.decoder_cfg.get('max_position_embeddings', None),
+                    window_size=self.decoder_cfg.get('window_size', None),
+                )
+            elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
                 self.decoder_relative_position_embedding = T5RelativePositionEmbedding(
                     init_method=init_method_normal(embedding_init_method_std),
                     num_attention_heads=decoder_cfg.num_attention_heads,
@@ -346,18 +359,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     max_seq_len=max_position_embeddings,
                 )
                 self._decoder_relative_position_embedding_key = "decoder_alibi_position_embedding"
-            elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'rope':
-                rotary_dim = self.decoder_cfg.hidden_size // self.decoder_cfg.num_attention_heads if decoder_kv_channels is None else decoder_kv_channels
-                rotary_percentage=self.decoder_cfg.get('rotary_percentage', 1.0)
-                assert 0 < rotary_percentage <= 1
-                if rotary_percentage < 1:
-                    rotary_dim = int(rotary_dim * rotary_percentage)
-                self.decoder_relative_position_embedding = RotaryEmbedding(
-                    rotary_dim,
-                    seq_len_interpolation_factor=self.decoder_cfg.get('seq_len_interpolation_factor', None),
-                    pretrained_max_position_embeddings=self.decoder_cfg.get('max_position_embeddings', None),
-                    window_size=self.decoder_cfg.get('window_size', None),
-                )
             elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'kerple':
                 self.decoder_relative_position_embedding = KERPLERelativePositionEmbedding(
                     bidirectional=False,
@@ -422,6 +423,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 moe_dropout=decoder_cfg.get('moe_dropout', 0.0),
                 position_embedding_type=decoder_cfg.get('position_embedding_type', 'learned_absolute'),
                 use_flash_attention=decoder_cfg.get('use_flash_attention', False),
+                window_size=decoder_cfg.get('window_size', None),
             )
 
         hiddens_module = get_hiddens_module(hiddens_cfg, model_parallel_cfg=config)
@@ -658,6 +660,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
                 dec_self_attention_relative_position_bias=decoder_self_attention_relative_position_bias,
                 dec_cross_attention_relative_position_bias=decoder_cross_attention_relative_position_bias,
+                rotary_pos_emb=(self.encoder_rotary_pos_emb, self.decoder_rotary_pos_emb, None)
+                if self.encoder_rotary_pos_emb is not None or self.decoder_rotary_pos_emb else None,
                 batch_data=batch_data,
             )
 

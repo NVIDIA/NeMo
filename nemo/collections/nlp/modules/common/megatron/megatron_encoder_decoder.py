@@ -126,6 +126,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_layer_past=None,
         enc_get_key_value=False,
         enc_self_attention_relative_position_bias=None,
+        rotary_pos_emb = None,
         batch_data=None,
     ):
         """Encodes embedder input using encoder"""
@@ -136,6 +137,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             enc_attn_mask=enc_attn_mask,
             layer_past=enc_layer_past,
             get_key_value=enc_get_key_value,
+            rotary_pos_emb=rotary_pos_emb,
             enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
         )
 
@@ -157,6 +159,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_get_key_value=False,
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
+        rotary_pos_emb=None,
     ):
         if self.decoder is None:
             raise ValueError(f"Cannot call .decode(...) when self.decoder is None.")
@@ -190,6 +193,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_self_attention_relative_position_bias=None,
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
+        rotary_pos_emb=None,
         batch_data=None,
     ):
         # encoder
@@ -201,6 +205,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                     enc_layer_past=enc_layer_past,
                     enc_get_key_value=enc_get_key_value,
                     enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
+                    rotary_pos_emb[0] if rotary_pos_emb is not None else None,
                     batch_data=batch_data,
                 )
             else:
@@ -225,6 +230,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_get_key_value=dec_get_key_value,
             dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
+            rotary_pos_emb[1] if rotary_pos_emb is not None else None,
         )
 
         # if self.hiddens_module is not None enc_output is a dict, else it is a torch.tensor

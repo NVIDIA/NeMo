@@ -177,6 +177,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         enc_attn_mask,
         layer_past=None,
         get_key_value=False,
+        rotary_pos_emb=None,
         enc_self_attention_relative_position_bias=None,
     ):
         # convert to Megatron mask
@@ -195,6 +196,8 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             enc_attn_mask_3d,
             layer_past=layer_past,
             get_key_value=get_key_value,
+            rotary_pos_emb=(rotary_pos_emb, None, None)
+            if rotary_pos_emb is not None else None,
             self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
             cross_attention_relative_position_bias=None,
         )

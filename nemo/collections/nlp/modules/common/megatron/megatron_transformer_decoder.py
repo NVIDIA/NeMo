@@ -180,6 +180,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         enc_attn_mask,
         layer_past=None,
         get_key_value=False,
+        rotary_pos_emb=None,
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
     ):
@@ -199,6 +200,8 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
             get_key_value=get_key_value,
             encoder_output=enc_output,
             enc_dec_attn_mask=attn_mask_postprocess(enc_dec_attn_mask_3d),
+            rotary_pos_emb=(rotary_pos_emb, None, None)
+            if rotary_pos_emb is not None else None,
             self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
         )
