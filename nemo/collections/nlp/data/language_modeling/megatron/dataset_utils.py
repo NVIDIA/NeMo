@@ -70,8 +70,9 @@ DSET_TYPE_T5 = 't5'
 DSET_TYPE_T5_LM = 't5_prefix_lm'
 DSET_TYPE_BART = 'bart'
 DSET_TYPE_UL2 = 'ul2'
+DSET_TYPE_UL2COLT5 = 'ul2_colt5'
 
-DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART, DSET_TYPE_UL2]
+DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART, DSET_TYPE_UL2, DSET_TYPE_UL2COLT5]
 
 
 def compile_helper():
@@ -617,6 +618,7 @@ def get_dataset(
     from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
     from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
     from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
+    from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2CoLT5Dataset
 
     if dataset_type == DSET_TYPE_ICT:
         raise NotImplementedError("ICT dataset is not implemented yet.")
@@ -699,7 +701,7 @@ def get_dataset(
             respect_document_boundaries=respect_document_boundaries,
             **kwargs,
         )
-    elif dataset_type == DSET_TYPE_UL2:
+    elif dataset_type in [DSET_TYPE_UL2, DSET_TYPE_UL2COLT5]:
         assert tokenizer is not None, "Tokenizer is required for UL2 dataset"
         documents = np.arange(start=start_index, stop=end_index, step=1, dtype=np.int32)
         logging.info("Instatiating UL2 Dataset ...")
@@ -721,7 +723,12 @@ def get_dataset(
         elif ngram_span_length_distribution == "geometric":
             ngram_span_length_distribution = LengthDistribution.geometric
 
-        dataset = UL2Dataset(
+        if dataset_type == DSET_TYPE_UL2:
+            class_name = UL2Dataset
+        else:
+            class_name = UL2CoLT5Dataset
+            
+        dataset = class_name(
             cfg=cfg,
             trainer=trainer,
             tokenizer=tokenizer,
