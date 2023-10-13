@@ -27,7 +27,6 @@ class DDIMSampler(AbstractBaseSampler):
     def __init__(self, model, schedule="linear", **kwargs):
         super().__init__(model, sampler=Sampler.DDIM, schedule="linear", supports_logprobs=True, **kwargs)
 
-    @torch.no_grad()
     def p_sampling_fn(
         self,
         x,
@@ -92,7 +91,6 @@ class DDIMSampler(AbstractBaseSampler):
         )
         return self._get_step_logprob(use_original_steps, b, cpu_idx, device, x, x_prev, e_t, quantize_denoised, temperature, return_mean_var)
 
-    @torch.no_grad()
     def stochastic_encode(self, x0, t, use_original_steps=False, noise=None):
         # fast, but does not allow for exact reconstruction
         # t serves as an index to gather the correct alphas
@@ -110,7 +108,6 @@ class DDIMSampler(AbstractBaseSampler):
             + extract_into_tensor(sqrt_one_minus_alphas_cumprod, t, x0.shape) * noise
         )
 
-    @torch.no_grad()
     def decode(
         self,
         x_latent,

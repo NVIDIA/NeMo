@@ -92,7 +92,6 @@ class AbstractBaseSampler(ABC):
     def dpm_sampling_fn(self):
         pass
 
-    @torch.no_grad()
     def sample(
         self,
         S,
@@ -171,7 +170,6 @@ class AbstractBaseSampler(ABC):
         )
         return samples, intermediates, logprobs, means, vars
 
-    @torch.no_grad()
     def sampling_fn(
         self,
         cond,
