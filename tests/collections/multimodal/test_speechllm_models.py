@@ -25,10 +25,9 @@ from megatron.core import parallel_state
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
-from nemo.collections.asr.models.hybrid_asr_tts_models import ASRWithTTSModel
 from nemo.collections.multimodal.speechllm.models import speechllm_models
+from nemo.collections.multimodal.speechllm.parts.utils.data_utils import shift_tokens_by_multi_audios
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 
@@ -218,3 +217,47 @@ class TestModularAudioGPTLoRAModel:
         response = model.predict_step(batch, 0, 0)
         ground_truth = 'to suit you. Please note these are lecture notes from an alternate presentation. Copyright  ⁇ '
         assert response['sentences'][0] == ground_truth
+
+    @pytest.mark.unit
+    def test_concat_multi_features(self, llm_model_config, perception_model_config, trainer_config):
+        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
+        llm_model_config.model.perception = perception_model_config
+        trainer, llm_model_config.trainer = trainer_config
+        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model.eval()
+
+        feat_dim = 32
+        encoded = [torch.ones([3, 16, feat_dim]), torch.ones([3, 16, feat_dim])]
+        encoded_len = [torch.LongTensor([12, 8, 4]), torch.LongTensor([12, 8, 4])]
+        input_embeds = torch.zeros([2, 32, feat_dim])
+        input_length = torch.LongTensor([32, 28])
+        context_start_idx = [[0, 4, 12, 20], [0, 8, 16, 25]]
+        encoder_input, encoder_length = model._concat_multi_features(
+            encoded, encoded_len, input_embeds, input_length, context_start_idx
+        )
+        assert encoder_input.shape == (2, 56, feat_dim)  # max audio_len + text_len = (12 + 8 + 4) + 32 = 56
+        assert encoder_length.shape == (2,)
+        assert np.allclose(encoder_length.cpu().numpy(), (56, 52))
+        assert encoder_input[0, : context_start_idx[0][1]].sum() == 0  # first 4 features are text features
+        assert np.allclose(
+            encoder_input[0, context_start_idx[0][1] : context_start_idx[0][1] + encoded_len[0][0]],
+            torch.ones([encoded_len[0][0], feat_dim]),
+        )
+
+    @pytest.mark.unit
+    def test_shift_tokens_by_multi_audios(self):
+        """This test is put here because its functionality is similar to _concat_multi_features()"""
+        encoder_max_length = 64
+        audio_len = [torch.LongTensor([12, 8, 4]), torch.LongTensor([12, 8, 4])]
+        context_tokens = torch.ones([2, 32])
+        context_length = torch.LongTensor([32, 28])
+        context_start_idx = [[0, 4, 12, 20], [0, 8, 16, 25]]
+        new_context_tokens = shift_tokens_by_multi_audios(
+            context_tokens, context_length, audio_len, context_start_idx, encoder_max_length
+        )
+        assert new_context_tokens.shape == (2, 64)
+        assert np.allclose(new_context_tokens[0, : context_start_idx[0][1]], torch.ones([context_start_idx[0][1]]))
+        assert np.allclose(
+            new_context_tokens[0, context_start_idx[0][1] : context_start_idx[0][1] + audio_len[0][0]],
+            torch.zeros([audio_len[0][0]]),
+        )
