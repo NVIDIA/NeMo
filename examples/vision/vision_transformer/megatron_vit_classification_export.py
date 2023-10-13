@@ -14,6 +14,7 @@
 
 import glob
 import os
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -26,10 +27,51 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRest
 from nemo.collections.vision.data.imagenet_classnames import imagenet_classnames
 from nemo.collections.vision.data.megatron.vit_dataset import ClassificationTransform
 from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
+from nemo.core.classes.exportable import Exportable
 from nemo.core.config import hydra_runner
+from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.trt_utils import build_engine
+
+
+class VITWrapper(torch.nn.Module, Exportable):
+    def __init__(self, model):
+        super(VITWrapper, self).__init__()
+        self.model = model
+
+    def forward(self, tokens):
+        output_tensor = self.model(tokens)
+        return output_tensor
+
+    # For onnx export
+    def input_example(self, max_batch=8, max_dim=384):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+        tokens = torch.randn(max_batch, 3, max_dim, max_dim, device=sample.device)
+        return (tokens,)
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "tokens": NeuralType(('B', 'C', 'H', 'W'), ChannelType()),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"logits": NeuralType(('B', 'D'), ChannelType())}
+
+    @property
+    def input_names(self) -> List[str]:
+        return ['tokens']
+
+    @property
+    def output_names(self) -> List[str]:
+        return ['logits']
 
 
 @hydra_runner(config_path="conf", config_name="megatron_vit_classification_export")
@@ -98,6 +140,8 @@ def main(cfg) -> None:
 
     os.makedirs(f"{output_dir}/onnx/", exist_ok=True)
     os.makedirs(f"{output_dir}/plan/", exist_ok=True)
+
+    model = VITWrapper(model)
 
     model.export(f"{output_dir}/onnx/vit.onnx", dynamic_axes={'tokens': {0: 'B'}})
 
