@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import math
 import os
 import random
 import re
 import tempfile
+from itertools import chain
 from functools import partial
 from typing import Any, List, Optional, Union
 
@@ -82,6 +82,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.parts.mixins.multimodal_adapter_mixins import MultimodalAdapterModelMixin
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
@@ -99,8 +100,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state
+    from megatron.core import dist_checkpointing, parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 
     HAVE_MEGATRON_CORE = True
 
@@ -266,6 +268,158 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
         return updated_input_embeds
 
+class MCoreNevaModel(MCoreGPTModel):
+    def __init__(
+        self, mm_cfg, media_start_id, media_end_id, **kwargs,
+    ):
+        super(MCoreNevaModel, self).__init__(**kwargs,)
+
+        self.mm_cfg = mm_cfg
+        self.media_start_id = media_start_id
+        self.media_end_id = media_end_id
+        self.dist_ckpt = False
+
+        if mm_cfg.llm.from_pretrained is not None:
+            logging.info(f"Loading LLM weights from checkpoint {mm_cfg.llm.from_pretrained}")
+            self.load_llm_weights(mm_cfg.llm.from_pretrained)
+
+        if mm_cfg.llm.freeze:
+            for param in chain(
+                    self.embedding.parameters(),
+                    self.decoder.parameters(),
+                    self.output_layer.parameters(),
+            ):
+                param.requires_grad = False
+            self.embedding = self.embedding.eval()
+            self.decoder = self.decoder.eval()
+            self.output_layer = self.output_layer.eval()
+
+        # Initialize vision encoder and freeze it
+        if mm_cfg.vision_encoder.from_hf:
+            vision_encoder = CLIPVisionModel.from_pretrained(
+                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
+            ).cuda()
+            vision_encoder = vision_encoder.to(torch.bfloat16)
+            if mm_cfg.vision_encoder.freeze:
+                for param in vision_encoder.parameters():
+                    param.requires_grad = False
+                vision_encoder = vision_encoder.eval()
+        else:
+            vision_cfg = MegatronCLIPModel.restore_from(
+                mm_cfg.vision_encoder.from_pretrained, return_config=True
+            ).vision
+            vision_encoder = FrozenCLIPVisionTransformer(vision_cfg, self.config)
+            self.load_vision_encoder_weights(vision_encoder, mm_cfg.vision_encoder.from_pretrained)
+            if mm_cfg.vision_encoder.freeze:
+                vision_encoder.freeze()
+
+        model_type = self.mm_cfg.llm.get("model_type", "nvgpt")
+        # Monkey patch embedding
+        if kwargs.get("pre_process", True):
+            extend_instance(self.embedding.word_embeddings, NevaWordEmbeddingMixin)
+            self.embedding.word_embeddings.init_vision(
+                vision_encoder,
+                media_start_id,
+                media_end_id,
+                vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -2),
+                class_token_length=mm_cfg.vision_encoder.get("class_token_length", 1),
+                use_im_start_end=mm_cfg.get("use_im_start_end", False),
+                llama_tricks=(model_type == "llama_2"),
+            )
+
+    def forward(
+        self, *args, **kwargs,
+    ):
+        media = kwargs.pop('media', None)
+        self.embedding.word_embeddings.set_media(media)
+        return super().forward(*args, **kwargs)
+
+    def _load_model_weights(self, nemo_path):
+        """
+        Shared method to load model weights from a given nemo_path.
+        """
+        if torch.cuda.is_available():
+            map_location = torch.device('cuda')
+        else:
+            map_location = torch.device('cpu')
+
+        save_restore_connector = NLPSaveRestoreConnector()
+        cwd = os.getcwd()
+        app_state = AppState()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            try:
+                if os.path.isfile(nemo_path):
+                    save_restore_connector._unpack_nemo_file(path2file=nemo_path, out_folder=tmpdir)
+                else:
+                    tmpdir = nemo_path
+                os.chdir(tmpdir)
+                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                    model_weights = save_restore_connector._inject_model_parallel_rank_for_ckpt(
+                        tmpdir, save_restore_connector.model_weights_ckpt
+                    )
+                else:
+                    model_weights = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+
+                state_dict = save_restore_connector._load_state_dict_from_disk(
+                    model_weights, map_location=map_location
+                )
+
+                # distributed checkpointing
+                if state_dict is None:
+                    self.dist_ckpt = True
+                    sharded_state_dict = self.sharded_state_dict(prefix="model.")
+                    checkpoint = dict(state_dict=sharded_state_dict)
+                    tmp_model_weights_ckpt = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+                    tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
+                    assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
+                    checkpoint = dist_checkpointing.load(
+                        sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir,
+                    )
+                    state_dict = checkpoint["state_dict"]
+
+            finally:
+                os.chdir(cwd)
+
+        return state_dict
+
+    def load_vision_encoder_weights(self, vision_encoder, nemo_path):
+        state_dict = self._load_model_weights(nemo_path)
+
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith("model.vision_encoder."):
+                new_k = k.replace("model.vision_encoder.", "")
+                new_state_dict[new_k] = v
+
+        missing, unexpected = vision_encoder.load_state_dict(new_state_dict, strict=False)
+        print(f"Restored from {nemo_path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
+        if len(missing) > 0:
+            print(f"Missing Keys: {missing}")
+        if len(unexpected) > 0:
+            print(f"Unexpected Keys: {unexpected}")
+
+    def load_llm_weights(self, nemo_path):
+        state_dict = self._load_model_weights(nemo_path)
+
+        new_state_dict = {}
+        if self.dist_ckpt:
+            for k, v in state_dict.items():
+                new_k = k
+                if k.startswith("model."):
+                    new_k = k.replace("model.", "", 1)
+                new_state_dict[new_k] = v
+            self.load_state_dict(new_state_dict, strict=True)
+        else:
+            for k, v in state_dict.items():
+                if k.startswith("model.language_model."):
+                    new_k = k.replace("model.language_model.", "", 1)
+                    module_key, param_key = new_k.split(".", 1)
+                    if module_key not in new_state_dict:
+                        new_state_dict[module_key] = {}
+                    new_state_dict[module_key][param_key] = v
+            self.language_model.load_state_dict(new_state_dict, strict=True)
+        print(f"Restored LLM weights from {nemo_path}.")
 
 class NevaModel(GPTModel):
     def __init__(
@@ -321,9 +475,9 @@ class NevaModel(GPTModel):
     def forward(
         self, *args, **kwargs,
     ):
-        media = args[-1]
+        media = kwargs.pop('media', None)
         self.language_model.embedding.word_embeddings.set_media(media)
-        return super().forward(*args[:-1], **kwargs)
+        return super().forward(*args, **kwargs)
 
     def _load_model_weights(self, nemo_path):
         """
@@ -392,131 +546,124 @@ class NevaModel(GPTModel):
         print(f"Restored LLM weights from {nemo_path}.")
 
 
-class MegatronNevaModel(MegatronGPTPEFTModel):
+class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     """
     Megatron Neva pretraining
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if getattr(self, "peft_name_keys", None) is None:
-            self.peft_name_keys = []
-            self.name_key_to_cfg = {}
+        # MegatronGPTModel.__init__(self, cfg, trainer)
+        super().__init__(cfg, trainer)
+        self.init_neva_adapter()
 
-        self.peft_name_keys += [AdapterName.MM_LINEAR_ADAPTER]
+    def init_neva_adapter(self):
+        self.base_keys = self._get_all_keys()
+        adapter_name = AdapterName.MM_LINEAR_ADAPTER
         adapter_cfg = MMLinearAdapterConfig(
-            in_features=cfg.mm_cfg.vision_encoder.hidden_size, out_features=cfg.hidden_size, bias=True,
+            in_features=self.cfg.mm_cfg.vision_encoder.hidden_size,
+            out_features=self.cfg.hidden_size, bias=True,
         )
-        self.name_key_to_cfg.update(
-            {AdapterName.MM_LINEAR_ADAPTER: adapter_cfg,}
-        )
-        MegatronGPTModel.__init__(self, cfg, trainer)
+        for name, module in self.named_modules():
+            self._check_and_add_adapter(
+                name, module, adapter_name, adapter_cfg,
+                autocast_dtype=self.autocast_dtype,
+            )
+        self.adapter_keys = self._get_all_keys() - self.base_keys
 
-        self.setup_complete = False
-        self.base_keys = self.get_all_keys()
-        self.init_peft_modules()
-        self.adapter_keys = self.get_all_keys() - self.base_keys
-        if self.megatron_amp_O2:
-            self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
-
-    def get_all_keys(self,):
-        # TODO (yuya): p-tuning need additional handle, check peft models.
-        """
-        Returns all the keys in the model
-        """
-        k = [n for n, p in self.named_parameters()]
-        return set(k)
-
-    def init_peft_modules(self):
-        """
-        Randomly initialize the peft params and add them to the appropriate modules.
-        """
-        assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
-        assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
-        logging.info(f"Before adding PEFT params:\n{self.summarize()}")
-        for _, module in self.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for peft_key in self.peft_name_keys:
-                    peft_cfg = self.name_key_to_cfg[peft_key]
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(
-                            name=peft_key,
-                            cfg=peft_cfg,  # TODO (yuya): override this line in gpt peft models due to a conf merging issue
-                        )
-                if self.megatron_amp_O2:
-                    for adapter_name in getattr(module, 'adapter_layer', []):
-                        module.adapter_layer[adapter_name] = module.adapter_layer[adapter_name].to(self.autocast_dtype)
-        logging.info(f"After adding PEFT params:\n{self.summarize()}")
-        return True
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         media_start_id = self.tokenizer.token_to_id(DEFAULT_IM_START_TOKEN)
         media_end_id = self.tokenizer.token_to_id(DEFAULT_IM_END_TOKEN)
 
-        model = NevaModel(
-            mm_cfg=self.cfg.mm_cfg,
-            media_start_id=media_start_id,
-            media_end_id=media_end_id,
-            config=self.model_parallel_config,
-            vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
-            hidden_size=self.cfg.hidden_size,
-            max_position_embeddings=self.cfg.max_position_embeddings,
-            num_layers=self.cfg.num_layers,
-            num_attention_heads=self.cfg.num_attention_heads,
-            apply_query_key_layer_scaling=self.cfg.get('apply_query_key_layer_scaling', True),
-            kv_channels=self.cfg.get('kv_channels', None),
-            ffn_hidden_size=self.cfg.ffn_hidden_size,
-            num_tokentypes=0,
-            parallel_output=True,
-            pre_process=pre_process,
-            post_process=post_process,
-            init_method_std=self.cfg.get('init_method_std', 0.02),
-            use_scaled_init_method=self.cfg.get('use_scaled_init_method', True),
-            fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
-            hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
-            attention_dropout=self.cfg.get('attention_dropout', 0.1),
-            ffn_dropout=self.cfg.get('ffn_dropout', 0.0),
-            precision=self.cfg.get('precision', 16),
-            fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
-            activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
-            activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
-            activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
-            activations_checkpoint_layers_per_pipeline=self.cfg.get(
-                'activations_checkpoint_layers_per_pipeline', None
-            ),
-            normalization=self.cfg.get('normalization', 'layernorm'),
-            layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
-            onnx_safe=self.cfg.get('onnx_safe', False),
-            bias=self.cfg.get('bias', True),
-            bias_activation_fusion=self.cfg.get('bias_activation_fusion', True),
-            bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
-            activation=self.cfg.get('activation', 'gelu'),
-            headscale=self.cfg.get('headscale', False),
-            transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
-            openai_gelu=self.cfg.get('openai_gelu', False),
-            normalize_attention_scores=self.cfg.get('normalize_attention_scores', True),
-            position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
-            rotary_percentage=self.cfg.get('rotary_percentage', 1.0),
-            share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
-            attention_type=self.cfg.get('attention_type', 'multihead'),
-            masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
-            persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-            transformer_engine=self.cfg.get('transformer_engine', False),
-            fp8=self.cfg.get('fp8', False),
-            fp8_e4m3=self.cfg.get('fp8_e4m3', False),
-            fp8_hybrid=self.cfg.get('fp8_hybrid', False),
-            fp8_margin=self.cfg.get('fp8_margin', 0),
-            fp8_interval=self.cfg.get('fp8_interval', 1),
-            fp8_amax_history_len=self.cfg.get('fp8_amax_history_len', 1),
-            fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'most_recent'),
-            reduce_amax=self.cfg.get('reduce_amax', True),
-            use_emha=self.cfg.get('use_emha', False),
-            ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
-            use_flash_attention=self.cfg.get('use_flash_attention', False),
-            megatron_legacy=self.cfg.get('megatron_legacy', False),
-            seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-        )
+        if self.mcore_gpt:
+            if parallel_state.is_unitialized():
+                def dummy():
+                    return
+                if self.trainer.strategy.launcher is not None:
+                    self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+                self.trainer.strategy.setup_environment()
+
+            model = MCoreNevaModel(
+                mm_cfg=self.cfg.mm_cfg,
+                media_start_id=media_start_id,
+                media_end_id=media_end_id,
+                config=self.transformer_config,
+                vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
+                max_sequence_length=self.cfg.get('encoder_seq_length', 512),
+                pre_process=pre_process,
+                post_process=post_process,
+                parallel_output=True,
+                share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
+                position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+                rotary_percent=self.cfg.get('rotary_percentage', 1.0),
+                seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+            )
+        else:
+            model = NevaModel(
+                mm_cfg=self.cfg.mm_cfg,
+                media_start_id=media_start_id,
+                media_end_id=media_end_id,
+                config=self.model_parallel_config,
+                vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
+                hidden_size=self.cfg.hidden_size,
+                max_position_embeddings=self.cfg.max_position_embeddings,
+                num_layers=self.cfg.num_layers,
+                num_attention_heads=self.cfg.num_attention_heads,
+                apply_query_key_layer_scaling=self.cfg.get('apply_query_key_layer_scaling', True),
+                kv_channels=self.cfg.get('kv_channels', None),
+                ffn_hidden_size=self.cfg.ffn_hidden_size,
+                num_tokentypes=0,
+                parallel_output=True,
+                pre_process=pre_process,
+                post_process=post_process,
+                init_method_std=self.cfg.get('init_method_std', 0.02),
+                use_scaled_init_method=self.cfg.get('use_scaled_init_method', True),
+                fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
+                megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
+                hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
+                attention_dropout=self.cfg.get('attention_dropout', 0.1),
+                ffn_dropout=self.cfg.get('ffn_dropout', 0.0),
+                precision=self.cfg.get('precision', 16),
+                fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
+                activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
+                activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
+                activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
+                activations_checkpoint_layers_per_pipeline=self.cfg.get(
+                    'activations_checkpoint_layers_per_pipeline', None
+                ),
+                normalization=self.cfg.get('normalization', 'layernorm'),
+                layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
+                onnx_safe=self.cfg.get('onnx_safe', False),
+                bias=self.cfg.get('bias', True),
+                bias_activation_fusion=self.cfg.get('bias_activation_fusion', True),
+                bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
+                activation=self.cfg.get('activation', 'gelu'),
+                headscale=self.cfg.get('headscale', False),
+                transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
+                openai_gelu=self.cfg.get('openai_gelu', False),
+                normalize_attention_scores=self.cfg.get('normalize_attention_scores', True),
+                position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+                rotary_percentage=self.cfg.get('rotary_percentage', 1.0),
+                share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
+                attention_type=self.cfg.get('attention_type', 'multihead'),
+                masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
+                persist_layer_norm=self.cfg.get('persist_layer_norm', False),
+                transformer_engine=self.cfg.get('transformer_engine', False),
+                fp8=self.cfg.get('fp8', False),
+                fp8_e4m3=self.cfg.get('fp8_e4m3', False),
+                fp8_hybrid=self.cfg.get('fp8_hybrid', False),
+                fp8_margin=self.cfg.get('fp8_margin', 0),
+                fp8_interval=self.cfg.get('fp8_interval', 1),
+                fp8_amax_history_len=self.cfg.get('fp8_amax_history_len', 1),
+                fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'most_recent'),
+                reduce_amax=self.cfg.get('reduce_amax', True),
+                use_emha=self.cfg.get('use_emha', False),
+                ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
+                use_flash_attention=self.cfg.get('use_flash_attention', False),
+                megatron_legacy=self.cfg.get('megatron_legacy', False),
+                seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+            )
 
         logging.info(
             f"Neva model initialized with {sum(p.numel() for p in model.parameters() if p.requires_grad)} trainable parameters"
@@ -597,15 +744,19 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
                     # Intermediate pipeline stage doesn't need any inputs
                     batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels', 'media']}
 
-            output_tensor = model(
-                batch['tokens'],
-                batch['position_ids'],
-                batch['attention_mask'],
-                None,  # placehpolder for loss mask
-                batch['labels'],
-                batch.get('media'),
-                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-            )
+            forward_args = {
+                'input_ids': batch['tokens'],
+                'position_ids': batch['position_ids'],
+                'attention_mask': batch['attention_mask'],
+                'labels': batch['labels'],
+                'media': batch.get('media', None),
+            }
+            if not self.mcore_gpt:
+                if self.use_loss_mask:
+                    forward_args['loss_mask'] = batch['loss_mask']
+                forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
+
+            output_tensor = model(**forward_args)
 
             return output_tensor, partial(loss_func, loss_mask=batch['loss_mask'])
 
@@ -853,8 +1004,15 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
             logging.critical('Unexpected keys were detected during the load. Please double check.')
             logging.critical(f'Unexpected keys: \n{unexpected_keys}')
 
+    def on_load_checkpoint(self, checkpoint) -> None:
+        if self.mcore_gpt:
+            state_dict = checkpoint["state_dict"]
+            self.load_state_dict(state_dict)
+
     def sharded_state_dict(self, prefix: str = ''):
         return None
+        # sharded_state_dict = MegatronGPTModel.sharded_state_dict(self, prefix)
+        # return sharded_state_dict
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()

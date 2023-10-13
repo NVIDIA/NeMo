@@ -15,16 +15,15 @@
 import itertools
 import os
 import queue
+import torch
 import warnings
 from dataclasses import fields
 from functools import partial
-from typing import Any, Dict, Iterator, List, Optional, Union
-
-import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -122,7 +121,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     def forward(self, tokens, position_ids, attention_mask):
         if self.fp8_enabled and HAVE_TE:
             with transformer_engine.pytorch.onnx_export(self.fp8_enabled), transformer_engine.pytorch.fp8_autocast(
-                enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe
+                    enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe
             ), torch.no_grad(), torch.inference_mode(), torch.autocast(
                 'cuda', dtype=self.dtype
             ), warnings.catch_warnings():
@@ -137,7 +136,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
                 )
         else:
             with torch.no_grad(), torch.inference_mode(), torch.autocast(
-                'cuda', dtype=self.dtype
+                    'cuda', dtype=self.dtype
             ), warnings.catch_warnings():
                 warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
                 assert tokens.shape == position_ids.shape
@@ -489,7 +488,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         grad_sync_func = None
         param_sync_func = None
         if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2, )
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
@@ -624,7 +623,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
-            'share_embeddings_and_output_weights', True
+                'share_embeddings_and_output_weights', True
         ):
             # when using pipeline parallelism the first and last stage must keep embeddings in sync
             self.allreduce_first_last_embeddings()
@@ -734,8 +733,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # This should only run for models that support pipelined model parallelism
         # (BERT and GPT-2).
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-            parallel_state.is_pipeline_first_stage(ignore_virtual=True)
-            or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+                parallel_state.is_pipeline_first_stage(ignore_virtual=True)
+                or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
         ):
             module_list = self.get_gpt_module_list()
             if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
@@ -1056,7 +1055,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(
-        self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
+            self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
     ):
         """Buld dataloader given an input dataset."""
 
@@ -1126,7 +1125,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.rampup_batch_size:
             optimizer = self.cfg.optim.get('name', None)
             assert (
-                optimizer == 'fused_adam'
+                    optimizer == 'fused_adam'
             ), f'{optimizer} optimizer is not supported yet with rampup batch size. Please, use fused_adam optimizer instead.'
 
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
@@ -1198,12 +1197,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
     def generate(
-        self,
-        inputs: Union[List[str], torch.Tensor, List[dict]],
-        length_params: LengthParam,
-        sampling_params: SamplingParam = None,
-        *,
-        strategy: Optional[TextGenerationStrategy] = None,
+            self,
+            inputs: Union[List[str], torch.Tensor, List[dict]],
+            length_params: LengthParam,
+            sampling_params: SamplingParam = None,
+            *,
+            strategy: Optional[TextGenerationStrategy] = None,
     ) -> OutputType:
 
         # check whether the DDP is initialized
