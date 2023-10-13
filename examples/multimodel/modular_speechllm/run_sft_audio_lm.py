@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: move files under workspace to examples/multimodel/ once mature
-
 import os
 import tempfile
 
