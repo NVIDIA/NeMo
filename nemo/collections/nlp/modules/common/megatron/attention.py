@@ -793,7 +793,7 @@ class CoreAttention(MegatronModule):
         # This arg is been provided mostly to support weight conversion of Huggingface models. (ex: T5v1.1)
         self.normalize_attention_scores = normalize_attention_scores
 
-        if self.window_size is not None:
+        if window_size is not None:
             assert use_flash_attention == True, 'window_size is only supported with Flash Attention'
 
         if window_size is None:
