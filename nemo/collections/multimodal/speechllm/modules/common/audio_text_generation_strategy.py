@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import abc
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import torch
 
 import nemo.collections.nlp.modules.common.text_generation_strategy as text_generation_strategy
-from nemo.collections.nlp.modules.common.lm_utils import pad_batch
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.multimodal.speechllm.parts.utils.data_utils import shift_tokens_by_multi_audios
+
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -57,6 +57,8 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         audio_signal: torch.Tensor,
         audio_length: torch.Tensor,
         compute_attention_mask: bool,
+        num_audios: Optional[torch.Tensor] = None,
+        context_start_idx: Optional[List[List[int]]] = None,
     ):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
@@ -70,15 +72,28 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             lm_embedding=self.model.model.language_model.embedding.word_embeddings,
         )
 
+        if num_audios is not None:
+            # handle multiple audio files per sample
+            audio_feats = audio_feats.split(num_audios)
+            audio_feat_lens = audio_feat_lens.split(num_audios)
+
         encoder_input, attention_mask, _, position_ids, encoder_max_length = self.model.inject_perception_input(
-            audio_feats, audio_feat_lens, context_tokens, context_lengths
+            audio_feats, audio_feat_lens, context_tokens, context_lengths, context_start_idx
         )
+
         self.attention_mask = attention_mask
         self.position_ids = position_ids
 
-        new_context_tokens = self.model._shift_labels_by_emb_len(
-            context_tokens, context_lengths, audio_feat_lens, encoder_max_length, pad_token=0
-        )
+        if num_audios is not None:
+            # handle multiple audio files per sample
+            new_context_tokens = shift_tokens_by_multi_audios(
+                context_tokens, context_lengths, audio_feat_lens, context_start_idx, encoder_max_length
+            )
+            audio_feat_lens = torch.stack([torch.sum(lens) for lens in audio_feat_lens])  # [batch,]
+        else:
+            new_context_tokens = self.model._shift_labels_by_emb_len(
+                context_tokens, context_lengths, audio_feat_lens, encoder_max_length, pad_token=0
+            )
 
         return new_context_tokens, encoder_input, audio_feat_lens
 
@@ -97,25 +112,25 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         maxlen: int,
         micro_batch_size: int,
         step: int,
-        context_lengths: int,
-        context_length: int,
+        context_lengths: torch.Tensor,
+        curr_context_length: int,
         compute_attention_mask: bool,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         # types2use = None
         if step == 0:
             # Allocate memory for the entire context.
             set_inference_key_value_memory = True
-            tokens2use = tokens[:, :context_length]
-            positions2use = self.position_ids[:, :context_length]
-            embeddings2use = input_embeddings[:context_length]
+            tokens2use = tokens[:, :curr_context_length]
+            positions2use = self.position_ids[:, :curr_context_length]
+            embeddings2use = input_embeddings[:curr_context_length]
         else:
             # Set this to false so the memory is not reallocated.
             set_inference_key_value_memory = False
-            tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
-            positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
+            tokens2use = tokens[:, curr_context_length - 1].view(micro_batch_size, -1)
+            positions2use = self.position_ids[:, curr_context_length - 1].view(micro_batch_size, -1)
             embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use)
-            started = context_lengths <= context_length
-            embeddings2use = switch(input_embeddings[context_length - 1].unsqueeze(0), embeddings2use, started)
+            started = context_lengths <= curr_context_length
+            embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use, started)
 
         """Prepare batch for each of the inference steps"""
         setkey_value_array = torch.tensor(
