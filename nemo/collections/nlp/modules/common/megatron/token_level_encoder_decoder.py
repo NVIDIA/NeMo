@@ -604,10 +604,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
             # This should only happen with PP > 1 for enc-dec prompt learning models
             enc_seq_length = enc_attn_mask.size(1)
 
-        if self.add_encoder and self.encoder_relative_position_embedding is not None:
-            encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
-                query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
-            )
+        if self.add_encoder:
+            if self.encoder_rotary_pos_emb is not None:
+                encoder_rotary_pos_emb = self.encoder_rotary_pos_emb(enc_seq_length)
+            elif self.encoder_relative_position_embedding is not None:
+                encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
+                    query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
+                )
 
         if output_enc_hidden_only:
             # When pipeline parallel > 1 we need to make sure encoder exist (will be missing in decoder)
@@ -639,10 +642,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
 
-            if self.add_decoder and self.decoder_relative_position_embedding is not None:
-                decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
-                    query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
-                )
+            if self.add_decoder:
+                if self.decoder_rotary_pos_emb is not None:
+                    decoder_rotary_pos_emb = self.decoder_rotary_pos_emb(dec_input_ids.size(1))
+                elif self.decoder_relative_position_embedding is not None:
+                    decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
+                        query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
+                    )
                 if not self.decoder_cfg.relative_position_bias_self_attention_only:
                     decoder_cross_attention_relative_position_bias = self.decoder_cross_attention_relative_position_embedding(
                         query_seq_length=dec_input_ids.size(1), key_seq_length=enc_seq_length,
@@ -664,7 +670,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
                 dec_self_attention_relative_position_bias=decoder_self_attention_relative_position_bias,
                 dec_cross_attention_relative_position_bias=decoder_cross_attention_relative_position_bias,
-                rotary_pos_emb=(self.encoder_rotary_pos_emb, self.decoder_rotary_pos_emb, None)
+                rotary_pos_emb=(encoder_rotary_pos_emb, decoder_rotary_pos_emb, None)
                 if self.encoder_rotary_pos_emb is not None or self.decoder_rotary_pos_emb else None,
                 batch_data=batch_data,
             )
