@@ -67,6 +67,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -868,7 +869,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             check_interval = 100
             if self.trainer.val_check_interval is not None:
                 check_interval = self.trainer.val_check_interval
-            if self.trainer.global_step % check_interval == 0 and batch['speech_mask'][0].sum() != 0:
+            if self.trainer.global_step % check_interval == 0 and batch['speech_mask'][0].sum() != 0 and self.should_log:
                 # Logs every if the first item in the batch is speech
                 with torch.no_grad():
                     with torch.cuda.amp.autocast(enabled=False):
@@ -1726,11 +1727,14 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         elif self.cfg.get('speech_residual_model', None) == 'linear':
             base_module.speech_residual_model = LinearModule(hidden_size, 1024)
 
-        encodec_model = EncodecModel.encodec_model_24khz()
-        encodec_model.set_target_bandwidth(6.0)
-        encodec_model.cuda()
-        encodec_model.eval()
-        self.additional_models = {'encodec': encodec_model}
+        app_state = AppState()
+        self.should_log = app_state.global_rank == 0
+        if self.should_log:
+            encodec_model = EncodecModel.encodec_model_24khz()
+            encodec_model.set_target_bandwidth(6.0)
+            encodec_model.cuda()
+            encodec_model.eval()
+            self.additional_models = {'encodec': encodec_model}
         self.pretraining = True
 
     def convert_tokens_to_range(self, tokens, offset_first_layer=False, offset_all_layers=False, start_of_speech=0):

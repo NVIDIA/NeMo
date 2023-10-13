@@ -23,6 +23,10 @@ if __name__ == '__main__':
     ]
     trainer_config = "/home/jasoli/gitrepos/NeMo/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml"
     base_config = "/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo"
+    # in_json = "/mnt/drive1/data/MLS/audio_24khz_val_seen_tar_3/tarred_audio_manifest.json"
+    # out_json = "/mnt/drive1/data/MLS/audio_24khz_val_seen_tar_3/tarred_audio_manifest_tokenized_256k.json"
+    # in_json = "/mnt/drive1/data/MLS/audio_24khz_val_unseen_tar_3/tarred_audio_manifest.json"
+    # out_json = "/mnt/drive1/data/MLS/audio_24khz_val_unseen_tar_3/tarred_audio_manifest_tokenized_256k.json"
     in_json = "/mnt/drive1/data/MLS/audio_24khz_train_tar_3/tarred_audio_manifest.json"
     out_json = "/mnt/drive1/data/MLS/audio_24khz_train_tar_3/tarred_audio_manifest_tokenized_256k.json"
 
@@ -60,4 +64,4 @@ if __name__ == '__main__':
                         tokens = tokenizer.text_to_ids(text)
                         data_i[field] = tokens
                         data_i[data_type_key] = "TOKENS"
-            out_file.write(json.dumps(data_i))
+            out_file.write(json.dumps(data_i)+'\n')

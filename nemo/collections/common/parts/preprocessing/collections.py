@@ -314,6 +314,14 @@ class InstructionTuningText(_Collection):
         field_names='id context context_type context_duration question question_type answer answer_type answer_duration speaker',
     )
 
+    def _get_len(self, field_type, data, duration_data):
+        if field_type == "SPEECH":
+            return duration_data * 76
+        elif field_type == "TEXT":
+            return len(data.split(' ')) + 3
+        elif field_type == "TOKENS":
+            return len(data) + 3
+
     def __init__(
         self,
         ids: List[int],
@@ -375,13 +383,9 @@ class InstructionTuningText(_Collection):
                 continue
 
             # Check segment length
-            approx_context_len = min(context_duration * 76 * 0.3, 400)
-            approx_question_len = len(question.split(' ')) + 3
-
-            if answer_type == "SPEECH":
-                approx_answer_len = answer_duration * 76
-            else:
-                approx_answer_len = len(answer.split(' ')) + 3
+            approx_context_len = min(self._get_len(context_type, context, context_duration) * 0.3, 400)
+            approx_question_len = self._get_len(question_type, question, None)
+            approx_answer_len= self._get_len(answer_type, answer, answer_duration)
 
             if (decoder_only_model and approx_context_len + approx_question_len + approx_answer_len >= max_seq_length) or (
                 approx_context_len + approx_question_len >= max_seq_length
