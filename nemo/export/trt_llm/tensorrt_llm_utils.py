@@ -13,6 +13,7 @@
 import tensorrt as trt
 from tensorrt_llm.layers import Embedding, LayerNorm, RmsNorm
 from tensorrt_llm.module import Module
+import numpy as np
 
 from .model_config import (
     LAYERNORM_DEFAULT,

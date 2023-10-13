@@ -25,6 +25,9 @@ from tensorrt_llm._utils import str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
 from transformers import GPT2Tokenizer, LlamaConfig, T5Tokenizer
 
+import tensorstore  # this is important even though not used
+import zarr
+
 from .convert import (
     cpu_map_location,
     gpu_map_location,
@@ -65,6 +68,29 @@ def rename_key(old_key: str, pp_rank: int, num_layers: int, pp_size: int):
 
         if "self_attention" in new_key:
             new_key = new_key.replace("self_attention", "attention")
+        if "attention.linear_qkv.layer_norm_weight" in new_key:
+            new_key = new_key.replace("attention.linear_qkv.layer_norm_weight", "input_layernorm.weight")
+        if "mlp.linear_fc1.layer_norm_weight" in new_key:
+            new_key = new_key.replace("mlp.linear_fc1.layer_norm_weight", "post_attention_layernorm.weight")
+
+    return new_key
+
+
+def rename_key_dist_ckpt(old_key: str, layer: int):
+    new_key = old_key
+
+    if "layers." in old_key:
+        split_key = old_key.split(".")
+        split_key.insert(1, str(layer))
+        new_key = ".".join(split_key)
+
+        if "self_attention" in new_key:
+            new_key = new_key.replace("self_attention", "attention")
+        if "attention.linear_qkv.layer_norm_weight" in new_key:
+            new_key = new_key.replace("attention.linear_qkv.layer_norm_weight", "input_layernorm.weight")
+        if "mlp.linear_fc1.layer_norm_weight" in new_key:
+            new_key = new_key.replace("mlp.linear_fc1.layer_norm_weight", "post_attention_layernorm.weight")
+
     return new_key
 
 
@@ -171,6 +197,7 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
                             export_config,
                         )
                     )
+
             starmap_args = tqdm(starmap_args, desc="saving weights")
 
             if args.processes > 1:
@@ -185,6 +212,183 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
                     weights_dict_local = split_and_save_weight(*starmap_arg)
             # AMMO modification
             weights_dict.update(weights_dict_local)
+
+    for key, values in model_level_weights.items():
+        model_level_weights[key] = np.concatenate(values, axis=0)
+        # AMMO modification
+        weights_dict[key] = model_level_weights[key]
+    vocab_size = model_level_weights["model.wte.bin"].shape[0]
+
+    tokenizer_config = update_tokenizer_paths(
+        nemo_model_config["tokenizer"], unpacked_checkpoints_dir
+    )
+    copy_tokenizer_files(tokenizer_config, out_dir)
+    # AMMO modification.
+    tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
+    tokenizer = build_tokenizer(tokenizer_config)
+    llm_config = nemo_to_llm_config(
+        nemo_model_config,
+        vocab_size,
+        tokenizer.eos_token_id,
+        tokenizer.bos_token_id,
+        args.decoder_type,
+    )
+
+    llm_config.is_mcore = is_mcore
+
+    config = configparser.ConfigParser()
+    model_name = "llama" if isinstance(llm_config, LlamaConfig) else "gpt"
+    config[model_name] = {k: str(v) for k, v in vars(llm_config).items()}
+    config[model_name]["storage_dtype"] = args.storage_type
+    config_path = out_dir / "config.ini"
+    with config_path.open("w") as config_file:
+        config.write(config_file)
+
+    # AMMO modification.
+    return weights_dict, llm_config, tokenizer
+
+
+def load_sharded_metadata(checkpoint_dir: str):
+    checkpoint_dir = Path(checkpoint_dir)
+    sharded_state_dict = {}
+    for subdir in checkpoint_dir.iterdir():
+        if not subdir.is_dir() or not (subdir / '.zarray').exists():
+            continue
+        key = subdir.name
+        arr = zarr.open(str(subdir), 'r')
+        sharded_state_dict[key] = torch.from_numpy(arr[:].astype(np.float))
+
+    return sharded_state_dict
+
+
+@torch.no_grad()
+def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args):
+    nemo_model_config = unpacked_checkpoints_dir.model_config
+    checkpoints_path = unpacked_checkpoints_dir.checkpoints_dir / "model_weights"
+
+    # if checkpoints files could be found - start preparing output dir
+    out_dir = create_out_dir(args)
+
+    map_location_fn = gpu_map_location if args.load_checkpoints_on_gpu else cpu_map_location
+    storage_type = str_dtype_to_torch(args.storage_type)
+    is_mcore = nemo_model_config.get("mcore_gpt", False)
+
+    # load position_embedding from rank 0
+    model_00 = load_sharded_metadata(checkpoints_path)
+    model_00 = model_00.get("state_dict", model_00)
+
+    has_position_embedding = get_layer_name("position_embedding", is_mcore) in model_00
+    has_lm_head = get_layer_name("output_layer", is_mcore) in model_00
+
+    num_layers = nemo_model_config["num_layers"]
+    training_tp_size = 1
+    training_pp_size = 1
+    inference_tp_size = args.tensor_parallelism
+    num_kv_heads = nemo_model_config.get("num_query_groups", 0)
+    multi_query_mode = nemo_model_config.get("multi_query_mode", False)
+    num_attention_heads = nemo_model_config["num_attention_heads"]
+    if num_kv_heads == 0:
+        if multi_query_mode:
+            num_kv_heads = 1
+        else:
+            num_kv_heads = num_attention_heads
+
+    export_config = {
+        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
+        "tp_size": training_tp_size,
+        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu") and (
+                args.decoder_type == "gptnext" or is_mcore
+        ),
+        "num_attention_heads": num_attention_heads,
+        "num_kv_heads": num_kv_heads,
+        "use_attention_nemo_shape": True,
+        "transpose_weights": True,
+    }
+
+    # merge_factor: how many TP training nodes are merged into an inference TP node
+    # split_factor: in how many parts a TP training node is split
+
+    merge_factor = 1
+    split_factor = inference_tp_size
+
+    model_level_weights = defaultdict(list)
+
+    def handle_model_level_weights(model, tp_idx: int, pp_idx: int):
+        if tp_idx == 0 and pp_idx == 0:
+            if has_position_embedding:
+                val = model[get_layer_name("position_embedding", is_mcore)]
+                val = torch_to_numpy(val.to(storage_type).cpu())
+                model_level_weights["model.wpe.bin"].append(val)
+        if pp_idx == 0:
+            val = model.get("state_dict", model)[get_layer_name("word_embedding", is_mcore)]
+            val = torch_to_numpy(val.to(storage_type).cpu())
+            model_level_weights["model.wte.bin"].append(val)
+        if has_lm_head and pp_idx == training_pp_size - 1:
+            val = model.get("state_dict", model)[get_layer_name("output_layer", is_mcore)]
+            val = torch_to_numpy(val.to(storage_type).cpu())
+            model_level_weights["model.lm_head.weight.bin"].append(val)
+
+    # AMMO modification
+    weights_dict = {}
+
+    tp_rank = 0
+
+    model = load_sharded_metadata(checkpoints_path)
+    handle_model_level_weights(model, 0, 0)
+    prefix = "model.decoder." if is_mcore else "model.language_model.encoder."
+    model = extract_layers_with_prefix(model, prefix)
+
+    starmap_args = []
+    for key, val in model.items():
+        if "_extra_state" not in key:
+            if len(val.size()) == 1:
+                starmap_args.append(
+                    (
+                        tp_rank,
+                        out_dir,
+                        split_factor,
+                        # Let's rename/map the key to the old layer name previously. You can try printing out
+                        # the rename_key output of the old llama checkpoint and compare.
+                        rename_key_dist_ckpt(key, 0),
+                        # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                        [val],
+                        storage_type,
+                        None,
+                        export_config,
+                    )
+                )
+            else:
+                for i in range(num_layers):
+                    starmap_args.append(
+                        (
+                            tp_rank,
+                            out_dir,
+                            split_factor,
+                            # Let's rename/map the key to the old layer name previously. You can try printing out
+                            # the rename_key output of the old llama checkpoint and compare.
+                            rename_key_dist_ckpt(key, i),
+                            # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                            [val[i]],
+                            storage_type,
+                            None,
+                            export_config,
+                        )
+                    )
+
+    starmap_args = tqdm(starmap_args, desc="saving weights")
+
+    if args.processes > 1:
+        with multiprocessing.Pool(args.processes) as pool:
+            # AMMO modification
+            weights_dicts = pool.starmap(split_and_save_weight, starmap_args)
+            weights_dict_local = {k: v for d in weights_dicts for k, v in d.items()}
+    else:
+        # simpler for debug situations
+        for starmap_arg in starmap_args:
+            # AMMO modification
+            weights_dict_local = split_and_save_weight(*starmap_arg)
+    # AMMO modification
+    weights_dict.update(weights_dict_local)
 
     for key, values in model_level_weights.items():
         model_level_weights[key] = np.concatenate(values, axis=0)
