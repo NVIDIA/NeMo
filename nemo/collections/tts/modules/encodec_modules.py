@@ -43,6 +43,7 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import Tensor
 
+from nemo.collections.asr.parts.utils.activations import Snake
 from nemo.collections.tts.losses.audio_codec_loss import MaskedMSELoss
 from nemo.collections.tts.modules.audio_codec_modules import (
     Conv1dNorm,
@@ -58,17 +59,35 @@ from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, 
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from nemo.collections.asr.parts.utils.activations import Snake
+
+
+class CodecActivation(nn.Module):
+    """
+    Choose between snake or Elu activation based on the input parameter.
+    """
+
+    def __init__(self, activation: str = "elu", channels: int = 1):
+        super().__init__()
+        activation = activation.lower()
+        if activation == "snake":
+            self.activation = Snake(channels)
+        elif activation == "elu":
+            self.activation = nn.ELU()
+        else:
+            raise ValueError(f"Unknown activation {activation}")
+
+    def forward(self, x):
+        return self.activation(x)
 
 
 class SEANetResnetBlock(NeuralModule):
-    def __init__(self, channels: int):
+    def __init__(self, channels: int, activation: str = "elu"):
         super().__init__()
-        self.pre_activation = Snake(channels)
+        self.pre_activation = CodecActivation(activation=activation, channels=channels)
         hidden_channels = channels // 2
         self.pre_conv = Conv1dNorm(in_channels=channels, out_channels=channels, kernel_size=1)
         self.res_conv1 = Conv1dNorm(in_channels=channels, out_channels=hidden_channels, kernel_size=3)
-        self.post_activation = Snake(hidden_channels)
+        self.post_activation = CodecActivation(activation=activation, channels=hidden_channels)
         self.res_conv2 = Conv1dNorm(in_channels=hidden_channels, out_channels=channels, kernel_size=1)
 
     @property
@@ -150,6 +169,7 @@ class SEANetEncoder(NeuralModule):
         in_kernel_size: int = 7,
         out_kernel_size: int = 7,
         encoded_dim: int = 128,
+        activation: str = "elu",
         rnn_layers: int = 2,
         rnn_type: str = "lstm",
         rnn_skip: bool = True,
@@ -169,7 +189,7 @@ class SEANetEncoder(NeuralModule):
         for i, down_sample_rate in enumerate(self.down_sample_rates):
             res_block = SEANetResnetBlock(channels=in_channels)
             self.res_blocks.append(res_block)
-            self.activations.append(Snake(in_channels))
+            self.activations.append(CodecActivation(activation=activation, channels=in_channels))
 
             out_channels = 2 * in_channels
             kernel_size = 2 * down_sample_rate
@@ -183,7 +203,7 @@ class SEANetEncoder(NeuralModule):
             in_channels = out_channels
             self.down_sample_conv_layers.append(down_sample_conv)
 
-        self.post_activation = Snake(in_channels)
+        self.post_activation = CodecActivation(activation=activation, channels=in_channels)
         self.rnn = SEANetRNN(dim=in_channels, num_layers=rnn_layers, rnn_type=rnn_type, use_skip=rnn_skip)
         self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=encoded_dim, kernel_size=out_kernel_size)
 
@@ -241,6 +261,7 @@ class SEANetDecoder(NeuralModule):
         in_kernel_size: int = 7,
         out_kernel_size: int = 3,
         encoded_dim: int = 128,
+        activation: str = "elu",
         rnn_layers: int = 2,
         rnn_type: str = "lstm",
         rnn_skip: bool = True,
@@ -259,7 +280,7 @@ class SEANetDecoder(NeuralModule):
         self.up_sample_conv_layers = nn.ModuleList([])
         self.activations = nn.ModuleList([])
         for i, up_sample_rate in enumerate(self.up_sample_rates):
-            self.activations.append(Snake(in_channels))
+            self.activations.append(CodecActivation(activation=activation, channels=in_channels))
             out_channels = in_channels // 2
             kernel_size = 2 * up_sample_rate
             up_sample_conv = ConvTranspose1dNorm(
@@ -271,7 +292,7 @@ class SEANetDecoder(NeuralModule):
             res_block = SEANetResnetBlock(channels=in_channels)
             self.res_blocks.append(res_block)
 
-        self.post_activation = Snake(in_channels)
+        self.post_activation = CodecActivation(activation=activation, channels=in_channels)
         self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=1, kernel_size=out_kernel_size)
         self.out_activation = nn.Tanh()
 
