@@ -618,7 +618,7 @@ def get_dataset(
     from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
     from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
     from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
-    from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2CoLT5Dataset
+    from nemo.collections.nlp.data.language_modeling.megatron.ul2_colt5_dataset import UL2CoLT5Dataset
 
     if dataset_type == DSET_TYPE_ICT:
         raise NotImplementedError("ICT dataset is not implemented yet.")
@@ -727,7 +727,7 @@ def get_dataset(
             class_name = UL2Dataset
         else:
             class_name = UL2CoLT5Dataset
-            
+
         dataset = class_name(
             cfg=cfg,
             trainer=trainer,
