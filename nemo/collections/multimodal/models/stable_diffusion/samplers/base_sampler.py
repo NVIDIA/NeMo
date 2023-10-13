@@ -92,9 +92,7 @@ class AbstractBaseSampler(ABC):
     def dpm_sampling_fn(self):
         pass
 
-    def para_ddim_sampling_fn(self):
-        pass
-
+    @torch.no_grad()
     def sample(
         self,
         S,
@@ -124,10 +122,7 @@ class AbstractBaseSampler(ABC):
     ):
         if conditioning is not None:
             if isinstance(conditioning, dict):
-                ctmp = conditioning[list(conditioning.keys())[0]]
-                while isinstance(ctmp, list):
-                    ctmp = ctmp[0]
-                cbs = ctmp.shape[0]
+                cbs = conditioning[list(conditioning.keys())[0]][0].shape[0]
                 if cbs != batch_size:
                     print(f"Warning: Got {cbs} conditionings but batch-size is {batch_size}")
             else:
@@ -176,6 +171,7 @@ class AbstractBaseSampler(ABC):
         )
         return samples, intermediates, logprobs, means, vars
 
+    @torch.no_grad()
     def sampling_fn(
         self,
         cond,
@@ -284,26 +280,19 @@ class AbstractBaseSampler(ABC):
         self, x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs,
     ):
         if unconditional_conditioning is None or unconditional_guidance_scale == 1.0:
-            model_output = self.model.apply_model(x, t, c)
+            e_t = self.model.apply_model(x, t, c)
         elif isinstance(c, dict):
-            ### Contolnet conditioning is dict format
-            model_t = self.model.apply_model(x, t, c)
-            model_uncond = self.model.apply_model(x, t, unconditional_conditioning)
-            model_output = model_uncond + unconditional_guidance_scale * (model_t - model_uncond)
+            raise NotImplementedError
         else:
             x_in = torch.cat([x] * 2)
             t_in = torch.cat([t] * 2)
             c_in = torch.cat([unconditional_conditioning, c])
-            e_t_uncond, model_t = self.model.apply_model(x_in, t_in, c_in).chunk(2)
-            model_output = e_t_uncond + unconditional_guidance_scale * (model_t - e_t_uncond)
-        if self.model.parameterization == "v":
-            e_t = self.model.predict_eps_from_z_and_v(x, t, model_output)
-        else:
-            e_t = model_output
+            e_t_uncond, e_t = self.model.apply_model(x_in, t_in, c_in).chunk(2)
+            e_t = e_t_uncond + unconditional_guidance_scale * (e_t - e_t_uncond)
         if score_corrector is not None:
             assert self.model.parameterization == "eps"
             e_t = score_corrector.modify_score(self.model, e_t, x, t, c, **corrector_kwargs)
-        return e_t, model_output
+        return e_t
 
     def _get_x_prev_and_pred_x0(
         self,
@@ -312,8 +301,6 @@ class AbstractBaseSampler(ABC):
         index,
         device,
         x,
-        t,
-        model_output,
         e_t,
         quantize_denoised,
         repeat_noise,
@@ -335,10 +322,7 @@ class AbstractBaseSampler(ABC):
         sigma_t = torch.full((b, 1, 1, 1), sigmas[index], device=device)
         sqrt_one_minus_at = torch.full((b, 1, 1, 1), sqrt_one_minus_alphas[index], device=device)
         # current prediction for x_0
-        if self.model.parameterization != "v":
-            pred_x0 = (x - sqrt_one_minus_at * e_t) / a_t.sqrt()
-        else:
-            pred_x0 = self.model.predict_start_from_z_and_v(x, t, model_output)
+        pred_x0 = (x - sqrt_one_minus_at * e_t) / a_t.sqrt()
         if quantize_denoised:
             pred_x0, _, *_ = self.model.first_stage_model.quantize(pred_x0)
         # direction pointing to x_t
