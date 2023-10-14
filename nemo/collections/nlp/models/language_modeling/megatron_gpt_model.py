@@ -829,9 +829,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_batch_on_this_context_parallel_rank(self, batch):
         cp_size = self.cfg.get('context_parallel_size', 1)
-        loss_mask_sum = None
+        num_valid_tokens_in_ub = None
         if 'loss_mask' in batch and batch['loss_mask'] is not None:
-            loss_mask_sum = batch['loss_mask'].sum()
+            num_valid_tokens_in_ub = batch['loss_mask'].sum()
 
         if cp_size > 1:
             cp_rank = parallel_state.get_context_parallel_rank()
@@ -849,7 +849,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
                     batch[key] = val
 
-        batch['loss_mask_sum'] = loss_mask_sum
+        batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
 
         return batch
 
@@ -895,10 +895,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(batch['loss_mask'], batch['loss_mask_sum'], output_tensor)
+                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
                 cp_size = self.cfg.get('context_parallel_size', 1)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
-                    num_valid_tokens_in_ub = batch['loss_mask_sum']
+                    num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
                     if loss_for_ub.isnan():
                         assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
                         loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
@@ -915,7 +915,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     torch.distributed.all_reduce(
                         loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
                     )
-                    return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
+                    return loss_for_ub * cp_size, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
                 else:
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub * cp_size, {'avg': reduced_loss}
@@ -1041,11 +1041,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         logging.info(f'test_loss: {averaged_loss[0]}')
         self.test_step_outputs.clear()  # free memory
 
-    def loss_func(self, loss_mask, loss_mask_sum, output_tensor):
+    def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
         # TODO: add nemo version here
-        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask_sum  # sequence level nll
+        loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
