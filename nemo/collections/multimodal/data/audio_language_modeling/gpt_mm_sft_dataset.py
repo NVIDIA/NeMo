@@ -102,13 +102,23 @@ class MMGPTSFTDataset(GPTSFTDataset):
         """
         return "".join([f"<audio_id_{x}>" for x in audio_codes])
 
-    def _load_audio_data(self, filepath, num_codebooks_to_load=8, keep_dims_for_audio=True, pad_to_length=1500, pad_id=None):
+    def _load_audio_data(
+            self, 
+            filepath, 
+            num_codebooks_to_load=8, 
+            keep_dims_for_audio=True, 
+            pad_to_length=1500, 
+            pad_location='end',
+            pad_id=None,
+    ):
         """
         load audio data from npz file
         keep_dims_for_audio: if False, applies squeeze to audio_codes
         """
+        import pdb; pdb.set_trace()
         # make sure that it is npz file
         assert filepath.endswith('.npz'), f"audio_codes should be npz file, got {filepath}"
+        assert pad_location in ['begin', 'end'], f"pad_location should be either 'start' or 'end', got {pad_location}"
 
         audio_codes = np.load(filepath)['codes'][:num_codebooks_to_load, :] # (num_codebooks, num_frames)
         audio_codes = np.transpose(audio_codes) # (num_frames, num_codebooks)
@@ -127,7 +137,10 @@ class MMGPTSFTDataset(GPTSFTDataset):
             pad_len = pad_to_length - audio_codes.shape[0]
             if pad_len > 0:
                 pad_matrix = np.ones((pad_len, audio_codes.shape[1]), dtype=audio_codes.dtype) * pad_id
-                audio_codes = np.concatenate((audio_codes, pad_matrix), axis=0)
+                if pad_location == 'end':
+                    audio_codes = np.concatenate((audio_codes, pad_matrix), axis=0)
+                else:
+                    audio_codes = np.concatenate((pad_matrix, audio_codes), axis=0)
         return audio_codes.tolist()
 
 
@@ -255,11 +268,19 @@ class MMGPTSFTDataset(GPTSFTDataset):
         template_strings, template_strings_keys = self._separate_template(prompt_template_values)
         template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
         
+        pad_location = 'end' # pad at beginning or end, hardcoded for now
         # Insert audio codes
         if 'audio_codes' in template_strings_keys:
             # find the respective index
             audio_codes_idx = template_strings_keys.index('audio_codes')
-            audio_ids = self._load_audio_data(example['audio_codes'], num_codebooks_to_load=self.num_audio_codebooks, keep_dims_for_audio=True, pad_to_length=self.pad_audio_to_length, pad_id=self.tokenizer.eos_id)
+            audio_ids = self._load_audio_data(
+                example['audio_codes'], 
+                num_codebooks_to_load=self.num_audio_codebooks, 
+                keep_dims_for_audio=True, 
+                pad_to_length=self.pad_audio_to_length,
+                pad_location=pad_location, 
+                pad_id=self.tokenizer.eos_id if pad_location=='end' else self.tokenizer.pad_id,
+            )
             template_ids[audio_codes_idx] = audio_ids
         
         # pad all entries to same dimension
