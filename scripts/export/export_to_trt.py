@@ -51,8 +51,8 @@ def get_args(argv):
     )
 
     parser.add_argument(
-        "-tmr",
-        "--triton_model_repository",
+        "-mr",
+        "--model_repository",
         required=True,
         default=None,
         type=str,
@@ -100,13 +100,26 @@ def get_args(argv):
         help="Max batch size of the model"
     )
 
+    parser.add_argument(
+        "-dm",
+        "--debug_mode",
+        default="False",
+        type=str,
+        help="Enable debug mode"
+    )
+
     args = parser.parse_args(argv)
     return args
 
 
 def nemo_export(argv):
     args = get_args(argv)
-    loglevel = logging.INFO
+
+    if args.debug_mode == "True":
+        loglevel = logging.DEBUG
+    else:
+        loglevel = logging.INFO
+
     logging.setLevel(loglevel)
     logging.info("Logging level set to {}".format(loglevel))
     logging.info(args)
@@ -117,7 +130,7 @@ def nemo_export(argv):
         return
 
     try:
-        trt_llm_exporter = TensorRTLLM(model_dir=args.triton_model_repository)
+        trt_llm_exporter = TensorRTLLM(model_dir=args.model_repository)
 
         logging.info("Export to TensorRT-LLM function is called.")
         trt_llm_exporter.export(

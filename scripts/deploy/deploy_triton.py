@@ -144,9 +144,13 @@ def nemo_deploy(argv):
     args = get_args(argv)
 
     if args.debug_mode == "True":
-        logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(name)s: %(message)s")
+        loglevel = logging.DEBUG
     else:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s: %(message)s")
+        loglevel = logging.INFO
+
+    logging.setLevel(loglevel)
+    logging.info("Logging level set to {}".format(loglevel))
+    logging.info(args)
 
     if args.dtype != "bf16":
         logging.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
