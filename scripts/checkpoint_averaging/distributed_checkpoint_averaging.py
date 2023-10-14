@@ -51,7 +51,7 @@ def main():
         '--name_prefix', help='Name of the final checkpoint. Will append -averaged automatically.',
     )
     parser.add_argument(
-        '--checkpoint_dir', help='Folder containing all mp_rank_X subfolders.',
+        '--checkpoint_dir', help='Folder containing all the distributed checkpoints.',
     )
     # list of checkpoint steps to average
     parser.add_argument(
