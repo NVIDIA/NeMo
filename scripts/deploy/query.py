@@ -124,7 +124,7 @@ def query(argv):
     output = query_llm(
         url=args.url,
         model_name=args.model_name,
-        prompts=args.prompts,
+        prompts=[args.prompt],
         max_output_token=args.max_output_token,
         top_k=args.top_k,
         top_p=args.top_p,
