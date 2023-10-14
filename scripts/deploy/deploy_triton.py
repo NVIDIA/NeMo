@@ -32,29 +32,109 @@ def get_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton",
     )
-    parser.add_argument("--nemo_checkpoint", type=str, help="Source .nemo file")
     parser.add_argument(
+        "-nc",
+        "--nemo_checkpoint",
+        type=str,
+        help="Source .nemo file")
+
+    parser.add_argument(
+        "-mt",
         "--model_type",
-        type=str, default="gptnext",
+        type=str,
+        default="gptnext",
         choices=["gptnext", "llama"],
         help="Type of the model. gpt or llama are only supported."
     )
-    parser.add_argument("--triton_model_name", required=True, type=str, help="Name for the service")
-    parser.add_argument("--triton_model_version", default=1, type=int, help="Version for the service")
-    parser.add_argument("--triton_port", default=8000, type=int, help="Port for the Triton server to listen for requests")
-    parser.add_argument("--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server")
-    parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
-    parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+
     parser.add_argument(
+        "-tmn",
+        "--triton_model_name",
+        required=True,
+        type=str,
+        help="Name for the service"
+    )
+
+    parser.add_argument(
+        "-tmv",
+        "--triton_model_version",
+        default=1,
+        type=int,
+        help="Version for the service"
+    )
+
+    parser.add_argument(
+        "-tp",
+        "--triton_port",
+        default=8000,
+        type=int,
+        help="Port for the Triton server to listen for requests"
+    )
+
+    parser.add_argument(
+        "-tha",
+        "--triton_http_address",
+        default="0.0.0.0",
+        type=str,
+        help="HTTP address for the Triton server"
+    )
+
+    parser.add_argument(
+        "-tmr",
+        "--triton_model_repository",
+        default=None,
+        type=str,
+        help="Folder for the trt-llm conversion"
+    )
+
+    parser.add_argument(
+        "-ng",
+        "--num_gpus",
+        default=1,
+        type=int,
+        help="Number of GPUs for the deployment"
+    )
+
+    parser.add_argument(
+        "-dt",
         "--dtype",
         choices=["bf16", "fp16", "fp8", "int8"],
         default="bf16",
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
-    parser.add_argument("--max_input_len", default=200, type=int, help="Max input length of the model")
-    parser.add_argument("--max_output_len", default=200, type=int, help="Max output length of the model")
-    parser.add_argument("--max_batch_size", default=200, type=int, help="Max batch size of the model")
+
+    parser.add_argument(
+        "-mil",
+        "--max_input_len",
+        default=200,
+        type=int,
+        help="Max input length of the model"
+    )
+
+    parser.add_argument(
+        "-mol",
+        "--max_output_len",
+        default=200,
+        type=int,
+        help="Max output length of the model"
+    )
+
+    parser.add_argument(
+        "-mbs",
+        "--max_batch_size",
+        default=200,
+        type=int,
+        help="Max batch size of the model"
+    )
+
+    parser.add_argument(
+        "-dm",
+        "--debug_mode",
+        default="False",
+        type=str,
+        help="Enable debug mode"
+    )
 
     args = parser.parse_args(argv)
     return args
@@ -62,7 +142,12 @@ def get_args(argv):
 
 def nemo_deploy(argv):
     args = get_args(argv)
-    loglevel = logging.INFO
+
+    if args.debug_mode == "True":
+        loglevel = logging.DEBUG
+    else:
+        loglevel = logging.INFO
+
     logging.setLevel(loglevel)
     logging.info("Logging level set to {}".format(loglevel))
     logging.info(args)
@@ -72,7 +157,7 @@ def nemo_deploy(argv):
                       "Support for the other precisions will be added in the coming releases.")
         return
 
-    if args.trt_llm_folder is None:
+    if args.triton_model_repository is None:
         trt_llm_path = "/tmp/trt_llm_model_dir/"
         logging.info(
             "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
@@ -81,42 +166,54 @@ def nemo_deploy(argv):
         )
         Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
     else:
-        trt_llm_path = args.trt_llm_folder
+        trt_llm_path = args.triton_model_repository
 
-    if args.nemo_checkpoint is None and not os.path.isdir(args.trt_llm_folder):
+    if args.nemo_checkpoint is None and not os.path.isdir(args.triton_model_repository):
         logging.error(
-            "The provided trt_llm_folder is not a valid TensorRT-LLM model "
+            "The provided model repository is not a valid TensorRT-LLM model "
             "directory. Please provide a --nemo_checkpoint."
         )
+        return
 
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
 
     if args.nemo_checkpoint is not None:
-        trt_llm_exporter.export(
-            nemo_checkpoint_path=args.nemo_checkpoint,
-            model_type=args.model_type,
-            n_gpus=args.num_gpus,
-            max_input_token=args.max_input_len,
-            max_output_token=args.max_output_len,
-            max_batch_size=args.max_batch_size,
-        )
-
-    nm = DeployPyTriton(
-        model=trt_llm_exporter,
-        triton_model_name=args.triton_model_name,
-        triton_model_version=args.triton_model_version,
-        max_batch_size=args.max_batch_size,
-        port=args.triton_port,
-        http_address=args.triton_http_address,
-    )
-    
-    nm.deploy()
+        try:
+            logging.info("Export operation will be started to export the nemo checkpoint to TensorRT-LLM.")
+            trt_llm_exporter.export(
+                nemo_checkpoint_path=args.nemo_checkpoint,
+                model_type=args.model_type,
+                n_gpus=args.num_gpus,
+                max_input_token=args.max_input_len,
+                max_output_token=args.max_output_len,
+                max_batch_size=args.max_batch_size,
+            )
+        except Exception as error:
+            logging.error("An error has occurred during the model export. Error message: " + str(error))
+            return
 
     try:
-        logging.info("Triton deploy function is called.")
+        nm = DeployPyTriton(
+            model=trt_llm_exporter,
+            triton_model_name=args.triton_model_name,
+            triton_model_version=args.triton_model_version,
+            max_batch_size=args.max_batch_size,
+            port=args.triton_port,
+            http_address=args.triton_http_address,
+        )
+
+        logging.info("Triton deploy function will be called.")
+        nm.deploy()
+    except Exception as error:
+        logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+        return
+
+    try:
+        logging.info("Model serving on Triton is will be started.")
         nm.serve()
-    except:
-        logging.info("An error has occurred and will stop serving the model.")
+    except Exception as error:
+        logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+        return
 
     logging.info("Model serving will be stopped.")
     nm.stop()
