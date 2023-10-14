@@ -117,16 +117,16 @@ def main():
                 continue
 
             if item not in avg_weights:
-                logging.info(f"Initialized average state dict with checkpoint : {item}")
+                logging.info(f"Initialized average weights dict with: {item}")
                 avg_weights[item] = zarr.open(os.path.join(full_path, item), mode='r')
             else:
-                logging.info(f"Updated average state dict with state from checkpoint : {item}")
+                logging.info(f"Updated average weights dict with weight: {item}")
                 array_z = zarr.open(os.path.join(full_path, item), mode='r')
                 sum_array = avg_weights[item][:] + array_z[:]
                 avg_weights[item] = zarr.array(sum_array, chunks=array_z.chunks, dtype=array_z.dtype)
 
     for k in avg_weights:
-        logging.info(f"Average state dict key : {k}, dtype : {avg_weights[k].dtype}, shape : {avg_weights[k].shape}")
+        logging.info(f"Average weights dict key : {k}, dtype : {avg_weights[k].dtype}, shape : {avg_weights[k].shape}")
         if str(avg_weights[k].dtype).startswith("int"):
             raise ValueError("Int type not supported")
         else:
@@ -157,7 +157,7 @@ def main():
             # copy directory
             shutil.copytree(item, os.path.join(ckpt_name, os.path.basename(item)), dirs_exist_ok=True)
 
-    logging.info(f"Averaged pytorch checkpoint saved as : {ckpt_name}")
+    logging.info(f"Averaged distributed checkpoint saved as : {ckpt_name}")
 
 
 if __name__ == '__main__':
