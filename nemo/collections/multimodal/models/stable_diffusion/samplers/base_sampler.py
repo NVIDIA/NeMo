@@ -279,8 +279,7 @@ class AbstractBaseSampler(ABC):
                         intermediates["x_inter"].append(img)
                         intermediates["pred_x0"].append(pred_x0)
             else:
-                print("i = ", i)
-                print("*"*50)
+
                 index = total_steps - i - 1
                 ts = torch.full((b,), step, device=device, dtype=torch.long)
                 if self.sampler is Sampler.PLMS:
