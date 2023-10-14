@@ -29,6 +29,7 @@ from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
 from nemo.collections.asr.parts.utils.offline_clustering import SpeakerClustering, get_argmin_mat, split_input_data
+from nemo.collections.asr.parts.utils.online_clustering import LongFormSpeakerClustering
 from nemo.utils import logging
 
 
@@ -465,6 +466,9 @@ def perform_clustering(
         cuda = False
 
     speaker_clustering = SpeakerClustering(cuda=cuda)
+    longform_speaker_clustering = LongFormSpeakerClustering(sub_cluster_n=clustering_params.sub_cluster_n, 
+                                                            unit_window_len=clustering_params.unit_window_len,
+                                                            cuda=cuda)
 
     # If True, export torch script module and save it to the base folder.
     if clustering_params.get('export_script_module', False):
@@ -483,7 +487,13 @@ def perform_clustering(
 
         base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
 
-        cluster_labels = speaker_clustering.forward_infer(
+        # Use long-form audio clustering if the segment count is larger than the unit window length.
+        if uniq_embs_and_timestamps['embeddings'].shape[0] > clustering_params.unit_window_len:
+            clustering = longform_speaker_clustering
+        else:
+            clustering = speaker_clustering
+        
+        cluster_labels = clustering.forward_infer(
             embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
             timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
             multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
@@ -499,8 +509,8 @@ def perform_clustering(
             torch.cuda.empty_cache()
         else:
             gc.collect()
-
-        timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
+        timestamps = clustering.timestamps_in_scales[base_scale_idx]
+        
         cluster_labels = cluster_labels.cpu().numpy()
         if len(cluster_labels) != timestamps.shape[0]:
             raise ValueError("Mismatch of length between cluster_labels and timestamps.")
