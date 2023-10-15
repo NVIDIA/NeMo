@@ -65,7 +65,6 @@ def main():
 
     if args.steps is not None:
         logging.info(f"Will average only steps {args.steps}")
-        steps = args.steps
 
     # repeating for all ranks
 
@@ -77,12 +76,10 @@ def main():
         if args.steps is None:
             checkpoint_paths.append(ckpt_dir)
         else:
-            for step in steps:
+            for step in args.steps:
                 key = f"-step={step}-"
                 if key in ckpt_dir:
                     checkpoint_paths.append(ckpt_dir)
-
-    print(checkpoint_paths)
 
     n = len(checkpoint_paths)
     # initialize dict, will be used to store the weights that need to be averaged
@@ -93,7 +90,6 @@ def main():
     # item that needs to be copied to the new checkpoint folder
     copy_items = []
     for ix, path in enumerate(checkpoint_paths):
-        checkpoint_paths = []
         full_path = os.path.join(args.checkpoint_dir, path)
 
         for item in os.listdir(full_path):
@@ -138,7 +134,7 @@ def main():
     if args.steps is None:
         ckpt_name = os.path.join(args.checkpoint_dir, args.name_prefix + '-averaged')
     else:
-        steps_combined = '_'.join([str(x) for x in steps])
+        steps_combined = '_'.join([str(x) for x in args.steps])
         ckpt_name = os.path.join(args.checkpoint_dir, args.name_prefix + '-' + steps_combined + '-averaged')
 
     # save avg_weights
