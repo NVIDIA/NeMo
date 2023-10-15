@@ -12,16 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#############################
+# Visual Speech Recognition #
+#############################
+
 # CTC
 from nemo.collections.multimodal.speech_cv.models.visual_ctc_bpe_models import VisualEncDecCTCModelBPE
 from nemo.collections.multimodal.speech_cv.models.visual_ctc_models import VisualEncDecCTCModel
-from nemo.collections.multimodal.speech_cv.models.visual_hybrid_rnnt_ctc_bpe_models import (
-    VisualEncDecHybridRNNTCTCBPEModel,
-)
-
-# Hybrid CTC/RNN-T
-from nemo.collections.multimodal.speech_cv.models.visual_hybrid_rnnt_ctc_models import VisualEncDecHybridRNNTCTCModel
-from nemo.collections.multimodal.speech_cv.models.visual_rnnt_bpe_models import VisualEncDecRNNTBPEModel
-
 # RNN-T
 from nemo.collections.multimodal.speech_cv.models.visual_rnnt_models import VisualEncDecRNNTModel
+from nemo.collections.multimodal.speech_cv.models.visual_rnnt_bpe_models import VisualEncDecRNNTBPEModel
+# Hybrid CTC/RNN-T
+from nemo.collections.multimodal.speech_cv.models.visual_hybrid_rnnt_ctc_models import VisualEncDecHybridRNNTCTCModel
+from nemo.collections.multimodal.speech_cv.models.visual_hybrid_rnnt_ctc_bpe_models import VisualEncDecHybridRNNTCTCBPEModel
+
+###################################
+# Audio-Visual Speech Recognition #
+###################################
+
+# CTC
+from nemo.collections.multimodal.speech_cv.models.av_ctc_models import AudioVisualEncDecCTCModel
+from nemo.collections.multimodal.speech_cv.models.av_ctc_bpe_models import AudioVisualEncDecCTCModelBPE
+# RNN-T
+from nemo.collections.multimodal.speech_cv.models.av_rnnt_models import AudioVisualEncDecRNNTModel
+from nemo.collections.multimodal.speech_cv.models.av_rnnt_bpe_models import AudioVisualEncDecRNNTBPEModel
+# Hybrid CTC/RNN-T
+from nemo.collections.multimodal.speech_cv.models.av_hybrid_rnnt_ctc_models import AudioVisualEncDecHybridRNNTCTCModel
+from nemo.collections.multimodal.speech_cv.models.av_hybrid_rnnt_ctc_bpe_models import AudioVisualEncDecHybridRNNTCTCBPEModel

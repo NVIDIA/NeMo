@@ -20,20 +20,22 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
+from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.multimodal.speech_cv.data import video_to_text_dataset
-from nemo.collections.multimodal.speech_cv.models.visual_hybrid_rnnt_ctc_models import VisualEncDecHybridRNNTCTCModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
-__all__ = ['VisualEncDecHybridRNNTCTCBPEModel']
+from nemo.collections.multimodal.speech_cv.models.av_hybrid_rnnt_ctc_models import AudioVisualEncDecHybridRNNTCTCModel
+from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
+
+__all__ = ['AudioVisualEncDecHybridRNNTCTCBPEModel']
 
 
-class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMixin):
+class AudioVisualEncDecHybridRNNTCTCBPEModel(AudioVisualEncDecHybridRNNTCTCModel, ASRBPEMixin):
     """Base class for encoder decoder RNNT-based models with auxiliary CTC decoder/loss and subword tokenization."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -128,17 +130,21 @@ class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMi
         self.use_rnnt_decoder = True
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-        dataset = video_to_text_dataset.get_video_to_text_bpe_dataset_from_config(
+        dataset = audio_and_video_to_text_dataset.get_audio_and_video_to_text_bpe_dataset_from_config(
             config=config,
             local_rank=self.local_rank,
             global_rank=self.global_rank,
             world_size=self.world_size,
             tokenizer=self.tokenizer,
-            preprocessor_cfg=self.cfg.get("preprocessor", None),
+            preprocessor_cfg=self._cfg.get("preprocessor", None),
         )
 
         if dataset is None:
             return None
+
+        if isinstance(dataset, AudioToBPEDALIDataset):
+            # DALI Dataset implements dataloader interface
+            return dataset
 
         shuffle = config['shuffle']
         if config.get('is_tarred', False):
@@ -161,21 +167,21 @@ class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMi
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
-        Setup function for a temporary data loader which wraps the provided video file.
+        Setup function for a temporary data loader which wraps the provided audio file.
 
         Args:
             config: A python dictionary which contains the following keys:
-            paths2video_files: (a list) of paths to video files. The files should be relatively short fragments. \
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
                 Recommended length per file is between 5 and 25 seconds.
             batch_size: (int) batch size to use during inference. \
                 Bigger will result in better throughput performance but would use more memory.
-            temp_dir: (str) A temporary directory where the video manifest is temporarily
+            temp_dir: (str) A temporary directory where the audio manifest is temporarily
                 stored.
             num_workers: (int) number of workers. Depends of the batch_size and machine. \
                 0 - only the main process will load batches, 1 - one worker (not main process)
 
         Returns:
-            A pytorch DataLoader for the given video file(s).
+            A pytorch DataLoader for the given audio file(s).
         """
 
         if 'manifest_filepath' in config:
@@ -183,10 +189,11 @@ class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMi
             batch_size = config['batch_size']
         else:
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            batch_size = min(config['batch_size'], len(config['paths2video_files']))
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
 
         dl_config = {
             'manifest_filepath': manifest_filepath,
+            'sample_rate': self.audio_preprocessor._sample_rate,
             'batch_size': batch_size,
             'shuffle': False,
             'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
@@ -262,13 +269,13 @@ class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMi
 
         new_joint_config['num_classes'] = len(vocabulary)
         del self.joint
-        self.joint = VisualEncDecHybridRNNTCTCBPEModel.from_config_dict(new_joint_config)
+        self.joint = AudioVisualEncDecHybridRNNTCTCBPEModel.from_config_dict(new_joint_config)
 
         decoder_config = self.decoder.to_config_dict()
         new_decoder_config = copy.deepcopy(decoder_config)
         new_decoder_config.vocab_size = len(vocabulary)
         del self.decoder
-        self.decoder = VisualEncDecHybridRNNTCTCBPEModel.from_config_dict(new_decoder_config)
+        self.decoder = AudioVisualEncDecHybridRNNTCTCBPEModel.from_config_dict(new_decoder_config)
 
         del self.loss
         self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
@@ -332,7 +339,7 @@ class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMi
             ctc_decoder_config['num_classes'] = len(vocabulary)
 
             del self.ctc_decoder
-            self.ctc_decoder = VisualEncDecHybridRNNTCTCBPEModel.from_config_dict(ctc_decoder_config)
+            self.ctc_decoder = AudioVisualEncDecHybridRNNTCTCBPEModel.from_config_dict(ctc_decoder_config)
             del self.ctc_loss
             self.ctc_loss = CTCLoss(
                 num_classes=self.ctc_decoder.num_classes_with_blank - 1,

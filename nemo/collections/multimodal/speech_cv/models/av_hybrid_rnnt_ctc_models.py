@@ -23,19 +23,22 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
+from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
-from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin
+from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.multimodal.speech_cv.parts.mixins import InterCTCMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.collections.multimodal.speech_cv.models.visual_rnnt_models import VisualEncDecRNNTModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
 
-__all__ = ['VisualEncDecHybridRNNTCTCModel']
+from nemo.collections.multimodal.speech_cv.models.av_rnnt_models import AudioVisualEncDecRNNTModel
+
+__all__ = ['AudioVisualEncDecHybridRNNTCTCModel']
 
 
-class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
+class AudioVisualEncDecHybridRNNTCTCModel(AudioVisualEncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
     """Base class for hybrid RNNT/CTC models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -49,9 +52,9 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
             )
         with open_dict(self.cfg.aux_ctc):
             if "feat_in" not in self.cfg.aux_ctc.decoder or (
-                not self.cfg.aux_ctc.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+                not self.cfg.aux_ctc.decoder.feat_in and hasattr(self.audio_visual_encoder, '_feat_out')
             ):
-                self.cfg.aux_ctc.decoder.feat_in = self.encoder._feat_out
+                self.cfg.aux_ctc.decoder.feat_in = self.audio_visual_encoder._feat_out
             if "feat_in" not in self.cfg.aux_ctc.decoder or not self.cfg.aux_ctc.decoder.feat_in:
                 raise ValueError("param feat_in of the decoder's config is not set!")
 
@@ -63,7 +66,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
                 )
                 self.cfg.aux_ctc.decoder["num_classes"] = len(self.cfg.aux_ctc.decoder.vocabulary)
 
-        self.ctc_decoder = VisualEncDecHybridRNNTCTCModel.from_config_dict(self.cfg.aux_ctc.decoder)
+        self.ctc_decoder = AudioVisualEncDecRNNTModel.from_config_dict(self.cfg.aux_ctc.decoder)
         self.ctc_loss_weight = self.cfg.aux_ctc.get("ctc_loss_weight", 0.5)
 
         self.ctc_loss = CTCLoss(
@@ -90,30 +93,36 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         self.use_rnnt_decoder = True
 
         # setting up interCTC loss (from InterCTCMixin)
-        self.setup_interctc(decoder_name='decoder', loss_name='loss', wer_name='_wer')
+        self.setup_interctc()
 
     @torch.no_grad()
     def transcribe(
         self,
+        paths2audio_files: List[str],
         paths2video_files: List[str],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
+        augmentor: DictConfig = None,
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
-        Uses greedy decoding to transcribe video files. Use this method for debugging and prototyping.
+        Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
 
-        paths2video_files: (a list) of paths to video files.
+        paths2audio_files: (a list) of paths to audio files. \
+            Recommended length per file is between 5 and 25 seconds. \
+            But it is possible to pass a few hours long file if enough GPU memory is available.
+        paths2video_files: (a list) of paths to video files. 
         batch_size: (int) batch size to use during inference. \
         Bigger will result in better throughput performance but would use more memory.
             return_hypotheses: (bool) Either return hypotheses or text
         With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
 
         Returns:
             Returns a tuple of 2 items -
@@ -122,32 +131,41 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         """
         if self.use_rnnt_decoder:
             return super().transcribe(
+                paths2audio_files=paths2audio_files,
                 paths2video_files=paths2video_files,
                 batch_size=batch_size,
                 return_hypotheses=return_hypotheses,
                 partial_hypothesis=partial_hypothesis,
                 num_workers=num_workers,
                 channel_selector=channel_selector,
+                augmentor=augmentor
             )
 
-        if paths2video_files is None or len(paths2video_files) == 0:
+        if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
+
+        # Paths lists must have same length
+        assert len(paths2audio_files) == len(paths2video_files)
+
         # We will store transcriptions here
         hypotheses = []
         all_hypotheses = []
         # Model's mode and device
         mode = self.training
         device = next(self.parameters()).device
+        dither_value = self.audio_preprocessor.featurizer.dither
+        pad_to_value = self.audio_preprocessor.featurizer.pad_to
 
         if num_workers is None:
             num_workers = min(batch_size, os.cpu_count() - 1)
 
         try:
+            self.audio_preprocessor.featurizer.dither = 0.0
+            self.audio_preprocessor.featurizer.pad_to = 0
 
             # Switch model to evaluation mode
             self.eval()
-            # Freeze the visual front-end, encoder and decoder modules
-            self.video_front_end.freeze()
+            # Freeze the encoder and decoder modules
             self.encoder.freeze()
             self.decoder.freeze()
             self.joint.freeze()
@@ -159,12 +177,12 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
-                    for video_file in paths2video_files:
-                        entry = {'video_filepath': video_file, 'duration': 100000, 'text': ''}
+                    for audio_file, video_file in zip(paths2audio_files, paths2video_files):
+                        entry = {'audio_filepath': audio_file, 'video_filepath': video_file, 'duration': 100000, 'text': ''}
                         fp.write(json.dumps(entry) + '\n')
 
                 config = {
-                    'paths2video_files': paths2video_files,
+                    'paths2audio_files': paths2audio_files,
                     'batch_size': batch_size,
                     'temp_dir': tmpdir,
                     'num_workers': num_workers,
@@ -200,10 +218,11 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         finally:
             # set mode back to its original value
             self.train(mode=mode)
+            self.audio_preprocessor.featurizer.dither = dither_value
+            self.audio_preprocessor.featurizer.pad_to = pad_to_value
 
             logging.set_verbosity(logging_level)
             if mode is True:
-                self.video_front_end.unfreeze()
                 self.encoder.unfreeze()
                 self.decoder.unfreeze()
                 self.joint.unfreeze()
@@ -250,7 +269,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
                 new_decoder_config['num_classes'] = len(new_vocabulary)
 
                 del self.ctc_decoder
-                self.ctc_decoder = VisualEncDecHybridRNNTCTCModel.from_config_dict(new_decoder_config)
+                self.ctc_decoder = AudioVisualEncDecHybridRNNTCTCModel.from_config_dict(new_decoder_config)
                 del self.ctc_loss
                 self.ctc_loss = CTCLoss(
                     num_classes=self.ctc_decoder.num_classes_with_blank - 1,
@@ -343,11 +362,21 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True)
 
-        signal, signal_len, transcript, transcript_len = batch
+        audio_signal, audio_signal_len, video_signal, video_signal_len, transcript, transcript_len = batch
 
         # forward() only performs encoder forward
-        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
-        del signal
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            encoded, encoded_len = self.forward(
+                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        else:
+            encoded, encoded_len = self.forward(
+                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        del audio_signal
+        del video_signal
 
         # During training, loss must be computed, so decoder forward is necessary
         decoder, target_length, states = self.decoder(targets=transcript, target_length=transcript_len)
@@ -371,7 +400,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
             loss_value = self.add_auxiliary_losses(loss_value)
 
             # Reset access registry
-            # if AccessMixin.is_access_enabled():
+            #if AccessMixin.is_access_enabled():
             #    AccessMixin.reset_registry(self)
 
             tensorboard_logs = {
@@ -407,7 +436,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
             loss_value = self.add_auxiliary_losses(loss_value)
 
             # Reset access registry
-            # if AccessMixin.is_access_enabled():
+            #if AccessMixin.is_access_enabled():
             #    AccessMixin.reset_registry(self)
 
             tensorboard_logs = {
@@ -461,11 +490,21 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         # TODO: add support for CTC decoding
-        signal, signal_len, transcript, transcript_len, sample_id = batch
+        audio_signal, audio_signal_len, video_signal, video_signal_len, transcript, transcript_len, sample_id = batch
 
         # forward() only performs encoder forward
-        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
-        del signal
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            encoded, encoded_len = self.forward(
+                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        else:
+            encoded, encoded_len = self.forward(
+                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        del audio_signal
+        del video_signal
 
         best_hyp_text, all_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
             encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
@@ -478,11 +517,21 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True)
 
-        signal, signal_len, transcript, transcript_len = batch
+        audio_signal, audio_signal_len, video_signal, video_signal_len, transcript, transcript_len = batch
 
         # forward() only performs encoder forward
-        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
-        del signal
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            encoded, encoded_len = self.forward(
+                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        else:
+            encoded, encoded_len = self.forward(
+                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        del audio_signal
+        del video_signal
 
         tensorboard_logs = {}
 
@@ -569,10 +618,6 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
         test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
-        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
-            self.test_step_outputs[dataloader_idx].append(test_logs)
-        else:
-            self.test_step_outputs.append(test_logs)
         return test_logs
 
     """

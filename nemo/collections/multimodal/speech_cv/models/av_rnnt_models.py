@@ -24,24 +24,26 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
+from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
+from nemo.collections.asr.losses.rnnt import resolve_rnnt_default_loss_name
+from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.collections.multimodal.speech_cv.data import video_to_text_dataset
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
-from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, VideoSignal
+from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
-__all__ = ['VisualEncDecRNNTModel']
+from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
+
+__all__ = ['AudioVisualEncDecRNNTModel']
 
 
-class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
+class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
     """Base class for encoder decoder RNNT-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -54,16 +56,26 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Preprocessors
-        self.video_preprocessor = VisualEncDecRNNTModel.from_config_dict(self._cfg.video_preprocessor)
+        self.audio_preprocessor = AudioVisualEncDecRNNTModel.from_config_dict(self._cfg.audio_preprocessor)
+        self.video_preprocessor = AudioVisualEncDecRNNTModel.from_config_dict(self._cfg.video_preprocessor)
 
         # Augmentations
-        self.video_augmentation = VisualEncDecRNNTModel.from_config_dict(self._cfg.video_augment)
+        self.audio_augmentation = AudioVisualEncDecRNNTModel.from_config_dict(self._cfg.audio_augment)
+        self.video_augmentation = AudioVisualEncDecRNNTModel.from_config_dict(self._cfg.video_augment)
 
         # Front-end Networks
-        self.video_front_end = VisualEncDecRNNTModel.from_config_dict(self._cfg.video_front_end)
+        self.audio_front_end = AudioVisualEncDecRNNTModel.from_config_dict(self._cfg.audio_front_end)
+        self.video_front_end = AudioVisualEncDecRNNTModel.from_config_dict(self._cfg.video_front_end)
 
         # Back-end Networks
-        self.encoder = VisualEncDecRNNTModel.from_config_dict(self._cfg.encoder)
+        self.audio_back_end = AudioVisualEncDecRNNTModel.from_config_dict(self._cfg.audio_back_end)
+        self.video_back_end = AudioVisualEncDecRNNTModel.from_config_dict(self._cfg.video_back_end)
+
+        # Audio-Visual Fusion Module
+        self.fusion_module = AudioVisualEncDecRNNTModel.from_config_dict(self._cfg.fusion_module)
+
+        # Audio-Visual Encoder
+        self.audio_visual_encoder = AudioVisualEncDecRNNTModel.from_config_dict(self._cfg.audio_visual_encoder)
 
         # Update config values required by components dynamically
         with open_dict(self.cfg.decoder):
@@ -75,8 +87,8 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             self.cfg.joint.jointnet.encoder_hidden = self.cfg.model_defaults.enc_hidden
             self.cfg.joint.jointnet.pred_hidden = self.cfg.model_defaults.pred_hidden
 
-        self.decoder = VisualEncDecRNNTModel.from_config_dict(self.cfg.decoder)
-        self.joint = VisualEncDecRNNTModel.from_config_dict(self.cfg.joint)
+        self.decoder = AudioVisualEncDecRNNTModel.from_config_dict(self.cfg.decoder)
+        self.joint = AudioVisualEncDecRNNTModel.from_config_dict(self.cfg.joint)
 
         # Setup RNNT Loss
         loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
@@ -87,6 +99,11 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             loss_kwargs=loss_kwargs,
             reduction=self.cfg.get("rnnt_reduction", "mean_batch"),
         )
+
+        if hasattr(self.cfg, 'spec_augment') and self._cfg.spec_augment is not None:
+            self.spec_augmentation = AudioVisualEncDecRNNTModel.from_config_dict(self.cfg.spec_augment)
+        else:
+            self.spec_augmentation = None
 
         # Setup decoding objects
         self.decoding = RNNTDecoding(
@@ -215,6 +232,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
     @torch.no_grad()
     def transcribe(
         self,
+        paths2audio_files: List[str],
         paths2video_files: List[str],
         batch_size: int = 4,
         return_hypotheses: bool = False,
@@ -224,11 +242,14 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         augmentor: DictConfig = None,
     ) -> Tuple[List[str], Optional[List['Hypothesis']]]:
         """
-        Uses greedy decoding to transcribe video files. Use this method for debugging and prototyping.
+        Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
 
-        paths2video_files: (a list) of paths to video files.
+        paths2audio_files: (a list) of paths to audio files. \
+            Recommended length per file is between 5 and 25 seconds. \
+            But it is possible to pass a few hours long file if enough GPU memory is available.
+        paths2video_files: (a list) of paths to video files. 
         batch_size: (int) batch size to use during inference. \
         Bigger will result in better throughput performance but would use more memory.
             return_hypotheses: (bool) Either return hypotheses or text
@@ -241,25 +262,37 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             * A list of greedy transcript texts / Hypothesis
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
-        if paths2video_files is None or len(paths2video_files) == 0:
+        if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
+
+        # Paths lists must have same length
+        assert len(paths2audio_files) == len(paths2video_files)
+
         # We will store transcriptions here
         hypotheses = []
         all_hypotheses = []
         # Model's mode and device
         mode = self.training
         device = next(self.parameters()).device
+        dither_value = self.audio_preprocessor.featurizer.dither
+        pad_to_value = self.audio_preprocessor.featurizer.pad_to
 
         if num_workers is None:
             num_workers = min(batch_size, os.cpu_count() - 1)
 
         try:
+            self.audio_preprocessor.featurizer.dither = 0.0
+            self.audio_preprocessor.featurizer.pad_to = 0
 
             # Switch model to evaluation mode
             self.eval()
-            # Freeze the visual front-end, encoder and decoder modules
+            # Freeze the encoder and decoder modules
+            #self.audio_front_end.freeze()
             self.video_front_end.freeze()
-            self.encoder.freeze()
+            self.audio_back_end.freeze()
+            self.video_back_end.freeze()
+            self.fusion_module.freeze()
+            self.audio_visual_encoder.freeze()
             self.decoder.freeze()
             self.joint.freeze()
             logging_level = logging.get_verbosity()
@@ -267,12 +300,12 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
-                    for video_file in paths2video_files:
-                        entry = {'video_filepath': video_file, 'duration': 100000, 'text': ''}
+                    for audio_file, video_file in zip(paths2audio_files, paths2video_files):
+                        entry = {'audio_filepath': audio_file, 'video_filepath': video_file, 'duration': 100000, 'text': ''}
                         fp.write(json.dumps(entry) + '\n')
 
                 config = {
-                    'paths2video_files': paths2video_files,
+                    'paths2audio_files': paths2audio_files,
                     'batch_size': batch_size,
                     'temp_dir': tmpdir,
                     'num_workers': num_workers,
@@ -285,7 +318,8 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     encoded, encoded_len = self.forward(
-                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                        input_audio_signal=test_batch[0].to(device), input_audio_signal_length=test_batch[1].to(device),
+                        input_video_signal=test_batch[2].to(device), input_video_signal_length=test_batch[3].to(device)
                     )
                     best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
                         encoded,
@@ -305,11 +339,17 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         finally:
             # set mode back to its original value
             self.train(mode=mode)
+            self.audio_preprocessor.featurizer.dither = dither_value
+            self.audio_preprocessor.featurizer.pad_to = pad_to_value
 
             logging.set_verbosity(logging_level)
             if mode is True:
+                #self.audio_front_end.unfreeze()
                 self.video_front_end.unfreeze()
-                self.encoder.unfreeze()
+                self.audio_back_end.unfreeze()
+                self.video_back_end.unfreeze()
+                self.fusion_module.unfreeze()
+                self.audio_visual_encoder.unfreeze()
                 self.decoder.unfreeze()
                 self.joint.unfreeze()
         return hypotheses, all_hypotheses
@@ -341,13 +381,13 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             new_joint_config['vocabulary'] = new_vocabulary
             new_joint_config['num_classes'] = len(new_vocabulary)
             del self.joint
-            self.joint = VisualEncDecRNNTModel.from_config_dict(new_joint_config)
+            self.joint = AudioVisualEncDecRNNTModel.from_config_dict(new_joint_config)
 
             decoder_config = self.decoder.to_config_dict()
             new_decoder_config = copy.deepcopy(decoder_config)
             new_decoder_config.vocab_size = len(new_vocabulary)
             del self.decoder
-            self.decoder = VisualEncDecRNNTModel.from_config_dict(new_decoder_config)
+            self.decoder = AudioVisualEncDecRNNTModel.from_config_dict(new_decoder_config)
 
             del self.loss
             loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get('loss', None))
@@ -446,18 +486,23 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         # Automatically inject args from model config to dataloader config
-        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
-        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
-        dataset = video_to_text_dataset.get_video_to_text_bpe_dataset_from_config(
+        audio_and_video_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
+        audio_and_video_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
+        dataset = audio_and_video_to_text_dataset.get_audio_to_text_char_dataset_from_config(
             config=config,
             local_rank=self.local_rank,
             global_rank=self.global_rank,
             world_size=self.world_size,
-            preprocessor_cfg=self._cfg.get("preprocessor", None),
+            audio_preprocessor_cfg=self._cfg.get("audio_preprocessor", None),
+            video_preprocessor_cfg=self._cfg.get("video_preprocessor", None)
         )
 
         if dataset is None:
             return None
+
+        if isinstance(dataset, AudioToCharDALIDataset):
+            # DALI Dataset implements dataloader interface
+            return dataset
 
         shuffle = config['shuffle']
         if config.get('is_tarred', False):
@@ -487,9 +532,10 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 of an ASR Training dataset.
 
         Supported Datasets:
-            -   :class:`~nemo.collections.multimodal.speech_cv.data.video_to_text.VideoToCharDataset`
-            -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioAndVideoToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioAndVideoToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioAndVideoToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioAndVideoToBPEDataset`
         """
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
@@ -526,9 +572,10 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 of an ASR Training dataset.
 
         Supported Datasets:
-            -   :class:`~nemo.collections.multimodal.speech_cv.data.video_to_text.VideoToCharDataset`
-            -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioAndVideoToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioAndVideoToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioAndVideoToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioAndVideoToBPEDataset`
         """
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
@@ -547,9 +594,10 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 of an ASR Training dataset.
 
         Supported Datasets:
-            -   :class:`~nemo.collections.multimodal.speech_cv.data.video_to_text.VideoToCharDataset`
-            -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioAndVideoToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioAndVideoToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioAndVideoToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioAndVideoToBPEDataset`
         """
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
@@ -561,10 +609,18 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        if hasattr(self.audio_preprocessor, '_sample_rate'):
+            input_signal_eltype = AudioSignal(freq=self.audio_preprocessor._sample_rate)
+        else:
+            input_signal_eltype = AudioSignal()
 
         return {
-            "input_signal": NeuralType(('B', 'C', 'T', 'H', 'W'), VideoSignal(), optional=True),
-            "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "input_audio_signal": NeuralType(('B', 'T'), input_signal_eltype, optional=True),
+            "input_audio_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "input_video_signal": NeuralType(('B', 'C', 'T', 'H', 'W'), input_signal_eltype, optional=True),
+            "input_video_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
+            "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True)
         }
 
     @property
@@ -575,10 +631,15 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         }
 
     @typecheck()
-    def forward(self, input_signal=None, input_signal_length=None):
+    def forward(
+        self, 
+        input_audio_signal=None, input_audio_signal_length=None, 
+        input_video_signal=None, input_video_signal_length=None,
+        processed_audio_signal=None, processed_audio_signal_length=None
+    ):
         """
         Forward pass of the model. Note that for RNNT Models, the forward pass of the model is a 3 step process,
-        and this method only performs the first step - forward of the acoustic/visual model.
+        and this method only performs the first step - forward of the acoustic model.
 
         Please refer to the `training_step` in order to see the full `forward` step for training - which
         performs the forward of the acoustic model, the prediction network and then the joint network.
@@ -589,34 +650,52 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         Finally, it computes the decoded tokens via the `decoding` step and possibly compute the batch metrics.
 
         Args:
-            input_signal: Tensor that represents a batch of video signals,
-                of shape [B, T, H, W, C]. T here represents timesteps, H height, W width and C channels
-            input_signal_length: Vector of length B, that contains the individual lengths of the video
+            input_signal: Tensor that represents a batch of raw audio signals,
+                of shape [B, T]. T here represents timesteps, with 1 second of audio represented as
+                `self.sample_rate` number of floating point values.
+            input_signal_length: Vector of length B, that contains the individual lengths of the audio
                 sequences.
+            processed_signal: Tensor that represents a batch of processed audio signals,
+                of shape (B, D, T) that has undergone processing via some DALI preprocessor.
+            processed_signal_length: Vector of length B, that contains the individual lengths of the
+                processed audio sequences.
 
         Returns:
             A tuple of 2 elements -
             1) The log probabilities tensor of shape [B, T, D].
             2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
         """
+        has_input_audio_signal = input_audio_signal is not None and input_audio_signal_length is not None
+        has_processed_audio_signal = processed_audio_signal is not None and processed_audio_signal_length is not None
+        if (has_input_audio_signal ^ has_processed_audio_signal) == False:
+            raise ValueError(
+                f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
+                " with ``processed_signal`` and ``processed_signal_len`` arguments."
+            )
 
         # Preprocessing
-        processed_video_signal, processed_video_signal_length = self.video_preprocessor(
-            input_signal=input_signal, length=input_signal_length
-        )
+        if not has_processed_audio_signal:
+            processed_audio_signal, processed_audio_signal_length = self.audio_preprocessor(input_signal=input_audio_signal, length=input_audio_signal_length)
+        processed_video_signal, processed_video_signal_length = self.video_preprocessor(input_signal=input_video_signal, length=input_video_signal_length)
 
         # Augmentation
-        processed_video_signal = self.video_augmentation(
-            input_signal=processed_video_signal, length=processed_video_signal_length
-        )
+        if self.training:
+            processed_audio_signal = self.audio_augmentation(input_spec=processed_audio_signal, length=processed_audio_signal_length)
+        processed_video_signal = self.video_augmentation(input_signal=processed_video_signal, length=processed_video_signal_length)
 
         # Front-end Networks
-        processed_video_signal, processed_video_signal_length = self.video_front_end(
-            input_signal=processed_video_signal, length=processed_video_signal_length
-        )
+        processed_audio_signal, processed_audio_signal_length = self.audio_front_end(processed_audio_signal), processed_audio_signal_length
+        processed_video_signal, processed_video_signal_length = self.video_front_end(input_signal=processed_video_signal), processed_video_signal_length
 
         # Back-end Networks
-        encoded, encoded_len = self.encoder(audio_signal=processed_video_signal, length=processed_video_signal_length)
+        processed_audio_signal, processed_audio_signal_length = self.audio_back_end(audio_signal=processed_audio_signal, length=processed_audio_signal_length)
+        processed_video_signal, processed_video_signal_length = self.video_back_end(audio_signal=processed_video_signal, length=processed_video_signal_length)
+
+        # Audio-Visual Fusion Module
+        (processed_signal, self.audio_dropped, self.video_dropped), processed_signal_length = self.fusion_module(processed_audio_signal, processed_video_signal), processed_video_signal_length
+
+        # Audio-Visual Encoder
+        encoded, encoded_len = self.audio_visual_encoder(audio_signal=processed_signal, length=processed_signal_length)
 
         return encoded, encoded_len
 
@@ -626,11 +705,21 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
 
-        signal, signal_len, transcript, transcript_len = batch
+        audio_signal, audio_signal_len, video_signal, video_signal_len, transcript, transcript_len = batch
 
         # forward() only performs encoder forward
-        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
-        del signal
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            encoded, encoded_len = self.forward(
+                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        else:
+            encoded, encoded_len = self.forward(
+                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        del audio_signal
+        del video_signal
 
         # During training, loss must be computed, so decoder forward is necessary
         decoder, target_length, states = self.decoder(targets=transcript, target_length=transcript_len)
@@ -712,11 +801,21 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         return {'loss': loss_value}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        signal, signal_len, transcript, transcript_len, sample_id = batch
+        audio_signal, audio_signal_len, video_signal, video_signal_len, transcript, transcript_len, sample_id = batch
 
         # forward() only performs encoder forward
-        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
-        del signal
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            encoded, encoded_len = self.forward(
+                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        else:
+            encoded, encoded_len = self.forward(
+                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        del audio_signal
+        del video_signal
 
         best_hyp_text, all_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
             encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
@@ -726,11 +825,21 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         return list(zip(sample_id, best_hyp_text))
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        signal, signal_len, transcript, transcript_len = batch
+        audio_signal, audio_signal_len, video_signal, video_signal_len, transcript, transcript_len = batch
 
         # forward() only performs encoder forward
-        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
-        del signal
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            encoded, encoded_len = self.forward(
+                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        else:
+            encoded, encoded_len = self.forward(
+                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+            )
+        del audio_signal
+        del video_signal
 
         tensorboard_logs = {}
 
@@ -820,29 +929,30 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
-        Setup function for a temporary data loader which wraps the provided video file.
+        Setup function for a temporary data loader which wraps the provided audio file.
 
         Args:
             config: A python dictionary which contains the following keys:
-            paths2video_files: (a list) of paths to video files. The files should be relatively short fragments. \
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
                 Recommended length per file is between 5 and 25 seconds.
             batch_size: (int) batch size to use during inference. \
                 Bigger will result in better throughput performance but would use more memory.
-            temp_dir: (str) A temporary directory where the video manifest is temporarily
+            temp_dir: (str) A temporary directory where the audio manifest is temporarily
                 stored.
 
         Returns:
-            A pytorch DataLoader for the given video file(s).
+            A pytorch DataLoader for the given audio file(s).
         """
         if 'manifest_filepath' in config:
             manifest_filepath = config['manifest_filepath']
             batch_size = config['batch_size']
         else:
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            batch_size = min(config['batch_size'], len(config['paths2video_files']))
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
 
         dl_config = {
             'manifest_filepath': manifest_filepath,
+            'sample_rate': self.audio_preprocessor._sample_rate,
             'labels': self.joint.vocabulary,
             'batch_size': batch_size,
             'trim_silence': False,
@@ -900,7 +1010,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     norm = param.grad.norm()
                     param.grad.data.div_(norm)
 
-    # EncDecRNNTModel is exported in 2 parts
+    # AudioVisualEncDecRNNTModel is exported in 2 parts
     def list_export_subnets(self):
         return ['encoder', 'decoder_joint']
 
