@@ -94,6 +94,9 @@ class VideoPreprocessor(NeuralModule):
 
 
 class NormalizeVideo(NeuralModule):
+
+    """ mean/std video normalization """
+    
     def __init__(self, mean, std):
         super().__init__()
 
@@ -112,6 +115,13 @@ class NormalizeVideo(NeuralModule):
 
 
 class ResizeVideo(NeuralModule):
+
+    """ Resize video spatial dimensions to new size 
+    
+        args:
+            size: (height, width)
+    """
+
     def __init__(self, size):
         super().__init__()
 

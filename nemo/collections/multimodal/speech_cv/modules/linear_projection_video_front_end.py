@@ -36,7 +36,8 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
         in_width: image width
         dim_output: output feature dimension for linear projection
         out_channels_first: Whether outputs should have channels_first format (Batch, Dout, Time) or channels_last (Batch, Time, Dout)
-        circle_crop: crop the image as a circle before the Linear layer, default to False
+        circle_crop: crop the image as a circle before the Linear layer, default to False.
+        Note: if the image is rectangular and not squared, the resulting crop will be oval and not circular
         circle_radius: the circle radius, default to 1 for full circle
     
     """
@@ -60,11 +61,10 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
         self.in_channels = in_channels
         self.circle_crop = circle_crop
         self.circle_radius = circle_radius
-        self.circle_indices = self.get_circle_indices()
 
         if self.dim_output is not None:
             if self.circle_crop:
-                self.linear_proj = nn.Linear(in_channels * len(self.circle_indices), dim_output)
+                self.linear_proj = nn.Linear(in_channels * len(self.get_circle_indices()), dim_output)
             else:
                 self.linear_proj = nn.Linear(in_channels * in_height * in_width, dim_output)
         else:
@@ -92,11 +92,14 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
 
     def get_circle_indices(self):
 
-        """ return image indices inside circle of radius circle_radius """
+        """ 
+            Return image indices inside circle of radius circle_radius.
+            Please note the circle is centered at (0,0), and the rectangle considered is [-1,1] x [-1,1]
+        """
 
         # Create linspace
-        linspace_height = (torch.linspace(0, 2, steps=self.in_height) - 1).abs()
-        linspace_width = (torch.linspace(0, 2, steps=self.in_width) - 1).abs()
+        linspace_height = torch.linspace(-1, 1, steps=self.in_height).abs()
+        linspace_width = torch.linspace(-1, 1, steps=self.in_width).abs()
 
         # Repeat linspace along height/width
         linspace_height = linspace_height.unsqueeze(dim=-1).repeat(1, self.in_width).flatten()
@@ -122,7 +125,7 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
             input_signal = input_signal.flatten(start_dim=2, end_dim=-2)
 
             # (B, T, H*W, C) -> (B, T, N circle, C)
-            input_signal = input_signal[:, :, self.circle_indices]
+            input_signal = input_signal[:, :, self.get_circle_indices()]
 
             # Flatten circle and channels (B, T, N circle, C) -> (B, T, N)
             input_signal = input_signal.flatten(start_dim=2, end_dim=-1)
@@ -134,9 +137,10 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
         # Project (B, T, N) -> (B, T, Dout)
         input_signal = self.linear_proj(input_signal)
 
-        # Transpose to channels_last format (Batch, Dout, Time) -> (Batch, Time, Dout)
+        # Transpose to channels_first format (Batch, Time, Dout) -> (Batch, Dout, Time)
         if self.out_channels_first:
             output_signal = input_signal.transpose(1, 2)
+            
         else:
             output_signal = input_signal
 

@@ -190,7 +190,7 @@ class VideoFrameMasking(NeuralModule):
     def __init__(self, T_second=0.4, num_mask_second=1.0, fps=25.0, mean_frame=True):
         super().__init__()
 
-        self.T = int(T_second * fps)
+        self.max_masked_frames = int(T_second * fps)
         self.num_mask_second = num_mask_second
         self.mean_frame = mean_frame
         self.fps = fps
@@ -214,10 +214,10 @@ class VideoFrameMasking(NeuralModule):
             for i in range(mT):
 
                 # Start left Frame
-                x_left = self.random.randint(0, length[b] - self.T)
+                x_left = self.random.randint(0, length[b] - self.max_masked_frames)
 
                 # Mask width
-                w = self.random.randint(0, self.T)
+                w = self.random.randint(0, self.max_masked_frames)
 
                 # Apply mask
                 input_signal[b, :, x_left : x_left + w] = mask_value

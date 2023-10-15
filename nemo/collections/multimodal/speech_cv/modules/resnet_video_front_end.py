@@ -77,8 +77,12 @@ class ResNetVideoFrontEnd(NeuralModule):
         # Front-End Network (Batch, Din, Time, Height, Width) -> (Batch, Dout, Time)
         input_signal = self.front_end(input_signal)
 
+        
+        if self.out_channels_first:
+            input_signal = input_signal
+            
         # Transpose to channels_last format (Batch, Dout, Time) -> (Batch, Time, Dout)
-        if not self.out_channels_first:
+        else:
             input_signal = input_signal.transpose(1, 2)
 
         return input_signal, length
