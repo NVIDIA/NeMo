@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.core.classes.module import NeuralModule
-from nemo.collections.asr.parts.utils.activations import Swish
-from torch import nn
 import torch
+from torch import nn
+
+from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.core.classes.module import NeuralModule
+
 
 class FusionModule(NeuralModule):
 
@@ -38,7 +40,19 @@ class FusionModule(NeuralModule):
     
     """
 
-    def __init__(self, a_dim_model, v_dim_model, f_dim_model, ff_ratio, fusion_type="concat", a_dropout=0.0, v_dropout=0.0, eval_a_dropout=0.0, eval_v_dropout=0.0, apply_ffn=True):
+    def __init__(
+        self,
+        a_dim_model,
+        v_dim_model,
+        f_dim_model,
+        ff_ratio,
+        fusion_type="concat",
+        a_dropout=0.0,
+        v_dropout=0.0,
+        eval_a_dropout=0.0,
+        eval_v_dropout=0.0,
+        apply_ffn=True,
+    ):
         super(FusionModule, self).__init__()
 
         assert fusion_type in ["concat", "sum"]
@@ -56,24 +70,20 @@ class FusionModule(NeuralModule):
 
         # Layers
         if self.apply_ffn:
-            self.layers = nn.Sequential(
-                nn.Linear(dim_in, dim_ffn),
-                Swish(),
-                nn.Linear(dim_ffn, dim_out),
-            )
+            self.layers = nn.Sequential(nn.Linear(dim_in, dim_ffn), Swish(), nn.Linear(dim_ffn, dim_out),)
 
         # Modality Dropout Train
         assert 0 <= a_dropout <= 1
         assert 0 <= v_dropout <= 1
         assert a_dropout + v_dropout <= 1
-        self.a_dropout = a_dropout 
+        self.a_dropout = a_dropout
         self.v_dropout = v_dropout
 
         # Modality Dropout Eval
         assert 0 <= eval_a_dropout <= 1
         assert 0 <= eval_v_dropout <= 1
         assert eval_a_dropout + eval_v_dropout <= 1
-        self.eval_a_dropout = eval_a_dropout 
+        self.eval_a_dropout = eval_a_dropout
         self.eval_v_dropout = eval_v_dropout
 
     def forward(self, audio_signal, video_signal):
@@ -108,7 +118,7 @@ class FusionModule(NeuralModule):
         else:
             audio_dropped = None
             video_dropped = None
-            
+
         # Fusion
         if self.fusion_type == "concat":
             x = torch.cat([audio_signal, video_signal], dim=1)

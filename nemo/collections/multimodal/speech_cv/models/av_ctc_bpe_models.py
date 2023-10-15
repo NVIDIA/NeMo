@@ -23,13 +23,13 @@ from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
+from nemo.collections.multimodal.speech_cv.models.av_ctc_models import AudioVisualEncDecCTCModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
-from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
-from nemo.collections.multimodal.speech_cv.models.av_ctc_models import AudioVisualEncDecCTCModel
-
 __all__ = ['AudioVisualEncDecCTCModelBPE']
+
 
 class AudioVisualEncDecCTCModelBPE(AudioVisualEncDecCTCModel, ASRBPEMixin):
     """Encoder decoder CTC-based models with Byte Pair Encoding."""

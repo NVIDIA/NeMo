@@ -26,11 +26,10 @@ from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
+from nemo.collections.multimodal.speech_cv.models.av_hybrid_rnnt_ctc_models import AudioVisualEncDecHybridRNNTCTCModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
-
-from nemo.collections.multimodal.speech_cv.models.av_hybrid_rnnt_ctc_models import AudioVisualEncDecHybridRNNTCTCModel
-from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
 
 __all__ = ['AudioVisualEncDecHybridRNNTCTCBPEModel']
 

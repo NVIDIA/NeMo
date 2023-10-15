@@ -140,7 +140,7 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
         # Transpose to channels_first format (Batch, Time, Dout) -> (Batch, Dout, Time)
         if self.out_channels_first:
             output_signal = input_signal.transpose(1, 2)
-            
+
         else:
             output_signal = input_signal
 

@@ -21,12 +21,11 @@ from omegaconf import DictConfig
 from omegaconf.listconfig import ListConfig
 from torch.utils.data import ChainDataset
 
-from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 from nemo.collections.asr.data import audio_to_text
+from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.utils import logging
-
 from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text
+from nemo.utils import logging
 
 
 def get_audio_and_video_to_text_bpe_dataset_from_config(
@@ -109,8 +108,14 @@ def get_audio_and_video_to_text_bpe_dataset_from_config(
             dataset = get_bpe_dataset(config=config, tokenizer=tokenizer, augmentor=augmentor)
     return dataset
 
+
 def get_audio_and_video_to_text_char_dataset_from_config(
-    config, local_rank: int, global_rank: int, world_size: int, audio_preprocessor_cfg: Optional[DictConfig] = None, video_preprocessor_cfg: Optional[DictConfig] = None
+    config,
+    local_rank: int,
+    global_rank: int,
+    world_size: int,
+    audio_preprocessor_cfg: Optional[DictConfig] = None,
+    video_preprocessor_cfg: Optional[DictConfig] = None,
 ):
     """
     Construct Audio-And-Video-To-Text Char dataset from a config.
@@ -182,6 +187,7 @@ def get_audio_and_video_to_text_char_dataset_from_config(
             dataset = get_char_dataset(config=config, augmentor=augmentor)
     return dataset
 
+
 def get_bpe_dataset(
     config: dict, tokenizer: 'TokenizerSpec', augmentor: Optional['AudioAugmentor'] = None
 ) -> audio_and_video_to_text.AudioAndVideoToBPEDataset:
@@ -212,7 +218,10 @@ def get_bpe_dataset(
     )
     return dataset
 
-def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None) -> audio_and_video_to_text.AudioAndVideoToCharDataset:
+
+def get_char_dataset(
+    config: dict, augmentor: Optional['AudioAugmentor'] = None
+) -> audio_and_video_to_text.AudioAndVideoToCharDataset:
     """
     Instantiates a Character Encoding based AudioAndVideoToCharDataset.
 
@@ -245,6 +254,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
     )
     return dataset
 
+
 def get_tarred_dataset(
     config: dict,
     shuffle_n: int,
@@ -252,7 +262,9 @@ def get_tarred_dataset(
     world_size: int,
     tokenizer: Optional['TokenizerSpec'] = None,
     augmentor: Optional['AudioAugmentor'] = None,
-) -> Union[audio_and_video_to_text.TarredAudioAndVideoToBPEDataset, audio_and_video_to_text.TarredAudioAndVideoToCharDataset]:
+) -> Union[
+    audio_and_video_to_text.TarredAudioAndVideoToBPEDataset, audio_and_video_to_text.TarredAudioAndVideoToCharDataset
+]:
     """
     Instantiates a Word Piece/BPE Encoding based TarredAudioAndVideoToBPEDataset or a char based TarredAudioAndVideoToCharDataset.
 
@@ -317,12 +329,11 @@ def get_tarred_dataset(
                 global_rank=global_rank,
                 world_size=world_size,
                 return_sample_id=config.get('return_sample_id', False),
-
                 # Align Audio to Video by pading one of the two signals for features fusion
                 align_audio_video=config.get('align_audio_video', True),
-                spec_pad_to=config.get('spec_pad_to', 0), # Spectrogram padding during audio preprocessing
-                hop_length=config.get('hop_length', 160), # hop_length of audio preprocessing
-                spec_down_factor=config.get('spec_down_factor', 2*2), # Downsampling factor of audio encoder
+                spec_pad_to=config.get('spec_pad_to', 0),  # Spectrogram padding during audio preprocessing
+                hop_length=config.get('hop_length', 160),  # hop_length of audio preprocessing
+                spec_down_factor=config.get('spec_down_factor', 2 * 2),  # Downsampling factor of audio encoder
             )
         else:
             dataset = audio_and_video_to_text.TarredAudioAndVideoToBPEDataset(
@@ -341,12 +352,11 @@ def get_tarred_dataset(
                 global_rank=global_rank,
                 world_size=world_size,
                 return_sample_id=config.get('return_sample_id', False),
-
                 # Align Audio to Video by pading one of the two signals for features fusion
                 align_audio_video=config.get('align_audio_video', True),
-                spec_pad_to=config.get('spec_pad_to', 0), # Spectrogram padding during audio preprocessing
-                hop_length=config.get('hop_length', 160), # hop_length of audio preprocessing
-                spec_down_factor=config.get('spec_down_factor', 2*2), # Downsampling factor of audio encoder
+                spec_pad_to=config.get('spec_pad_to', 0),  # Spectrogram padding during audio preprocessing
+                hop_length=config.get('hop_length', 160),  # hop_length of audio preprocessing
+                spec_down_factor=config.get('spec_down_factor', 2 * 2),  # Downsampling factor of audio encoder
             )
         if bucketing_weights:
             [datasets.append(dataset) for _ in range(bucketing_weights[dataset_idx])]

@@ -27,13 +27,12 @@ from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.multimodal.speech_cv.parts.mixins import InterCTCMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.multimodal.speech_cv.models.av_rnnt_models import AudioVisualEncDecRNNTModel
+from nemo.collections.multimodal.speech_cv.parts.mixins import InterCTCMixin
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
-
-from nemo.collections.multimodal.speech_cv.models.av_rnnt_models import AudioVisualEncDecRNNTModel
 
 __all__ = ['AudioVisualEncDecHybridRNNTCTCModel']
 
@@ -138,7 +137,7 @@ class AudioVisualEncDecHybridRNNTCTCModel(AudioVisualEncDecRNNTModel, ASRBPEMixi
                 partial_hypothesis=partial_hypothesis,
                 num_workers=num_workers,
                 channel_selector=channel_selector,
-                augmentor=augmentor
+                augmentor=augmentor,
             )
 
         if paths2audio_files is None or len(paths2audio_files) == 0:
@@ -178,7 +177,12 @@ class AudioVisualEncDecHybridRNNTCTCModel(AudioVisualEncDecRNNTModel, ASRBPEMixi
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
                     for audio_file, video_file in zip(paths2audio_files, paths2video_files):
-                        entry = {'audio_filepath': audio_file, 'video_filepath': video_file, 'duration': 100000, 'text': ''}
+                        entry = {
+                            'audio_filepath': audio_file,
+                            'video_filepath': video_file,
+                            'duration': 100000,
+                            'text': '',
+                        }
                         fp.write(json.dumps(entry) + '\n')
 
                 config = {
@@ -367,13 +371,17 @@ class AudioVisualEncDecHybridRNNTCTCModel(AudioVisualEncDecRNNTModel, ASRBPEMixi
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(
-                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                processed_audio_signal=audio_signal,
+                processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         else:
             encoded, encoded_len = self.forward(
-                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                input_audio_signal=audio_signal,
+                input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         del audio_signal
         del video_signal
@@ -400,7 +408,7 @@ class AudioVisualEncDecHybridRNNTCTCModel(AudioVisualEncDecRNNTModel, ASRBPEMixi
             loss_value = self.add_auxiliary_losses(loss_value)
 
             # Reset access registry
-            #if AccessMixin.is_access_enabled():
+            # if AccessMixin.is_access_enabled():
             #    AccessMixin.reset_registry(self)
 
             tensorboard_logs = {
@@ -436,7 +444,7 @@ class AudioVisualEncDecHybridRNNTCTCModel(AudioVisualEncDecRNNTModel, ASRBPEMixi
             loss_value = self.add_auxiliary_losses(loss_value)
 
             # Reset access registry
-            #if AccessMixin.is_access_enabled():
+            # if AccessMixin.is_access_enabled():
             #    AccessMixin.reset_registry(self)
 
             tensorboard_logs = {
@@ -495,13 +503,17 @@ class AudioVisualEncDecHybridRNNTCTCModel(AudioVisualEncDecRNNTModel, ASRBPEMixi
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(
-                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                processed_audio_signal=audio_signal,
+                processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         else:
             encoded, encoded_len = self.forward(
-                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                input_audio_signal=audio_signal,
+                input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         del audio_signal
         del video_signal
@@ -522,13 +534,17 @@ class AudioVisualEncDecHybridRNNTCTCModel(AudioVisualEncDecRNNTModel, ASRBPEMixi
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(
-                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                processed_audio_signal=audio_signal,
+                processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         else:
             encoded, encoded_len = self.forward(
-                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                input_audio_signal=audio_signal,
+                input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         del audio_signal
         del video_signal

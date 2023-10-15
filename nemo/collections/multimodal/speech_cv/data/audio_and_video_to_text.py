@@ -26,10 +26,16 @@ import webdataset as wd
 from torch.utils.data import ChainDataset
 from tqdm import tqdm
 
+from nemo.collections.asr.data.audio_to_text import (
+    ASRManifestProcessor,
+    cache_datastore_manifests,
+    expand_sharded_filepaths,
+)
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
+from nemo.collections.multimodal.speech_cv.parts.preprocessing.features import VideoFeaturizer
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
@@ -42,8 +48,6 @@ from nemo.utils.data_utils import (
 )
 from nemo.utils.get_rank import is_global_rank_zero
 
-from nemo.collections.multimodal.speech_cv.parts.preprocessing.features import VideoFeaturizer
-from nemo.collections.asr.data.audio_to_text import ASRManifestProcessor, cache_datastore_manifests, expand_sharded_filepaths
 
 def _audio_video_speech_collate_fn(batch, pad_id):
     """collate batch of audio sig, audio len, video sig, video len, tokens, tokens len
@@ -134,6 +138,7 @@ def _audio_video_speech_collate_fn(batch, pad_id):
         sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
         return audio_signal, audio_lengths, video_signal, video_lengths, tokens, tokens_lengths, sample_ids
 
+
 class _AudioVideoTextDataset(Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio files, transcripts, and durations (in seconds).
@@ -219,20 +224,34 @@ class _AudioVideoTextDataset(Dataset):
     def align_audio_and_video(self, input_audio_signal, input_video_signal):
 
         # Align
-        Tv, H, W, C = input_video_signal.shape # (Tv, H, W, Cv)
-        Ta, = input_audio_signal.shape # (Ta,)
-        padding = Ta // (160*2*2) + 1 - Tv
+        Tv, H, W, C = input_video_signal.shape  # (Tv, H, W, Cv)
+        (Ta,) = input_audio_signal.shape  # (Ta,)
+        padding = Ta // (160 * 2 * 2) + 1 - Tv
         if padding >= 0:
             padding_left = padding // 2
             padding_right = padding // 2 + padding % 2
-            input_video_signal = torch.cat([input_video_signal.new_zeros(padding_left, H, W, C), input_video_signal, input_video_signal.new_zeros(padding_right, H, W, C)], dim=0)
+            input_video_signal = torch.cat(
+                [
+                    input_video_signal.new_zeros(padding_left, H, W, C),
+                    input_video_signal,
+                    input_video_signal.new_zeros(padding_right, H, W, C),
+                ],
+                dim=0,
+            )
         else:
-            padding = (Tv - 1) * (2*2*160) - Ta
+            padding = (Tv - 1) * (2 * 2 * 160) - Ta
             padding_left = padding // 2
             padding_right = padding // 2 + padding % 2
-            #print("padding:", input_audio_signal.shape, padding)
-            input_audio_signal = torch.cat([input_audio_signal.new_zeros(padding_left), input_audio_signal, input_audio_signal.new_zeros(padding_right)], dim=0)
-            #print("padding:", input_audio_signal.shape)
+            # print("padding:", input_audio_signal.shape, padding)
+            input_audio_signal = torch.cat(
+                [
+                    input_audio_signal.new_zeros(padding_left),
+                    input_audio_signal,
+                    input_audio_signal.new_zeros(padding_right),
+                ],
+                dim=0,
+            )
+            # print("padding:", input_audio_signal.shape)
 
         return input_audio_signal, input_video_signal
 
@@ -255,14 +274,10 @@ class _AudioVideoTextDataset(Dataset):
             orig_sr=sample.orig_sr,
             channel_selector=self.channel_selector,
         )
-        
+
         # Load Video
-        video_features = self.video_featurizer.process(
-            sample.video_file,
-            offset=offset,
-            duration=sample.duration,
-        )
-        
+        video_features = self.video_featurizer.process(sample.video_file, offset=offset, duration=sample.duration,)
+
         # Align Audio and Video Signal such that they have same length for concatenation
         audio_features, video_features = self.align_audio_and_video(audio_features, video_features)
 
@@ -285,6 +300,7 @@ class _AudioVideoTextDataset(Dataset):
 
     def _collate_fn(self, batch):
         return _audio_video_speech_collate_fn(batch, pad_id=self.manifest_processor.pad_id)
+
 
 class AVSRManifestProcessor:
     """
@@ -352,7 +368,8 @@ class AVSRManifestProcessor:
             tl += 1
 
         return t, tl
-    
+
+
 class AudioAndVideoToBPEDataset(_AudioVideoTextDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -469,6 +486,7 @@ class AudioAndVideoToBPEDataset(_AudioVideoTextDataset):
             channel_selector=channel_selector,
         )
 
+
 class AudioAndVideoToCharDataset(_AudioVideoTextDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -559,6 +577,7 @@ class AudioAndVideoToCharDataset(_AudioVideoTextDataset):
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
         )
+
 
 class _TarredAudioAndVideoToTextDataset(IterableDataset):
     """
@@ -670,11 +689,10 @@ class _TarredAudioAndVideoToTextDataset(IterableDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
-
         align_audio_video=True,
         spec_pad_to=0,
         hop_length=160,
-        spec_down_factor=2*2
+        spec_down_factor=2 * 2,
     ):
         # If necessary, cache manifests from object store
         cache_datastore_manifests(manifest_filepaths=manifest_filepath)
@@ -731,20 +749,34 @@ class _TarredAudioAndVideoToTextDataset(IterableDataset):
     def align_audio_and_video(self, input_audio_signal, input_video_signal):
 
         # Align
-        Tv, H, W, C = input_video_signal.shape # (Tv, H, W, Cv)
-        Ta, = input_audio_signal.shape # (Ta,)
-        padding = Ta // (160*2*2) + 1 - Tv
+        Tv, H, W, C = input_video_signal.shape  # (Tv, H, W, Cv)
+        (Ta,) = input_audio_signal.shape  # (Ta,)
+        padding = Ta // (160 * 2 * 2) + 1 - Tv
         if padding >= 0:
             padding_left = padding // 2
             padding_right = padding // 2 + padding % 2
-            input_video_signal = torch.cat([input_video_signal.new_zeros(padding_left, H, W, C), input_video_signal, input_video_signal.new_zeros(padding_right, H, W, C)], dim=0)
+            input_video_signal = torch.cat(
+                [
+                    input_video_signal.new_zeros(padding_left, H, W, C),
+                    input_video_signal,
+                    input_video_signal.new_zeros(padding_right, H, W, C),
+                ],
+                dim=0,
+            )
         else:
-            padding = (Tv - 1) * (2*2*160) - Ta
+            padding = (Tv - 1) * (2 * 2 * 160) - Ta
             padding_left = padding // 2
             padding_right = padding // 2 + padding % 2
-            #print("padding:", input_audio_signal.shape, padding)
-            input_audio_signal = torch.cat([input_audio_signal.new_zeros(padding_left), input_audio_signal, input_audio_signal.new_zeros(padding_right)], dim=0)
-            #print("padding:", input_audio_signal.shape)
+            # print("padding:", input_audio_signal.shape, padding)
+            input_audio_signal = torch.cat(
+                [
+                    input_audio_signal.new_zeros(padding_left),
+                    input_audio_signal,
+                    input_audio_signal.new_zeros(padding_right),
+                ],
+                dim=0,
+            )
+            # print("padding:", input_audio_signal.shape)
 
         return input_audio_signal, input_video_signal
 
@@ -896,7 +928,7 @@ class _TarredAudioAndVideoToTextDataset(IterableDataset):
 
         if video_features.shape[1:] == (1, 1, 3):
             print(audio_filename)
-            #raise Exception(audio_filename)
+            # raise Exception(audio_filename)
             print(audio_filename, flush=True)
             video_features = video_features.repeat(1, 96, 96, 1)
 
@@ -932,6 +964,7 @@ class _TarredAudioAndVideoToTextDataset(IterableDataset):
 
     def __len__(self):
         return len(self.manifest_processor.collection)
+
 
 class TarredAudioAndVideoToCharDataset(_TarredAudioAndVideoToTextDataset):
     """
@@ -1046,11 +1079,10 @@ class TarredAudioAndVideoToCharDataset(_TarredAudioAndVideoToTextDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
-
         align_audio_video=True,
-        spec_pad_to=0, # Spectrogram padding during audio preprocessing
-        hop_length=160, # hop_length of audio preprocessing
-        spec_down_factor=2*2, # Downsampling factor of audio encoder
+        spec_pad_to=0,  # Spectrogram padding during audio preprocessing
+        hop_length=160,  # hop_length of audio preprocessing
+        spec_down_factor=2 * 2,  # Downsampling factor of audio encoder
     ):
         self.labels = labels
 
@@ -1076,12 +1108,12 @@ class TarredAudioAndVideoToCharDataset(_TarredAudioAndVideoToTextDataset):
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=return_sample_id,
-
             align_audio_video=align_audio_video,
             spec_pad_to=spec_pad_to,
             hop_length=hop_length,
-            spec_down_factor=spec_down_factor
+            spec_down_factor=spec_down_factor,
         )
+
 
 class TarredAudioAndVideoToBPEDataset(_TarredAudioAndVideoToTextDataset):
     """
@@ -1180,11 +1212,10 @@ class TarredAudioAndVideoToBPEDataset(_TarredAudioAndVideoToTextDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
-
         align_audio_video=True,
-        spec_pad_to=0, # Spectrogram padding during audio preprocessing
-        hop_length=160, # hop_length of audio preprocessing
-        spec_down_factor=2*2, # Downsampling factor of audio encoder
+        spec_pad_to=0,  # Spectrogram padding during audio preprocessing
+        hop_length=160,  # hop_length of audio preprocessing
+        spec_down_factor=2 * 2,  # Downsampling factor of audio encoder
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -1237,9 +1268,8 @@ class TarredAudioAndVideoToBPEDataset(_TarredAudioAndVideoToTextDataset):
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=return_sample_id,
-
             align_audio_video=align_audio_video,
             spec_pad_to=spec_pad_to,
             hop_length=hop_length,
-            spec_down_factor=spec_down_factor
+            spec_down_factor=spec_down_factor,
         )

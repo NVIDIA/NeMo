@@ -43,12 +43,12 @@ class InterCTCMixin:
     """
 
     def _process_config_values(
-        self, 
-        a_loss_weights: List[float], 
+        self,
+        a_loss_weights: List[float],
         a_apply_at_layers: List[int],
-        v_loss_weights: List[float], 
+        v_loss_weights: List[float],
         v_apply_at_layers: List[int],
-        av_loss_weights: List[float], 
+        av_loss_weights: List[float],
         av_apply_at_layers: List[int],
         main_loss_weight=None,
     ):
@@ -62,7 +62,11 @@ class InterCTCMixin:
         self._av_apply_at_layers = av_apply_at_layers
 
         if main_loss_weight is None:
-            self._main_loss_weight = 1.0 - (0.5 * sum(self._a_intermediate_loss_weights) + 0.5 * sum(self._v_intermediate_loss_weights) + sum(self._av_intermediate_loss_weights))
+            self._main_loss_weight = 1.0 - (
+                0.5 * sum(self._a_intermediate_loss_weights)
+                + 0.5 * sum(self._v_intermediate_loss_weights)
+                + sum(self._av_intermediate_loss_weights)
+            )
             if self._main_loss_weight <= 0.0:
                 raise ValueError(
                     "Make sure that sum of intermediate loss weights is < 1.0. "
@@ -73,14 +77,30 @@ class InterCTCMixin:
                 )
         else:
             self._main_loss_weight = main_loss_weight
-        self._interctc_enabled = len(self._a_intermediate_loss_weights) > 0 or len(self._v_intermediate_loss_weights) > 0 or len(self._av_intermediate_loss_weights) > 0
+        self._interctc_enabled = (
+            len(self._a_intermediate_loss_weights) > 0
+            or len(self._v_intermediate_loss_weights) > 0
+            or len(self._av_intermediate_loss_weights) > 0
+        )
 
-        if len(self._a_apply_at_layers) != len(self._a_intermediate_loss_weights) or len(self._v_apply_at_layers) != len(self._v_intermediate_loss_weights) or len(self._av_apply_at_layers) != len(self._av_intermediate_loss_weights):
+        if (
+            len(self._a_apply_at_layers) != len(self._a_intermediate_loss_weights)
+            or len(self._v_apply_at_layers) != len(self._v_intermediate_loss_weights)
+            or len(self._av_apply_at_layers) != len(self._av_intermediate_loss_weights)
+        ):
             raise ValueError('Length of interctc.apply_at_layers has to match interctc.loss_weights')
 
         # setting up config for AccessMixin that will be checked in encoders to
         # log the layers we need
-        AccessMixin.update_access_cfg({'interctc': {'capture_layers': list(set(self._a_apply_at_layers  + self._v_apply_at_layers + self._av_apply_at_layers))}})
+        AccessMixin.update_access_cfg(
+            {
+                'interctc': {
+                    'capture_layers': list(
+                        set(self._a_apply_at_layers + self._v_apply_at_layers + self._av_apply_at_layers)
+                    )
+                }
+            }
+        )
 
     def setup_interctc(self):
         """Sets up all interctc-specific parameters and checks config consistency."""
@@ -107,11 +127,19 @@ class InterCTCMixin:
         """Can be used to enable/disable InterCTC manually."""
         self._verify_setup_was_called()
         if enabled:  # checking if proper config parameters were specified
-            if len(self._a_intermediate_loss_weights) == 0 and len(self._v_intermediate_loss_weights) == 0 and len(self._av_intermediate_loss_weights) == 0:
+            if (
+                len(self._a_intermediate_loss_weights) == 0
+                and len(self._v_intermediate_loss_weights) == 0
+                and len(self._av_intermediate_loss_weights) == 0
+            ):
                 raise RuntimeError(
                     'InterCTC cannot be enabled since interctc.loss_weights was not specified in the config.'
                 )
-            if len(self._a_apply_at_layers) != len(self._a_intermediate_loss_weights) or len(self._v_apply_at_layers) != len(self._v_intermediate_loss_weights) or len(self._av_apply_at_layers) != len(self._av_intermediate_loss_weights):
+            if (
+                len(self._a_apply_at_layers) != len(self._a_intermediate_loss_weights)
+                or len(self._v_apply_at_layers) != len(self._v_intermediate_loss_weights)
+                or len(self._av_apply_at_layers) != len(self._av_intermediate_loss_weights)
+            ):
                 raise RuntimeError(
                     'InterCTC cannot be enabled, since length of "loss_weights" does not match "apply_at_layers".'
                 )
@@ -126,7 +154,6 @@ class InterCTCMixin:
         Note that ``metrics`` argument is going to be updated in-place.
         """
 
-        
         if self.is_interctc_enabled():
 
             # Audio
@@ -272,7 +299,7 @@ class InterCTCMixin:
                 raise RuntimeError(
                     "Make sure encoder.forward is called exactly one time before interCTC loss is computed."
                 )
-            av_captured_tensors.append((decoder(encoder_output=layer_outputs[0]), layer_lengths[0]))      
+            av_captured_tensors.append((decoder(encoder_output=layer_outputs[0]), layer_lengths[0]))
 
         return a_captured_tensors, v_captured_tensors, av_captured_tensors
 
@@ -358,7 +385,6 @@ class InterCTCMixin:
                 loss.reduction = loss_reduction
                 loss._apply_reduction = loss_apply_reduction
 
-            
             metrics[f"{log_prefix}inter_ctc_loss_l{layer_idx}_a"] = inter_loss_value.detach()
             loss_value += inter_loss_value * loss_weight
             if compute_wer:
@@ -378,7 +404,7 @@ class InterCTCMixin:
                             f'{log_prefix}inter_wer_denom_l{layer_idx}_a': wer_denom,
                         }
                     )
-            
+
         # Visual
         for layer_idx, intermediate_result, loss_weight in zip(
             self._v_apply_at_layers, v_captured_tensors, self._v_intermediate_loss_weights

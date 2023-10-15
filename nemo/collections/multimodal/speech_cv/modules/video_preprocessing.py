@@ -96,7 +96,7 @@ class VideoPreprocessor(NeuralModule):
 class NormalizeVideo(NeuralModule):
 
     """ mean/std video normalization """
-    
+
     def __init__(self, mean, std):
         super().__init__()
 

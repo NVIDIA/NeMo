@@ -25,20 +25,18 @@ from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
-from nemo.collections.asr.losses.rnnt import resolve_rnnt_default_loss_name
-from nemo.collections.asr.losses.rnnt import RNNTLoss
+from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-
-from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
 
 __all__ = ['AudioVisualEncDecRNNTModel']
 
@@ -287,7 +285,7 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             # Switch model to evaluation mode
             self.eval()
             # Freeze the encoder and decoder modules
-            #self.audio_front_end.freeze()
+            # self.audio_front_end.freeze()
             self.video_front_end.freeze()
             self.audio_back_end.freeze()
             self.video_back_end.freeze()
@@ -301,7 +299,12 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
                     for audio_file, video_file in zip(paths2audio_files, paths2video_files):
-                        entry = {'audio_filepath': audio_file, 'video_filepath': video_file, 'duration': 100000, 'text': ''}
+                        entry = {
+                            'audio_filepath': audio_file,
+                            'video_filepath': video_file,
+                            'duration': 100000,
+                            'text': '',
+                        }
                         fp.write(json.dumps(entry) + '\n')
 
                 config = {
@@ -318,8 +321,10 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     encoded, encoded_len = self.forward(
-                        input_audio_signal=test_batch[0].to(device), input_audio_signal_length=test_batch[1].to(device),
-                        input_video_signal=test_batch[2].to(device), input_video_signal_length=test_batch[3].to(device)
+                        input_audio_signal=test_batch[0].to(device),
+                        input_audio_signal_length=test_batch[1].to(device),
+                        input_video_signal=test_batch[2].to(device),
+                        input_video_signal_length=test_batch[3].to(device),
                     )
                     best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
                         encoded,
@@ -344,7 +349,7 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
             logging.set_verbosity(logging_level)
             if mode is True:
-                #self.audio_front_end.unfreeze()
+                # self.audio_front_end.unfreeze()
                 self.video_front_end.unfreeze()
                 self.audio_back_end.unfreeze()
                 self.video_back_end.unfreeze()
@@ -494,7 +499,7 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             global_rank=self.global_rank,
             world_size=self.world_size,
             audio_preprocessor_cfg=self._cfg.get("audio_preprocessor", None),
-            video_preprocessor_cfg=self._cfg.get("video_preprocessor", None)
+            video_preprocessor_cfg=self._cfg.get("video_preprocessor", None),
         )
 
         if dataset is None:
@@ -620,7 +625,7 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             "input_video_signal": NeuralType(('B', 'C', 'T', 'H', 'W'), input_signal_eltype, optional=True),
             "input_video_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
-            "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True)
+            "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -632,10 +637,13 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
     @typecheck()
     def forward(
-        self, 
-        input_audio_signal=None, input_audio_signal_length=None, 
-        input_video_signal=None, input_video_signal_length=None,
-        processed_audio_signal=None, processed_audio_signal_length=None
+        self,
+        input_audio_signal=None,
+        input_audio_signal_length=None,
+        input_video_signal=None,
+        input_video_signal_length=None,
+        processed_audio_signal=None,
+        processed_audio_signal_length=None,
     ):
         """
         Forward pass of the model. Note that for RNNT Models, the forward pass of the model is a 3 step process,
@@ -675,24 +683,45 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
         # Preprocessing
         if not has_processed_audio_signal:
-            processed_audio_signal, processed_audio_signal_length = self.audio_preprocessor(input_signal=input_audio_signal, length=input_audio_signal_length)
-        processed_video_signal, processed_video_signal_length = self.video_preprocessor(input_signal=input_video_signal, length=input_video_signal_length)
+            processed_audio_signal, processed_audio_signal_length = self.audio_preprocessor(
+                input_signal=input_audio_signal, length=input_audio_signal_length
+            )
+        processed_video_signal, processed_video_signal_length = self.video_preprocessor(
+            input_signal=input_video_signal, length=input_video_signal_length
+        )
 
         # Augmentation
         if self.training:
-            processed_audio_signal = self.audio_augmentation(input_spec=processed_audio_signal, length=processed_audio_signal_length)
-        processed_video_signal = self.video_augmentation(input_signal=processed_video_signal, length=processed_video_signal_length)
+            processed_audio_signal = self.audio_augmentation(
+                input_spec=processed_audio_signal, length=processed_audio_signal_length
+            )
+        processed_video_signal = self.video_augmentation(
+            input_signal=processed_video_signal, length=processed_video_signal_length
+        )
 
         # Front-end Networks
-        processed_audio_signal, processed_audio_signal_length = self.audio_front_end(processed_audio_signal), processed_audio_signal_length
-        processed_video_signal, processed_video_signal_length = self.video_front_end(input_signal=processed_video_signal), processed_video_signal_length
+        processed_audio_signal, processed_audio_signal_length = (
+            self.audio_front_end(processed_audio_signal),
+            processed_audio_signal_length,
+        )
+        processed_video_signal, processed_video_signal_length = (
+            self.video_front_end(input_signal=processed_video_signal),
+            processed_video_signal_length,
+        )
 
         # Back-end Networks
-        processed_audio_signal, processed_audio_signal_length = self.audio_back_end(audio_signal=processed_audio_signal, length=processed_audio_signal_length)
-        processed_video_signal, processed_video_signal_length = self.video_back_end(audio_signal=processed_video_signal, length=processed_video_signal_length)
+        processed_audio_signal, processed_audio_signal_length = self.audio_back_end(
+            audio_signal=processed_audio_signal, length=processed_audio_signal_length
+        )
+        processed_video_signal, processed_video_signal_length = self.video_back_end(
+            audio_signal=processed_video_signal, length=processed_video_signal_length
+        )
 
         # Audio-Visual Fusion Module
-        (processed_signal, self.audio_dropped, self.video_dropped), processed_signal_length = self.fusion_module(processed_audio_signal, processed_video_signal), processed_video_signal_length
+        (processed_signal, self.audio_dropped, self.video_dropped), processed_signal_length = (
+            self.fusion_module(processed_audio_signal, processed_video_signal),
+            processed_video_signal_length,
+        )
 
         # Audio-Visual Encoder
         encoded, encoded_len = self.audio_visual_encoder(audio_signal=processed_signal, length=processed_signal_length)
@@ -710,13 +739,17 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(
-                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                processed_audio_signal=audio_signal,
+                processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         else:
             encoded, encoded_len = self.forward(
-                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                input_audio_signal=audio_signal,
+                input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         del audio_signal
         del video_signal
@@ -806,13 +839,17 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(
-                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                processed_audio_signal=audio_signal,
+                processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         else:
             encoded, encoded_len = self.forward(
-                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                input_audio_signal=audio_signal,
+                input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         del audio_signal
         del video_signal
@@ -830,13 +867,17 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(
-                processed_audio_signal=audio_signal, processed_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                processed_audio_signal=audio_signal,
+                processed_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         else:
             encoded, encoded_len = self.forward(
-                input_audio_signal=audio_signal, input_audio_signal_length=audio_signal_len,
-                input_video_signal=video_signal, input_video_signal_length=video_signal_len
+                input_audio_signal=audio_signal,
+                input_audio_signal_length=audio_signal_len,
+                input_video_signal=video_signal,
+                input_video_signal_length=video_signal_len,
             )
         del audio_signal
         del video_signal
