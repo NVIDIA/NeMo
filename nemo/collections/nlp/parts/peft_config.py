@@ -71,13 +71,14 @@ class LoraPEFTConfig(PEFTConfig):
             "dim": lora_cfg.adapter_dim,
             "norm_position": None,
             "norm_type": None,
-            "activation": "identity",
+            "activation": lora_cfg.get("activation", "identity"),
             "column_init_method": lora_cfg.get("column_init_method", "normal"),
             "row_init_method": lora_cfg.get("row_init_method", "zero"),
             "gather_output": False,
             "dropout": lora_cfg.adapter_dropout,
         }
 
+        assert config_args["activation"] in ["swish", "identity"]
         if lora_cfg.weight_tying:
             position_embedding_strategy = lora_cfg.get("position_embedding_strategy", None)
             if position_embedding_strategy is None:
