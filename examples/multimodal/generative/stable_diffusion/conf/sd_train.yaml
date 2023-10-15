@@ -49,8 +49,8 @@ model:
   precision: ${trainer.precision}
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
-  micro_batch_size: 1 # limited by GPU memory
-  global_batch_size: 1 # will use more micro batches to reach global batch size
+  micro_batch_size: 4 # limited by GPU memory
+  global_batch_size: 4 # will use more micro batches to reach global batch size
   native_amp_init_scale: 65536.0 # Init scale for grad scaler used at fp16
 
 
