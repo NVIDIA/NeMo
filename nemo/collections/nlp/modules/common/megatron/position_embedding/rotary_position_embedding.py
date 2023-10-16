@@ -23,14 +23,14 @@ __all__ = ['RotaryEmbedding', 'apply_rotary_pos_emb']
 
 
 # Inverse dim formula to find dim based on number of rotations
-def find_correction_dim(num_rotations, dim, base=10000, max_position_embeddings=2048):
-    return (dim * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))) / (2 * math.log(base))  # 21
+def find_correction_dim(num_rotations, dim, rotary_base=10000, max_position_embeddings=2048):
+    return (dim * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))) / (2 * math.log(rotary_base))  # 21
 
 
 # Find dim range bounds based on rotations
-def find_correction_range(low_rot, high_rot, dim, base=10000, max_position_embeddings=2048):
-    low = math.floor(find_correction_dim(low_rot, dim, base, max_position_embeddings))
-    high = math.ceil(find_correction_dim(high_rot, dim, base, max_position_embeddings))
+def find_correction_range(low_rot, high_rot, dim, rotary_base=10000, max_position_embeddings=2048):
+    low = math.floor(find_correction_dim(low_rot, dim, rotary_base, max_position_embeddings))
+    high = math.ceil(find_correction_dim(high_rot, dim, rotary_base, max_position_embeddings))
     return max(low, 0), min(high, dim - 1)  # Clamp values just in case
 
 
@@ -61,7 +61,7 @@ class RotaryEmbedding(nn.Module):
         self,
         dim: int,
         seq_len_interpolation_factor: int = None,
-        base: int = 10000,
+        rotary_base: int = 10000,
         pretrained_max_position_embeddings: int = 2048,
         extrapolation_factor: int = 1,
         attn_factor: int = 1,
@@ -81,12 +81,12 @@ class RotaryEmbedding(nn.Module):
         """
         super().__init__()
         self.use_yarn = use_yarn
-        self.base = base
+        self.rotary_base = rotary_base
         self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
         self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
 
-        inv_freq = 1.0 / (self.base ** (torch.arange(0, dim, 2).float() / dim))
+        inv_freq = 1.0 / (self.rotary_base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
 
         if self.use_yarn:
@@ -110,13 +110,13 @@ class RotaryEmbedding(nn.Module):
             self.register_buffer('emb', emb)
 
     def yarn(self, scale):
-        pos_freqs = self.base ** (torch.arange(0, self.dim, 2).float() / self.dim)
+        pos_freqs = self.rotary_base ** (torch.arange(0, self.dim, 2).float() / self.dim)
         inv_freq_extrapolation = 1.0 / pos_freqs
         # inv_freq_interpolation = 1.0 / (self.seq_len_interpolation_factor * pos_freqs)
         inv_freq_interpolation = 1.0 / (scale * pos_freqs)
 
         low, high = find_correction_range(
-            self.beta_fast, self.beta_slow, self.dim, self.base, self.pretrained_max_position_embeddings
+            self.beta_fast, self.beta_slow, self.dim, self.rotary_base, self.pretrained_max_position_embeddings
         )
         inv_freq_mask = (
             1 - linear_ramp_mask(low, high, self.dim // 2).float()

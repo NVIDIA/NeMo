@@ -371,7 +371,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
             seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-            base=self.cfg.get('base', 10000),
+            rotary_base=self.cfg.get('rotary_base', 10000),
             extrapolation_factor=self.cfg.get('extrapolation_factor', 1),
             attn_factor=self.cfg.get('attn_factor', 1),
             beta_fast=self.cfg.get('beta_fast', 32),
