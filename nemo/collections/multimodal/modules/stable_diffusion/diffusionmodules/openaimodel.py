@@ -723,18 +723,16 @@ class UNetModel(nn.Module):
             )
 
         if from_pretrained is not None:
-            if from_NeMo:
-                state_dict = torch.load(from_pretrained, map_location='cpu')
-                missing_key, _, _, _ = self._load_pretrained_model(state_dict['state_dict'], from_NeMo=True)
-            else:
-                state_dict = torch.load(from_pretrained, map_location='cpu')
-                if 'state_dict' in state_dict.keys():
-                    state_dict = state_dict['state_dict']
-                missing_key, _, _, _ = self._load_pretrained_model(state_dict)
+            state_dict = torch.load(from_pretrained, map_location='cpu')
+            if 'state_dict' in state_dict.keys():
+                state_dict = state_dict['state_dict']
+            missing_key, unexpected_keys, _, _ = self._load_pretrained_model(state_dict, from_NeMo=from_NeMo)
             if len(missing_key) > 0:
                 print(
                     'Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
                 )
+                print(f"Missing keys: {missing_key}")
+                print(f"Unexpected keys: {unexpected_keys}")
 
         if enable_amp_o2_fp16:
             self.convert_to_fp16()
