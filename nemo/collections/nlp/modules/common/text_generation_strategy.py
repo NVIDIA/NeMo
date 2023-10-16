@@ -162,23 +162,6 @@ class TextGenerationStrategy:
         if (len(end_strings) == 1 and end_strings[0] == END_OF_SEQ) or not end_strings:
             # Simple scenario: only finish on end of document token.
             return prev == eod_id
-        else:
-            tokenizer = self.model.tokenizer
-            conditions = []
-            end_tokens = set()
-            end_tokens.add(eod_id)
-            for end_string in end_strings:
-                ids_1 = tokenizer.text_to_ids(f'<extra_id_1>{end_string}')
-                ids_2 = tokenizer.text_to_ids('<extra_id_1>')
-                if len(ids_1) <= len(ids_2):
-                    continue
-                token_id = ids_1[len(ids_2) :][0]
-                end_tokens.add(token_id)
-            for p, token_item in zip(prev, tokens):
-                text = tokenizer.ids_to_text(token_item.tolist())
-                conditions.append(
-                    any([text.endswith(end_string) for end_string in end_strings] + [p.item() in end_tokens])
-                )
 
         end_tokens, end_strings_to_check = self._get_end_of_generation_tokens_and_strings(eod_id, end_strings)
         assert end_tokens

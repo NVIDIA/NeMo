@@ -15,10 +15,12 @@
 import itertools
 import os
 import queue
-import torch
 import warnings
 from dataclasses import fields
 from functools import partial
+from typing import Any, Dict, Iterator, List, Optional, Union
+
+import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
@@ -121,7 +123,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     def forward(self, tokens, position_ids, attention_mask):
         if self.fp8_enabled and HAVE_TE:
             with transformer_engine.pytorch.onnx_export(self.fp8_enabled), transformer_engine.pytorch.fp8_autocast(
-                    enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe
+                enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe
             ), torch.no_grad(), torch.inference_mode(), torch.autocast(
                 'cuda', dtype=self.dtype
             ), warnings.catch_warnings():
@@ -136,7 +138,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
                 )
         else:
             with torch.no_grad(), torch.inference_mode(), torch.autocast(
-                    'cuda', dtype=self.dtype
+                'cuda', dtype=self.dtype
             ), warnings.catch_warnings():
                 warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
                 assert tokens.shape == position_ids.shape
@@ -1125,7 +1127,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.rampup_batch_size:
             optimizer = self.cfg.optim.get('name', None)
             assert (
-                    optimizer == 'fused_adam'
+                optimizer == 'fused_adam'
             ), f'{optimizer} optimizer is not supported yet with rampup batch size. Please, use fused_adam optimizer instead.'
 
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
@@ -1201,8 +1203,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             inputs: Union[List[str], torch.Tensor, List[dict]],
             length_params: LengthParam,
             sampling_params: SamplingParam = None,
-            *,
-            strategy: Optional[TextGenerationStrategy] = None,
+        *,
+        strategy: Optional[TextGenerationStrategy] = None,
     ) -> OutputType:
 
         # check whether the DDP is initialized
