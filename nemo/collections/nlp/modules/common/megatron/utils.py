@@ -375,10 +375,11 @@ def get_all_params_for_weight_decay_optimization(
     return ({'params': weight_decay_params},)
 
 
-def split_list(inputs, chunk_size):
+def split_list(inputs, num_chunks):
     """
     Split a list into equal sized chunks
     """
+    chunk_size = len(inputs) // num_chunks
     assert len(inputs) % chunk_size == 0, "Issue with batch size configuration!"
     return [inputs[i : i + chunk_size] for i in range(0, len(inputs), chunk_size)]
 
