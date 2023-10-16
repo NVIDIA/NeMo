@@ -26,7 +26,11 @@ class RotaryEmbedding(nn.Module):
     """
 
     def __init__(
-        self, dim: int, seq_len_interpolation_factor: int = None, base: int = 10000, pretrained_max_position_embeddings: int = None
+        self,
+        dim: int,
+        seq_len_interpolation_factor: int = None,
+        base: int = 10000,
+        pretrained_max_position_embeddings: int = None,
     ):
         """
         Args:
