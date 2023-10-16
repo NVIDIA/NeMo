@@ -224,7 +224,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 encoder_input_i.append(input_emb_list[j])
             encoder_input_i = torch.cat(encoder_input_i)  # T, C
             encoder_length_i = encoded_len[i].sum() + input_length[i]  # total length of audio and text features
-            max_length = max(max_length, encoder_length_i)
+            max_length = max(max_length, encoder_input_i.size(0))
             encoder_input_list.append(encoder_input_i)
             encoder_length_list.append(encoder_length_i)
 
@@ -312,8 +312,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
         if num_audios is not None:
             # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
-            encoded = encoded.split(num_audios)
-            encoded_len = encoded_len.split(num_audios)
+            encoded = encoded.split(num_audios.tolist())
+            encoded_len = encoded_len.split(num_audios.tolist())
         encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
             encoded, encoded_len, input_ids, input_length, context_start_idx
         )
@@ -776,6 +776,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+
         loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([batch]), batch_idx)
 
         # We need _inference_config to get generation params
