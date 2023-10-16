@@ -256,7 +256,7 @@ def load_sharded_metadata(checkpoint_dir: str):
             continue
         key = subdir.name
         arr = zarr.open(str(subdir), 'r')
-        sharded_state_dict[key] = torch.from_numpy(arr[:].astype(np.float))
+        sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32"))
 
     return sharded_state_dict
 
