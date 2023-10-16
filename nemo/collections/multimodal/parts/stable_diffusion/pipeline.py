@@ -201,8 +201,6 @@ def pipeline(model, cfg, verbose=True, rng=None):
             if output_type == 'pil':
                 output = [numpy_to_pil(x) for x in output]
 
-        print(f'save to file {save_to_file}')
-        save_to_file = True
         if save_to_file:
             os.makedirs(out_path, exist_ok=True)
             if output_type == 'pil':
