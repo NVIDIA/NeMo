@@ -846,7 +846,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             forward_args = {
                 'input_ids': batch['tokens'],
                 'position_ids': batch['position_ids'],
-                'attention_mask': batch['attention_mask'],
+                'attention_mask': batch.get('attention_mask', None),
                 'labels': batch['labels'],
                 'loss_mask': batch['loss_mask'],
             }
