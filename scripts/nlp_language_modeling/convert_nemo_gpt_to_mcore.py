@@ -19,10 +19,11 @@ from collections import OrderedDict
 import torch
 from omegaconf import OmegaConf
 from pytorch_lightning.trainer.trainer import Trainer
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-from nemo.utils import logging, AppState
+from nemo.utils import AppState, logging
 
 r"""
 Script to convert a legacy (non-mcore path) nemo checkpoint into mcore-path checkpoint for GPT models.
@@ -45,10 +46,15 @@ python convert_nemo_gpt_to_mcore.py \
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--in-file", type=str, default=None, required=True, help="Path to extracted, TP1 PP1 NeMo GPT checkpoint.",)
-    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output mcore weights file (ends in .nemo).")
+    parser.add_argument(
+        "--in-file", type=str, default=None, required=True, help="Path to extracted, TP1 PP1 NeMo GPT checkpoint.",
+    )
+    parser.add_argument(
+        "--out-file", type=str, default=None, required=True, help="Path to output mcore weights file (ends in .nemo)."
+    )
     args = parser.parse_args()
     return args
+
 
 def get_mcore_model_from_nemo_ckpt(nemo_restore_from_path):
     model_cfg = MegatronGPTModel.restore_from(nemo_restore_from_path, return_config=True)
@@ -64,15 +70,18 @@ def get_mcore_model_from_nemo_ckpt(nemo_restore_from_path):
     if os.path.isdir(nemo_restore_from_path):
         app_state.nemo_file_folder = nemo_restore_from_path
     else:
-        logging.warning("`nemo_file_folder` is NOT set because checkpoint is not pre-extracted. Subsequent operations may fail.")
+        logging.warning(
+            "`nemo_file_folder` is NOT set because checkpoint is not pre-extracted. Subsequent operations may fail."
+        )
     mcore_model = MegatronGPTModel(model_cfg, trainer=trainer)
     return mcore_model
+
 
 def print_mcore_parameter_names(restore_from_path):
     mcore_model = get_mcore_model_from_nemo_ckpt(restore_from_path)
 
     print("*********")
-    print('\n'.join(sorted([k+'###'+str(v.shape) for k, v in mcore_model.named_parameters()])))
+    print('\n'.join(sorted([k + '###' + str(v.shape) for k, v in mcore_model.named_parameters()])))
     print("*********")
 
 
@@ -95,24 +104,30 @@ def build_key_mapping(nemo_cfg, use_O2_prefix=None):
     if nemo_cfg.get("position_embedding_type", 'learned_absolute') == 'rope':
         mcore_to_nemo_mapping[f"{model_str}.rotary_pos_emb.inv_freq"] = "model.language_model.rotary_pos_emb.inv_freq"
     else:
-        mcore_to_nemo_mapping[f"{model_str}.embedding.position_embeddings.weight"] = "model.language_model.embedding.position_embeddings.weight"
+        mcore_to_nemo_mapping[
+            f"{model_str}.embedding.position_embeddings.weight"
+        ] = "model.language_model.embedding.position_embeddings.weight"
 
     nemo_prefix = "model.language_model.encoder.layers"
     mcore_prefix = f"{model_str}.decoder.layers"
     for i in range(num_layers):
         for wb in ('weight', 'bias') if has_bias else ('weight',):
-            mcore_to_nemo_mapping.update({
-                f"{mcore_prefix}.{i}.mlp.linear_fc2.{wb}": f"{nemo_prefix}.{i}.mlp.dense_4h_to_h.{wb}",
-                f"{mcore_prefix}.{i}.mlp.linear_fc1.{wb}": f"{nemo_prefix}.{i}.mlp.dense_h_to_4h.{wb}",
-                f"{mcore_prefix}.{i}.self_attention.linear_proj.{wb}": f"{nemo_prefix}.{i}.self_attention.dense.{wb}",
-                f"{mcore_prefix}.{i}.self_attention.linear_qkv.{wb}": f"{nemo_prefix}.{i}.self_attention.query_key_value.{wb}",
-            })
+            mcore_to_nemo_mapping.update(
+                {
+                    f"{mcore_prefix}.{i}.mlp.linear_fc2.{wb}": f"{nemo_prefix}.{i}.mlp.dense_4h_to_h.{wb}",
+                    f"{mcore_prefix}.{i}.mlp.linear_fc1.{wb}": f"{nemo_prefix}.{i}.mlp.dense_h_to_4h.{wb}",
+                    f"{mcore_prefix}.{i}.self_attention.linear_proj.{wb}": f"{nemo_prefix}.{i}.self_attention.dense.{wb}",
+                    f"{mcore_prefix}.{i}.self_attention.linear_qkv.{wb}": f"{nemo_prefix}.{i}.self_attention.query_key_value.{wb}",
+                }
+            )
         # layernorm layers always have bias!
         for wb in ('weight', 'bias'):
-            mcore_to_nemo_mapping.update({
-                f"{mcore_prefix}.{i}.self_attention.linear_qkv.layer_norm_{wb}": f"{nemo_prefix}.{i}.input_layernorm.{wb}",
-                f"{mcore_prefix}.{i}.mlp.linear_fc1.layer_norm_{wb}": f"{nemo_prefix}.{i}.post_attention_layernorm.{wb}",
-            })
+            mcore_to_nemo_mapping.update(
+                {
+                    f"{mcore_prefix}.{i}.self_attention.linear_qkv.layer_norm_{wb}": f"{nemo_prefix}.{i}.input_layernorm.{wb}",
+                    f"{mcore_prefix}.{i}.mlp.linear_fc1.layer_norm_{wb}": f"{nemo_prefix}.{i}.post_attention_layernorm.{wb}",
+                }
+            )
 
     return mcore_to_nemo_mapping
 
@@ -124,7 +139,6 @@ def load_model(model, state_dict):
             module.data = state_dict.pop(name)
         else:
             raise RuntimeError(f"Unexpected key: {name} not in state_dict but in model.")
-
 
     for name, buffer in model.named_buffers():
         if name in state_dict:
@@ -162,7 +176,10 @@ def convert(input_ckpt_file, output_ckpt_file, skip_if_output_exists=True):
 
 def run_sanity_checks(nemo_ckpt_file, mcore_ckpt_file):
     cfg = OmegaConf.load(
-        os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/tuning/conf/megatron_gpt_peft_tuning_config.yaml')
+        os.path.join(
+            os.path.dirname(__file__),
+            '../../examples/nlp/language_modeling/tuning/conf/megatron_gpt_peft_tuning_config.yaml',
+        )
     )
 
     cfg.trainer.precision = 'bf16'  # change me
@@ -189,11 +206,14 @@ def run_sanity_checks(nemo_ckpt_file, mcore_ckpt_file):
     nemo_state_dict = nemo_model.state_dict()
     for mcore_param, nemo_param in build_key_mapping(nemo_model.cfg, use_O2_prefix=False).items():
         try:
-            assert torch.allclose(mcore_state_dict[mcore_param], nemo_state_dict[nemo_param]), f"❌ parameter {mcore_param} does not match"
+            assert torch.allclose(
+                mcore_state_dict[mcore_param], nemo_state_dict[nemo_param]
+            ), f"❌ parameter {mcore_param} does not match"
         except KeyError:
             buffers = [k for k, v in mcore_model.named_buffers()]
-            assert mcore_param in buffers or mcore_param.replace('model.', 'model.module.', 1) in buffers, \
-                f"❌ parameter {mcore_param} is not found in the state dict or named_buffers()"
+            assert (
+                mcore_param in buffers or mcore_param.replace('model.', 'model.module.', 1) in buffers
+            ), f"❌ parameter {mcore_param} is not found in the state dict or named_buffers()"
     logging.info("✅ Weights match")
 
 
@@ -206,4 +226,3 @@ if __name__ == '__main__':
     convert(input_ckpt, output_ckpt, skip_if_output_exists=True)
     torch.cuda.empty_cache()
     run_sanity_checks(input_ckpt, output_ckpt)
-
