@@ -1579,9 +1579,6 @@ class ParallelTransformer(MegatronModule):
                                 cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
-                    # Update current sequence length outside of the loops
-                    if self.transformer_engine:
-                        self.inference_current_sequence_len += hidden_states.size(0)
 
                         if self.return_select_layer < 0:
                             assert (
@@ -1589,6 +1586,11 @@ class ParallelTransformer(MegatronModule):
                             ), f"##{parallel_state.get_pipeline_model_parallel_world_size}"
                             if index == self.num_layers + self.return_select_layer:
                                 return hidden_states
+
+                    # Update current sequence length outside of the loops
+                    if self.transformer_engine:
+                        self.inference_current_sequence_len += hidden_states.size(0)
+
 
         # Skip counter update for eval and activation checkpointing
         if torch.is_grad_enabled() and self.training:

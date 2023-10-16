@@ -78,7 +78,7 @@ class MegatronBaseModel(NLPModel):
       with O2 level optimizations and/or model parallelism.
     - Perform gradient clipping: `grad_clip_pl_default` triggers
       the PyTorch Lightning default implementation, `with_distributed_adam` triggers
-      the distributed optimizer's implementation, `megatron_amp_o2` triggers gradient clipping on the main grads,
+      the distributed optimizer's implementation, `megatron_amp_O2` triggers gradient clipping on the main grads,
       and otherwise gradient clipping is performed on the model grads.
 
     """
