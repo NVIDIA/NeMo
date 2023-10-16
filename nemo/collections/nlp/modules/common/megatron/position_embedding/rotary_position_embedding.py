@@ -29,7 +29,7 @@ class RotaryEmbedding(nn.Module):
         self,
         dim: int,
         seq_len_interpolation_factor: int = None,
-        base: int = 10000,
+        rotary_base: int = 10000,
         pretrained_max_position_embeddings: int = None,
     ):
         """
@@ -38,13 +38,13 @@ class RotaryEmbedding(nn.Module):
             dim (int): rotary embedding dimension
             seq_len_interpolation_factor (int): if not None, discrete positions will be interpolated
                 by this factor via the trick in https://arxiv.org/abs/2306.15595.
-            base (int): base for the positional frequency (default: 10000)
+            rotary_base (int): rotary_base for the positional frequency (default: 10000)
             pretrained_max_position_embeddings (int): pre-trained max_position_embeddings before position interpolation.
         """
         super().__init__()
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
-        self.base = base
-        inv_freq = 1.0 / (self.base ** (torch.arange(0, dim, 2).float() / dim))
+        self.rotary_base = rotary_base
+        inv_freq = 1.0 / (self.rotary_base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
         self.pretrained_max_position_embeddings = pretrained_max_position_embeddings
 
