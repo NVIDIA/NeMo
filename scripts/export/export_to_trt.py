@@ -45,7 +45,7 @@ def get_args(argv):
         "-mt",
         "--model_type",
         type=str,
-        default="gptnext",
+        required=True,
         choices=["gptnext", "llama"],
         help="Type of the model. gpt or llama are only supported."
     )

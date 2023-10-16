@@ -42,7 +42,7 @@ def get_args(argv):
         "-mt",
         "--model_type",
         type=str,
-        default="gptnext",
+        required=True,
         choices=["gptnext", "llama"],
         help="Type of the model. gpt or llama are only supported."
     )
@@ -167,6 +167,13 @@ def nemo_deploy(argv):
         Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
     else:
         trt_llm_path = args.triton_model_repository
+
+    if args.nemo_checkpoint is None and args.triton_model_repository is None:
+        logging.error(
+            "The provided model repository is not a valid TensorRT-LLM model "
+            "directory. Please provide a --nemo_checkpoint."
+        )
+        return
 
     if args.nemo_checkpoint is None and not os.path.isdir(args.triton_model_repository):
         logging.error(
