@@ -36,7 +36,6 @@ from typing import Dict, List, Tuple
 import torch
 from torch.linalg import eigh, eigvalsh
 
-
 def cos_similarity(emb_a: torch.Tensor, emb_b: torch.Tensor, eps=torch.tensor(3.5e-4)) -> torch.Tensor:
     """
     Calculate cosine similarities of the given two set of tensors. The output is an N by N
@@ -1209,64 +1208,59 @@ class SpeakerClustering(torch.nn.Module):
         kmeans_random_trials: int = 1,
     ) -> torch.LongTensor:
         """
-        Calculate affinity matrix using timestamps and speaker embeddings, run NME analysis to estimate the best
-        p-value and perform spectral clustering based on the estimated p-value and the calculated affinity matrix.
+        Calculate the affinity matrix using timestamps and speaker embeddings, run NME analysis to estimate the best
+        p-value, and perform spectral clustering based on the estimated p-value and the calculated affinity matrix.
 
         Caution:
-            For the sake of compatibility with libtorch, python boolean `False` is replaced with `torch.LongTensor(-1)`.
+            For compatibility with libtorch, python boolean `False` has been replaced with `torch.LongTensor(-1)`.
 
         Args:
-            Dict containing following keys associated with tensors.
-            embeddings (Tensor):
-                Concatenated Torch tensor containing embeddings in multiple scales
-                This tensor has dimensions of (Number of base segments) x (Embedding Dimension)
-            timestamps (Tensor):
-                Concatenated Torch tensor containing timestamps in multiple scales.
-                This tensor has dimensions of (Total number of segments all scales) x 2
+            embeddings_in_scales (Tensor):
+                List containing concatenated Torch tensor embeddings across multiple scales.
+                The length of the list is equal to the number of scales.
+                Each tensor has dimensions of (Number of base segments) x (Embedding Dimension).
+            timestamps_in_scales (Tensor):
+                List containing concatenated Torch tensor timestamps across multiple scales.
+                The length of the list is equal to the number of scales.
+                Each tensor has dimensions of (Total number of segments across all scales) x 2.
                 Example:
-                    >>> timestamps_in_scales = \
-                    >>> torch.tensor([0.4, 1.4], [0.9, 1.9], [1.4, 2.4], ... [121.2, 122.2]])
-
-            multiscale_segment_counts (LongTensor):
-                Concatenated Torch tensor containing number of segments per each scale
-                This tensor has dimensions of (Number of scales)
+                    >>> timestamps_in_scales[0] 
+                        torch.tensor([[0.4, 1.4], [0.9, 1.9], [1.4, 2.4], ... [121.2, 122.2]])
+            multiscale_segment_counts (torch.LongTensor):
+                A Torch tensor containing the number of segments for each scale.
+                The tensor has dimensions of (Number of scales).
                 Example:
                     >>> multiscale_segment_counts = torch.LongTensor([31, 52, 84, 105, 120])
-
-            multiscale_weights (Tensor):
-                Multi-scale weights that are used when affinity scores are merged.
+            multiscale_weights (torch.Tensor):
+                Multi-scale weights used when merging affinity scores.
                 Example:
                     >>> multiscale_weights = torch.tensor([1.4, 1.3, 1.2, 1.1, 1.0])
-
             oracle_num_speakers (int):
-                The number of speakers in a session from the reference transcript
+                The number of speakers in a session as given by the reference transcript.
             max_num_speakers (int):
-                The upper bound for the number of speakers in each session
+                The upper bound for the number of speakers in each session.
             max_rp_threshold (float):
                 Limits the range of parameter search.
-                Clustering performance can vary depending on this range.
-                Default is 0.15.
+                The clustering performance can vary based on this range.
+                The default value is 0.15.
             enhanced_count_thres (int):
-                For the short audio recordings, clustering algorithm cannot
-                accumulate enough amount of speaker profile for each cluster.
-                Thus, function `getEnhancedSpeakerCount` employs anchor embeddings
-                (dummy representations) to mitigate the effect of cluster sparsity.
-                enhanced_count_thres = 80 is recommended.
+                For shorter audio recordings, the clustering algorithm might not accumulate enough speaker profiles for each cluster.
+                Thus, the function `getEnhancedSpeakerCount` uses anchor embeddings (dummy representations) to mitigate the effects of cluster sparsity.
+                A value of 80 is recommended for `enhanced_count_thres`.
             sparse_search_volume (int):
-                Number of p_values we search during NME analysis.
-                Default is 30. The lower the value, the faster NME-analysis becomes.
-                Lower than 20 might cause a poor parameter estimation.
+                The number of p_values considered during NME analysis.
+                The default is 30. Lower values speed up the NME-analysis but might lead to poorer parameter estimations. Values below 20 are not recommended.
             fixed_thres (float):
-                If fixed_thres value is provided, NME-analysis process will be skipped.
-                This value should be optimized on a development set to obtain a quality result.
-                Default is None and performs NME-analysis to estimate the threshold.
+                If a `fixed_thres` value is provided, the NME-analysis process will be skipped.
+                This value should be optimized on a development set for best results.
+                By default, it is set to -1.0, and the function performs NME-analysis to estimate the threshold.
+
             kmeans_random_trials (int):
-                Number of random trials for initializing k-means clustering. More trials
-                will result in a more stable clustering result. Default is 1.
+                The number of random trials for initializing k-means clustering. More trials can result in more stable clustering. The default is 1.
 
         Returns:
-            Y (LongTensor):
-                Speaker labels for the segments in the given input embeddings.
+            Y (torch.LongTensor):
+                Speaker labels for the segments in the provided input embeddings.
         """
         self.embeddings_in_scales, self.timestamps_in_scales = split_input_data(
             embeddings_in_scales, timestamps_in_scales, multiscale_segment_counts

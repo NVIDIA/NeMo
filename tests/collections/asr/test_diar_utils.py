@@ -565,9 +565,9 @@ class TestClusteringUtilFunctions:
             assert all(binarized_affinity_mat.sum(dim=0) <= float(p_value))
             
     @pytest.mark.unit
-    @pytest.mark.parametrize("Y_aggr", [torch.tensor([0, 1, 2, 3])])
-    @pytest.mark.parametrize("window_range_list", [[[0, 2], [2, 4]]])
-    @pytest.mark.parametrize("absolute_merge_mapping", [[[torch.tensor([0, 1]), torch.tensor([])], [torch.tensor([2, 3]), torch.tensor([])]]])
+    @pytest.mark.parametrize("Y_aggr", [torch.tensor([0, 1, 0, 1])])
+    @pytest.mark.parametrize("window_range_list", [[[0, 1], [1, 2], [2, 3], [3, 4]]])
+    @pytest.mark.parametrize("absolute_merge_mapping", [[[torch.tensor([]), torch.tensor([0, 2])], [torch.tensor([]), torch.tensor([1, 3])]]])
     @pytest.mark.parametrize("org_len", [4])
     def test_unpack_labels(self, Y_aggr, window_range_list, absolute_merge_mapping, org_len):
         expected_result = Y_aggr
@@ -718,17 +718,21 @@ class TestSpeakerClustering:
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    @pytest.mark.parametrize("spk_dur", [120])
     @pytest.mark.parametrize("n_spks, SSV, enhanced_count_thres, min_samples_for_nmesc", [(2, 5, 40, 6)])
+    @pytest.mark.parametrize("spk_dur, sub_cluster_n, unit_window_len", [(120, 4, 50), (240, 4, 100)])
     @pytest.mark.parametrize("seed", [0])
-    def test_longform_speaker_clustering_very_short_gpu(
-        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, seed
+    @pytest.mark.parametrize("jit_script", [False, True])
+    def test_longform_speaker_clustering_cpu(
+        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, sub_cluster_n, unit_window_len, jit_script, seed
     ):
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(
             n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed
         )
-        longform_speaker_clustering = LongFormSpeakerClustering(sub_cluster_n=4, unit_window_len=50, cuda=False)
-        assert isinstance(longform_speaker_clustering, LongFormSpeakerClustering)
+        longform_speaker_clustering = LongFormSpeakerClustering(sub_cluster_n=sub_cluster_n, unit_window_len=unit_window_len, cuda=False)
+        if jit_script:
+            longform_speaker_clustering = torch.jit.script(longform_speaker_clustering)
+        else:
+            assert isinstance(longform_speaker_clustering, LongFormSpeakerClustering)
         Y_out = longform_speaker_clustering.forward_infer(
             embeddings_in_scales=em,
             timestamps_in_scales=ts,
@@ -751,17 +755,22 @@ class TestSpeakerClustering:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    @pytest.mark.parametrize("spk_dur", [120])
     @pytest.mark.parametrize("n_spks, SSV, enhanced_count_thres, min_samples_for_nmesc", [(2, 5, 40, 6)])
+    @pytest.mark.parametrize("spk_dur, sub_cluster_n, unit_window_len", [(120, 4, 50), (240, 4, 100)])
     @pytest.mark.parametrize("seed", [0])
-    def test_longform_speaker_clustering_very_short_gpu(
-        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, seed
+    @pytest.mark.parametrize("jit_script", [False, True])
+    def test_longform_speaker_clustering_gpu(
+        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, sub_cluster_n, unit_window_len, jit_script, seed
     ):
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(
             n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed
         )
-        longform_speaker_clustering = LongFormSpeakerClustering(sub_cluster_n=4, unit_window_len=50, cuda=True)
-        assert isinstance(longform_speaker_clustering, LongFormSpeakerClustering)
+        longform_speaker_clustering = LongFormSpeakerClustering(sub_cluster_n=sub_cluster_n, unit_window_len=unit_window_len, cuda=True)
+        
+        if jit_script:
+            longform_speaker_clustering = torch.jit.script(longform_speaker_clustering)
+        else:
+            assert isinstance(longform_speaker_clustering, LongFormSpeakerClustering)
         Y_out = longform_speaker_clustering.forward_infer(
             embeddings_in_scales=em,
             timestamps_in_scales=ts,
