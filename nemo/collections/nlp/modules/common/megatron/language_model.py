@@ -525,7 +525,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
-        base=None,
+        base=10000,
         extrapolation_factor=None,
         attn_factor=None,
         beta_fast=None,
