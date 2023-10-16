@@ -14,6 +14,7 @@
 
 import itertools
 import os
+import re
 import shutil
 import tempfile
 from collections import OrderedDict, defaultdict
@@ -614,99 +615,28 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         if 'model.model.diffusion_model.input_blocks.1.0.in_layers.2.weight' in loaded_keys:
             new_state_dict = {}
             # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
+            def should_process(key):
+                base_str = "model.model.diffusion_model."
+                blocks = ["input_blocks", "middle_block", "output_blocks"]
+                for block in blocks:
+                    for layer_type in ["in_layers", "out_layers"]:
+                        for index in [2, 3]:  # The layers index.
+                            for param in ["weight", "bias"]:
+                                if block == 'middle_block':
+                                    for num in [0, 2]:
+                                        template = f"{base_str}{block}.{num}.{layer_type}.{index}.{param}"
+                                        if key == template:
+                                            return True
+                                else:
+                                    for num in range(12):  # 12 blocks, adjust as needed.
+                                        template = f"{base_str}{block}.{num}.0.{layer_type}.{index}.{param}"
+                                        if key == template:
+                                            return True
+                return False
             for key_ in state_dict.keys():
                 if key_ == "model.cond_stage_model.transformer.text_model.embeddings.position_ids":
                     continue
-                if key_ in [
-                    "model.model.diffusion_model.input_blocks.1.0.in_layers.2.weight",
-                    "model.model.diffusion_model.input_blocks.1.0.in_layers.2.bias",
-                    "model.model.diffusion_model.input_blocks.1.0.out_layers.3.weight",
-                    "model.model.diffusion_model.input_blocks.1.0.out_layers.3.bias",
-                    "model.model.diffusion_model.input_blocks.2.0.in_layers.2.weight",
-                    "model.model.diffusion_model.input_blocks.2.0.in_layers.2.bias",
-                    "model.model.diffusion_model.input_blocks.2.0.out_layers.3.weight",
-                    "model.model.diffusion_model.input_blocks.2.0.out_layers.3.bias",
-                    "model.model.diffusion_model.input_blocks.4.0.in_layers.2.weight",
-                    "model.model.diffusion_model.input_blocks.4.0.in_layers.2.bias",
-                    "model.model.diffusion_model.input_blocks.4.0.out_layers.3.weight",
-                    "model.model.diffusion_model.input_blocks.4.0.out_layers.3.bias",
-                    "model.model.diffusion_model.input_blocks.5.0.in_layers.2.weight",
-                    "model.model.diffusion_model.input_blocks.5.0.in_layers.2.bias",
-                    "model.model.diffusion_model.input_blocks.5.0.out_layers.3.weight",
-                    "model.model.diffusion_model.input_blocks.5.0.out_layers.3.bias",
-                    "model.model.diffusion_model.input_blocks.7.0.in_layers.2.weight",
-                    "model.model.diffusion_model.input_blocks.7.0.in_layers.2.bias",
-                    "model.model.diffusion_model.input_blocks.7.0.out_layers.3.weight",
-                    "model.model.diffusion_model.input_blocks.7.0.out_layers.3.bias",
-                    "model.model.diffusion_model.input_blocks.8.0.in_layers.2.weight",
-                    "model.model.diffusion_model.input_blocks.8.0.in_layers.2.bias",
-                    "model.model.diffusion_model.input_blocks.8.0.out_layers.3.weight",
-                    "model.model.diffusion_model.input_blocks.8.0.out_layers.3.bias",
-                    "model.model.diffusion_model.input_blocks.10.0.in_layers.2.weight",
-                    "model.model.diffusion_model.input_blocks.10.0.in_layers.2.bias",
-                    "model.model.diffusion_model.input_blocks.10.0.out_layers.3.weight",
-                    "model.model.diffusion_model.input_blocks.10.0.out_layers.3.bias",
-                    "model.model.diffusion_model.input_blocks.11.0.in_layers.2.weight",
-                    "model.model.diffusion_model.input_blocks.11.0.in_layers.2.bias",
-                    "model.model.diffusion_model.input_blocks.11.0.out_layers.3.weight",
-                    "model.model.diffusion_model.input_blocks.11.0.out_layers.3.bias",
-                    "model.model.diffusion_model.middle_block.0.in_layers.2.weight",
-                    "model.model.diffusion_model.middle_block.0.in_layers.2.bias",
-                    "model.model.diffusion_model.middle_block.0.out_layers.3.weight",
-                    "model.model.diffusion_model.middle_block.0.out_layers.3.bias",
-                    "model.model.diffusion_model.middle_block.2.in_layers.2.weight",
-                    "model.model.diffusion_model.middle_block.2.in_layers.2.bias",
-                    "model.model.diffusion_model.middle_block.2.out_layers.3.weight",
-                    "model.model.diffusion_model.middle_block.2.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.0.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.0.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.0.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.0.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.1.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.1.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.1.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.1.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.2.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.2.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.2.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.2.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.3.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.3.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.3.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.3.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.4.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.4.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.4.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.4.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.5.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.5.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.5.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.5.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.6.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.6.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.6.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.6.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.7.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.7.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.7.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.7.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.8.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.8.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.8.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.8.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.9.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.9.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.9.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.9.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.10.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.10.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.10.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.10.0.out_layers.3.bias",
-                    "model.model.diffusion_model.output_blocks.11.0.in_layers.2.weight",
-                    "model.model.diffusion_model.output_blocks.11.0.in_layers.2.bias",
-                    "model.model.diffusion_model.output_blocks.11.0.out_layers.3.weight",
-                    "model.model.diffusion_model.output_blocks.11.0.out_layers.3.bias",
-                ]:
+                if should_process(key_):
                     s = key_.split('.')
                     idx = int(s[-2])
                     new_key_ = ".".join(s[:-2] + [str(int(idx - 1))] + [s[-1]])
