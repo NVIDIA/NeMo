@@ -200,7 +200,7 @@ class MegatronGenerate(Resource):
                 repetition_penalty,
                 end_strings=end_strings,
                 min_tokens_to_generate=min_tokens_to_generate,
-                compute_logprob=compute_logprob
+                compute_logprob=compute_logprob,
                 **extra,
             )
             for k in output:
