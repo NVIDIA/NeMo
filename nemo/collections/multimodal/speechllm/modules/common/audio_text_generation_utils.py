@@ -119,10 +119,10 @@ def send_generate_info(
     torch.distributed.broadcast(size, src, model_parallel_group)
     torch.distributed.broadcast(string_tensor, src, model_parallel_group)
 
-    if num_audios:
+    if num_audios is not None:
         torch.distributed.broadcast(num_audios, src, model_parallel_group)
 
-    if context_start_idx:
+    if context_start_idx is not None:
         context_idx_tensor = torch.as_tensor(
             np.frombuffer(pickle.dumps(context_start_idx), dtype=np.int8), device=torch.cuda.current_device()
         )
