@@ -210,6 +210,8 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
         )
         self.llm_tokenizer = llm_tokenizer
         self.cfg = cfg
+        if self.cfg.get('learnable_combine', False):
+            self.lm_attention_ratio = nn.Parameter(torch.tensor(0.5))
 
     def get_am_text_output(self, encoded, logits_len):
         with torch.no_grad():
@@ -251,6 +253,8 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
         # TODO: consider pad_id
         consistency_loss_weight = self.cfg.get('consistency_loss_weight', 0.0)
         aux_loss['consistency_loss'] = loss_func(attended_encoded, encoded.detach()) * consistency_loss_weight
+        if self.cfg.get('learnable_combine', False):
+            attended_encoded = attended_encoded * self.lm_attention_ratio + encoded * (1 - self.lm_attention_ratio)
 
         return attended_encoded, encoded_len, aux_loss
 
@@ -280,8 +284,7 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
 
         am_hyps_text, log_probs = self.get_am_text_output(am_encoded, am_encoded_len)
         llm_encoded, llm_encoded_len = self.get_text_embed(am_hyps_text, lm_embedding, pad_id=pad_id)
-        with torch.autocast(device_type="cuda", dtype=llm_encoded.dtype):
-            encoded, encoded_len, aux_loss = self.cross_attend(encoded, encoded_len, llm_encoded, llm_encoded_len)
+        attend_encoded, encoded_len, aux_loss = self.cross_attend(encoded, encoded_len, llm_encoded, llm_encoded_len)
 
         asr_loss_weight = self.cfg.get('asr_loss_weight', 0.0)
         if labels is not None and asr_loss_weight > 0.0:
@@ -298,7 +301,7 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
                 log_probs=log_probs, targets=transcript, input_lengths=am_encoded_len, target_lengths=transcript_len
             )
             aux_loss['asr_loss'] = asr_loss * asr_loss_weight
-        return encoded, encoded_len, aux_loss
+        return attend_encoded, encoded_len, aux_loss
 
 
 class LmQueryAudioPerceptionModel(AmQueryAudioPerceptionModel):
