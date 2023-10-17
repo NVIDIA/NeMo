@@ -124,6 +124,7 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
     num_kv_heads = nemo_model_config.get("num_query_groups", 0)
     multi_query_mode = nemo_model_config.get("multi_query_mode", False)
     num_attention_heads = nemo_model_config["num_attention_heads"]
+    is_fast_glu = nemo_model_config.get("activation", "gelu") in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
     if num_kv_heads == 0:
         if multi_query_mode:
             num_kv_heads = 1
@@ -134,7 +135,7 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": training_tp_size,
         "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu") and (
-            args.decoder_type == "gptnext" or is_mcore
+            args.decoder_type == "gptnext" or is_mcore or is_fast_glu
         ),
         "num_attention_heads": num_attention_heads,
         "num_kv_heads": num_kv_heads,
