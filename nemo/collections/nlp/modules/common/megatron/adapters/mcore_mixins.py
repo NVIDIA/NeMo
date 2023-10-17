@@ -15,17 +15,20 @@
 import torch
 from megatron.core.models.gpt.gpt_embedding import GPTEmbedding
 from megatron.core.transformer.attention import SelfAttention
+from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     LoraKQVAdapterConfig,
     ParallelLinearAdapterConfig,
-    PromptEncoderAdapterConfig,
+    PromptEncoderAdapterConfig, InfusedAdapterConfig, MLPInfusedAdapterConfig,
 )
 from nemo.core import adapter_mixins
+import torch.nn.functional as F
 
 
 def swap_mcore_mixin(module, mcore_mixin):
@@ -45,7 +48,7 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         raise NotImplementedError("Mcore mixins should implement setup_adapters on a subclass of MyBase")
 
 
-class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
+class MCoreSelfAttentionLoRAMixin(SelfAttention, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         """
         Setup NeMo LoRA adapter to this MCore layer.
@@ -95,6 +98,91 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
 
         return query, key, value
+
+
+class MCoreSelfAttentionIA3Mixin(SelfAttention, MCoreAdapterModuleMixin):
+    def mcore_register_adapters(self):
+        """
+        Setup NeMo IA3 adapter to this MCore layer.
+        """
+        self.set_accepted_adapter_types([InfusedAdapterConfig._target_])
+
+    def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
+        """
+        Derives `query`, `key` and `value` tensors from `hidden_states`.
+        """
+        # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
+        mixed_qkv, _ = self.linear_qkv(hidden_states)
+
+        # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
+        new_tensor_shape = mixed_qkv.size()[:-1] + (
+            self.num_query_groups_per_partition,
+            (
+                (self.num_attention_heads_per_partition // self.num_query_groups_per_partition + 2)
+                * self.hidden_size_per_attention_head
+            ),
+        )
+        mixed_qkv = mixed_qkv.view(*new_tensor_shape)
+
+        # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
+        (query, key, value) = torch.split(
+            mixed_qkv,
+            [
+                (
+                    self.num_attention_heads_per_partition
+                    // self.num_query_groups_per_partition
+                    * self.hidden_size_per_attention_head
+                ),
+                self.hidden_size_per_attention_head,
+                self.hidden_size_per_attention_head,
+            ],
+            dim=3,
+        )
+        # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
+        query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
+
+        if self.is_adapter_available():
+            key_infused_adapter = self.get_adapter_module(AdapterName.KEY_INFUSED)
+            value_infused_adapter = self.get_adapter_module(AdapterName.VALUE_INFUSED)
+            if key_infused_adapter:
+                assert value_infused_adapter is not None, "Expected value_infused_adapter not found!"
+                kls = key.shape
+                key = key_infused_adapter(key.reshape(kls[0], kls[1], -1)).reshape(kls).to(query.dtype)
+            if value_infused_adapter:
+                assert key_infused_adapter is not None, "Expected key_infused_adapter not found!"
+                vls = value.shape
+                value = value_infused_adapter(value.reshape(vls[0], vls[1], -1)).reshape(vls).to(query.dtype)
+
+        return query, key, value
+
+
+class MCoreMLPIA3Mixin(MLP, MCoreAdapterModuleMixin):
+    def mcore_register_adapters(self):
+        """
+        Setup NeMo IA3 adapter to this MCore layer.
+        """
+        self.set_accepted_adapter_types([MLPInfusedAdapterConfig._target_])  # only self attn (packed qkv) for now
+
+    def forward(self, hidden_states):
+        # [s, b, 4 * h/p]
+        intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
+
+        if self.config.bias_gelu_fusion:
+            assert self.config.add_bias_linear is True
+            assert self.activation_func == F.gelu
+            intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
+        else:
+            if bias_parallel is not None:
+                intermediate_parallel = intermediate_parallel + bias_parallel
+            intermediate_parallel = self.activation_func(intermediate_parallel)
+
+        infused_adapter = self.get_adapter_module(AdapterName.MLP_INFUSED)
+        if infused_adapter:
+            intermediate_parallel = infused_adapter(intermediate_parallel)
+
+        # [s, b, h]
+        output, output_bias = self.linear_fc2(intermediate_parallel)
+        return output, output_bias
 
 
 class MCoreGPTEmbeddingMixin(GPTEmbedding, MCoreAdapterModuleMixin):

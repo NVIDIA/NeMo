@@ -19,11 +19,14 @@ from omegaconf import DictConfig
 try:
     from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
         MCoreGPTEmbeddingMixin,
-        MCoreSelfAttentionMixin,
+        MCoreSelfAttentionLoRAMixin,
         MCoreTransformerLayerMixin,
-    )
+        MCoreSelfAttentionIA3Mixin,
+        MCoreMLPIA3Mixin
+)
 except (ImportError, ModuleNotFoundError):
-    MCoreGPTEmbeddingMixin = MCoreSelfAttentionMixin = MCoreTransformerLayerMixin = None
+    MCoreGPTEmbeddingMixin = MCoreSelfAttentionMixin = MCoreTransformerLayerMixin = \
+        MCoreSelfAttentionIA3Mixin = MCoreMLPIA3Mixin = None
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -108,7 +111,7 @@ class LoraPEFTConfig(PEFTConfig):
         name_key_to_cfg = {
             AdapterName.LORA_KQV_ADAPTER: adapter_cfg,
         }
-        self.name_key_to_mcore_mixins = {AdapterName.LORA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionMixin)]}
+        self.name_key_to_mcore_mixins = {AdapterName.LORA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionLoRAMixin)]}
 
         super().__init__(lora_cfg, name_key_to_cfg)
 
@@ -124,6 +127,11 @@ class IA3PEFTConfig(PEFTConfig):
             AdapterName.KEY_INFUSED: infused_adapter_cfg,
             AdapterName.VALUE_INFUSED: infused_adapter_cfg,
             AdapterName.MLP_INFUSED: mlp_infused_adapter_cfg,
+        }
+        self.name_key_to_mcore_mixins = {
+            AdapterName.KEY_INFUSED: [("self_attention", MCoreSelfAttentionIA3Mixin)],
+            AdapterName.VALUE_INFUSED: [("self_attention", MCoreSelfAttentionIA3Mixin)],
+            AdapterName.MLP_INFUSED: [("mlp", MCoreMLPIA3Mixin)],
         }
 
         super().__init__(cfg.peft.ia3_tuning, name_key_to_cfg)
