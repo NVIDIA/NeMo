@@ -267,11 +267,12 @@ class MLPConfig:
         )
 
         gated = is_gated_activation(mlp.hidden_act)
+        is_fast_glu = mlp.hidden_act in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
         if gated:
             mlp.gate = LinearConfig(linear_type=LINEAR_COLUMN)
             layer_name = (
                 f"layers.{layer_id}.mlp.dense_h_to_4h_2.weight.{rank}"
-                if isinstance(llm_config, LlamaConfig) and not is_mcore
+                if isinstance(llm_config, LlamaConfig) and not is_mcore and not is_fast_glu
                 else f"layers.{layer_id}.mlp.dense_h_to_4h.gate.weight.{rank}"
             )
             mlp.gate.weight = get_tensor_from_dict(
