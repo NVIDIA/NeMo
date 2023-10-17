@@ -35,13 +35,11 @@ from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
 from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
-from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.strategies import DDPStrategy, FSDPStrategy, Strategy
 from pytorch_lightning.trainer.states import TrainerFn
-from pytorch_lightning.strategies import Strategy, DDPStrategy, FSDPStrategy
 from pytorch_lightning.trainer.trainer import Trainer
 from torch._C._distributed_c10d import ReduceOp
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
@@ -873,7 +871,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__()
-
 
     def save_to(self, model, save_path: str):
         app_state = AppState()
