@@ -435,6 +435,7 @@ class NLPDDPStrategy(DDPStrategy):
         """
         return True
 
+
 class NLPDDPStrategyNotebook(NLPDDPStrategy):
     """ Version of NLPDDPStrategy to be used in a Jupyter Notebook
     A large portion of Megatron code has DDP dependency, so it has been necessary to use NLPDDPStrategy even for
@@ -445,6 +446,7 @@ class NLPDDPStrategyNotebook(NLPDDPStrategy):
 
     def _configure_launcher(self):
         self._launcher = None
+
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
