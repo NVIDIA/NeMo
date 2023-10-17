@@ -15,10 +15,8 @@
 """
 Conversion script to convert Huggingface Falcon 1B/7B/40B/180B checkpoints into nemo checkpoint.
 
-This script will generate a Megatron model with TP=1 and PP=1. If you need different TP/PP
-values, then after running this script, please use the script located below to set the
-TP/PP values you want:
-    NeMo/examples/nlp/language_modeling/megatron_change_num_partitions.py
+This script will generate a Megatron model with TP=1 and PP=1. The new dist ckpt format does not require
+user to run additional script to set the TP/PP values manually.
     
 Example to run this conversion script:
 ```
@@ -88,7 +86,7 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
 def load_falcon_config(args) -> FalconConfig:
     """ Helper utility to load FalconConfig.
 
-    Falcon-7B and Falcon-40B are not compatible with `transformers.FalconConfig` and
+    Legacy Falcon-7B and Falcon-40B are not compatible with `transformers.FalconConfig` and
     `transformers.FalconModel`. need to manually set the config values
     and force to `falcon` model type. 
     """
@@ -138,7 +136,6 @@ if __name__ == "__main__":
         raise FileNotFoundError(f"Output directory '{args.output}' does not exist")
 
     falcon_config = load_falcon_config(args)
-    logging.info(f"falcon_config, {falcon_config}")
     with open(args.config, "r", encoding="utf_8") as f:
         orig_cfg = yaml.safe_load(f)
 
@@ -245,19 +242,14 @@ if __name__ == "__main__":
 
     omega_cfg = OmegaConf.create(model_dict)
 
-    # output_path = "./falcon_megatron_config.yaml"
-    # OmegaConf.save(config=omega_cfg, f=output_path)
-
     trainer = pl.Trainer(**trainer_dict)
 
     logging.info("Creating Megatron model...")
     tik = time.time()
     model = MegatronGPTModel(omega_cfg, trainer)
-    logging.info(f"Created model:\n{model}")
 
     logging.info("Loading HuggingFace model...")
     model_hf = AutoModelForCausalLM.from_pretrained(args.input)
-    logging.info(f"Loaded model:\n{model_hf}")
 
     state_dict_hf = model_hf.state_dict()
     convert_dict = convert_state_dict(state_dict_hf, amp=omega_cfg.megatron_amp_O2)
@@ -277,12 +269,22 @@ if __name__ == "__main__":
         raise RuntimeError(f"Unexpected keys: \n{unexpected_keys}")
 
     logging.info("Saving model...")
-
+    
+    # We make sure that the tokenizer can be instantiated later regardless of args.input
+    if falcon_config.new_decoder_architecture:
+        model.cfg.tokenizer.update(type="tiiuae/falcon-40b")
+    elif falcon_config.multi_query:
+        model.cfg.tokenizer.update(type="tiiuae/falcon-7b")
+    elif falcon_config.alibi and falcon_config.num_hidden_layers == 36:
+        model.cfg.tokenizer.update(type="tiiuae/falcon-rw-7b")
+    else:
+        model.cfg.tokenizer.update(type="tiiuae/falcon-rw-1b")
+    
     dtype = torch.bfloat16 if args.precision == "bf16" else torch.float32
     model = model.to(dtype=dtype)
     model.cfg.update(use_cpu_initialization=False)
-    name_last_part = os.path.basename(args.input.rstrip('/'))
-    model.save_to(os.path.join(args.output, f'falcon_{name_last_part}_{args.precision}_tp1_pp1.nemo'))
+    tokenizer_name_part = model.cfg.tokenizer["type"].split("/")[1]
+    model.save_to(os.path.join(args.output, f'falcon_{tokenizer_name_part}_{args.precision}_tp1_pp1.nemo'))
     logging.info("Done.")
     tok = time.time()
     t = time.strftime('%H:%M:%S', time.gmtime(tok - tik))
