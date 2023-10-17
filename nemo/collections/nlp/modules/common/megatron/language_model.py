@@ -126,6 +126,7 @@ def get_language_model(
     ub_tp_comm_overlap=False,
     use_flash_attention=False,
     seq_len_interpolation_factor=None,
+    rotary_base=10000,
     context_parallel=False,
 ):
     """Build language model and return along with the key to save."""
@@ -203,6 +204,7 @@ def get_language_model(
         ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
         seq_len_interpolation_factor=seq_len_interpolation_factor,
+        rotary_base=rotary_base,
         context_parallel=context_parallel,
     )
     # key used for checkpoints.
@@ -504,6 +506,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
+        rotary_base=10000,
         context_parallel=False,
     ):
         super(TransformerLanguageModel, self).__init__(
@@ -561,6 +564,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 rotary_dim,
                 seq_len_interpolation_factor=seq_len_interpolation_factor,
                 pretrained_max_position_embeddings=max_position_embeddings,
+                rotary_base=rotary_base,
             )
 
         elif position_embedding_type == 'alibi':
