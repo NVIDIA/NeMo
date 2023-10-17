@@ -68,14 +68,14 @@ class ModelBuilder(Module):
         self._num_layers = len(model_config.layers)
         self._num_heads = model_config.num_attention_heads
         self._num_kv_heads = model_config.num_kv_heads
-        self._use_prompt_tuning = False
+        self._use_prompt_tuning = model_config.use_prompt_tuning
 
-        # TODO: support use_prompt_tuning and use_parallel_embedding.
+        # TODO: support use_parallel_embedding.
         self.vocab_embedding = build_embedding_from_config(
-            model_config.vocab_embedding, self._dtype
+            model_config.vocab_embedding, self._dtype, use_prompt_tuning=self._use_prompt_tuning
         )
         self.positional_embedding = build_embedding_from_config(
-            model_config.positional_embedding, self._dtype
+            model_config.positional_embedding, self._dtype, use_prompt_tuning=False
         )
         self.layers = ModuleList(
             [
@@ -115,8 +115,10 @@ class ModelBuilder(Module):
         max_context_length=None,
     ):
         """Forward function for the full model."""
-        # TODO: support use_prompt_tuning
-        x = self.vocab_embedding(input_ids.data)
+        ptuning_args = []
+        if self._use_prompt_tuning:
+            ptuning_args = [prompt_embedding_table, prompt_tasks, prompt_vocab_size]
+        x = self.vocab_embedding(input_ids.data, *ptuning_args)
         if hasattr(self, "positional_embedding") and self.positional_embedding:
             assert position_ids
             x = x + self.positional_embedding(position_ids)
@@ -505,8 +507,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             print(f"warning: Rank {self.rank} larger than GPUs available")
         if self._tensor_parallel < torch.cuda.device_count():
             print(f"warning: Not enough GPUs locally, requesting {self._tensor_parallel}")
-
-        self._use_prompt_tuning = max_prompt_embedding_table_size > 0
 
         build(
             tensorrt_llm_model=self,

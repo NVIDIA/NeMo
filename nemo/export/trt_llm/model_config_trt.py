@@ -51,6 +51,7 @@ def model_config_to_tensorrt_llm(
         f" {psutil.Process().memory_info().rss / 1024 / 1024 / 1024}"
     )
     for rank in range(gpus):
+        model_configs[rank].use_prompt_tuning = max_prompt_embedding_table_size > 0
         builder = LMHeadModelBuilder(model_configs[rank])
         builder.build(
             output_dir=engine_dir,

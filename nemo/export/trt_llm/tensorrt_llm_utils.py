@@ -11,7 +11,7 @@
 """Utils to convert model_config layers to tensorrt_llm modules."""
 
 import tensorrt as trt
-from tensorrt_llm.layers import Embedding, LayerNorm, RmsNorm
+from tensorrt_llm.layers import Embedding, LayerNorm, PromptTuningEmbedding, RmsNorm
 from tensorrt_llm.module import Module
 import numpy as np
 
@@ -25,13 +25,14 @@ from .tensor_utils import get_tensor_parallel_group
 
 
 def build_embedding_from_config(
-    config: EmbeddingConfig, dtype: trt.DataType, tensor_parallel: int = 1
+    config: EmbeddingConfig, dtype: trt.DataType, tensor_parallel: int = 1, use_prompt_tuning: bool = False
 ):
     """Returns the tensorrt_llm embedding layer from the embedding config."""
     # If the config is empty, return an empty impl.
     if config is None:
         return None
-    trt_embedding = Embedding(
+    EmbeddingCls = PromptTuningEmbedding if use_prompt_tuning else Embedding
+    trt_embedding = EmbeddingCls(
         config.weight.shape[0],
         config.weight.shape[1],
         dtype=dtype,
