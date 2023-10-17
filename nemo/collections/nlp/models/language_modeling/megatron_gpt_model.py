@@ -21,6 +21,7 @@ from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
