@@ -28,17 +28,18 @@ import pytorch_lightning as pl
 import torch
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
+from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
+from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
-from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
+from pytorch_lightning.strategies import DDPStrategy, FSDPStrategy, Strategy
 from pytorch_lightning.trainer.states import TrainerFn
-from pytorch_lightning.strategies import Strategy, DDPStrategy, FSDPStrategy
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
@@ -51,7 +52,6 @@ from torch.nn.parallel import DistributedDataParallel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.parts import utils_funcs
-from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
@@ -492,7 +492,7 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
         sharding_strategy: str = 'full',
         grad_reduce_dtype: Union[int, str] = None,
         precision: Union[int, str] = 'bf16-mixed',
-        transformer_engine: bool =False,
+        transformer_engine: bool = False,
         mcore_gpt: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
@@ -552,11 +552,7 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
         # Over-write gradient reduction dtype to support bf16 computation with fp32 grad reduction
         if grad_reduce_dtype is not None:
             reduce_dtype = utils_funcs.torch_dtype_from_precision(grad_reduce_dtype, None)
-        return MixedPrecision(
-            param_dtype=param_dtype,
-            reduce_dtype=reduce_dtype,
-            buffer_dtype=buffer_dtype,
-        )
+        return MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype,)
 
     def belongs_fsdp_wrap_module(self, model: torch.nn.Module, attr_names: str) -> bool:
         """
@@ -689,7 +685,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__()
-
 
     def save_to(self, model, save_path: str):
         app_state = AppState()

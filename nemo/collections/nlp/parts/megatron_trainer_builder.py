@@ -52,8 +52,9 @@ class MegatronTrainerBuilder:
             return NLPDDPStrategyNotebook(no_ddp_communication_hook=True, find_unused_parameters=False,)
 
         if self.cfg.model.get('fsdp', False):
-            assert not self.cfg.model.optim.get('name') == 'distributed_fused_adam', \
-                'Distributed optimizer cannot be used with FSDP.'
+            assert (
+                not self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+            ), 'Distributed optimizer cannot be used with FSDP.'
             if self.cfg.model.get('megatron_amp_O2', False):
                 logging.info('Torch FSDP is not compatible with O2 precision recipe. Setting O2 `False`.')
                 self.cfg.model.megatron_amp_O2 = False
@@ -64,7 +65,7 @@ class MegatronTrainerBuilder:
                 grad_reduce_dtype=self.cfg.model.get('fsdp_grad_reduce_dtype', 32),
                 precision=self.cfg.trainer.precision,
                 transformer_engine=self.cfg.model.get('transformer_engine', False),
-                mcore_gpt = self.cfg.get('mcore_gpt', False)
+                mcore_gpt=self.cfg.get('mcore_gpt', False),
             )
 
         return NLPDDPStrategy(

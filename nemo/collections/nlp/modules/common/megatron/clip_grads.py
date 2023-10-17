@@ -135,7 +135,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False, param
         if grads_for_norm:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
             total_norm = max(grad.abs().max() for grad in grads_for_norm)
         total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
-        
+
         if not use_fsdp:
             # Take max across all model-parallel GPUs.
             torch.distributed.all_reduce(
@@ -145,7 +145,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False, param
             # Take max across all model-parallel and data-parallel GPUs because each data-parallel
             # rank holds a partial tensor.
             torch.distributed.all_reduce(total_norm_cuda, op=torch.distributed.ReduceOp.MAX)
-            
+
         total_norm = total_norm_cuda[0].item()
 
     else:
