@@ -456,8 +456,8 @@ class MegatronBaseModel(NLPModel):
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
-        optim_kwargs['context_parallel'] = self.cfg.get('context_parallel_size', 1) > 1
         if self.with_distributed_adam:
+            optim_kwargs['context_parallel'] = self.cfg.get('context_parallel_size', 1) > 1
 
             # Allocate contiguous buffer to avoid extra copies
             optim_kwargs['contiguous_grad_buffer'] = True
