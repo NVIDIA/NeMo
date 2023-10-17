@@ -1228,6 +1228,8 @@ class LongFormSpeakerClustering(SpeakerClustering):
         self.cuda = cuda
         self.sub_cluster_n = sub_cluster_n
         self.unit_window_len = unit_window_len
+        if self.sub_cluster_n >= self.unit_window_len:
+            logging.error(f"sub_cluster_n ({self.sub_cluster_n}) should be smaller than unit_window_len ({self.unit_window_len}).")
         if device is None or type(device) is not torch.device:
             self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
         else:
@@ -1466,7 +1468,7 @@ class LongFormSpeakerClustering(SpeakerClustering):
                                              self.device)
         offset_index: int = 0
         window_offset: int = 0
-        total_emb: List[torch.Tensor]= []
+        total_emb: List[torch.Tensor] = []
         window_range_list: List[List[int]] = []
         absolute_merge_mapping: List[List[torch.Tensor]] = []
         total_window_count = int(torch.ceil(torch.tensor(emb.shape[0] / self.unit_window_len)).item())
