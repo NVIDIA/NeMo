@@ -149,7 +149,7 @@ class AbstractBaseSampler(ABC):
             # TODO: remove?
             print(f'WARNING. Using eta=0.0 with return_logprobs. Depending on your sampler, logprobs may be meaningless')
 
-        samples, intermediates, logprobs, means, vars = self.sampling_fn(
+        samples, intermediates, logprobs, means, vars, list_eps = self.sampling_fn(
             conditioning,
             size,
             callback=callback,
@@ -170,7 +170,9 @@ class AbstractBaseSampler(ABC):
             return_logprobs=return_logprobs,
             return_mean_var=return_mean_var,
         )
-        return samples, intermediates, logprobs, means, vars
+        if list_eps != []:
+            list_eps = torch.stack(list_eps).to(torch.device("cuda"))
+        return samples, intermediates, logprobs, means, vars, list_eps
 
     def sampling_fn(
         self,
@@ -221,6 +223,7 @@ class AbstractBaseSampler(ABC):
         print(f"Running {self.sampler.name} Sampling with {total_steps} timesteps")
         iterator = tqdm(time_range, desc=f"{self.sampler.name} Sampler", total=total_steps)
         old_eps = []
+        list_eps = []
         for i, step in enumerate(iterator):
 
             if i < total_steps - truncation_steps:
@@ -242,7 +245,7 @@ class AbstractBaseSampler(ABC):
                         logprob_args = {'return_logprobs': return_logprobs, 'return_mean_var': return_mean_var}
                     else:
                         logprob_args = {}
-                    outs = self.p_sampling_fn(
+                    outs, _ = self.p_sampling_fn(
                         img,
                         cond,
                         ts,
@@ -259,6 +262,7 @@ class AbstractBaseSampler(ABC):
                         t_next=ts_next,
                         **logprob_args
                     )
+
                     img, pred_x0 = outs[0], outs[1]
                     if self.sampler is Sampler.PLMS:
                         e_t = outs[2]
@@ -297,7 +301,7 @@ class AbstractBaseSampler(ABC):
                     logprob_args = {'return_logprobs': return_logprobs, 'return_mean_var': return_mean_var}
                 else:
                     logprob_args = {}
-                outs = self.p_sampling_fn(
+                outs, eps_t = self.p_sampling_fn(
                     img,
                     cond,
                     ts,
@@ -315,6 +319,7 @@ class AbstractBaseSampler(ABC):
                     **logprob_args
                 )
                 img, pred_x0 = outs[0], outs[1]
+                list_eps.append(eps_t)
                 if self.sampler is Sampler.PLMS:
                     e_t = outs[2]
                     old_eps.append(e_t)
@@ -333,7 +338,7 @@ class AbstractBaseSampler(ABC):
                 if index % log_every_t == 0 or index == total_steps - 1:
                     intermediates["x_inter"].append(img)
                     intermediates["pred_x0"].append(pred_x0)  
-        return img, intermediates, logprobs, means, vars
+        return img, intermediates, logprobs, means, vars, list_eps
 
     def _get_model_output(
         self, x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs,

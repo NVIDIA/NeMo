@@ -57,7 +57,7 @@ class DDIMSampler(AbstractBaseSampler):
         )
         # return x_prev, pred_x0
         # outs contains x_prev, pred_x0, and possibly log_probs (if return log_probs was set)
-        return outs
+        return outs, e_t
     
     def scoring_fn(
         self,
