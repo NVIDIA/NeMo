@@ -413,6 +413,9 @@ class ModelConfig:
     final_layernorm: LayernormConfig = None
     lm_head: LinearConfig = None
 
+    # Ptuning metadata
+    use_prompt_tuning: bool = False
+
     def to_dict(self) -> dict:
         """Converts the instance to a python dict."""
         return dataclasses.asdict(self)
