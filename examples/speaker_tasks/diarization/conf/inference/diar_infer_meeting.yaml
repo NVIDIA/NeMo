@@ -52,7 +52,7 @@ diarizer:
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
       maj_vote_spk_count: False  # If True, take a majority vote on multiple p-values to estimate the number of speakers.
-      sub_cluster_n: 16 # Number of sub-clusters for each sub-window for long-form audio clustering.
+      sub_cluster_n: 50 # Number of sub-clusters for each sub-window for long-form audio clustering.
       unit_window_len: 10000 # Window length for the unit of chunking. Control according to the GPU-memory capacity.
   
   msdd_model:
@@ -91,4 +91,3 @@ diarizer:
       min_number_of_words: 3 # Min number of words for the left context.
       max_number_of_words: 10 # Max number of words for the right context.
       logprob_diff_threshold: 1.2  # The threshold for the difference between two log probability values from two hypotheses.
-

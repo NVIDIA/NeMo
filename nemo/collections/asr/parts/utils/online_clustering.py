@@ -1491,7 +1491,7 @@ class LongFormSpeakerClustering(SpeakerClustering):
             current_unit_window_len = min(self.unit_window_len, emb_part.shape[0]) 
             min_count_per_cluster =  int(torch.ceil(torch.tensor(self.sub_cluster_n/len(torch.unique(Y_part)))).item())
             
-            # We want only one embedding vector for each cluster, so we calculate the number of embedding vectors to be removed
+            # We want only one embedding vector for each cluster, so we calculate the number of embedding vectors to be merged
             class_target_vol = get_merge_quantity(num_to_be_removed=int(current_unit_window_len - self.sub_cluster_n),
                                                   pre_clus_labels=Y_part,
                                                   min_count_per_cluster=min_count_per_cluster,
