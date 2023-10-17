@@ -59,9 +59,9 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
         linear_qkv_output, _ = self.linear_qkv(hidden_states)
         layernorm_output = None
-        if isinstance(linear_qkv_output, tuple): #if LN and linear fused, both will be returned
-            mixed_qkv, layernorm_output = linear_qkv_output 
-        else: # otherwise only mixed_qkv
+        if isinstance(linear_qkv_output, tuple):  # if LN and linear fused, both will be returned
+            mixed_qkv, layernorm_output = linear_qkv_output
+        else:  # otherwise only mixed_qkv
             mixed_qkv = linear_qkv_output
 
         # LoRA logic
