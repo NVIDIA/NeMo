@@ -269,7 +269,7 @@ if __name__ == "__main__":
         raise RuntimeError(f"Unexpected keys: \n{unexpected_keys}")
 
     logging.info("Saving model...")
-    
+
     # We make sure that the tokenizer can be instantiated later regardless of args.input
     if falcon_config.new_decoder_architecture:
         model.cfg.tokenizer.update(type="tiiuae/falcon-40b")
@@ -279,7 +279,7 @@ if __name__ == "__main__":
         model.cfg.tokenizer.update(type="tiiuae/falcon-rw-7b")
     else:
         model.cfg.tokenizer.update(type="tiiuae/falcon-rw-1b")
-    
+
     dtype = torch.bfloat16 if args.precision == "bf16" else torch.float32
     model = model.to(dtype=dtype)
     model.cfg.update(use_cpu_initialization=False)
