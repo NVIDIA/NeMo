@@ -17,6 +17,7 @@ from megatron.core.models.gpt.gpt_embedding import GPTEmbedding
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
+from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -121,6 +122,9 @@ class MCoreGPTEmbeddingMixin(GPTEmbedding, MCoreAdapterModuleMixin):
 
 class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
+        """
+        Setup NeMo (canonical) Adapter to this MCore layer.
+        """
         self.set_accepted_adapter_types([ParallelLinearAdapterConfig._target_])
 
     def forward(
@@ -157,9 +161,11 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
         else:
             residual = hidden_states
 
+        bias_dropout_add_func = get_bias_dropout_add(self.training, self.config.bias_dropout_fusion)
+
         # bias_dropout_add fusion returning fp32 instead of bf16
         with self.bias_dropout_add_exec_handler():
-            layernorm_input = self.bias_dropout_add_func(
+            layernorm_input = bias_dropout_add_func(
                 attention_output_with_bias, residual, self.config.hidden_dropout
             )
 
@@ -184,7 +190,7 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
             residual = layernorm_input
 
         with self.bias_dropout_add_exec_handler():
-            output = self.bias_dropout_add_func(mlp_output_with_bias, residual, self.config.hidden_dropout)
+            output = bias_dropout_add_func(mlp_output_with_bias, residual, self.config.hidden_dropout)
 
         # Jit compiled function creates 'view' tensor. This tensor
         # potentially gets saved in the MPU checkpoint function context,
