@@ -21,11 +21,11 @@ from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -711,8 +711,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                             param_numel % parallel_state.get_data_parallel_world_size() == 0
                         ), "Flattened parameter elements are not divided by DP size."
                         param_numel_shard = param_numel // parallel_state.get_data_parallel_world_size()
-                        if getattr(self.trainer.strategy.param_attributes[param_idx], 'sequence_parallel', False) or \
-                            getattr(self.trainer.strategy.param_attributes[param_idx], 'sequence_parallel_enabled', False):
+                        if getattr(
+                            self.trainer.strategy.param_attributes[param_idx], 'sequence_parallel', False
+                        ) or getattr(
+                            self.trainer.strategy.param_attributes[param_idx], 'sequence_parallel_enabled', False
+                        ):
                             grads.append(param.grad[offset : offset + param_numel_shard])
                         offset += param_numel_shard
                         param_idx += 1

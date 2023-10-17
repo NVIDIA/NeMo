@@ -284,7 +284,9 @@ class Embedding(MegatronModule):
 
         if self.position_embedding_type == 'learned_absolute':
             # Position embedding (serial).
-            self.position_embeddings = torch.nn.Embedding(max_sequence_length, self.hidden_size, dtype=config.params_dtype)
+            self.position_embeddings = torch.nn.Embedding(
+                max_sequence_length, self.hidden_size, dtype=config.params_dtype
+            )
             self._position_embeddings_key = 'position_embeddings'
             # Initialize the position embeddings.
             self.init_method(self.position_embeddings.weight)
@@ -295,7 +297,9 @@ class Embedding(MegatronModule):
         # token types and add them as needed.
         self._tokentype_embeddings_key = 'tokentype_embeddings'
         if self.num_tokentypes > 0:
-            self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes, self.hidden_size, dtype=config.params_dtype)
+            self.tokentype_embeddings = torch.nn.Embedding(
+                self.num_tokentypes, self.hidden_size, dtype=config.params_dtype
+            )
             # Initialize the token-type embeddings.
             self.init_method(self.tokentype_embeddings.weight)
         else:
