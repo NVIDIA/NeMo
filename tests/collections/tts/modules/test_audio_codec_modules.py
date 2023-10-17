@@ -15,7 +15,12 @@
 import pytest
 import torch
 
-from nemo.collections.tts.modules.audio_codec_modules import Conv1dNorm, ConvTranspose1dNorm, get_down_sample_padding
+from nemo.collections.tts.modules.audio_codec_modules import (
+    CodecActivation,
+    Conv1dNorm,
+    ConvTranspose1dNorm,
+    get_down_sample_padding,
+)
 
 
 class TestAudioCodecModules:
@@ -89,3 +94,21 @@ class TestAudioCodecModules:
         assert torch.all(out[0, :, out_len_1:] == 0.0)
         assert torch.all(out[1, :, :out_len_2] != 0.0)
         assert torch.all(out[1, :, out_len_2:] == 0.0)
+
+
+class TestCodecActivation:
+    def setup_class(self):
+        self.batch_size = 2
+        self.in_channels = 4
+        self.max_len = 4
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_snake(self):
+        """
+        Test for snake activation function execution.
+        """
+        inputs = torch.rand([self.batch_size, self.in_channels, self.max_len])
+        snake = CodecActivation('snake', channels=self.in_channels)
+        out = snake(x=inputs)
+        assert out.shape == (self.batch_size, self.in_channels, self.max_len)
