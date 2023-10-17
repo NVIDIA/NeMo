@@ -114,10 +114,12 @@ model:
   audio_encoder:
     _target_: nemo.collections.tts.modules.encodec_modules.SEANetEncoder
     down_sample_rates: ${down_sample_rates}
+    activation: snake
 
   audio_decoder:
     _target_: nemo.collections.tts.modules.encodec_modules.SEANetDecoder
     up_sample_rates: ${up_sample_rates}
+    activation: snake
 
   vector_quantizer:
     _target_: nemo.collections.tts.modules.encodec_modules.ResidualVectorQuantizer

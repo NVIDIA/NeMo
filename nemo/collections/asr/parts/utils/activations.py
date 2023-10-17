@@ -15,14 +15,17 @@
 import torch
 import torch.nn as nn
 
-__all__ = ['Swish']
+__all__ = ['Swish', 'Snake']
 
 
-# @torch.jit.script
-def snake(x, alpha: torch.Tensor):
+@torch.jit.script
+def snake(x: torch.Tensor, alpha: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
+    """
+    equation for snake activation function: x + (alpha + eps)^-1 * sin(alpha * x)^2
+    """
     shape = x.shape
     x = x.reshape(shape[0], shape[1], -1)
-    x = x + (alpha + 1e-9).reciprocal() * torch.sin(alpha * x).pow(2)
+    x = x + (alpha + eps).reciprocal() * torch.sin(alpha * x).pow(2)
     x = x.reshape(shape)
     return x
 
@@ -32,11 +35,11 @@ class Snake(nn.Module):
     Snake activation function introduced in 'https://arxiv.org/abs/2006.08195'
     """
 
-    def __init__(self, channels):
+    def __init__(self, channels: int):
         super().__init__()
         self.alpha = nn.Parameter(torch.ones(1, channels, 1))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return snake(x, self.alpha)
 
 
