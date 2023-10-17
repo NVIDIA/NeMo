@@ -466,9 +466,9 @@ def perform_clustering(
         cuda = False
 
     speaker_clustering = SpeakerClustering(cuda=cuda)
-    longform_speaker_clustering = LongFormSpeakerClustering(sub_cluster_n=clustering_params.sub_cluster_n, 
-                                                            unit_window_len=clustering_params.unit_window_len,
-                                                            cuda=cuda)
+    longform_speaker_clustering = LongFormSpeakerClustering(
+        sub_cluster_n=clustering_params.sub_cluster_n, unit_window_len=clustering_params.unit_window_len, cuda=cuda
+    )
 
     # If True, export torch script module and save it to the base folder.
     if clustering_params.get('export_script_module', False):
@@ -492,7 +492,7 @@ def perform_clustering(
             clustering = longform_speaker_clustering
         else:
             clustering = speaker_clustering
-        
+
         cluster_labels = clustering.forward_infer(
             embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
             timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
@@ -510,7 +510,7 @@ def perform_clustering(
         else:
             gc.collect()
         timestamps = clustering.timestamps_in_scales[base_scale_idx]
-        
+
         cluster_labels = cluster_labels.cpu().numpy()
         if len(cluster_labels) != timestamps.shape[0]:
             raise ValueError("Mismatch of length between cluster_labels and timestamps.")

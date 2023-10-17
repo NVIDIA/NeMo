@@ -31,23 +31,24 @@
 # https://arxiv.org/pdf/2003.02405.pdf and the implementation from
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
-from typing import List, Set, Tuple, Dict
+from typing import Dict, List, Set, Tuple
 
 import numpy as np
-from tqdm import tqdm
 import torch
+from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.offline_clustering import (
-    SpeakerClustering,
-    get_scale_interpolated_embs,
-    split_input_data,
     NMESC,
+    SpeakerClustering,
     SpectralClustering,
+    get_scale_interpolated_embs,
     getAffinityGraphMat,
     getCosAffinityMatrix,
+    split_input_data,
 )
-from nemo.utils import logging
 from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment
+from nemo.utils import logging
+
 
 def get_lsa_speaker_mapping(
     U_set: torch.Tensor, cmm_P: torch.Tensor, cmm_Q: torch.Tensor, PandQ: torch.Tensor
@@ -1180,7 +1181,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         self.enhanced_count_thres = enhanced_count_thres
         self.sparse_search_volume = sparse_search_volume
         self.fixed_thres = fixed_thres
-        
+
         # Merge the closest embeddings and reduce the size of the embedding count.
         if cuda and (curr_emb.device == torch.device("cpu") or base_segment_indexes.device == torch.device("cpu")):
             raise ValueError(f"CUDA is enabled but the input {curr_emb} or {base_segment_indexes} is not on the GPU.")
@@ -1198,13 +1199,10 @@ class OnlineSpeakerClustering(torch.nn.Module):
         merged_clus_labels = self.match_labels(Y_merged=Y, add_new=add_new)
         return merged_clus_labels
 
+
 class LongFormSpeakerClustering(SpeakerClustering):
     def __init__(
-        self,
-        unit_window_len,
-        sub_cluster_n,
-        cuda: bool = False,
-        device: torch.device = None,
+        self, unit_window_len, sub_cluster_n, cuda: bool = False, device: torch.device = None,
     ):
         """
         Initializes the speaker clustering class tailored for long-form audio, inheriting from the `SpeakerClustering` class.
@@ -1229,20 +1227,22 @@ class LongFormSpeakerClustering(SpeakerClustering):
         self.sub_cluster_n = sub_cluster_n
         self.unit_window_len = unit_window_len
         if self.sub_cluster_n >= self.unit_window_len:
-            logging.error(f"sub_cluster_n ({self.sub_cluster_n}) should be smaller than unit_window_len ({self.unit_window_len}).")
+            logging.error(
+                f"sub_cluster_n ({self.sub_cluster_n}) should be smaller than unit_window_len ({self.unit_window_len})."
+            )
         if device is None or type(device) is not torch.device:
             self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
         else:
             self.device = device
             logging.info(f"Device is set to {self.device}.")
-    
+
     def unpack_labels(
-        self, 
-        Y_aggr: torch.Tensor, 
+        self,
+        Y_aggr: torch.Tensor,
         window_range_list: List[List[int]],
         absolute_merge_mapping: List[List[torch.Tensor]],
         org_len: int,
-        ):
+    ):
         """
         Unpack the labels from the aggregated labels to the original labels.
 
@@ -1265,16 +1265,16 @@ class LongFormSpeakerClustering(SpeakerClustering):
         """
         Y_unpack = torch.zeros((org_len,)).long().to(Y_aggr.device)
         for (win_rng, abs_mapping) in zip(window_range_list, absolute_merge_mapping):
-            inferred_merged_embs = Y_aggr[win_rng[0]:win_rng[1]]
+            inferred_merged_embs = Y_aggr[win_rng[0] : win_rng[1]]
             if len(abs_mapping[1]) > 0:
-                Y_unpack[abs_mapping[1]] = inferred_merged_embs[-1].clone() # Merged
+                Y_unpack[abs_mapping[1]] = inferred_merged_embs[-1].clone()  # Merged
                 if len(abs_mapping[0]) > 0:
-                    Y_unpack[abs_mapping[0]] = inferred_merged_embs[:-1].clone() # Bypass
+                    Y_unpack[abs_mapping[0]] = inferred_merged_embs[:-1].clone()  # Bypass
             else:
                 if len(abs_mapping[0]) > 0:
                     Y_unpack[abs_mapping[0]] = inferred_merged_embs.clone()
         return Y_unpack
-    
+
     def split_embs_to_windows(self, index: int, emb: torch.Tensor) -> Tuple[torch.Tensor, int]:
         """
         Splits the embedding tensor into smaller window-sized tensors based on a given index.
@@ -1288,15 +1288,15 @@ class LongFormSpeakerClustering(SpeakerClustering):
         Returns:
             emb_part (torch.Tensor): The window-sized tensor, which is a portion of the `emb`.
             offset_index (int): The starting position of the window in the `emb` tensor.
-        """ 
-        if self.unit_window_len*(index+1) > emb.shape[0]:
-            emb_part = emb[-1*self.unit_window_len:]
+        """
+        if self.unit_window_len * (index + 1) > emb.shape[0]:
+            emb_part = emb[-1 * self.unit_window_len :]
             offset_index = emb.shape[0] - self.unit_window_len
         else:
-            emb_part = emb[self.unit_window_len*index: self.unit_window_len*(index+1)]
-            offset_index = self.unit_window_len*index
+            emb_part = emb[self.unit_window_len * index : self.unit_window_len * (index + 1)]
+            offset_index = self.unit_window_len * index
         return emb_part, offset_index
-            
+
     def forward_unit_infer(
         self,
         emb,
@@ -1340,11 +1340,11 @@ class LongFormSpeakerClustering(SpeakerClustering):
             n_clusters = int(oracle_num_speakers)
         else:
             n_clusters = int(est_num_of_spk.item())
-            
+
         spectral_model = SpectralClustering(n_clusters=n_clusters, cuda=self.cuda, device=self.device)
         Y = spectral_model.forward(affinity_mat)
         return Y
-    
+
     def forward(self, param_dict: Dict[str, torch.Tensor]) -> torch.LongTensor:
         """
         A function wrapper designed for performing inference using an exported script format.
@@ -1386,7 +1386,7 @@ class LongFormSpeakerClustering(SpeakerClustering):
             enhanced_count_thres=enhanced_count_thres,
             sparse_search_volume=sparse_search_volume,
             fixed_thres=fixed_thres,
-        ) 
+        )
 
     def forward_infer(
         self,
@@ -1462,17 +1462,16 @@ class LongFormSpeakerClustering(SpeakerClustering):
         self.embeddings_in_scales, self.timestamps_in_scales = split_input_data(
             embeddings_in_scales, timestamps_in_scales, multiscale_segment_counts
         )
-        emb, _ = get_scale_interpolated_embs(multiscale_weights, 
-                                             self.embeddings_in_scales, 
-                                             self.timestamps_in_scales, 
-                                             self.device)
+        emb, _ = get_scale_interpolated_embs(
+            multiscale_weights, self.embeddings_in_scales, self.timestamps_in_scales, self.device
+        )
         offset_index: int = 0
         window_offset: int = 0
         total_emb: List[torch.Tensor] = []
         window_range_list: List[List[int]] = []
         absolute_merge_mapping: List[List[torch.Tensor]] = []
         total_window_count = int(torch.ceil(torch.tensor(emb.shape[0] / self.unit_window_len)).item())
-        
+
         if not torch.jit.is_scripting():
             pbar = tqdm(range(total_window_count), desc="Clustering Sub-Windows", leave=True, unit="window")
         else:
@@ -1488,35 +1487,35 @@ class LongFormSpeakerClustering(SpeakerClustering):
                 sparse_search_volume=sparse_search_volume,
                 cuda=self.cuda,
             )
-            current_unit_window_len = min(self.unit_window_len, emb_part.shape[0]) 
-            min_count_per_cluster =  int(torch.ceil(torch.tensor(self.sub_cluster_n/len(torch.unique(Y_part)))).item())
-            
+            current_unit_window_len = min(self.unit_window_len, emb_part.shape[0])
+            min_count_per_cluster = int(
+                torch.ceil(torch.tensor(self.sub_cluster_n / len(torch.unique(Y_part)))).item()
+            )
+
             # We want only one embedding vector for each cluster, so we calculate the number of embedding vectors to be removed
-            class_target_vol = get_merge_quantity(num_to_be_removed=int(current_unit_window_len - self.sub_cluster_n),
-                                                  pre_clus_labels=Y_part,
-                                                  min_count_per_cluster=min_count_per_cluster,
-                                                  )
+            class_target_vol = get_merge_quantity(
+                num_to_be_removed=int(current_unit_window_len - self.sub_cluster_n),
+                pre_clus_labels=Y_part,
+                min_count_per_cluster=min_count_per_cluster,
+            )
             if not torch.jit.is_scripting():
                 pbar.update(1)
-            
-            # class_target_vol is a list of cluster-indices from overclustering 
+
+            # class_target_vol is a list of cluster-indices from overclustering
             for spk_idx, merge_quantity in enumerate(list(class_target_vol)):
                 merged_embs, merged_clus_labels, index_mapping = run_reducer(
-                    pre_embs=emb_part,
-                    target_spk_idx=spk_idx,
-                    merge_quantity=merge_quantity,
-                    pre_clus_labels=Y_part,
+                    pre_embs=emb_part, target_spk_idx=spk_idx, merge_quantity=merge_quantity, pre_clus_labels=Y_part,
                 )
                 total_emb.append(merged_embs)
                 absolute_index_mapping = [x + offset_index for x in index_mapping]
                 absolute_merge_mapping.append(absolute_index_mapping)
                 window_range_list.append([window_offset, window_offset + merged_embs.shape[0]])
                 window_offset += merged_embs.shape[0]
-            
+
         if not torch.jit.is_scripting():
             pbar.close()
-        
-        # Concatenate the reduced embeddings then perform high-level clustering 
+
+        # Concatenate the reduced embeddings then perform high-level clustering
         reduced_embs = torch.cat(total_emb)
         Y_aggr = self.forward_unit_infer(
             reduced_embs,
@@ -1527,11 +1526,15 @@ class LongFormSpeakerClustering(SpeakerClustering):
             fixed_thres=fixed_thres,
             cuda=self.cuda,
         )
-        
-        Y_unpack = self.unpack_labels(Y_aggr=Y_aggr, 
-                                      window_range_list=window_range_list, 
-                                      absolute_merge_mapping=absolute_merge_mapping, 
-                                      org_len=emb.shape[0])
+
+        Y_unpack = self.unpack_labels(
+            Y_aggr=Y_aggr,
+            window_range_list=window_range_list,
+            absolute_merge_mapping=absolute_merge_mapping,
+            org_len=emb.shape[0],
+        )
         if reduced_embs.shape[0] != Y_aggr.shape[0]:
-            raise ValueError("The number of embeddings (reduced_embs.shape) and the number of labels (Y_aggr.shape) do not match.")
+            raise ValueError(
+                "The number of embeddings (reduced_embs.shape) and the number of labels (Y_aggr.shape) do not match."
+            )
         return Y_unpack

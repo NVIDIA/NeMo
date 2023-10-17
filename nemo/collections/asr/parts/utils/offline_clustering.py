@@ -36,6 +36,7 @@ from typing import Dict, List, Tuple
 import torch
 from torch.linalg import eigh, eigvalsh
 
+
 def cos_similarity(emb_a: torch.Tensor, emb_b: torch.Tensor, eps=torch.tensor(3.5e-4)) -> torch.Tensor:
     """
     Calculate cosine similarities of the given two set of tensors. The output is an N by N
