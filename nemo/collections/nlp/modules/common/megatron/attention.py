@@ -88,13 +88,13 @@ except (ImportError, ModuleNotFoundError):
 
         flash_attn_unpadded_func, flash_attn_func_triton, flash_attn_func = None, None, None
         unpad_input, pad_input = None, None
-        
+
     try:
         # Flash Attention 2.2
         from flash_attn import flash_attn_with_kvcache
-        
+
     except (ImportError, ModuleNotFoundError):
-        
+
         flash_attn_with_kvcache = None
 
 """ We use the following notation throughout this file:
@@ -511,22 +511,21 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         if get_key_value:
             present = (key_layer, value_layer)
-        
-        if flash_attn_with_kvcache is not None \
-            and self.use_flash_attention \
-            and rotary_pos_emb is not None \
-            and inference_max_sequence_len:
+
+        if (
+            flash_attn_with_kvcache is not None
+            and self.use_flash_attention
+            and rotary_pos_emb is not None
+            and inference_max_sequence_len
+        ):
             q = rearrange(apply_rotary_pos_emb(query_layer, rotary_pos_emb[0]), 'sq b np hn -> b sq np hn')
             k = rearrange(apply_rotary_pos_emb(key_layer, rotary_pos_emb[1]), 'sk b np hn -> b sk np hn')
             v = rearrange(value_layer, 'sk b np hn -> b sk np hn')
             context_layer = flash_attn_with_kvcache(
-                q=q,
-                k_cache=k,
-                v_cache=v,
-                causal=self.attn_mask_type == AttnMaskType.causal,
+                q=q, k_cache=k, v_cache=v, causal=self.attn_mask_type == AttnMaskType.causal,
             )
             context_layer = rearrange(context_layer, 'b sq np hn -> sq b (np hn)')
-            
+
         elif checkpoint_core_attention:
             context_layer = self._checkpointed_attention_forward(
                 query_layer,
