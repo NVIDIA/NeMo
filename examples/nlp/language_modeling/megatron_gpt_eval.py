@@ -228,7 +228,6 @@ def main(cfg) -> None:
                 pretrained_cfg.megatron_amp_O2 = False
             elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
                 pretrained_cfg.megatron_amp_O2 = True
-                
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
@@ -301,7 +300,7 @@ def main(cfg) -> None:
     response = model.generate(
         inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
     )
-    
+
     if fp8_enabled:
         response = remove_padded_prompts(response, nb_paddings)
     print("***************************")
