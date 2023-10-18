@@ -1378,6 +1378,16 @@ class LongFormSpeakerClustering(SpeakerClustering):
         )
 
     def get_div_ceil_count(self, numer: int, denomin: int) -> int:
+        """
+        Calculates the ceiling of the division of two integers.
+        
+        Args:
+            numer (int): Numerator, the number of segments or clusters, for example.
+            denomin (int): Denominator, the number of speakers or clusters, for example.
+
+        Returns:
+            (int): The ceiling of the division of the two integers (number of chunks).
+        """
         return int(torch.ceil(torch.tensor(numer / denomin)).item())
 
     def long_forward_infer(
@@ -1416,8 +1426,8 @@ class LongFormSpeakerClustering(SpeakerClustering):
                 The length of the list is equal to the number of scales.
                 Each tensor has dimensions of (Total number of segments across all scales) x 2.
                 Example:
-                    >>> timestamps_in_scales[0] 
-                        torch.tensor([[0.4, 1.4], [0.9, 1.9], [1.4, 2.4], ... [121.2, 122.2]])
+                    >>> timestamps_in_scales[0] = \
+                        torch.Tensor([[0.4, 1.4], [0.9, 1.9], [1.4, 2.4], ... [121.2, 122.2]])
             multiscale_segment_counts (torch.LongTensor):
                 A Torch tensor containing the number of segments for each scale.
                 The tensor has dimensions of (Number of scales).
@@ -1450,7 +1460,7 @@ class LongFormSpeakerClustering(SpeakerClustering):
                 The number of random trials for initializing k-means clustering. More trials can result in more stable clustering. The default is 1.
 
         Returns:
-            Y (torch.LongTensor):
+            Y (LongTensor):
                 Speaker labels for the segments in the provided input embeddings.
         """
         self.unit_window_len = unit_window_len if unit_window_len is not None else self.unit_window_len
@@ -1514,7 +1524,7 @@ class LongFormSpeakerClustering(SpeakerClustering):
             if not torch.jit.is_scripting():
                 pbar.update(1)
 
-            # class_target_vol is a list of cluster-indices from overclustering
+            # `class_target_vol` is a list of cluster-indices from overclustering
             for spk_idx, merge_quantity in enumerate(list(class_target_vol)):
                 merged_embs, merged_clus_labels, index_mapping = run_reducer(
                     pre_embs=emb_part, target_spk_idx=spk_idx, merge_quantity=merge_quantity, pre_clus_labels=Y_part,

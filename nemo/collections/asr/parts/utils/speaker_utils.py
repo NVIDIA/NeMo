@@ -465,10 +465,8 @@ def perform_clustering(
         logging.warning("cuda=False, using CPU for eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
-    # `forward_infer` in `LongFormSpeakerClustering` class selectively applies long-form clustering only for long-form audio inputs.
     speaker_clustering = LongFormSpeakerClustering(cuda=cuda)
 
-    # If True, export torch script module and save it to the base folder.
     if clustering_params.get('export_script_module', False):
         speaker_clustering = torch.jit.script(speaker_clustering)
         torch.jit.save(speaker_clustering, 'speaker_clustering_script.pt')
