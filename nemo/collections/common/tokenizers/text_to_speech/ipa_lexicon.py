@@ -205,7 +205,19 @@ def get_ipa_punctuation_list(locale):
         # ref: https://en.wikipedia.org/wiki/Spanish_orthography#Punctuation
         punct_set.update(['¿', '¡'])
     elif locale == "fr-FR":
-        punct_set.update(['–', '“', '”', '…', '̀', '́', '̂', '̈', '̧'])
+        punct_set.update(
+            [
+                '–',  # en dash, U+2013, decimal 8211
+                '“',  # left double quotation mark, U+201C, decimal 8220
+                '”',  # right double quotation mark, U+201D, decimal 8221
+                '…',  # horizontal ellipsis, U+2026, decimal 8230
+                '̀',  # combining grave accent, U+0300, decimal 768
+                '́',  # combining acute accent, U+0301, decimal 769
+                '̂',  # combining circumflex accent, U+0302, decimal 770
+                '̈',  # combining diaeresis, U+0308, decimal 776
+                '̧',  # combining cedilla, U+0327, decimal 807
+            ]
+        )
 
     punct_list = sorted(list(punct_set))
     return punct_list
