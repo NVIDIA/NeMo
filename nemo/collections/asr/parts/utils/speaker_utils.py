@@ -465,10 +465,8 @@ def perform_clustering(
         logging.warning("cuda=False, using CPU for eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
-    speaker_clustering = SpeakerClustering(cuda=cuda)
-    longform_speaker_clustering = LongFormSpeakerClustering(sub_cluster_n=clustering_params.sub_cluster_n, 
-                                                            unit_window_len=clustering_params.unit_window_len,
-                                                            cuda=cuda)
+    # `forward_infer` in `LongFormSpeakerClustering` class selectively applies long-form clustering only for long-form audio inputs.
+    speaker_clustering = LongFormSpeakerClustering(cuda=cuda)
 
     # If True, export torch script module and save it to the base folder.
     if clustering_params.get('export_script_module', False):
@@ -487,13 +485,7 @@ def perform_clustering(
 
         base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
 
-        # Use long-form audio clustering if the segment count is larger than the unit window length.
-        if uniq_embs_and_timestamps['embeddings'].shape[0] > clustering_params.unit_window_len:
-            clustering = longform_speaker_clustering
-        else:
-            clustering = speaker_clustering
-        
-        cluster_labels = clustering.forward_infer(
+        cluster_labels = speaker_clustering.forward_infer(
             embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
             timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
             multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
@@ -502,6 +494,8 @@ def perform_clustering(
             max_num_speakers=int(clustering_params.max_num_speakers),
             max_rp_threshold=float(clustering_params.max_rp_threshold),
             sparse_search_volume=int(clustering_params.sparse_search_volume),
+            sub_cluster_n=clustering_params.get('sub_cluster_n', None),
+            unit_window_len=clustering_params.get('unit_window_len', None),
         )
 
         del uniq_embs_and_timestamps
@@ -509,8 +503,8 @@ def perform_clustering(
             torch.cuda.empty_cache()
         else:
             gc.collect()
-        timestamps = clustering.timestamps_in_scales[base_scale_idx]
-        
+        timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
+
         cluster_labels = cluster_labels.cpu().numpy()
         if len(cluster_labels) != timestamps.shape[0]:
             raise ValueError("Mismatch of length between cluster_labels and timestamps.")

@@ -566,12 +566,13 @@ class TestClusteringUtilFunctions:
             
     @pytest.mark.unit
     @pytest.mark.parametrize("Y_aggr", [torch.tensor([0, 1, 0, 1])])
+    @pytest.mark.parametrize("sub_cluster_n, unit_window_len", [(2, 50)])
     @pytest.mark.parametrize("window_range_list", [[[0, 1], [1, 2], [2, 3], [3, 4]]])
     @pytest.mark.parametrize("absolute_merge_mapping", [[[torch.tensor([]), torch.tensor([0, 2])], [torch.tensor([]), torch.tensor([1, 3])]]])
     @pytest.mark.parametrize("org_len", [4])
-    def test_unpack_labels(self, Y_aggr, window_range_list, absolute_merge_mapping, org_len):
+    def test_unpack_labels(self, Y_aggr, window_range_list, absolute_merge_mapping, sub_cluster_n, unit_window_len, org_len):
         expected_result = Y_aggr
-        longform_speaker_clustering = LongFormSpeakerClustering(sub_cluster_n=4, unit_window_len=50, cuda=False)
+        longform_speaker_clustering = LongFormSpeakerClustering(cuda=False)
         output = longform_speaker_clustering.unpack_labels(Y_aggr, window_range_list, absolute_merge_mapping, org_len)
         assert torch.equal(output, expected_result)
 
@@ -580,7 +581,6 @@ class TestSpeakerClustering:
     """
     Test speaker clustering module
     """
-
     @pytest.mark.unit
     @pytest.mark.parametrize("cuda", [True, False])
     def test_offline_clus_script_save_load(self, cuda):
@@ -728,7 +728,7 @@ class TestSpeakerClustering:
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(
             n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed
         )
-        longform_speaker_clustering = LongFormSpeakerClustering(sub_cluster_n=sub_cluster_n, unit_window_len=unit_window_len, cuda=False)
+        longform_speaker_clustering = LongFormSpeakerClustering(cuda=False)
         if jit_script:
             longform_speaker_clustering = torch.jit.script(longform_speaker_clustering)
         else:
@@ -739,11 +739,13 @@ class TestSpeakerClustering:
             multiscale_segment_counts=mc,
             multiscale_weights=mw,
             oracle_num_speakers=-1,
-            max_num_speakers=8,
+            max_num_speakers=n_spks,
             enhanced_count_thres=enhanced_count_thres,
             sparse_search_volume=SSV,
             max_rp_threshold=0.15,
             fixed_thres=-1.0,
+            sub_cluster_n=sub_cluster_n,
+            unit_window_len=unit_window_len,
         )
         permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
         permuted_Y = permuted_Y.to(gt.device)
@@ -765,23 +767,26 @@ class TestSpeakerClustering:
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(
             n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed
         )
-        longform_speaker_clustering = LongFormSpeakerClustering(sub_cluster_n=sub_cluster_n, unit_window_len=unit_window_len, cuda=True)
+        longform_speaker_clustering = LongFormSpeakerClustering(cuda=True)
         
         if jit_script:
             longform_speaker_clustering = torch.jit.script(longform_speaker_clustering)
         else:
             assert isinstance(longform_speaker_clustering, LongFormSpeakerClustering)
+        
         Y_out = longform_speaker_clustering.forward_infer(
             embeddings_in_scales=em,
             timestamps_in_scales=ts,
             multiscale_segment_counts=mc,
             multiscale_weights=mw,
             oracle_num_speakers=-1,
-            max_num_speakers=8,
+            max_num_speakers=n_spks,
             enhanced_count_thres=enhanced_count_thres,
             sparse_search_volume=SSV,
             max_rp_threshold=0.15,
             fixed_thres=-1.0,
+            sub_cluster_n=sub_cluster_n,
+            unit_window_len=unit_window_len,
         )
         permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
         permuted_Y = permuted_Y.to(gt.device)

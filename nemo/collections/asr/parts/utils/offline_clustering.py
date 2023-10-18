@@ -36,6 +36,7 @@ from typing import Dict, List, Tuple
 import torch
 from torch.linalg import eigh, eigvalsh
 
+
 def cos_similarity(emb_a: torch.Tensor, emb_b: torch.Tensor, eps=torch.tensor(3.5e-4)) -> torch.Tensor:
     """
     Calculate cosine similarities of the given two set of tensors. The output is an N by N
@@ -1118,6 +1119,7 @@ class SpeakerClustering(torch.nn.Module):
         maj_vote_spk_count: bool = False,
         parallelism: bool = False,
         cuda: bool = False,
+        device = None,
     ):
         """
         Clustering method for speaker diarization based on cosine similarity.
@@ -1148,8 +1150,11 @@ class SpeakerClustering(torch.nn.Module):
         self.maj_vote_spk_count: bool = maj_vote_spk_count
         self.embeddings_in_scales: List[torch.Tensor] = [torch.Tensor(0)]
         self.timestamps_in_scales: List[torch.Tensor] = [torch.Tensor(0)]
-        self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
-
+        if device is None or type(device) is not torch.device:
+            self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
+        else:
+            self.device = device
+            
     def forward(self, param_dict: Dict[str, torch.Tensor]) -> torch.LongTensor:
         """
         A function wrapper designed for inference in exported script format.
