@@ -110,12 +110,18 @@ class MMGPTSFTDataset(GPTSFTDataset):
             pad_to_length=1500, 
             pad_location='end',
             pad_id=None,
+            truncate_to_length=0,
     ):
         """
         load audio data from npz file
         keep_dims_for_audio: if False, applies squeeze to audio_codes
+        pad_to_length:  if = 0 do nothing; 
+                        if > 0 pads audio_codes to this length
+                        
         """
-        import pdb; pdb.set_trace()
+        # make sure that both pad_to_length and truncate_to_length are not set
+        assert not (pad_to_length > 0 and truncate_to_length > 0), "pad_to_length and truncate_to_length cannot be set at the same time"
+
         # make sure that it is npz file
         assert filepath.endswith('.npz'), f"audio_codes should be npz file, got {filepath}"
         assert pad_location in ['begin', 'end'], f"pad_location should be either 'start' or 'end', got {pad_location}"
@@ -141,6 +147,11 @@ class MMGPTSFTDataset(GPTSFTDataset):
                     audio_codes = np.concatenate((audio_codes, pad_matrix), axis=0)
                 else:
                     audio_codes = np.concatenate((pad_matrix, audio_codes), axis=0)
+
+        if truncate_to_length > 0:
+            if truncate_to_length < audio_codes.shape[0]:
+                audio_codes = audio_codes[:truncate_to_length, :]
+
         return audio_codes.tolist()
 
 
@@ -255,6 +266,45 @@ class MMGPTSFTDataset(GPTSFTDataset):
         return template_ids
     
 
+    def _filter_template_strings_and_keys(self, template_strings, template_strings_keys, not_in_example_value):
+        remove_indices = []
+        # find indices of template_strings that are not in example
+        for i, item in enumerate(template_strings):
+            if item == not_in_example_value:
+                remove_indices.extend([i-1, i])
+
+        # remove those indices from both template_strings and template_strings_keys
+        template_strings = [item for i, item in enumerate(template_strings) if i not in remove_indices]
+        template_strings_keys = [item for i, item in enumerate(template_strings_keys) if i not in remove_indices]
+        return template_strings, template_strings_keys
+
+    def _swap_template_ids_for_audio(self, template_ids, template_strings_keys, example, field_name=None):
+        """
+        replace template_ids with audio_ids
+        """
+        pad_location = 'end' # pad at beginning or end, hardcoded for now
+        pad_to_length = self.pad_audio_to_length
+        pad_id = self.tokenizer.eos_id if pad_location=='end' else self.tokenizer.pad_id
+        truncate_to_length = 7*75 if field_name=='speaker_prompt' else 0
+
+        # Insert audio codes
+        if field_name in template_strings_keys:
+            # find the respective index
+            audio_codes_idx = template_strings_keys.index(field_name)
+            audio_ids = self._load_audio_data(
+                example[field_name], 
+                num_codebooks_to_load=self.num_audio_codebooks, 
+                keep_dims_for_audio=True, 
+                pad_to_length=pad_to_length,
+                pad_location=pad_location, 
+                pad_id=pad_id,
+                truncate_to_length=truncate_to_length,
+            )
+            template_ids[audio_codes_idx] = audio_ids
+
+        return template_ids
+
+
     def _process_example(self, example):
         """
         Overriding the _process_example method from GPTSFTDataset to handle audio inputs
@@ -263,13 +313,22 @@ class MMGPTSFTDataset(GPTSFTDataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
+        # prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
+        # following is a hack to make it work for prompt_template_keys not in examples
+        not_in_example_value = 'notInExample1234'
+        prompt_template_values = [example.get(c, not_in_example_value).strip(' ') for c in self.prompt_template_keys]
 
         template_strings, template_strings_keys = self._separate_template(prompt_template_values)
+        template_strings, template_strings_keys = self._filter_template_strings_and_keys(template_strings, template_strings_keys, not_in_example_value)
+        
         template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
         
-        pad_location = 'end' # pad at beginning or end, hardcoded for now
         # Insert audio codes
+        template_ids = self._swap_template_ids_for_audio(template_ids, template_strings_keys, example, field_name='audio_codes')
+        template_ids = self._swap_template_ids_for_audio(template_ids, template_strings_keys, example, field_name='speaker_prompt')
+        
+        """ moved to _swap_template_ids_for_audio
+        pad_location = 'end' # pad at beginning or end, hardcoded for now
         if 'audio_codes' in template_strings_keys:
             # find the respective index
             audio_codes_idx = template_strings_keys.index('audio_codes')
@@ -282,7 +341,8 @@ class MMGPTSFTDataset(GPTSFTDataset):
                 pad_id=self.tokenizer.eos_id if pad_location=='end' else self.tokenizer.pad_id,
             )
             template_ids[audio_codes_idx] = audio_ids
-        
+        """
+
         # pad all entries to same dimension
         template_ids = self._pad_all_to_same_dims(template_ids, pad_id=self.tokenizer.pad_id)
         
