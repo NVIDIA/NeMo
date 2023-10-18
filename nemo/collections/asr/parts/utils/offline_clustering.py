@@ -1229,8 +1229,8 @@ class SpeakerClustering(torch.nn.Module):
                 The length of the list is equal to the number of scales.
                 Each tensor has dimensions of (Total number of segments across all scales) x 2.
                 Example:
-                    >>> timestamps_in_scales[0] 
-                        torch.tensor([[0.4, 1.4], [0.9, 1.9], [1.4, 2.4], ... [121.2, 122.2]])
+                    >>> timestamps_in_scales[0] = \
+                        torch.Tensor([[0.4, 1.4], [0.9, 1.9], [1.4, 2.4], ... [121.2, 122.2]])
             multiscale_segment_counts (torch.LongTensor):
                 A Torch tensor containing the number of segments for each scale.
                 The tensor has dimensions of (Number of scales).
@@ -1259,12 +1259,11 @@ class SpeakerClustering(torch.nn.Module):
                 If a `fixed_thres` value is provided, the NME-analysis process will be skipped.
                 This value should be optimized on a development set for best results.
                 By default, it is set to -1.0, and the function performs NME-analysis to estimate the threshold.
-
             kmeans_random_trials (int):
                 The number of random trials for initializing k-means clustering. More trials can result in more stable clustering. The default is 1.
 
         Returns:
-            Y (torch.LongTensor):
+            Y (LongTensor):
                 Speaker labels for the segments in the provided input embeddings.
         """
         self.embeddings_in_scales, self.timestamps_in_scales = split_input_data(
