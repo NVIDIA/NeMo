@@ -1729,7 +1729,6 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
 
         app_state = AppState()
         self.should_log = app_state.global_rank == 0
-        logging.error(self.should_log)
         if self.should_log:
             encodec_model = EncodecModel.encodec_model_24khz()
             encodec_model.set_target_bandwidth(6.0)

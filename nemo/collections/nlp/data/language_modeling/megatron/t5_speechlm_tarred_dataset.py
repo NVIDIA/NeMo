@@ -722,24 +722,27 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
         # predicted by the decoder.
         start_token_index = 0
         end_token_index = -1
-        if "Text to speech this" in question_in_manifest:
-            total_context_len = context_tokens[0].size()[1]
-            reduced_len = min(
-                400,
-                int(total_context_len * 0.2)
-                if total_context_len > 600
-                else int(total_context_len * random.uniform(0.2, 0.5)),
-            )
-            start_token_index = random.randint(
-                0, total_context_len - reduced_len
-            )  # start index can be greater than 440
-            context_tokens[0] = context_tokens[0][
-                :, start_token_index : min(start_token_index + 440, start_token_index + reduced_len)
-            ]
-        elif "Next token prediction" in question_in_manifest:
-            total_context_len = context_tokens[0].size()[1]
-            end_token_index = int(total_context_len * random.uniform(0.01, 0.2))
-            context_tokens[0] = context_tokens[0][:, :end_token_index]
+        # print(question_in_manifest)
+        # import ipdb; ipdb.set_trace()
+        total_context_len = context_tokens[0].size()[1]
+        reduced_len = min(
+            400,
+            int(total_context_len * 0.2)
+            if total_context_len > 600
+            else int(total_context_len * random.uniform(0.2, 0.5)),
+        )
+        start_token_index = random.randint(
+            0, total_context_len - reduced_len
+        )  # start index can be greater than 440
+        context_tokens[0] = context_tokens[0][
+            :, start_token_index : min(start_token_index + 440, start_token_index + reduced_len)
+        ]
+        # if "Text to speech this" in question_in_manifest:
+        # elif "Next token prediction" in question_in_manifest:
+        #     total_context_len = context_tokens[0].size()[1]
+        #     end_token_index = int(total_context_len * random.uniform(0.01, 0.2))
+        #     context_tokens[0] = context_tokens[0][:, :end_token_index]
+        # ipdb.set_trace()
 
         # Get virtual tokens
         virtual_tokens = self._insert_virtual_token_placeholders(input_example.split(' ')[0], virtual_token_splits)
