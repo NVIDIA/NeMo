@@ -1,0 +1,38 @@
+ARG FROM_IMAGE_NAME=nvcr.io/nvidia/pytorch:23.09-py3
+FROM ${FROM_IMAGE_NAME}
+ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/lib/x86_64-linux-gnu"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsndfile1 sox \
+    libfreetype6 \
+    swig \
+    ffmpeg \
+    libavdevice-dev \
+    vim \
+		git \
+		curl \
+		wget \
+		htop \
+		g++ \
+		build-essential \
+		software-properties-common \
+	&& rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+RUN git clone https://github.com/NVIDIA/NeMo.git
+WORKDIR /workspace/NeMo
+RUN pip install -r requirements/requirements.txt
+RUN pip install -r requirements/requirements_common.txt
+RUN pip install -r requirements/requirements_lightning.txt
+#RUN pip install -r requirements/requirements_nlp.txt
+RUN pip install boto3 datasets einops h5py ijson matplotlib>=3.3.2
+RUN pip install nltk>=3.6.5 rouge_score zarr tensorstore fasttext sacrebleu
+RUN pip install ftfy gdown jieba markdown2 opencc pangu rapidfuzz 
+
+WORKDIR /workspace
+RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
+  cd Megatron-LM && \
+  git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
+  pip install -e .
+
+WORKDIR /home
