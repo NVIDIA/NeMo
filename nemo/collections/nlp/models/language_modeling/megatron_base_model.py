@@ -780,7 +780,7 @@ class MegatronBaseModel(NLPModel):
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
             "grad_scale_func": self.trainer.precision_plugin.scaler.scale
-            if self.torch_dtype == torch.float16
+            if self.torch_dtype == torch.float16 and hasattr(self.trainer.precision_plugin, "scaler")
             else None,
             "enable_autocast": not megatron_amp_O2 and self.torch_dtype in [torch.bfloat16, torch.float16],
             "autocast_dtype": self.autocast_dtype,
