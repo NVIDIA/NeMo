@@ -722,8 +722,6 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
         # predicted by the decoder.
         start_token_index = 0
         end_token_index = -1
-        # print(question_in_manifest)
-        # import ipdb; ipdb.set_trace()
         total_context_len = context_tokens[0].size()[1]
         reduced_len = min(
             400,
@@ -742,7 +740,6 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
         #     total_context_len = context_tokens[0].size()[1]
         #     end_token_index = int(total_context_len * random.uniform(0.01, 0.2))
         #     context_tokens[0] = context_tokens[0][:, :end_token_index]
-        # ipdb.set_trace()
 
         # Get virtual tokens
         virtual_tokens = self._insert_virtual_token_placeholders(input_example.split(' ')[0], virtual_token_splits)

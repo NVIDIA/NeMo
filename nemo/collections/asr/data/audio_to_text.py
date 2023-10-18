@@ -16,6 +16,7 @@ import json
 import math
 import multiprocessing
 import os
+import random
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import braceexpand
@@ -800,6 +801,14 @@ class _TarredInstructionTuningDataset(IterableDataset):
             world_size=world_size,
             global_rank=global_rank,
         )
+
+        if shuffle_n > 0:
+            # Only shuffle training data tar files
+            logging.info("Shuffling Tar files")
+            custom_rng = random.Random()
+            custom_rng.shuffle(audio_tar_filepaths)
+            logging.info("Done shuffling Tar files")
+            logging.info(audio_tar_filepaths[:10])
 
         self.sample_rate = sample_rate
 
