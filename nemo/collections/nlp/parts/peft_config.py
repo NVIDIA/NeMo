@@ -19,14 +19,15 @@ from omegaconf import DictConfig
 try:
     from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
         MCoreGPTEmbeddingMixin,
+        MCoreMLPIA3Mixin,
+        MCoreSelfAttentionIA3Mixin,
         MCoreSelfAttentionLoRAMixin,
         MCoreTransformerLayerMixin,
-        MCoreSelfAttentionIA3Mixin,
-        MCoreMLPIA3Mixin
-)
+    )
 except (ImportError, ModuleNotFoundError):
-    MCoreGPTEmbeddingMixin = MCoreSelfAttentionMixin = MCoreTransformerLayerMixin = \
-        MCoreSelfAttentionIA3Mixin = MCoreMLPIA3Mixin = None
+    MCoreGPTEmbeddingMixin = (
+        MCoreSelfAttentionMixin
+    ) = MCoreTransformerLayerMixin = MCoreSelfAttentionIA3Mixin = MCoreMLPIA3Mixin = None
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -111,7 +112,9 @@ class LoraPEFTConfig(PEFTConfig):
         name_key_to_cfg = {
             AdapterName.LORA_KQV_ADAPTER: adapter_cfg,
         }
-        self.name_key_to_mcore_mixins = {AdapterName.LORA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionLoRAMixin)]}
+        self.name_key_to_mcore_mixins = {
+            AdapterName.LORA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionLoRAMixin)]
+        }
 
         super().__init__(lora_cfg, name_key_to_cfg)
 

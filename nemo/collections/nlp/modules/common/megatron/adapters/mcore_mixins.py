@@ -13,22 +13,24 @@
 # limitations under the License.
 
 import torch
+import torch.nn.functional as F
+from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 from megatron.core.models.gpt.gpt_embedding import GPTEmbedding
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
+    InfusedAdapterConfig,
     LoraKQVAdapterConfig,
+    MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
-    PromptEncoderAdapterConfig, InfusedAdapterConfig, MLPInfusedAdapterConfig,
+    PromptEncoderAdapterConfig,
 )
 from nemo.core import adapter_mixins
-import torch.nn.functional as F
 
 
 def swap_mcore_mixin(module, mcore_mixin):
@@ -253,9 +255,7 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
 
         # bias_dropout_add fusion returning fp32 instead of bf16
         with self.bias_dropout_add_exec_handler():
-            layernorm_input = bias_dropout_add_func(
-                attention_output_with_bias, residual, self.config.hidden_dropout
-            )
+            layernorm_input = bias_dropout_add_func(attention_output_with_bias, residual, self.config.hidden_dropout)
 
         # Layer norm post the self attention.
         layernorm_output = self.post_self_attn_layernorm(layernorm_input)
