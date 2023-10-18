@@ -515,7 +515,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if flash_attn_with_kvcache is not None \
             and self.use_flash_attention \
             and rotary_pos_emb is not None \
-            and inference_max_sequence_len:
+            and inference_max_sequence_len \
+            and not set_inference_key_value_memory:
+            # Mainly used for decoding with sq=1
             q = rearrange(apply_rotary_pos_emb(query_layer, rotary_pos_emb[0]), 'sq b np hn -> b sq np hn')
             k = rearrange(apply_rotary_pos_emb(key_layer, rotary_pos_emb[1]), 'sk b np hn -> b sk np hn')
             v = rearrange(value_layer, 'sk b np hn -> b sk np hn')
