@@ -219,6 +219,7 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
+            pretrained_cfg["use_flash_attention"] = cfg.model.get("use_flash_attention", False)
             if pretrained_cfg.get('mcore_gpt', False):
                 # with dist checkpointing we can use the model parallel config specified by the user
                 pretrained_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
@@ -227,6 +228,7 @@ def main(cfg) -> None:
                 pretrained_cfg.megatron_amp_O2 = False
             elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
                 pretrained_cfg.megatron_amp_O2 = True
+                
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
@@ -299,7 +301,7 @@ def main(cfg) -> None:
     response = model.generate(
         inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
     )
-
+    
     if fp8_enabled:
         response = remove_padded_prompts(response, nb_paddings)
     print("***************************")
