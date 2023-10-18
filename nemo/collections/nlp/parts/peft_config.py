@@ -44,10 +44,15 @@ class PEFTConfig:
 
         self.layer_selection = peft_cfg.get("layer_selection", None)
         self.weight_tying = peft_cfg.get("weight_tying", False)
+        self.tunable_param_names = peft_cfg.get("tunable_param_names", [])
 
     def get_config_dict(self):
         return self.name_key_to_cfg
 
+class SelectivePEFTConfig(PEFTConfig):
+    def __init__(self, cfg):
+        selective_cfg = cfg.peft.selective_tuning
+        super().__init__(selective_cfg, name_key_to_cfg={})
 
 class LoraPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
@@ -189,6 +194,7 @@ PEFT_CONFIG_MAP = {
     "ia3": IA3PEFTConfig,
     "ptuning": PtuningPEFTConfig,
     "lora": LoraPEFTConfig,
+    "selective": SelectivePEFTConfig,
     'none': None,
     None: None,
 }
