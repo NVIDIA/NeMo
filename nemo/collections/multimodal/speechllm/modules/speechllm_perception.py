@@ -22,6 +22,7 @@ from apex.transformer.enums import AttnMaskType, AttnType
 from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron as MLP
 from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention
 from nemo.collections.nlp.modules.common.megatron.utils import (
     build_attention_mask_3d,
@@ -215,6 +216,8 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
         self.cfg = cfg
         if self.cfg.get('learnable_combine', False):
             self.lm_attention_ratio = nn.Parameter(torch.tensor(0.5))
+        if self.cfg.get('consistency_loss_weight', 0.0) > 0.0:
+            self.reconstruction_layer = MLP(cfg.output_dim, cfg.output_dim, num_layers, "relu", log_softmax=False)
 
     def get_am_text_output(self, encoded, logits_len):
         with torch.no_grad():
@@ -255,7 +258,9 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
         loss_func = torch.nn.MSELoss()
         # TODO: consider pad_id
         consistency_loss_weight = self.cfg.get('consistency_loss_weight', 0.0)
-        aux_loss['consistency_loss'] = loss_func(attended_encoded, encoded.detach()) * consistency_loss_weight
+        if consistency_loss_weight > 0.0:
+            reconstructed_emb = self.reconstruction_layer(attended_encoded)
+            aux_loss['consistency_loss'] = loss_func(reconstructed_emb, encoded.detach()) * consistency_loss_weight
         if self.cfg.get('learnable_combine', False):
             attended_encoded = attended_encoded * self.lm_attention_ratio + encoded * (1 - self.lm_attention_ratio)
 
