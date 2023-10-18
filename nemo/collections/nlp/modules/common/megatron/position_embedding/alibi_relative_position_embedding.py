@@ -87,7 +87,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         num_attention_heads_alibi=None,
         max_seq_len=512,
         use_FA=False,
-        seq_len_interpolation_factor=1,
+        seq_len_interpolation_factor: int = 1,
     ):
         """
         Args:
@@ -120,12 +120,15 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
         # cache the slopes
         slopes = build_slopes(num_attention_heads, num_attention_heads_alibi)
-        self.register_buffer('slopes', slopes)
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
         # if we use causal attention (not bidrectional), we can use singleton relative position
-        self.relative_position = (
+        relative_position = (
             build_relative_position(max_seq_len, full=bidirectional).unsqueeze(0).expand(num_attention_heads, -1, -1)
         )
+        self.seq_len_interpolation_factor = seq_len_interpolation_factor
+
+        self.register_buffer('slopes', slopes)
+        self.register_buffer('relative_position', relative_position)
 
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
@@ -143,12 +146,16 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
                 build_relative_position(max_seq_len, full=self.bidirectional)
                 .unsqueeze(0)
                 .expand(self.num_attention_heads, -1, -1)
-            )
+            ).to(self.slopes.device)
         else:
             relative_position = self.relative_position
         # shape (num_attention_heads, query_seq_length, key_seq_length)
         relative_position = relative_position[:, -query_seq_length:, -key_seq_length:]
         # if not bidirectional, mask out the future positions
+
+        if self.seq_len_interpolation_factor is not None:
+            relative_position = relative_position.type_as(self.slopes)
+            relative_position *= 1 / self.seq_len_interpolation_factor
 
         # shape (1, num_heads, query_length, key_length)
         relative_position = relative_position.to(slopes.device)

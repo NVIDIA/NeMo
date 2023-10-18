@@ -222,6 +222,13 @@ def main(cfg) -> None:
                 pretrained_cfg.megatron_amp_O2 = False
             elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
                 pretrained_cfg.megatron_amp_O2 = True
+                
+            try:
+                pretrained_cfg.use_flash_attention = True
+            except:
+                pretrained_cfg["use_flash_attention"] = True
+            pretrained_cfg.apply_query_key_layer_scaling = False
+
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
@@ -258,6 +265,7 @@ def main(cfg) -> None:
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
+    print(f'\n{OmegaConf.to_yaml(model._cfg)}')
     model.freeze()
 
     # Have to turn off activations_checkpoint_method for inference
@@ -291,20 +299,30 @@ def main(cfg) -> None:
             cfg.prompts.append("")
             nb_paddings += 1
 
-    # First method of running text generation, call model.generate method
-    response = model.generate(
-        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
-    )
+    # read json file
+    import json
 
-    if fp8_enabled:
-        response = remove_padded_prompts(response, nb_paddings)
-    print("***************************")
-    print(response)
-    print("***************************")
+    output_file = cfg.inference.output_file
+    with open(cfg.inference.input_file) as f:
+        cfg.prompts = []
+        lines = []
+        for line in f:
+            line = json.loads(line)
+            lines.append(line["truncated_input"])
+    # # First method of running text generation, call model.generate method
+    # response = model.generate(
+    #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
+    # )
+
+    # if fp8_enabled:
+    #     response = remove_padded_prompts(response, nb_paddings)
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Second method of running text generation, call trainer.predict [recommended]
-    bs = 8 if fp8_enabled else 2
-    ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
+    bs = cfg.inference.batch_size
+    ds = RequestDataSet(lines)
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
@@ -312,10 +330,22 @@ def main(cfg) -> None:
 
     if fp8_enabled:
         response[-1] = remove_padded_prompts(response[-1], nb_paddings)
-    print("***************************")
-    print(response)
+
+    if model.global_rank == 0:
+        print("***************************")
+        if output_file is not None:
+            with open(output_file, "w", encoding="utf-8") as f:
+                for batch in response:
+                    batch_sentences = [s for s in batch['sentences']]
+                    for s in batch_sentences:
+                        d = {'sentence': s}
+                        f.write(json.dumps(d) + '\n')
+            print("predictions saved to {}".format(output_file))
+        else:
+            print(response)
     print("***************************")
 
+<<<<<<< HEAD
     # Third method of running text generation, use inference server
     if cfg.server:
         from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
@@ -351,6 +381,42 @@ def main(cfg) -> None:
             torch.distributed.broadcast(choice, 0)
             if choice[0].item() == 0:
                 generate(model.cuda())
+=======
+    # print("***************************")
+    # print(response)
+    # print("***************************")
+
+    # # Third method of running text generation, use inference server
+    # if cfg.server:
+    #     from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
+
+    #     if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
+    #         if cfg.web_server:
+    #             if cfg.chat:
+    #                 defaults = {
+    #                     'user': cfg.chatbot_config.user,
+    #                     'assistant': cfg.chatbot_config.assistant,
+    #                     'system': cfg.chatbot_config.system,
+    #                 }
+    #                 web_ui = partial(get_chatbot_demo, defaults=defaults, value=cfg.chatbot_config.value)
+    #             else:
+    #                 web_ui = get_demo
+    #             loop = asyncio.new_event_loop()
+    #             thread = threading.Thread(
+    #                 target=web_ui,
+    #                 daemon=True,
+    #                 args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+    #             )
+    #             thread.start()
+    #         server = MegatronServer(model.cuda())
+    #         server.run("0.0.0.0", port=cfg.port)
+
+    #     while True:
+    #         choice = torch.cuda.LongTensor(1)
+    #         torch.distributed.broadcast(choice, 0)
+    #         if choice[0].item() == 0:
+    #             generate(model.cuda())
+>>>>>>> nvidia/zero_sc_eval
 
 
 if __name__ == '__main__':

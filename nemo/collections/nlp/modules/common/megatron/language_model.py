@@ -126,6 +126,12 @@ def get_language_model(
     ub_tp_comm_overlap=False,
     use_flash_attention=False,
     seq_len_interpolation_factor=None,
+    rotary_base=10000,
+    extrapolation_factor=1,
+    attn_factor=1,
+    beta_fast=32,
+    beta_slow=1,
+    use_yarn=False,
     enforce_fp32_pos_idx=False,
 ):
     """Build language model and return along with the key to save."""
@@ -203,6 +209,12 @@ def get_language_model(
         ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
         seq_len_interpolation_factor=seq_len_interpolation_factor,
+        rotary_base=rotary_base,
+        extrapolation_factor=extrapolation_factor,
+        attn_factor=attn_factor,
+        beta_fast=beta_fast,
+        beta_slow=beta_slow,
+        use_yarn=use_yarn,
         enforce_fp32_pos_idx=enforce_fp32_pos_idx,
     )
     # key used for checkpoints.
@@ -504,6 +516,12 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
+        rotary_base=10000,
+        extrapolation_factor=None,
+        attn_factor=None,
+        beta_fast=None,
+        beta_slow=None,
+        use_yarn=False,
         enforce_fp32_pos_idx=False,
     ):
         super(TransformerLanguageModel, self).__init__(
@@ -559,6 +577,12 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             self.rotary_pos_emb = RotaryEmbedding(
                 rotary_dim,
                 seq_len_interpolation_factor=seq_len_interpolation_factor,
+                rotary_base=rotary_base,
+                extrapolation_factor=extrapolation_factor,
+                attn_factor=attn_factor,
+                beta_fast=beta_fast,
+                beta_slow=beta_slow,
+                use_yarn=use_yarn,
                 pretrained_max_position_embeddings=max_position_embeddings,
                 enforce_fp32_pos_idx=enforce_fp32_pos_idx,
             )
