@@ -90,7 +90,7 @@ def get_args():
         default="gpt",
         choices=["gpt", "sft", "t5", "bert", "nmt", "bart", "retro"],
     )
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument("--local-rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
 
     args = parser.parse_args()
