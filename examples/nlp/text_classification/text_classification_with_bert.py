@@ -109,9 +109,9 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg: DictConfig) -> None:
     logging.info(f'\nConfig Params:\n{OmegaConf.to_yaml(cfg)}')
     try:
-        strategy = NLPDDPStrategy()
+        strategy = NLPDDPStrategy(find_unused_parameters=True)
     except (ImportError, ModuleNotFoundError):
-        strategy = None
+        strategy = 'auto'
 
     trainer = pl.Trainer(strategy=strategy, **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
