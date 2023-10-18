@@ -1201,10 +1201,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
 
 class LongFormSpeakerClustering(SpeakerClustering):
     def __init__(
-        self, 
-        unit_window_len: int = 10000,
-        sub_cluster_n: int = 50,
-        cuda: bool = False, 
+        self, unit_window_len: int = 10000, sub_cluster_n: int = 50, cuda: bool = False,
     ):
         """
         Initializes the speaker clustering class tailored for long-form audio, inheriting from the `SpeakerClustering` class.
@@ -1380,9 +1377,9 @@ class LongFormSpeakerClustering(SpeakerClustering):
             sparse_search_volume=sparse_search_volume,
             fixed_thres=fixed_thres,
         )
-    
+
     def get_div_ceil_count(self, numer: int, denomin: int) -> int:
-        return int(torch.ceil(torch.tensor(numer/denomin)).item())
+        return int(torch.ceil(torch.tensor(numer / denomin)).item())
 
     def long_forward_infer(
         self,
@@ -1460,14 +1457,21 @@ class LongFormSpeakerClustering(SpeakerClustering):
         self.unit_window_len = unit_window_len if unit_window_len is not None else self.unit_window_len
         self.sub_cluster_n = sub_cluster_n if sub_cluster_n is not None else self.sub_cluster_n
         if self.sub_cluster_n is None or self.unit_window_len is None:
-            raise ValueError(f"sub_cluster_n ({self.sub_cluster_n}) and unit_window_len ({self.unit_window_len}) should be set.")
-        elif all(v is not None for v in [self.sub_cluster_n, self.unit_window_len]) and self.sub_cluster_n >= self.unit_window_len:
+            raise ValueError(
+                f"sub_cluster_n ({self.sub_cluster_n}) and unit_window_len ({self.unit_window_len}) should be set."
+            )
+        elif (
+            all(v is not None for v in [self.sub_cluster_n, self.unit_window_len])
+            and self.sub_cluster_n >= self.unit_window_len
+        ):
             raise ValueError(
                 f"sub_cluster_n ({self.sub_cluster_n}) should be smaller than unit_window_len ({self.unit_window_len})."
             )
-            
+
         if self.sub_cluster_n <= max_num_speakers:
-            raise ValueError(f"sub_cluster_n ({self.sub_cluster_n}) should be larger than max_num_speakers ({max_num_speakers}).")
+            raise ValueError(
+                f"sub_cluster_n ({self.sub_cluster_n}) should be larger than max_num_speakers ({max_num_speakers})."
+            )
 
         self.embeddings_in_scales, self.timestamps_in_scales = split_input_data(
             embeddings_in_scales, timestamps_in_scales, multiscale_segment_counts
@@ -1498,8 +1502,10 @@ class LongFormSpeakerClustering(SpeakerClustering):
                 cuda=self.cuda,
             )
             num_to_be_merged = int(min(unit_window_len, emb_part.shape[0]) - sub_cluster_n)
-            min_count_per_cluster = self.get_div_ceil_count(numer=self.sub_cluster_n, denomin=len(torch.unique(Y_part)))
-            
+            min_count_per_cluster = self.get_div_ceil_count(
+                numer=self.sub_cluster_n, denomin=len(torch.unique(Y_part))
+            )
+
             # We want only one embedding vector for each cluster, so we calculate the number of embedding vectors to be removed
             class_target_vol = get_merge_quantity(
                 num_to_be_removed=num_to_be_merged,
@@ -1546,7 +1552,7 @@ class LongFormSpeakerClustering(SpeakerClustering):
                 "The number of embeddings (reduced_embs.shape) and the number of labels (Y_aggr.shape) do not match."
             )
         return Y_unpack
-    
+
     def forward_infer(
         self,
         embeddings_in_scales: torch.Tensor,
@@ -1570,7 +1576,7 @@ class LongFormSpeakerClustering(SpeakerClustering):
         """
         self.unit_window_len = unit_window_len if unit_window_len is not None else self.unit_window_len
         self.sub_cluster_n = sub_cluster_n if sub_cluster_n is not None else self.sub_cluster_n
-        if embeddings_in_scales.shape[0] > self.unit_window_len: 
+        if embeddings_in_scales.shape[0] > self.unit_window_len:
             return self.long_forward_infer(
                 embeddings_in_scales=embeddings_in_scales,
                 timestamps_in_scales=timestamps_in_scales,
@@ -1585,7 +1591,7 @@ class LongFormSpeakerClustering(SpeakerClustering):
                 sub_cluster_n=sub_cluster_n,
                 unit_window_len=unit_window_len,
             )
-        else: 
+        else:
             cluster_labels = self.speaker_clustering.forward_infer(
                 embeddings_in_scales=embeddings_in_scales,
                 timestamps_in_scales=timestamps_in_scales,
@@ -1597,7 +1603,6 @@ class LongFormSpeakerClustering(SpeakerClustering):
                 enhanced_count_thres=enhanced_count_thres,
                 sparse_search_volume=sparse_search_volume,
                 fixed_thres=fixed_thres,
-                ) 
+            )
             self.timestamps_in_scales = self.speaker_clustering.timestamps_in_scales
             return cluster_labels
-

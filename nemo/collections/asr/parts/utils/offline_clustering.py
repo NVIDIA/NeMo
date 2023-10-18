@@ -1119,7 +1119,7 @@ class SpeakerClustering(torch.nn.Module):
         maj_vote_spk_count: bool = False,
         parallelism: bool = False,
         cuda: bool = False,
-        device = None,
+        device=None,
     ):
         """
         Clustering method for speaker diarization based on cosine similarity.
@@ -1154,7 +1154,7 @@ class SpeakerClustering(torch.nn.Module):
             self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
         else:
             self.device = device
-            
+
     def forward(self, param_dict: Dict[str, torch.Tensor]) -> torch.LongTensor:
         """
         A function wrapper designed for inference in exported script format.
