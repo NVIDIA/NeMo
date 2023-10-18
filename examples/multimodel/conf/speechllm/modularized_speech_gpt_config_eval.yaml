@@ -118,7 +118,7 @@ model:
       tokens_to_generate: 512
       log_every_n_steps: 1
       sample_rate: ${data.train_ds.sample_rate}
-      audio_locator: null # set it to allow multiple audios in a sample, e.g. '|audio|', and use it in the context field of manifest to specify the locations of audios (`audio_filepath` is a list of audios).
+      audio_locator: '|audio|' 
 
       metric:
         name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
