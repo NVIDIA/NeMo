@@ -124,27 +124,55 @@ class TestTokenizerUtils:
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_french_text_preprocessing_lower(self):
+    def test_any_locale_word_tokenize_fr(self):
         input_text = "pomme banane poire"
-        expected_output = "pomme banane poire"
+        expected_output = self._create_expected_output(["pomme", " ", "banane", " ", "poire"])
 
-        output = french_text_preprocessing(input_text)
+        output = any_locale_word_tokenize(input_text)
         assert output == expected_output
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_french_text_preprocessing_mixed(self):
-        input_text = "BONJOUR le Monde!"
-        expected_output = "bonjour le monde!"
+    def test_any_locale_word_tokenize_with_accents_fr(self):
+        input_text = "L’hétérogénéité entre les langues est étonnante."
+        expected_output = self._create_expected_output(
+            ["L", "’", "hétérogénéité", " ", "entre", " ", "les", " ", "langues", " ", "est", " ", "étonnante", "."]
+        )
 
-        output = french_text_preprocessing(input_text)
+        output = any_locale_word_tokenize(input_text)
         assert output == expected_output
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_french_text_preprocessing_upper(self):
-        input_text = "A BIENTÔT."
-        expected_output = "a bientôt."
+    def test_any_locale_word_tokenize_with_numbers(self):
+        input_text = r"Trois fois× quatorze^ et dix ÷ divisé par [films] sur \slash."
+        expected_output = self._create_expected_output(
+            [
+                "Trois",
+                " ",
+                "fois",
+                "× ",
+                "quatorze",
+                "^ ",
+                "et",
+                " ",
+                "dix",
+                " ÷ ",
+                "divisé",
+                " ",
+                "par",
+                " [",
+                "films",
+                "] ",
+                "sur",
+                " \\",
+                "slash",
+                ".",
+            ]
+        )
 
-        output = french_text_preprocessing(input_text)
+        output = any_locale_word_tokenize(input_text)
+        print(output)
+        print(expected_output)
         assert output == expected_output
+
