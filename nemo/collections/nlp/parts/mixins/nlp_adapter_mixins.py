@@ -200,14 +200,16 @@ class NLPAdapterModelMixin:
         for cfg in peft_cfgs:
             if cfg.weight_tying:
                 self.tie_weights(cfg)
-            
+
             if cfg.tunable_param_names:
                 for n, p in self.named_parameters():
                     for tpn in cfg.tunable_param_names:
-                        if f".{tpn}." in n: # TODO: simplistic param name matching, should support regex-like syntax @adithyare
+                        if (
+                            f".{tpn}." in n
+                        ):  # TODO: simplistic param name matching, should support regex-like syntax @adithyare
                             self.tunable_param_keys.add(n)
                             p.requires_grad = True  # We set these to true to trigger setup_optimizer_param_groups
-            
+
         self.use_peft = True
 
     def _get_config_and_state_dict_from_nemo(self, filepath, map_location):
@@ -251,7 +253,7 @@ class NLPAdapterModelMixin:
                     module.set_enabled_adapters(enabled=True)
                     module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                     opt_params += [p for p in module.parameters() if p.requires_grad]
-            
+
             for name, param in self.named_parameters():
                 if name in self.tunable_param_keys:
                     param.requires_grad = True

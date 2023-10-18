@@ -49,10 +49,12 @@ class PEFTConfig:
     def get_config_dict(self):
         return self.name_key_to_cfg
 
+
 class SelectivePEFTConfig(PEFTConfig):
     def __init__(self, cfg):
         selective_cfg = cfg.peft.selective_tuning
         super().__init__(selective_cfg, name_key_to_cfg={})
+
 
 class LoraPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
