@@ -47,7 +47,6 @@ from nemo.collections.asr.parts.utils.offline_clustering import (
     split_input_data,
 )
 from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment
-from nemo.utils import logging
 
 
 def get_lsa_speaker_mapping(

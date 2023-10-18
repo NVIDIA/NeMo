@@ -486,7 +486,7 @@ def perform_clustering(
         base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
 
         cluster_labels = speaker_clustering.forward_infer(
-            embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],../../../nemo/collections/asr/parts/utils/speaker_utils.py
+            embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
             timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
             multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
             multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
