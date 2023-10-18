@@ -255,15 +255,12 @@ class GPTModel(MegatronModule):
             ub_tp_comm_overlap=ub_tp_comm_overlap,
             use_flash_attention=use_flash_attention,
             seq_len_interpolation_factor=seq_len_interpolation_factor,
-<<<<<<< HEAD
-=======
             rotary_base=rotary_base,
             extrapolation_factor=extrapolation_factor,
             attn_factor=attn_factor,
             beta_fast=beta_fast,
             beta_slow=beta_slow,
             use_yarn=use_yarn,
->>>>>>> nvidia/zero_sc_eval
             enforce_fp32_pos_idx=enforce_fp32_pos_idx,
         )
 
