@@ -88,7 +88,8 @@ def nemo_convert(argv):
         logger=False,
         enable_checkpointing=False,
     )
-    trainer = pl.Trainer(cfg_trainer)
+    cfg_trainer = OmegaConf.to_container(OmegaConf.create(cfg_trainer))
+    trainer = pl.Trainer(**cfg_trainer)
 
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
     try:
