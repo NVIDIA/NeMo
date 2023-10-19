@@ -611,8 +611,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_sequence_parallel_gradients()
 
         if self.use_fsdp:
-            # Gradient reduction is handled by FSDP runtime hooks
-            pass
+            # Reduce the gradients omitted from FSDP-sharding
+            self.allreduce_fsdp_sharding_omitted_gradients()
         elif self.with_distributed_adam:
             # synchronize asynchronous grad reductions
             # note: not necessary, but reduces performance degradation
@@ -707,7 +707,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # perform all_reduce when grad is None.
             # grad can be None when performing PeFT training.
             if sequence_parallel_param and param.requires_grad:
-                if self.megatron_amp_O2:
+                if self.megatron_amp_o2:
                     grad = param.main_grad
                 else:
                     grad = param.grad
@@ -730,6 +730,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
             buf.copy_(synced)
+
+    def allreduce_fsdp_sharding_omitted_gradients(self):
+        """ All-reduce gradients of FSDP-sharding-omitted parameters in sharding domain (data-parallel domain).
+        """
+        assert isinstance(self.model, torch.nn.Module)
+        grads = []
+        for param in self.model.parameters():
+            if not isinstance(param, torch.distributed.fsdp.FlatParameter) and param.requires_grad:
+                grad = param.grad
+                grads.append(grad.data)
+        if grads:
+            coalesced = torch._utils._flatten_dense_tensors(grads)
+            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
+            for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+                buf.copy_(synced)
 
     def allreduce_first_last_embeddings(self):
 

@@ -26,9 +26,11 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapp
 
 import pytorch_lightning as pl
 import torch
+from torch._C._distributed_c10d import ReduceOp
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
+from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
@@ -464,18 +466,6 @@ class NLPDDPStrategyNotebook(NLPDDPStrategy):
         self._launcher = None
 
 
-@dataclasses.dataclass
-class ParamAttributes:
-    """
-    Store the model-parallel parameter attributes
-    """
-
-    tensor_model_parallel: bool = None
-    sequence_parallel: bool = None
-    sequence_parallel_enabled: bool = None
-    shared: bool = None
-
-
 class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
     """ FSDP plugin for Pytorch Lightning with the support for tensor-parallelism.
 
@@ -506,9 +496,11 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
+        # Set the mixed precision recipe
         kwargs['mixed_precision'] = self._set_mixed_precision_recipe(precision, grad_reduce_dtype)
         # Use the default FSDP backward-prefetch policy for proper communication overlap.
         kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
+
         # Set FSDP wrapping policy: use Transformer layer module as the FSDP sharding granularity.
         assert (not (mcore_gpt and transformer_engine), "Both `mcore_gpt` and `transformer_engine` cannot be true.")
         if mcore_gpt:
@@ -520,6 +512,7 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
         kwargs['auto_wrap_policy'] = functools.partial(
             transformer_auto_wrap_policy, transformer_layer_cls={self.fsdp_wrap_module}
         )
+
         # Set FSDP sharding strategy.
         fsdp_sharding_strategy = {
             'full': ShardingStrategy.FULL_SHARD,
@@ -554,45 +547,11 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
             reduce_dtype = utils_funcs.torch_dtype_from_precision(grad_reduce_dtype, None)
         return MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype,)
 
-    def belongs_fsdp_wrap_module(self, model: torch.nn.Module, attr_names: str) -> bool:
-        """
-        Check if the paramter belong to a FSDP sharding module.
-        """
-        cur_attr = model
-        for attr_name in attr_names.split('.'):
-            cur_attr = getattr(cur_attr, attr_name)
-            if isinstance(cur_attr, self.fsdp_wrap_module):
-                return True
-        return False
-
-    def store_param_attributes(self):
-        """
-        Store the original parameter attributes before flattening and sharding. The attributes are stored
-        in the order of parameter traversal to match with the order for the flattened parameters.
-        The parameters that do not belong Transformer layers (FSDP wrapping granularity) are placed at the end.
-        """
-        self.param_attributes = []
-        non_transformer_layer_param_attributes = []
-        for name, param in self.model.named_parameters():
-            param_attribute = ParamAttributes()
-            param_attribute.numel = param.numel()
-            for f in dataclasses.fields(ParamAttributes):
-                setattr(param_attribute, f.name, getattr(param, f.name, None))
-            if self.belongs_fsdp_wrap_module(self.model, name):
-                self.param_attributes.append(param_attribute)
-            else:
-                non_transformer_layer_param_attributes.append(param_attribute)
-        self.param_attributes = non_transformer_layer_param_attributes + self.param_attributes
-
     def setup_environment(self) -> None:
         """
         Overriding to set parallel states.
         """
         super().setup_environment()
-
-        # Store the parameter attributes of unwrapped model. The attributes are on how the parameters are
-        # shared, which are used for the reduction of gradients and gradient norms.
-        self.store_param_attributes()
 
         # init model parallel if needed
         if not parallel_state.model_parallel_is_initialized():
@@ -605,6 +564,26 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
             init_model_parallel(app_state.global_rank, app_state.world_size)
             # Set the FSDP process group as DP process group
             self._process_group = parallel_state.get_data_parallel_group()
+
+        # Set the params to omit from sharding.
+        self.kwargs["ignored_states"] = []
+        if parallel_state.get_tensor_model_parallel_world_size() > 1:
+            for p in self.model.parameters():
+                # Ignore sequence-parallel params to facilitate TP domain reduction.
+                if getattr(p, "sequence_parallel", False):
+                    self.kwargs["ignored_states"].append(p)
+                else:
+                    # Ignore params with TP-duplicate to facilitate grad norm calculation.
+                    is_not_tp_duplicate = torch.tensor(
+                        int(param_is_not_tensor_parallel_duplicate(p)),
+                        dtype=torch.int8,
+                        device=torch.cuda.current_device(),
+                    )
+                    torch.distributed.all_reduce(
+                        is_not_tp_duplicate, op=ReduceOp.MIN, group=parallel_state.get_tensor_model_parallel_group()
+                    )
+                    if is_not_tp_duplicate == 0:
+                        self.kwargs["ignored_states"].append(p)
 
     def lightning_module_state_dict(self) -> Dict[str, Any]:
         """

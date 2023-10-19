@@ -364,7 +364,6 @@ class MegatronBaseModel(NLPModel):
                 parameters=parameters,
                 max_norm=clip_val,
                 use_fsdp=self.use_fsdp,
-                param_attributes=getattr(self.trainer.strategy, 'param_attributes', None),
             )
 
         self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)

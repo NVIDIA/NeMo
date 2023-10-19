@@ -55,7 +55,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 @torch.no_grad()
-def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False, param_attributes=None):
+def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
     """Clips gradient norm of an iterable of parameters whose gradients
        are in fp32.
     This is adapted from torch.nn.utils.clip_grad.clip_grad_norm_ and
@@ -68,7 +68,6 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False, param
         norm_type (float or int): type of the used p-norm. Can be ``'inf'`` for
             infinity norm.
         use_fsdp (bool): Use of Fully-Shared Data Parallelism
-        param_attributes (list of dataclass): Dataclass of parameter attributes
     Returns:
         Total norm of the parameters (viewed as a single vector).
     """
@@ -82,37 +81,21 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False, param
     #   - should not be a replica due to tensor model parallelism
     grads = []
     grads_for_norm = []
+    sharded_grads = []
+    sharded_grads_for_norm = []
+    dummy_overflow_buf = torch.cuda.IntTensor([0])
 
-    if use_fsdp:
-        # After parameter flattening with FSDP, the original parameter attribute is lost.
-        # Use pre-constructed parameter attributes to index into shards of flattened gradients.
-        assert param_attributes is not None
-        param_idx = 0
-        for param in parameters:
-            if param.grad is not None:
-                grad_shards = param.grad.detach()
+    for param in parameters:
+        if param.grad is not None:
+            # FSDP-shared parameters are all unique across TP domain and
+            # not are not shared between modules.
+            if use_fsdp and isinstance(param, torch.distributed.fsdp.FlatParameter):
+                grad = param.grad.detach()
                 # Make sure the grads are in fp32
-                assert isinstance(grad_shards, torch.cuda.FloatTensor)
-                grads.append(grad_shards)
-                offset = 0
-                for param_numel in param._numels:
-                    assert param_attributes[param_idx].numel == param_numel
-                    assert (
-                        param_numel % parallel_state.get_data_parallel_world_size() == 0
-                    ), "Flattened parameter elements are not divisible by DP size."
-                    param_shard_numel = param_numel // parallel_state.get_data_parallel_world_size()
-                    grad_shard = grad_shards[offset : offset + param_shard_numel]
-                    is_not_shared = param_is_not_shared(param_attributes[param_idx])
-                    is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param_attributes[param_idx])
-                    if is_not_shared and is_not_tp_duplicate:
-                        grads_for_norm.append(grad_shard)
-                    offset += param_shard_numel
-                    param_idx += 1
+                assert isinstance(param.grad, torch.cuda.FloatTensor)
+                sharded_grads.append(grad)
+                sharded_grads_for_norm.append(grad)
             else:
-                param_idx += len(param._numels)
-    else:
-        for param in parameters:
-            if param.grad is not None:
                 is_not_shared = param_is_not_shared(param)
                 is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param)
                 grad = param.grad.detach()
@@ -122,7 +105,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False, param
                 if is_not_shared and is_not_tp_duplicate:
                     grads_for_norm.append(grad)
 
-    if not grads_for_norm:
+    if not grads_for_norm and not sharded_grads_for_norm:
         logging.warning("No grads found, consider disabling gradient clipping")
 
     # Norm parameters.
@@ -134,23 +117,25 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False, param
     if norm_type == inf:
         if grads_for_norm:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
             total_norm = max(grad.abs().max() for grad in grads_for_norm)
-        total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
 
         if not use_fsdp:
+            total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
             # Take max across all model-parallel GPUs.
             torch.distributed.all_reduce(
                 total_norm_cuda, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
             )
         else:
-            # Take max across all model-parallel and data-parallel GPUs because each data-parallel
-            # rank holds a partial tensor.
+            if sharded_grads_for_norm:
+                sharded_total_norm = max(grad.abs().max() for grad in sharded_grads_for_norm)
+                total_norm = max(total_norm, sharded_total_norm)
+            total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
+            # Take max across both model-parallel and data-parallel GPUs.
             torch.distributed.all_reduce(total_norm_cuda, op=torch.distributed.ReduceOp.MAX)
 
         total_norm = total_norm_cuda[0].item()
 
     else:
         if norm_type == 2.0:
-            dummy_overflow_buf = torch.cuda.IntTensor([0])
             # Use apex's multi-tensor applier for efficiency reasons.
             # Multi-tensor applier takes a function and a list of list
             # and performs the operation on that list all in one kernel.
@@ -163,32 +148,45 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False, param
             # Since we will be summing across data parallel groups,
             # we need the pow(norm-type).
             total_norm = grad_norm ** norm_type
-
+            if use_fsdp:
+                if sharded_grads_for_norm:
+                    sharded_grad_norm, _ = multi_tensor_applier(
+                        amp_C.multi_tensor_l2norm, dummy_overflow_buf.fill_(0), [sharded_grads_for_norm], False
+                    )
+                else:
+                    sharded_grad_norm = 0.0
+                total_sharded_norm = sharded_grad_norm ** norm_type
         else:
             for grad in grads_for_norm:
                 grad_norm = torch.norm(grad, norm_type)
                 total_norm += grad_norm ** norm_type
+            if use_fsdp:
+                for grad in sharded_grads_for_norm:
+                    grad_norm = torch.norm(grad, norm_type)
+                    total_sharded_norm += grad_norm ** norm_type
 
-        total_norm_cuda = torch.cuda.FloatTensor(
-            [float(total_norm)]
-        )  # (@adithyare) total_norm can be a float at this point so we convert it to cuda.FloatTensor
-        if not use_fsdp:
-            # Sum across all model-parallel GPUs.
+        total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
+        if use_fsdp:
+            total_sharded_norm_cuda = torch.cuda.FloatTensor([float(total_sharded_norm)])
+            # Sum norm of grad shards across data-parallel GPUs.
             torch.distributed.all_reduce(
-                total_norm_cuda, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
+                total_sharded_norm_cuda, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_data_parallel_group()
             )
-        else:
-            # Sum across all model-parallel and data-parallel GPUs because each data-parallel
-            # rank holds a partial tensor.
-            torch.distributed.all_reduce(total_norm_cuda, op=torch.distributed.ReduceOp.SUM)
+            total_norm_cuda += total_sharded_norm_cuda
+
+        torch.distributed.all_reduce(
+            total_norm_cuda, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
+        )
         total_norm = total_norm_cuda[0].item()
         total_norm = total_norm ** (1.0 / norm_type)
 
     # Scale.
     clip_coeff = max_norm / (total_norm + 1.0e-6)
-    if clip_coeff < 1.0 and grads:  # (@adithyare) grads can be empty for adapter training.
-        dummy_overflow_buf = torch.cuda.IntTensor([0])
-        multi_tensor_applier(amp_C.multi_tensor_scale, dummy_overflow_buf, [grads, grads], clip_coeff)
+    if clip_coeff < 1.0:
+        if grads:  # (@adithyare) grads can be empty for adapter training.
+            multi_tensor_applier(amp_C.multi_tensor_scale, dummy_overflow_buf.fill_(0), [grads, grads], clip_coeff)
+        if sharded_grads:
+            multi_tensor_applier(amp_C.multi_tensor_scale, dummy_overflow_buf.fill_(0), [sharded_grads, sharded_grads], clip_coeff)
 
     return total_norm
 
