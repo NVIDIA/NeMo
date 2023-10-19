@@ -187,6 +187,8 @@ class TestResidualVectorQuantizer:
                     torch.testing.assert_close(
                         indices, indices_fw_grouped[g], msg=f'example {i}: indices mismatch for group {g}'
                     )
+
+
 class TestCodecActivation:
     def setup_class(self):
         self.batch_size = 2
