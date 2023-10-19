@@ -15,13 +15,13 @@
 import pytest
 import torch
 
-from nemo.collections.tts.modules.encodec_modules import GroupResidualVectorQuantizer, ResidualVectorQuantizer
 from nemo.collections.tts.modules.audio_codec_modules import (
     CodecActivation,
     Conv1dNorm,
     ConvTranspose1dNorm,
     get_down_sample_padding,
 )
+from nemo.collections.tts.modules.encodec_modules import GroupResidualVectorQuantizer, ResidualVectorQuantizer
 
 
 class TestAudioCodecModules:
