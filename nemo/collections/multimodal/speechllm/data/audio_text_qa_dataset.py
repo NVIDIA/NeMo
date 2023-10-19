@@ -62,6 +62,8 @@ except (ImportError, ModuleNotFoundError):
 __all__ = [
     'AudioQuestionAnswerDataset',
     'TarredAudioQuestionAnswerDataset',
+    'get_tarred_aqa_dataset_from_config',
+    'get_aqa_dataset_from_config',
 ]
 
 
@@ -202,7 +204,7 @@ def _multi_audio_text_collate_fn(
     return batch
 
 
-class TextProcessing:
+class TextProcessing(object):
     """
     Text processing pipeline for AudioQuestionAnswerDataset and TarredAudioQuestionAnswerDataset.
     """
@@ -562,6 +564,9 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             max_seq_length=self.max_seq_length,
             text_pad_id=self.pad_id,
         )
+
+    def collate_fn(self, batch):
+        return self._collate_fn(batch)
 
 
 class MultiAudioQuestionAnswerDataset(AudioQuestionAnswerDataset):
@@ -949,6 +954,9 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             max_seq_length=self.max_seq_length,
             text_pad_id=self.pad_id,
         )
+
+    def collate_fn(self, batch):
+        return self._collate_fn(batch)
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
