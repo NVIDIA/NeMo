@@ -532,13 +532,6 @@ class MegatronBaseModel(NLPModel):
 
             if hasattr(self._cfg.optim, 'sched'):
                 sched_config = self._cfg.optim.sched
-                if sched_config.get('max_steps') is None:
-                    # The error message refers to potential warnings logged in `_get_max_steps()`.
-                    raise ValueError(
-                        '`optim.sched.max_steps` is not set and could not be computed automatically '
-                        '(previous warnings may indicate the reason)'
-                    )
-                assert sched_config.max_steps >= 0, "`optim.sched.max_steps` must be a non-negative integer"
                 self._scheduler = prepare_lr_scheduler(
                     optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
                 )
@@ -850,11 +843,11 @@ class MegatronBaseModel(NLPModel):
 
     def _get_max_steps(self):
         """
-        Compute the maximum number of training steps (may be `None` if it cannot be computed).
+        Compute the maximum number of training steps (-1 if it cannot be computed).
         """
         if getattr(self, "_trainer", None) is None:
             logging.warning("Cannot compute `max_steps` as no trainer is set")
-            return None
+            return -1
 
         if self._trainer.max_steps >= 0:
             # Note that when `trainer.max_steps` is defined, we ignore `max_epochs` (even if training may end
@@ -871,11 +864,11 @@ class MegatronBaseModel(NLPModel):
             logging.warning(
                 "Cannot compute `max_steps` if neither `trainer.max_steps` nor `trainer.max_epochs` is set"
             )
-            return None
+            return -1
 
         if getattr(self, "_train_dl", None) is None:
             logging.warning("Cannot compute `max_steps` from the number of epochs as the train dataloader is not set")
-            return None
+            return -1
 
         # The number of training step per epoch is typically the number of global batches in the training set...
         num_global_batches = len(self._train_dl)
