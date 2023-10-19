@@ -140,7 +140,7 @@ def beam_search_eval(
     level = logging.getEffectiveLevel()
     logging.setLevel(logging.CRITICAL)
     # Reset config
-    model.change_decoding_strategy(None)
+    model.change_decoding_strategy(decoding_cfg = None, decoder_type = "ctc")
 
     # Override the beam search config with current search candidate configuration
     cfg.decoding.beam_size = beam_width
@@ -333,6 +333,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
         all_probs = all_logits
         if cfg.probs_cache_file:
+            os.makedirs(os.path.split(cfg.probs_cache_file)[0], exist_ok=True)
             logging.info(f"Writing pickle files of probabilities at '{cfg.probs_cache_file}'...")
             with open(cfg.probs_cache_file, 'wb') as f_dump:
                 pickle.dump(all_probs, f_dump)
