@@ -530,7 +530,6 @@ class MegatronBaseModel(NLPModel):
                 grad_allreduce_chunk_size_mb=self.cfg.get('grad_allreduce_chunk_size_mb', 125),
             )
 
-            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
             if hasattr(self._cfg.optim, 'sched'):
                 sched_config = self._cfg.optim.sched
                 if sched_config.get('max_steps') is None:
@@ -539,6 +538,7 @@ class MegatronBaseModel(NLPModel):
                         '`optim.sched.max_steps` is not set and could not be computed automatically '
                         '(previous warnings may indicate the reason)'
                     )
+                assert sched_config.max_steps >= 0, "`optim.sched.max_steps` must be a non-negative integer"
                 self._scheduler = prepare_lr_scheduler(
                     optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
                 )
