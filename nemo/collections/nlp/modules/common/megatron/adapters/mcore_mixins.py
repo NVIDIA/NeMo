@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import torch
-from megatron.core.models.gpt.gpt_embedding import GPTEmbedding
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
@@ -96,7 +95,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         return query, key, value
 
 
-class MCoreGPTEmbeddingMixin(GPTEmbedding, MCoreAdapterModuleMixin):
+class MCoreGPTEmbeddingMixin(MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         """
         Setup NeMo ptuning adapter to this MCore layer.
