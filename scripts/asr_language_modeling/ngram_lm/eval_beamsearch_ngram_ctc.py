@@ -25,12 +25,12 @@
 # Config Help
 
 To discover all arguments of the script, please run :
-python eval_beamsearch_ngram.py --help
-python eval_beamsearch_ngram.py --cfg job
+python eval_beamsearch_ngram_ctc.py --help
+python eval_beamsearch_ngram_ctc.py --cfg job
 
 # USAGE
 
-python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
+python eval_beamsearch_ngram_ctc.py nemo_model_file=<path to the .nemo file of the model> \
            input_manifest=<path to the evaluation JSON manifest file> \
            kenlm_model_file=<path to the binary KenLM model> \
            beam_width=[<list of the beam widths, separated with commas>] \
