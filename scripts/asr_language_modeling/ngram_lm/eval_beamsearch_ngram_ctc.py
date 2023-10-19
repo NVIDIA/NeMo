@@ -140,7 +140,10 @@ def beam_search_eval(
     level = logging.getEffectiveLevel()
     logging.setLevel(logging.CRITICAL)
     # Reset config
-    model.change_decoding_strategy(decoding_cfg=None, decoder_type="ctc")
+    if isinstance(model, EncDecHybridRNNTCTCModel):
+        model.change_decoding_strategy(decoding_cfg=None, decoder_type="ctc")
+    else:
+        model.change_decoding_strategy(None)
 
     # Override the beam search config with current search candidate configuration
     cfg.decoding.beam_size = beam_width
