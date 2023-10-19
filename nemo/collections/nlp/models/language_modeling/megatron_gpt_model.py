@@ -611,8 +611,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_sequence_parallel_gradients()
 
         if self.use_fsdp:
-            # Gradient reduction is handled by FSDP runtime hooks
-            pass
+            # Reduce the gradients omitted from FSDP-sharding
+            self.allreduce_fsdp_sharding_omitted_gradients()
         elif self.with_distributed_adam:
             # synchronize asynchronous grad reductions
             # note: not necessary, but reduces performance degradation
@@ -698,42 +698,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def _append_sequence_parallel_module_grads(self, module, grads):
         """ Helper method for allreduce_sequence_parallel_gradients"""
 
-        if self.use_fsdp:
-            # After parameter flattening with FSDP, the original parameter attribute is lost.
-            # Use pre-constructed parameter attributes to index into shards of flattened gradients.
-            param_idx = 0
-            for param in module.parameters():
-                if param.requires_grad:
-                    offset = 0
-                    for param_numel in param._numels:
-                        assert self.trainer.strategy.param_attributes[param_idx].numel == param_numel
-                        assert (
-                            param_numel % parallel_state.get_data_parallel_world_size() == 0
-                        ), "Flattened parameter elements are not divided by DP size."
-                        param_numel_shard = param_numel // parallel_state.get_data_parallel_world_size()
-                        if getattr(
-                            self.trainer.strategy.param_attributes[param_idx], 'sequence_parallel', False
-                        ) or getattr(
-                            self.trainer.strategy.param_attributes[param_idx], 'sequence_parallel_enabled', False
-                        ):
-                            grads.append(param.grad[offset : offset + param_numel_shard])
-                        offset += param_numel_shard
-                        param_idx += 1
-        else:
-            for param in module.parameters():
-                sequence_parallel_param = getattr(param, 'sequence_parallel', False) or getattr(
-                    param, 'sequence_parallel_enabled', False
-                )
-                # (@adithyare) adapter training now extends MegatronGPTModel
-                # so we have to add this check here to ensure we do not
-                # perform all_reduce when grad is None.
-                # grad can be None when performing PeFT training.
-                if sequence_parallel_param and param.requires_grad:
-                    if self.megatron_amp_o2:
-                        grad = param.main_grad
-                    else:
-                        grad = param.grad
-                    grads.append(grad.data)
+        for param in module.parameters():
+            sequence_parallel_param = getattr(param, 'sequence_parallel', False) or getattr(
+                param, 'sequence_parallel_enabled', False
+            )
+            # (@adithyare) adapter training now extends MegatronGPTModel
+            # so we have to add this check here to ensure we do not
+            # perform all_reduce when grad is None.
+            # grad can be None when performing PeFT training.
+            if sequence_parallel_param and param.requires_grad:
+                if self.megatron_amp_o2:
+                    grad = param.main_grad
+                else:
+                    grad = param.grad
+                grads.append(grad.data)
 
     def allreduce_sequence_parallel_gradients(self):
         """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
@@ -752,6 +730,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
             buf.copy_(synced)
+
+    def allreduce_fsdp_sharding_omitted_gradients(self):
+        """ All-reduce gradients of FSDP-sharding-omitted parameters in sharding domain (data-parallel domain).
+        """
+        assert isinstance(self.model, torch.nn.Module)
+        grads = []
+        for param in self.model.parameters():
+            if not isinstance(param, torch.distributed.fsdp.FlatParameter) and param.requires_grad:
+                grad = param.grad
+                grads.append(grad.data)
+        if grads:
+            coalesced = torch._utils._flatten_dense_tensors(grads)
+            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
+            for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+                buf.copy_(synced)
 
     def allreduce_first_last_embeddings(self):
 
