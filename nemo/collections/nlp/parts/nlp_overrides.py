@@ -25,10 +25,12 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapp
 
 import pytorch_lightning as pl
 import torch
+from torch._C._distributed_c10d import ReduceOp
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
+from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
