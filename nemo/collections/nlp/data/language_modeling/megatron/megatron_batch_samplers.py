@@ -229,6 +229,13 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         else:
             return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
 
+    def __len__(self):
+        num_available_samples = self.total_samples
+        if self.drop_last:
+            return num_available_samples // self.global_batch_size
+        else:
+            return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
+
     def __iter__(self):
         active_total_samples = self.total_samples - self.last_batch_size
         self.epoch = self.consumed_samples // active_total_samples
