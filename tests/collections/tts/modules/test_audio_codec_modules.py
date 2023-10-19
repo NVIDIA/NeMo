@@ -15,17 +15,13 @@
 import pytest
 import torch
 
-<<<<<<< HEAD
-from nemo.collections.tts.modules.audio_codec_modules import Conv1dNorm, ConvTranspose1dNorm, get_down_sample_padding
-from nemo.collections.tts.modules.encodec_modules import GroupResidualVectorQuantizer, ResidualVectorQuantizer
-=======
 from nemo.collections.tts.modules.audio_codec_modules import (
     CodecActivation,
     Conv1dNorm,
     ConvTranspose1dNorm,
     get_down_sample_padding,
 )
->>>>>>> update based on comments
+from nemo.collections.tts.modules.encodec_modules import GroupResidualVectorQuantizer, ResidualVectorQuantizer
 
 
 class TestAudioCodecModules:
@@ -191,6 +187,8 @@ class TestResidualVectorQuantizer:
                     torch.testing.assert_close(
                         indices, indices_fw_grouped[g], msg=f'example {i}: indices mismatch for group {g}'
                     )
+
+
 class TestCodecActivation:
     def setup_class(self):
         self.batch_size = 2
