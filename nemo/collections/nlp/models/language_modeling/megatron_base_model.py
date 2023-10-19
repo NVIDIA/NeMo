@@ -533,7 +533,12 @@ class MegatronBaseModel(NLPModel):
             assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
             if hasattr(self._cfg.optim, 'sched'):
                 sched_config = self._cfg.optim.sched
-                assert sched_config.get('max_steps', -1) >= 0
+                if sched_config.get('max_steps') is None:
+                    # The error message refers to potential warnings logged in `_get_max_steps()`.
+                    raise ValueError(
+                        '`optim.sched.max_steps` is not set and could not be computed automatically '
+                        '(previous warnings may indicate the reason)'
+                    )
                 self._scheduler = prepare_lr_scheduler(
                     optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
                 )
@@ -845,8 +850,12 @@ class MegatronBaseModel(NLPModel):
 
     def _get_max_steps(self):
         """
-        Compute the maximum number of training steps.
+        Compute the maximum number of training steps (may be `None` if it cannot be computed).
         """
+        if getattr(self, "_trainer", None) is None:
+            logging.warning("Cannot compute `max_steps` as no trainer is set")
+            return None
+
         if self._trainer.max_steps >= 0:
             # Note that when `trainer.max_steps` is defined, we ignore `max_epochs` (even if training may end
             # before `max_steps` is reached due to `max_epochs`). This is for backward compatibility with older
@@ -859,12 +868,16 @@ class MegatronBaseModel(NLPModel):
             return self._trainer.max_steps
 
         if self._trainer.max_epochs is None or self._trainer.max_epochs < 0:
-            raise ValueError(
+            logging.warning(
                 "Cannot compute `max_steps` if neither `trainer.max_steps` nor `trainer.max_epochs` is set"
             )
+            return None
+
+        if getattr(self, "_train_dl", None) is None:
+            logging.warning("Cannot compute `max_steps` from the number of epochs as the train dataloader is not set")
+            return None
 
         # The number of training step per epoch is typically the number of global batches in the training set...
-        assert self._train_dl is not None
         num_global_batches = len(self._train_dl)
         steps_per_epoch = num_global_batches
 
