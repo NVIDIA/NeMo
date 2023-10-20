@@ -53,8 +53,10 @@ def get_args():
         "--out-file", type=str, default=None, required=True, help="Path to output mcore weights file (ends in .nemo)."
     )
     parser.add_argument(
-        "--cpu-only", action="store_true", help="Load model in cpu only. Useful if the model cannot fit in GPU memory, "
-                                                "but this option makes the conversion script significantly slower."
+        "--cpu-only",
+        action="store_true",
+        help="Load model in cpu only. Useful if the model cannot fit in GPU memory, "
+        "but this option makes the conversion script significantly slower.",
     )
     args = parser.parse_args()
     return args
@@ -93,7 +95,9 @@ def print_mcore_parameter_names(restore_from_path):
 def build_key_mapping(nemo_cfg):
     num_layers = nemo_cfg.num_layers
     has_bias = nemo_cfg.get("bias", True)
-    has_layernorm_bias = nemo_cfg.get("normalization", "layernorm") != "rmsnorm"  # llama model uses rmsnorm which does not have bias
+    has_layernorm_bias = (
+        nemo_cfg.get("normalization", "layernorm") != "rmsnorm"
+    )  # llama model uses rmsnorm which does not have bias
     model_str = 'model.module' if nemo_cfg.get('megatron_amp_O2', False) else 'model'
 
     # For GPT there is a 1:1 mapping of keys
@@ -102,7 +106,9 @@ def build_key_mapping(nemo_cfg):
         f"{model_str}.decoder.final_layernorm.weight": "model.language_model.encoder.final_layernorm.weight",
     }
     if has_layernorm_bias:
-        mcore_to_nemo_mapping[f"{model_str}.decoder.final_layernorm.bias"] = "model.language_model.encoder.final_layernorm.bias"
+        mcore_to_nemo_mapping[
+            f"{model_str}.decoder.final_layernorm.bias"
+        ] = "model.language_model.encoder.final_layernorm.bias"
 
     if not nemo_cfg.get("share_embeddings_and_output_weights", True):
         mcore_to_nemo_mapping[f"{model_str}.output_layer.weight"] = "model.language_model.output_layer.weight"
@@ -155,16 +161,22 @@ def load_model(model, state_dict):
 
     return model
 
+
 def restore_model(nemo_file, cpu_only=False):
     # dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
     dummy_trainer = Trainer(devices=1, accelerator='cpu')
     if cpu_only:
         map_location = torch.device('cpu')
-        model_config = MegatronGPTModel.restore_from(nemo_file, trainer=dummy_trainer, return_config=True, map_location=map_location)
+        model_config = MegatronGPTModel.restore_from(
+            nemo_file, trainer=dummy_trainer, return_config=True, map_location=map_location
+        )
         model_config.use_cpu_initialization = True
     else:
         model_config, map_location = None, None
-    return MegatronGPTModel.restore_from(nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location)
+    return MegatronGPTModel.restore_from(
+        nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
+    )
+
 
 def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_only=False):
     if skip_if_output_exists and os.path.exists(output_nemo_file):
