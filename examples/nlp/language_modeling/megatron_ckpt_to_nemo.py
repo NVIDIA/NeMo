@@ -102,7 +102,7 @@ def get_args():
         type=str,
         required=False,
         default='16-mixed',
-        choices=['16-mixed', 'bf16-mixed'],
+        choices=['32-true', '16-mixed', 'bf16-mixed'],
         help="Precision value for the trainer that matches with precision of the ckpt",
     )
 
