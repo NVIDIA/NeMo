@@ -8,6 +8,5 @@ matplotlib
 nemo_text_processing; 'arm' not in platform_machine and 'aarch' not in platform_machine
 nltk
 pandas
-pkuseg
 pypinyin
 pypinyin-dict
