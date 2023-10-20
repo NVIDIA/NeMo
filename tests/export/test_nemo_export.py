@@ -47,7 +47,7 @@ class TestNemoExport:
                     Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
 
                     prompt_embeddings_checkpoint_path = None
-                    if "p_tuning_checkpoint" in model_info.keys():
+                    if "p_tuning_checkpoint" in model_info.keys() and n_gpu == 1:
                         if Path(model_info["p_tuning_checkpoint"]).exists():
                             prompt_embeddings_checkpoint_path = model_info["p_tuning_checkpoint"]
 
