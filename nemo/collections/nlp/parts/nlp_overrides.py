@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import dataclasses
 import functools
 import itertools
 import os
@@ -469,11 +468,9 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
     """ FSDP plugin for Pytorch Lightning with the support for tensor-parallelism.
 
     Args:
-        sharding_strategy:
-        grad_reduce_dtype:
-        transformer_engine: The flag for the use of Transformer Engine.
-        param_dtype: Data type for FSDP parameter AllGather and inputs for operators.
-        reduce_dtype: Data type for FSDP gradient shard ReduceScatter.
+        sharding_strategy: FSDP parameter sharding strategy.
+        grad_reduce_dtype: Data type for FSDP gradient shard ReduceScatter.
+        precision: Precision recipe to be used with FSDP.
     """
 
     def __init__(
@@ -481,8 +478,6 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
         sharding_strategy: str = 'full',
         grad_reduce_dtype: Union[int, str] = None,
         precision: Union[int, str] = 'bf16-mixed',
-        transformer_engine: bool = False,
-        mcore_gpt: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -501,15 +496,13 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
         kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
 
         # Set FSDP wrapping policy: use Transformer layer module as the FSDP sharding granularity.
-        assert (not (mcore_gpt and transformer_engine), "Both `mcore_gpt` and `transformer_engine` cannot be true.")
-        if mcore_gpt:
-            self.fsdp_wrap_module = MCoreTransformerLayer
-        elif transformer_engine:
-            self.fsdp_wrap_module = AutocastTransformerLayer
-        else:
-            self.fsdp_wrap_module = ParallelTransformerLayer
+        self.fsdp_wrap_module = {
+            MCoreTransformerLayer,
+            AutocastTransformerLayer,
+            ParallelTransformerLayer,
+        }
         kwargs['auto_wrap_policy'] = functools.partial(
-            transformer_auto_wrap_policy, transformer_layer_cls={self.fsdp_wrap_module}
+            transformer_auto_wrap_policy, transformer_layer_cls=self.fsdp_wrap_module
         )
 
         # Set FSDP sharding strategy.
