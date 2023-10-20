@@ -26,11 +26,10 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapp
 
 import pytorch_lightning as pl
 import torch
-from torch._C._distributed_c10d import ReduceOp
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
-from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
 from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
@@ -43,6 +42,7 @@ from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.strategies import DDPStrategy, FSDPStrategy, Strategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
+from torch._C._distributed_c10d import ReduceOp
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP

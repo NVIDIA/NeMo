@@ -170,7 +170,9 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
             total_sharded_norm_cuda = torch.cuda.FloatTensor([float(total_sharded_norm)])
             # Sum norm of grad shards across data-parallel GPUs.
             torch.distributed.all_reduce(
-                total_sharded_norm_cuda, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_data_parallel_group()
+                total_sharded_norm_cuda,
+                op=torch.distributed.ReduceOp.SUM,
+                group=parallel_state.get_data_parallel_group(),
             )
             total_norm_cuda += total_sharded_norm_cuda
 
@@ -186,7 +188,9 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
         if grads:  # (@adithyare) grads can be empty for adapter training.
             multi_tensor_applier(amp_C.multi_tensor_scale, dummy_overflow_buf.fill_(0), [grads, grads], clip_coeff)
         if sharded_grads:
-            multi_tensor_applier(amp_C.multi_tensor_scale, dummy_overflow_buf.fill_(0), [sharded_grads, sharded_grads], clip_coeff)
+            multi_tensor_applier(
+                amp_C.multi_tensor_scale, dummy_overflow_buf.fill_(0), [sharded_grads, sharded_grads], clip_coeff
+            )
 
     return total_norm
 
