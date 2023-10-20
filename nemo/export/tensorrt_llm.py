@@ -130,8 +130,6 @@ class TensorRTLLM(ITritonDeployable):
             weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
 
             return weights.cpu().detach().numpy()
-            #for key, value in weights.items():
-            #    print(key, value.size())
 
         return None
 
