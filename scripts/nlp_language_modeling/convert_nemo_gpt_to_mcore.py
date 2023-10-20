@@ -52,6 +52,10 @@ def get_args():
     parser.add_argument(
         "--out-file", type=str, default=None, required=True, help="Path to output mcore weights file (ends in .nemo)."
     )
+    parser.add_argument(
+        "--cpu-only", action="store_true", help="Load model in cpu only. Useful if the model cannot fit in GPU memory, "
+                                                "but this option makes the conversion script significantly slower."
+    )
     args = parser.parse_args()
     return args
 
@@ -61,6 +65,7 @@ def get_mcore_model_from_nemo_file(nemo_restore_from_path):
     model_cfg.tokenizer.vocab_file = None
     model_cfg.tokenizer.merge_file = None
     model_cfg.mcore_gpt = True
+    model_cfg.use_cpu_initialization = True
 
     logging.info("*** initializing mcore model with the following config")
     logging.info(OmegaConf.to_yaml(model_cfg))
@@ -147,14 +152,23 @@ def load_model(model, state_dict):
 
     return model
 
+def restore_model(nemo_file, cpu_only=False):
+    # dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
+    dummy_trainer = Trainer(devices=1, accelerator='cpu')
+    if cpu_only:
+        map_location = torch.device('cpu')
+        model_config = MegatronGPTModel.restore_from(nemo_file, trainer=dummy_trainer, return_config=True, map_location=map_location)
+        model_config.use_cpu_initialization = True
+    else:
+        model_config, map_location = None, None
+    return MegatronGPTModel.restore_from(nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location)
 
-def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True):
+def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_only=False):
     if skip_if_output_exists and os.path.exists(output_nemo_file):
         logging.info(f"Output file already exists ({output_nemo_file}), skipping conversion...")
         return
-    dummy_trainer = Trainer(devices=1, accelerator='cpu')
+    nemo_model = restore_model(input_nemo_file, cpu_only=cpu_only)
 
-    nemo_model = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer)
     nemo_tokenizer_model = nemo_model.cfg.tokenizer.model
     nemo_state_dict = nemo_model.state_dict()
     mcore_state_dict = OrderedDict()
@@ -168,11 +182,12 @@ def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True):
         logging.info("registering artifact: tokenizer.model = " + nemo_tokenizer_model)
         mcore_model.register_artifact("tokenizer.model", nemo_tokenizer_model)
 
+    mcore_model.cfg.use_cpu_initialization = False
     mcore_model.save_to(output_nemo_file)
     logging.info(f"Done. Model saved to {output_nemo_file}")
 
 
-def run_sanity_checks(nemo_file, mcore_file):
+def run_sanity_checks(nemo_file, mcore_file, cpu_only=False):
     cfg = OmegaConf.load(
         os.path.join(
             os.path.dirname(__file__),
@@ -182,9 +197,9 @@ def run_sanity_checks(nemo_file, mcore_file):
 
     cfg.trainer.precision = 'bf16'  # change me
     dtype = torch.bfloat16
-    trainer = MegatronTrainerBuilder(cfg).create_trainer()
-    nemo_model = MegatronGPTModel.restore_from(nemo_file, trainer=trainer).eval().to(dtype)
-    mcore_model = MegatronGPTModel.restore_from(mcore_file, trainer=trainer).eval().to(dtype)
+
+    nemo_model = restore_model(nemo_file, cpu_only=cpu_only).eval().to(dtype)
+    mcore_model = restore_model(mcore_file, cpu_only=cpu_only).eval().to(dtype)
 
     logging.debug("*** Mcore model restored config")
     logging.debug(OmegaConf.to_yaml(mcore_model.cfg))
@@ -228,7 +243,9 @@ if __name__ == '__main__':
 
     input_nemo_file = args.in_file
     output_nemo_file = args.out_file
+    cpu_only = args.cpu_only
+
     os.makedirs(os.path.dirname(output_nemo_file), exist_ok=True)
-    convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True)
+    convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_only=cpu_only)
     torch.cuda.empty_cache()
-    run_sanity_checks(input_nemo_file, output_nemo_file)
+    run_sanity_checks(input_nemo_file, output_nemo_file, cpu_only=cpu_only)
