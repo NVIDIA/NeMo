@@ -123,7 +123,7 @@ class ChineseG2p(BaseG2p):
             try:
                 import pkuseg
             except ImportError as e:
-                logging.error(e)
+                logging.error("`pkuseg` is not the default word segmenter for Chinese in NeMo. Please install it manually by running `pip install pkuseg`, or choose `jieba` segmenter instead.")
 
             self.word_segmenter = pkuseg.pkuseg().cut
         else:
