@@ -36,17 +36,23 @@ model:
   sample_rate: ${sample_rate}
   samples_per_frame: ${samples_per_frame}
 
-  mel_loss_scale: 5.0
+  mel_loss_l1_scale: 1.0
+  mel_loss_l2_scale: 1.0
+  stft_loss_scale: 0.0
   time_domain_loss_scale: 0.1
+
   # Probability of updating the discriminator during each training step
   # For example, update the discriminator 2/3 times (2 updates for every 3 batches)
   disc_updates_per_period: 2
   disc_update_period: 3
 
-  # All resolutions for mel reconstruction loss, ordered [num_fft, hop_length, window_length]
-  mel_loss_resolutions: [
+  # All resolutions for reconstruction loss, ordered [num_fft, hop_length, window_length]
+  loss_resolutions: [
     [32, 8, 32], [64, 16, 64], [128, 32, 128], [256, 64, 256], [512, 128, 512], [1024, 256, 1024], [2048, 512, 2048]
   ]
+  mel_loss_dims: [64, 64, 64, 64, 64, 64, 64]
+  mel_loss_log_guard: 1E-5
+  stft_loss_log_guard: 1.0
 
   train_ds:
     dataset:
@@ -81,10 +87,10 @@ model:
   # Remove this section to disable logging.
   log_config:
     log_dir: ${log_dir}
-    log_epochs: [10, 50]
+    log_epochs: [10, 50, 100, 150, 200]
     epoch_frequency: 100
     log_tensorboard: false
-    log_wandb: false
+    log_wandb: true
 
     generators:
       - _target_: nemo.collections.tts.parts.utils.callbacks.AudioCodecArtifactGenerator
