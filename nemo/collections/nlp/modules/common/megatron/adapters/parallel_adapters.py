@@ -142,17 +142,17 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
         )
         self.dim_scalar = nn.Parameter(torch.ones(dim))
         self.out_scalar = nn.Parameter(torch.zeros(out_features))
-    
+
     def adapter_unfreeze(self,):
         for p in self.linear_in.parameters():
             p.requires_grad = False
 
         for p in self.linear_out.parameters():
             p.requires_grad = False
-        
+
         self.dim_scalar.requires_grad = True
         self.out_scalar.requires_grad = True
-    
+
     def tie_weights(self, position_id, adapter):
 
         self.set_position(position_id)
@@ -172,12 +172,14 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
 
         return x
 
+
 @dataclass
 class VeraAdapterConfig(AdapterConfig):
     in_features: int
     out_features: int
     dim: int
     _target_: str = "{0}.{1}".format(VeraAdapter.__module__, VeraAdapter.__name__)
+
 
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(

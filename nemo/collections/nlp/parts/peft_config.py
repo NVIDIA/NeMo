@@ -32,9 +32,9 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
-    VeraAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
+    VeraAdapterConfig,
 )
 
 
@@ -48,6 +48,7 @@ class PEFTConfig:
 
     def get_config_dict(self):
         return self.name_key_to_cfg
+
 
 class VeraPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
@@ -64,11 +65,11 @@ class VeraPEFTConfig(PEFTConfig):
         if num_query_groups is None:
             num_query_groups = cfg.num_attention_heads
         qkv_projection_size = projection_size + (2 * kv_channels * num_query_groups)
-        
+
         config_args = {
             "in_features": cfg.hidden_size,
             "out_features": qkv_projection_size,
-            "dim": vera_cfg.adapter_dim, 
+            "dim": vera_cfg.adapter_dim,
         }
         adapter_cfg = VeraAdapterConfig(**config_args)
         name_key_to_cfg = {
@@ -77,6 +78,7 @@ class VeraPEFTConfig(PEFTConfig):
         self.name_key_to_mcore_mixins = {AdapterName.VERA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionMixin)]}
 
         super().__init__(vera_cfg, name_key_to_cfg)
+
 
 class LoraPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
