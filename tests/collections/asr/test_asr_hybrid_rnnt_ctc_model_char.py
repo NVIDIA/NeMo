@@ -262,7 +262,6 @@ class TestEncDecHybridRNNTCTCModel:
         assert isinstance(hybrid_asr_model.decoding.decoding, greedy_decode.GreedyRNNTInfer)
         assert hybrid_asr_model.cur_decoder == 'rnnt'
 
-
     @pytest.mark.unit
     def test_GreedyRNNTInferConfig(self):
         # confidence_method_cfg is deprecated
