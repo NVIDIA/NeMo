@@ -46,7 +46,6 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch._C._distributed_c10d import ReduceOp
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import (
     MixedPrecision,
     OptimStateKeyType,
@@ -56,11 +55,14 @@ from torch.distributed.fsdp import (
 )
 from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from torch.distributed.fsdp.wrap import enable_wrap
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.parts import utils_funcs
+from nemo.collections.nlp.parts.fsdp_patch import FullyShardedDataParallel
+from nemo.collections.nlp.parts.fsdp_patch import FullyShardedDataParallel as FSDP
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
@@ -856,6 +858,39 @@ class NLPFSDPStrategy(FSDPStrategy):
             model and optimizer.
         """
         return True
+
+    def _setup_model(self, model: torch.nn.Module) -> FullyShardedDataParallel:
+        """ Redefine `_setup_model` to override `FullyShardedDataParallel` with patch """
+        # If model is already wrapped, we need to avoid sending the `auto_wrap_policy`
+        assert self.lightning_module is not None
+        if "auto_wrap_policy" in self.kwargs and any(
+            isinstance(mod, FullyShardedDataParallel) for mod in self.lightning_module.modules()
+        ):
+            del self.kwargs["auto_wrap_policy"]
+
+        wrapped_module = FullyShardedDataParallel(
+            module=model,
+            process_group=self.process_group,
+            cpu_offload=self.cpu_offload,
+            mixed_precision=self.mixed_precision_config,
+            device_id=self.root_device.index,
+            **self.kwargs,
+        )
+
+        return wrapped_module
+    
+    @contextmanager
+    def model_sharded_context(self) -> Generator:
+        """ Redefine `model_sharded_context` to override `FullyShardedDataParallel` with patch """
+        with enable_wrap(
+            wrapper_cls=FullyShardedDataParallel,
+            process_group=self.process_group,
+            cpu_offload=self.cpu_offload,
+            mixed_precision=self.mixed_precision_config,
+            device_id=self.root_device.index,
+            **self.kwargs,
+        ):
+            yield
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
