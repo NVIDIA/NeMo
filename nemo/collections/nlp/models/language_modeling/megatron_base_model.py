@@ -355,11 +355,7 @@ class MegatronBaseModel(NLPModel):
                 parameters = self._optimizer.get_parameters_with_grad()
             else:
                 parameters = self.get_parameters_with_grad()
-            grad_norm = clip_grad_norm_fp32(
-                parameters=parameters,
-                max_norm=clip_val,
-                use_fsdp=self.use_fsdp,
-            )
+            grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val, use_fsdp=self.use_fsdp,)
 
         self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
