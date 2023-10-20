@@ -64,8 +64,6 @@ class MegatronTrainerBuilder:
                 cpu_offload=self.cfg.model.get('fsdp_cpu_offload', False),
                 grad_reduce_dtype=self.cfg.model.get('fsdp_grad_reduce_dtype', 32),
                 precision=self.cfg.trainer.precision,
-                transformer_engine=self.cfg.model.get('transformer_engine', False),
-                mcore_gpt=self.cfg.get('mcore_gpt', False),
             )
 
         return NLPDDPStrategy(
