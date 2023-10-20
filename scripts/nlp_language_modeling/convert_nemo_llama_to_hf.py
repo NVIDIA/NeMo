@@ -1,4 +1,23 @@
-import re
+"""
+    This script will generate a .bin file which can be converted back to hf format using the below code.
+    import torch
+    import transformers
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+
+    LLAMA_PRETRAINED_PATH = "/home/llama-2-7B-hf/"
+    NEMO_EXPORTED_PATH = "/home/nemo-exported.bin"
+
+    model = AutoModelForCausalLM.from_pretrained(LLAMA_PRETRAINED_PATH, local_files_only=True)
+    nemo_exported = torch.load(NEMO_EXPORTED_PATH)
+
+    model.load_state_dict(nemo_exported['state_dict'])
+    model.save_pretrained("./nemo-exported-llama/")
+
+    Known constraints, this script:
+        1. generates state_dict in fp32; fp16 support will be added soon,
+        2. is tested on 7B model only; 13B and 70B (GQA) support will be added soon.
+"""
+
 import os
 import tempfile
 import torch
