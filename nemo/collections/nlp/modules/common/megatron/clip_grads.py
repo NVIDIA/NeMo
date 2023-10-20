@@ -185,11 +185,10 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
     # Scale.
     clip_coeff = max_norm / (total_norm + 1.0e-6)
     if clip_coeff < 1.0:
-        if grads:  # (@adithyare) grads can be empty for adapter training.
-            multi_tensor_applier(amp_C.multi_tensor_scale, dummy_overflow_buf.fill_(0), [grads, grads], clip_coeff)
-        if sharded_grads:
+        if grads or sharded_grads:  # (@adithyare) grads can be empty for adapter training.
+            grads += sharded_grads
             multi_tensor_applier(
-                amp_C.multi_tensor_scale, dummy_overflow_buf.fill_(0), [sharded_grads, sharded_grads], clip_coeff
+                amp_C.multi_tensor_scale, dummy_overflow_buf.fill_(0), [grads, grads], clip_coeff
             )
 
     return total_norm
