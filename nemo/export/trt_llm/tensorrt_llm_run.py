@@ -57,7 +57,6 @@ def _read_config(config_path: Path):
     with open(config_path, "r") as f:
         config = json.load(f)
     use_gpt_attention_plugin = config["plugin_config"]["gpt_attention_plugin"]
-    ib_gpt_attention_plugin = config["plugin_config"]["inflight_batching_gpt_attention_plugin"]
     remove_input_padding = config["plugin_config"]["remove_input_padding"]
     world_size = config["builder_config"]["tensor_parallel"]
     assert (
@@ -85,7 +84,6 @@ def _read_config(config_path: Path):
         vocab_size=vocab_size,
         num_layers=num_layers,
         gpt_attention_plugin=use_gpt_attention_plugin,
-        ib_gpt_attention_plugin=ib_gpt_attention_plugin,
         remove_input_padding=remove_input_padding,
         paged_kv_cache=paged_kv_cache,
         tokens_per_block=tokens_per_block,
@@ -112,7 +110,8 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
 
         assert runtime_rank < torch.cuda.device_count(), f"Rank {runtime_rank} out of bound"
 
-        runtime_mapping = tensorrt_llm.Mapping(world_size, runtime_rank)
+        # todo: we assume that the world size is equal to tp_size. This may not always be correct.
+        runtime_mapping = tensorrt_llm.Mapping(world_size, runtime_rank, tp_size=world_size)
         torch.cuda.set_device(runtime_rank % runtime_mapping.gpus_per_node)
 
         engine_name = get_engine_name(MODEL_NAME, dtype, world_size, runtime_rank)

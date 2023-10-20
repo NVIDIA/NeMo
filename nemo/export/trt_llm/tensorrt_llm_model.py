@@ -21,13 +21,12 @@ import tensorrt as trt
 import torch
 from tensorrt_llm import default_net, str_dtype_to_trt
 from tensorrt_llm.functional import (
-    RaggedTensor,
     Tensor,
     expand_mask,
     gather_last_token_logits,
     shape,
 )
-from tensorrt_llm.layers import ColumnLinear, InflightBatchingParam
+from tensorrt_llm.layers import ColumnLinear, KeyValueCacheParams, AttentionParams
 from tensorrt_llm.models.generation_mixin import GenerationMixin
 from tensorrt_llm.module import Module, ModuleList
 
@@ -118,7 +117,7 @@ class ModelBuilder(Module):
         ptuning_args = []
         if self._use_prompt_tuning:
             ptuning_args = [prompt_embedding_table, prompt_tasks, prompt_vocab_size]
-        x = self.vocab_embedding(input_ids.data, *ptuning_args)
+        x = self.vocab_embedding(input_ids, *ptuning_args)
         if hasattr(self, "positional_embedding") and self.positional_embedding:
             assert position_ids
             x = x + self.positional_embedding(position_ids)
@@ -132,10 +131,7 @@ class ModelBuilder(Module):
             presents = []
 
         if attention_mask is not None:
-            attention_mask = expand_mask(attention_mask, shape(input_ids.data, -1))
-        hidden_states = RaggedTensor.from_row_lengths(
-            hidden_states, input_ids.row_lengths, input_ids.max_row_length
-        )
+            attention_mask = expand_mask(attention_mask, shape(input_ids, -1))
 
         def _forward_has_argument(layer, argument_name):
             return argument_name in inspect.signature(layer.forward).parameters
@@ -143,56 +139,33 @@ class ModelBuilder(Module):
         for idx, (layer, past, pointers) in enumerate(
             zip(self.layers, past_key_value, kv_cache_block_pointers)
         ):
-            # In TRT LLM, not all model decoders are with the same forward arg signature.
-            # So we check arg compatibility and optionally add them if supported.
-            # In case the decoder forward signature changes, this if branch list below will need to be updated.
-            additional_inputs = {}
-            if _forward_has_argument(layer, "inflight_batching_args"):
-                additional_inputs["inflight_batching_args"] = inflight_batching_args
-            if _forward_has_argument(layer, "past_key_value_pointers"):
-                additional_inputs["past_key_value_pointers"] = (
-                    (
-                        None
-                        if inflight_batching_args is None
-                        else inflight_batching_args.past_key_value_pointers[idx]
-                    ),
-                )
-            if _forward_has_argument(layer, "pointers_to_kv_cache_block_pointers"):
-                additional_inputs["pointers_to_kv_cache_block_pointers"] = (
-                    (
-                        None
-                        if (
-                            inflight_batching_args is None
-                            or inflight_batching_args.pointers_to_kv_cache_block_pointers is None
-                        )
-                        else inflight_batching_args.pointers_to_kv_cache_block_pointers[idx]
-                    ),
-                )
-
             hidden_states = layer(
                 hidden_states,
-                past_key_value=past,
-                sequence_length=sequence_length,
-                host_past_key_value_lengths=host_past_key_value_lengths,
-                use_cache=use_cache,
                 attention_mask=attention_mask,
-                cache_indirection=cache_indirection,
-                kv_cache_block_pointers=pointers,
-                context_lengths=context_lengths,
-                host_context_lengths=host_context_lengths,
-                host_request_types=host_request_types,
-                max_context_length=max_context_length,
-                **additional_inputs,
+                use_cache=use_cache,
+                kv_cache_params=KeyValueCacheParams(
+                    past_key_value=[past],
+                    host_past_key_value_lengths=host_past_key_value_lengths,
+                    kv_cache_block_pointers=pointers,
+                    cache_indirection=cache_indirection
+                ),
+                attention_params=AttentionParams(
+                    sequence_length=sequence_length,
+                    context_lengths=context_lengths,
+                    host_context_lengths=host_context_lengths,
+                    max_context_length=max_context_length,
+                    host_request_types=host_request_types,
+                ),
             )
 
             if use_cache:
                 presents.append(hidden_states[1])
                 hidden_states = hidden_states[0]
 
-        hidden_states = self.ln_f(hidden_states.data)
+        hidden_states = self.ln_f(hidden_states)
 
         if use_cache:
-            return (hidden_states, tuple(presents))
+            return hidden_states, tuple(presents)
         return hidden_states
 
 
@@ -309,9 +282,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         num_heads_kv = (self._num_kv_heads + self._tensor_parallel - 1) // self._tensor_parallel
         remove_input_padding = default_net().plugin_config.remove_input_padding
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
-        use_ib_gpt_attention_plugin = (
-            default_net().plugin_config.inflight_batching_gpt_attention_plugin
-        )
 
         model_inputs = self.prepare_basic_inputs(
             max_batch_size,
@@ -324,7 +294,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             self._kv_dtype,
             remove_input_padding=remove_input_padding,
             use_gpt_attention_plugin=use_gpt_attention_plugin,
-            use_ib_gpt_attention_plugin=use_ib_gpt_attention_plugin,
             paged_kv_cache=paged_kv_cache,
             tokens_per_block=tokens_per_block,
         )
@@ -385,76 +354,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 dim_range=OrderedDict([("size", [1])]),
             )
 
+        # todo: we should remove this, but hesitant since no explicit argument names below.
         inflight_batching_args = None
-        if use_ib_gpt_attention_plugin:
-            past_key_value_pointers = []
-            pointers_to_kv_cache_block_pointers = []
-            for i in range(self._num_layers):
-                kv = Tensor(
-                    name=f"past_key_value_pointers_{i}",
-                    dtype=trt.int32,
-                    # 2 INT32s for representing a single INT64 pointer
-                    shape=[-1, 2],
-                    dim_range=OrderedDict(batch_size_kv=[bs_range], pointer_width=[2]),
-                )
-                past_key_value_pointers.append(kv)
-
-                if paged_kv_cache:
-                    # [nbReq, 2]
-                    pkv = Tensor(
-                        name=f"pointers_to_kv_cache_block_pointers_{i}",
-                        dtype=trt.int32,
-                        # 2 INT32s for representing a single INT64 pointer
-                        shape=[-1, 2],
-                        dim_range=OrderedDict(batch_size_cp=[bs_range], pointer_width=[2]),
-                    )
-                    pointers_to_kv_cache_block_pointers.append(pkv)
-
-            inflight_batching_args = InflightBatchingParam(
-                # [nbReq]
-                host_context_lengths=Tensor(
-                    name="host_context_lengths",
-                    dtype=trt.int32,
-                    shape=[-1],
-                    dim_range=OrderedDict(batch_size_hscl=[bs_range]),
-                ),
-                # [nbSeq]
-                context_lengths=Tensor(
-                    name="context_lengths",
-                    dtype=trt.int32,
-                    shape=[-1],
-                    dim_range=OrderedDict(batch_size_context_lengths=[bs_range]),
-                ),
-                # [nbReq]
-                host_beam_widths=Tensor(
-                    name="beam_widths",
-                    dtype=trt.int32,
-                    shape=[-1],
-                    dim_range=OrderedDict(batch_size_bw=[bs_range]),
-                ),
-                # [nbReq, 2]
-                cache_indir_pointers=Tensor(
-                    name="cache_indir_pointers",
-                    dtype=trt.int32,
-                    # 2 INT32s for representing a single INT64 pointer
-                    shape=[-1, 2],
-                    dim_range=OrderedDict(batch_size_cp=[bs_range], pointer_width=[2]),
-                ),
-                # [nbReq]
-                host_req_cache_max_seq_lengths=Tensor(
-                    name="req_cache_max_seq_lengths",
-                    dtype=trt.int32,
-                    shape=[-1],
-                    dim_range=OrderedDict(batch_size_rcmsl=[bs_range]),
-                ),
-                max_input_length=max_input_len,
-                max_beam_width=max_beam_width,
-                use_int8_kv_cache=self.quant_mode.has_int8_kv_cache(),
-                past_key_value_pointers=past_key_value_pointers,
-                pointers_to_kv_cache_block_pointers=(
-                    None if not paged_kv_cache else pointers_to_kv_cache_block_pointers
-                ),
-            )
 
         return (
             model_inputs["input_ids"],

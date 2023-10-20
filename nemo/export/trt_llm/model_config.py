@@ -309,6 +309,7 @@ class DecoderLayerConfig:
     num_kv_heads: int = 0
     max_position_embeddings: int = 0
     rotary_pct: float = 0
+    rotary_base: int = 10000
 
     @property
     def hidden_size(self):
