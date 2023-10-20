@@ -93,14 +93,17 @@ def print_mcore_parameter_names(restore_from_path):
 def build_key_mapping(nemo_cfg):
     num_layers = nemo_cfg.num_layers
     has_bias = nemo_cfg.get("bias", True)
+    has_layernorm_bias = nemo_cfg.get("normalization", "layernorm") != "rmsnorm"  # llama model uses rmsnorm which does not have bias
     model_str = 'model.module' if nemo_cfg.get('megatron_amp_O2', False) else 'model'
 
     # For GPT there is a 1:1 mapping of keys
     mcore_to_nemo_mapping = {
         f"{model_str}.embedding.word_embeddings.weight": "model.language_model.embedding.word_embeddings.weight",
-        f"{model_str}.decoder.final_layernorm.bias": "model.language_model.encoder.final_layernorm.bias",
         f"{model_str}.decoder.final_layernorm.weight": "model.language_model.encoder.final_layernorm.weight",
     }
+    if has_layernorm_bias:
+        mcore_to_nemo_mapping[f"{model_str}.decoder.final_layernorm.bias"] = "model.language_model.encoder.final_layernorm.bias"
+
     if not nemo_cfg.get("share_embeddings_and_output_weights", True):
         mcore_to_nemo_mapping[f"{model_str}.output_layer.weight"] = "model.language_model.output_layer.weight"
 
@@ -123,8 +126,8 @@ def build_key_mapping(nemo_cfg):
                     f"{mcore_prefix}.{i}.self_attention.linear_qkv.{wb}": f"{nemo_prefix}.{i}.self_attention.query_key_value.{wb}",
                 }
             )
-        # layernorm layers always have bias!
-        for wb in ('weight', 'bias'):
+        # layernorm layers always have bias, but llama model uses rmsnorm which does not have bias
+        for wb in ('weight', 'bias') if has_layernorm_bias else ('weight',):
             mcore_to_nemo_mapping.update(
                 {
                     f"{mcore_prefix}.{i}.self_attention.linear_qkv.layer_norm_{wb}": f"{nemo_prefix}.{i}.input_layernorm.{wb}",
