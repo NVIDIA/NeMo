@@ -64,6 +64,7 @@ class AdapterName(str, enum.Enum):
     POST_ATTN_ADAPTER = 'adapter_2'
     PTUNING_ADAPTER = "ptuning_adapter"
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
+    VERA_KQV_ADAPTER = "vera_kqv_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
 
@@ -112,6 +113,71 @@ class InfusedAdapterConfig(AdapterConfig):
 class MLPInfusedAdapterConfig(InfusedAdapterConfig):
     _target_: str = "{0}.{1}".format(MLPInfusedAdapter.__module__, MLPInfusedAdapter.__name__)
 
+
+class VeraAdapter(nn.Module, AdapterModuleUtil):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        dim: int,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        **kwargs,
+    ):
+        super().__init__()
+        self.linear_in = ColumnParallelLinear(
+            in_features,
+            dim,
+            config=model_parallel_config,
+            bias=False,
+            gather_output=True,
+            init_method=init_method_normal(0.2),
+        )
+        self.linear_out = ColumnParallelLinear(
+            dim,
+            out_features,
+            config=model_parallel_config,
+            bias=False,
+            gather_output=False,
+            init_method=init_method_normal(0.2),
+        )
+        self.dim_scalar = nn.Parameter(torch.ones(dim))
+        self.out_scalar = nn.Parameter(torch.zeros(out_features))
+    
+    def adapter_unfreeze(self,):
+        for p in self.linear_in.parameters():
+            p.requires_grad = False
+
+        for p in self.linear_out.parameters():
+            p.requires_grad = False
+        
+        self.dim_scalar.requires_grad = True
+        self.out_scalar.requires_grad = True
+    
+    def tie_weights(self, position_id, adapter):
+
+        self.set_position(position_id)
+        if self.linear_in:
+            self.linear_in.weight = adapter.linear_in.weight
+        if self.linear_out:
+            self.linear_out.weight = adapter.linear_out.weight
+
+        return True
+
+    def forward(self, x):
+
+        x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
+        x = x * self.dim_scalar[None, None, :]
+        x, _ = self.linear_out(x)
+        x = x * self.out_scalar[None, None, :]
+
+        return x
+
+@dataclass
+class VeraAdapterConfig(AdapterConfig):
+    in_features: int
+    out_features: int
+    dim: int
+    _target_: str = "{0}.{1}".format(VeraAdapter.__module__, VeraAdapter.__name__)
 
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(

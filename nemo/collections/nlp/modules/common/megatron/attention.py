@@ -23,6 +23,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     InfusedAdapterConfig,
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
+    VeraAdapterConfig,
     LoraKVAdapterConfig,
     LoraQAdapterConfig,
 )
@@ -152,6 +153,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             [
                 InfusedAdapterConfig._target_,
                 LoraKQVAdapterConfig._target_,
+                VeraAdapterConfig._target_,
                 LoraQAdapterConfig._target_,
                 LoraKVAdapterConfig._target_,
                 LoraKQVAdapterWeightTyingConfig._target_,
@@ -399,6 +401,11 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 if lora_kqv_adapter:
                     lora_mixed_x_layer = lora_kqv_adapter(hidden_states)
                     mixed_x_layer = mixed_x_layer + lora_mixed_x_layer
+                vera_kqv_adapter = self.get_adapter_module(AdapterName.VERA_KQV_ADAPTER)
+                if vera_kqv_adapter:
+                    vera_mixed_x_layer = vera_kqv_adapter(hidden_states)
+                    mixed_x_layer = mixed_x_layer + vera_mixed_x_layer
+                    
 
             # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
             new_tensor_shape = mixed_x_layer.size()[:-1] + (

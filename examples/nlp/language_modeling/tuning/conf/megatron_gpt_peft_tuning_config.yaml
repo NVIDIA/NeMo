@@ -93,6 +93,9 @@ model:
       weight_tying: False
       position_embedding_strategy: null # used only when weight_tying is True
 
+    vera_tuning:
+      adapter_dim: 32
+
     lora_tuning:
       adapter_dim: 32
       adapter_dropout: 0.0

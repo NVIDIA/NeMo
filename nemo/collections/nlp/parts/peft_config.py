@@ -32,6 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
+    VeraAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
 )
@@ -48,6 +49,34 @@ class PEFTConfig:
     def get_config_dict(self):
         return self.name_key_to_cfg
 
+class VeraPEFTConfig(PEFTConfig):
+    def __init__(self, cfg):
+        vera_cfg = cfg.peft.vera_tuning
+        if cfg.get("kv_channels", None) is None:
+            assert (
+                cfg.hidden_size % cfg.num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = cfg.hidden_size // cfg.num_attention_heads
+        else:
+            kv_channels = cfg.kv_channels
+        projection_size = kv_channels * cfg.num_attention_heads
+        num_query_groups = cfg.get("num_query_groups", None)
+        if num_query_groups is None:
+            num_query_groups = cfg.num_attention_heads
+        qkv_projection_size = projection_size + (2 * kv_channels * num_query_groups)
+        
+        config_args = {
+            "in_features": cfg.hidden_size,
+            "out_features": qkv_projection_size,
+            "dim": vera_cfg.adapter_dim, 
+        }
+        adapter_cfg = VeraAdapterConfig(**config_args)
+        name_key_to_cfg = {
+            AdapterName.VERA_KQV_ADAPTER: adapter_cfg,
+        }
+        self.name_key_to_mcore_mixins = {AdapterName.VERA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionMixin)]}
+
+        super().__init__(vera_cfg, name_key_to_cfg)
 
 class LoraPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
@@ -189,6 +218,7 @@ PEFT_CONFIG_MAP = {
     "ia3": IA3PEFTConfig,
     "ptuning": PtuningPEFTConfig,
     "lora": LoraPEFTConfig,
+    "vera": VeraPEFTConfig,
     'none': None,
     None: None,
 }
