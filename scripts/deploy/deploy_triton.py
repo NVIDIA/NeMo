@@ -32,11 +32,18 @@ def get_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton",
     )
+
     parser.add_argument(
         "-nc",
         "--nemo_checkpoint",
         type=str,
         help="Source .nemo file")
+
+    parser.add_argument(
+        "-pnc",
+        "--ptuning_nemo_checkpoint",
+        type=str,
+        help="Source .nemo file for prompt embeddings table")
 
     parser.add_argument(
         "-mt",
@@ -190,6 +197,7 @@ def nemo_deploy(argv):
             trt_llm_exporter.export(
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
+                prompt_embeddings_checkpoint_path=args.ptuning_nemo_checkpoint,
                 n_gpus=args.num_gpus,
                 max_input_token=args.max_input_len,
                 max_output_token=args.max_output_len,

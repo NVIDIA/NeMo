@@ -22,15 +22,16 @@ import tensorrt_llm
 import torch
 from pytriton.decorators import batch
 from pytriton.model_config import Tensor
+import tempfile
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
+from nemo.utils import logging
 
 from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
-from .trt_llm.quantization_utils import naive_quantization
 from .trt_llm.tensorrt_llm_run import generate, load
-from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy
+from .utils import is_nemo_file, unpack_nemo_ckpt
 
 
 class TensorRTLLM(ITritonDeployable):
@@ -84,9 +85,11 @@ class TensorRTLLM(ITritonDeployable):
                     self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
                     self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
                     self._load_prompt_table()
-                except:
+                except Exception as error:
                     raise Exception(
-                        "Files in the TensorRT-LLM folder is corrupted and model needs to be exported again."
+                        "Files in the TensorRT-LLM folder is corrupted and "
+                        "model needs to be exported again. "
+                        "Error message: " + str(error)
                     )
 
     def _load_prompt_table(self):
@@ -113,20 +116,36 @@ class TensorRTLLM(ITritonDeployable):
             with open(config_path, 'r') as f:
                 self.config = json.load(f)
         else:
-            raise FileNotFoundError("file: {0} could not be found.".format(config_path))  
+            raise FileNotFoundError("file: {0} could not be found.".format(config_path))
+
+    def _get_prompt_embedding_table_ckpt(self, prompt_embeddings_checkpoint_path):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            unpack_nemo_ckpt(prompt_embeddings_checkpoint_path, temp_dir)
+            mw_path = os.path.join(temp_dir, "model_weights.ckpt")
+            if not Path(mw_path).exists():
+                raise FileNotFoundError("File: {0} could not be found in the nemo checkpoint. "
+                                        "Please check the nemo checkpoint format for the prompt "
+                                        "embedding table.".format(mw_path))
+            weights = torch.load(mw_path)
+            weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
+
+            return weights.cpu().detach().numpy()
+            #for key, value in weights.items():
+            #    print(key, value.size())
+
+        return None
 
     def export(
         self,
         nemo_checkpoint_path: str,
         model_type: str,
         prompt_embeddings_table = None,
+        prompt_embeddings_checkpoint_path=None,
         delete_existing_files: bool = True,
         n_gpus: int = 1,
         max_input_token: int = 512,
         max_output_token: int = 512,
         max_batch_size: int = 32,
-        quantization: bool = None,
-        parallel_build: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -134,7 +153,8 @@ class TensorRTLLM(ITritonDeployable):
         Args:
             nemo_checkpoint_path (str): path for the nemo checkpoint.
             model_type (str): type of the model. Currently supports "llama" and "gptnext".
-            prompt_embeddings_table (str): prompt embeddings table.
+            prompt_embeddings_table: prompt embeddings table.
+            prompt_embeddings_checkpoint_path (str): path for the nemo checkpoint for the prompt embedding table.
             delete_existing_files (bool): if Truen, deletes all the files in model_dir.
             n_gpus (int): number of GPUs to use for inference.
             max_input_token (int): max input length.
@@ -144,12 +164,32 @@ class TensorRTLLM(ITritonDeployable):
             parallel_build (bool): build in parallel or not.
         """
 
-        if prompt_embeddings_table is not None:
+        p_tuning = "no_ptuning"
+        if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
+            logging.warning("prompt_embeddings_table will be used and "
+                            "prompt_embeddings_checkpoint_path will be "
+                            "ignored for ptuning.")
+            p_tuning = "use_table"
+        elif prompt_embeddings_table is not None:
+            p_tuning = "use_table"
+        elif prompt_embeddings_checkpoint_path is not None:
+            p_tuning = "use_checkpoint"
+
+        if p_tuning == "use_table":
             if not isinstance(prompt_embeddings_table, np.ndarray):
                 raise TypeError("Only numpy array is allowed for the prompt embeddings table.")
 
             if len(prompt_embeddings_table.shape) != 2:
-                raise Exception("A two dimensional prompt embeddings table for a sinlge task is only supported.")
+                raise Exception("A two dimensional prompt embeddings table for a single task is only supported.")
+        elif p_tuning == "use_checkpoint":
+            if not is_nemo_file(prompt_embeddings_checkpoint_path):
+                raise TypeError(prompt_embeddings_checkpoint_path + " is not a nemo file.")
+            prompt_embeddings_table = self._get_prompt_embedding_table_ckpt(prompt_embeddings_checkpoint_path)
+
+        if prompt_embeddings_table is None:
+            max_prompt_embedding_table_size = 0
+        else:
+            max_prompt_embedding_table_size = len(prompt_embeddings_table)
 
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
@@ -174,11 +214,6 @@ class TensorRTLLM(ITritonDeployable):
             in_file=nemo_checkpoint_path, decoder_type=model_type, gpus=n_gpus, nemo_export_dir=nemo_export_dir
         )
 
-        if prompt_embeddings_table is None:
-            max_prompt_embedding_table_size = 0
-        else:
-            max_prompt_embedding_table_size = len(prompt_embeddings_table)
-
         model_config_to_tensorrt_llm(
             model_configs,
             self.model_dir,
@@ -189,7 +224,7 @@ class TensorRTLLM(ITritonDeployable):
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )
 
-        if prompt_embeddings_table is not None:
+        if p_tuning != "no_ptuning":
             np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings_table)
 
         shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
