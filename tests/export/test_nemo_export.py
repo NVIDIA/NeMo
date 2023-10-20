@@ -52,6 +52,7 @@ class TestNemoExport:
                             prompt_embeddings_checkpoint_path = model_info["p_tuning_checkpoint"]
 
                     trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
+
                     trt_llm_exporter.export(
                         nemo_checkpoint_path=model_info["checkpoint"],
                         model_type=model_info["model_type"],
