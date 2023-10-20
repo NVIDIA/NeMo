@@ -236,8 +236,10 @@ def run_sanity_checks(nemo_file, mcore_file, cpu_only=False):
     for mcore_param, nemo_param in build_key_mapping(nemo_model.cfg).items():
         try:
             assert torch.allclose(
-                mcore_state_dict.pop(mcore_param), nemo_state_dict.pop(nemo_param)
+                mcore_state_dict[mcore_param], nemo_state_dict[nemo_param]
             ), f"❌ parameter {mcore_param} does not match"
+            mcore_state_dict.pop(mcore_param)
+            nemo_state_dict.pop(nemo_param)
         except KeyError:
             buffers = [k for k, v in mcore_model.named_buffers()]
             assert (
