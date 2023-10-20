@@ -513,10 +513,10 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             present = (key_layer, value_layer)
 
         if (
-            flash_attn_with_kvcache is not None \
-            and self.use_flash_attention \
-            and rotary_pos_emb is not None \
-            and inference_max_sequence_len \
+            flash_attn_with_kvcache is not None
+            and self.use_flash_attention
+            and rotary_pos_emb is not None
+            and inference_max_sequence_len
             and not set_inference_key_value_memory
         ):
             # Mainly used for decoding with sq=1
