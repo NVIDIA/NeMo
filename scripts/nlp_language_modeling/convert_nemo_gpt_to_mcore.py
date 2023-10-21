@@ -21,7 +21,6 @@ from omegaconf import OmegaConf
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import AppState, logging
 
@@ -62,12 +61,12 @@ def get_args():
     return args
 
 
-def get_mcore_model_from_nemo_file(nemo_restore_from_path):
+def get_mcore_model_from_nemo_file(nemo_restore_from_path, cpu_only=False):
     model_cfg = MegatronGPTModel.restore_from(nemo_restore_from_path, return_config=True)
     model_cfg.tokenizer.vocab_file = None
     model_cfg.tokenizer.merge_file = None
     model_cfg.mcore_gpt = True
-    model_cfg.use_cpu_initialization = True
+    model_cfg.use_cpu_initialization = cpu_only
 
     logging.info("*** initializing mcore model with the following config")
     logging.info(OmegaConf.to_yaml(model_cfg))
@@ -163,8 +162,7 @@ def load_model(model, state_dict):
 
 
 def restore_model(nemo_file, cpu_only=False):
-    # dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
-    dummy_trainer = Trainer(devices=1, accelerator='cpu')
+    dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
     if cpu_only:
         map_location = torch.device('cpu')
         model_config = MegatronGPTModel.restore_from(
@@ -190,7 +188,7 @@ def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_o
     for mcore_param, nemo_param in build_key_mapping(nemo_model.cfg).items():
         mcore_state_dict[mcore_param] = nemo_state_dict[nemo_param]
 
-    mcore_model = get_mcore_model_from_nemo_file(input_nemo_file)
+    mcore_model = get_mcore_model_from_nemo_file(input_nemo_file, cpu_only=cpu_only)
     mcore_model = load_model(mcore_model, mcore_state_dict)
 
     if nemo_model.cfg.tokenizer.model is not None:
@@ -210,11 +208,8 @@ def run_sanity_checks(nemo_file, mcore_file, cpu_only=False):
         )
     )
 
-    cfg.trainer.precision = 'bf16'  # change me
-    dtype = torch.bfloat16
-
-    nemo_model = restore_model(nemo_file, cpu_only=cpu_only).eval().to(dtype)
-    mcore_model = restore_model(mcore_file, cpu_only=cpu_only).eval().to(dtype)
+    nemo_model = restore_model(nemo_file, cpu_only=cpu_only).eval()
+    mcore_model = restore_model(mcore_file, cpu_only=cpu_only).eval()
 
     logging.debug("*** Mcore model restored config")
     logging.debug(OmegaConf.to_yaml(mcore_model.cfg))
