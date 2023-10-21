@@ -25,9 +25,10 @@ import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
-from nemo.core.config import hydra_runner
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.core.config import hydra_runner
+
 
 @hydra_runner(config_path="conf", config_name="config_llama_truncate")
 def main(cfg) -> None:
@@ -144,6 +145,7 @@ def main(cfg) -> None:
 
     output_path = cfg.output_bin_path
     torch.save(checkpoint, output_path)
+
 
 if __name__ == '__main__':
     main()
