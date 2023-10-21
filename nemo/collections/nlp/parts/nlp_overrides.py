@@ -63,6 +63,8 @@ from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTra
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.fsdp_patch import FullyShardedDataParallel
 from nemo.collections.nlp.parts.fsdp_patch import FullyShardedDataParallel as FSDP
+from nemo.collections.nlp.parts.fsdp_patch import BackwardPrefetch, FullStateDictConfig
+from nemo.collections.nlp.parts.fsdp_patch import MixedPrecision, OptimStateKeyType, ShardingStrategy, StateDictType
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
