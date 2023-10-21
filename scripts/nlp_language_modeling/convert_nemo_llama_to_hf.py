@@ -15,7 +15,7 @@
 
     Known constraints, this script:
         1. generates state_dict in fp32; fp16 support will be added soon,
-        2. is tested on 7B model only; 70B (GQA) support will be added soon.
+        2. is tested on 7B and 13B model only; 70B (GQA) support will be added soon.
 """
 
 import os
