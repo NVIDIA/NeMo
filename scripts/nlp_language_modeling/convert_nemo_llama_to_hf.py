@@ -15,34 +15,19 @@
 
     Known constraints, this script:
         1. generates state_dict in fp32; fp16 support will be added soon,
-        2. is tested on 7B model only; 13B and 70B (GQA) support will be added soon.
+        2. is tested on 7B model only; 70B (GQA) support will be added soon.
 """
 
 import os
-import tempfile
 from collections import OrderedDict
 
 import torch
-from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import (
-    CustomProgressBar,
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
 from nemo.core.config import hydra_runner
-from nemo.utils import AppState, logging
-from nemo.utils.exp_manager import exp_manager
-from nemo.utils.model_utils import inject_model_parallel_rank
-
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 
 @hydra_runner(config_path="conf", config_name="config_llama_truncate")
 def main(cfg) -> None:
@@ -157,9 +142,8 @@ def main(cfg) -> None:
     output_layer_base_name = f'lm_head.weight'
     checkpoint['state_dict'][output_layer_base_name] = param_to_weights(output_layer_weight)
 
-    path = "/workspace/pretrain/nemo2huggingface-main/00_llama-hf-converted"
-    torch.save(checkpoint, os.path.join(path, 'ver4_pytorch_model.bin'))
-
+    output_path = cfg.output_bin_path
+    torch.save(checkpoint, output_path)
 
 if __name__ == '__main__':
     main()
