@@ -1,5 +1,6 @@
 name: megatron_llama
 restore_from_path: /workspace/pretrain/llama2-7b.nemo # used when starting from a .nemo file
+output_bin_path: /workspace/pretrain/pytorch_model_7b.bin
 
 trainer:
   devices: 1
@@ -192,4 +193,4 @@ model:
       name: CosineAnnealing
       warmup_steps: 5
       constant_steps: 90
-      min_lr: 1e-5uuppal@exp-blr-dgxa100-02:~$ 
+      min_lr: 1e-5
