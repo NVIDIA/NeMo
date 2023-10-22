@@ -485,11 +485,7 @@ class TTSDataset(Dataset):
         pass
 
     def add_reference_audio(self, **kwargs):
-        assert SpeakerID in self.sup_data_types, "Please add speaker_id in sup_data_types."
-        """Add a mapping for each speaker to their manifest indexes"""
-        self.speaker_to_index_map = defaultdict(set)
-        for i, d in enumerate(self.data):
-            self.speaker_to_index_map[d['speaker_id']].add(i)
+        pass
 
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
@@ -529,12 +525,6 @@ class TTSDataset(Dataset):
                     [wav, torch.zeros(self.pad_multiple - wav.shape[0] % self.pad_multiple, dtype=torch.float)]
                 )
         return wav
-
-    # Random sample a reference index from the same speaker
-    def sample_reference_index(self, speaker_id):
-        reference_pool = self.speaker_to_index_map[speaker_id]
-        reference_index = random.sample(reference_pool, 1)[0]
-        return reference_index
 
     def __getitem__(self, index):
         sample = self.data[index]
@@ -699,9 +689,8 @@ class TTSDataset(Dataset):
 
         reference_audio, reference_audio_length = None, None
         if ReferenceAudio in self.sup_data_types_set:
-            reference_index = self.sample_reference_index(sample["speaker_id"])
             reference_audio = self.featurizer.process(
-                self.data[reference_index]["audio_filepath"],
+                sample["audio_filepath"],
                 trim=self.trim,
                 trim_ref=self.trim_ref,
                 trim_top_db=self.trim_top_db,
