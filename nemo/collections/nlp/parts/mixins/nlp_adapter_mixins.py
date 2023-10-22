@@ -34,6 +34,7 @@ from nemo.collections.nlp.parts.peft_config import (
     PEFT_CONFIG_MAP,
     CanonicalAdaptersPEFTConfig,
     LoraPEFTConfig,
+    VeraPEFTConfig,
     PEFTConfig,
     PtuningPEFTConfig,
 )
@@ -305,6 +306,8 @@ class NLPAdapterModelMixin:
             layer0 = layers[0].self_attention
         elif isinstance(peft_cfg, CanonicalAdaptersPEFTConfig):
             layer0 = layers[0]
+        elif isinstance(peft_cfg, VeraPEFTConfig):
+            layer0 = layers[0].self_attention
         else:
             raise RuntimeError(f"{peft_cfg} is not supported for tied weights")
 
@@ -317,6 +320,9 @@ class NLPAdapterModelMixin:
         for layer in layers[1:]:
             if isinstance(peft_cfg, LoraPEFTConfig):
                 layer = layer.self_attention
+            if isinstance(peft_cfg, VeraPEFTConfig):
+                layer = layer.self_attention
+                
             for adapter_name in layer.adapter_layer:
                 print(adapter_name, pos_idx)
                 adapter_l = layer.get_adapter_module(adapter_name)

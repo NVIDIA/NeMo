@@ -153,6 +153,12 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
         self.dim_scalar.requires_grad = True
         self.out_scalar.requires_grad = True
 
+        return True
+
+    def set_position(self, position_id):
+        # set_position is a no-op for Vera
+        return None
+
     def tie_weights(self, position_id, adapter):
 
         self.set_position(position_id)
