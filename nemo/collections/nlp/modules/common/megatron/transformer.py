@@ -801,6 +801,7 @@ class AutocastTransformerLayer(TransformerLayer):
         ub_tp_comm_overlap: bool = False,
         autocast_dtype: Any = 16,
         zero_centered_gamma: bool = False,
+        device: str = 'cuda',
     ) -> None:
         super().__init__(
             hidden_size=hidden_size,
@@ -832,6 +833,7 @@ class AutocastTransformerLayer(TransformerLayer):
             fuse_qkv_params=True,
             zero_centered_gamma=zero_centered_gamma,
             ub_tp_comm_overlap=ub_tp_comm_overlap,
+            device=device,
         )
         # use_emha=use_emha,
 
@@ -1081,6 +1083,7 @@ class ParallelTransformer(MegatronModule):
                     use_emha=use_emha,
                     ub_tp_comm_overlap=ub_tp_comm_overlap,
                     zero_centered_gamma=normalization == 'layernorm1p',
+                    device='cpu' if config.use_cpu_initialization else 'cuda',
                 )
             else:
                 return ParallelTransformerLayer(
