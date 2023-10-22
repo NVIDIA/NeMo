@@ -493,7 +493,7 @@ class ConditionalInput(torch.nn.Module):
     def forward(self, inputs, conditioning=None):
         """
         Args:
-            inputs (torch.tensor): B x T x C tensor.
+            inputs (torch.tensor): B x T x H tensor.
             conditioning (torch.tensor): B x 1 x C conditioning embedding.
         """
         if len(self.condition_types) > 0:
