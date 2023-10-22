@@ -121,4 +121,5 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
             mlp_hidden_size=layer.ffn_hidden_size_local * self.tensor_parallel,
             tp_group=self.tp_group,
             tp_size=self.tensor_parallel,
+            rotary_base=layer.rotary_base,
         )
