@@ -536,7 +536,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
                 headscale_tensor=self.head_scale_tensor if self.headscale else None,
-                return_scores=return_scores
+                return_scores=return_scores,
             )
             if return_scores:
                 context_layer, attention_probs = context_layer
@@ -549,10 +549,10 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         if get_key_value:
             output = [output, present]
-        
+
         if return_scores:
             output = [output, attention_probs]
-        
+
         return output, bias
 
 
@@ -886,7 +886,9 @@ class CoreAttention(MegatronModule):
         # relative_position_bias [b, np, sq, sk]
         # context_layer [b, np, sq, hn]
         # ==================================================
-        context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias, return_scores=return_scores)
+        context_layer = self.attn_fn(
+            query_layer, key_layer, value_layer, attention_mask, relative_position_bias, return_scores=return_scores
+        )
         if return_scores:
             context_layer, attention_probs = context_layer
 
@@ -905,7 +907,9 @@ class CoreAttention(MegatronModule):
         else:
             return context_layer
 
-    def torch_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, return_scores=False):
+    def torch_attention(
+        self, query_layer, key_layer, value_layer, attention_mask, attention_bias, return_scores=False
+    ):
         sq, b, np, hn = query_layer.shape
         sk = key_layer.shape[0]
 

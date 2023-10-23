@@ -141,15 +141,15 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
         self.tokens_head_bias = tokens_head_bias
-        
+
         # Overridden in MegatronT5SpeechLMModel constructor
         self.cross_entropy_type = "vocab_parallel"
         self.seq_pattern = "parallel"
         self.speech_head_type = "token_level"
         self.attn_prior_scaledown_start_step = 10000
         self.attn_prior_end_step = 11000
-        self.return_all_crossattention_probs=False
-        self.num_cross_attention_heads=12 # 12 for 220m T5, 16 for 11b T5
+        self.return_all_crossattention_probs = False
+        self.num_cross_attention_heads = 12  # 12 for 220m T5, 16 for 11b T5
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
@@ -618,7 +618,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     )
                 else:
                     decoder_cross_attention_relative_position_bias = None
-            
+
             if cross_attention_prior is not None:
                 # cross_attention_prior shape [B, dec_len, enc_len]
                 # Repeat it to make it [B, 12, dec_len, enc_len]
@@ -633,12 +633,21 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 elif global_step > attn_prior_scaledown_start_step and global_step < attn_prior_end_step:
                     total_annealing_steps = attn_prior_end_step - attn_prior_scaledown_start_step
                     curr_annealing_step = global_step - attn_prior_scaledown_start_step
-                    curr_cross_attention_prior = cross_attention_prior + ( (1. - cross_attention_prior) * curr_annealing_step / total_annealing_steps )
-                    decoder_cross_attention_relative_position_bias = curr_cross_attention_prior.unsqueeze(1).repeat(1, num_attention_heads, 1, 1)
+                    curr_cross_attention_prior = cross_attention_prior + (
+                        (1.0 - cross_attention_prior) * curr_annealing_step / total_annealing_steps
+                    )
+                    decoder_cross_attention_relative_position_bias = curr_cross_attention_prior.unsqueeze(1).repeat(
+                        1, num_attention_heads, 1, 1
+                    )
                 else:
                     print("global_step", global_step, "prior_scaling_factor", 1)
-                    decoder_cross_attention_relative_position_bias = cross_attention_prior.unsqueeze(1).repeat(1, num_attention_heads, 1, 1)
-                    print("decoder_cross_attention_relative_position_bias", decoder_cross_attention_relative_position_bias.shape)
+                    decoder_cross_attention_relative_position_bias = cross_attention_prior.unsqueeze(1).repeat(
+                        1, num_attention_heads, 1, 1
+                    )
+                    print(
+                        "decoder_cross_attention_relative_position_bias",
+                        decoder_cross_attention_relative_position_bias.shape,
+                    )
 
             output = self.enc_dec_model(
                 enc_input=enc_input,

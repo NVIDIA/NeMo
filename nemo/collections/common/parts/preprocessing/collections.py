@@ -250,8 +250,30 @@ class InstructionTuningText(_Collection):
         if index_by_file_id:
             self.mapping = {}
 
-        for id_, context, context_type, context_duration, question, question_type, answer, answer_type, answer_duration, speaker, task in zip(
-            ids, contexts, context_types, context_durations, questions, question_types, answers, answer_types, answer_durations, speakers, tasks
+        for (
+            id_,
+            context,
+            context_type,
+            context_duration,
+            question,
+            question_type,
+            answer,
+            answer_type,
+            answer_duration,
+            speaker,
+            task,
+        ) in zip(
+            ids,
+            contexts,
+            context_types,
+            context_durations,
+            questions,
+            question_types,
+            answers,
+            answer_types,
+            answer_durations,
+            speakers,
+            tasks,
         ):
             # Duration filters.
             task = 'tts' if task is None else task
@@ -275,16 +297,26 @@ class InstructionTuningText(_Collection):
             else:
                 approx_answer_len = len(answer.split(' ')) + 3
 
-            if (
-                approx_context_len + approx_question_len >= max_seq_length
-                or approx_answer_len >= max_seq_length
-            ):
+            if approx_context_len + approx_question_len >= max_seq_length or approx_answer_len >= max_seq_length:
                 duration_filtered += duration
                 num_filtered += 1
                 continue
 
             total_duration += duration
-            data.append(output_type(id_, context, context_type, context_duration, question, question_type, answer, answer_type, answer_duration, speaker))
+            data.append(
+                output_type(
+                    id_,
+                    context,
+                    context_type,
+                    context_duration,
+                    question,
+                    question_type,
+                    answer,
+                    answer_type,
+                    answer_duration,
+                    speaker,
+                )
+            )
 
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(context))
@@ -346,7 +378,19 @@ class InstructionTuningAudioText(InstructionTuningText):
             answer_types.append(item['answer_type'])
             tasks.append(item['task'])
         super().__init__(
-            ids, contexts, context_types, questions, question_types, answers, answer_types, context_durations, answer_durations, speakers, tasks, *args, **kwargs
+            ids,
+            contexts,
+            context_types,
+            questions,
+            question_types,
+            answers,
+            answer_types,
+            context_durations,
+            answer_durations,
+            speakers,
+            tasks,
+            *args,
+            **kwargs,
         )
 
 

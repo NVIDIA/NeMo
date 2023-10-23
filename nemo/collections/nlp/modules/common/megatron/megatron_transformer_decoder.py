@@ -89,7 +89,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         use_flash_attention=False,
     ):
         super(MegatronTransformerDecoderModule, self).__init__()
-        
+
         self.pre_process = pre_process
         self.post_process = post_process
         self.hidden_size = hidden_size

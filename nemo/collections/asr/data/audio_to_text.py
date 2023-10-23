@@ -16,6 +16,7 @@ import json
 import math
 import multiprocessing
 import os
+import random
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import braceexpand
@@ -41,7 +42,6 @@ from nemo.utils.data_utils import (
     is_tarred_path,
 )
 from nemo.utils.get_rank import is_global_rank_zero
-import random
 
 __all__ = [
     'AudioToCharDataset',
@@ -910,7 +910,6 @@ class _TarredInstructionTuningDataset(IterableDataset):
 
     def __len__(self):
         return self.len
-
 
 
 class _TarredAudioToTextDataset(IterableDataset):

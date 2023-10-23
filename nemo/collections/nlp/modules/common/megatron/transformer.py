@@ -613,7 +613,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 attention_bias = None
 
             residual = layernorm_input
-            
+
             bias_dropout_add_func = self._get_bias_droput_add_func(
                 transformer_block_type=self.transformer_block_type, position_after='attention'
             )
@@ -646,7 +646,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
         if get_key_value:
             output = [output, presents]
-        
+
         if return_scores:
             output = [output, attention_probs]
 
@@ -1431,7 +1431,7 @@ class ParallelTransformer(MegatronModule):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_activations_all_layers=None,
-        return_all_crossattention_probs=False
+        return_all_crossattention_probs=False,
     ):
         # Checks.
         if inference_max_sequence_len:
@@ -1550,7 +1550,7 @@ class ParallelTransformer(MegatronModule):
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
                         else:
-                            # if self.layer_type == LayerType.decoder and 
+                            # if self.layer_type == LayerType.decoder and
                             # check if it is the first layer of the decoder
 
                             # save hidden_states and attention_probs for all indexes to a list and return the list
@@ -1608,7 +1608,7 @@ class ParallelTransformer(MegatronModule):
 
         if get_key_value:
             output = [output, presents]
-        
+
         if return_all_crossattention_probs:
             output = [output, attention_probs_list]
 
