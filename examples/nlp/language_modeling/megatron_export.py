@@ -102,7 +102,11 @@ def nemo_export(cfg):
                 pretrained_cfg.precision = trainer.precision
                 if trainer.precision == "16":
                     pretrained_cfg.megatron_amp_O2 = False
-            model = ModelPT.restore_from(
+                if "tokenizer" in pretrained_cfg and "model" in pretrained_cfg["tokenizer"]:
+                    pretrained_cfg.model_type = pretrained_cfg.tokenizer.model
+
+            model_cls = get_model_class(pretrained_cfg)
+            model = model_cls.restore_from(
                 restore_path=cfg.gpt_model_file,
                 trainer=trainer,
                 override_config_path=pretrained_cfg,
