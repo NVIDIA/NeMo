@@ -14,6 +14,7 @@
 
 import collections
 import itertools
+import warnings
 from typing import Callable, Iterable, Optional, Union
 
 import torch
@@ -56,6 +57,55 @@ def _str_to_dtype(dtype: Union[str, torch.dtype]) -> torch.dtype:
     return dtype
 
 
+def estimate_bucket_cap_mb(
+    param_buckets: Iterable[Iterable[torch.nn.Parameter]],
+    max_bucket_cap_mb: int = 200,
+    dtype: torch.dtype = torch.float32,
+) -> int:
+    """Estimate a bucket size that minimizes memory usage
+
+    Args:
+        param_buckets (iterable): iterable of effective parameter
+            buckets, i.e. parameters that are configured to perform
+            communication together
+        max_bucket_cap_mb (int): maximum bucket size in MiB (default:
+            200)
+        dtype (torch.dtype): datatype for buckets (default:
+            torch.float32)
+    """
+
+    def ceildiv(x: int, y: int) -> int:
+        return (x + y - 1) // y
+
+    def to_bytes(size: int) -> int:
+        """Convert elements to bytes (with 128B alignment)"""
+        num_bytes = size * dtype_size
+        num_bytes = ceildiv(num_bytes, 128) * 128
+        return num_bytes
+
+    # Param bucket sizes in MB
+    dtype = _str_to_dtype(dtype)
+    dtype_size = torch.finfo(dtype).bits // 8
+    bucket_sizes = [sum(to_bytes(param.numel()) for param in bucket) for bucket in param_buckets]
+    bucket_sizes_mb = [ceildiv(size, 1024 * 1024) for size in bucket_sizes]
+
+    # Estimate wasted memory with various bucket sizes
+    min_bucket_cap_mb = max(max_bucket_cap_mb // 2, 1)
+    max_bucket_cap_mb = min(max_bucket_cap_mb, min(bucket_sizes_mb))
+    if max_bucket_cap_mb <= min_bucket_cap_mb:
+        return max_bucket_cap_mb
+    bucket_cap_mb_props = []
+    for bucket_cap_mb in range(min_bucket_cap_mb, max_bucket_cap_mb + 1):
+        wasted_memory = sum((bucket_cap_mb - bucket_size_mb) % bucket_cap_mb for bucket_size_mb in bucket_sizes_mb)
+        bucket_cap_mb_props.append((bucket_cap_mb, wasted_memory))
+
+    # Return bucket size that minimizes wasted memory
+    # Note: Consider smarter heuristic that attempts to minimize
+    # number of buckets
+    bucket_cap_mb, _ = min(bucket_cap_mb_props, key=(lambda props: props[1]))
+    return bucket_cap_mb
+
+
 class MegatronDistributedFusedAdam(DistributedFusedAdam):
     """Wrapper class that supports NeMo-Megatron optimizations
 
@@ -68,6 +118,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         self,
         params: Union[Iterable[torch.nn.Parameter], Iterable[dict]],
         disable_distributed_parameters: bool = False,
+        tune_bucket_cap_mb: bool = False,
         **kwargs,
     ):
 
@@ -91,6 +142,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         assert param_groups
         if not isinstance(param_groups[0], dict):
             param_groups = [{'params': param_groups}]
+
+        # Logic for bucket_cap_mb=auto should be handled by the model
+        if tune_bucket_cap_mb:
+            warnings.warn(
+                "Attempted to initialize MegatronDistributedFusedAdam with "
+                "tune_bucket_cap_mb=True, but that logic should be handled by the model. "
+            )
 
         # Construct distributed optimizer
         super().__init__(param_groups, **kwargs)

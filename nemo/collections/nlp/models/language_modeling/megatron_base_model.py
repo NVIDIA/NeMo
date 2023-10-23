@@ -452,6 +452,18 @@ class MegatronBaseModel(NLPModel):
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+
+        def get_config_arg(key: str) -> Any:
+            """Get keyword argument from config"""
+            val = None
+            if val is None and optim_kwargs:
+                val = optim_kwargs.get(key, None)
+            if val is None and optim_config:
+                val = optim_config.get(key, None)
+            if val is None and self._cfg.optim:
+                val = self._cfg.optim.get(key, None)
+            return val
+
         if self.with_distributed_adam:
 
             # Allocate contiguous buffer to avoid extra copies
@@ -480,6 +492,27 @@ class MegatronBaseModel(NLPModel):
                 optim_kwargs['store_param_remainders'] = True
             else:
                 optim_kwargs['store_params'] = True
+
+            # Apply heuristic for bucket_cap_mb
+            if get_config_arg('tune_bucket_cap_mb'):
+                bucket_cap_mb = get_config_arg('bucket_cap_mb')
+                if not bucket_cap_mb:
+                    logging.warning("Attempted to tune distributed Adam bucket size without specifying bucket_cap_mb")
+                elif not hasattr(self, 'distributed_adam_buckets'):
+                    logging.warning(
+                        "Attempted to tune distributed Adam bucket size without specifying parameter buckets"
+                    )
+                else:
+                    from nemo.core.optim.distributed_adam import estimate_bucket_cap_mb
+
+                    grad_sync_dtype = get_config_arg('grad_sync_dtype')
+                    if not grad_sync_dtype:
+                        grad_sync_dtype = model_dtype
+                    optim_kwargs['bucket_cap_mb'] = estimate_bucket_cap_mb(
+                        self.distributed_adam_buckets, max_bucket_cap_mb=bucket_cap_mb, dtype=grad_sync_dtype,
+                    )
+                    logging.info(f"Tuned distributed Adam bucket size: bucket_cap_mb={optim_kwargs['bucket_cap_mb']}")
+                optim_kwargs['tune_bucket_cap_mb'] = False
 
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
