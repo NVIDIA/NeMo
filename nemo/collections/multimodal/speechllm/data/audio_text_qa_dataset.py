@@ -671,25 +671,26 @@ class MultiAudioQuestionAnswerDataset(AudioQuestionAnswerDataset):
                 output["audio_length"].append(fl)
         else:
             # dummy features
-            output["audio_signal"] = [torch.zeros([8])]
+            output["audio_signal"] = [torch.zeros([8000])]
             # accomodates normalize_batch
-            output["audio_length"] = [torch.tensor(8)]
+            output["audio_length"] = [torch.tensor(8000)]
 
         text_data = self._process_example(context=sample.question, output=sample.answer)
-
-        if isinstance(output["audio_signal"], list) and len(output["audio_signal"]) + 1 != len(
-            text_data['context_start_idx']
-        ):
-            raise ValueError(
-                f"The number of text segments ({len(text_data['context_start_idx'])}) must be one more than number of audios ({len(output['audio_signal'])})"
-            )
 
         output.update(text_data)
         output['metadata'] = {
             'audio_filepath': sample.audio_file,
-            'offset': offset,
             'duration': sample.duration,
         }
+        # does not work for text
+        if sample.audio_file is not None:
+            output['metadata']['offset'] = offset
+            if isinstance(output["audio_signal"], list) and len(output["audio_signal"]) + 1 != len(
+                text_data['context_start_idx']
+            ):
+                raise ValueError(
+                    f"The number of text segments ({len(text_data['context_start_idx'])}) must be one more than number of audios ({len(output['audio_signal'])})"
+                )
         return output
 
 
