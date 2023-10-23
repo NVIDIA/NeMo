@@ -17,7 +17,7 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -186,7 +186,13 @@ def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_o
     nemo_state_dict = nemo_model.state_dict()
     mcore_state_dict = OrderedDict()
     for mcore_param, nemo_param in build_key_mapping(nemo_model.cfg).items():
-        mcore_state_dict[mcore_param] = nemo_state_dict[nemo_param]
+        if mcore_param.endswith("linear_fc1.weight"):
+            # in llama models, need to concat dense_h_to_4h.weight and dense_h_to_4h_2.weight for the corresponding linear_fc1.weight
+            second_param = nemo_param.replace("dense_h_to_4h.weight", "dense_h_to_4h_2.weight")
+            if second_param in nemo_state_dict:
+                mcore_state_dict[mcore_param] = torch.cat([nemo_state_dict[nemo_param], nemo_state_dict[second_param]], dim=0)
+        else:
+            mcore_state_dict[mcore_param] = nemo_state_dict[nemo_param]
 
     mcore_model = get_mcore_model_from_nemo_file(input_nemo_file, cpu_only=cpu_only)
     mcore_model = load_model(mcore_model, mcore_state_dict)
@@ -201,12 +207,6 @@ def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_o
 
 
 def run_sanity_checks(nemo_file, mcore_file, cpu_only=False):
-    cfg = OmegaConf.load(
-        os.path.join(
-            os.path.dirname(__file__),
-            '../../examples/nlp/language_modeling/tuning/conf/megatron_gpt_peft_tuning_config.yaml',
-        )
-    )
 
     nemo_model = restore_model(nemo_file, cpu_only=cpu_only).eval()
     mcore_model = restore_model(mcore_file, cpu_only=cpu_only).eval()
@@ -227,14 +227,23 @@ def run_sanity_checks(nemo_file, mcore_file, cpu_only=False):
     # check weights match
     mcore_state_dict = mcore_model.state_dict()
     nemo_state_dict = nemo_model.state_dict()
-    nemo_model.cfg.megatron_amp_O2 = False  # we want build_key_mapping in the next line to not use O2 prefix
+    with open_dict(nemo_model.cfg):
+        nemo_model.cfg.megatron_amp_O2 = False  # we want build_key_mapping in the next line to not use O2 prefix
     for mcore_param, nemo_param in build_key_mapping(nemo_model.cfg).items():
+        # if nemo_param.endswith("dense_h_to_4h.weight"):
+        #     # in llama models, need to concat dense_h_to_4h.weight and dense_h_to_4h_2.weight for the corresponding linear_fc1.weight
+        #     second_param = nemo_param.replace("dense_h_to_4h.weight", "dense_h_to_4h_2.weight")
+        #     if second_param in nemo_state_dict:
+        #         mcore_state_dict[mcore_param] = torch.cat([nemo_state_dict[nemo_param], nemo_state_dict[second_param]], dim=0)
         try:
-            assert torch.allclose(
-                mcore_state_dict[mcore_param], nemo_state_dict[nemo_param]
-            ), f"❌ parameter {mcore_param} does not match"
-            mcore_state_dict.pop(mcore_param)
-            nemo_state_dict.pop(nemo_param)
+            mcore_weight = mcore_state_dict.pop(mcore_param)
+            nemo_weight = nemo_state_dict.pop(nemo_param)
+            if mcore_param.endswith("linear_fc1.weight"):
+                # linear_fc1.weight should map to concat(dense_h_to_4h.weight, dense_h_to_4h_2.weight)
+                # but build_key_mapping only maps it to dense_h_to_4h.weight, so we handle the concat here.
+                second_param = nemo_param.replace("dense_h_to_4h.weight", "dense_h_to_4h_2.weight")
+                nemo_weight = torch.cat([nemo_weight, nemo_state_dict.pop(second_param)])
+            assert torch.allclose(mcore_weight, nemo_weight), f"❌ parameter {mcore_param} does not match"
         except KeyError:
             buffers = [k for k, v in mcore_model.named_buffers()]
             assert (
