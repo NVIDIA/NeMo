@@ -105,7 +105,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
                 if is_not_shared and is_not_tp_duplicate:
                     grads_for_norm.append(grad)
 
-    if not grads_for_norm and not sharded_grads_for_norm:
+    if len(grads_for_norm) == 0 and len(sharded_grads_for_norm) == 0:
         logging.warning("No grads found, consider disabling gradient clipping")
 
     # Norm parameters.
@@ -115,7 +115,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
 
     # Calculate norm.
     if norm_type == inf:
-        if grads_for_norm:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
+        if len(grads_for_norm) > 0:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
             total_norm = max(grad.abs().max() for grad in grads_for_norm)
 
         if not use_fsdp:
@@ -125,7 +125,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
                 total_norm_cuda, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
             )
         else:
-            if sharded_grads_for_norm:
+            if len(sharded_grads_for_norm) > 0:
                 sharded_total_norm = max(grad.abs().max() for grad in sharded_grads_for_norm)
                 total_norm = max(total_norm, sharded_total_norm)
             total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
@@ -139,7 +139,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
             # Use apex's multi-tensor applier for efficiency reasons.
             # Multi-tensor applier takes a function and a list of list
             # and performs the operation on that list all in one kernel.
-            if grads_for_norm:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
+            if len(grads_for_norm) > 0:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
                 grad_norm, _ = multi_tensor_applier(
                     amp_C.multi_tensor_l2norm, dummy_overflow_buf, [grads_for_norm], False  # no per-parameter norm
                 )
@@ -149,7 +149,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
             # we need the pow(norm-type).
             total_norm = grad_norm ** norm_type
             if use_fsdp:
-                if sharded_grads_for_norm:
+                if len(sharded_grads_for_norm) > 0:
                     sharded_grad_norm, _ = multi_tensor_applier(
                         amp_C.multi_tensor_l2norm, dummy_overflow_buf.fill_(0), [sharded_grads_for_norm], False
                     )
@@ -185,7 +185,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
     # Scale.
     clip_coeff = max_norm / (total_norm + 1.0e-6)
     if clip_coeff < 1.0:
-        if grads or sharded_grads:  # (@adithyare) grads can be empty for adapter training.
+        if len(grads) > 0 or len(sharded_grads) > 0:  # (@adithyare) grads can be empty for adapter training.
             grads += sharded_grads
             multi_tensor_applier(amp_C.multi_tensor_scale, dummy_overflow_buf.fill_(0), [grads, grads], clip_coeff)
 

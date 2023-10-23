@@ -739,7 +739,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if not isinstance(param, torch.distributed.fsdp.FlatParameter) and param.requires_grad:
                 grad = param.grad
                 grads.append(grad.data)
-        if grads:
+        if len(grads) > 0:
             coalesced = torch._utils._flatten_dense_tensors(grads)
             torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
