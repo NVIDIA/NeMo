@@ -2,7 +2,7 @@ echo "****** STARTING ******" \
 ; echo "------------------" \
 ; wandb login 4935993d4748a2ef5a2349cf4f70ff3b9722d0e5 \
 ; WANDB_PROJECT_NAME="sec_continue_pretrain" \
-; WANDB_EXP_NAME="qna-extr-2020-2022-mar_bad_lr1e-5_epoch3" \
+; WANDB_EXP_NAME="qna-extr-2020-2022-8b_fou_lr1e-5_epoch3" \
 ; DATA_DIR="/home/hshin/projects/llmservice_modelalignment_ptune/datasets/sec_qna_jsonls" \
 ; cd /home/hshin/workspace/NeMo \
 ; export PYTHONPATH="/home/hshin/workspace/NeMo/.:${PYTHONPATH}" \
@@ -13,7 +13,7 @@ echo "****** STARTING ******" \
 				 trainer.devices=8 \
 				 trainer.max_steps=310 \
 				 trainer.precision=bf16 \
-				 restore_from_path=/home/hshin/projects/llmservice_modelalignment_ptune/checkpoints/8B/megatron_gpt_sft_marigold_badger--validation_loss-0.633-step-1000-consumed_samples-127872.0_tp4.nemo \
+				 restore_from_path=/home/hshin/projects/llmservice_modelalignment_ptune/checkpoints/8B/megatron_gpt_8b_tp4_pp1.nemo \
 				 model.micro_batch_size=2 \
 				 model.global_batch_size=128 \
 				 model.tensor_model_parallel_size=4 \
