@@ -49,8 +49,8 @@ model:
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
-  global_batch_size: 16 
-  micro_batch_size: 16 # micro batch size should equal global batch size when pipeline parallel = 1
+  global_batch_size: 2 
+  micro_batch_size: 2 # micro batch size should equal global batch size when pipeline parallel = 1
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
   validation_drop_last: False
