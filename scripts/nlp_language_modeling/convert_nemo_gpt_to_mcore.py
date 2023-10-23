@@ -230,11 +230,6 @@ def run_sanity_checks(nemo_file, mcore_file, cpu_only=False):
     with open_dict(nemo_model.cfg):
         nemo_model.cfg.megatron_amp_O2 = False  # we want build_key_mapping in the next line to not use O2 prefix
     for mcore_param, nemo_param in build_key_mapping(nemo_model.cfg).items():
-        # if nemo_param.endswith("dense_h_to_4h.weight"):
-        #     # in llama models, need to concat dense_h_to_4h.weight and dense_h_to_4h_2.weight for the corresponding linear_fc1.weight
-        #     second_param = nemo_param.replace("dense_h_to_4h.weight", "dense_h_to_4h_2.weight")
-        #     if second_param in nemo_state_dict:
-        #         mcore_state_dict[mcore_param] = torch.cat([nemo_state_dict[nemo_param], nemo_state_dict[second_param]], dim=0)
         try:
             mcore_weight = mcore_state_dict.pop(mcore_param)
             nemo_weight = nemo_state_dict.pop(nemo_param)
