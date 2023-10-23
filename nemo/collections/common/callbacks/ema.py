@@ -142,7 +142,7 @@ class EMA(Callback):
 
     @contextlib.contextmanager
     def save_ema_model(self, trainer: "L.Trainer"):
-        """Saves an EMA copy of the model + EMA optimizer states for resume.
+        """Saves an EMA copy of the model + EMA optimizer states for resuming in the future.
 
         Args:
             trainer: a Trainer
