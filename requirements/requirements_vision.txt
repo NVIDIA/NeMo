@@ -1,0 +1,8 @@
+boto3
+einops
+flask_restful
+ftfy
+gdown
+matplotlib>=3.3.2
+nltk>=3.6.5
+numpy
