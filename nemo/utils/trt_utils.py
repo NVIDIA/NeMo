@@ -11,8 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import tensorrt as trt
-from polygraphy.backend.trt import CreateConfig, Profile, engine_from_network, network_from_onnx_path, save_engine
+
+try:
+    import tensorrt as trt
+    from polygraphy.backend.trt import CreateConfig, Profile, engine_from_network, network_from_onnx_path, save_engine
+
+    HAVE_TRT = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_TRT = False
 
 
 def build_engine(
