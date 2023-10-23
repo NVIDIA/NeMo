@@ -14,7 +14,9 @@
 
 import copy
 import json
+import os
 import random
+import io
 from itertools import filterfalse
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
@@ -24,6 +26,7 @@ import torch
 from encodec import EncodecModel
 from tqdm.auto import tqdm
 
+from nemo.collections.asr.data.audio_to_text import _TarredInstructionTuningDataset
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset import BasePromptLearningDataset
@@ -35,7 +38,7 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import general_padding, 
 from nemo.utils import logging
 from nemo.collections.tts.parts.utils.tts_dataset_utils import beta_binomial_prior_distribution
 
-__all__ = ['T5SpeechLMDataset']
+__all__ = ['T5SpeechLMTarredDataset']
 
 
 def pad_text_to_speech_dims(text_tensor, pad_id):
@@ -44,14 +47,15 @@ def pad_text_to_speech_dims(text_tensor, pad_id):
     return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
 
-class T5SpeechLMDataset(BasePromptLearningDataset):
+class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
     """
     The dataset class for prompt-tuning or p-tuning pretrained T5 SpeechLM models.
     """
 
     def __init__(
         self,
-        datasets,
+        audio_tar_filepaths: Union[str, List[str]],
+        manifest_filepath: str,
         tokenizer,
         virtual_prompt_source: VirtualPromptSource,
         task_templates: dict,
@@ -59,6 +63,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         pad_token_id: str,
         max_seq_length: int,
         sample_rate: int,
+        shuffle_n: int = 0,
         min_seq_length: int = 1,
         add_bos: bool = False,
         add_eos: bool = True,
@@ -75,10 +80,14 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         trim_hop_length: Optional[int] = None,
         pad_multiple: int = 1,
         pitch_augment: bool = False,
-        sup_data_path: Optional[Union[Path, str]] = None,
         speech_offset: Optional[int] = None,
         train_task: Optional[str] = None,
         seq_pattern: Optional[str] = "parallel",
+        shard_strategy: str = "scatter",
+        shard_manifests: bool = False,
+        global_rank: int = 0,
+        world_size: int = 0,
+        return_sample_id: bool = False,
         use_attention_prior: Optional[bool] = False,
         attention_prior_scaling_factor: Optional[float] = 1.0,
         cross_attention_epsilon: Optional[float] = 0.0,
@@ -94,7 +103,6 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         trim_hop_length: Optional[int] = None, - speech parameter
         pad_multiple: int = 1, - speech parameter
         pitch_augment: bool = False, - speech parameter
-        sup_data_path: Optional[Union[Path, str]] = None, - Supplementary folder path where codecs are stored.
         speech_offset: Optional[int] = None, - if speech tokens then add this offset to the token indices to distinguish between text and speech tokens.
         **kwargs,
         """
@@ -119,126 +127,96 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         self.trim_hop_length = trim_hop_length if trim_hop_length is not None else 512
         self.speech_offset = speech_offset if speech_offset is not None else 3
         self.seq_pattern = seq_pattern
+        self.min_duration = kwargs.get('min_duration', 0.1)
+        self.max_duration = kwargs.get('max_duration', 20)
         self.use_attention_prior = use_attention_prior
         self.attention_prior_scaling_factor = attention_prior_scaling_factor
         self.cross_attention_epsilon = cross_attention_epsilon # value of prior for context tokens (b/w 0 and 1)
         assert self.cross_attention_epsilon >= 0.0 and self.cross_attention_epsilon <= 1.0
-
-        # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
-        if sup_data_path is not None:
-            Path(sup_data_path).mkdir(parents=True, exist_ok=True)
-            self.sup_data_path = sup_data_path
-
-        self.codec_folder = kwargs.pop('codec_folder', None)
+        
         self.train_task = train_task
-        if self.codec_folder is None:
-            self.codec_folder = Path(self.sup_data_path) / "codec"
-        elif isinstance(self.codec_folder, str):
-            self.codec_folder = Path(self.codec_folder)
 
-        self.codec_folder.mkdir(exist_ok=True, parents=True)
+        # Initialized super part
+        self.tokenizer = tokenizer
+        self.virtual_prompt_source = virtual_prompt_source
+        self.task_templates = task_templates
+        self.pseudo_tokens = pseudo_tokens
+        self.pseudo_token_ids = set(self.tokenizer.tokens_to_ids(self.pseudo_tokens))
+        self.pad_token_id = pad_token_id
+        self.max_seq_length = max_seq_length
+        self.min_seq_length = min_seq_length
+        self.add_bos = add_bos
+        self.add_eos = add_eos
+        self.for_train = for_train
+        self.examples = []
+
+        assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
+        assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
+
+        logging.info("Loading and tokenizing dataset ... ")
 
         super().__init__(
-            datasets=datasets,
-            tokenizer=tokenizer,
-            virtual_prompt_source=virtual_prompt_source,
-            task_templates=task_templates,
-            pseudo_tokens=pseudo_tokens,
-            pad_token_id=pad_token_id,
+            audio_tar_filepaths=audio_tar_filepaths,
+            manifest_filepath=manifest_filepath,
+            sample_rate=sample_rate,
+            shuffle_n=shuffle_n,
+            min_duration=self.min_duration,
+            max_duration=self.max_duration,
             max_seq_length=max_seq_length,
-            min_seq_length=min_seq_length,
-            add_bos=add_bos,
-            add_eos=add_eos,
-            for_train=for_train,
+            shard_strategy=shard_strategy,
+            shard_manifests=shard_manifests,
+            global_rank=global_rank,
+            world_size=world_size,
+            return_sample_id=return_sample_id,
         )
 
-    def load_data(self, dataset):
-        """
-        Loads a dataset by filling in the task templates specified in the config file
-        with the information from each training/inference example. Converts all input 
-        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in 
-        the task templates with the actual virtual prompt token ids. 
+        self.encodec, self.ref_encodec = None, None
 
-        params:
-            dataset: A list of json objects or a dictionary objects each
-                     containing the information needed for a training example
-        """
-        copy_dataset = list(dataset)
-        audio_filelist = []
-        # This loop is needed to calculate self.base_data_dir.
-        for json_line in copy_dataset:
-            if type(json_line) == dict:
-                doc = json_line
-            else:
-                doc = json.loads(json_line)
-            taskname = doc["taskname"]
-            prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
+    def _insert_virtual_token_placeholders(self, input_example, virtual_token_splits):
+        """ Insert the correct number of pseudo tokens at the <|VIRTUAL_PROMPT_n|> markers """
+        total_inserted_tokens = 0
 
-            for p in prompt_template_fields:
-                if f"{p}_type" in doc and doc[f"{p}_type"] == "SPEECH":
-                    audio_filelist.append(doc[p])
-        self.base_data_dir = get_base_dir(audio_filelist)
+        for idx in range(len(virtual_token_splits)):
+            split_start = total_inserted_tokens
+            split_end = total_inserted_tokens + virtual_token_splits[idx]
+            pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start:split_end])
+            input_example = input_example.replace(f'<|VIRTUAL_PROMPT_{idx}|>', pseudo_tokens_for_split)
+            total_inserted_tokens = split_end
 
-        skipped = 0
-        tts = 0
-        asr = 0
-        i = 0
-        print(f"copy_dataset len === {len(copy_dataset)}")
-        for json_line in tqdm(copy_dataset):
-            i += 1
+        return input_example
 
-            # Read example dict or load the information for a single example from .json file
-            if type(json_line) == dict:
-                doc = json_line
-            else:
-                doc = json.loads(json_line)
+    def pad_taskname_ids(self, taskname_ids):
+        # Pad taskname_ids to be the same length for the prompt encoder
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            max_taskname_length = max(len(ids) for ids in taskname_ids)
+            taskname_ids = [ids + [self.pad_token_id] * (max_taskname_length - len(ids)) for ids in taskname_ids]
+            taskname_ids = torch.tensor(taskname_ids)
 
-            question_in_manifest = doc['question']
+        # Task ids are just used for a look up embeddings for prompt-table
+        elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
+            taskname_ids = torch.tensor(taskname_ids)
 
-            if "Text to speech this" in question_in_manifest:
-                tts += 1
-                if self.train_task != 'tts':
-                    continue
-            elif "Next token prediction" in question_in_manifest:
-                if self.train_task != 'tts':
-                    asr += 1
-                else:
-                    tts += 1
-                continue
-            else:
-                if self.train_task == 'tts':
-                    continue
-                asr += 1
+        return taskname_ids
 
-            if doc["context_type"] == "SPEECH":
-                assert "context_duration" in doc, f"context_duration key not in document {doc}"
-                approx_context_len = min(doc["context_duration"] * 76 * 0.3, 400)
-            approx_question_len = len(doc["question"].split(' ')) + 3
 
-            if doc["answer_type"] == "SPEECH":
-                assert "answer_duration" in doc, f"answer_duration key not in document {doc}"
-                approx_answer_len = doc["answer_duration"] * 76
-                if self.seq_pattern == "delay_parallel":
-                    # In delay parallel, there is padding so add 8 frames
-                    approx_answer_len = approx_answer_len + 8
-            else:
-                approx_answer_len = len(doc["answer"].split(' ')) + 3
+    def _build_sample(self, tup):
+        audio_filename, self.encodec, self.ref_encodec, offset_id = tup
 
-            if (
-                approx_context_len + approx_question_len < self.max_seq_length
-                and approx_answer_len < self.max_seq_length
-            ):
-                self.examples.append(doc)
-            else:
-                print(f"skipped for {approx_context_len + approx_question_len} {approx_answer_len} len")
-                skipped += 1
+        file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+        manifest_idx = self.manifest_processor.collection.mapping[file_id][offset_id]
+        manifest_entry = self.manifest_processor.collection[manifest_idx]
+        doc = {}
+        doc['context'] = manifest_entry.context
+        doc['context_type'] = manifest_entry.context_type
+        doc['context_duration'] = manifest_entry.context_duration
+        doc['answer'] = manifest_entry.answer
+        doc['answer_type'] = manifest_entry.answer_type
+        doc['answer_duration'] = manifest_entry.answer_duration
+        doc['question'] = manifest_entry.question
+        doc['question_type'] = manifest_entry.question_type
 
-        print(f"After Process len(self.examples) {len(self.examples)} TTS = {tts} ASR = {asr}")
-        logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
-    def __getitem__(self, idx):
-        doc = self.examples[idx]
-        taskname = doc["taskname"]
+        taskname = "squad"
         prompt_template = self.task_templates[taskname]["prompt_template"]
         prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
         total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
@@ -248,16 +226,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         input_example = prompt_template
 
-        self._input_sanity_checks(
-            total_virtual_tokens=total_virtual_tokens,
-            virtual_token_splits=virtual_token_splits,
-            prompt_template=prompt_template,
-            prompt_template_fields=prompt_template_fields,
-            truncation_field=truncation_field,
-            answer_field=answer_field,
-            doc=doc,
-        )
-        question_in_manifest = doc['question']
+        question_in_manifest = manifest_entry.question
 
         # Format the input example according to the template
         # Get context, question and answer codes in a dict.
@@ -293,7 +262,6 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         # Get virtual tokens
         virtual_tokens = self._insert_virtual_token_placeholders(input_example.split(' ')[0], virtual_token_splits)
-        # print("virtual_tokens", virtual_tokens)
 
         # a trick to align with the data format in t5 pretraining
         # new
@@ -405,7 +373,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                     dec_labels = torch.stack(dec_labels_new, dim=0)
                     dec_input_len = torch.tensor(dec_input.shape[1]).long()
                     dec_labels_len = torch.tensor(dec_labels.shape[1]).long()
-
+            
             enc_len = context_tokens_len + question_tokens_len + virtual_tokens_len
             # TODO: Remove hardcoding
             num_question_offset = 4 # For "Text to Speech this"
@@ -507,81 +475,25 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         length += self._get_element_len(virtual_tokens)
         return length
 
-    def _load_audio(self, audio_filepath, dur=-1):
-        if self.segment_max_duration is not None and dur > 0 and dur > self.segment_max_duration:
-            # this case has been added for segmenting audio for speaker verification task of SSLDisentangler
-            n_segments = int(self.segment_max_duration * self.sample_rate)
-            features = AudioSegment.segment_from_file(
-                audio_filepath, target_sr=self.sample_rate, n_segments=n_segments, trim=self.trim
-            )
 
-            features = torch.tensor(features.samples)
-            if self.pad_multiple > 1:
-                features = self._pad_wav_to_multiple(features)
-            audio, audio_length = features, torch.tensor(features.shape[0]).long()
-        else:
-            features = self.featurizer.process(
-                audio_filepath,
-                trim=self.trim,
-                trim_ref=self.trim_ref,
-                trim_top_db=self.trim_top_db,
-                trim_frame_length=self.trim_frame_length,
-                trim_hop_length=self.trim_hop_length,
-            )
-
-            if self.pad_multiple > 1:
-                features = self._pad_wav_to_multiple(features)
-
-            audio, audio_length = features, torch.tensor(features.shape[0]).long()
-
-        return audio, audio_length
-
-    def convert_audio(self, audio, sample_rate, target_sample_rate, target_channels):
-        if audio.dim() == 1:
-            audio = audio.unsqueeze(0).unsqueeze(0)
-        assert audio.shape[1] in [1, 2], "Audio must be mono or stereo."
-        # assert sample_rate == target_sample_rate, "sample rate of FastPitch and Encodec model has to be same"
-        if target_channels == 2:
-            *shape, _, length = audio.shape
-            audio = audio.expand(*shape, target_channels, length)
-        return audio
-
-    def get_codec(self, audio):
-        wav1 = self.convert_audio(audio, self.sample_rate, self.encodec_model.sample_rate, self.encodec_model.channels)
-        encoded_frames = self.encodec_model.encode(wav1)
-        codes = torch.cat([encoded[0] for encoded in encoded_frames], dim=-1)
-        return codes.squeeze(0)
-
-    def get_quantizer_codebook(self, reference_codec, reference_codec_length):
-        out = torch.zeros((1, 128, reference_codec_length.item()))
-        for i in range(reference_codec.size()[0]):
-            out += self.encodec_model.quantizer.vq.layers[i].decode(reference_codec[i, :].unsqueeze(0))
-        return out.squeeze(0)
-
-    def _get_speech_tokens(self, audio_filepath, dur=-1):
-        # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
-        rel_audio_path = Path(audio_filepath).relative_to(self.base_data_dir).with_suffix("")
-        rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
-
-        # Load audio features
-        audio, audio_length = self._load_audio(audio_filepath, dur)
+    def _get_speech_tokens(self, field):
 
         # Convert to codes
         codec_codes, codec_codes_length = None, None  # Codes
-        codec_path = self.codec_folder / f"{rel_audio_path_as_text_id}.pt"
 
-        if codec_path.exists():
-            try:
-                codec_codes = torch.load(codec_path).long()
-            except Exception as e:
-                print(f"[ERROR IN LOADING {codec_path}] e")
-                codec_codes = self.get_codec(audio).long()
-                torch.save(codec_codes, codec_path)
-        else:
-            codec_codes = self.get_codec(audio).long()
-            torch.save(codec_codes, codec_path)
+        if self.train_task == 'tts':
+            if field == 'context':
+                self.ref_encodec = torch.load(io.BytesIO(self.ref_encodec), map_location="cpu").long()
+                codec_codes = self.ref_encodec
+            elif field == 'answer':
+                self.encodec = torch.load(io.BytesIO(self.encodec), map_location="cpu").long()
+                codec_codes = self.encodec
+        elif self.train_task == 'asr':
+            if field == 'context':
+                self.ref_encodec = torch.load(io.BytesIO(self.ref_encodec), map_location="cpu").long()
+                codec_codes = self.ref_encodec
 
-        codec_codes_length = torch.tensor(codec_codes.shape[1]).long()
+        # codec_codes_length = torch.tensor(codec_codes.shape[1]).long()
 
         # Convert codes to codes corresponding to megatron embedding layer
         codec_codes[0] = (codec_codes[0] + self.speech_offset).long()
@@ -597,7 +509,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             dur = -1
             if f"{field}_duration" in doc:
                 dur = doc[f"{field}_duration"]
-            field_tokens = self._get_speech_tokens(field_data, dur)  # list of ids
+            field_tokens = self._get_speech_tokens(field)  # list of ids
             if not isinstance(field_tokens, list):
                 field_tokens = [field_tokens]
         else:

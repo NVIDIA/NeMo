@@ -1,5 +1,4 @@
 name: p_tuning_squad_t5
-checkpoint_path: "/Data/Experiments/ComparisonBreakUnbreak/DelayParallelLinearHead/Epoch10.ckpt"
 
 trainer:
   devices: 1
@@ -9,24 +8,24 @@ trainer:
   logger: False 
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 10000
-  max_steps: -1
+  max_epochs: -1
+  max_steps: 1000000
   log_every_n_steps: 10
   val_check_interval: null
-  check_val_every_n_epoch: 3
+  check_val_every_n_epoch: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
   limit_val_batches: 25
 
 exp_manager:
   explicit_log_dir: null
-  exp_dir: "/Data/Experiments/InferenceDelayParallel"
+  exp_dir: null
   name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: PromptLearning-T5
     name: ${name}
-  resume_if_exists: False
+  resume_if_exists: True
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
@@ -59,12 +58,13 @@ model:
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
-  seq_pattern: "parallel" # parallel, delay_parallel, flatten
-  speech_head_type: "token_level" # token_level, linear
-  temperature: 0.7 # Temperature to be used for inference
-  top_k: 80 # Top k to be used for inference
-  max_inference_timesteps: 1000 # Maximum number of timesteps to run inference for
-  
+  seq_pattern: "delay_parallel" # parallel, delay_parallel, flatten
+  speech_head_type: "linear" # token_level, linear
+  cross_entropy_type: "vocab_parallel" # regular, vocab_parallel
+  attn_prior_scaledown_start_step: 10000
+  attn_prior_end_step: 11000
+  return_all_crossattention_probs: True
+  num_cross_attention_heads: 12 # 12 for 220m, 16 for 3b.
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
@@ -90,23 +90,28 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: null
-    validation_ds: null
-    test_ds: ["/Data/LibriTTS/inference_unseen.json"]
-    max_seq_length: 1536
+    train_manifest: ["/Data/MLSData/MLS/audio_24khz_train_tar_3/tarred_audio_manifest.json"]
+    train_audio_path: "/Data/MLSData/MLS/audio_24khz_train_tar_3/audio__OP_0..1023_CL_.tar"
+    # train_manifest: ["/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/tarred_audio_manifest.json"]
+    # train_audio_path: "/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
+    validation_manifest: ["/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/tarred_audio_manifest.json"]
+    validation_audio_path: "/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
+    max_seq_length: 512
     sample_rate: 24000
     add_eos: true
     add_bos: false
+    use_attention_prior: false
+    attention_prior_scaling_factor: 0.05
+    cross_attention_epsilon: 0.0
     decoder_starts_with_pad: False
     add_eos_to_decoder_output: True
     add_sentinel_to_input: True
     ul2_prompt_token: null # <extra_id_s>, <extra_id_r>, <extra_id_x>
     shuffle: true
-    num_workers: 4
+    num_workers: 1
     pin_memory: true
     speech_offset: 30000
     train_task: asr
-    sup_data_path: ???
 
   optim:
     name: fused_adam

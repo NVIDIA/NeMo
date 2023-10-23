@@ -89,7 +89,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         use_flash_attention=False,
     ):
         super(MegatronTransformerDecoderModule, self).__init__()
-
+        
         self.pre_process = pre_process
         self.post_process = post_process
         self.hidden_size = hidden_size
@@ -170,6 +170,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         get_key_value=False,
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
+        return_all_crossattention_probs=False,
     ):
         # convert to Megatron mask
         dec_attn_mask_3d = build_attention_mask_3d(
@@ -189,6 +190,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
             enc_dec_attn_mask=attn_mask_postprocess(enc_dec_attn_mask_3d),
             self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
+            return_all_crossattention_probs=return_all_crossattention_probs,
         )
 
         return dec_output

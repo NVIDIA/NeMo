@@ -352,6 +352,17 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
             )
+        elif self.cfg.data.get('train_manifest', None):
+            self._train_ds, self._train_dl = self.build_virtual_prompt_tarred_dataset(
+                dataset_paths=self.cfg.data.train_manifest,
+                audio_path=self.cfg.data.train_audio_path,
+                batch_size=self.cfg.global_batch_size,
+                for_train=True,
+                drop_last=True,
+                shuffle=self.cfg.data.shuffle,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
 
     def setup_validation_data(self, validation_data_config=None):
         if self.cfg.data.get('validation_ds', None):
@@ -364,6 +375,17 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
             )
+        elif self.cfg.data.get('validation_manifest', None):
+            self._validation_ds, self._validation_dl = self.build_virtual_prompt_tarred_dataset(
+                dataset_paths=self.cfg.data.validation_manifest,
+                audio_path=self.cfg.data.validation_audio_path,
+                batch_size=self.cfg.get("validation_global_batch_size", self.cfg.global_batch_size),
+                for_train=True,
+                drop_last=self.cfg.get("validation_drop_last", True),
+                shuffle=0,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
 
     def setup_test_data(self, test_data_config=None):
         if self.cfg.data.get('test_ds', None):
@@ -373,6 +395,17 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
                 for_train=False,
                 drop_last=False,
                 shuffle=False,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+        elif self.cfg.data.get('test_manifest', None):
+            self._test_ds, self._test_dl = self.build_virtual_prompt_tarred_dataset(
+                dataset_paths=self.cfg.data.test_manifest,
+                audio_path=self.cfg.data.test_audio_path,
+                batch_size=self.cfg.global_batch_size,
+                for_train=False,
+                drop_last=False,
+                shuffle=0,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
             )
