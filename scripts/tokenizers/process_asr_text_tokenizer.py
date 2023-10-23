@@ -99,7 +99,7 @@ import argparse
 import json
 import logging
 import os
-from typing import Optional, List
+from typing import List, Optional
 
 import tokenizers
 
@@ -133,7 +133,9 @@ parser.add_argument('--spe_pad', action='store_true', help='Add <pad> token to S
 parser.add_argument(
     '--spe_user_defined_symbols', default=None, type=str, nargs='+', help='User defined symbols for SentencePiece'
 )
-parser.add_argument('--spe_control_symbols', default=None, type=str, nargs='+', help='Control symbols for SentencePiece')
+parser.add_argument(
+    '--spe_control_symbols', default=None, type=str, nargs='+', help='Control symbols for SentencePiece'
+)
 parser.add_argument('--spe_split_digits', action='store_true', help='Split digits into separate tokens.')
 
 parser.add_argument(
