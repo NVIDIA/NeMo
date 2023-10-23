@@ -204,6 +204,7 @@ First, instantiate the model and trainer, then call ``.fit``:
 All `trainer flags <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-flags>`_ can be set from from the 
 NeMo configuration. 
     
+.. _nemo_configuration:
 
 Configuration
 -------------

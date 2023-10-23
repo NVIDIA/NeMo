@@ -197,6 +197,8 @@ in the same directory as the manifest, or even in any specific directory structu
 Once there is a manifest that describes each audio file in the dataset, use the dataset by passing
 in the manifest file path in the experiment config file, e.g. as ``training_ds.manifest_filepath=<path/to/manifest.json>``.
 
+.. _section-with-tarred-dataset-explanation:
+
 Tarred Datasets
 ---------------
 
