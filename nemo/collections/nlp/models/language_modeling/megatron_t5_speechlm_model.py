@@ -14,8 +14,6 @@
 import itertools
 import os
 from typing import Any, List
-
-import jiwer
 import editdistance
 import numpy as np
 import soundfile as sf
@@ -424,7 +422,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             _context_tokens = torch.clamp(_context_tokens, min=0, max=1023)
                             _context_wav = self.additional_models['encodec'].decode([[_context_tokens[None], None]])[0, 0]
                             self.logger.experiment.add_audio("Context Wav", _context_wav, self.global_step, 24000)
-                            
+
                             question_si = input_token_list[0][0] + virtual_tokens.shape[1] + 4 # 4 to offset "Text to Speech this"
                             question_ei = input_token_list[-1][0] + virtual_tokens.shape[1]
                             input_text = self.frozen_model.tokenizer.ids_to_text([v[1] for v in input_token_list])

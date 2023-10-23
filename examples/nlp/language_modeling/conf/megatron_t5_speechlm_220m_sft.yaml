@@ -15,7 +15,6 @@ trainer:
   check_val_every_n_epoch: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null
-  limit_val_batches: 25 
 
 exp_manager:
   explicit_log_dir: null
