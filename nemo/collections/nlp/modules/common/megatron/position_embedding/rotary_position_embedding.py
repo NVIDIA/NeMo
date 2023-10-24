@@ -75,7 +75,8 @@ class RotaryEmbedding(nn.Module):
 
             dim (int): rotary embedding dimension
             seq_len_interpolation_factor (int): if not None, discrete positions will be interpolated
-            by this factor via the trick in https://arxiv.org/abs/2306.15595.
+                by this factor via the trick in https://arxiv.org/abs/2306.15595.
+            rotary_base (int): rotary_base for the positional frequency (default: 10000)
             pretrained_max_position_embeddings (int): pre-trained max_position_embeddings before position interpolation.
             enforce_fp32_pos_idx (int): enforce pos index in fp32 to prevent index collision
         """
