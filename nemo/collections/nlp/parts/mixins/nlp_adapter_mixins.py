@@ -34,9 +34,9 @@ from nemo.collections.nlp.parts.peft_config import (
     PEFT_CONFIG_MAP,
     CanonicalAdaptersPEFTConfig,
     LoraPEFTConfig,
-    VeraPEFTConfig,
     PEFTConfig,
     PtuningPEFTConfig,
+    VeraPEFTConfig,
 )
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
@@ -322,7 +322,7 @@ class NLPAdapterModelMixin:
                 layer = layer.self_attention
             if isinstance(peft_cfg, VeraPEFTConfig):
                 layer = layer.self_attention
-                
+
             for adapter_name in layer.adapter_layer:
                 print(adapter_name, pos_idx)
                 adapter_l = layer.get_adapter_module(adapter_name)
