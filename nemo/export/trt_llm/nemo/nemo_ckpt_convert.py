@@ -249,7 +249,7 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
     return weights_dict, llm_config, tokenizer
 
 
-def load_sharded_metadata(checkpoint_dir: str):
+def load_sharded_metadata(checkpoint_dir: str, torch_tensor=True):
     checkpoint_dir = Path(checkpoint_dir)
     sharded_state_dict = {}
     for subdir in checkpoint_dir.iterdir():
@@ -257,7 +257,10 @@ def load_sharded_metadata(checkpoint_dir: str):
             continue
         key = subdir.name
         arr = zarr.open(str(subdir), 'r')
-        sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32"))
+        if torch_tensor:
+            sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
+        else:
+            sharded_state_dict[key] = arr[:]
 
     return sharded_state_dict
 
@@ -275,11 +278,11 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     is_mcore = nemo_model_config.get("mcore_gpt", False)
 
     # load position_embedding from rank 0
-    model_00 = load_sharded_metadata(checkpoints_path)
-    model_00 = model_00.get("state_dict", model_00)
+    model = load_sharded_metadata(checkpoints_path)
+    model_state_dict = model.get("state_dict", model)
 
-    has_position_embedding = get_layer_name("position_embedding", is_mcore) in model_00
-    has_lm_head = get_layer_name("output_layer", is_mcore) in model_00
+    has_position_embedding = get_layer_name("position_embedding", is_mcore) in model_state_dict
+    has_lm_head = get_layer_name("output_layer", is_mcore) in model_state_dict
 
     num_layers = nemo_model_config["num_layers"]
     training_tp_size = 1
@@ -334,7 +337,6 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
 
     tp_rank = 0
 
-    model = load_sharded_metadata(checkpoints_path)
     handle_model_level_weights(model, 0, 0)
     prefix = "model.decoder." if is_mcore else "model.language_model.encoder."
     model = extract_layers_with_prefix(model, prefix)
