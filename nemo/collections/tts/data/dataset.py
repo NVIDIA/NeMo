@@ -494,7 +494,9 @@ class TTSDataset(Dataset):
             for i, d in enumerate(self.data):
                 speaker_to_index_map[d["speaker_id"]].add(i)
             # Random sample a reference audio from the same speaker
-            self.get_reference_for_sample = lambda sample: self.data[speaker_to_index_map[sample["speaker_id"]]]
+            self.get_reference_for_sample = (
+                lambda sample: self.data[random.sample(speaker_to_index_map[sample["speaker_id"]], 1)[0]]
+            )
         elif reference_audio_type == "ground-truth":
             # Use ground truth audio as reference audio
             self.get_reference_for_sample = lambda sample: sample
