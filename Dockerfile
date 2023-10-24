@@ -38,11 +38,16 @@ RUN apt-get update && \
   libsndfile1 sox \
   libfreetype6 \
   swig \
-  ffmpeg=ffmpeg_5.1.2-3ubuntu1 \
+  ffmpeg \
   libavdevice-dev && \
   rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/
+# install megatron core, this can be removed once 0.3 pip package is released
+RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
+  cd Megatron-LM && \
+  git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
+  pip install -e .
 
 WORKDIR /tmp/
 
@@ -51,12 +56,6 @@ RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
   git checkout 52e18c894223800cb611682dce27d88050edf1de && \
   pip3 install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
-
-# install megatron core, this can be removed once 0.3 pip package is released
-RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
-  cd Megatron-LM && \
-  git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
-  pip install -e .
 
 # uninstall stuff from base container
 RUN pip3 uninstall -y sacrebleu torchtext
@@ -111,7 +110,7 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
   /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
 
 # Install NeMo
-RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]"
+RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all]"
 
 # Check install
 RUN python -c "import nemo.collections.nlp as nemo_nlp" && \

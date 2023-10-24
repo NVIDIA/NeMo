@@ -16,6 +16,7 @@ import pytest
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     EnglishCharsTokenizer,
+    FrenchCharsTokenizer,
     GermanCharsTokenizer,
     IPATokenizer,
     ItalianCharsTokenizer,
@@ -33,6 +34,15 @@ class TestTTSTokenizers:
     PHONEME_DICT_ES = {
         "BUENOS": ["bwˈenos"],
         "DÍAS": ["dˈias"],
+    }
+    PHONEME_DICT_IT = {
+        "CIAO": ["tʃˈao"],
+        "MONDO": ["mˈondo"],
+    }
+    PHONEME_DICT_FR = {
+        "BONJOUR": ["bɔ̃ʒˈuʁ"],
+        "LE": ["lˈə-"],
+        "MONDE": ["mˈɔ̃d"],
     }
 
     @staticmethod
@@ -116,6 +126,18 @@ class TestTTSTokenizers:
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
+    def test_french_chars_tokenizer(self):
+        input_text = "Bon après-midi !"
+        expected_output = "bon après-midi !"
+
+        tokenizer = FrenchCharsTokenizer()
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+        assert len(tokens) == len(input_text)
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
     def test_ipa_tokenizer(self):
         input_text = "Hello world!"
         expected_output = " həˈɫoʊ ˈwɝɫd! "
@@ -148,6 +170,18 @@ class TestTTSTokenizers:
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
+    def test_ipa_tokenizer_it_it(self):
+        input_text = "Ciao mondo"
+        expected_output = "tʃˈao mˈondo"
+
+        g2p = IpaG2p(phoneme_dict=self.PHONEME_DICT_IT, locale="it-IT")
+        tokenizer = IPATokenizer(g2p=g2p, locale="it-IT")
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
     def test_ipa_tokenizer_en_us(self):
         input_text = "Hello café."
         expected_output = "həˈɫoʊ kəˈfeɪ."
@@ -167,6 +201,18 @@ class TestTTSTokenizers:
 
         g2p = IpaG2p(phoneme_dict=self.PHONEME_DICT_ES, locale="es-ES")
         tokenizer = IPATokenizer(g2p=g2p, locale="es-ES")
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_ipa_tokenizer_fr_fr(self):
+        input_text = "Bonjour le monde"
+        expected_output = "bɔ̃ʒˈuʁ lˈə- mˈɔ̃d"
+
+        g2p = IpaG2p(phoneme_dict=self.PHONEME_DICT_FR, locale="fr-FR")
+        tokenizer = IPATokenizer(g2p=g2p, locale="fr-FR")
         chars, tokens = self._parse_text(tokenizer, input_text)
 
         assert chars == expected_output
