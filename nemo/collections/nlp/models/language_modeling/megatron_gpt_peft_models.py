@@ -19,7 +19,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
     MCoreGPTEmbeddingMixin,
-    MCoreSelfAttentionLoRAMixin,
+    MCoreSelfAttentionMixin,
     MCoreTransformerLayerMixin,
     swap_mcore_mixin,
 )
@@ -625,7 +625,7 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
         self.name_key_to_mcore_mixins = {}  # maps peft_key to a list of tuples (mcore_target, mcore_mixin)
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
-            self.name_key_to_mcore_mixins[k] = [("self_attention", MCoreSelfAttentionLoRAMixin)]
+            self.name_key_to_mcore_mixins[k] = [("self_attention", MCoreSelfAttentionMixin)]
         self.layer_selection = lora_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
@@ -690,7 +690,7 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
         self.name_key_to_mcore_mixins = {}
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
-            self.name_key_to_mcore_mixins[k] = [("self_attention", MCoreSelfAttentionLoRAMixin)]
+            self.name_key_to_mcore_mixins[k] = [("self_attention", MCoreSelfAttentionMixin)]
         self.layer_selection = lora_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
