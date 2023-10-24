@@ -204,6 +204,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         assert F == 1, "Only single frame supported"
 
         vision_x = rearrange(vision_x, "b T F c h w -> (b T F) c h w")
+        vision_x = vision_x.to(self.vision_encoder.dtype)
         with torch.no_grad():
             if self.from_hf:
                 vision_x = self.vision_encoder(vision_x, output_hidden_states=True)
