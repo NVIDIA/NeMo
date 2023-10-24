@@ -332,6 +332,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     ('hidden_size', [self._hidden_size, self._hidden_size]
                      if enable_two_optimization_profiles else [self._hidden_size]),
                 ]))
+
+            '''
             if remove_input_padding:
                 tasks = Tensor(
                     name='tasks',
@@ -352,6 +354,34 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                         ('broadcast_dim',
                          [1, 1] if enable_two_optimization_profiles else [1]),
                     ]))
+            '''
+            
+            if remove_input_padding:
+                tasks = Tensor(
+                    name="tasks",
+                    dtype=trt.int32,
+                    shape=[1, -1],
+                    dim_range=OrderedDict(
+                        [
+                            ("batch_size_fake", [1]),
+                            ("input_len_task", [num_tokens_range]),
+                        ]
+                    ),
+                )
+            else:
+                tasks = Tensor(
+                    name="tasks",
+                    dtype=trt.int32,
+                    shape=[-1, -1],
+                    dim_range=OrderedDict(
+                        [
+                            ("batch_size_beam_width", [bb_range]),
+                            ("input_len_task", [inlen_range]),
+                        ]
+                    ),
+                )
+
+            
             prompt_vocab_size = Tensor(
                 name='prompt_vocab_size',
                 dtype=trt.int32,
