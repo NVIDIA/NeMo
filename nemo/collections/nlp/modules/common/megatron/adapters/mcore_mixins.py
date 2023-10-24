@@ -55,8 +55,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         """
         Setup NeMo LoRA or IA3 adapter to this MCore layer.
         """
-        self.set_accepted_adapter_types([LoraKQVAdapterConfig._target_,
-                                         InfusedAdapterConfig._target_])
+        self.set_accepted_adapter_types([LoraKQVAdapterConfig._target_, InfusedAdapterConfig._target_])
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
