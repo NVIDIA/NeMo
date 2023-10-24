@@ -84,7 +84,7 @@ model:
 
   # LLM configs
   # use GPTModel from megatron.core
-  mcore_gpt: True
+  mcore_gpt: False
 
   # model architecture
   encoder_seq_length: 4096
@@ -96,8 +96,9 @@ model:
   num_attention_heads: 40
   init_method_std: 0.014 # Standard deviation of the zero mean normal distribution used for weight initialization.')
   use_scaled_init_method: True # use scaled residuals initialization
-  hidden_dropout: 0. # Dropout probability for hidden state transformer.
-  attention_dropout: 0.
+  hidden_dropout: 0.0 # Dropout probability for hidden state transformer.
+  attention_dropout: 0.0 # Dropout probability for attention
+  ffn_dropout: 0.0 # Dropout probability in the feed-forward layer.
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   normalization: rmsnorm # Type of normalization layers
@@ -111,7 +112,7 @@ model:
   headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
   transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
   normalize_attention_scores: True # Whether to scale the output Q * K^T by 1 / sqrt(hidden_size_per_head). This arg is provided as a configuration option mostly for compatibility with models that have been weight-converted from HF. You almost always want to se this to True.
-  rotary_percentage: 0.5 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
+  rotary_percentage: 1.0 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
   attention_type: 'multihead' # Attention type. Options ['multihead']
   share_embeddings_and_output_weights: False # Share embedding and output layer weights.
   overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
@@ -186,7 +187,7 @@ model:
     is_multimodal: True
     sep_image_conv_front: False
     image_token_len: 256
-    conv_template: ${model.mm_cfg.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
+    conv_template: ${model.mm_cfg.llm.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
     image_aspect_ratio: 'square'
 
