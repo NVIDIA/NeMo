@@ -13,8 +13,8 @@
 # limitations under the License.
 import copy
 import itertools
-from collections import Counter
 import random
+from collections import Counter
 from math import ceil
 from typing import Dict, List, Optional, Union
 
@@ -498,7 +498,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         del audio_signal, audio_signal_len
         return emb, logits
 
-    def get_label(self, path2audio_file: str, segment_duration: float=np.inf, num_segments: int = 1):
+    def get_label(self, path2audio_file: str, segment_duration: float = np.inf, num_segments: int = 1):
         """
         Returns label of path2audio_file from classes the model was trained on.
         Args:
@@ -515,14 +515,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
         audio_length = audio.shape[0]
 
-        duration = target_sr*segment_duration
-        if duration>audio_length:
+        duration = target_sr * segment_duration
+        if duration > audio_length:
             duration = audio_length
 
         label_id_list = []
-        for j in range(0,num_segments):
-            start = random.randint(0, audio_length-duration)
-            audio = audio[start : start+duration]
+        for j in range(0, num_segments):
+            start = random.randint(0, audio_length - duration)
+            audio = audio[start : start + duration]
 
             _, logits = self.infer_segment(audio)
             label_id = logits.argmax(axis=1)
