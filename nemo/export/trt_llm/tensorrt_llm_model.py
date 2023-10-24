@@ -308,6 +308,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         inlen_range = [1, 1, max_input_len]
         bs_range = [1, (max_batch_size + 1) // 2, max_batch_size]
 
+
+        enable_two_optimization_profiles = False
         prompt_embedding_table = None
         tasks = None
         prompt_vocab_size = None
