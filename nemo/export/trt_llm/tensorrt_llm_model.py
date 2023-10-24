@@ -284,77 +284,21 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
 
         model_inputs = self.prepare_basic_inputs(
-            max_batch_size,
-            max_beam_width,
-            max_input_len,
-            max_new_tokens,
-            num_heads_kv,
-            head_size,
-            self._num_layers,
-            self._kv_dtype,
+            max_batch_size=max_batch_size,
+            max_beam_width=max_beam_width,
+            max_input_len=max_input_len,
+            max_new_tokens=max_new_tokens,
+            num_kv_heads=num_heads_kv,
+            head_size=head_size,
+            num_layers=self._num_layers,
+            kv_dtype=self._kv_dtype,
             remove_input_padding=remove_input_padding,
             use_gpt_attention_plugin=use_gpt_attention_plugin,
             paged_kv_cache=paged_kv_cache,
             tokens_per_block=tokens_per_block,
+            prompt_embedding_table_size=prompt_embedding_table_size,
         )
 
-        bb_range = [1, (max_batch_size * max_beam_width + 1) // 2, max_batch_size * max_beam_width]
-        p_embedding_range = [1, prompt_embedding_table_size // 2, prompt_embedding_table_size]
-        num_tokens_range = [
-            1,
-            max_batch_size * max_beam_width,
-            max(max_input_len * max_batch_size, max_beam_width * max_batch_size),
-        ]
-        inlen_range = [1, 1, max_input_len]
-        bs_range = [1, (max_batch_size + 1) // 2, max_batch_size]
-
-        prompt_embedding_table = None
-        tasks = None
-        prompt_vocab_size = None
-        if self._use_prompt_tuning:
-            prompt_embedding_table = Tensor(
-                name="prompt_embedding_table",
-                dtype=self._dtype,
-                shape=[-1, self._hidden_size],
-                dim_range=OrderedDict(
-                    [
-                        ("prompt_embedding_table_size", [p_embedding_range]),
-                        ("hidden_size", [self._hidden_size]),
-                    ]
-                ),
-            )
-            if remove_input_padding:
-                tasks = Tensor(
-                    name="tasks",
-                    dtype=trt.int32,
-                    shape=[1, -1],
-                    dim_range=OrderedDict(
-                        [
-                            ("batch_size_fake", [1]),
-                            ("input_len_task", [num_tokens_range]),
-                        ]
-                    ),
-                )
-            else:
-                tasks = Tensor(
-                    name="tasks",
-                    dtype=trt.int32,
-                    shape=[-1, -1],
-                    dim_range=OrderedDict(
-                        [
-                            ("batch_size_beam_width", [bb_range]),
-                            ("input_len_task", [inlen_range]),
-                        ]
-                    ),
-                )
-            prompt_vocab_size = Tensor(
-                name="prompt_vocab_size",
-                dtype=trt.int32,
-                shape=[1],
-                dim_range=OrderedDict([("size", [1])]),
-            )
-
-        # todo: we should remove this, but hesitant since no explicit argument names below.
         inflight_batching_args = None
 
         return (
@@ -368,9 +312,9 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             model_inputs["attention_mask"],
             model_inputs["cache_indirection"],
             model_inputs["kv_cache_block_pointers_list"],
-            prompt_embedding_table,
-            tasks,
-            prompt_vocab_size,
+            model_inputs["prompt_embedding_table"],
+            model_inputs["tasks"],
+            model_inputs["prompt_vocab_size"],
             inflight_batching_args,
             model_inputs["context_lengths"],
             model_inputs["host_context_lengths"],
