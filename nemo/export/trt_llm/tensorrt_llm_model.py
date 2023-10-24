@@ -283,24 +283,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         remove_input_padding = default_net().plugin_config.remove_input_padding
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
 
-        '''
-        model_inputs = self.prepare_basic_inputs(
-            max_batch_size=max_batch_size,
-            max_beam_width=max_beam_width,
-            max_input_len=max_input_len,
-            max_new_tokens=max_new_tokens,
-            num_kv_heads=num_heads_kv,
-            head_size=head_size,
-            num_layers=self._num_layers,
-            kv_dtype=self._kv_dtype,
-            remove_input_padding=remove_input_padding,
-            use_gpt_attention_plugin=use_gpt_attention_plugin,
-            paged_kv_cache=paged_kv_cache,
-            tokens_per_block=tokens_per_block,
-            prompt_embedding_table_size=prompt_embedding_table_size,
-        )
-        '''
-
         model_inputs = self.prepare_basic_inputs(
             max_batch_size,
             max_beam_width,
@@ -330,47 +312,54 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         tasks = None
         prompt_vocab_size = None
         if self._use_prompt_tuning:
+            hidden_size = num_heads * head_size
+            assert prompt_embedding_table_size is not None, "prompt_embedding_table_size cannot be None when self._use_prompt_tuning is True"
+            _p_embedding_range = [
+                1, prompt_embedding_table_size // 2, prompt_embedding_table_size
+            ]
+            if enable_two_optimization_profiles:
+                p_embedding_range = [_p_embedding_range, _p_embedding_range]
+            else:
+                p_embedding_range = [_p_embedding_range]
+
             prompt_embedding_table = Tensor(
-                name="prompt_embedding_table",
-                dtype=self._dtype,
-                shape=[-1, self._hidden_size],
-                dim_range=OrderedDict(
-                    [
-                        ("prompt_embedding_table_size", [p_embedding_range]),
-                        ("hidden_size", [self._hidden_size]),
-                    ]
-                ),
-            )
+                name='prompt_embedding_table',
+                dtype=dtype,
+                shape=[-1, hidden_size],
+                dim_range=OrderedDict([
+                    ('prompt_embedding_table_size', p_embedding_range),
+                    ('hidden_size', [hidden_size, hidden_size]
+                     if enable_two_optimization_profiles else [hidden_size]),
+                ]))
             if remove_input_padding:
                 tasks = Tensor(
-                    name="tasks",
+                    name='tasks',
                     dtype=trt.int32,
                     shape=[1, -1],
-                    dim_range=OrderedDict(
-                        [
-                            ("batch_size_fake", [1]),
-                            ("input_len_task", [num_tokens_range]),
-                        ]
-                    ),
-                )
+                    dim_range=OrderedDict([
+                        ('batch_size_fake',
+                         [1, 1] if enable_two_optimization_profiles else [1]),
+                        ('input_len_task', num_tokens_range),
+                    ]))
             else:
                 tasks = Tensor(
-                    name="tasks",
+                    name='tasks',
                     dtype=trt.int32,
-                    shape=[-1, -1],
-                    dim_range=OrderedDict(
-                        [
-                            ("batch_size_beam_width", [bb_range]),
-                            ("input_len_task", [inlen_range]),
-                        ]
-                    ),
-                )
+                    shape=[-1, 1],
+                    dim_range=OrderedDict([
+                        ('batch_size_beam_width', bb_range),
+                        ('broadcast_dim',
+                         [1, 1] if enable_two_optimization_profiles else [1]),
+                    ]))
             prompt_vocab_size = Tensor(
-                name="prompt_vocab_size",
+                name='prompt_vocab_size',
                 dtype=trt.int32,
                 shape=[1],
-                dim_range=OrderedDict([("size", [1])]),
-            )
+                dim_range=OrderedDict([
+                    ('size',
+                     [1, 1] if enable_two_optimization_profiles else [1])
+                ]))
+
 
         # todo: we should remove this, but hesitant since no explicit argument names below.
         inflight_batching_args = None
