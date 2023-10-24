@@ -502,8 +502,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         Returns label of path2audio_file from classes the model was trained on.
         Args:
             path2audio_file (str): path to audio wav file
-            segment_duration (float): audio duration limit in seconds
-            num_segments (int): number of segments of file
+            segment_duration (float): random sample duration in seconds
+            num_segments (int): number of segments of file to use for majority vote
 
         Returns:
             label: label corresponding to the trained model
