@@ -141,7 +141,14 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
             init_method=init_method_normal(0.2),
         )
         self.dim_scalar = nn.Parameter(torch.ones(dim))
-        self.out_scalar = nn.Parameter(torch.zeros(out_features))
+        self.out_scalar = ColumnParallelLinear(
+            1,
+            out_features,
+            config=model_parallel_config,
+            bias=False,
+            gather_output=False,
+            init_method=init_method_const(0.0),
+        )
 
     def adapter_unfreeze(self,):
         for p in self.linear_in.parameters():
@@ -151,7 +158,8 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
             p.requires_grad = False
 
         self.dim_scalar.requires_grad = True
-        self.out_scalar.requires_grad = True
+        for p in self.out_scalar.parameters():
+            p.requires_grad = True
 
         return True
 
@@ -174,7 +182,7 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = x * self.dim_scalar[None, None, :]
         x, _ = self.linear_out(x)
-        x = x * self.out_scalar[None, None, :]
+        x = x * self.out_scalar.weight
 
         return x
 
