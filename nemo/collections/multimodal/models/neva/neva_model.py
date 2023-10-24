@@ -17,8 +17,8 @@ import os
 import random
 import re
 import tempfile
-from functools import partial
 from itertools import chain
+from functools import partial
 from typing import Any, List, Optional, Union
 
 import numpy as np
@@ -80,9 +80,9 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
-from nemo.collections.nlp.parts.mixins.multimodal_adapter_mixins import MultimodalAdapterModelMixin
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.parts.mixins.multimodal_adapter_mixins import MultimodalAdapterModelMixin
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
@@ -101,8 +101,8 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import dist_checkpointing, parallel_state
-    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 
     HAVE_MEGATRON_CORE = True
 
@@ -268,7 +268,6 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
         return updated_input_embeds
 
-
 class MCoreNevaModel(MCoreGPTModel):
     def __init__(
         self, mm_cfg, media_start_id, media_end_id, **kwargs,
@@ -286,7 +285,9 @@ class MCoreNevaModel(MCoreGPTModel):
 
         if mm_cfg.llm.freeze:
             for param in chain(
-                self.embedding.parameters(), self.decoder.parameters(), self.output_layer.parameters(),
+                    self.embedding.parameters(),
+                    self.decoder.parameters(),
+                    self.output_layer.parameters(),
             ):
                 param.requires_grad = False
             self.embedding = self.embedding.eval()
@@ -419,7 +420,6 @@ class MCoreNevaModel(MCoreGPTModel):
                     new_state_dict[module_key][param_key] = v
             self.language_model.load_state_dict(new_state_dict, strict=True)
         print(f"Restored LLM weights from {nemo_path}.")
-
 
 class NevaModel(GPTModel):
     def __init__(
@@ -560,13 +560,16 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         self.base_keys = self._get_all_keys()
         adapter_name = AdapterName.MM_LINEAR_ADAPTER
         adapter_cfg = MMLinearAdapterConfig(
-            in_features=self.cfg.mm_cfg.vision_encoder.hidden_size, out_features=self.cfg.hidden_size, bias=True,
+            in_features=self.cfg.mm_cfg.vision_encoder.hidden_size,
+            out_features=self.cfg.hidden_size, bias=True,
         )
         for name, module in self.named_modules():
             self._check_and_add_adapter(
-                name, module, adapter_name, adapter_cfg, autocast_dtype=self.autocast_dtype,
+                name, module, adapter_name, adapter_cfg,
+                autocast_dtype=self.autocast_dtype if self.megatron_amp_O2 else None,
             )
         self.adapter_keys = self._get_all_keys() - self.base_keys
+
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
@@ -575,10 +578,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
         if self.mcore_gpt:
             if parallel_state.is_unitialized():
-
                 def dummy():
                     return
-
                 if self.trainer.strategy.launcher is not None:
                     self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
                 self.trainer.strategy.setup_environment()
@@ -683,7 +684,17 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             param_group['params'] = params_with_grad
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, media=None):
-        output_tensor = self.model(tokens, text_position_ids, attention_mask, labels, media)
+        forward_args = {
+            'input_ids': tokens,
+            'position_ids': text_position_ids,
+            'attention_mask': attention_mask,
+            'labels': labels,
+            'media': media,
+        }
+        if not self.mcore_gpt:
+            forward_args['checkpoint_activations_all_layers'] = None
+
+        output_tensor = self.model(**forward_args)
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
