@@ -312,7 +312,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         tasks = None
         prompt_vocab_size = None
         if self._use_prompt_tuning:
-            hidden_size = num_heads * head_size
             assert prompt_embedding_table_size is not None, "prompt_embedding_table_size cannot be None when self._use_prompt_tuning is True"
             _p_embedding_range = [
                 1, prompt_embedding_table_size // 2, prompt_embedding_table_size
@@ -325,11 +324,11 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             prompt_embedding_table = Tensor(
                 name='prompt_embedding_table',
                 dtype=dtype,
-                shape=[-1, hidden_size],
+                shape=[-1, self._hidden_size],
                 dim_range=OrderedDict([
                     ('prompt_embedding_table_size', p_embedding_range),
-                    ('hidden_size', [hidden_size, hidden_size]
-                     if enable_two_optimization_profiles else [hidden_size]),
+                    ('hidden_size', [self._hidden_size, self._hidden_size]
+                     if enable_two_optimization_profiles else [self._hidden_size]),
                 ]))
             if remove_input_padding:
                 tasks = Tensor(
