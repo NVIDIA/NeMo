@@ -13,6 +13,8 @@
 # limitations under the License.
 import copy
 import itertools
+from collections import Counter
+import random
 from math import ceil
 from typing import Dict, List, Optional, Union
 
@@ -436,11 +438,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'test')
 
     @torch.no_grad()
-    def infer_file(self, path2audio_file, max_duration=None):
+    def infer_file(self, path2audio_file):
         """
         Args:
             path2audio_file: path to an audio wav file
-            max_duration: audio duration limit in seconds
 
         Returns:
             emb: speaker embeddings (Audio representations)
@@ -448,8 +449,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         """
         audio, sr = librosa.load(path2audio_file, sr=None)
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
-        if max_duration:
-            audio = audio[: sr * max_duration]
         if sr != target_sr:
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
         audio_length = audio.shape[0]
@@ -470,26 +469,74 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         del audio_signal, audio_signal_len
         return emb, logits
 
-    def get_label(self, path2audio_file, duration_limit=None):
+    @torch.no_grad()
+    def infer_segment(self, segment):
+        """
+        Args:
+            segment: segment of audio file
+
+        Returns:
+            emb: speaker embeddings (Audio representations)
+            logits: logits corresponding of final layer
+        """
+        segment_length = segment.shape[0]
+
+        device = self.device
+        audio = np.array([segment])
+        audio_signal, audio_signal_len = (
+            torch.tensor(audio, device=device),
+            torch.tensor([segment_length], device=device),
+        )
+        mode = self.training
+        self.freeze()
+
+        logits, emb = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+
+        self.train(mode=mode)
+        if mode is True:
+            self.unfreeze()
+        del audio_signal, audio_signal_len
+        return emb, logits
+
+    def get_label(self, path2audio_file: str, segment_duration: float=np.inf, num_segments: int = 1):
         """
         Returns label of path2audio_file from classes the model was trained on.
         Args:
-            path2audio_file: path to audio wav file
-            duration_limit: audio duration limit in seconds
+            path2audio_file (str): path to audio wav file
+            segment_duration (float): audio duration limit in seconds
+            num_segments (int): number of segments of file
 
         Returns:
             label: label corresponding to the trained model
         """
-        _, logits = self.infer_file(path2audio_file=path2audio_file, max_duration=duration_limit)
+        audio, sr = librosa.load(path2audio_file, sr=None)
+        target_sr = self._cfg.train_ds.get('sample_rate', 16000)
+        if sr != target_sr:
+            audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
+        audio_length = audio.shape[0]
+
+        duration = target_sr*segment_duration
+        if duration>audio_length:
+            duration = audio_length
+
+        label_id_list = []
+        for j in range(0,num_segments):
+            start = random.randint(0, audio_length-duration)
+            audio = audio[start : start+duration]
+
+            _, logits = self.infer_segment(audio)
+            label_id = logits.argmax(axis=1)
+            label_id_list.append(int(label_id[0]))
+
+        m_label_id = Counter(label_id_list).most_common(1)[0][0]
 
         trained_labels = self._cfg['train_ds'].get('labels', None)
         if trained_labels is not None:
             trained_labels = list(trained_labels)
-            label_id = logits.argmax(axis=1)
-            label = trained_labels[int(label_id[0])]
+            label = trained_labels[m_label_id]
         else:
             logging.info("labels are not saved to model, hence only outputting the label id index")
-            label = logits.argmax(axis=1)
+            label = m_label_id
 
         return label
 
