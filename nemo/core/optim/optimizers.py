@@ -68,7 +68,7 @@ if HAVE_APEX:
 
     try:
         # Try importing wrapper for Apex FusedAdam optimizer
-        from nemo.core.optim.fused_adam import MegatronFusedAdam
+        from nemo.core.optim.megatron_fused_adam import MegatronFusedAdam
 
         AVAILABLE_OPTIMIZERS['megatron_fused_adam'] = MegatronFusedAdam
     except (ImportError, ModuleNotFoundError):

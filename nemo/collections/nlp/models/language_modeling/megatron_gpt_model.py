@@ -25,7 +25,6 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
-from typing import Any, Dict, Iterator, List, Optional, Union
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -385,6 +384,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 use_flash_attention=self.cfg.get('use_flash_attention', False),
                 megatron_legacy=self.cfg.get('megatron_legacy', False),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+                rotary_base=self.cfg.get('rotary_base', 10000),
             )
         return model
 
@@ -490,7 +490,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         grad_sync_func = None
         param_sync_func = None
         if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2, )
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
@@ -625,7 +625,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
-                'share_embeddings_and_output_weights', True
+            'share_embeddings_and_output_weights', True
         ):
             # when using pipeline parallelism the first and last stage must keep embeddings in sync
             self.allreduce_first_last_embeddings()
@@ -735,8 +735,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # This should only run for models that support pipelined model parallelism
         # (BERT and GPT-2).
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-                parallel_state.is_pipeline_first_stage(ignore_virtual=True)
-                or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+            parallel_state.is_pipeline_first_stage(ignore_virtual=True)
+            or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
         ):
             module_list = self.get_gpt_module_list()
             if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
@@ -1057,7 +1057,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(
-            self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
+        self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
     ):
         """Buld dataloader given an input dataset."""
 
@@ -1199,10 +1199,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
     def generate(
-            self,
-            inputs: Union[List[str], torch.Tensor, List[dict]],
-            length_params: LengthParam,
-            sampling_params: SamplingParam = None,
+        self,
+        inputs: Union[List[str], torch.Tensor, List[dict]],
+        length_params: LengthParam,
+        sampling_params: SamplingParam = None,
         *,
         strategy: Optional[TextGenerationStrategy] = None,
     ) -> OutputType:

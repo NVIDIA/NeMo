@@ -633,6 +633,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                                         if key == template:
                                             return True
                 return False
+
             for key_ in state_dict.keys():
                 if key_ == "model.cond_stage_model.transformer.text_model.embeddings.position_ids":
                     continue
