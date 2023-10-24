@@ -325,7 +325,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
 
             prompt_embedding_table = Tensor(
                 name='prompt_embedding_table',
-                dtype=dtype,
+                dtype=self._dtype,
                 shape=[-1, self._hidden_size],
                 dim_range=OrderedDict([
                     ('prompt_embedding_table_size', p_embedding_range),
