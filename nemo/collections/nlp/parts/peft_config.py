@@ -70,6 +70,7 @@ class VeraPEFTConfig(PEFTConfig):
             "in_features": cfg.hidden_size,
             "out_features": qkv_projection_size,
             "dim": vera_cfg.adapter_dim,
+            "sigma": vera_cfg.sigma,
         }
         adapter_cfg = VeraAdapterConfig(**config_args)
         name_key_to_cfg = {

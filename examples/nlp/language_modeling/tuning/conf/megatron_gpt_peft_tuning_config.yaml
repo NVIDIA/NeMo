@@ -96,6 +96,7 @@ model:
     vera_tuning:
       adapter_dim: 32
       weight_tying: True  # the in and out projections will be tied (and set to random normal)
+      sigma: 1.0
 
     lora_tuning:
       adapter_dim: 32

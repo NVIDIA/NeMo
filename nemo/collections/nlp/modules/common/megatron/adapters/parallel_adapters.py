@@ -120,6 +120,7 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
         in_features: int,
         out_features: int,
         dim: int,
+        sigma: float,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
     ):
@@ -130,7 +131,7 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
             config=model_parallel_config,
             bias=False,
             gather_output=True,
-            init_method=init_method_normal(0.2),
+            init_method=init_method_normal(sigma),
         )
         self.linear_out = ColumnParallelLinear(
             dim,
@@ -138,7 +139,7 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
             config=model_parallel_config,
             bias=False,
             gather_output=False,
-            init_method=init_method_normal(0.2),
+            init_method=init_method_normal(sigma),
         )
         self.dim_scalar = nn.Parameter(torch.ones(dim))
         self.out_scalar = ColumnParallelLinear(
@@ -182,7 +183,7 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = x * self.dim_scalar[None, None, :]
         x, _ = self.linear_out(x)
-        x = x * self.out_scalar.weight
+        x = x * self.out_scalar.weight.squeeze()[None, None, :] #(@adithyare) quick hack to get scaling/bias with tp>1
 
         return x
 
@@ -192,6 +193,7 @@ class VeraAdapterConfig(AdapterConfig):
     in_features: int
     out_features: int
     dim: int
+    sigma: float
     _target_: str = "{0}.{1}".format(VeraAdapter.__module__, VeraAdapter.__name__)
 
 
