@@ -431,6 +431,7 @@ class SpeechGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
         step: int,
         context_length: int,
         compute_attention_mask: bool = True,
+        vocab_size: int = 256000,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         """
         generate the batch used in inference for each of the steps
@@ -453,6 +454,8 @@ class SpeechGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
             # if type_ids is not None:
             #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
 
+        speech_mask = tokens2use[:, 0, :] <= vocab_size
+        speech_mask = speech_mask.to(tokens2use.device)
         """Prepare batch for each of the inference steps"""
         attention_mask_repeat = None
         if compute_attention_mask:
@@ -463,7 +466,7 @@ class SpeechGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
         )
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
 
-        batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+        batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array, speech_mask]
         tensor_shape = [tokens2use.shape[2], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 

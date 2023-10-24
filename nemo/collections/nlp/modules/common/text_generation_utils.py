@@ -737,7 +737,7 @@ def sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
-                tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
+                tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, extra["vocab_size"]
             )
             # print(batch[0].shape)
             # print(batch[0])
@@ -804,7 +804,7 @@ def sample_sequence_batch(
                     prev = torch.multinomial(probs, num_samples=1).view(-1)
 
                 # Clamp the predicted out of vocabulary tokens
-                prev = torch.clamp(prev, max=tokenizer.vocab_size - 1 + 1024)
+                prev = torch.clamp(prev, max=extra["vocab_size"] - 1 + 1024)
                 # new_tokens = switch(tokens[:, 0, context_length].view(-1), prev, started)
                 new_0th_tokens = switch(tokens[:, 0, context_length].view(-1), prev, started)
                 is_speech = new_0th_tokens >= extra["vocab_size"]
@@ -961,7 +961,7 @@ def sample_sequence_batch_teacherforced(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
-                context_tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
+                context_tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, extra["vocab_size"]
             )
             # print(batch[0].shape)
             # print(batch[0])
@@ -1017,7 +1017,7 @@ def sample_sequence_batch_teacherforced(
                     prev = torch.multinomial(probs, num_samples=1).view(-1)
 
                 # Clamp the predicted out of vocabulary tokens
-                prev = torch.clamp(prev, max=tokenizer.vocab_size - 1 + 1024)
+                prev = torch.clamp(prev, max=extra["vocab_size"] - 1 + 1024)
                 # new_tokens = switch(tokens[:, 0, context_length].view(-1), prev, started)
                 new_0th_tokens = switch(tokens[:, 0, context_length].view(-1), prev, started)
                 is_speech = new_0th_tokens >= extra["vocab_size"]

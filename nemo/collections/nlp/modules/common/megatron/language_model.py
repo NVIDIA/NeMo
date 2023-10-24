@@ -744,21 +744,21 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         checkpoint_activations_all_layers=None,
+        speech_mask=None,
     ):
-        # Embeddings.
-        # print("$$$$$$$$$$$$$$$$$$$$$$")
-        # print(self.embedding_scale)
+        if speech_mask is not None:
+            speech_mask = speech_mask.T.unsqueeze(-1)
         if self.pre_process and encoder_input is None:
             encoder_input = None
             if enc_input_ids.dim() > 2:
                 for i in range(enc_input_ids.size()[1]):
                     cur = self.embedding(enc_input_ids[:, i, :], enc_position_ids, token_type_ids=token_type_ids)
-                    # import ipdb; ipdb.set_trace()
                     if encoder_input is None:
                         encoder_input = cur
                     else:
-                        include_channel_flag = (torch.sum(enc_input_ids[:, i, :], dim=1) > 0).float()
-                        encoder_input = encoder_input + cur * include_channel_flag.unsqueeze(-1).unsqueeze(0) * self.embedding_scale
+                        if speech_mask is None:
+                            speech_mask = (torch.sum(enc_input_ids[:, i, :], dim=1) > 0).float().unsqueeze(-1).unsqueeze(0)
+                        encoder_input = encoder_input + cur * speech_mask * self.embedding_scale
             else:
                 # Should be text tokens
                 encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)

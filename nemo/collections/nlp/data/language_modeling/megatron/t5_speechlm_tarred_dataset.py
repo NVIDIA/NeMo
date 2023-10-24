@@ -869,6 +869,7 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
         #     decoder_input_len = torch.stack(decoder_input_len)
 
         decoder_mask = get_mask_from_lengths(decoder_input_len-1)
+        speech_input_mask = get_mask_from_lengths(decoder_input_len-1)
         (
             decoder_input_list,
             decoder_labels_list,
@@ -916,6 +917,7 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
             decoder_labels_list.append(decoder_labels)
 
             decoder_mask[i, :context_tokens_len+question_tokens_len] = 0  # Mask out context and question
+            speech_input_mask[i, context_tokens_len:context_tokens_len+question_tokens_len] = 0
 
         # Using causal attention mask for whole input
         batch_size = len(decoder_input_list)
@@ -934,7 +936,7 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
             "position_ids": position_ids,
             "attention_mask": None,
             "labels": torch.stack(decoder_labels_list),
-            "speech_mask": decoder_mask,  # For TTS, can just be loss_mask since answer will always be speech
+            "speech_mask": speech_input_mask,  # For TTS, can just be loss_mask since answer will always be speech
             "loss_mask": decoder_mask,  # Mask out context and question and padding
         }
 

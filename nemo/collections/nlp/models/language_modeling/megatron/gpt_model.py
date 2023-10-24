@@ -235,6 +235,7 @@ class GPTModel(MegatronModule):
         speech_loss_scale=1.0,
         text_size=256000,
         seq_len_interpolation_factor=None,
+        use_speech_mask_for_embedding=False,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -248,6 +249,7 @@ class GPTModel(MegatronModule):
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
         self.speech_loss_scale = speech_loss_scale
         self.text_size = text_size
+        self.use_speech_mask_for_embedding = use_speech_mask_for_embedding
 
         if kv_channels is None:
             assert (
@@ -370,6 +372,7 @@ class GPTModel(MegatronModule):
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
             checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+            speech_mask=speech_mask if self.use_speech_mask_for_embedding else None,
         )
 
         if self.post_process:
