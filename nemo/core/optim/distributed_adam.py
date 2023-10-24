@@ -98,6 +98,7 @@ def estimate_bucket_cap_mb(
     for bucket_cap_mb in range(min_bucket_cap_mb, max_bucket_cap_mb + 1):
         wasted_memory = sum((bucket_cap_mb - bucket_size_mb) % bucket_cap_mb for bucket_size_mb in bucket_sizes_mb)
         bucket_cap_mb_props.append((bucket_cap_mb, wasted_memory))
+    bucket_cap_mb_props.reverse()
 
     # Return bucket size that minimizes wasted memory
     # Note: Consider smarter heuristic that attempts to minimize
