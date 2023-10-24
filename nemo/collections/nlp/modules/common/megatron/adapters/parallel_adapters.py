@@ -183,7 +183,9 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = x * self.dim_scalar[None, None, :]
         x, _ = self.linear_out(x)
-        x = x * self.out_scalar.weight.squeeze()[None, None, :] #(@adithyare) quick hack to get scaling/bias with tp>1
+        x = (
+            x * self.out_scalar.weight.squeeze()[None, None, :]
+        )  # (@adithyare) quick hack to get scaling/bias with tp>1
 
         return x
 
