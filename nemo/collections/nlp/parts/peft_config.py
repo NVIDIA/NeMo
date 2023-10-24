@@ -106,9 +106,7 @@ class LoraPEFTConfig(PEFTConfig):
         name_key_to_cfg = {
             AdapterName.LORA_KQV_ADAPTER: adapter_cfg,
         }
-        self.name_key_to_mcore_mixins = {
-            AdapterName.LORA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionMixin)]
-        }
+        self.name_key_to_mcore_mixins = {AdapterName.LORA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionMixin)]}
 
         super().__init__(lora_cfg, name_key_to_cfg)
 
