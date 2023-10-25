@@ -228,18 +228,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
         else:
             fp8_enabled = cfg.get('fp8', False)
-            make_fp8_autocast = nullcontext
+            make_model_context = nullcontext
             if fp8_enabled and HAVE_TE:
                 fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
                     margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3,
                 )
-                make_fp8_autocast = partial(
-                    transformer_engine.pytorch.fp8_autocast,
-                    enabled=fp8_enabled,
-                    fp8_recipe=fp8_recipe,
-                    fp8_parameters=True,
-                )
-            with make_fp8_autocast():
+                make_model_context = partial(transformer_engine.pytorch.fp8_model_init, enabled=True)
+            with make_model_context():
                 self.model = build_model(
                     model_provider_func=self.model_provider_func,
                     wrap_with_ddp=False,

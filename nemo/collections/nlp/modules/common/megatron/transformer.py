@@ -835,8 +835,6 @@ class AutocastTransformerLayer(TransformerLayer):
             params_dtype=params_dtype,
             get_rng_state_tracker=get_rng_state_tracker,
             fuse_wgrad_accumulation=fuse_wgrad_accumulation,
-            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-            attention_softmax_in_fp32=attention_softmax_in_fp32,
             seq_length=seq_length,
             micro_batch_size=micro_batch_size,
             sequence_parallel=sequence_parallel,

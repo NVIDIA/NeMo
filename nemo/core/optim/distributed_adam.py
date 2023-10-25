@@ -364,7 +364,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         for fragment in fragments:
             param = self.parameter(fragment)
             if _is_fp8_tensor(param):
-                param.transpose()
+                param.transpose(cache=True)
 
     @torch.no_grad()
     def _check_params_shard_dtypes(self, params_buckets: Dict[int, DistributedFusedAdam.ParameterBucket]) -> None:
