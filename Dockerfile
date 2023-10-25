@@ -60,7 +60,7 @@ RUN git clone https://github.com/NVIDIA/apex.git && \
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   cd TransformerEngine && \
   git fetch origin a03f8bc9ae004e69aae4902fdd4a6d81fd95bc89 && \
-  git checkout a03f8bc9ae004e69aae4902fdd4a6d81fd95bc89 && \
+  git checkout FETCH_HEAD && \
   git submodule init && git submodule update && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
 
