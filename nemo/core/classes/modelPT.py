@@ -350,7 +350,7 @@ class ModelPT(LightningModule, Model):
             ):
                 yield submodule_name, subconfig_path, submodule
 
-    def save_to(self, save_path: str):
+    def save_to(self, save_path: str, safe: bool=False):
         """
         Saves model instance (weights and configuration) into .nemo file
          You can use "restore_from" method to fully restore instance from .nemo file.
@@ -382,10 +382,10 @@ class ModelPT(LightningModule, Model):
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
             # connector checks for ranks properly, no need to check here
-            self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
+            self._save_restore_connector.save_to(self, str(save_path), safe=safe)  # downstream tasks expect str, not Path
         elif is_global_rank_zero():
             maybe_make_save_dir(save_path)
-            self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
+            self._save_restore_connector.save_to(self, str(save_path), safe=safe)  # downstream tasks expect str, not Path
 
     @classmethod
     def restore_from(
@@ -397,6 +397,7 @@ class ModelPT(LightningModule, Model):
         return_config: bool = False,
         save_restore_connector: SaveRestoreConnector = None,
         trainer: Optional[Trainer] = None,
+        safe: bool = False,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -440,7 +441,7 @@ class ModelPT(LightningModule, Model):
 
         cls.update_save_restore_connector(save_restore_connector)
         instance = cls._save_restore_connector.restore_from(
-            cls, restore_path, override_config_path, map_location, strict, return_config, trainer
+            cls, restore_path, override_config_path, map_location, strict, return_config, trainer, safe=safe
         )
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector

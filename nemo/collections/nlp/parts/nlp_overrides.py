@@ -44,6 +44,7 @@ from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.utils import secure
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -464,7 +465,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             )
         super().__init__()
 
-    def save_to(self, model, save_path: str):
+    def save_to(self, model, save_path: str, safe: bool=False):
         app_state = AppState()
 
         # Check if using distributed checkpointing
@@ -515,7 +516,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                             + self.model_weights_ckpt,
                         )
 
-                    self._save_state_dict_to_disk(model.state_dict(), mp_model_weights)
+                    self._save_state_dict_to_disk(model.state_dict(), mp_model_weights, safe=safe)
 
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
@@ -590,14 +591,14 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
         return state_dict
 
-    def _load_state_dict_from_disk(self, model_weights, map_location=None):
+    def _load_state_dict_from_disk(self, model_weights, map_location=None, safe=False):
         # if model_weights with the extension removed is a directory, we assume it is a distributed checkpoint
         # we need to defer loading the state dict so we return None
         uninject_model_weights = uninject_model_parallel_rank(model_weights)
 
         # legacy model_weights will have mp rank injected
-        if os.path.isfile(model_weights):
-            return super()._load_state_dict_from_disk(model_weights, map_location)
+        if os.path.isfile(model_weights) or os.path.isfile(model_weights+secure.SAFE_EXTENSION):
+            return super()._load_state_dict_from_disk(model_weights, map_location, safe=safe)
 
         # dist checkpoint will be a dir
         elif os.path.isdir(os.path.splitext(uninject_model_weights)[0]):
@@ -614,6 +615,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        safe: bool = False,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -641,7 +643,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         loaded_params = super().load_config_and_state_dict(
-            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,safe=safe
         )
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
@@ -738,12 +740,12 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
             self.peft_model_nemo_path = None
             self.peft_model_ckpt_dir = None
 
-    def _load_state_dict_from_disk(self, model_weights, map_location=None):
+    def _load_state_dict_from_disk(self, model_weights, map_location=None, safe=False):
         """
         Infuse the state_dict of the base model with PEFT params from either a peft_model_nemo_path or peft_model_ckpt_path
         """
         # first load based model weights
-        base_model_state_dict = super()._load_state_dict_from_disk(model_weights, map_location)
+        base_model_state_dict = super()._load_state_dict_from_disk(model_weights, map_location, safe=safe)
 
         # if distributed checkpointing, load peft weights in restore_from
         if base_model_state_dict:
@@ -776,6 +778,7 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        safe: bool = False,
     ):
         """
         Extends the restore_from method of the `NLPSaveRestoreConnector` so that PEFT params are inserted into the state_dict which is required when training a PEFT model from scratch.
@@ -864,7 +867,7 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
                 peft_state_dict = instance.get_peft_state_dict()
                 state_dict.update(peft_state_dict)
             state_dict = self.modify_state_dict(conf, state_dict)
-            self.load_instance_with_state_dict(instance, state_dict, strict)
+            self.load_instance_with_state_dict(instance, state_dict, strict, safe=safe)
 
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
