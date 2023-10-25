@@ -528,7 +528,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = config.sequence_parallel
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
-        self.context_parallel = (parallel_state.get_context_parallel_world_size() > 1)
+        self.context_parallel = parallel_state.get_context_parallel_world_size() > 1
         if kv_channels is None:
 
             assert (
