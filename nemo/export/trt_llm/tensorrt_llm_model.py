@@ -278,6 +278,9 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         @return: a list contains values which can be fed into the self.forward()
         """
         # Prepare inputs
+
+        enable_two_optimization_profiles = True
+
         head_size = self._hidden_size // self._num_heads
         num_heads_kv = (self._num_kv_heads + self._tensor_parallel - 1) // self._tensor_parallel
         remove_input_padding = default_net().plugin_config.remove_input_padding
@@ -298,7 +301,17 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             tokens_per_block=tokens_per_block,
         )
 
-        bb_range = [1, (max_batch_size * max_beam_width + 1) // 2, max_batch_size * max_beam_width]
+    
+        bb_range_cxt = [1, (max_batch_size + 1) // 2, max_batch_size]
+        bb_range_gen = [
+            1, (max_batch_size * max_beam_width + 1) // 2,
+            max_batch_size * max_beam_width
+        ]
+        if enable_two_optimization_profiles:
+            bb_range = [bb_range_cxt, bb_range_g]
+        else:
+            bb_range = [bb_range_gen]
+
         p_embedding_range = [1, prompt_embedding_table_size // 2, prompt_embedding_table_size]
         num_tokens_range = [
             1,
@@ -306,10 +319,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             max(max_input_len * max_batch_size, max_beam_width * max_batch_size),
         ]
         inlen_range = [1, 1, max_input_len]
-        bs_range = [1, (max_batch_size + 1) // 2, max_batch_size]
-
-
-        enable_two_optimization_profiles = True
+        
         prompt_embedding_table = None
         tasks = None
         prompt_vocab_size = None
@@ -332,29 +342,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     ('hidden_size', [self._hidden_size, self._hidden_size]
                      if enable_two_optimization_profiles else [self._hidden_size]),
                 ]))
-
-            '''
-            if remove_input_padding:
-                tasks = Tensor(
-                    name='tasks',
-                    dtype=trt.int32,
-                    shape=[1, -1],
-                    dim_range=OrderedDict([
-                        ('batch_size_fake',
-                         [1, 1] if enable_two_optimization_profiles else [1]),
-                        ('input_len_task', num_tokens_range),
-                    ]))
-            else:
-                tasks = Tensor(
-                    name='tasks',
-                    dtype=trt.int32,
-                    shape=[-1, 1],
-                    dim_range=OrderedDict([
-                        ('batch_size_beam_width', bb_range),
-                        ('broadcast_dim',
-                         [1, 1] if enable_two_optimization_profiles else [1]),
-                    ]))
-            '''
             
             if remove_input_padding:
                 tasks = Tensor(
@@ -365,7 +352,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                         [
                             ('batch_size_fake',
                              [1, 1] if enable_two_optimization_profiles else [1]),
-                            ("input_len_task", [num_tokens_range]),
+                            ("input_len_task", [num_tokens_range, num_tokens_range]
+                             if enable_two_optimization_profiles else [num_tokens_range]),
                         ]
                     ),
                 )
@@ -376,12 +364,12 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     shape=[-1, -1],
                     dim_range=OrderedDict(
                         [
-                            ("batch_size_beam_width", [bb_range]),
-                            ("input_len_task", [inlen_range]),
+                            ("batch_size_beam_width", bb_range),
+                            ("input_len_task", [inlen_range, inlen_range]
+                             if enable_two_optimization_profiles else [inlen_range]),
                         ]
                     ),
                 )
-
             
             prompt_vocab_size = Tensor(
                 name='prompt_vocab_size',
