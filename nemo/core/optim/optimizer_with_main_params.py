@@ -347,9 +347,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                                 op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
                             )
                         else:
-                            allreduce_tensor.div_(
-                                get_data_parallel_world_size(with_context_parallel=True)
-                            )
+                            allreduce_tensor.div_(get_data_parallel_world_size(with_context_parallel=True))
                             torch.distributed.all_reduce(
                                 allreduce_tensor,
                                 group=get_data_parallel_group(with_context_parallel=True),
@@ -364,13 +362,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                             op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
                         )
                     else:
-                        main_param.grad.div_(
-                            get_data_parallel_world_size(with_context_parallel=True)
-                        )
+                        main_param.grad.div_(get_data_parallel_world_size(with_context_parallel=True))
                         torch.distributed.all_reduce(
-                            main_param.grad,
-                            group=get_data_parallel_group(with_context_parallel=True),
-                            async_op=True,
+                            main_param.grad, group=get_data_parallel_group(with_context_parallel=True), async_op=True,
                         )
 
         return param_hook
