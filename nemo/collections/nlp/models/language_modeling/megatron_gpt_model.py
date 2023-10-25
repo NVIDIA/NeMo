@@ -869,7 +869,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 forward_args.pop('loss_mask')
             (output_tensor, logits), attention_probs_list = model(**forward_args)
 
-            check_interval = 100
+            check_interval = 1500
             if self.trainer.val_check_interval is not None:
                 check_interval = self.trainer.val_check_interval
             if self.trainer.global_step % check_interval == 0 and batch['speech_mask'][0].sum() != 0 and self.should_log and (not validation_step):
