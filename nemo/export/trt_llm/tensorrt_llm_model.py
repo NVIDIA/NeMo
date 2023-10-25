@@ -318,7 +318,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             max_batch_size * max_beam_width,
             max(max_input_len * max_batch_size, max_beam_width * max_batch_size),
         ]
-        inlen_range = [1, max_input_len]
+        inlen_range = [1, 1, max_input_len]
         
         prompt_embedding_table = None
         tasks = None
@@ -344,6 +344,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 ]))
             
             if remove_input_padding:
+                print("***** remove input padding")
                 tasks = Tensor(
                     name="tasks",
                     dtype=trt.int32,
@@ -365,8 +366,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     dim_range=OrderedDict(
                         [
                             ("batch_size_beam_width", bb_range),
-                            ("input_len_task", [inlen_range, inlen_range]
-                             if enable_two_optimization_profiles else [inlen_range]),
+                            ('broadcast_dim',
+                             [1, 1] if enable_two_optimization_profiles else [1]),
                         ]
                     ),
                 )
