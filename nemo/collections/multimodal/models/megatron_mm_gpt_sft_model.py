@@ -212,6 +212,7 @@ class MegatronMMGPTSFTModel(MegatronGPTSFTModel):
                 audio_token_offset=data_cfg.get('audio_token_offset', 256003),
                 pad_audio_to_length=data_cfg.get('pad_audio_to_length', 0),
                 attn_mask_type=data_cfg.get('attn_mask_type', 'causal'),
+                task_templates=data_cfg.get('task_templates', None),
             )
             datasets.append(dataset)
 

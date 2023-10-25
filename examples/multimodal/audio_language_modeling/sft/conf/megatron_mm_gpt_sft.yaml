@@ -70,7 +70,7 @@ model:
   attention_dropout: 0.0
   ffn_dropout: 0.0
 
-  get_attention_mask_from_fusion: False
+  get_attention_mask_from_fusion: True
 
   # audio related args
   num_audio_codebooks: 8
@@ -80,6 +80,40 @@ model:
   attn_mask_type: 'causal' # Options: ['causal', 'prefix'] 
   # move it to general section once it is conformed that prefix is same as padding
 
+  # Add more/replace tasks as needed, these are just examples.
+  # if present, analogous fields below in train_ds, validation_ds, test_ds will be ignored
+  # any audio_key with 'prompt' in it will be truncated to 7 sec
+  task_templates: 
+  - taskname: "asr"
+    prompt_template: "Context: {audio_codes} Question: {question} Answer: {text}"
+    truncation_keys: "audio_codes"
+    audio_keys: "audio_codes"
+    answer_key: "text"
+
+  - taskname: "target_speaker_asr"
+    prompt_template: "Context: {audio_codes} SpeakerPrompt: {speaker_prompt} Question: {question} Answer: {text}"
+    truncation_keys: "audio_codes"
+    audio_keys: "audio_codes,speaker_prompt"
+    answer_key: "text"
+
+  - taskname: "speaker_verification"
+    prompt_template: "Context: AudioSample_1: {audio_codes1} AudioSample_2: {audio_codes2} Question: {question} Answer: {answer}"
+    truncation_keys: "audio_codes1"
+    audio_keys: "audio_codes1,audio_codes2"
+    answer_key: "answer"
+
+  - taskname: "speaker_attributed_asr"
+    prompt_template: "Context: {audio_codes1}{audio_codes2} Speaker1_Name: {speaker1_id} Speaker1_Prompt: {speaker1_prompt} Speaker2_Name: {speaker2_id} Speaker2_Prompt: {speaker2_prompt} Question: {question} Answer: {answer}"
+    truncation_keys: "audio_codes1,audio_codes2"
+    audio_keys: "audio_codes1,audio_codes2,speaker1_prompt,speaker2_prompt"
+    answer_key: "answer"
+
+  - taskname: "translation"
+    prompt_template: "Context: {context} Question: {question} Answer: {answer}"
+    truncation_keys: "context"
+    audio_keys: null
+    answer_key: "answer"
+  
   data:
     train_ds:
       # Example of how to specify paths to multiple datasets
@@ -109,10 +143,12 @@ model:
       add_eos: True
       add_sep: False
       add_bos: False
-      truncation_field: "audio_codes" # Can be multiple keys separated with ',' Options: keys in prompt_template
+      truncation_field: "audio_codes1" # Can be multiple keys separated with ',' Options: keys in prompt_template
       index_mapping_dir: null # Path to a directory to write index mapping files.
       # prompt_template: "Context: {audio_codes} Question: [ Transcribe in English ] Answer: {text}"  # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      prompt_template: "Context: {audio_codes} SpeakerPrompt: {speaker_prompt} Question: {question} Answer: {text}"  # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      # prompt_template: "Context: {audio_codes} SpeakerPrompt: {speaker_prompt} Question: {question} Answer: {text}"  # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      # prompt_template: "Context: AudioSample_1: {audio_codes1} AudioSample_2: {audio_codes2} Question: {question} Answer: {answer}"
+      prompt_template: null
       hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
       # audio related args
@@ -121,6 +157,8 @@ model:
       audio_token_offset: ${model.audio_token_offset}
       pad_audio_to_length: ${model.pad_audio_to_length}
       attn_mask_type: ${model.attn_mask_type}
+      # multi-task related args
+      task_templates: ${model.task_templates}
 
 
     validation_ds:
@@ -153,6 +191,8 @@ model:
       audio_token_offset: ${model.audio_token_offset}
       pad_audio_to_length: ${model.pad_audio_to_length}
       attn_mask_type: ${model.attn_mask_type}
+      # multi-task related args
+      task_templates: ${model.task_templates}
 
       metric:
         name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
@@ -189,7 +229,9 @@ model:
       audio_token_offset: ${model.audio_token_offset}
       pad_audio_to_length: ${model.pad_audio_to_length}
       attn_mask_type: ${model.attn_mask_type}
-      
+      # multi-task related args
+      task_templates: ${model.task_templates}
+
       metric:
         name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.

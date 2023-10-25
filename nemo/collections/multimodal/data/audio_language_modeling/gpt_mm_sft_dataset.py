@@ -58,10 +58,15 @@ class MMGPTSFTDataset(GPTSFTDataset):
         audio_token_offset: int = 256003,
         pad_audio_to_length: int = 0,
         attn_mask_type: str = 'causal',
+        task_templates: List[dict] = None,
     ):
         """
         see GPTSFTDataset for description of non-audio args
         """
+        # one of prompt_template or task_templates should be provided
+        # but not both
+        assert (prompt_template is None) != (task_templates is None), "either prompt_template or task_templates should be provided"
+        
         super().__init__(
             file_path=file_path,
             tokenizer=tokenizer,
@@ -92,7 +97,65 @@ class MMGPTSFTDataset(GPTSFTDataset):
         self.pad_audio_to_length = pad_audio_to_length
         self.attn_mask_type = attn_mask_type
 
+        if task_templates is not None:
+            self._load_task_templates(task_templates)
+            self.prompt_template = None
+            self.prompt_template_keys = None
 
+    
+    def _maybe_validate_prompt_template(self):
+        if self.prompt_template is not None:
+            # call parent class method
+            super()._maybe_validate_prompt_template()
+            
+    
+    def _load_task_templates(self, task_templates):
+        """
+        Takes in the task template portion of the config and turns  
+        it into a table
+        """
+        
+        def _get_prompt_template_keys(prompt_template):
+            # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
+            prompt_template = prompt_template.encode('utf-8').decode('unicode_escape')
+            prompt_template_keys = re.findall(r'{(.*?)}', prompt_template)
+            return prompt_template_keys
+        
+        def _validate_task_template(task):
+            # validate a single task
+            assert (
+                task.prompt_template is not None
+            ), f"prompt_template is required for task {task.taskname}"
+
+            answer_placeholder = f'{{{task.answer_key}}}'
+            assert (
+                task.prompt_template[-len(answer_placeholder) :] == answer_placeholder
+            ), f'{answer_placeholder} must be at the end of prompt_template for task {task.taskname}'
+
+            truncation_keys = task.truncation_keys.split(",") if task.truncation_keys is not None else []
+            assert set(truncation_keys).issubset(
+                _get_prompt_template_keys(task.prompt_template)
+            ), f"truncation_keys should be subset of prompt_template_keys for task {task.taskname}"
+        
+        
+        self.task_templates = {}
+        self.task_id_num_to_name = {}
+        task_id_num = 0
+        for task in task_templates:
+            # validate
+            _validate_task_template(task)
+
+            self.task_templates[task.taskname] = {
+                "prompt_template": task.prompt_template,
+                "prompt_template_keys": _get_prompt_template_keys(task.prompt_template),
+                "answer_key": task.get("answer_key", None),
+                "truncation_keys": task.truncation_keys.split(",") if task.truncation_keys is not None else [],
+                "audio_keys" : task.audio_keys.split(",") if task.audio_keys is not None else [],
+                "task_id_num": task_id_num,
+            }
+            self.task_id_num_to_name[task_id_num] = task.taskname
+            task_id_num += 1
+    
     # @kpuvvada: this is deprecated; not used - remove
     def _audio_codes_to_text(self, audio_codes):
         """
@@ -285,7 +348,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
         pad_location = 'end' # pad at beginning or end, hardcoded for now
         pad_to_length = self.pad_audio_to_length
         pad_id = self.tokenizer.eos_id if pad_location=='end' else self.tokenizer.pad_id
-        truncate_to_length = 7*75 if field_name=='speaker_prompt' else 0
+        truncate_to_length = 7*75 if 'prompt' in field_name else 0   # hardcoded for now
 
         # Insert audio codes
         if field_name in template_strings_keys:
@@ -305,6 +368,108 @@ class MMGPTSFTDataset(GPTSFTDataset):
         return template_ids
 
 
+    def _separate_template(self, prompt_template_values: List[str], prompt_template_keys: List[str], prompt_template: str):
+        """
+        Combine contexts and label based on prompt_template into a list of strings and a list of keys.
+
+        Args:
+            prompt_template_values (List[str]): the list of context and label strings extrated from jsonl file with prompt_template_keys.
+
+        Returns:
+            template_strings (List[str]): separated prompt_template with contexts/label placeholder filled with corresponding strings
+            template_strings_keys (List[str]): strings point to placeholder keys or <template>
+            
+        Examples:
+            see __super__._separate_template
+        """
+        placeholders = [f'{{{k}}}' for k in prompt_template_keys]
+
+        # placeholder to string
+        ph_to_s = {ph: s for ph, s in zip(placeholders, prompt_template_values)}
+        # placeholder to key
+        ph_to_k = {ph: k for ph, k in zip(placeholders, prompt_template_keys)}
+
+        # separate prompt_template based on '<space>{placeholder}'
+        # examples:
+        #   self.prompt_template = "Context:{context}  Passage: {passage}\n\nQuestion:{question} {label}"
+        #   template_with_placeholder_separated = ['Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}']
+        template_with_placeholder_separated = re.split('( *?{.+?})', prompt_template)
+        template_with_placeholder_separated = [s for s in template_with_placeholder_separated if len(s) > 0]
+
+        # remove space if we have leading space and tokenizer is not space_sensitive
+        # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B')
+        # space_sensitive = False: tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces-1}B')
+        space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
+        template_with_space_reduced = [
+            s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated
+        ]
+
+        # convert placeholder to the corresponding string (preserve left spaces) and key
+        template_strings, template_strings_keys = [], []
+        for t in template_with_space_reduced:
+            placeholder = t.lstrip(' ')
+            left_spaces = ' ' * (len(t) - len(placeholder))
+            template_strings.append(left_spaces + ph_to_s.get(placeholder, placeholder))
+            template_strings_keys.append(ph_to_k.get(placeholder, '<template>'))
+
+        return template_strings, template_strings_keys
+    
+
+    def _multiple_truncation(self, template_ids: List[List[int]], template_ids_keys: List[str], truncation_fields: List[str]):
+        """
+        Calculate total tokens and truncate multiple contexts in truncation_fields.
+        
+        Args:
+            template_ids (List[List[int]]): the list of separate prompt_template ids.
+            template_ids_keys (List[str]): the list of placeholder keys or <template> (used to check key in truncation_fields).
+
+        Returns:
+            context_ids (List[int]): all context ids.
+            label_ids (List[int]): all label ids.
+        """
+        context_ids = template_ids[:-1]
+        label_ids = template_ids[-1]
+        total_ids = (
+            self.virtual_tokens
+            + sum(len(ids) for ids in context_ids)
+            + max(len(label_ids), self.tokens_to_generate)
+            + self.add_bos
+            + self.add_sep
+            + self.add_eos  # Only training need to consider eos token
+        )
+
+        if total_ids > self.max_seq_length:
+            truncation_length_total = total_ids - self.max_seq_length
+            num_fields = len(truncation_fields)
+            # sorted equal divide length to each field
+            # examples:
+            #   truncation_length_total = 3
+            #   num_fields = 11
+            #   truncation_length_list = [3,4,4]
+            truncation_length_list = [
+                truncation_length_total // num_fields + (1 if i < truncation_length_total % num_fields else 0)
+                for i in range(num_fields)[::-1]
+            ]
+
+            for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
+                if key in truncation_fields:
+                    truncation_length = truncation_length_list.pop()
+                    assert len(ids) >= truncation_length, f'{key} is not long enough to truncate.'
+                    if self.truncation_method == 'left':
+                        window_offset = truncation_length
+                    elif self.truncation_method == 'right':
+                        window_offset = 0
+                    else:
+                        raise ValueError(f'{self.truncation_method} is not supported')
+
+                    window_length = len(ids) - truncation_length
+                    template_ids[i] = ids[window_offset : window_offset + window_length]
+
+        context_ids = [i for ids in template_ids[:-1] for i in ids]
+        label_ids = template_ids[-1]
+        return context_ids, label_ids
+    
+    
     def _process_example(self, example):
         """
         Overriding the _process_example method from GPTSFTDataset to handle audio inputs
@@ -313,19 +478,46 @@ class MMGPTSFTDataset(GPTSFTDataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        # prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
-        # following is a hack to make it work for prompt_template_keys not in examples
-        not_in_example_value = 'notInExample1234'
-        prompt_template_values = [example.get(c, not_in_example_value).strip(' ') for c in self.prompt_template_keys]
+        # currently keeping both prompt_template and task_templates
+        # deprecate prompt_template later
+        if self.task_templates is not None:
+            taskname = example.get('taskname', None)
+            assert (
+                taskname is not None
+            ), f"taskname is missing for example {example}"
 
-        template_strings, template_strings_keys = self._separate_template(prompt_template_values)
-        template_strings, template_strings_keys = self._filter_template_strings_and_keys(template_strings, template_strings_keys, not_in_example_value)
+            prompt_template = self.task_templates[taskname]['prompt_template']
+            prompt_template_keys = self.task_templates[taskname]['prompt_template_keys']
+            audio_keys = self.task_templates[taskname]['audio_keys']
+            truncation_keys = self.task_templates[taskname]['truncation_keys']
+        
+        else: # prompt_template is not None
+            prompt_template = self.prompt_template
+            prompt_template_keys = self.prompt_template_keys
+            audio_keys = ['audio_codes', 'speaker_prompt', 'audio_codes1', 'audio_codes2']   # hardcoded for now
+            truncation_keys = self.truncation_fields
+
+        prompt_template_values = [example[c].strip(' ') for c in prompt_template_keys]
+        
+        # following is a hack to make it work for prompt_template_keys not in examples
+        # not_in_example_value = 'notInExample1234'
+        # prompt_template_values = [example.get(c, not_in_example_value).strip(' ') for c in self.prompt_template_keys]
+        # hack is not needed any more since we are using task_templates
+
+        template_strings, template_strings_keys = self._separate_template(prompt_template_values, prompt_template_keys, prompt_template)
+        
+        # not needed as we are using task_templates
+        # template_strings, template_strings_keys = self._filter_template_strings_and_keys(template_strings, template_strings_keys, not_in_example_value)
         
         template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
         
         # Insert audio codes
-        template_ids = self._swap_template_ids_for_audio(template_ids, template_strings_keys, example, field_name='audio_codes')
-        template_ids = self._swap_template_ids_for_audio(template_ids, template_strings_keys, example, field_name='speaker_prompt')
+        for key in audio_keys:
+            template_ids = self._swap_template_ids_for_audio(template_ids, template_strings_keys, example, field_name=key)
+        # template_ids = self._swap_template_ids_for_audio(template_ids, template_strings_keys, example, field_name='audio_codes')
+        # template_ids = self._swap_template_ids_for_audio(template_ids, template_strings_keys, example, field_name='speaker_prompt')
+        # template_ids = self._swap_template_ids_for_audio(template_ids, template_strings_keys, example, field_name='audio_codes1')
+        # template_ids = self._swap_template_ids_for_audio(template_ids, template_strings_keys, example, field_name='audio_codes2')
         
         """ moved to _swap_template_ids_for_audio
         pad_location = 'end' # pad at beginning or end, hardcoded for now
@@ -346,7 +538,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
         # pad all entries to same dimension
         template_ids = self._pad_all_to_same_dims(template_ids, pad_id=self.tokenizer.pad_id)
         
-        context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
+        context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys, truncation_fields=truncation_keys)
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
@@ -379,7 +571,7 @@ class MMGPTSFTDataset(GPTSFTDataset):
             input_ids = input_ids[: self.max_seq_length]
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
-        metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
+        metadata = {k: v for k, v in example.items() if k not in prompt_template_keys}
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
