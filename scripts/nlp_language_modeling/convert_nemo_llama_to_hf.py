@@ -1,3 +1,29 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+from argparse import ArgumentParser
+from collections import OrderedDict
+
+import torch
+from pytorch_lightning import Trainer
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
+
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.core.config import hydra_runner
+
 """
     This script will generate a .bin file which can be converted back to hf format using the below code.
     import torch
@@ -18,45 +44,11 @@
         2. is tested on 7B and 13B model only; 70B (GQA) support will be added soon.
 """
 
-import os
-from collections import OrderedDict
-
-import torch
-from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.core.config import hydra_runner
-
 
 @hydra_runner(config_path="conf", config_name="config_llama_truncate")
 def main(cfg) -> None:
-    plugins = []
-
-    if cfg.get('cluster_type', None) == 'BCP':
-        plugins.append(TorchElasticEnvironment())
-
-    trainer = None
-    if cfg.trainer.precision == 16:
-        trainer = Trainer(
-            plugins=[
-                NLPMixedPrecisionPlugin(
-                    init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-                    growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-                ),
-            ],
-            strategy=NLPDDPStrategy(),
-            **cfg.trainer,
-        )
-    elif cfg.trainer.precision == 'bf16':
-        trainer = Trainer(plugins=plugins, strategy=NLPDDPStrategy(), **cfg.trainer,)
-    else:
-        trainer = Trainer(plugins=[NLPPrecisionPlugin()], strategy=NLPDDPStrategy(), **cfg.trainer)
-
-    model = MegatronGPTModel.restore_from(
-        cfg.restore_from_path, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
-    )
+    dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
+    model = MegatronGPTModel.restore_from(cfg.restore_from_path, trainer=dummy_trainer)
 
     param_to_weights = lambda param: param.float()
     checkpoint = OrderedDict()
@@ -109,8 +101,6 @@ def main(cfg) -> None:
 
         # mlp
         mlp_weights = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1.weight']
-        mlp_down_proj_weight = torch.empty(ffn_hidden_size, hidden_size)
-        mlp_gate_proj_weight = torch.empty(ffn_hidden_size, hidden_size)
         mlp_down_proj_weight = mlp_weights[:ffn_hidden_size, :]
         mlp_gate_proj_weight = mlp_weights[ffn_hidden_size:, :]
 
@@ -144,6 +134,7 @@ def main(cfg) -> None:
     checkpoint['state_dict'][output_layer_base_name] = param_to_weights(output_layer_weight)
 
     output_path = cfg.output_bin_path
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     torch.save(checkpoint, output_path)
 
 
