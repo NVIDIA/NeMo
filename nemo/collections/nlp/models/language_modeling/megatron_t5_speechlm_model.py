@@ -1014,23 +1014,21 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     output_logits_currtimestep = token_logits_currtimestep  # (B, V)
 
                 top_k = self.cfg.get('top_k', 10)
-                output_logits_currtimestep_topk = torch.topk(output_logits_currtimestep, top_k, dim=1)[
-                    0
-                ]  # (B*8, 10) or (B, 10)
-                # find indices which are not top k
-                output_indices_to_remove = output_logits_currtimestep < output_logits_currtimestep_topk[
-                    :, -1
-                ].unsqueeze(
-                    1
-                )  # (B*8, 1024) or (B, 1024)
+                
+                output_logits_currtimestep_topk = torch.topk(output_logits_currtimestep, top_k, dim=1)[0]
+                # (B*8, 10) or (B, 10)
 
-                output_tokens_curr_timestep = output_logits_currtimestep.clone()
-                output_tokens_curr_timestep[output_indices_to_remove] = -float('Inf')
+                # find indices which are not top k
+                indices_to_remove = output_logits_currtimestep < output_logits_currtimestep_topk[:, -1].unsqueeze(1)
+                # (B*8, 1024) or (B, 1024)
+
+                output_logits_currtimestep_rescored = output_logits_currtimestep.clone()
+                output_logits_currtimestep_rescored[indices_to_remove] = -float('Inf')
 
                 temperature = self.cfg.get('temperature', 0.7)  # Set temp 0.01 for greedy decoding
-                output_logits_currtimestep = output_logits_currtimestep / temperature
-                output_logits_currtimestep = torch.nn.functional.softmax(output_logits_currtimestep, dim=1)
-                output_tokens_curr_timestep = torch.multinomial(output_logits_currtimestep, num_samples=1)  # (B*8, 1)
+                output_logits_currtimestep_rescored = output_logits_currtimestep_rescored / temperature
+                output_logits_currtimestep_rescored = torch.nn.functional.softmax(output_logits_currtimestep_rescored, dim=1)
+                output_tokens_curr_timestep = torch.multinomial(output_logits_currtimestep_rescored, num_samples=1)  # (B*8, 1)
 
                 if torch.count_nonzero(speech_mask) > 0:
                     # Convert back to (B, 8)
