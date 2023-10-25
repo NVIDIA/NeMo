@@ -614,7 +614,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         inference_config = self.get_inference_config()
         # need to overwrite some configuration, make it immutable
         inference_config = inference_config.copy()
-        global_batch_size_per_gpu = batch['tokens'].size(0)
+        global_batch_size_per_gpu = len(batch) if isinstance(batch, list) else batch['tokens'].size(0) 
         num_micro_batches_before_decode = get_num_microbatches()
 
         compute_logprob = inference_config.get('compute_logprob', False)
