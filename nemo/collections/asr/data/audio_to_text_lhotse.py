@@ -63,12 +63,12 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.cut_transforms = [PerturbSpeed(factors=[0.9, 1.1], p=2 / 3)]  # can add others later
 
-    def __call__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
+    def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
         cuts = cuts.sort_by_duration()
         for t in self.cut_transforms:
             cuts = t(cuts)
         audio, audio_lens, cuts = self.load_audio(cuts)
-        tokens, token_lens = collate_vectors(
-            [torch.as_tensor(self.tokenizer.text_to_ids(c.supervisions[0].text)) for c in cuts], padding_value=0
-        )
+        tokens = [torch.as_tensor(self.tokenizer.text_to_ids(c.supervisions[0].text)) for c in cuts]
+        token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
+        tokens = collate_vectors(tokens, padding_value=0)
         return audio, audio_lens, tokens, token_lens

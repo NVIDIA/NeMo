@@ -128,7 +128,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
-        if config.use_lhotse:
+        if config.get("use_lhotse"):
             from nemo.collections.asr.data.audio_to_text_lhotse import (
                 get_lhotse_audio_to_text_char_dataloader_from_config,
             )
