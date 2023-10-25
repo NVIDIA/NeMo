@@ -14,6 +14,7 @@
 import copy
 import itertools
 import random
+import soundfile as sf
 from collections import Counter
 from math import ceil
 from typing import Dict, List, Optional, Union
@@ -446,7 +447,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             emb: speaker embeddings (Audio representations)
             logits: logits corresponding of final layer
         """
-        audio, sr = librosa.load(path2audio_file, sr=None)
+        audio, sr = sf.read(path2audio_file)
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
         if sr != target_sr:
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
@@ -508,7 +509,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         Returns:
             label: label corresponding to the trained model
         """
-        audio, sr = librosa.load(path2audio_file, sr=None)
+        audio, sr = sf.read(path2audio_file)
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
         if sr != target_sr:
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
