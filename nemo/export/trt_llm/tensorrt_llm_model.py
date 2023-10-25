@@ -308,7 +308,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             max_batch_size * max_beam_width
         ]
         if enable_two_optimization_profiles:
-            bb_range = [bb_range_cxt, bb_range_g]
+            bb_range = [bb_range_cxt, bb_range_gen]
         else:
             bb_range = [bb_range_gen]
 
