@@ -1014,7 +1014,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     output_logits_currtimestep = token_logits_currtimestep  # (B, V)
 
                 top_k = self.cfg.get('top_k', 10)
-                
+
                 output_logits_currtimestep_topk = torch.topk(output_logits_currtimestep, top_k, dim=1)[0]
                 # (B*8, 10) or (B, 10)
 
@@ -1027,8 +1027,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                 temperature = self.cfg.get('temperature', 0.7)  # Set temp 0.01 for greedy decoding
                 output_logits_currtimestep_rescored = output_logits_currtimestep_rescored / temperature
-                output_logits_currtimestep_rescored = torch.nn.functional.softmax(output_logits_currtimestep_rescored, dim=1)
-                output_tokens_curr_timestep = torch.multinomial(output_logits_currtimestep_rescored, num_samples=1)  # (B*8, 1)
+                output_logits_currtimestep_rescored = torch.nn.functional.softmax(
+                    output_logits_currtimestep_rescored, dim=1
+                )
+                output_tokens_curr_timestep = torch.multinomial(
+                    output_logits_currtimestep_rescored, num_samples=1
+                )  # (B*8, 1)
 
                 if torch.count_nonzero(speech_mask) > 0:
                     # Convert back to (B, 8)
