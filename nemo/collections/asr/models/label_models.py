@@ -484,7 +484,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         device = self.device
         audio = np.array([segment])
         audio_signal, audio_signal_len = (
-            torch.tensor(audio, device=device),
+            torch.tensor(audio, device=device, dtype=torch.float32),
             torch.tensor([segment_length], device=device),
         )
         mode = self.training
