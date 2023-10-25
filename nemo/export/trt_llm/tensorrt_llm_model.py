@@ -278,28 +278,13 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         @return: a list contains values which can be fed into the self.forward()
         """
         # Prepare inputs
+
+        enable_two_optimization_profiles = True
+
         head_size = self._hidden_size // self._num_heads
         num_heads_kv = (self._num_kv_heads + self._tensor_parallel - 1) // self._tensor_parallel
         remove_input_padding = default_net().plugin_config.remove_input_padding
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
-
-        '''
-        model_inputs = self.prepare_basic_inputs(
-            max_batch_size=max_batch_size,
-            max_beam_width=max_beam_width,
-            max_input_len=max_input_len,
-            max_new_tokens=max_new_tokens,
-            num_kv_heads=num_heads_kv,
-            head_size=head_size,
-            num_layers=self._num_layers,
-            kv_dtype=self._kv_dtype,
-            remove_input_padding=remove_input_padding,
-            use_gpt_attention_plugin=use_gpt_attention_plugin,
-            paged_kv_cache=paged_kv_cache,
-            tokens_per_block=tokens_per_block,
-            prompt_embedding_table_size=prompt_embedding_table_size,
-        )
-        '''
 
         model_inputs = self.prepare_basic_inputs(
             max_batch_size,
@@ -315,8 +300,17 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             paged_kv_cache=paged_kv_cache,
             tokens_per_block=tokens_per_block,
         )
+    
+        bb_range_cxt = [1, (max_batch_size + 1) // 2, max_batch_size]
+        bb_range_gen = [
+            1, (max_batch_size * max_beam_width + 1) // 2,
+            max_batch_size * max_beam_width
+        ]
+        if enable_two_optimization_profiles:
+            bb_range = [bb_range_cxt, bb_range_gen]
+        else:
+            bb_range = [bb_range_gen]
 
-        bb_range = [1, (max_batch_size * max_beam_width + 1) // 2, max_batch_size * max_beam_width]
         p_embedding_range = [1, prompt_embedding_table_size // 2, prompt_embedding_table_size]
         num_tokens_range = [
             1,
@@ -324,23 +318,30 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             max(max_input_len * max_batch_size, max_beam_width * max_batch_size),
         ]
         inlen_range = [1, 1, max_input_len]
-        bs_range = [1, (max_batch_size + 1) // 2, max_batch_size]
-
+        
         prompt_embedding_table = None
         tasks = None
         prompt_vocab_size = None
         if self._use_prompt_tuning:
+            assert prompt_embedding_table_size is not None, "prompt_embedding_table_size cannot be None when self._use_prompt_tuning is True"
+            _p_embedding_range = [
+                1, prompt_embedding_table_size // 2, prompt_embedding_table_size
+            ]
+            if enable_two_optimization_profiles:
+                p_embedding_range = [_p_embedding_range, _p_embedding_range]
+            else:
+                p_embedding_range = [_p_embedding_range]
+
             prompt_embedding_table = Tensor(
-                name="prompt_embedding_table",
+                name='prompt_embedding_table',
                 dtype=self._dtype,
                 shape=[-1, self._hidden_size],
-                dim_range=OrderedDict(
-                    [
-                        ("prompt_embedding_table_size", [p_embedding_range]),
-                        ("hidden_size", [self._hidden_size]),
-                    ]
-                ),
-            )
+                dim_range=OrderedDict([
+                    ('prompt_embedding_table_size', p_embedding_range),
+                    ('hidden_size', [self._hidden_size, self._hidden_size]
+                     if enable_two_optimization_profiles else [self._hidden_size]),
+                ]))
+            
             if remove_input_padding:
                 tasks = Tensor(
                     name="tasks",
@@ -348,8 +349,10 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     shape=[1, -1],
                     dim_range=OrderedDict(
                         [
-                            ("batch_size_fake", [1]),
-                            ("input_len_task", [num_tokens_range]),
+                            ('batch_size_fake',
+                             [1, 1] if enable_two_optimization_profiles else [1]),
+                            ("input_len_task", [num_tokens_range, num_tokens_range]
+                             if enable_two_optimization_profiles else [num_tokens_range]),
                         ]
                     ),
                 )
@@ -360,17 +363,22 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     shape=[-1, -1],
                     dim_range=OrderedDict(
                         [
-                            ("batch_size_beam_width", [bb_range]),
-                            ("input_len_task", [inlen_range]),
+                            ("batch_size_beam_width", bb_range),
+                            ('broadcast_dim',
+                             [1, 1] if enable_two_optimization_profiles else [1]),
                         ]
                     ),
                 )
+            
             prompt_vocab_size = Tensor(
-                name="prompt_vocab_size",
+                name='prompt_vocab_size',
                 dtype=trt.int32,
                 shape=[1],
-                dim_range=OrderedDict([("size", [1])]),
-            )
+                dim_range=OrderedDict([
+                    ('size',
+                     [1, 1] if enable_two_optimization_profiles else [1])
+                ]))
+
 
         # todo: we should remove this, but hesitant since no explicit argument names below.
         inflight_batching_args = None
