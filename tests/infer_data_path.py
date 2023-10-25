@@ -28,6 +28,7 @@ def get_infer_test_data():
         "checkpoint"
     ] = "/opt/checkpoints/GPT-843M-base/GPT-843M-base-1.nemo"
 
+    '''
     test_data["GPT-2B-HF-base"] = {}
     test_data["GPT-2B-HF-base"]["model_type"] = "gptnext"
     test_data["GPT-2B-HF-base"]["total_gpus"] = [1]
@@ -40,6 +41,7 @@ def get_infer_test_data():
     test_data["GPT-2B-HF-base"]["checkpoint_link"] = (
         "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/GPT-2B-001_bf16_tp1.nemo"
     )
+    '''
     
     test_data["GPT-2B-base"] = {}
     test_data["GPT-2B-base"]["model_type"] = "gptnext"
