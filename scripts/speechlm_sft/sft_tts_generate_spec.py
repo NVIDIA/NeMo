@@ -12,7 +12,7 @@ from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
 manifest_file = "squadv2_train_not_normalized.json"
 output_dir = f"./features_{manifest_file}"
 normalize_type = "per_feature"
-do_normalize = False
+do_normalize = True
 do_lowercase = False
 use_enhancer = False  # TODO: fix it. It has a bug!
 
@@ -21,7 +21,7 @@ def generate_spec(tts_model, text, normalizer=None, do_lowercase=False, enhancer
     if normalizer:
         text = normalize(text=text, normalizer=normalizer, do_lowercase=do_lowercase)
 
-    src_ids = tts_model.vocab.encode(text)
+    src_ids = tts_model.parser(text)  # alternative tts_model.vocab.encode(text)
     src_ids = torch.tensor([src_ids]).to(tts_model.device)
 
     with torch.no_grad():

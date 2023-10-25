@@ -8,12 +8,12 @@ random.seed(1402)
 
 dataset_name = "msmarco"
 split_name = "train"
-output_file = f"{dataset_name}_{split_name}_normalized.json"
+output_file = f"{dataset_name}_{split_name}_not_normalized.json"
 MSG_NOT_FOUND_ANSWER = "I could not find the answer in the audio."
 
 do_shuffle = False
 use_wellformed_answer = True
-do_normalize = True
+do_normalize = False
 do_lowercase = False
 
 
