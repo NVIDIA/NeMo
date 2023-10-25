@@ -318,7 +318,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             max_batch_size * max_beam_width,
             max(max_input_len * max_batch_size, max_beam_width * max_batch_size),
         ]
-        inlen_range = [1, 1, max_input_len]
+        inlen_range = [1, max_input_len]
         
         prompt_embedding_table = None
         tasks = None
