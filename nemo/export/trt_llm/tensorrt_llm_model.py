@@ -309,7 +309,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         bs_range = [1, (max_batch_size + 1) // 2, max_batch_size]
 
 
-        enable_two_optimization_profiles = False
+        enable_two_optimization_profiles = True
         prompt_embedding_table = None
         tasks = None
         prompt_vocab_size = None
@@ -363,7 +363,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     shape=[1, -1],
                     dim_range=OrderedDict(
                         [
-                            ("batch_size_fake", [1]),
+                            ('batch_size_fake',
+                             [1, 1] if enable_two_optimization_profiles else [1]),
                             ("input_len_task", [num_tokens_range]),
                         ]
                     ),
