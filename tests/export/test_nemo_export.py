@@ -33,44 +33,68 @@ class TestNemoExport:
                 )
 
             print(
-                "Path: {0} and model: {1} is next ...".format(
+                "Path: {0} and model: {1} is next and test will start if the nemo checkpoint exists ...".format(
                     model_info["checkpoint"], model_name
                 )
             )
             if Path(model_info["checkpoint"]).exists():
                 for n_gpu in model_info["total_gpus"]:
+                    Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
+
                     print(
                         "Path: {0} and model: {1} with {2} gpus will be tested".format(
                             model_info["checkpoint"], model_name, n_gpu
                         )
                     )
-                    Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
-
-                    prompt_embeddings_checkpoint_path = None
-                    if "p_tuning_checkpoint" in model_info.keys() and n_gpu == 1:
-                        if Path(model_info["p_tuning_checkpoint"]).exists():
-                            prompt_embeddings_checkpoint_path = model_info["p_tuning_checkpoint"]
-
                     trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-
                     trt_llm_exporter.export(
                         nemo_checkpoint_path=model_info["checkpoint"],
                         model_type=model_info["model_type"],
                         n_gpus=n_gpu,
-                        prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
                     )
                     output = trt_llm_exporter.forward(
                         input_texts=["Hi, how are you?", "I am good, thanks, how about you?"],
-                        max_output_token=200,
+                        max_output_token=128,
+                        top_k=1,
+                        top_p=0.2,
+                        temperature=0.4,
                     )
-                    print("output 1: ", output)
+                    print("output after export: ", output)
 
-                    trt_llm_exporter2 = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-                    output = trt_llm_exporter2.forward(
+                    print("Testintg loading the exported model ...")
+                    trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
+                    output = trt_llm_exporter.forward(
                         input_texts=["Let's see how this works", "Did you get the result yet?"],
                         max_output_token = 200,
+                        top_k=1,
+                        top_p=0.4,
+                        temperature=0.8,
                     )
-                    print("output 2: ", output)
+                    print("output after just loading: ", output)
+
+                    if "p_tuning_checkpoint" in model_info.keys():
+                        if Path(model_info["p_tuning_checkpoint"]).exists():
+                            print(
+                                "Path: {0} and model: {1} with {2} gpus will be tested with PTuning checkpoint {3}".format(
+                                    model_info["checkpoint"], model_name, n_gpu, model_info["p_tuning_checkpoint"]
+                                )
+                            )
+
+                            trt_llm_exporter.export(
+                                nemo_checkpoint_path=model_info["checkpoint"],
+                                model_type=model_info["model_type"],
+                                n_gpus=n_gpu,
+                                prompt_embeddings_checkpoint_path=model_info["p_tuning_checkpoint"],
+                            )
+                            output = trt_llm_exporter.forward(
+                                input_texts=["Let's see how this works", "Did you get the result yet with ptuning as well?"],
+                                max_output_token = 50,
+                                top_k=1,
+                                top_p=0.3,
+                                temperature=0.5,
+                            )
+                            print("output with export using ptuning: ", output)
+
 
                 test_at_least_one = True
 
