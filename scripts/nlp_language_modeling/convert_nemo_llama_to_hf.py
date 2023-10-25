@@ -18,11 +18,9 @@ from collections import OrderedDict
 
 import torch
 from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.core.config import hydra_runner
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 """
     This script will generate a .bin file which can be converted back to hf format using the below code.
@@ -44,20 +42,36 @@ from nemo.core.config import hydra_runner
         2. is tested on 7B and 13B model only; 70B (GQA) support will be added soon.
 """
 
+def get_args():
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--in-file", type=str, default=None, required=True, help="Path to .nemo file",
+    )
+    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to HF .bin file")
+    args = parser.parse_args()
+    return args
 
-@hydra_runner(config_path="conf", config_name="config_llama_truncate")
-def main(cfg) -> None:
+def convert(input_nemo_file, output_hf_file, cpu_only=False) -> None:
+    """
+    Convert NeMo weights to HF weights
+    """
     dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
-    model = MegatronGPTModel.restore_from(cfg.restore_from_path, trainer=dummy_trainer)
+    map_location = torch.device('cpu') if cpu_only else None
+    model_config = MegatronGPTModel.restore_from(
+        input_nemo_file, trainer=dummy_trainer, return_config=True, map_location=map_location
+    )
+    model = MegatronGPTModel.restore_from(
+        input_nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
+    )
 
-    param_to_weights = lambda param: param.float()
+    param_to_weights = lambda param: param  # param.float()
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
 
-    hidden_size = cfg.model.hidden_size
-    head_num = cfg.model.num_attention_heads
-    num_layers = cfg.model.num_layers
-    ffn_hidden_size = cfg.model.ffn_hidden_size
+    hidden_size = model_config.hidden_size
+    head_num = model_config.num_attention_heads
+    num_layers = model_config.num_layers
+    ffn_hidden_size = model_config.ffn_hidden_size
     head_size = hidden_size // head_num
 
     # Embedding
@@ -133,10 +147,13 @@ def main(cfg) -> None:
     output_layer_base_name = f'lm_head.weight'
     checkpoint['state_dict'][output_layer_base_name] = param_to_weights(output_layer_weight)
 
-    output_path = cfg.output_bin_path
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    torch.save(checkpoint, output_path)
+    os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
+    torch.save(checkpoint, output_hf_file)
 
 
 if __name__ == '__main__':
-    main()
+    args = get_args()
+    input_nemo_file = args.in_file
+    output_hf_file = args.out_file
+    convert(input_nemo_file, output_hf_file)
+
