@@ -42,6 +42,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
         2. is tested on 7B and 13B model only; 70B (GQA) support will be added soon.
 """
 
+
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
@@ -50,6 +51,7 @@ def get_args():
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to HF .bin file")
     args = parser.parse_args()
     return args
+
 
 def convert(input_nemo_file, output_hf_file, cpu_only=False) -> None:
     """
@@ -156,4 +158,3 @@ if __name__ == '__main__':
     input_nemo_file = args.in_file
     output_hf_file = args.out_file
     convert(input_nemo_file, output_hf_file)
-
