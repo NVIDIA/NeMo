@@ -300,7 +300,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             paged_kv_cache=paged_kv_cache,
             tokens_per_block=tokens_per_block,
         )
-
     
         bb_range_cxt = [1, (max_batch_size + 1) // 2, max_batch_size]
         bb_range_gen = [
@@ -344,7 +343,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 ]))
             
             if remove_input_padding:
-                print("***** remove input padding")
                 tasks = Tensor(
                     name="tasks",
                     dtype=trt.int32,
