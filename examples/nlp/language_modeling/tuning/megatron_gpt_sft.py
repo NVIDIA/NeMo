@@ -80,6 +80,12 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         if cfg.model.get('seq_len_interpolation_factor', None) is not None:
             gpt_cfg.seq_len_interpolation_factor = cfg.model.seq_len_interpolation_factor
 
+        if cfg.model.get('rotary_base_len', None) is not None:
+            gpt_cfg.rotary_base_len = cfg.model.rotary_base_len
+
+        if cfg.model.get('rope_only_interpolate_decoding', None) is not None:
+            gpt_cfg.rope_only_interpolate_decoding = cfg.model.rope_only_interpolate_decoding
+
         if cfg.model.get('window_size', None) is not None:
             gpt_cfg.window_size = cfg.model.window_size
 

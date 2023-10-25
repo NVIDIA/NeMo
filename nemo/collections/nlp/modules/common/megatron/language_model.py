@@ -104,6 +104,8 @@ def get_language_model(
     attention_type='multihead',
     share_embeddings_and_output_weights=True,
     rotary_percentage=1.0,
+    rotary_base_len=4096,
+    rope_only_interpolate_decoding=False,
     multi_query_attention=False,
     bias_dropout_add_fusion=True,
     bias=True,
@@ -177,6 +179,8 @@ def get_language_model(
         bias_dropout_add_fusion=bias_dropout_add_fusion,
         bias=bias,
         rotary_percentage=rotary_percentage,
+        rotary_base_len=rotary_base_len,
+        rope_only_interpolate_decoding=rope_only_interpolate_decoding,
         share_embeddings_and_output_weights=share_embeddings_and_output_weights,
         masked_softmax_fusion=masked_softmax_fusion,
         activation=activation,
@@ -485,6 +489,8 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         normalize_attention_scores=True,
         position_embedding_type='learned_absolute',
         rotary_percentage=1.0,
+        rotary_base_len=4096,
+        rope_only_interpolate_decoding=False,
         multi_query_attention=False,
         share_embeddings_and_output_weights=True,
         persist_layer_norm=False,
@@ -533,6 +539,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
         self.window_size = window_size
         self.limited_context_decoding = limited_context_decoding
+        self.rope_only_interpolate_decoding = rope_only_interpolate_decoding
 
         if self.window_size is not None:
             assert use_flash_attention == True, 'window_size is only supported with Flash Attention'
@@ -567,7 +574,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             self.rotary_pos_emb = RotaryEmbedding(
                 rotary_dim,
                 seq_len_interpolation_factor=seq_len_interpolation_factor,
-                pretrained_max_position_embeddings=max_position_embeddings,
+                base_len=rotary_base_len,
             )
 
         elif position_embedding_type == 'alibi':
@@ -783,7 +790,10 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         rotary_pos_emb = None
         encoder_self_attention_relative_position_bias = None
         if self.position_embedding_type == 'rope':
-            rotary_pos_emb = self.rotary_pos_emb(enc_seq_length)
+            if self.rope_only_interpolate_decoding and not (inference_max_sequence_len is not None and not set_inference_key_value_memory):
+                rotary_pos_emb = self.rotary_pos_emb(enc_seq_length, maybe_interpolate=False)
+            else:
+                rotary_pos_emb = self.rotary_pos_emb(enc_seq_length)
         elif (
             self.position_embedding_type == 'alibi'
             or self.position_embedding_type == 'sandwich'
