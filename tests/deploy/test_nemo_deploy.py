@@ -64,7 +64,7 @@ class TestNemoDeployment:
                     nemo_checkpoint_path=model_info["checkpoint"],
                     model_type=model_info["model_type"],
                     n_gpus=n_gpu,
-                    prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+                    # prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
                 )
 
                 nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
