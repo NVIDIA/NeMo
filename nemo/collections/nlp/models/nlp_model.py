@@ -367,7 +367,7 @@ class NLPModel(ModelPT, Exportable):
                 config_kwargs.pop('trainer')
             cfg.update(config_kwargs)
 
-            if cfg.get('megatron_amp_O2', False) and checkpoint_dir is None:
+            if cfg.get('megatron_amp_O2', False) and checkpoint_dir is None and not next(iter(checkpoint['state_dict'])).startswith('model.module.'):
                 new_state_dict = {}
                 for key in checkpoint['state_dict'].keys():
                     new_key = key.replace('model.', 'model.module.', 1)

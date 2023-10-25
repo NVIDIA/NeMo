@@ -840,7 +840,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
                     required_keys.update(('labels', 'loss_mask'))
-            if self.get_attention_mask_from_fusion:
+            if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
@@ -848,7 +848,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             forward_args = {
                 'input_ids': batch['tokens'],
                 'position_ids': batch['position_ids'],
-                'attention_mask': batch['attention_mask'],
+                'attention_mask': batch.get('attention_mask', None),
                 'labels': batch['labels'],
                 'loss_mask': batch['loss_mask'],
             }

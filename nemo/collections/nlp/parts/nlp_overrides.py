@@ -327,7 +327,7 @@ class NLPDDPStrategy(DDPStrategy):
                 model_key = 'enc_dec_model'
                 model_attr = self.lightning_module.enc_dec_model
             if model_key is not None:
-                if isinstance(model_attr, Float16Module) or isinstance(model_attr, MCoreFloat16Module):
+                if (isinstance(model_attr, Float16Module) or isinstance(model_attr, MCoreFloat16Module)) and not next(iter(checkpoint['state_dict'])).startswith('model.module.'):
                     new_state_dict = {}
                     for key in checkpoint['state_dict'].keys():
                         new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
@@ -572,7 +572,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
 
-        if conf.get('megatron_amp_O2', False):
+        if conf.get('megatron_amp_O2', False) and not next(iter(state_dict)).startswith('model.module.'):
             new_state_dict = {}
             for key in state_dict.keys():
                 new_key = key.replace('model.', 'model.module.', 1)
