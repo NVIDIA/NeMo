@@ -120,6 +120,7 @@ model:
     legacy: False
     use_flash_attention: True
     enable_amp_o2_fp16: True
+    resblock_gn_groups: 32
 
   first_stage_config:
     _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
