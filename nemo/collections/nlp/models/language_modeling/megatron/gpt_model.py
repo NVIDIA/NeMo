@@ -355,6 +355,7 @@ class GPTModel(MegatronModule):
         checkpoint_activations_all_layers=None,
         speech_mask=None,
         return_logits=None,
+        return_all_selfattention_probs=False,
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
@@ -362,7 +363,7 @@ class GPTModel(MegatronModule):
         if return_logits is None:
             return_logits = encoder_input is not None
 
-        lm_output = self.language_model(
+        lm_output, attention_probs_list = self.language_model(
             input_ids,
             position_ids,
             attention_mask,
@@ -373,6 +374,7 @@ class GPTModel(MegatronModule):
             inference_max_sequence_len=inference_max_sequence_len,
             checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             speech_mask=speech_mask if self.use_speech_mask_for_embedding else None,
+            return_all_selfattention_probs=return_all_selfattention_probs,
         )
 
         if self.post_process:
@@ -408,10 +410,14 @@ class GPTModel(MegatronModule):
 
                 res = torch.zeros_like(labels).type_as(loss)
                 res[loss_mask == 1] = loss
-                return res if logits is None else (res, logits)
+                if attention_probs_list is not None:
+                    raise NotImplementedError("No implementation for speechllm")
+                return res if logits is None else res, logits
             else:
-                return post_process_result
+                return post_process_result, attention_probs_list
         else:
+            if attention_probs_list is not None:
+                raise NotImplementedError("No implementation for speechllm")
             return lm_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):

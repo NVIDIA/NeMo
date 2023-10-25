@@ -63,6 +63,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.task_templates = cfg.model.task_templates
         gpt_cfg.seq_pattern = cfg.model.seq_pattern
         gpt_cfg.use_speech_mask_for_embedding = cfg.model.use_speech_mask_for_embedding
+        gpt_cfg.return_all_selfattention_probs = cfg.model.return_all_selfattention_probs
         # gpt_cfg.bias_activation_fusion = cfg.model.bias_activation_fusion  # Missing from older checkpoints?
         # gpt_cfg.bias_dropout_add_fusion = cfg.model.bias_dropout_add_fusion  # Missing from older checkpoints?
         sft_cls = MegatronSpeechGPTModel

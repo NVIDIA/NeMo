@@ -69,6 +69,7 @@ from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 import numpy as np
 from nemo.utils.app_state import AppState
+from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy, plot_encodec_to_numpy
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -856,6 +857,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'loss_mask': batch['loss_mask'],
                 'speech_mask': batch['speech_mask'],
                 'return_logits': True,
+                'return_all_selfattention_probs': self.return_all_selfattention_probs,
             }
 
             if not self.mcore_gpt:
@@ -865,7 +867,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 # TODO: @eharper can we add this to mcore?
                 forward_args.pop('loss_mask')
-            output_tensor, logits = model(**forward_args)
+            (output_tensor, logits), attention_probs_list = model(**forward_args)
 
             check_interval = 100
             if self.trainer.val_check_interval is not None:
@@ -892,9 +894,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
                         if not self.pretraining:
                             question_tokens = []
+                            question_start = 0
                             for _t in range(start_of_speech):
                                 if input_tokens_example[0, _t] < self.tokenizer.vocab_size:
                                     question_tokens.append(input_tokens_example[0, _t].item())
+                                elif len(question_tokens) == 0:
+                                    question_start += 1
                             question_text = self.tokenizer.ids_to_text(question_tokens)
                             self.logger.experiment.add_text('train_question_text', question_text, self.trainer.global_step)
 
@@ -910,6 +915,28 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         self.logger.experiment.add_audio('train_label_wav', label_wav, self.trainer.global_step, sample_rate=24000)
                         self.logger.experiment.add_audio('train_dec_input_wav', dec_input_wav, self.trainer.global_step, sample_rate=24000)
                         self.logger.experiment.add_audio('train_tf_pred_wav', pred_wav, self.trainer.global_step, sample_rate=24000)
+
+                        # print(batch['tokens'][0, 0, question_start])
+                        # print(batch['tokens'][0, 0, start_of_speech-1])
+                        if attention_probs_list is not None:
+                            for lidx in range(len(attention_probs_list)):
+                                attention_probs = attention_probs_list[lidx]
+                                for _i in range(attention_probs.shape[1]):
+
+                                    attention_probs_sliced = attention_probs[
+                                        0, _i, :, :
+                                    ]
+                                    phoneme_seq = [question_start, start_of_speech.item()-1]
+                                    alignment_image_sliced = plot_alignment_to_numpy(
+                                        # attention_probs_sliced.cpu().float().numpy().T, phoneme_seq=(batch['tokens'][0, 0, :] == 0).to(int).detach().cpu().numpy()
+                                        attention_probs_sliced.cpu().float().numpy().T, phoneme_seq=phoneme_seq, phoneme_ver=1
+                                    )
+                                    self.logger.experiment.add_image(
+                                        f"Attention Probs Layer {lidx} Head {_i} Sliced",
+                                        alignment_image_sliced,
+                                        self.global_step,
+                                        dataformats="HWC",
+                                    )
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
@@ -997,7 +1024,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
                 extra_arg['speech_mask'] = speech_mask
-            output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
+            output_tensor, attention_probs_list = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.
             if self.inference_params:
@@ -1772,6 +1799,11 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             encodec_model.eval()
             self.additional_models = {'encodec': encodec_model}
         self.pretraining = True
+        self.return_all_selfattention_probs = self.cfg.get('return_all_selfattention_probs', False)
+        # attn_prior_scaledown_start_step = cfg.get('attn_prior_scaledown_start_step', 10000)
+        # attn_prior_end_step = cfg.get('attn_prior_end_step', 11000)
+        # return_all_crossattention_probs = cfg.get('return_all_crossattention_probs', False)
+        # num_cross_attention_heads = cfg.get('num_cross_attention_heads', 12)
 
     def convert_tokens_to_range(self, tokens, offset_first_layer=False, offset_all_layers=False, start_of_speech=0):
         # offset tokens to be in range [0, 1024] and convert delay parallel to parallel
@@ -1896,7 +1928,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
 
                 for _t in range(pred_steps):
                     logging.info("Decoding timestep", _t)
-                    logits, _ = self.model(
+                    logits, _, _ = self.model(
                         curr_tokens,
                         curr_position_ids,
                         curr_attention_mask,
@@ -1995,6 +2027,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                 'loss_mask': batch['loss_mask'],
                 'speech_mask': batch['speech_mask'],
                 'return_logits': True,
+                'return_all_selfattention_probs': True,
             }
 
             if not self.mcore_gpt:
@@ -2005,7 +2038,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                 # TODO: @eharper can we add this to mcore?
                 forward_args.pop('loss_mask')
 
-            _, logits = self.model(**forward_args)
+            (_, logits), return_all_selfattention_probs = self.model(**forward_args)
             layerwise_metrics = {}
             loss_total = 0.0
             all_preds = []
@@ -2056,9 +2089,9 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                 # self.logger.experiment.add_audio('Val Custom Wav', pred_custom_wav, self.trainer.global_step, sample_rate=24000)
 
                 for gen_type in ["multinomial"]:
-                    logging.critical(f"Doing {gen_type} generation")
+                    logging.debug(f"Doing {gen_type} generation")
                     gen_fn_output = self.generate((prompt_tokens.contiguous(), context_length), lengths, sampling_params=sampling_params, mode=gen_type)
-                    logging.critical(f"Done {gen_type} generation")
+                    logging.debug(f"Done {gen_type} generation")
                     gen_fn_preds = torch.tensor(gen_fn_output['token_ids'], device=self.device)
 
                     if not self.pretraining:
@@ -2077,7 +2110,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
 
                     self.logger.experiment.add_audio('Val {} Wav'.format(gen_type), gen_fn_preds_wav, self.trainer.global_step, sample_rate=24000)
 
-                logging.critical(f"Logging text")
+                logging.debug(f"Logging text")
                 if not self.pretraining:
                     question_tokens = []
                     for t in range(prompt_len):
@@ -2085,7 +2118,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                             question_tokens.append(prompt_tokens[0,0,t].item())
                     question_text = self.tokenizer.ids_to_text(question_tokens)
                     self.logger.experiment.add_text('Val Prompt Text', question_text, self.trainer.global_step)
-                logging.critical(f"Done Logging text")
+                logging.debug(f"Done Logging text")
 
         if isinstance(self.model, list):
             for model_module in self.model:

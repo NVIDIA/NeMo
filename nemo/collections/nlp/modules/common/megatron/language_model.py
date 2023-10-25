@@ -745,6 +745,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         inference_max_sequence_len=None,
         checkpoint_activations_all_layers=None,
         speech_mask=None,
+        return_all_selfattention_probs=False,
     ):
         if speech_mask is not None:
             speech_mask = speech_mask.T.unsqueeze(-1)
@@ -820,7 +821,11 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 if rotary_pos_emb is not None
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
                 self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
+                return_all_selfattention_probs=return_all_selfattention_probs,
             )
+            attention_probs_list = None
+            if return_all_selfattention_probs:
+                encoder_output, attention_probs_list = encoder_output
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
 
@@ -833,9 +838,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         # similarity between two sequences by average pooling
         if not self.add_decoder or output_enc_hidden_only:
             if self.add_pooler and self.post_process:
-                return encoder_output, pooled_output
+                return (encoder_output, pooled_output), attention_probs_list
             else:
-                return encoder_output
+                return (encoder_output), attention_probs_list
 
         # Decoder Embedding
         dec_embedding_output = self.embedding(dec_input_ids, dec_position_ids)
