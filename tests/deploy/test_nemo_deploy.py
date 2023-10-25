@@ -54,11 +54,17 @@ class TestNemoDeployment:
                 test_at_least_one = True
                 Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
 
+                prompt_embeddings_checkpoint_path = None
+                if "p_tuning_checkpoint" in model_info.keys():
+                        if Path(model_info["p_tuning_checkpoint"]).exists():
+                            prompt_embeddings_checkpoint_path = model_info["p_tuning_checkpoint"],
+
                 trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
                 trt_llm_exporter.export(
                     nemo_checkpoint_path=model_info["checkpoint"],
                     model_type=model_info["model_type"],
                     n_gpus=n_gpu,
+                    prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
                 )
 
                 nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
@@ -69,7 +75,10 @@ class TestNemoDeployment:
                 prompts = ["hello, testing GPT inference", "another GPT inference test?"]
                 output = nq.query_llm(
                     prompts=prompts,
-                    max_output_token=200,
+                    max_output_token=100,
+                    top_k=1,
+                    top_p=0.4,
+                    temperature=0.8,
                 )
                 print("prompts: ", prompts)
                 print("")
@@ -80,6 +89,9 @@ class TestNemoDeployment:
                 output = nq.query_llm(
                     prompts=prompts,
                     max_output_token=200,
+                    top_k=1,
+                    top_p=0.2,
+                    temperature=0.4,
                 )
                 print("prompts: ", prompts)
                 print("")
