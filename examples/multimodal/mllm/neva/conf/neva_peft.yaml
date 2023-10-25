@@ -82,11 +82,16 @@ model:
     use_im_start_end: True # only support True now
 
   peft:
+    peft_scheme: "lora"
+    restore_from_path: null
     lora_tuning:
       adapter_dim: 32
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      layer_selection:  null  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+      weight_tying: False
+      position_embedding_strategy: null # used only when weight_tying is True
 
   # LLM configs
   # use GPTModel from megatron.core

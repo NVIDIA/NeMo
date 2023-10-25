@@ -57,8 +57,7 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
         if not isinstance(peft_cfgs, List):
             peft_cfgs = [peft_cfgs]
 
-        self.base_keys = self._get_all_keys()
-        self.freeze()
+        self.base_keys = getattr(self, "base_keys", self._get_all_keys())
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
         self.use_ptuning_only = len(peft_cfgs) == 1 and isinstance(peft_cfgs[0], PtuningPEFTConfig)
@@ -74,6 +73,8 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
+        if self.megatron_amp_O2:
+            self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
 
         for cfg in peft_cfgs:
             if cfg.weight_tying:
@@ -83,6 +84,8 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
     def _check_and_add_adapter(
         self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None, autocast_dtype=None
     ):
+        name_key_to_mcore_mixins = getattr(peft_cfg, "name_key_to_mcore_mixins", None) if self.use_mcore_gpt else None
+
         if name_key_to_mcore_mixins is not None:
             for mcore_target, mcore_mixin in name_key_to_mcore_mixins[peft_name]:
                 if name in [

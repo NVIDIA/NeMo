@@ -570,6 +570,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 autocast_dtype=self.autocast_dtype if self.megatron_amp_O2 else None,
             )
         self.adapter_keys = self._get_all_keys() - self.base_keys
+        if self.megatron_amp_O2:
+            self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
 
 
     def model_provider_func(self, pre_process, post_process):
@@ -1014,11 +1016,13 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if len(unexpected_keys) > 0:
             logging.critical('Unexpected keys were detected during the load. Please double check.')
             logging.critical(f'Unexpected keys: \n{unexpected_keys}')
+            raise ValueError
 
     def on_load_checkpoint(self, checkpoint) -> None:
-        if self.mcore_gpt:
-            state_dict = checkpoint["state_dict"]
-            self.load_state_dict(state_dict)
+        pass
+        # if self.mcore_gpt:
+        #     state_dict = checkpoint["state_dict"]
+        #     self.load_state_dict(state_dict)
 
     def sharded_state_dict(self, prefix: str = ''):
         return None
