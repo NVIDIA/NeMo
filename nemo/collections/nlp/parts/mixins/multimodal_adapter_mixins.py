@@ -84,8 +84,6 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
     def _check_and_add_adapter(
         self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None, autocast_dtype=None
     ):
-        name_key_to_mcore_mixins = getattr(peft_cfg, "name_key_to_mcore_mixins", None) if self.use_mcore_gpt else None
-
         if name_key_to_mcore_mixins is not None:
             for mcore_target, mcore_mixin in name_key_to_mcore_mixins[peft_name]:
                 if name in [
