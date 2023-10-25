@@ -17,11 +17,11 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
-from nemo.utils import logging
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.utils import logging
 
 """
     This script will generate a .bin file which can be converted back to hf format using the below code.
@@ -49,8 +49,13 @@ def get_args():
         "--in-file", type=str, default=None, required=True, help="Path to .nemo file",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to HF .bin file")
-    parser.add_argument("--precision", type=str, default=None, help="Precision of output weights."
-                        "Defaults to precision of the input nemo weights (model.cfg.trainer.precision)")
+    parser.add_argument(
+        "--precision",
+        type=str,
+        default=None,
+        help="Precision of output weights."
+        "Defaults to precision of the input nemo weights (model.cfg.trainer.precision)",
+    )
     args = parser.parse_args()
     return args
 
@@ -61,9 +66,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     """
     dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
     map_location = torch.device('cpu') if cpu_only else None
-    model = MegatronGPTModel.restore_from(
-        input_nemo_file, trainer=dummy_trainer, map_location=map_location
-    )
+    model = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, map_location=map_location)
     if precision is None:
         precision = model.cfg.precision
     if precision in [32, "32"]:
