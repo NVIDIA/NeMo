@@ -413,10 +413,10 @@ def tacotron2_log_to_wandb_func(
 
 
 def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vmin=None, vmax=None, phoneme_ver=0):
-    if phoneme_seq is not None:
-        fig, ax = plt.subplots(figsize=(15, 10))
-    else:
-        fig, ax = plt.subplots(figsize=(6, 4))
+    # if phoneme_seq is not None:
+    #     fig, ax = plt.subplots(figsize=(15, 10))
+    # else:
+    fig, ax = plt.subplots(figsize=(6, 4))
     im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
     ax.set_title(title)
     fig.colorbar(im, ax=ax)
@@ -434,7 +434,14 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
             ax.set_yticklabels(phoneme_seq)
             ax.hlines(np.arange(len(phoneme_seq)), xmin=0.0, xmax=max(ax.get_xticks()))
         else:
-            ax.set_yticks(phoneme_seq)
+            yticks = ax.get_yticks()
+            new_yticks = []
+            for tick in yticks:
+                if tick < 0 or tick > alignment.shape[0]:
+                    continue
+                new_yticks.append(tick)
+            new_yticks += phoneme_seq
+            ax.set_yticks(new_yticks)
 
     fig.canvas.draw()
     data = save_figure_to_numpy(fig)

@@ -932,7 +932,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                                         attention_probs_sliced.cpu().float().numpy().T, phoneme_seq=phoneme_seq, phoneme_ver=1
                                     )
                                     self.logger.experiment.add_image(
-                                        f"Attention Probs Layer {lidx} Head {_i} Sliced",
+                                        f"Attention Probs Layer {lidx} Head {_i}",
                                         alignment_image_sliced,
                                         self.global_step,
                                         dataformats="HWC",
