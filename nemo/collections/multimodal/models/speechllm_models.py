@@ -193,8 +193,12 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             concat_emb = []
             concat_len = []
             for emb1, emb1_len, emb2, emb2_len in zip(embs1, emb1_lens, embs2, emb2_lens):
-                new_len = emb1_len + emb2_len
-                new_emb = torch.concat([emb1[:emb1_len], emb2[:emb2_len]], axis=0)
+                if self.cfg.ignore_dummy_audio and emb1_len <= 1:  # TODO: ignore the dummy audio emb
+                    new_len = emb2_len
+                    new_emb = emb2[:emb2_len]
+                else:
+                    new_len = emb1_len + emb2_len
+                    new_emb = torch.concat([emb1[:emb1_len], emb2[:emb2_len]], axis=0)
                 padded_new_emb = torch.zeros(emb1.shape[0] + emb2.shape[0], emb1.shape[-1], device=emb1.device)
                 padded_new_emb[:new_len, ...] = new_emb
                 concat_emb.append(padded_new_emb)
@@ -479,6 +483,7 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         OmegaConf.set_struct(gpt_cfg, True)
         OmegaConf.resolve(cfg)
         with open_dict(gpt_cfg):
+            gpt_cfg.ignore_dummy_audio = cfg.model.get('ignore_dummy_audio', False)
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
             gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
             gpt_cfg.freeze_modality_adapter = cfg.model.get('freeze_modality_adapter', False)

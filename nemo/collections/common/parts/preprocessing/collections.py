@@ -441,6 +441,8 @@ class ALMAudioTextCollection(ALMAudioText):
             item['answer'] = item['normalized_text']
         else:
             item['answer'] = ""
+        if isinstance(item['answer'], list):
+            item['answer'] = " ".join([i['str'] for i in item['answer']])
 
         # Question.
         if 'question' in item:
