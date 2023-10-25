@@ -17,6 +17,7 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
+from nemo.utils import logging
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -38,8 +39,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
     model.save_pretrained("./nemo-exported-llama/")
 
     Known constraints, this script:
-        1. generates state_dict in fp32; fp16 support will be added soon,
-        2. is tested on 7B and 13B model only; 70B (GQA) support will be added soon.
+        1. is tested on 7B and 13B model only; 70B (GQA) support will be added soon.
 """
 
 
@@ -49,31 +49,41 @@ def get_args():
         "--in-file", type=str, default=None, required=True, help="Path to .nemo file",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to HF .bin file")
+    parser.add_argument("--precision", type=str, default=None, help="Precision of output weights."
+                        "Defaults to precision of the input nemo weights (model.cfg.trainer.precision)")
     args = parser.parse_args()
     return args
 
 
-def convert(input_nemo_file, output_hf_file, cpu_only=False) -> None:
+def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> None:
     """
     Convert NeMo weights to HF weights
     """
     dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
     map_location = torch.device('cpu') if cpu_only else None
-    model_config = MegatronGPTModel.restore_from(
-        input_nemo_file, trainer=dummy_trainer, return_config=True, map_location=map_location
-    )
     model = MegatronGPTModel.restore_from(
-        input_nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
+        input_nemo_file, trainer=dummy_trainer, map_location=map_location
     )
+    if precision is None:
+        precision = model.cfg.precision
+    if precision in [32, "32"]:
+        dtype = torch.float32
+    elif precision in [16, "16", "16-mixed"]:
+        dtype = torch.float16
+    elif precision in ["bf16", "bf16-mixed"]:
+        dtype = torch.bfloat16
+    else:
+        logging.warning(f"Precision string {precision} is not recognized, falling back to fp32")
+        dtype = torch.float32  # fallback
 
-    param_to_weights = lambda param: param  # param.float()
+    param_to_weights = lambda param: param.to(dtype)
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
 
-    hidden_size = model_config.hidden_size
-    head_num = model_config.num_attention_heads
-    num_layers = model_config.num_layers
-    ffn_hidden_size = model_config.ffn_hidden_size
+    hidden_size = model.cfg.hidden_size
+    head_num = model.cfg.num_attention_heads
+    num_layers = model.cfg.num_layers
+    ffn_hidden_size = model.cfg.ffn_hidden_size
     head_size = hidden_size // head_num
 
     # Embedding
@@ -157,4 +167,4 @@ if __name__ == '__main__':
     args = get_args()
     input_nemo_file = args.in_file
     output_hf_file = args.out_file
-    convert(input_nemo_file, output_hf_file)
+    convert(input_nemo_file, output_hf_file, precision=args.precision)
