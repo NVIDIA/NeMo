@@ -461,7 +461,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         input_key: str = 'input',
         output_key: str = 'output',
         end_string: Optional[str] = None,
-        question_file: Optional[str] = None,
+        question_file: Optional[Union[List[str], str]] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
         random_context_positive_percent: Optional[float] = 0.1,
@@ -851,7 +851,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         input_key: str = 'input',
         output_key: str = 'output',
         end_string: Optional[str] = None,
-        question_file: Optional[str] = None,
+        question_file: Optional[Union[List[str], str]] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
         random_context_positive_percent: Optional[float] = 0.1,
@@ -1072,12 +1072,6 @@ def get_tarred_aqa_dataset(
         if len(manifest_filepath) == 1:
             manifest_filepath = manifest_filepath[0]
 
-        question_file_set = config.get('question_file_set', None)
-        if question_file_set is not None:
-            assert len(question_file_set) == len(tarred_audio_filepaths)
-            question_file = question_file_set[dataset_idx]
-        else:
-            question_file = None
         dataset = TarredAudioQuestionAnswerDataset(
             audio_tar_filepaths=tarred_audio_filepath,
             manifest_filepath=manifest_filepath,
@@ -1112,7 +1106,7 @@ def get_tarred_aqa_dataset(
             output_key=config.get('output_key', 'output'),
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
-            question_file=question_file,
+            question_file=config.get('question_file', None),
             random_context_num=config.get('random_context_num', 3),
             random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
             random_context_prob=config.get('random_context_prob', None),
@@ -1148,6 +1142,11 @@ def get_concat_tarred_aqa_dataset(
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
         conf['tarred_audio_filepaths'] = tarred_audio_filepath
+        question_files = config.get('question_file', None)
+        if isinstance(question_files, list) and len(question_files) == len(manifest_filepaths):
+            conf['question_file'] = question_files[dataset_idx]
+        else:
+            conf['question_file'] = question_files
         dataset = get_tarred_aqa_dataset(
             config=conf,
             tokenizer=tokenizer,
@@ -1277,12 +1276,9 @@ def get_aqa_dataset_from_config(
         num_train_samples_per_dataset = [[None]] * len(manifest_filepath)
 
     for dataset_idx, (file_path, num_samples) in enumerate(zip(manifest_filepath, num_train_samples_per_dataset)):
-        question_file_set = config.get('question_file_set', None)
-        if question_file_set is not None:
-            assert len(question_file_set) == len(manifest_filepath)
-            question_file = question_file_set[dataset_idx]
-        else:
-            question_file = None
+        question_file = config.get('question_file', None)
+        if isinstance(question_file, list) and len(question_file) == len(manifest_filepath):
+            question_file = question_file[dataset_idx]
         dataset = data_cls(
             manifest_filepath=file_path,
             tokenizer=tokenizer,

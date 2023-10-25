@@ -374,7 +374,7 @@ class ALMAudioTextCollection(ALMAudioText):
     def __init__(
         self,
         manifests_files: Union[str, List[str]],
-        question_file: Optional[str] = None,
+        question_file: Optional[Union[List[str], str]] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
         random_context_positive_percent: Optional[float] = 0.1,
@@ -404,8 +404,15 @@ class ALMAudioTextCollection(ALMAudioText):
             [],
         )
         if question_file is not None:
-            self.random_questions = open(question_file).readlines()
-            print(f"Use random questions from {question_file} for {manifests_files}")
+            question_file_list = question_file.split(",") if isinstance(question_file, str) else question_file
+            self.random_questions = []
+            for filepath in question_file_list:
+                with open(filepath, 'r') as f:
+                    for line in f.readlines():
+                        line = line.strip()
+                        if line:
+                            self.random_questions.append(line)
+            logging.info(f"Use random questions from {question_file} for {manifests_files}")
         else:
             self.random_questions = None
         self.random_context_prob = random_context_prob

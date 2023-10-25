@@ -13,16 +13,17 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.distributed
 import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
 
+from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
+from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.module import NeuralModule
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 
 __all__ = ["AudioPerceptionModel"]
@@ -67,7 +68,11 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         super().__init__()
         # Initialize components
         self.preprocessor = self.from_config_dict(cfg.preprocessor)
-        self.encoder = self.from_config_dict(cfg.encoder)
+        encoder = self.from_config_dict(cfg.encoder)
+        if multi_layer_feat in cfg and cfg.multi_layer_feat is not None:
+            self.encoder = ConformerMultiLayerFeatureExtractor(cfg=cfg.multi_layer_feat, encoder=encoder)
+        else:
+            self.encoder = encoder
         if 'spec_augment' in cfg and cfg.spec_augment is not None:
             self.spec_augmentation = self.from_config_dict(cfg.spec_augment)
         else:
@@ -113,3 +118,50 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         encoded = self.proj(encoded.transpose(1, 2))
 
         return encoded, encoded_len
+
+
+class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin):
+    def __init__(self, cfg: DictConfig, encoder: ConformerEncoder) -> None:
+        super().__init__()
+        self.encoder = encoder
+        self.layer_idx_list = [int(l) for l in cfg.layer_idx_list]
+        for x in self.layer_idx_list:
+            if x < 0 or x >= len(encoder.layers):
+                raise ValueError(f"layer index {x} out of range [0, {len(encoder.layers)})")
+        access_cfg = {
+            "interctc": {"capture_layers": self.layer_idx_list,},
+            "detach": cfg.get("detach", False),
+            "convert_to_cpu": cfg.get("convert_to_cpu", False),
+        }
+        self.update_access_cfg(access_cfg)
+
+    def forward(self, *args, **kwargs) -> Tuple[List, List]:
+        old_access_flag = self.is_access_enabled()
+        self.set_access_enabled(access_enabled=True)
+
+        _ = self.encoder(*args, **kwargs)
+
+        total_registry = {}
+        for module_registry in self.get_module_registry(self.encoder).values():
+            for key in module_registry:
+                if key.startswith("interctc/") and key in total_registry:
+                    raise RuntimeError(f"layer {key} has been logged multiple times!")
+            total_registry.update(module_registry)
+
+        encoded_list = []
+        encoded_len_list = []
+        for layer_idx in self.layer_idx_list:
+            try:
+                layer_outputs = total_registry[f"interctc/layer_output_{layer_idx}"]
+                layer_lengths = total_registry[f"interctc/layer_length_{layer_idx}"]
+            except KeyError:
+                raise RuntimeError(
+                    f"Intermediate layer {layer_idx} was not captured! Check the layer index and the number of ConformerEncoder layers."
+                )
+            if len(layer_outputs) > 1 or len(layer_lengths) > 1:
+                raise RuntimeError("Make sure encoder.forward is called exactly one time")
+            encoded_list.append(layer_outputs[0])
+            encoded_len_list.append(layer_lengths[0])
+
+        self.set_access_enabled(access_enabled=old_access_flag)
+        return encoded_list, encoded_len_list
