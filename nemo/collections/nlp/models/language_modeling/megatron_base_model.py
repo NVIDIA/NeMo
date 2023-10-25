@@ -373,14 +373,13 @@ class MegatronBaseModel(NLPModel):
                 # param.main_grad = param.grad
 
         # For each bucket, all-reduce and copy all-reduced grads.
-        context_parallel = self.cfg.get('context_parallel_size', 1) > 1
         for tp in buckets:
             bucket = buckets[tp]
             grads = [param.grad.data for param in bucket]
             coalesced = torch._utils._flatten_dense_tensors(grads)
-            coalesced /= parallel_state.get_data_parallel_world_size(with_context_parallel=context_parallel)
+            coalesced /= parallel_state.get_data_parallel_world_size(with_context_parallel=True)
             torch.distributed.all_reduce(
-                coalesced, group=parallel_state.get_data_parallel_group(with_context_parallel=context_parallel)
+                coalesced, group=parallel_state.get_data_parallel_group(with_context_parallel=True)
             )
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
@@ -457,8 +456,6 @@ class MegatronBaseModel(NLPModel):
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
-            optim_kwargs['context_parallel'] = self.cfg.get('context_parallel_size', 1) > 1
-
             # Allocate contiguous buffer to avoid extra copies
             optim_kwargs['contiguous_grad_buffer'] = True
 
@@ -520,7 +517,6 @@ class MegatronBaseModel(NLPModel):
             else:
                 grad_div_ar_fusion = False
 
-            context_parallel = self.cfg.get('context_parallel_size', 1) > 1
             self._optimizer = MainParamsOptimizerWrapper(
                 self._optimizer,
                 fp32_grad_accum=fp32_grad_accum,
@@ -528,7 +524,6 @@ class MegatronBaseModel(NLPModel):
                 async_grad_allreduce=async_grad_allreduce,
                 grad_div_ar_fusion=grad_div_ar_fusion,
                 grad_allreduce_chunk_size_mb=self.cfg.get('grad_allreduce_chunk_size_mb', 125),
-                context_parallel=context_parallel,
             )
 
             assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."

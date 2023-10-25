@@ -232,14 +232,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 wrap_with_ddp=False,
                 on_cpu=True,
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-                context_parallel=(self.cfg.get('context_parallel_size', 1) > 1),
             )
         else:
             self.model = build_model(
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-                context_parallel=(self.cfg.get('context_parallel_size', 1) > 1),
             )
 
         # if we're not using interleaved, then self.model is a module.
@@ -390,7 +388,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 megatron_legacy=self.cfg.get('megatron_legacy', False),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
-                context_parallel=(self.cfg.get('context_parallel_size', 1) > 1),
             )
         return model
 

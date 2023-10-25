@@ -127,7 +127,6 @@ def get_language_model(
     use_flash_attention=False,
     seq_len_interpolation_factor=None,
     rotary_base=10000,
-    context_parallel=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -205,7 +204,6 @@ def get_language_model(
         use_flash_attention=use_flash_attention,
         seq_len_interpolation_factor=seq_len_interpolation_factor,
         rotary_base=rotary_base,
-        context_parallel=context_parallel,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -507,7 +505,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
         rotary_base=10000,
-        context_parallel=False,
     ):
         super(TransformerLanguageModel, self).__init__(
             config=config, share_token_embeddings=share_embeddings_and_output_weights
@@ -531,7 +528,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = config.sequence_parallel
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
-        self.context_parallel = context_parallel
+        self.context_parallel = (parallel_state.get_context_parallel_world_size() > 1)
         if kv_channels is None:
 
             assert (
