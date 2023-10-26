@@ -46,7 +46,8 @@ nemo_path = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_t
 # nemo_path = "/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo"
 # nemo_path = "/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo"
 # checkpoint_path = "/home/jasoli/experiments/nemo_experiments/megatron_sgpt_220m_linearv2_delay_noscaling/checkpoints/megatron_gpt--val_loss=23.65-step=110000-consumed_samples=3519840.0-last.ckpt"
-checkpoint_path = "/mnt/drive1/experiments/sgpt_pretrain_2b_linearv2_2/09_20_23/training/megatron_sgpt_2b/checkpoints/megatron_gpt--val_loss=22.47-step=79589-consumed_samples=10187392.0-last.ckpt"
+# checkpoint_path = "/mnt/drive1/experiments/sgpt_pretrain_2b_linearv2_2/09_20_23/training/megatron_sgpt_2b/checkpoints/megatron_gpt--val_loss=22.47-step=79589-consumed_samples=10187392.0-last.ckpt"
+checkpoint_path = "/mnt/drive1/experiments/selene_sgpt_sft_speechtextpre_2b_1/10_05_23/training/megatron_sgpt_sft_2b/checkpoints/megatron_gpt--val_loss=27.70-step=100000-consumed_samples=12800000.0-last.ckpt"
 gpt_cfg = MegatronGPTModel.restore_from(
     restore_path=nemo_path,
     trainer=trainer,
@@ -84,6 +85,6 @@ print("embedding weight")
 print(model.model.module.language_model.embedding.word_embeddings.weight.shape)
 print("output weight")
 print(model.model.module.language_model.output_layer.weight.shape)
-model.save_to("/home/jasoli/models/speechllm_sgpt_bothpre_2b_tp1_pp1--val_loss=22.47-step=79589-consumed_samples=10187392.nemo")
+model.save_to("/home/jasoli/models/speechllm_sgpt_sftlibritts_2b_tp1_pp1--val_loss=27.70-step=100000-consumed_samples=12800000.nemo")
 
 
