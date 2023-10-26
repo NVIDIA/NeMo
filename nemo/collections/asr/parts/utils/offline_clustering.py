@@ -697,12 +697,18 @@ def split_input_data(
             List containing split timestamps tensors by each scale
     """
     if len(embeddings_in_scales.shape) != 2:
-        raise ValueError(f"embeddings_in_scales Tensor should have 2 dimensions, but got {len(embeddings_in_scales.shape)}.")
+        raise ValueError(
+            f"embeddings_in_scales Tensor should have 2 dimensions, but got {len(embeddings_in_scales.shape)}."
+        )
     elif len(timestamps_in_scales.shape) != 2:
-        raise ValueError(f"timestamps_in_scales Tensor should have 2 dimensions, but got {len(timestamps_in_scales.shape)}.")
+        raise ValueError(
+            f"timestamps_in_scales Tensor should have 2 dimensions, but got {len(timestamps_in_scales.shape)}."
+        )
     elif not (torch.sum(multiscale_segment_counts) == embeddings_in_scales.shape[0] == timestamps_in_scales.shape[0]):
-        raise ValueError(f"multiscale_segment_counts, embeddings_in_scales, and timestamps_in_scales should have the same length, \
-                           but got {multiscale_segment_counts.shape[0]}, {embeddings_in_scales.shape[0]}, and {timestamps_in_scales.shape[0]} respectively.")
+        raise ValueError(
+            f"multiscale_segment_counts, embeddings_in_scales, and timestamps_in_scales should have the same length, \
+                           but got {multiscale_segment_counts.shape[0]}, {embeddings_in_scales.shape[0]}, and {timestamps_in_scales.shape[0]} respectively."
+        )
     split_index: List[int] = multiscale_segment_counts.tolist()
     embeddings_in_scales = torch.split(embeddings_in_scales, split_index, dim=0)
     timestamps_in_scales = torch.split(timestamps_in_scales, split_index, dim=0)
