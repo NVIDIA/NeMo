@@ -31,6 +31,7 @@ from nemo.collections.tts.losses.audio_codec_loss import (
     TimeDomainLoss,
 )
 from nemo.collections.tts.modules.common import GaussianDropout
+from nemo.collections.tts.data.vocoder_dataset import create_vocoder_dataset
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
 from nemo.core import ModelPT
@@ -473,26 +474,38 @@ class AudioCodecModel(ModelPT):
         }
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
 
-    @staticmethod
-    def _setup_train_dataloader(cfg):
-        dataset = instantiate(cfg.dataset)
-        sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
+    def _setup_train_dataloader(self, dataset_config, dataloader_params):
+        dataset = create_vocoder_dataset(
+            dataset_type=dataset_config.dataset_type,
+            global_rank=self.trainer.global_rank,
+            world_size=self.trainer.world_size,
+            dataset_args=dataset_config.dataset_args,
+            is_train=True
+        )
+        sampler = dataset.get_sampler(batch_size=dataloader_params.batch_size, world_size=self.trainer.world_size)
         data_loader = torch.utils.data.DataLoader(
-            dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
+            dataset, collate_fn=dataset.collate_fn, sampler=sampler, **dataloader_params
         )
         return data_loader
 
-    @staticmethod
-    def _setup_test_dataloader(cfg):
-        dataset = instantiate(cfg.dataset)
-        data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+    def _setup_test_dataloader(self, dataset_config, dataloader_params):
+        dataset = create_vocoder_dataset(
+            dataset_type=dataset_config.dataset_type,
+            dataset_args=dataset_config.dataset_args,
+            is_train=False
+        )
+        data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **dataloader_params)
         return data_loader
 
     def setup_training_data(self, cfg):
-        self._train_dl = self._setup_train_dataloader(cfg)
+        self._train_dl = self._setup_train_dataloader(
+            dataset_config=cfg.dataset, dataloader_params=cfg.dataloader_params
+        )
 
     def setup_validation_data(self, cfg):
-        self._validation_dl = self._setup_test_dataloader(cfg)
+        self._validation_dl = self._setup_test_dataloader(
+            dataset_config=cfg.dataset, dataloader_params=cfg.dataloader_params
+        )
 
     def setup_test_data(self, cfg):
         pass
@@ -564,7 +577,9 @@ class AudioCodecModel(ModelPT):
         if not self.log_config:
             return []
 
-        data_loader = self._setup_test_dataloader(self.log_config)
+        data_loader = self._setup_test_dataloader(
+            dataset_config=self.log_config.dataset, dataloader_params=self.log_config.dataloader_params
+        )
         generators = instantiate(self.log_config.generators)
         log_dir = Path(self.log_config.log_dir) if self.log_config.log_dir else None
         log_callback = LoggingCallback(

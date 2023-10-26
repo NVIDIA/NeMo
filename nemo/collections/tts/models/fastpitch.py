@@ -101,9 +101,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
             self.ds_class = cfg.train_ds.dataset._target_
             self.ds_class_name = self.ds_class.split(".")[-1]
-            if not self.ds_class in [
+            if self.ds_class not in [
                 "nemo.collections.tts.data.dataset.TTSDataset",
                 "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset",
+                "nemo.collections.tts.data.text_to_speech_dataset.TarredTextToSpeechDataset",
                 "nemo.collections.tts.torch.data.TTSDataset",
             ]:
                 raise ValueError(f"Unknown dataset class: {self.ds_class}.")
@@ -389,7 +390,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             None,
         )
         if self.learn_alignment:
-            if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
+            if self.ds_class in [
+                "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset",
+                "nemo.collections.tts.data.text_to_speech_dataset.TarredTextToSpeechDataset",
+            ]:
                 batch_dict = batch
             else:
                 batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
@@ -502,7 +506,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             None,
         )
         if self.learn_alignment:
-            if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
+            if self.ds_class in [
+                "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset",
+                "nemo.collections.tts.data.text_to_speech_dataset.TarredTextToSpeechDataset",
+            ]:
                 batch_dict = batch
             else:
                 batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
@@ -592,28 +599,36 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             self.log_train_images = True
         self.validation_step_outputs.clear()  # free memory)
 
-    def _setup_train_dataloader(self, cfg):
+    def _setup_train_dataloader(self, dataset_config, dataloader_params):
         phon_mode = contextlib.nullcontext()
         if hasattr(self.vocab, "set_phone_prob"):
             phon_mode = self.vocab.set_phone_prob(self.vocab.phoneme_probability)
 
         with phon_mode:
-            dataset = instantiate(cfg.dataset, text_tokenizer=self.vocab,)
+            if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TarredTextToSpeechDataset":
+                dataset = instantiate(
+                    dataset_config,
+                    text_tokenizer=self.vocab,
+                    global_rank=self.trainer.global_rank,
+                    world_size=self.trainer.world_size
+                )
+            else:
+                dataset = instantiate(dataset_config, text_tokenizer=self.vocab)
 
-        sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
+        sampler = dataset.get_sampler(batch_size=dataloader_params.batch_size, world_size=self.trainer.world_size)
         return torch.utils.data.DataLoader(
-            dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
+            dataset, collate_fn=dataset.collate_fn, sampler=sampler, **dataloader_params
         )
 
-    def _setup_test_dataloader(self, cfg):
+    def _setup_test_dataloader(self, dataset_config, dataloader_params):
         phon_mode = contextlib.nullcontext()
         if hasattr(self.vocab, "set_phone_prob"):
             phon_mode = self.vocab.set_phone_prob(0.0)
 
         with phon_mode:
-            dataset = instantiate(cfg.dataset, text_tokenizer=self.vocab,)
+            dataset = instantiate(dataset_config, text_tokenizer=self.vocab)
 
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **dataloader_params)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
@@ -651,14 +666,24 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):
-        if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
-            self._train_dl = self._setup_train_dataloader(cfg)
+        if self.ds_class in [
+            "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset",
+            "nemo.collections.tts.data.text_to_speech_dataset.TarredTextToSpeechDataset",
+        ]:
+            self._train_dl = self._setup_train_dataloader(
+                dataset_config=cfg.dataset, dataloader_params=cfg.dataloader_params
+            )
         else:
             self._train_dl = self.__setup_dataloader_from_config(cfg)
 
     def setup_validation_data(self, cfg):
-        if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
-            self._validation_dl = self._setup_test_dataloader(cfg)
+        if self.ds_class in [
+            "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset",
+            "nemo.collections.tts.data.text_to_speech_dataset.TarredTextToSpeechDataset",
+        ]:
+            self._validation_dl = self._setup_test_dataloader(
+                dataset_config=cfg.dataset, dataloader_params=cfg.dataloader_params
+            )
         else:
             self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="val")
 
@@ -670,11 +695,17 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         if not self.log_config:
             return []
 
-        sample_ds_class = self.log_config.dataset._target_
-        if sample_ds_class != "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
-            raise ValueError(f"Logging callback only supported for TextToSpeechDataset, got {sample_ds_class}")
+        ds_config = self.log_config.dataset
+        ds_class = ds_config._target_
+        if ds_class not in [
+            "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset",
+            "nemo.collections.tts.data.text_to_speech_dataset.TarredTextToSpeechDataset",
+        ]:
+            raise ValueError(f"Logging callback only supported for TextToSpeechDataset, got {ds_class}")
 
-        data_loader = self._setup_test_dataloader(self.log_config)
+        data_loader = self._setup_test_dataloader(
+            dataset_config=ds_config, dataloader_params=self.log_config.dataloader_params
+        )
 
         generators = instantiate(self.log_config.generators)
         log_dir = Path(self.log_config.log_dir) if self.log_config.log_dir else None

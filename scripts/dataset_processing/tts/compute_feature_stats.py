@@ -19,6 +19,8 @@ This script should be run after compute_features.py as it loads the precomputed 
 
 $ python <nemo_root_path>/scripts/dataset_processing/tts/compute_feature_stats.py \
     --feature_config_path=<nemo_root_path>/examples/tts/conf/features/feature_22050.yaml
+    --feature_name=pitch \
+    --feature_name=energy \
     --manifest_path=<data_root_path>/manifest1.json \
     --manifest_path=<data_root_path>/manifest2.json \
     --audio_dir=<data_root_path>/audio1 \
@@ -61,7 +63,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import List, Tuple
 
-import torch
+import numpy as np
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from tqdm import tqdm
@@ -77,6 +79,15 @@ def get_args():
         "--feature_config_path", required=True, type=Path, help="Path to feature config file.",
     )
     parser.add_argument(
+        "--feature_names", required=True, type=str, action="append", help="Name(s) of features to process.",
+    )
+    parser.add_argument(
+        "--mask_feature_name",
+        default="voiced_mask",
+        type=str,
+        help="If provided, stat computation will ignore non-masked frames.",
+    )
+    parser.add_argument(
         "--manifest_path", required=True, type=Path, action="append", help="Path(s) to training manifest.",
     )
     parser.add_argument(
@@ -88,15 +99,6 @@ def get_args():
         type=Path,
         action="append",
         help="Path(s) to directory where feature data was stored.",
-    )
-    parser.add_argument(
-        "--feature_names", default="pitch,energy", type=str, help="Comma separated list of features to process.",
-    )
-    parser.add_argument(
-        "--mask_field",
-        default="voiced_mask",
-        type=str,
-        help="If provided, stat computation will ignore non-masked frames.",
     )
     parser.add_argument(
         "--stats_path",
@@ -114,10 +116,10 @@ def get_args():
     return args
 
 
-def _compute_stats(values: List[torch.Tensor]) -> Tuple[float, float]:
-    values_tensor = torch.cat(values, dim=0)
-    mean = values_tensor.mean().item()
-    std = values_tensor.std(dim=0).item()
+def _compute_stats(values: List[np.ndarray]) -> Tuple[float, float]:
+    values_array = np.concatenate(values, axis=0)
+    mean = np.mean(values_array).item()
+    std = np.std(values_array).item()
     return mean, std
 
 
@@ -125,11 +127,11 @@ def main():
     args = get_args()
 
     feature_config_path = args.feature_config_path
+    feature_names = args.feature_names
+    mask_feature_name = args.mask_feature_name
     manifest_paths = args.manifest_path
     audio_dirs = args.audio_dir
     feature_dirs = args.feature_dir
-    feature_name_str = args.feature_names
-    mask_field = args.mask_field
     stats_path = args.stats_path
     overwrite = args.overwrite
 
@@ -160,17 +162,25 @@ def main():
         else:
             raise ValueError(f"Stats path already exists: {stats_path}")
 
+
+
     feature_config = OmegaConf.load(feature_config_path)
     feature_config = instantiate(feature_config)
-    featurizer_dict = feature_config.featurizers
+    feature_dict = feature_config.feature_readers
 
-    print(f"Found featurizers for {list(featurizer_dict.keys())}.")
-    featurizers = featurizer_dict.values()
+    print(f"Found feature readers for {feature_dict.keys()}")
+    print(f"Processing features {feature_names}")
 
-    feature_names = feature_name_str.split(",")
     # For each feature, we have a dictionary mapping speaker IDs to a list containing all features
     # for that speaker
     feature_stats = {name: defaultdict(list) for name in feature_names}
+    feature_readers = [feature_dict[name] for name in feature_names]
+
+    if mask_feature_name:
+        print(f"Masking with feature '{mask_feature_name}'")
+        mask_feature_reader = feature_dict[mask_feature_name]
+    else:
+        mask_feature_reader = None
 
     for (manifest_path, audio_dir, feature_dir) in zip(manifest_paths, audio_dirs, feature_dirs):
         entries = read_manifest(manifest_path)
@@ -179,12 +189,13 @@ def main():
             speaker = entry["speaker"]
 
             entry_dict = {}
-            for featurizer in featurizers:
-                feature_dict = featurizer.load(manifest_entry=entry, audio_dir=audio_dir, feature_dir=feature_dir)
+            for feature_reader in feature_readers:
+                feature_dict = feature_reader.load(manifest_entry=entry, audio_dir=audio_dir, feature_dir=feature_dir)
                 entry_dict.update(feature_dict)
 
-            if mask_field:
-                mask = entry_dict[mask_field]
+            if mask_feature_reader:
+                mask_dict = mask_feature_reader.load(manifest_entry=entry, audio_dir=audio_dir, feature_dir=feature_dir)
+                mask = mask_dict[mask_feature_name]
             else:
                 mask = None
 

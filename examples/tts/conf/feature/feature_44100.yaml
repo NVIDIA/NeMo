@@ -2,6 +2,10 @@ sample_rate: 44100
 win_length: 2048
 hop_length: 512
 
+pitch_name: "pitch"
+energy_name: "energy"
+voiced_mask_name: "voiced_mask"
+
 mel_feature:
   _target_: nemo.collections.tts.parts.preprocessing.features.MelSpectrogramFeaturizer
   sample_rate: ${sample_rate}
@@ -13,6 +17,8 @@ mel_feature:
 
 pitch_feature:
   _target_: nemo.collections.tts.parts.preprocessing.features.PitchFeaturizer
+  pitch_name: ${pitch_name}
+  voiced_mask_name: ${voiced_mask_name}
   sample_rate: ${sample_rate}
   win_length: ${win_length}
   hop_length: ${hop_length}
@@ -21,8 +27,29 @@ pitch_feature:
 
 energy_feature:
   _target_: nemo.collections.tts.parts.preprocessing.features.EnergyFeaturizer
+  feature_name: ${energy_name}
   spec_featurizer: ${mel_feature}
 
 featurizers:
   pitch: ${pitch_feature}
   energy: ${energy_feature}
+
+feature_readers:
+  audio:
+    _target_: nemo.collections.tts.parts.preprocessing.features.AudioFeatureReader
+    sample_rate: ${sample_rate}
+  pitch:
+    _target_: nemo.collections.tts.parts.preprocessing.features.NumpyFeatureReader
+    feature_name: ${pitch_name}
+    sample_rate: ${sample_rate}
+    hop_length: ${hop_length}
+  energy:
+    _target_: nemo.collections.tts.parts.preprocessing.features.NumpyFeatureReader
+    feature_name: ${energy_name}
+    sample_rate: ${sample_rate}
+    hop_length: ${hop_length}
+  voiced_mask:
+    _target_: nemo.collections.tts.parts.preprocessing.features.NumpyFeatureReader
+    feature_name: ${voiced_mask_name}
+    sample_rate: ${sample_rate}
+    hop_length: ${hop_length}

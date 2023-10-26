@@ -15,23 +15,33 @@
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
+import librosa
 import torch
+from torch import Tensor
 
+from nemo.collections.tts.parts.utils.tts_dataset_utils import beta_binomial_prior_distribution, stack_tensors
 from nemo.utils.decorators import experimental
+
 
 
 @experimental
 class FeatureProcessor(ABC):
     @abstractmethod
-    def process(self, training_example: dict) -> None:
+    def process(self, training_example: Dict[str, Any]) -> None:
         """
         Process the input training example dictionary, modifying necessary fields in place.
 
         Args:
             training_example: training example dictionary.
         """
+
+    def collate_fn(self, train_batch: List[Dict[str, Any]]) -> Dict[str, Tensor]:
+        """
+        Combine batch of features into a feature dictionary.
+        """
+        return {}
 
 
 class FeatureScaler(FeatureProcessor):
@@ -50,7 +60,7 @@ class FeatureScaler(FeatureProcessor):
         self.add_value = add_value
         self.div_value = div_value
 
-    def process(self, training_example: dict) -> None:
+    def process(self, training_example: Dict[str, Any]) -> None:
         feature = training_example[self.field]
         feature = (feature + self.add_value) / self.div_value
         training_example[self.field] = feature
@@ -88,7 +98,7 @@ class LogCompression(FeatureProcessor):
     def _clamp_guard(self, feature: torch.Tensor):
         return torch.clamp(feature, min=self.guard_value)
 
-    def process(self, training_example: dict) -> None:
+    def process(self, training_example: Dict[str, Any]) -> None:
         feature = training_example[self.field]
 
         feature = self.guard_fn(feature)
@@ -129,7 +139,7 @@ class MeanVarianceNormalization(FeatureProcessor):
             self.mean = stats_dict["default"][f"{self.field}_mean"]
             self.std = stats_dict["default"][f"{self.field}_std"]
 
-    def process(self, training_example: dict) -> None:
+    def process(self, training_example: Dict[str, Any]) -> None:
         feature = training_example[self.field]
 
         feature = (feature - self.mean) / self.std
@@ -193,7 +203,7 @@ class MeanVarianceSpeakerNormalization(FeatureProcessor):
         with open(stats_path, 'r', encoding="utf-8") as stats_f:
             self.stats_dict = json.load(stats_f)
 
-    def process(self, training_example: dict) -> None:
+    def process(self, training_example: Dict[str, Any]) -> None:
         feature = training_example[self.field]
 
         speaker = training_example[self.speaker_field]
@@ -214,3 +224,34 @@ class MeanVarianceSpeakerNormalization(FeatureProcessor):
             feature[~mask] = 0.0
 
         training_example[self.field] = feature
+
+
+class AlignmentPrior(FeatureProcessor):
+    def __init__(
+        self,
+        hop_length: int,
+        prior_field: str = "align_prior_matrix",
+        text_len_field: str = "text_len",
+        audio_len_field: str = "audio_lens",
+    ):
+        """
+        """
+        self.prior_field = prior_field
+        self.text_len_field = text_len_field
+        self.audio_len_field = audio_len_field
+        self.hop_length = hop_length
+
+    def process(self, training_example: Dict[str, Any]) -> None:
+        text_len = training_example[self.text_len_field]
+        audio_len = training_example[self.audio_len_field]
+        frame_len = 1 + librosa.core.samples_to_frames(audio_len, hop_length=self.hop_length)
+        align_prior = beta_binomial_prior_distribution(phoneme_count=text_len, mel_count=frame_len)
+        training_example[self.prior_field] = align_prior
+
+    def collate_fn(self, train_batch: List[Dict[str, Any]]) -> Dict[str, Tensor]:
+        prior_list = [torch.tensor(example[self.prior_field], dtype=torch.float32) for example in train_batch]
+        audio_frame_max_len = max([prior.shape[0] for prior in prior_list])
+        text_max_len = max([prior.shape[1] for prior in prior_list])
+        prior_batch = stack_tensors(prior_list, max_lens=[text_max_len, audio_frame_max_len])
+        feature_dict = {self.prior_field: prior_batch}
+        return feature_dict

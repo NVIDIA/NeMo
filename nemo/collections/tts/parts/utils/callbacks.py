@@ -50,7 +50,7 @@ def _get_logger(loggers: List[Logger], logger_type: Type[Logger]):
     raise ValueError(f"Could not find {logger_type} logger in {loggers}.")
 
 
-def _load_vocoder(model_name: Optional[str], checkpoint_path: Optional[str], type: str):
+def _load_vocoder(model_name: Optional[str], checkpoint_path: Optional[str], type: str, device: Optional[str] = None):
     assert (model_name is None) != (
         checkpoint_path is None
     ), f"Must provide exactly one of vocoder model_name or checkpoint: ({model_name}, {checkpoint_path})"
@@ -67,12 +67,15 @@ def _load_vocoder(model_name: Optional[str], checkpoint_path: Optional[str], typ
     else:
         raise ValueError(f"Unknown vocoder type '{type}'")
 
+    if device is not None:
+        device = torch.device(device)
+
     if model_name is not None:
-        vocoder = model_type.from_pretrained(model_name)
+        vocoder = model_type.from_pretrained(model_name, map_location=device)
     elif checkpoint_path.endswith(".nemo"):
-        vocoder = model_type.restore_from(checkpoint_path)
+        vocoder = model_type.restore_from(checkpoint_path, map_location=device)
     else:
-        vocoder = model_type.load_from_checkpoint(checkpoint_path)
+        vocoder = model_type.load_from_checkpoint(checkpoint_path, map_location=device)
 
     return vocoder.eval()
 
@@ -99,6 +102,7 @@ class LogAudioParams:
     vocoder_type: str
     vocoder_name: str
     vocoder_checkpoint_path: str
+    vocoder_device: Optional[str] = None
     log_audio_gta: bool = False
 
 
@@ -513,6 +517,7 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
                 model_name=audio_params.vocoder_name,
                 checkpoint_path=audio_params.vocoder_checkpoint_path,
                 type=audio_params.vocoder_type,
+                device=audio_params.vocoder_device
             )
 
     def _create_ground_truth_artifacts(

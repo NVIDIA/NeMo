@@ -218,7 +218,7 @@ def filter_dataset_by_duration(entries: List[Dict[str, Any]], min_duration: floa
 
 
 def get_weighted_sampler(
-    sample_weights: List[float], batch_size: int, num_steps: int
+    sample_weights: List[float], batch_size: int, num_steps: int, world_size: int
 ) -> torch.utils.data.WeightedRandomSampler:
     """
     Create pytorch sampler for doing weighted random sampling.
@@ -227,18 +227,19 @@ def get_weighted_sampler(
         sample_weights: List of sampling weights for all elements in the dataset.
         batch_size: Batch size to sample.
         num_steps: Number of steps to be considered an epoch.
+        world_size: Number of devices being trained on
 
     Returns:
         Pytorch sampler
     """
     weights = torch.tensor(sample_weights, dtype=torch.float64)
-    num_samples = batch_size * num_steps
+    num_samples = batch_size * num_steps * world_size
     sampler = torch.utils.data.WeightedRandomSampler(weights=weights, num_samples=num_samples)
     return sampler
 
 
 def _read_audio(
-    audio_filepath: Path, sample_rate: int, offset: float, duration: float, n_retries: int = 5
+    audio_filepath: Path, offset: float, duration: float, sample_rate: Optional[int] = None, n_retries: int = 5
 ) -> AudioSegment:
     # File seeking sometimes fails when reading flac files with libsndfile < 1.0.30.
     # Read audio as int32 to minimize issues, and retry read on a different segment in case of failure.
@@ -278,7 +279,7 @@ def _segment_audio(
 def load_audio(
     manifest_entry: Dict[str, Any],
     audio_dir: Path,
-    sample_rate: int,
+    sample_rate: Optional[int] = None,
     max_duration: Optional[float] = None,
     volume_norm: bool = False,
 ) -> Tuple[np.ndarray, Path, Path]:
