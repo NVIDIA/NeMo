@@ -19,7 +19,11 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
 ):
     dataset = LhotseSpeechToTextBpeDataset(tokenizer=tokenizer)
 
-    cuts = CutSet.from_file(config.lhotse.cuts_path)
+    cuts = (
+        CutSet.from_file(config.lhotse.cuts_path)
+        .filter(lambda c: config.min_duration <= c.duration <= config.max_duration)
+        .resample(16000)
+    )
     # TODO: support: cuts = CutSet.from_shar(...)
 
     sampler = DynamicBucketingSampler(
@@ -27,6 +31,7 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
         max_duration=config.lhotse.batch_duration,
         num_buckets=config.lhotse.num_buckets,
         shuffle=True,
+        drop_last=True,
         num_cuts_for_bins_estimate=config.lhotse.num_cuts_for_bins_estimate,
         buffer_size=config.lhotse.buffer_size,
         shuffle_buffer_size=config.lhotse.shuffle_buffer_size,
