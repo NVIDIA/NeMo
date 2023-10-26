@@ -440,7 +440,7 @@ class NLPModel(ModelPT, Exportable):
         ):
             del state_dict["bert_model.embeddings.position_ids"]
         else:
-            # fix for albet and other models
+            # fix for albert and other models
             pos_id_keys = [x for x in state_dict.keys() if "position_ids" in x]
             for key in pos_id_keys:
                 del state_dict[key]
