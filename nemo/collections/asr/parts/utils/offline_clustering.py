@@ -935,7 +935,6 @@ class NMESC:
                 Use cuda for Eigen decomposition if cuda=True.
             device (torch.device):
                 Torch device variable
-
         """
         self.max_num_speakers: int = max_num_speakers
         self.max_rp_threshold: float = max_rp_threshold
@@ -1217,7 +1216,7 @@ class SpeakerClustering(torch.nn.Module):
             est_num_of_spk, p_hat_value = nmesc.forward()
             affinity_mat = mat
 
-        # n_clusters is number of speakers estimated from spectral clustering.
+        # `n_clusters` is number of speakers estimated from spectral clustering.
         if oracle_num_speakers > 0:
             n_clusters = int(oracle_num_speakers)
         elif est_num_of_spk_enhanced > 0:

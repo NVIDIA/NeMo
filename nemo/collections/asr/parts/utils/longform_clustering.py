@@ -150,8 +150,8 @@ class LongFormSpeakerClustering(torch.nn.Module):
         
         Args:
             index (int): The index of the desired window. This determines the starting point 
-                        of the window using the formula:
-                        start = self.embeddings_per_chunk * index
+                         of the window using the formula:
+                         start = self.embeddings_per_chunk * index
             emb (torch.Tensor): The embedding tensor which needs to be split.
 
         Returns:
@@ -239,11 +239,11 @@ class LongFormSpeakerClustering(torch.nn.Module):
         Please refer to `SpeakerClustering` class for the original argument information.
         
         In the `LongFormSpeakerClustering` process:
-        1. Input embeddings are divided into smaller windows of size `embeddings_per_chunk`.
-        2. Each window undergoes overclustering, resulting in `chunk_cluster_count` fine-grained clusters.
-        3. These fine-grained clusters are merged to form the aggregated clustering labels `Y_aggr`.
-        4. The `unpack_labels` function is then employed to map the aggregated labels `Y_aggr` back to the 
-        original labels for all `org_len` input embeddings: `Y_unpack`.
+            Step-1: Input embeddings are divided into smaller windows of size `embeddings_per_chunk`.
+            Step-2: Each window undergoes overclustering, resulting in `chunk_cluster_count` fine-grained clusters.
+            Step-3: These fine-grained clusters are merged to form the aggregated clustering labels `Y_aggr`.
+            Step-4: The `unpack_labels` function is then employed to map the aggregated labels `Y_aggr` back to the 
+            original labels for all `org_len` input embeddings: `Y_unpack`.
         
         Args:
             embeddings_in_scales (Tensor):
@@ -317,10 +317,12 @@ class LongFormSpeakerClustering(torch.nn.Module):
             pbar = range(total_window_count)
 
         for win_index in pbar:
+            # Step-1: Split the embeddings into smaller chunks
             emb_part, offset_index = self.split_embs_to_windows(index=win_index, emb=emb)
             mat = getCosAffinityMatrix(emb_part)
             overcluster_count = min(self.chunk_cluster_count, mat.shape[0])
             
+            # Step-2: Perform overclustering on the chunks to identify `chunk_cluster_count` clusters
             if emb_part.shape[0] == 1:
                 Y_part = torch.zeros((1,), dtype=torch.int64)
             else:
@@ -332,6 +334,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
                     sparse_search_volume=sparse_search_volume,
                 )
                 
+            # Step-3: Merge the clusters to form the aggregated clustering labels `Y_aggr`
             num_to_be_merged = int(min(embeddings_per_chunk, emb_part.shape[0]) - chunk_cluster_count)
             min_count_per_cluster = self.get_div_ceil_count(
                 numer=self.chunk_cluster_count, denomin=len(torch.unique(Y_part))
@@ -364,7 +367,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
         reduced_embs= torch.cat(total_emb)
         reduced_mat = getCosAffinityMatrix(reduced_embs)
         
-        # Perform clustering on the merged embeddings
+        # Step-4: Map the aggregated labels `Y_aggr` back to the original labels for all `org_len` input embeddings: `Y_unpack`
         Y_aggr = self.speaker_clustering.forward_unit_infer(
             mat=reduced_mat,
             oracle_num_speakers=oracle_num_speakers,
