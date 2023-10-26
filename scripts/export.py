@@ -30,7 +30,6 @@ import argparse
 import sys
 
 import torch
-from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 import nemo
@@ -104,8 +103,7 @@ def nemo_export(argv):
         logger=False,
         enable_checkpointing=False,
     )
-    cfg_trainer = OmegaConf.to_container(OmegaConf.create(cfg_trainer))
-    trainer = Trainer(**cfg_trainer)
+    trainer = Trainer(cfg_trainer)
 
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
     try:
