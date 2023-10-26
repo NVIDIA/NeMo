@@ -20,6 +20,7 @@ import torch
 from scipy.optimize import linear_sum_assignment as scipy_linear_sum_assignment
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
+from nemo.collections.asr.parts.utils.longform_clustering import LongFormSpeakerClustering
 from nemo.collections.asr.parts.utils.offline_clustering import (
     SpeakerClustering,
     get_scale_interpolated_embs,
@@ -36,7 +37,6 @@ from nemo.collections.asr.parts.utils.online_clustering import (
     run_reducer,
     stitch_cluster_labels,
 )
-from nemo.collections.asr.parts.utils.longform_clustering import LongFormSpeakerClustering
 from nemo.collections.asr.parts.utils.optimization_utils import LinearSumAssignmentSolver
 from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment as nemo_linear_sum_assignment
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -360,6 +360,7 @@ class TestDiarizationSegmentationUtils:
     """
     Test segmentation util functions
     """
+
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "intervals",

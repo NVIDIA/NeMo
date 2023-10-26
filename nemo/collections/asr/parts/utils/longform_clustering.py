@@ -28,6 +28,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from typing import Dict, List, Tuple
+
 import torch
 from tqdm import tqdm
 
@@ -37,17 +38,12 @@ from nemo.collections.asr.parts.utils.offline_clustering import (
     getCosAffinityMatrix,
     split_input_data,
 )
-from nemo.collections.asr.parts.utils.online_clustering import (
-    get_merge_quantity,
-    run_reducer,
-)
+from nemo.collections.asr.parts.utils.online_clustering import get_merge_quantity, run_reducer
+
 
 class LongFormSpeakerClustering(torch.nn.Module):
     def __init__(
-        self, 
-        chunk_cluster_count: int = 50, 
-        embeddings_per_chunk: int = 10000, 
-        cuda: bool = False,
+        self, chunk_cluster_count: int = 50, embeddings_per_chunk: int = 10000, cuda: bool = False,
     ):
         """
         Initializes a speaker clustering class tailored for long-form audio, leveraging methods from the `SpeakerClustering` class.
@@ -67,14 +63,14 @@ class LongFormSpeakerClustering(torch.nn.Module):
                 Flag indicating whether CUDA is available for computation.
         """
         super().__init__()
-        self.speaker_clustering = SpeakerClustering(cuda=cuda) 
+        self.speaker_clustering = SpeakerClustering(cuda=cuda)
         self.embeddings_in_scales: List[torch.Tensor] = [torch.tensor([0])]
         self.timestamps_in_scales: List[torch.Tensor] = [torch.tensor([0])]
         self.embeddings_per_chunk: int = embeddings_per_chunk
         self.chunk_cluster_count: int = chunk_cluster_count
         self.cuda = cuda
         self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
-        
+
     def check_input(self, embeddings_per_chunk: int, chunk_cluster_count: int, max_num_speakers: int) -> None:
         """
         Checks the validity of the input parameters.
@@ -87,7 +83,9 @@ class LongFormSpeakerClustering(torch.nn.Module):
             max_num_speakers (int):
                 The maximum number of speakers to be detected in the audio.
         """
-        self.embeddings_per_chunk = embeddings_per_chunk if embeddings_per_chunk is not None else self.embeddings_per_chunk
+        self.embeddings_per_chunk = (
+            embeddings_per_chunk if embeddings_per_chunk is not None else self.embeddings_per_chunk
+        )
         self.chunk_cluster_count = chunk_cluster_count if chunk_cluster_count is not None else self.chunk_cluster_count
         if self.chunk_cluster_count is None or self.embeddings_per_chunk is None:
             raise ValueError(
@@ -105,7 +103,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
             raise ValueError(
                 f"chunk_cluster_count ({self.chunk_cluster_count}) should be larger than max_num_speakers ({max_num_speakers})."
             )
-    
+
     def unpack_labels(
         self,
         Y_aggr: torch.Tensor,
@@ -320,7 +318,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
             emb_part, offset_index = self.split_embs_to_windows(index=win_index, emb=emb)
             mat = getCosAffinityMatrix(emb_part)
             overcluster_count = min(self.chunk_cluster_count, mat.shape[0])
-            
+
             if emb_part.shape[0] == 1:
                 Y_part = torch.zeros((1,), dtype=torch.int64)
             else:
@@ -331,12 +329,12 @@ class LongFormSpeakerClustering(torch.nn.Module):
                     max_num_speakers=self.chunk_cluster_count,
                     sparse_search_volume=sparse_search_volume,
                 )
-                
+
             num_to_be_merged = int(min(embeddings_per_chunk, emb_part.shape[0]) - chunk_cluster_count)
             min_count_per_cluster = self.get_div_ceil_count(
                 numer=self.chunk_cluster_count, denomin=len(torch.unique(Y_part))
             )
-            
+
             # We want only one embedding vector for each cluster, so we calculate the number of embedding vectors to be removed
             class_target_vol = get_merge_quantity(
                 num_to_be_removed=num_to_be_merged,
@@ -361,9 +359,9 @@ class LongFormSpeakerClustering(torch.nn.Module):
             pbar.close()
 
         # Concatenate the reduced embeddings then perform high-level clustering
-        reduced_embs= torch.cat(total_emb)
+        reduced_embs = torch.cat(total_emb)
         reduced_mat = getCosAffinityMatrix(reduced_embs)
-        
+
         # Perform clustering on the merged embeddings
         Y_aggr = self.speaker_clustering.forward_unit_infer(
             mat=reduced_mat,
@@ -377,8 +375,8 @@ class LongFormSpeakerClustering(torch.nn.Module):
             raise ValueError(
                 f"The number of embeddings ({reduced_embs.shape[0]}) and the number of clustered labels ({Y_aggr.shape[0]}) do not match."
             )
-        
-        # Reassign the labels to the original embeddings 
+
+        # Reassign the labels to the original embeddings
         Y_unpack = self.unpack_labels(
             Y_aggr=Y_aggr,
             window_range_list=window_range_list,
@@ -412,7 +410,9 @@ class LongFormSpeakerClustering(torch.nn.Module):
         NOTE: `torch.jit.script` currently does not support `**kwargs` in the function signature therefore,
         we need to use a wrapper function to handle the arguments.
         """
-        self.embeddings_per_chunk = embeddings_per_chunk if embeddings_per_chunk is not None else self.embeddings_per_chunk
+        self.embeddings_per_chunk = (
+            embeddings_per_chunk if embeddings_per_chunk is not None else self.embeddings_per_chunk
+        )
         self.chunk_cluster_count = chunk_cluster_count if chunk_cluster_count is not None else self.chunk_cluster_count
         if embeddings_in_scales.shape[0] > self.embeddings_per_chunk:
             return self.long_forward_infer(
