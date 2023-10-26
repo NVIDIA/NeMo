@@ -31,10 +31,8 @@
 # https://arxiv.org/pdf/2003.02405.pdf and the implementation from
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
-from typing import Dict, List, Tuple
-
+from typing import List, Tuple
 import torch
-from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.offline_clustering import (
     NMESC,
