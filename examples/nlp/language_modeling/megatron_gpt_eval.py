@@ -103,7 +103,7 @@ Usage:
             tensor_model_parallel_size=-1 \
             pipeline_model_parallel_size=-1 \
             server=True
-        
+
         To send a request to the server, here is one example code:
         ```python
         import json
@@ -227,7 +227,7 @@ def main(cfg) -> None:
                 pretrained_cfg.megatron_amp_O2 = False
             elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
                 pretrained_cfg.megatron_amp_O2 = True
-                
+
             try:
                 pretrained_cfg.use_flash_attention = True
             except:
@@ -314,6 +314,7 @@ def main(cfg) -> None:
         for line in f:
             line = json.loads(line)
             lines.append(line["truncated_input"])
+
     # # First method of running text generation, call model.generate method
     # response = model.generate(
     #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
@@ -350,7 +351,6 @@ def main(cfg) -> None:
             print(response)
     print("***************************")
 
-<<<<<<< HEAD
     # Third method of running text generation, use inference server
     if cfg.server:
         from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
@@ -386,42 +386,6 @@ def main(cfg) -> None:
             torch.distributed.broadcast(choice, 0)
             if choice[0].item() == 0:
                 generate(model.cuda())
-=======
-    # print("***************************")
-    # print(response)
-    # print("***************************")
-
-    # # Third method of running text generation, use inference server
-    # if cfg.server:
-    #     from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
-
-    #     if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
-    #         if cfg.web_server:
-    #             if cfg.chat:
-    #                 defaults = {
-    #                     'user': cfg.chatbot_config.user,
-    #                     'assistant': cfg.chatbot_config.assistant,
-    #                     'system': cfg.chatbot_config.system,
-    #                 }
-    #                 web_ui = partial(get_chatbot_demo, defaults=defaults, value=cfg.chatbot_config.value)
-    #             else:
-    #                 web_ui = get_demo
-    #             loop = asyncio.new_event_loop()
-    #             thread = threading.Thread(
-    #                 target=web_ui,
-    #                 daemon=True,
-    #                 args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
-    #             )
-    #             thread.start()
-    #         server = MegatronServer(model.cuda())
-    #         server.run("0.0.0.0", port=cfg.port)
-
-    #     while True:
-    #         choice = torch.cuda.LongTensor(1)
-    #         torch.distributed.broadcast(choice, 0)
-    #         if choice[0].item() == 0:
-    #             generate(model.cuda())
->>>>>>> nvidia/zero_sc_eval
 
 
 if __name__ == '__main__':
