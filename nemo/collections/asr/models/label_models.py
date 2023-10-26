@@ -497,7 +497,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         del audio_signal, audio_signal_len
         return emb, logits
 
-    def get_label(self, path2audio_file: str, segment_duration: float = np.inf, num_segments: int = 1, random_seed: int = None):
+    def get_label(
+        self, path2audio_file: str, segment_duration: float = np.inf, num_segments: int = 1, random_seed: int = None
+    ):
         """
         Returns label of path2audio_file from classes the model was trained on.
         Args:
@@ -521,7 +523,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         label_id_list = []
         np.random.seed(random_seed)
-        starts = np.random.randint(0, audio_length - duration + 1, size = num_segments)
+        starts = np.random.randint(0, audio_length - duration + 1, size=num_segments)
         for start in starts:
             audio = audio[start : start + duration]
 
