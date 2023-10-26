@@ -19,26 +19,13 @@ import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
-from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
-    MegatronGPTAdapterModel,
-    MegatronGPTAdapterPTuningModel,
-    MegatronGPTIA3Model,
-    MegatronGPTLoRAModel,
-    MegatronGPTPTuningModel,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PEFTSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
@@ -97,10 +84,14 @@ def main(cfg) -> None:
                 if cfg.model.pipeline_model_parallel_size > 1
                 else True,  # turn off the grad scale for pipeline parallel LM model
             )
-        if megatron_amp_o2 and not with_distributed_adam:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+            # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
+            plugin_precision = '16-mixed'
         else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+            plugin_precision = 'bf16-mixed'
+        if megatron_amp_o2 and not with_distributed_adam:
+            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+        else:
+            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
@@ -109,16 +100,14 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
     # update resume from checkpoint found by exp_manager
     if cfg.model.resume_from_checkpoint is not None:
-        resume_from_checkpoint = cfg.model.resume_from_checkpoint
+        trainer.ckpt_path = cfg.model.resume_from_checkpoint
     else:
-        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
-    logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
-
-    trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
-
+        trainer.ckpt_path = None
+    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
+
     model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(cfg, trainer=trainer)
 
     trainer.fit(model)

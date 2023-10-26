@@ -18,7 +18,7 @@ import subprocess
 import sys
 import time
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
@@ -39,6 +39,7 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
+from nemo.utils.timers import NeMoTimerException
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
 from nemo.utils.env_var_parsing import get_envbool
@@ -146,30 +147,28 @@ class ExpManagerConfig:
     create_wandb_logger: Optional[bool] = False
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     create_mlflow_logger: Optional[bool] = False
-    mlflow_logger_kwargs: Optional[MLFlowParams] = field(default_factory=lambda: MLFlowParams())
+    mlflow_logger_kwargs: Optional[MLFlowParams] = MLFlowParams()
     create_dllogger_logger: Optional[bool] = False
-    dllogger_logger_kwargs: Optional[DLLoggerParams] = field(default_factory=lambda: DLLoggerParams())
+    dllogger_logger_kwargs: Optional[DLLoggerParams] = DLLoggerParams()
     create_clearml_logger: Optional[bool] = False
-    clearml_logger_kwargs: Optional[ClearMLParams] = field(default_factory=lambda: ClearMLParams())
+    clearml_logger_kwargs: Optional[ClearMLParams] = ClearMLParams()
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
-    checkpoint_callback_params: Optional[CallbackParams] = field(default_factory=lambda: CallbackParams())
+    checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
     create_early_stopping_callback: Optional[bool] = False
-    early_stopping_callback_params: Optional[EarlyStoppingParams] = field(
-        default_factory=lambda: EarlyStoppingParams()
-    )
+    early_stopping_callback_params: Optional[EarlyStoppingParams] = EarlyStoppingParams()
     create_preemption_callback: Optional[bool] = True
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
-    step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
+    step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
     log_global_rank_0_only: Optional[bool] = False
     # disable initial validation when resuming from a checkpoint saved during validation
     disable_validation_on_resume: Optional[bool] = True
-    ema: Optional[EMAParams] = field(default_factory=lambda: EMAParams())
+    ema: Optional[EMAParams] = EMAParams()
     # Wall clock time limit
     max_time_per_run: Optional[str] = None
     # time to sleep non 0 ranks during initialization
@@ -189,10 +188,21 @@ class TimingCallback(Callback):
         if self.timer.buffer_size <= 0:
             self.timer.reset(name)
 
-        self.timer.start(name)
+        try:
+            self.timer.start(name)
+        except NeMoTimerException as e:
+            # Just reset the timer, not crashing the run
+            self.timer.reset(name)
+            self.timer.start(name)
+
 
     def _on_batch_end(self, name, pl_module):
-        self.timer.stop(name)
+        try:
+            self.timer.stop(name)
+        except NeMoTimerException as e:
+            # Skip the error
+            pass
+
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
         pl_module.log(
             name + ' in s',
@@ -303,7 +313,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
             - log_global_rank_0_only (bool): Whether to only create log files for global rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
-            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want 
+            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want
                 a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
             - seconds_to_sleep (float): seconds to sleep non rank 0 processes for. Used to give enough time for rank 0 to initialize
 

@@ -612,9 +612,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 )
 
         model_cfg = cls._modify_config(base_model_cfg, cfg, audio_model.cfg, add_cfg_to_tree=False)
-        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         save_restore_connector = PEFTSaveRestoreConnector(
-            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=resume_from_checkpoint
+            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=cfg.model.peft.restore_from_path
         )
         if os.path.isdir(cfg.model.restore_from_path):
             save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
@@ -627,6 +626,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             save_restore_connector=save_restore_connector,
             strict=False,
         )
+
         # load am
         if cfg.model.get('load_audio_encoder', True):
             model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
@@ -672,7 +672,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:
-            super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=False)
+            super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=False)
         else:
             if self.cfg.get('override_vocab_size', False):
                 exclude_list = [
@@ -682,7 +682,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             else:
                 exclude_list = []
             state_dict = {k: v for k, v in state_dict.items() if k not in exclude_list}
-            super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=strict)
+            super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=strict)
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
@@ -805,7 +805,18 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             'metadata': metadata,  # [dict]
         }
 
-        # TODO(zhehuai): handling self.validation_step_outputs for PTL2.0
+        if mode == 'validation':
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[-1] = outputs
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                self.test_step_outputs[-1] = outputs
         return outputs
 
     def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: Optional[int] = None):
@@ -977,7 +988,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                             logging.info(f"{mode} {metric_name} {k}: {v.item()}")
                     metric_result = metric_result['rouge1_fmeasure']
                 else:
-                    self.log(metric_log_key, metric_result.item(), sync_dist=True)
+                    self.log(metric_log_key, metric_result.item(), sync_dist=True, batch_size=1)
                     logging.info(f"{mode} {metric_name}: {metric_result.item()}")
 
                 metric_fn.reset()
@@ -1014,18 +1025,18 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
 
         if mode == 'validation':
-            self.log("validation_loss", averaged_loss, batch_size=1, sync_dist=True)
+            self.log("validation_loss", averaged_loss, batch_size=1)
             if averaged_metric is not None:
-                self.log(f"validation_{self.val_metric_name}", averaged_metric, sync_dist=True)
+                self.log(f"validation_{self.val_metric_name}", averaged_metric, batch_size=1)
         elif mode == 'test':
-            self.log("test_loss", averaged_loss, batch_size=1, sync_dist=True)
+            self.log("test_loss", averaged_loss, batch_size=1)
             if averaged_metric is not None:
-                self.log(f"test_{self.test_metric_name}", averaged_metric, sync_dist=True)
+                self.log(f"test_{self.test_metric_name}", averaged_metric, batch_size=1)
 
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
         self._restore_activation_checkpointing_args()
-        # TODO(zhehuai): add _restore_sequence_parallelism_args after sync to HEAD
+        self._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -1046,10 +1057,6 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             )
 
         return averaged_loss, averaged_metric
-
-    def validation_epoch_end(self, outputs):
-        averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
-        return averaged_loss
 
     def test_epoch_end(self, outputs):
         averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)

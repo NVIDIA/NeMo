@@ -365,7 +365,7 @@ class NLPAdapterModelMixin:
             assert set(state_dict.keys()) == self.adapter_keys
             super().load_state_dict(state_dict, strict=False)
         else:
-            super().load_state_dict(state_dict, strict=True)
+            super().load_state_dict(state_dict, strict=strict)
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
