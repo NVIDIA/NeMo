@@ -61,6 +61,7 @@ try:
     from nemo_text_processing.text_normalization.data_loader_utils import post_process_punct
     from nn_wfst.en.electronic.normalize import ElectronicNormalizer
     from nn_wfst.en.whitelist.normalize import WhitelistNormalizer
+
     NEMO_TEXT_PROCESSING_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     NEMO_TEXT_PROCESSING_AVAILABLE = False
@@ -69,6 +70,7 @@ except (ImportError, ModuleNotFoundError):
         " https://github.com/NVIDIA/NeMo-text-processing and install this package before using "
         " this script: `pip install nemo_text_processing`"
     )
+
 
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
