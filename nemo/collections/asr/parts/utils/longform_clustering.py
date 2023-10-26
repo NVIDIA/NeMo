@@ -115,7 +115,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
         Unpack the labels from the aggregated labels to the original labels.
 
         Args:
-            Y_aggr (torch.Tensor): 
+            Y_aggr (Tensor): 
                 Aggregated label vector from the merged segments.
             window_range_list (List[List[int]]): 
                 List of window ranges for each of the merged segments.
@@ -127,7 +127,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
                 Original length of the labels. In most cases, this is a fairly large number (on the order of 10^5).
 
         Returns:
-            Y_unpack (torch.Tensor): 
+            Y_unpack (Tensor): 
                 Unpacked labels derived from the aggregated labels.
         """
         Y_unpack = torch.zeros((org_len,)).long().to(Y_aggr.device)
@@ -150,11 +150,13 @@ class LongFormSpeakerClustering(torch.nn.Module):
             index (int): The index of the desired window. This determines the starting point 
                          of the window using the formula:
                          start = self.embeddings_per_chunk * index
-            emb (torch.Tensor): The embedding tensor which needs to be split.
+            emb (Tensor): The embedding tensor which needs to be split.
 
         Returns:
-            emb_part (torch.Tensor): The window-sized tensor, which is a portion of the `emb`.
-            offset_index (int): The starting position of the window in the `emb` tensor.
+            emb_part (Tensor): 
+                The window-sized tensor, which is a portion of the `emb`.
+            offset_index (int): 
+                The starting position of the window in the `emb` tensor.
         """
         if self.embeddings_per_chunk * (index + 1) > emb.shape[0]:
             emb_part = emb[-1 * self.embeddings_per_chunk :]
@@ -179,8 +181,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
                 See `forward_infer` function for the argument information.
 
         Returns:
-            Y (LongTensor):
-                Speaker labels for the segments in the given input embeddings.
+            (LongTensor): Speaker labels for the segments in the given input embeddings.
         """
         embeddings_in_scales = param_dict['embeddings']
         timestamps_in_scales = param_dict['timestamps']
@@ -255,12 +256,12 @@ class LongFormSpeakerClustering(torch.nn.Module):
                 Example:
                     >>> timestamps_in_scales[0] = \
                         torch.Tensor([[0.4, 1.4], [0.9, 1.9], [1.4, 2.4], ... [121.2, 122.2]])
-            multiscale_segment_counts (torch.LongTensor):
+            multiscale_segment_counts (LongTensor):
                 A Torch tensor containing the number of segments for each scale.
                 The tensor has dimensions of (Number of scales).
                 Example:
                     >>> multiscale_segment_counts = torch.LongTensor([31, 52, 84, 105, 120])
-            multiscale_weights (torch.Tensor):
+            multiscale_weights (Tensor):
                 Multi-scale weights used when merging affinity scores.
                 Example:
                     >>> multiscale_weights = torch.tensor([1.4, 1.3, 1.2, 1.1, 1.0])
@@ -291,7 +292,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
                 The size of the chunks in which the algorithm aims to identify `chunk_cluster_count` clusters.
 
         Returns:
-            Y (LongTensor):
+            Y_unpack (LongTensor):
                 Speaker labels for the segments in the provided input embeddings.
         """
         self.check_input(embeddings_per_chunk, chunk_cluster_count, max_num_speakers)

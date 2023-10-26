@@ -462,7 +462,7 @@ def get_scale_interpolated_embs(
             Torch device variable
 
     Returns:
-        context_emb (torch.tensor):
+        context_emb (Tensor):
             A set of scale-interpolated embedding vectors.
             Dimensions: (Number of base-scale segments) x (Dimensions of embedding vector)
         session_scale_mapping_list (list):
@@ -696,6 +696,13 @@ def split_input_data(
         timestamps_in_scales (list):
             List containing split timestamps tensors by each scale
     """
+    if len(embeddings_in_scales.shape) != 2:
+        raise ValueError(f"embeddings_in_scales Tensor should have 2 dimensions, but got {len(embeddings_in_scales.shape)}.")
+    elif len(timestamps_in_scales.shape) != 2:
+        raise ValueError(f"timestamps_in_scales Tensor should have 2 dimensions, but got {len(timestamps_in_scales.shape)}.")
+    elif not (torch.sum(multiscale_segment_counts) == embeddings_in_scales.shape[0] == timestamps_in_scales.shape[0]):
+        raise ValueError(f"multiscale_segment_counts, embeddings_in_scales, and timestamps_in_scales should have the same length, \
+                           but got {multiscale_segment_counts.shape[0]}, {embeddings_in_scales.shape[0]}, and {timestamps_in_scales.shape[0]} respectively.")
     split_index: List[int] = multiscale_segment_counts.tolist()
     embeddings_in_scales = torch.split(embeddings_in_scales, split_index, dim=0)
     timestamps_in_scales = torch.split(timestamps_in_scales, split_index, dim=0)
@@ -1246,8 +1253,7 @@ class SpeakerClustering(torch.nn.Module):
                     See `forward_infer` function for the argument information.
 
             Returns:
-                Y (LongTensor):
-                    Speaker labels for the segments in the given input embeddings.
+                (LongTensor): Speaker labels for the segments in the given input embeddings.
         """
         embeddings_in_scales = param_dict['embeddings']
         timestamps_in_scales = param_dict['timestamps']
@@ -1305,12 +1311,12 @@ class SpeakerClustering(torch.nn.Module):
                 Example:
                     >>> timestamps_in_scales[0] = \
                         torch.Tensor([[0.4, 1.4], [0.9, 1.9], [1.4, 2.4], ... [121.2, 122.2]])
-            multiscale_segment_counts (torch.LongTensor):
+            multiscale_segment_counts (LongTensor):
                 A Torch tensor containing the number of segments for each scale.
                 The tensor has dimensions of (Number of scales).
                 Example:
                     >>> multiscale_segment_counts = torch.LongTensor([31, 52, 84, 105, 120])
-            multiscale_weights (torch.Tensor):
+            multiscale_weights (Tensor):
                 Multi-scale weights used when merging affinity scores.
                 Example:
                     >>> multiscale_weights = torch.tensor([1.4, 1.3, 1.2, 1.1, 1.0])
