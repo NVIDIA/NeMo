@@ -663,7 +663,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_multiple_model_save_restore_connector(self):
         class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str, safe: bool=False):
+            def save_to(self, model, save_path: str, safe: bool = False):
                 save_path = save_path.replace(".nemo", "_XYZ.nemo")
                 super(MySaveRestoreConnector, self).save_to(model, save_path, safe=safe)
 
@@ -685,7 +685,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_restore_from_save_restore_connector(self):
         class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str, safe: bool=False):
+            def save_to(self, model, save_path: str, safe: bool = False):
                 save_path = save_path.replace(".nemo", "_XYZ.nemo")
                 super().save_to(model, save_path, safe=safe)
 
@@ -713,7 +713,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_restore_from_save_restore_connector_return_config(self):
         class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str, safe: bool=False):
+            def save_to(self, model, save_path: str, safe: bool = False):
                 save_path = save_path.replace(".nemo", "_XYZ.nemo")
                 super().save_to(model, save_path, safe=safe)
 
@@ -743,7 +743,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_restore_from_save_restore_connector_return_config_partial_tar_extraction(self):
         class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str, safe: bool=False):
+            def save_to(self, model, save_path: str, safe: bool = False):
                 save_path = save_path.replace(".nemo", "_XYZ.nemo")
                 super().save_to(model, save_path, safe=safe)
 
@@ -1204,7 +1204,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_restore_from_save_restore_connector_extracted_dir(self):
         class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str, safe: bool=False):
+            def save_to(self, model, save_path: str, safe: bool = False):
                 save_path = save_path.replace(".nemo", "_XYZ.nemo")
                 super().save_to(model, save_path, safe=safe)
 
@@ -1325,28 +1325,36 @@ class TestSaveRestore:
     def test_sec_EncDecCTCModel(self):
         # TODO: Switch to using named configs because here we don't really care about weights
         qn = EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En")
-        self.__test_restore_elsewhere(model=qn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]), safe=True)
+        self.__test_restore_elsewhere(
+            model=qn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]), safe=True
+        )
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_sec_EncDecCTCModelBPE(self):
         # TODO: Switch to using named configs because here we don't really care about weights
         cn = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_citrinet_256")
-        self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]), safe=True)
+        self.__test_restore_elsewhere(
+            model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]), safe=True
+        )
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_sec_EncDecCTCModelBPE_v2(self):
         # TODO: Switch to using named configs because here we don't really care about weights
         cn = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_conformer_ctc_small")
-        self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]), safe=True)
+        self.__test_restore_elsewhere(
+            model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]), safe=True
+        )
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_sec_EncDecCTCModelBPE_v3(self):
         # TODO: Switch to using named configs because here we don't really care about weights
         cn = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_squeezeformer_ctc_xsmall_ls")
-        self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]), safe=True)
+        self.__test_restore_elsewhere(
+            model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]), safe=True
+        )
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
@@ -1354,7 +1362,9 @@ class TestSaveRestore:
         # TODO: Switch to using named configs because here we don't really care about weights
         # Specifically use ModelPT instead of EncDecCTCModelBPE in order to test target class resolution.
         cn = ModelPT.from_pretrained(model_name="nvidia/stt_en_citrinet_256_ls")
-        self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]), safe=True)
+        self.__test_restore_elsewhere(
+            model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]), safe=True
+        )
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
@@ -1362,7 +1372,9 @@ class TestSaveRestore:
         # TODO: Switch to using named configs because here we don't really care about weights
         pn = PunctuationCapitalizationModel.from_pretrained(model_name='punctuation_en_distilbert')
         self.__test_restore_elsewhere(
-            model=pn, attr_for_eq_check=set(["punct_classifier.log_softmax", "punct_classifier.log_softmax"]), safe=True
+            model=pn,
+            attr_for_eq_check=set(["punct_classifier.log_softmax", "punct_classifier.log_softmax"]),
+            safe=True,
         )
 
     @pytest.mark.unit
@@ -1659,7 +1671,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_sec_multiple_model_save_restore_connector(self):
         class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str, safe: bool=False):
+            def save_to(self, model, save_path: str, safe: bool = False):
                 save_path = save_path.replace(".nemo", "_XYZ.nemo")
                 super(MySaveRestoreConnector, self).save_to(model, save_path, safe=safe)
 
@@ -1681,7 +1693,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_sec_restore_from_save_restore_connector(self):
         class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str, safe: bool=False):
+            def save_to(self, model, save_path: str, safe: bool = False):
                 save_path = save_path.replace(".nemo", "_XYZ.nemo")
                 super().save_to(model, save_path, safe=safe)
 
@@ -1709,7 +1721,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_sec_restore_from_save_restore_connector_return_config(self):
         class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str, safe: bool=False):
+            def save_to(self, model, save_path: str, safe: bool = False):
                 save_path = save_path.replace(".nemo", "_XYZ.nemo")
                 super().save_to(model, save_path, safe=safe)
 
@@ -1740,7 +1752,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_sec_restore_from_save_restore_connector_return_config_partial_tar_extraction(self):
         class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str, safe: bool=False):
+            def save_to(self, model, save_path: str, safe: bool = False):
                 save_path = save_path.replace(".nemo", "_XYZ.nemo")
                 super().save_to(model, save_path, safe=safe)
 
@@ -2183,7 +2195,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_sec_restore_from_save_restore_connector_extracted_dir(self):
         class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str, safe: bool=False):
+            def save_to(self, model, save_path: str, safe: bool = False):
                 save_path = save_path.replace(".nemo", "_XYZ.nemo")
                 super().save_to(model, save_path, safe=safe)
 

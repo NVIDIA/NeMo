@@ -350,7 +350,7 @@ class ModelPT(LightningModule, Model):
             ):
                 yield submodule_name, subconfig_path, submodule
 
-    def save_to(self, save_path: str, safe: bool=False):
+    def save_to(self, save_path: str, safe: bool = False):
         """
         Saves model instance (weights and configuration) into .nemo file
          You can use "restore_from" method to fully restore instance from .nemo file.
@@ -383,10 +383,14 @@ class ModelPT(LightningModule, Model):
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
             # connector checks for ranks properly, no need to check here
-            self._save_restore_connector.save_to(self, str(save_path), safe=safe)  # downstream tasks expect str, not Path
+            self._save_restore_connector.save_to(
+                self, str(save_path), safe=safe
+            )  # downstream tasks expect str, not Path
         elif is_global_rank_zero():
             maybe_make_save_dir(save_path)
-            self._save_restore_connector.save_to(self, str(save_path), safe=safe)  # downstream tasks expect str, not Path
+            self._save_restore_connector.save_to(
+                self, str(save_path), safe=safe
+            )  # downstream tasks expect str, not Path
 
     @classmethod
     def restore_from(

@@ -542,7 +542,7 @@ class Serialization(ABC):
 
 
 class FileIO(ABC):
-    def save_to(self, save_path: str, safe: bool=False):
+    def save_to(self, save_path: str, safe: bool = False):
         """
         Standardized method to save a tarfile containing the checkpoint, config, and any additional artifacts.
         Implemented via :meth:`nemo.core.connectors.save_restore_connector.SaveRestoreConnector.save_to`.

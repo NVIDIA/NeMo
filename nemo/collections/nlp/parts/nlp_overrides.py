@@ -41,10 +41,9 @@ from torch.nn.parallel import DistributedDataParallel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, logging, secure
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
-from nemo.utils import secure
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -465,7 +464,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             )
         super().__init__()
 
-    def save_to(self, model, save_path: str, safe: bool=False):
+    def save_to(self, model, save_path: str, safe: bool = False):
         app_state = AppState()
 
         # Check if using distributed checkpointing
@@ -597,7 +596,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         uninject_model_weights = uninject_model_parallel_rank(model_weights)
 
         # legacy model_weights will have mp rank injected
-        if os.path.isfile(model_weights) or os.path.isfile(model_weights+secure.SAFE_EXTENSION):
+        if os.path.isfile(model_weights) or os.path.isfile(model_weights + secure.SAFE_EXTENSION):
             return super()._load_state_dict_from_disk(model_weights, map_location, safe=safe)
 
         # dist checkpoint will be a dir
@@ -644,7 +643,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         loaded_params = super().load_config_and_state_dict(
-            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,safe=safe
+            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer, safe=safe
         )
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params

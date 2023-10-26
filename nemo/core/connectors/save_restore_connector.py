@@ -31,7 +31,7 @@ from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
-from nemo.utils.secure import torch_save, torch_load
+from nemo.utils.secure import torch_load, torch_save
 
 
 class SaveRestoreConnector:
@@ -80,7 +80,7 @@ class SaveRestoreConnector:
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
-        safe: bool = False
+        safe: bool = False,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -255,7 +255,9 @@ class SaveRestoreConnector:
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
 
-    def extract_state_dict_from(self, restore_path: str, save_dir: str, split_by_module: bool = False, safe: bool = False):
+    def extract_state_dict_from(
+        self, restore_path: str, save_dir: str, split_by_module: bool = False, safe: bool = False
+    ):
         """
         Extract the state dict(s) from a provided .nemo tarfile and save it to a directory.
 

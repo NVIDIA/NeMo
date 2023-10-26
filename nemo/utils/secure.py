@@ -24,7 +24,7 @@ SAFE_EXTENSION = '.safetensor'
 # however when loading untrusted files, safe should be set to True.
 def torch_load(filename, map_location='cpu', safe=False):
     try:
-        return storch.load_file(filename+SAFE_EXTENSION, device=map_location)
+        return storch.load_file(filename + SAFE_EXTENSION, device=map_location)
     except FileNotFoundError as e:
         if safe:
             raise e
@@ -33,19 +33,20 @@ def torch_load(filename, map_location='cpu', safe=False):
 
     return torch.load(filename, map_location=map_location)
 
-# save replacement for pytorch. For backwards compatability it is 
+
+# save replacement for pytorch. For backwards compatability it is
 # unsafe by default. This causes a pytorch and safetensors file
 # to be created. When saving the secure method, only the safetensor
 # will be created, however this won't work with old versions of nemo
 def torch_save(tensors, filename, safe=False):
     try:
-        storch.save_file(tensors, filename+SAFE_EXTENSION)
+        storch.save_file(tensors, filename + SAFE_EXTENSION)
     except safetensors.SafetensorError as e:
         if safe:
             raise e
         else:
             logging.info(e)
-    
+
     # always save when safe is false in order to allow backwards compatability.
     # it will only be used if safe is also false for the load.
     if not safe:

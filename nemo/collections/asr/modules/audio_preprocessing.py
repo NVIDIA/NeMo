@@ -168,7 +168,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
             stft_conv: Deprecated argument, kept for compatibility with older checkpoints.
         """
 
-    def save_to(self, save_path: str, safe: bool=False):
+    def save_to(self, save_path: str, safe: bool = False):
         pass
 
     @classmethod
@@ -351,7 +351,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             "processed_length": NeuralType(tuple('B'), LengthsType()),
         }
 
-    def save_to(self, save_path: str, safe: bool=False):
+    def save_to(self, save_path: str, safe: bool = False):
         pass
 
     @classmethod
@@ -692,7 +692,7 @@ class CropOrPadSpectrogramAugmentation(NeuralModule):
             "processed_length": NeuralType(tuple('B'), LengthsType()),
         }
 
-    def save_to(self, save_path: str, safe: bool=False):
+    def save_to(self, save_path: str, safe: bool = False):
         pass
 
     @classmethod

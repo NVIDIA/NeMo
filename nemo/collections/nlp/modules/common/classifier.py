@@ -67,7 +67,7 @@ class Classifier(NeuralModule, Exportable):
         example = torch.randn(max_batch, max_dim, self._hidden_size).to(sample.device).to(sample.dtype)
         return tuple([example])
 
-    def save_to(self, save_path: str, safe: bool=False):
+    def save_to(self, save_path: str, safe: bool = False):
         """
         Saves the module to the specified path.
         Args:

@@ -479,7 +479,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             tar.add(source_dir, arcname="./")
 
     @rank_zero_only
-    def save_to(self, save_path: str, safe: bool=False):
+    def save_to(self, save_path: str, safe: bool = False):
         """
         Saves model instance (weights and configuration) into EFF archive or .
          You can use "restore_from" method to fully restore instance from .nemo file.
@@ -522,7 +522,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         override_config_path: Optional[str] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
-        safe: bool = False
+        safe: bool = False,
     ):
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)

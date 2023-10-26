@@ -1017,7 +1017,7 @@ class NeuralDiarizer(LightningModule):
         return msdd_model.cfg
 
     @rank_zero_only
-    def save_to(self, save_path: str, safe: bool=False):
+    def save_to(self, save_path: str, safe: bool = False):
         """
         Saves model instances (weights and configuration) into EFF archive.
         You can use "restore_from" method to fully restore instance from .nemo file.
