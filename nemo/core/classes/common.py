@@ -549,6 +549,7 @@ class FileIO(ABC):
 
         Args:
             save_path: str, path to where the file should be saved.
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
         """
         raise NotImplementedError()
 
@@ -579,6 +580,7 @@ class FileIO(ABC):
             trainer: An optional Trainer object, passed to the model constructor.
             save_restore_connector: An optional SaveRestoreConnector object that defines the implementation
                 of the restore_from() method.
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
         """
         raise NotImplementedError()
 

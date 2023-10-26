@@ -1028,6 +1028,7 @@ class NeuralDiarizer(LightningModule):
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
         """
         self.clus_diar = self.clustering_embedding.clus_diar_model
         _NEURAL_DIAR_MODEL = "msdd_model.nemo"

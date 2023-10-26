@@ -361,6 +361,7 @@ class ModelPT(LightningModule, Model):
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
         """
 
         def maybe_make_save_dir(path: 'pathlib.Path'):
@@ -414,6 +415,7 @@ class ModelPT(LightningModule, Model):
             trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
                 instantiated model's constructor.
             save_restore_connector (SaveRestoreConnector): Can be overridden to add custom save and restore logic.
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
 
             Example:
                 ```

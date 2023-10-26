@@ -629,6 +629,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             strict: Passed to load_state_dict. By default True
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
 
         Example:
             ```

@@ -490,6 +490,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
         """
 
         # TODO: Why does this override the main save_to?

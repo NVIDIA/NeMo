@@ -72,6 +72,7 @@ class Classifier(NeuralModule, Exportable):
         Saves the module to the specified path.
         Args:
             save_path: Path to where to save the module.
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
         """
         pass
 
@@ -81,5 +82,6 @@ class Classifier(NeuralModule, Exportable):
         Restores the module from the specified path.
         Args:
             restore_path: Path to restore the module from.
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
         """
         pass

@@ -52,6 +52,7 @@ class SaveRestoreConnector:
         Args:
             model: ModelPT object to be saved.
             save_path: Path to .nemo file where model instance should be saved
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
         """
 
         if is_global_rank_zero():
@@ -93,6 +94,7 @@ class SaveRestoreConnector:
             strict: Passed to load_state_dict. By default True
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
 
         Example:
             ```
@@ -229,6 +231,7 @@ class SaveRestoreConnector:
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
             trainer: An optional Trainer object, passed to the model constructor.
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
 
         Example:
             ```
@@ -261,6 +264,7 @@ class SaveRestoreConnector:
             save_dir: directory in which the saved state dict(s) should be stored
             split_by_module: bool flag, which determins whether the output checkpoint should
                 be for the entire Model, or the individual module's that comprise the Model
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load, and only safetensors will be allowed
 
         Example:
             To convert the .nemo tarfile into a single Model level PyTorch checkpoint
