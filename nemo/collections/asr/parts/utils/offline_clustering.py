@@ -1107,6 +1107,7 @@ class NMESC:
             raise ValueError("p_value_list should not be empty.")
         return p_value_list
 
+
 class SpeakerClustering(torch.nn.Module):
     def __init__(
         self,
@@ -1149,7 +1150,7 @@ class SpeakerClustering(torch.nn.Module):
         self.embeddings_in_scales: List[torch.Tensor] = [torch.Tensor(0)]
         self.timestamps_in_scales: List[torch.Tensor] = [torch.Tensor(0)]
         self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
-            
+
     def forward_unit_infer(
         self,
         mat: torch.Tensor,
@@ -1157,7 +1158,7 @@ class SpeakerClustering(torch.nn.Module):
         max_num_speakers: int = 8,
         max_rp_threshold: float = 0.15,
         sparse_search_volume: int = 30,
-        est_num_of_spk_enhanced: torch.Tensor = torch.tensor(-1), 
+        est_num_of_spk_enhanced: torch.Tensor = torch.tensor(-1),
         fixed_thres: float = -1.0,
         kmeans_random_trials: int = 1,
     ) -> torch.LongTensor:
@@ -1228,7 +1229,7 @@ class SpeakerClustering(torch.nn.Module):
             n_clusters=n_clusters, n_random_trials=kmeans_random_trials, cuda=self.cuda, device=self.device
         )
         Y = spectral_model.forward(affinity_mat)
-        return Y 
+        return Y
 
     def forward(self, param_dict: Dict[str, torch.Tensor]) -> torch.LongTensor:
         """
@@ -1356,19 +1357,19 @@ class SpeakerClustering(torch.nn.Module):
             max_num_speakers = oracle_num_speakers
 
         mat = getMultiScaleCosAffinityMatrix(
-            multiscale_weights=multiscale_weights, 
-            embeddings_in_scales=self.embeddings_in_scales, 
-            timestamps_in_scales=self.timestamps_in_scales, 
-            device=self.device
+            multiscale_weights=multiscale_weights,
+            embeddings_in_scales=self.embeddings_in_scales,
+            timestamps_in_scales=self.timestamps_in_scales,
+            device=self.device,
         )
 
         return self.forward_unit_infer(
-                mat=mat,
-                oracle_num_speakers=oracle_num_speakers,
-                max_rp_threshold=max_rp_threshold,
-                max_num_speakers=max_num_speakers,
-                sparse_search_volume=sparse_search_volume,
-                est_num_of_spk_enhanced=est_num_of_spk_enhanced,
-                kmeans_random_trials=kmeans_random_trials,
-                fixed_thres=fixed_thres,
+            mat=mat,
+            oracle_num_speakers=oracle_num_speakers,
+            max_rp_threshold=max_rp_threshold,
+            max_num_speakers=max_num_speakers,
+            sparse_search_volume=sparse_search_volume,
+            est_num_of_spk_enhanced=est_num_of_spk_enhanced,
+            kmeans_random_trials=kmeans_random_trials,
+            fixed_thres=fixed_thres,
         )
