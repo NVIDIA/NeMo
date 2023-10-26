@@ -3,7 +3,7 @@ from typing import Dict, Optional, Tuple
 
 import torch.utils.data
 from lhotse import CutSet
-from lhotse.dataset import AudioSamples, DynamicBucketingSampler, IterableDatasetWrapper, make_worker_init_fn
+from lhotse.dataset import AudioSamples, DynamicBucketingSampler, IterableDatasetWrapper, make_worker_init_fn, CutMix
 from lhotse.dataset.collation import collate_vectors
 from omegaconf import DictConfig
 
@@ -18,6 +18,13 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
     tokenizer,
     preprocessor_cfg: Optional[DictConfig] = None,
 ):
+    """
+    Setup a Lhotse training dataloder.
+
+    Expects a typical NeMo dataset configuration format, with additional fields: "use_lhotse=True" and "lhotse: <dict>".
+    Some fields in the original NeMo configuration are ignored (e.g. ``batch_size``).
+    To learn about lhotse specific parameters, search this code for ``config.lhotse``.
+    """
     use_shar = config.lhotse.get("shar_path") is not None
 
     # 1. Load Lhotse manifest.
@@ -28,7 +35,7 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
         # seed="randomized" means we'll defer setting the seed until the iteration
         # is triggered, so we can obtain node+worker specific seed thanks to worker_init_fn.
         # This results in every dataloading worker using full data but in a completely different order.
-        if config.lhotse.cuts_path is not None:
+        if config.lhotse.get("cuts_path") is not None:
             warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
         cuts = CutSet.from_shar(in_dir=config.lhotse.shar_path, shuffle_shards=True, seed="randomized").repeat()
     else:
@@ -67,7 +74,7 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
     #    For non-shar data, I/O happens inside dataset __getitem__.
     #    For shar data, I/O happens in sampler iteration, so we put it together with the dataset
     #    into an iterable dataset based wrapper (see the next step).
-    dataset = LhotseSpeechToTextBpeDataset(tokenizer=tokenizer)
+    dataset = LhotseSpeechToTextBpeDataset(tokenizer=tokenizer, noise_cuts=config.lhotse.get("noise_cuts"))
 
     # 5. Creating dataloader (wrapper is explained in 4. and worker_init_fn in 1.).
     if use_shar:
@@ -107,15 +114,23 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, tokenizer):
+    def __init__(self, tokenizer, noise_cuts: Optional[CutSet] = None):
         super().__init__()
         self.tokenizer = tokenizer
         self.load_audio = AudioSamples(fault_tolerant=True)
+        self.maybe_mix_noise = (
+            _identity if noise_cuts is None else CutMix(noise_cuts, pad_to_longest=False, random_mix_offset=True)
+        )
 
     def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
         cuts = cuts.sort_by_duration()
+        cuts = self.maybe_mix_noise(cuts)
         audio, audio_lens, cuts = self.load_audio(cuts)
         tokens = [torch.as_tensor(self.tokenizer.text_to_ids(c.supervisions[0].text)) for c in cuts]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=0)
         return audio, audio_lens, tokens, token_lens
+
+
+def _identity(x):
+    return x
