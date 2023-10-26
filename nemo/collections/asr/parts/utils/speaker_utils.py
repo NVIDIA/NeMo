@@ -29,7 +29,7 @@ from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
 from nemo.collections.asr.parts.utils.offline_clustering import SpeakerClustering, get_argmin_mat, split_input_data
-from nemo.collections.asr.parts.utils.online_clustering import LongFormSpeakerClustering
+from nemo.collections.asr.parts.utils.longform_clustering import LongFormSpeakerClustering
 from nemo.utils import logging
 
 
@@ -492,8 +492,8 @@ def perform_clustering(
             max_num_speakers=int(clustering_params.max_num_speakers),
             max_rp_threshold=float(clustering_params.max_rp_threshold),
             sparse_search_volume=int(clustering_params.sparse_search_volume),
-            sub_cluster_n=clustering_params.get('sub_cluster_n', None),
-            unit_window_len=clustering_params.get('unit_window_len', None),
+            chunk_cluster_count=clustering_params.get('chunk_cluster_count', None),
+            embeddings_per_chunk=clustering_params.get('embeddings_per_chunk', None),
         )
 
         del uniq_embs_and_timestamps

@@ -28,7 +28,6 @@ from nemo.collections.asr.parts.utils.offline_clustering import (
     split_input_data,
 )
 from nemo.collections.asr.parts.utils.online_clustering import (
-    LongFormSpeakerClustering,
     OnlineSpeakerClustering,
     get_closest_embeddings,
     get_merge_quantity,
@@ -37,6 +36,7 @@ from nemo.collections.asr.parts.utils.online_clustering import (
     run_reducer,
     stitch_cluster_labels,
 )
+from nemo.collections.asr.parts.utils.longform_clustering import LongFormSpeakerClustering
 from nemo.collections.asr.parts.utils.optimization_utils import LinearSumAssignmentSolver
 from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment as nemo_linear_sum_assignment
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -360,7 +360,6 @@ class TestDiarizationSegmentationUtils:
     """
     Test segmentation util functions
     """
-
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "intervals",
@@ -566,7 +565,7 @@ class TestClusteringUtilFunctions:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("Y_aggr", [torch.tensor([0, 1, 0, 1])])
-    @pytest.mark.parametrize("sub_cluster_n, unit_window_len", [(2, 50)])
+    @pytest.mark.parametrize("chunk_cluster_count, embeddings_per_chunk", [(2, 50)])
     @pytest.mark.parametrize("window_range_list", [[[0, 1], [1, 2], [2, 3], [3, 4]]])
     @pytest.mark.parametrize(
         "absolute_merge_mapping",
@@ -574,7 +573,7 @@ class TestClusteringUtilFunctions:
     )
     @pytest.mark.parametrize("org_len", [4])
     def test_unpack_labels(
-        self, Y_aggr, window_range_list, absolute_merge_mapping, sub_cluster_n, unit_window_len, org_len
+        self, Y_aggr, window_range_list, absolute_merge_mapping, chunk_cluster_count, embeddings_per_chunk, org_len
     ):
         expected_result = Y_aggr
         longform_speaker_clustering = LongFormSpeakerClustering(cuda=False)
@@ -725,7 +724,7 @@ class TestSpeakerClustering:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks, SSV, enhanced_count_thres, min_samples_for_nmesc", [(2, 5, 40, 6)])
-    @pytest.mark.parametrize("spk_dur, sub_cluster_n, unit_window_len", [(120, 4, 50), (240, 4, 100)])
+    @pytest.mark.parametrize("spk_dur, chunk_cluster_count, embeddings_per_chunk", [(120, 4, 50), (240, 4, 100)])
     @pytest.mark.parametrize("seed", [0])
     @pytest.mark.parametrize("jit_script", [False, True])
     def test_longform_speaker_clustering_cpu(
@@ -735,8 +734,8 @@ class TestSpeakerClustering:
         SSV,
         enhanced_count_thres,
         min_samples_for_nmesc,
-        sub_cluster_n,
-        unit_window_len,
+        chunk_cluster_count,
+        embeddings_per_chunk,
         jit_script,
         seed,
     ):
@@ -759,8 +758,8 @@ class TestSpeakerClustering:
             sparse_search_volume=SSV,
             max_rp_threshold=0.15,
             fixed_thres=-1.0,
-            sub_cluster_n=sub_cluster_n,
-            unit_window_len=unit_window_len,
+            chunk_cluster_count=chunk_cluster_count,
+            embeddings_per_chunk=embeddings_per_chunk,
         )
         permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
         permuted_Y = permuted_Y.to(gt.device)
@@ -772,7 +771,7 @@ class TestSpeakerClustering:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks, SSV, enhanced_count_thres, min_samples_for_nmesc", [(2, 5, 40, 6)])
-    @pytest.mark.parametrize("spk_dur, sub_cluster_n, unit_window_len", [(120, 4, 50), (240, 4, 100)])
+    @pytest.mark.parametrize("spk_dur, chunk_cluster_count, embeddings_per_chunk", [(120, 4, 50), (240, 4, 100)])
     @pytest.mark.parametrize("seed", [0])
     @pytest.mark.parametrize("jit_script", [False, True])
     def test_longform_speaker_clustering_gpu(
@@ -782,8 +781,8 @@ class TestSpeakerClustering:
         SSV,
         enhanced_count_thres,
         min_samples_for_nmesc,
-        sub_cluster_n,
-        unit_window_len,
+        chunk_cluster_count,
+        embeddings_per_chunk,
         jit_script,
         seed,
     ):
@@ -808,8 +807,8 @@ class TestSpeakerClustering:
             sparse_search_volume=SSV,
             max_rp_threshold=0.15,
             fixed_thres=-1.0,
-            sub_cluster_n=sub_cluster_n,
-            unit_window_len=unit_window_len,
+            chunk_cluster_count=chunk_cluster_count,
+            embeddings_per_chunk=embeddings_per_chunk,
         )
         permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
         permuted_Y = permuted_Y.to(gt.device)
