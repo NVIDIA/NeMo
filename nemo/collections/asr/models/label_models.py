@@ -13,7 +13,6 @@
 # limitations under the License.
 import copy
 import itertools
-import random
 from collections import Counter
 from math import ceil
 from typing import Dict, List, Optional, Union
@@ -498,13 +497,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         del audio_signal, audio_signal_len
         return emb, logits
 
-    def get_label(self, path2audio_file: str, segment_duration: float = np.inf, num_segments: int = 1):
+    def get_label(self, path2audio_file: str, segment_duration: float = np.inf, num_segments: int = 1, random_seed: int = None):
         """
         Returns label of path2audio_file from classes the model was trained on.
         Args:
-            path2audio_file (str): path to audio wav file
-            segment_duration (float): random sample duration in seconds
-            num_segments (int): number of segments of file to use for majority vote
+            path2audio_file (str): Path to audio wav file.
+            segment_duration (float): Random sample duration in seconds.
+            num_segments (int): Number of segments of file to use for majority vote.
+            random_seed (int): Seed for generating the starting position of the segment.
 
         Returns:
             label: label corresponding to the trained model
@@ -520,8 +520,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             duration = audio_length
 
         label_id_list = []
-        for j in range(0, num_segments):
-            start = random.randint(0, audio_length - duration)
+        np.random.seed(random_seed)
+        starts = np.random.randint(0, audio_length - duration + 1, size = num_segments)
+        for start in starts:
             audio = audio[start : start + duration]
 
             _, logits = self.infer_segment(audio)
