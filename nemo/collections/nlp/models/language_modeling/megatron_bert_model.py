@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, Dict, List, Optional, Union
 from dataclasses import fields
-from omegaconf import OmegaConf
-        
+from typing import Any, Dict, List, Optional, Union
+
 import torch
 import torch.nn.functional as F
+from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -27,7 +27,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.parts.utils_funcs import activation_to_func
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -38,7 +37,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
@@ -64,11 +63,11 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state
     from megatron.core.models.bert import BertModel as MCoreBertModel
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
-    
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -177,20 +176,20 @@ class MegatronBertModel(MegatronBaseModel):
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
         num_tokentypes = 2 if cfg.bert_binary_head else 0
-        
+
         if self.mcore_bert:
-            #TODO : Change transformer_layer_spec layer spec
+            # TODO : Change transformer_layer_spec layer spec
             model = MCoreBertModel(
                 config=self.transformer_config,
                 transformer_layer_spec=transformer_layer_spec,
                 vocab_size=self.padded_vocab_size,
                 max_sequence_length=cfg.max_position_embeddings,
-                num_tokentypes=num_tokentypes, 
+                num_tokentypes=num_tokentypes,
                 add_binary_head=cfg.bert_binary_head,
                 share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
                 parallel_output=True,
                 pre_process=pre_process,
-                post_process=post_process
+                post_process=post_process,
             )
         else:
             model = BertModel(
@@ -276,7 +275,7 @@ class MegatronBertModel(MegatronBaseModel):
 
             forward_args = {
                 "input_ids": tokens,
-                "attention_mask" : padding_mask,
+                "attention_mask": padding_mask,
                 "lm_labels": lm_labels,
             }
 
@@ -457,8 +456,10 @@ class MegatronBertModel(MegatronBaseModel):
                 else:
                     module = self.model
             if module.share_token_embeddings:
-                word_embeddings_weight = module.shared_embedding_or_output_weight() if self.mcore_bert else module.word_embeddings_weight()
-            
+                word_embeddings_weight = (
+                    module.shared_embedding_or_output_weight() if self.mcore_bert else module.word_embeddings_weight()
+                )
+
                 if self.megatron_amp_o2:
                     # O2 recipe stores a "main" copy of weights and grads
                     grad = word_embeddings_weight.main_grad
@@ -758,11 +759,19 @@ class MegatronBertModel(MegatronBaseModel):
             if isinstance(self.model, list):
                 for i, module in enumerate(self.model):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    sync_embeddings = module.initialize_last_stage_with_word_embeddings if self.mcore_bert else module.sync_initial_word_embeddings
+                    sync_embeddings = (
+                        module.initialize_last_stage_with_word_embeddings
+                        if self.mcore_bert
+                        else module.sync_initial_word_embeddings
+                    )
                     sync_embeddings()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
-                sync_embeddings = self.model.initialize_last_stage_with_word_embeddings if self.mcore_bert else self.model.sync_initial_word_embeddings
+                sync_embeddings = (
+                    self.model.initialize_last_stage_with_word_embeddings
+                    if self.mcore_bert
+                    else self.model.sync_initial_word_embeddings
+                )
                 sync_embeddings()
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_bert', False):
@@ -952,7 +961,7 @@ class MegatronBertModel(MegatronBaseModel):
                     if isinstance(module, Float16Module, MCoreFloat16Module):
                         module = module.module
                     stage_bucket = []
-                    #TODO Fill this out 
+                    # TODO Fill this out
                     layers = module.transformer.layers if self.mcore_bert else module.language_model.encoder.layers
                     for layer in layers:
                         stage_bucket.extend(
