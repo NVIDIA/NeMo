@@ -42,7 +42,7 @@ def main(cfg) -> None:
         model_cfg = cfg.model
         model = MegatronNevaModel(cfg.model, trainer)
     else:
-        model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+        model_cfg = MegatronNevaModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
         model = MegatronNevaModel.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,
