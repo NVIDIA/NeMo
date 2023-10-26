@@ -4,3 +4,4 @@ pydantic<2  # remove after inflect supports Pydantic 2.0+
 sacremoses>=0.0.43
 sentencepiece<1.0.0
 youtokentome>=1.0.5
+safetensors
