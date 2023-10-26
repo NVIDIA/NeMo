@@ -7,13 +7,13 @@ from tts_normalization_utils import get_normalizer, normalize
 random.seed(1402)
 
 dataset_name = "msmarco"
-split_name = "train"
-output_file = f"{dataset_name}_{split_name}_not_normalized.json"
+split_name = "test"
+output_file = f"{dataset_name}_{split_name}_normalized.json"
 MSG_NOT_FOUND_ANSWER = "I could not find the answer in the audio."
 
 do_shuffle = False
 use_wellformed_answer = True
-do_normalize = False
+do_normalize = True
 do_lowercase = False
 
 
@@ -48,11 +48,17 @@ for sample_idx, sample in tqdm(enumerate(dataset), desc="Loading samples..."):
             if x == 1:
                 context += sample['passages']['passage_text'][idx]
     if normalizer:
+        orig_context = context
         context = normalize(text=context, normalizer=normalizer, do_lowercase=do_lowercase)
+    else:
+        orig_context = None
 
     new_sample["sample_id"] = f"{dataset_name}_{sample['query_id']}"
     new_sample["instruction"] = sample["query"]
     new_sample["context"] = context
+    if orig_context:
+        new_sample["orig_context"] = orig_context
+
     new_samples.append(new_sample)
 
 print("Samples dropped with multiple answers:", multi_answers_num)

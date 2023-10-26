@@ -7,13 +7,13 @@ from tts_normalization_utils import get_normalizer, normalize
 random.seed(1402)
 
 dataset_name = "squadv2"
-split_name = "train"
-output_file = f"{dataset_name}_{split_name}_not_normalized.json"
+split_name = "validation"
+output_file = f"{dataset_name}_{split_name}_normalized.json"
 MSG_NOT_FOUND_ANSWER = "I could not find the answer in the audio."
 
 do_shuffle = False
 use_wellformed_answer = True
-do_normalize = False
+do_normalize = True
 do_lowercase = False
 
 
@@ -30,8 +30,10 @@ for sample_idx, sample in tqdm(enumerate(dataset), desc="Loading samples..."):
     new_sample = {}
     context = sample["context"]
     if normalizer:
+        orig_context = context
         context = normalize(text=context, normalizer=normalizer, do_lowercase=do_lowercase)
-
+    else:
+        orig_context = None
     output = sample["answers"]["text"]
     if len(output) == 0:
         output = MSG_NOT_FOUND_ANSWER
@@ -43,6 +45,8 @@ for sample_idx, sample in tqdm(enumerate(dataset), desc="Loading samples..."):
     new_sample["sample_id"] = f"{dataset_name}_{sample['id']}"
     new_sample["instruction"] = sample["question"]
     new_sample["context"] = context
+    if orig_context:
+        new_sample["orig_context"] = orig_context
     new_sample["output"] = output
     new_samples.append(new_sample)
 
