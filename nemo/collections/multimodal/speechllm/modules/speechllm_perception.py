@@ -69,7 +69,7 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         # Initialize components
         self.preprocessor = self.from_config_dict(cfg.preprocessor)
         encoder = self.from_config_dict(cfg.encoder)
-        if multi_layer_feat in cfg and cfg.multi_layer_feat is not None:
+        if "multi_layer_feat" in cfg and cfg.multi_layer_feat is not None:
             self.encoder = ConformerMultiLayerFeatureExtractor(cfg=cfg.multi_layer_feat, encoder=encoder)
         else:
             self.encoder = encoder
@@ -114,14 +114,49 @@ class AudioPerceptionModel(NeuralModule, Exportable):
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         encoded, encoded_len = self.modality_adapter(audio_signal=encoded, length=encoded_len)
-        # b, t, c
+
+        # b, c, t -> b, t, c
         encoded = self.proj(encoded.transpose(1, 2))
 
         return encoded, encoded_len
 
 
+class Aggregator(nn.Module):
+    def __init__(self, cfg: DictConfig, channel_dim: int = 1):
+        super().__init__()
+        self.mode = cfg.get("mode", "concat")
+        self.channel_dim = channel_dim
+        self.pooling = cfg.get("pooling", "avg")
+        self.rounding = cfg.get("rounding", "floor")
+
+    def _have_same_length(self, encoded_len: List[torch.Tensor]) -> bool:
+        return all(x == encoded_len[0] for x in encoded_len)
+
+    def forward(
+        self, encoded: List[torch.Tensor], encoded_len: List[torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if not self._have_same_length(encoded_len):
+            return self.merge_different_features(encoded, encoded_len)
+
+        if self.mode == "concat":
+            return torch.cat(encoded, dim=self.channel_dim), encoded_len[0]
+        elif self.mode == "sum":
+            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).sum(dim=-1), encoded_len[0]
+        elif self.mode == "mean":
+            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).mean(dim=-1), encoded_len[0]
+        elif self.mode == "max":
+            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).max(dim=-1), encoded_len[0]
+        elif self.mode == "min":
+            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).min(dim=-1), encoded_len[0]
+        else:
+            raise ValueError(f"Unknown mode {self.mode}")
+
+    def merge_different_features(self, encoded, encoded_len):
+        raise NotImplementedError
+
+
 class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin):
-    def __init__(self, cfg: DictConfig, encoder: ConformerEncoder) -> None:
+    def __init__(self, cfg: DictConfig, encoder: ConformerEncoder):
         super().__init__()
         self.encoder = encoder
         self.layer_idx_list = [int(l) for l in cfg.layer_idx_list]
@@ -134,8 +169,9 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
             "convert_to_cpu": cfg.get("convert_to_cpu", False),
         }
         self.update_access_cfg(access_cfg)
+        self.aggregator = Aggregator(cfg.aggregator, channel_dim=1)
 
-    def forward(self, *args, **kwargs) -> Tuple[List, List]:
+    def forward(self, *args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
         old_access_flag = self.is_access_enabled()
         self.set_access_enabled(access_enabled=True)
 
@@ -160,8 +196,9 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
                 )
             if len(layer_outputs) > 1 or len(layer_lengths) > 1:
                 raise RuntimeError("Make sure encoder.forward is called exactly one time")
-            encoded_list.append(layer_outputs[0])
-            encoded_len_list.append(layer_lengths[0])
+            encoded_list.append(layer_outputs[0])  # [B, D, T]
+            encoded_len_list.append(layer_lengths[0])  # [B]
 
         self.set_access_enabled(access_enabled=old_access_flag)
-        return encoded_list, encoded_len_list
+
+        return self.aggregator(encoded_list, encoded_len_list)
