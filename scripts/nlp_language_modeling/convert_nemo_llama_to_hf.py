@@ -22,21 +22,28 @@ from pytorch_lightning import Trainer
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
+from transformers import AutoModelForCausalLM
 
 """
-    This script will generate a .bin file which can be converted back to hf format using the below code.
-    import torch
-    import transformers
-    from transformers import AutoTokenizer, AutoModelForCausalLM
+Script to convert a llama2 checkpoint in nemo (mcore path) into a HuggingFace checkpoint.
+This script can be used to 1) generate only the HF weights, or 2) generate an entire HF model folder.
 
-    LLAMA_PRETRAINED_PATH = "/home/llama-2-7B-hf/"
-    NEMO_EXPORTED_PATH = "/home/nemo-exported.bin"
+1) Generate only HF weights from a nemo file:
 
-    model = AutoModelForCausalLM.from_pretrained(LLAMA_PRETRAINED_PATH, local_files_only=True)
-    nemo_exported = torch.load(NEMO_EXPORTED_PATH)
+    python convert_nemo_llama_to_hf.py \
+    --in-file /path/to/file.nemo or /path/to/extracted_folder \
+    --out-file /path/to/pytorch_model.bin
+    
+2) Generate the full HF model folder
 
-    model.load_state_dict(nemo_exported['state_dict'])
-    model.save_pretrained("./nemo-exported-llama/")
+    python convert_nemo_llama_to_hf.py \
+    --in-file /path/to/file.nemo or /path/to/extracted_folder \
+    --out-file /path/to/pytorch_model.bin \
+    --hf-in-file /path/to/input_hf_folder \
+    --hf-out-file /path/to/output_hf_folder
+
+    Use the --cpu-only flag if the model cannot fit in the GPU (e.g. Llama2 70b). 
+    However this option makes the conversion script significantly slower.
 """
 
 
@@ -46,6 +53,10 @@ def get_args():
         "--in-file", type=str, default=None, required=True, help="Path to .nemo file",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to HF .bin file")
+    parser.add_argument("--hf-in-path", type=str, default=None, help="A HF model path, "
+                        "e.g. a folder containing https://huggingface.co/meta-llama/Llama-2-7b-hf/tree/main")
+    parser.add_argument("--hf-out-path", type=str, default=None, help="Output HF model path, "
+                        "with the same format as above but user's own weights")
     parser.add_argument(
         "--precision",
         type=str,
@@ -184,10 +195,22 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
 
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
     torch.save(checkpoint, output_hf_file)
+    logging.info(f"Weights saved to {output_hf_file}")
+
+def replace_hf_weights(weights_file, input_hf_path, output_hf_path):
+    model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True)
+    nemo_exported = torch.load(weights_file)
+
+    model.load_state_dict(nemo_exported['state_dict'])
+    model.save_pretrained(output_hf_path)
+    logging.info(f"Full HF model saved to {output_hf_path}")
 
 
 if __name__ == '__main__':
     args = get_args()
-    input_nemo_file = args.in_file
-    output_hf_file = args.out_file
-    convert(input_nemo_file, output_hf_file, precision=args.precision, cpu_only=args.cpu_only)
+    convert(args.in_file, args.out_file, precision=args.precision, cpu_only=args.cpu_only)
+    if args.hf_in_path and args.hf_out_path:
+        replace_hf_weights(args.out_file, args.hf_in_path, args.hf_out_path)
+    else:
+        logging.info("`hf-in-path` and/or `hf-out-path` not provided, not generating full HF model.")
+        logging.info(f".bin file is saved to {args.out_file}")
