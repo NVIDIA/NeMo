@@ -208,7 +208,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             self.setup_transformer_engine_tp_groups()
         self.setup_complete = True
 
-    def _build_dataset(self, data_cfg, is_train=True):
+    def _build_dataset(self, data_cfg, is_train=True, is_val=False, is_test=False):
         datasets = []
         # Determine if we are using a single dataset or a list of datasets.
         is_list_config = isinstance(data_cfg.file_names, ListConfig)
@@ -286,7 +286,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                     skip_warmup=self.cfg.data.get('skip_warmup', True),
                     tokenizer=self.tokenizer,
                 )
-                dataset = _train_ds
+                if is_train:
+                    dataset = _train_ds
+                elif is_val:
+                    dataset = _validation_ds
+                elif is_test:
+                    dataset = _test_ds
+                else:
+                    raise ValueError('unknown option in MegatronGPTSFTModel._build_dataset')
 
             else:
                 if self.cfg.data.get("chat", False):
@@ -334,7 +341,13 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             )
             return dataset
         else:
-            return datasets
+            if self.cfg.data.get('continue_pretrain', False):
+                dataset = BlendableDataset(
+                    datasets=datasets, weights=[1.0], size=1000
+                )
+                return dataset
+            else:
+                return datasets
 
     def _determine_log_key(self, data_config, dataloader_idx, metric_name, mode):
         # Function that determines whether to log based on the user provided name of the dataset or the dataloader index.
@@ -779,14 +792,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if stage != 'test':
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
-            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
+            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False, is_val=True)
             logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
         if stage != 'validate':
             if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
                 logging.info('Building GPT SFT test datasets.')
                 # Wrap this in a list since the general finetuning parent class supports multi-validation.
-                self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
+                self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False, is_test=True)
                 logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
 
         if stage == 'validate' or stage == 'test':
@@ -834,9 +847,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def setup_eval_dataloader(self, datasets, data_cfg):
         dataloaders = []
-        for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
-            dataloaders.append(eval_dl)
+        if self.cfg.data.get('continue_pretrain', False):
+            return self.build_data_loader(dataset=self._validation_ds, data_cfg=data_cfg, consumed_samples=0,)
+        else:
+            for dataset in datasets:
+                eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
+                dataloaders.append(eval_dl)
         return dataloaders
 
     def on_validation_epoch_start(self):
