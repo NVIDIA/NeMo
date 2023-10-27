@@ -613,7 +613,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
         model_cfg = cls._modify_config(base_model_cfg, cfg, audio_model.cfg, add_cfg_to_tree=False)
         save_restore_connector = PEFTSaveRestoreConnector(
-            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=cfg.model.peft.restore_from_path
+            peft_model_nemo_path=cfg.model.peft.restore_from_path,
+            peft_model_ckpt_path=cfg.model.peft.restore_from_path,
         )
         if os.path.isdir(cfg.model.restore_from_path):
             save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
