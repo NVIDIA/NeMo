@@ -50,7 +50,9 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
         cuts = CutSet.from_file(config.lhotse.cuts_path)
 
     # Duration filtering, same as native NeMo dataloaders.
-    cuts = cuts.filter(lambda c: config.min_duration <= c.duration <= config.max_duration)
+    cuts = cuts.filter(
+        lambda c: config.get("min_duration", -1) <= c.duration <= config.get("max_duration", float("inf"))
+    )
 
     # 2. Optional on-the-fly speed perturbation,
     #    mux here ensures it's uniformly distributed throughout sampling,
@@ -86,7 +88,7 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
             cuts,
             max_duration=config.lhotse.batch_duration,
             shuffle=config.get("shuffle", False),
-            drop_last=config.lhotse.get("drop_last", False),
+            drop_last=config.lhotse.get("drop_last", True),
             shuffle_buffer_size=config.lhotse.get("shuffle_buffer_size", 10000),
             rank=0 if use_shar else global_rank,
             world_size=1 if use_shar else world_size,
