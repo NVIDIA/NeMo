@@ -46,6 +46,7 @@ from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
+from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
 
 
@@ -511,6 +512,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         # doing the initialization such as moving files
         time.sleep(cfg.seconds_to_sleep)
 
+    add_handlers_to_mcore_logger()
+
     return log_dir
 
 
@@ -959,6 +962,18 @@ class StatelessTimer(Timer):
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         return
+
+    def _check_time_remaining(self, trainer: "pl.Trainer") -> None:
+        super()._check_time_remaining(trainer)
+        if trainer.should_stop:
+            checkpoint_callback: Optional[NeMoModelCheckpoint] = trainer.checkpoint_callback
+            if checkpoint_callback:
+                monitor_candidates = checkpoint_callback._monitor_candidates(trainer)
+                checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
+            # Throw this exception to signal to Lightning to terminate gracefully.
+            from pytorch_lightning.utilities.exceptions import _TunerExitException
+
+            raise _TunerExitException()
 
 
 def configure_no_restart_validation_training_loop(trainer: pytorch_lightning.Trainer) -> None:
