@@ -193,7 +193,7 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             concat_emb = []
             concat_len = []
             for emb1, emb1_len, emb2, emb2_len in zip(embs1, emb1_lens, embs2, emb2_lens):
-                if self.cfg.ignore_dummy_audio and emb1_len <= 1:  # TODO: ignore the dummy audio emb
+                if self.cfg.get('ignore_dummy_audio', False) and emb1_len <= 1:  # TODO: ignore the dummy audio emb
                     new_len = emb2_len
                     new_emb = emb2[:emb2_len]
                 else:
@@ -292,6 +292,10 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         We prepend audio embeddings to the instruction and label text tokens 
         as the LLM input.
         """
+        if 'audio_ratio' in audio_batch:
+            self.log(
+                'audio_ratio', audio_batch['audio_ratio'].mean(), prog_bar=True, batch_size=1, rank_zero_only=False
+            )
         encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
         output = self.model(
             input_ids=None,
@@ -353,7 +357,15 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(loss_mask, output_tensor)
+                if 'audio_ratio' in batch:
+                    text_loss_weight = self.cfg.get('text_loss_weight', 1.0)
+                    audio_ratio = batch['audio_ratio']
+                    scaled_loss_mask = loss_mask * torch.unsqueeze(
+                        (1 * audio_ratio + text_loss_weight * (1 - audio_ratio)), 1
+                    )
+                    loss_for_ub = self.loss_func(scaled_loss_mask, output_tensor)
+                else:
+                    loss_for_ub = self.loss_func(loss_mask, output_tensor)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['loss_mask'].sum()
                     if loss_for_ub.isnan():
@@ -485,6 +497,7 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         with open_dict(gpt_cfg):
             gpt_cfg.ignore_dummy_audio = cfg.model.get('ignore_dummy_audio', False)
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
+            gpt_cfg.text_loss_weight = cfg.model.get('text_loss_weight', 1.0)
             gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
             gpt_cfg.freeze_modality_adapter = cfg.model.get('freeze_modality_adapter', False)
             gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
