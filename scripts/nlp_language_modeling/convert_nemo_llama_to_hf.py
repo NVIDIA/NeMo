@@ -133,9 +133,9 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         k_weights_base_name = f'model.layers.{l}.self_attn.k_proj.weight'
         v_weights_base_name = f'model.layers.{l}.self_attn.v_proj.weight'
 
-        checkpoint['state_dict'][q_weights_base_name] = param_to_weights(qkv_weights[q_slice])
-        checkpoint['state_dict'][k_weights_base_name] = param_to_weights(qkv_weights[k_slice])
-        checkpoint['state_dict'][v_weights_base_name] = param_to_weights(qkv_weights[v_slice])
+        checkpoint['state_dict'][q_weights_base_name] = param_to_weights(qkv_weights[q_slice].reshape(-1, hidden_size))
+        checkpoint['state_dict'][k_weights_base_name] = param_to_weights(qkv_weights[k_slice].reshape(-1, hidden_size))
+        checkpoint['state_dict'][v_weights_base_name] = param_to_weights(qkv_weights[v_slice].reshape(-1, hidden_size))
 
         # attention dense
         o_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_proj.weight']
