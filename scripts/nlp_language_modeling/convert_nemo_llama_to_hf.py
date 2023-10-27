@@ -57,7 +57,7 @@ def get_args():
         "--cpu-only",
         action="store_true",
         help="Load model in cpu only. Useful if the model cannot fit in GPU memory, "
-             "but this option makes the conversion script significantly slower.",
+        "but this option makes the conversion script significantly slower.",
     )
     args = parser.parse_args()
     return args
@@ -77,8 +77,9 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
 
     if cpu_only:
         logging.info("******** Loading model on CPU. This will take a significant amount of time.")
-    model = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer,
-                                          override_config_path=model_config, map_location=map_location)
+    model = MegatronGPTModel.restore_from(
+        input_nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
+    )
     if precision is None:
         precision = model.cfg.precision
     if precision in [32, "32"]:
@@ -116,9 +117,14 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         qkv_weights = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.weight']
         qkv_weights = qkv_weights.reshape([qkv_total_dim, head_size, hidden_size])
 
-        q_slice = torch.cat([torch.arange((heads_per_group+2) * i, (heads_per_group+2) * i + heads_per_group) for i in range(num_query_groups)])
-        k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group+2))
-        v_slice = torch.arange(heads_per_group+1, qkv_total_dim, (heads_per_group+2))
+        q_slice = torch.cat(
+            [
+                torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+                for i in range(num_query_groups)
+            ]
+        )
+        k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+        v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
         ## Example of slices
         ## 7b: num_query_groups = head_num = 32,
         ## q_slice = [0, 3, 6, 9 , ... 90, 93]
