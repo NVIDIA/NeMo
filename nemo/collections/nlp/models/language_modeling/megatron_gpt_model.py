@@ -869,10 +869,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 forward_args.pop('loss_mask')
             (output_tensor, logits), attention_probs_list = model(**forward_args)
 
-            check_interval = 1500
-            if self.trainer.val_check_interval is not None:
-                check_interval = self.trainer.val_check_interval
-            if self.trainer.global_step % check_interval == 0 and batch['speech_mask'][0].sum() != 0 and self.should_log and (not validation_step):
+            if self.trainer.global_step % self.train_check_interval == 0 and batch['speech_mask'][0].sum() != 0 and self.should_log and (not validation_step):
                 # Logs every if the first item in the batch is speech
                 logging.info("Logging training audio")
                 with torch.no_grad():
@@ -1800,6 +1797,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             self.additional_models = {'encodec': encodec_model}
         self.pretraining = True
         self.return_all_selfattention_probs = self.cfg.get('return_all_selfattention_probs', False)
+        self.train_check_interval  = self.cfg.get('train_check_interval', 1500)
         # attn_prior_scaledown_start_step = cfg.get('attn_prior_scaledown_start_step', 10000)
         # attn_prior_end_step = cfg.get('attn_prior_end_step', 11000)
         # return_all_crossattention_probs = cfg.get('return_all_crossattention_probs', False)

@@ -172,6 +172,7 @@ model:
 
   speech_residual_model: 'conv' # one of conv or linear
   return_all_selfattention_probs: True
+  train_check_interval: 1500
 
   data:
     ## Individal wav files
