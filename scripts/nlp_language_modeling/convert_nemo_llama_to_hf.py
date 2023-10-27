@@ -18,11 +18,11 @@ from collections import OrderedDict
 
 import torch
 from pytorch_lightning import Trainer
+from transformers import AutoModelForCausalLM
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
-from transformers import AutoModelForCausalLM
 
 """
 Script to convert a llama2 checkpoint in nemo (mcore path) into a HuggingFace checkpoint.
@@ -53,10 +53,18 @@ def get_args():
         "--in-file", type=str, default=None, required=True, help="Path to .nemo file",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to HF .bin file")
-    parser.add_argument("--hf-in-path", type=str, default=None, help="A HF model path, "
-                        "e.g. a folder containing https://huggingface.co/meta-llama/Llama-2-7b-hf/tree/main")
-    parser.add_argument("--hf-out-path", type=str, default=None, help="Output HF model path, "
-                        "with the same format as above but user's own weights")
+    parser.add_argument(
+        "--hf-in-path",
+        type=str,
+        default=None,
+        help="A HF model path, " "e.g. a folder containing https://huggingface.co/meta-llama/Llama-2-7b-hf/tree/main",
+    )
+    parser.add_argument(
+        "--hf-out-path",
+        type=str,
+        default=None,
+        help="Output HF model path, " "with the same format as above but user's own weights",
+    )
     parser.add_argument(
         "--precision",
         type=str,
@@ -196,6 +204,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
     torch.save(checkpoint, output_hf_file)
     logging.info(f"Weights saved to {output_hf_file}")
+
 
 def replace_hf_weights(weights_file, input_hf_path, output_hf_path):
     model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True)
