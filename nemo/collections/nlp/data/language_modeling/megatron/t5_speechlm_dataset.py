@@ -198,7 +198,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
             if doc["context_type"] == "SPEECH":
                 assert "context_duration" in doc, f"context_duration key not in document {doc}"
-                approx_context_len = min(doc["context_duration"] * 76 * 0.3, 400)
+                approx_context_len = min(doc["context_duration"] * 76, 400)
             approx_question_len = len(doc["question"].split(' ')) + 3
 
             if doc["answer_type"] == "SPEECH":
@@ -210,9 +210,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             else:
                 approx_answer_len = len(doc["answer"].split(' ')) + 3
 
+            # Below if is only for GPT
             if (
-                approx_context_len + approx_question_len < self.max_seq_length
-                and approx_answer_len < self.max_seq_length
+                approx_context_len + approx_question_len + approx_answer_len < self.max_seq_length
             ):
                 self.examples.append(doc)
             else:
@@ -868,58 +868,58 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
                 answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.END.value)
 
         # Skip example if the final length doesn't fit length requirements even after truncation
-        if (
-            self.min_seq_length
-            <= self._get_element_len(context_and_question_tokens) + self._get_element_len(virtual_tokens) + self._get_element_len(answer_text_ids)
-            <= self.max_seq_length
-        ):
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                taskname_id = self.tokenizer.text_to_ids(taskname)
-            elif (
-                self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT
-            ):  # TODO (@adithyare) this class and GPTPromptLearningDataset should be merged.
-                taskname_id = -1
-            else:
-                raise ValueError("Invalid virtual prompt source specified")
+        # if (
+        #     self.min_seq_length
+        #     <= self._get_element_len(context_and_question_tokens) + self._get_element_len(virtual_tokens) + self._get_element_len(answer_text_ids)
+        #     <= self.max_seq_length
+        # ):
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            taskname_id = self.tokenizer.text_to_ids(taskname)
+        elif (
+            self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT
+        ):  # TODO (@adithyare) this class and GPTPromptLearningDataset should be merged.
+            taskname_id = -1
+        else:
+            raise ValueError("Invalid virtual prompt source specified")
 
-            input_ids = answer_text_ids
+        input_ids = answer_text_ids
 
-            input_ids, input_ids_len = self.list_to_tensor(input_ids, True)
-            is_speech = True if doc["answer_type"] == "SPEECH" else False
-            if is_speech:
-                assert input_ids.dim() == 2
-                if self.seq_pattern == "delay_parallel":
-                    # input_ids_1 = input_ids.clone()
-                    # for l in range(1, input_ids.shape[0]):
-                    #     input_ids_1[l] = torch.roll(input_ids_1[l], l)
-                    #     input_ids_1[l, :l] = 0
+        input_ids, input_ids_len = self.list_to_tensor(input_ids, True)
+        is_speech = True if doc["answer_type"] == "SPEECH" else False
+        if is_speech:
+            assert input_ids.dim() == 2
+            if self.seq_pattern == "delay_parallel":
+                # input_ids_1 = input_ids.clone()
+                # for l in range(1, input_ids.shape[0]):
+                #     input_ids_1[l] = torch.roll(input_ids_1[l], l)
+                #     input_ids_1[l, :l] = 0
 
-                    num_codebooks = input_ids.shape[0]
-                    # input_ids_2 = input_ids.clone()
-                    dinput_ids_padded = torch.cat(
-                        [
-                            torch.zeros_like(input_ids[:, 0:num_codebooks]),
-                            input_ids,
-                            torch.zeros_like(input_ids[:, 0:num_codebooks]),
-                        ],
-                        dim=1,
-                    )
-                    dec_input_new = []
-                    for _c in range(8):
-                        st = num_codebooks - _c
-                        et_decoder_input = dinput_ids_padded.shape[1] - _c - 1
-                        dec_input_new.append(dinput_ids_padded[_c, st:et_decoder_input])
-                    input_ids = torch.stack(dec_input_new, dim=0)
-                    input_ids_len = torch.tensor(input_ids.shape[1]).long()
+                num_codebooks = input_ids.shape[0]
+                # input_ids_2 = input_ids.clone()
+                dinput_ids_padded = torch.cat(
+                    [
+                        torch.zeros_like(input_ids[:, 0:num_codebooks]),
+                        input_ids,
+                        torch.zeros_like(input_ids[:, 0:num_codebooks]),
+                    ],
+                    dim=1,
+                )
+                dec_input_new = []
+                for _c in range(8):
+                    st = num_codebooks - _c
+                    et_decoder_input = dinput_ids_padded.shape[1] - _c - 1
+                    dec_input_new.append(dinput_ids_padded[_c, st:et_decoder_input])
+                input_ids = torch.stack(dec_input_new, dim=0)
+                input_ids_len = torch.tensor(input_ids.shape[1]).long()
 
-            return (
-                context_tokens,
-                context_tokens_len,
-                question_tokens,
-                question_tokens_len,
-                input_ids,
-                input_ids_len,
-            )
+        return (
+            context_tokens,
+            context_tokens_len,
+            question_tokens,
+            question_tokens_len,
+            input_ids,
+            input_ids_len,
+        )
 
     def collate_fn(self, batch):
         (
