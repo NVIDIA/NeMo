@@ -3,7 +3,14 @@ from typing import Dict, Optional, Tuple
 
 import torch.utils.data
 from lhotse import CutSet
-from lhotse.dataset import AudioSamples, DynamicBucketingSampler, IterableDatasetWrapper, make_worker_init_fn, CutMix
+from lhotse.dataset import (
+    AudioSamples,
+    DynamicBucketingSampler,
+    IterableDatasetWrapper,
+    make_worker_init_fn,
+    CutMix,
+    DynamicCutSampler,
+)
 from lhotse.dataset.collation import collate_vectors
 from omegaconf import DictConfig
 
@@ -52,23 +59,38 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
     if config.lhotse.get("perturb_speed", False):
         cuts = CutSet.mux(cuts, cuts.perturb_speed(0.9), cuts.perturb_speed(1.1),)
 
-    # 3. The sampler. Some differences from NeMo's native bucketing:
-    #    - we can tweak the number of buckets without triggering a full data copy
-    #    - batch size is dynamic and configurable via a single param: max_duration (config: batch_duration)
-    #    - quadratic_duraion introduces a penalty useful to balance batch sizes for quadratic time complexity models
-    sampler = DynamicBucketingSampler(
-        cuts,
-        max_duration=config.lhotse.batch_duration,
-        num_buckets=config.lhotse.get("num_buckets", 10),
-        shuffle=True,
-        drop_last=True,
-        num_cuts_for_bins_estimate=config.lhotse.get("num_cuts_for_bins_estimate", 10000),
-        buffer_size=config.lhotse.get("buffer_size", 10000),
-        shuffle_buffer_size=config.lhotse.get("shuffle_buffer_size", 10000),
-        quadratic_duration=config.lhotse.get("quadratic_duration", None),
-        rank=0 if use_shar else global_rank,
-        world_size=1 if use_shar else world_size,
-    )
+    # 3. The sampler.
+    if config.lhotse.get("use_bucketing", True):
+        # Bucketing. Some differences from NeMo's native bucketing:
+        #    - we can tweak the number of buckets without triggering a full data copy
+        #    - batch size is dynamic and configurable via a single param: max_duration (config: batch_duration)
+        #    - quadratic_duraion introduces a penalty useful to balance batch sizes for quadratic time complexity models
+        sampler = DynamicBucketingSampler(
+            cuts,
+            max_duration=config.lhotse.batch_duration,
+            num_buckets=config.lhotse.get("num_buckets", 10),
+            shuffle=config.get("shuffle", False),
+            drop_last=config.lhotse.get("drop_last", True),
+            num_cuts_for_bins_estimate=config.lhotse.get("num_cuts_for_bins_estimate", 10000),
+            buffer_size=config.lhotse.get("buffer_size", 10000),
+            shuffle_buffer_size=config.lhotse.get("shuffle_buffer_size", 10000),
+            quadratic_duration=config.lhotse.get("quadratic_duration", None),
+            rank=0 if use_shar else global_rank,
+            world_size=1 if use_shar else world_size,
+        )
+    else:
+        # Non-bucketing, similar to NeMo's regular non-tarred manifests,
+        # but we also use batch_duration instead of batch_size here.
+        # Recommended for dev/test.
+        sampler = DynamicCutSampler(
+            cuts,
+            max_duration=config.lhotse.batch_duration,
+            shuffle=config.get("shuffle", False),
+            drop_last=config.lhotse.get("drop_last", False),
+            shuffle_buffer_size=config.lhotse.get("shuffle_buffer_size", 10000),
+            rank=0 if use_shar else global_rank,
+            world_size=1 if use_shar else world_size,
+        )
 
     # 4. Dataset only maps CutSet -> batch of tensors.
     #    For non-shar data, I/O happens inside dataset __getitem__.
