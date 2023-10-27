@@ -356,16 +356,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             buffers_in, buffers_out, dummy_overflow_buf=self._dummy_overflow_buf,
         )
 
-        # Precompute transposes
-        for fragment in fragments:
-            param = self.parameter(fragment)
-            if _is_fp8_tensor(param):
-                param._reset_caches()
-        for fragment in fragments:
-            param = self.parameter(fragment)
-            if _is_fp8_tensor(param):
-                param.transpose(cache=True)
-
     @torch.no_grad()
     def _check_params_shard_dtypes(self, params_buckets: Dict[int, DistributedFusedAdam.ParameterBucket]) -> None:
         """Make sure local shards of parameters are in expected datatypes
