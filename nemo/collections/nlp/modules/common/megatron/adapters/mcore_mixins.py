@@ -15,6 +15,7 @@
 import torch
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.transformer_layer import TransformerLayer
+from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.utils import make_viewless_tensor
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -95,7 +96,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         return query, key, value
 
 
-class MCoreGPTEmbeddingMixin(MCoreAdapterModuleMixin):
+class MCoreGPTEmbeddingMixin(LanguageModelEmbedding, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         """
         Setup NeMo ptuning adapter to this MCore layer.
