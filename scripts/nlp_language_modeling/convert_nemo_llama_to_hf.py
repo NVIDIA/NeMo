@@ -37,9 +37,6 @@ from nemo.utils import logging
 
     model.load_state_dict(nemo_exported['state_dict'])
     model.save_pretrained("./nemo-exported-llama/")
-
-    Known constraints, this script:
-        1. is tested on 7B and 13B model only; 70B (GQA) support will be added soon.
 """
 
 
@@ -56,6 +53,12 @@ def get_args():
         help="Precision of output weights."
         "Defaults to precision of the input nemo weights (model.cfg.trainer.precision)",
     )
+    parser.add_argument(
+        "--cpu-only",
+        action="store_true",
+        help="Load model in cpu only. Useful if the model cannot fit in GPU memory, "
+             "but this option makes the conversion script significantly slower.",
+    )
     args = parser.parse_args()
     return args
 
@@ -65,8 +68,17 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     Convert NeMo weights to HF weights
     """
     dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
-    map_location = torch.device('cpu') if cpu_only else None
-    model = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, map_location=map_location)
+    if cpu_only:
+        map_location = torch.device('cpu')
+        model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
+        model_config.use_cpu_initialization = True
+    else:
+        map_location, model_config = None, None
+
+    if cpu_only:
+        logging.info("******** Loading model on CPU. This will take a significant amount of time.")
+    model = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer,
+                                          override_config_path=model_config, map_location=map_location)
     if precision is None:
         precision = model.cfg.precision
     if precision in [32, "32"]:
@@ -87,7 +99,11 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     head_num = model.cfg.num_attention_heads
     num_layers = model.cfg.num_layers
     ffn_hidden_size = model.cfg.ffn_hidden_size
+    num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
+
     head_size = hidden_size // head_num
+    heads_per_group = head_num // num_query_groups
+    qkv_total_dim = head_num + 2 * num_query_groups
 
     # Embedding
     embed_weight = model.state_dict()[f'model.embedding.word_embeddings.weight']
@@ -98,30 +114,28 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         print(f"converting layer {l}")
 
         qkv_weights = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.weight']
-        q_weight = torch.empty(head_num * head_size, hidden_size)
-        k_weight = torch.empty(head_num * head_size, hidden_size)
-        v_weight = torch.empty(head_num * head_size, hidden_size)
+        qkv_weights = qkv_weights.reshape([qkv_total_dim, head_size, hidden_size])
 
-        idx = 0
-        while head_size * idx < hidden_size:
-            q_weight[head_size * idx : head_size * (idx + 1), :] = qkv_weights[
-                idx * (3 * head_size) : idx * (3 * head_size) + head_size, :
-            ]
-            k_weight[head_size * idx : head_size * (idx + 1), :] = qkv_weights[
-                idx * (3 * head_size) + head_size : idx * (3 * head_size) + (2 * head_size), :
-            ]
-            v_weight[head_size * idx : head_size * (idx + 1), :] = qkv_weights[
-                idx * (3 * head_size) + (2 * head_size) : idx * (3 * head_size) + (3 * head_size), :
-            ]
-            idx += 1
+        q_slice = torch.cat([torch.arange((heads_per_group+2) * i, (heads_per_group+2) * i + heads_per_group) for i in range(num_query_groups)])
+        k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group+2))
+        v_slice = torch.arange(heads_per_group+1, qkv_total_dim, (heads_per_group+2))
+        ## Example of slices
+        ## 7b: num_query_groups = head_num = 32,
+        ## q_slice = [0, 3, 6, 9 , ... 90, 93]
+        ## k_slice = [1, 4, 7, 10, ... 91, 94]
+        ## v_slice = [2, 5, 8, 11, ... 92, 95]
+        ## 70b (with GQA): num_query_groups = 8, head_num = 64
+        ## q_slice = [0, 1, .. 6, 7, 10, 11, .. 16, 17, 20, 21, .. 67, 70, ... 76, 77]
+        ## k_slice = [8, 18, 28, ... 68, 78]
+        ## v_slice = [9, 19, 29, ... 69, 79]
 
         q_weights_base_name = f'model.layers.{l}.self_attn.q_proj.weight'
         k_weights_base_name = f'model.layers.{l}.self_attn.k_proj.weight'
         v_weights_base_name = f'model.layers.{l}.self_attn.v_proj.weight'
 
-        checkpoint['state_dict'][q_weights_base_name] = param_to_weights(q_weight)
-        checkpoint['state_dict'][k_weights_base_name] = param_to_weights(k_weight)
-        checkpoint['state_dict'][v_weights_base_name] = param_to_weights(v_weight)
+        checkpoint['state_dict'][q_weights_base_name] = param_to_weights(qkv_weights[q_slice])
+        checkpoint['state_dict'][k_weights_base_name] = param_to_weights(qkv_weights[k_slice])
+        checkpoint['state_dict'][v_weights_base_name] = param_to_weights(qkv_weights[v_slice])
 
         # attention dense
         o_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_proj.weight']
@@ -170,4 +184,4 @@ if __name__ == '__main__':
     args = get_args()
     input_nemo_file = args.in_file
     output_hf_file = args.out_file
-    convert(input_nemo_file, output_hf_file, precision=args.precision)
+    convert(input_nemo_file, output_hf_file, precision=args.precision, cpu_only=args.cpu_only)
