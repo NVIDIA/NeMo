@@ -79,6 +79,7 @@ except (ImportError, ModuleNotFoundError):
         # Flash Attention 2.X
         from flash_attn import flash_attn_func
         from flash_attn.flash_attn_interface import flash_attn_varlen_func as flash_attn_unpadded_func
+        from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
 
         HAVE_FLASH_ATTENTION = True
 
