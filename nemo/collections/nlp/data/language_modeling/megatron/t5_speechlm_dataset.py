@@ -870,9 +870,8 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         # Skip example if the final length doesn't fit length requirements even after truncation
         if (
             self.min_seq_length
-            <= self._get_element_len(context_and_question_tokens) + self._get_element_len(virtual_tokens)
+            <= self._get_element_len(context_and_question_tokens) + self._get_element_len(virtual_tokens) + self._get_element_len(answer_text_ids)
             <= self.max_seq_length
-            and self.min_seq_length <= self._get_element_len(answer_text_ids) <= self.max_seq_length
         ):
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 taskname_id = self.tokenizer.text_to_ids(taskname)
