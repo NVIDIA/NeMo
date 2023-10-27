@@ -857,7 +857,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'loss_mask': batch['loss_mask'],
                 'speech_mask': batch['speech_mask'],
                 'return_logits': True,
-                'return_all_selfattention_probs': self.return_all_selfattention_probs,
+                'return_all_selfattention_probs': self.return_all_selfattention_probs if not validation_step else False,
             }
 
             if not self.mcore_gpt:
@@ -2036,7 +2036,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                 # TODO: @eharper can we add this to mcore?
                 forward_args.pop('loss_mask')
 
-            (_, logits), return_all_selfattention_probs = self.model(**forward_args)
+            (_, logits), attention_probs_list = self.model(**forward_args)
             layerwise_metrics = {}
             loss_total = 0.0
             all_preds = []
@@ -2064,6 +2064,39 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                 loss_total += layer_loss
 
             if batch_idx == 0 and self.should_log:
+
+                start_of_speech = 0 if self.pretraining else torch.count_nonzero(~batch["loss_mask"][0] * batch['tokens'][0][0]) + 2
+                input_tokens_example = batch['tokens'][0]
+
+                if not self.pretraining:
+                    question_tokens = []
+                    question_start = 0
+                    for _t in range(start_of_speech):
+                        if input_tokens_example[0, _t] < self.tokenizer.vocab_size:
+                            question_tokens.append(input_tokens_example[0, _t].item())
+                        elif len(question_tokens) == 0:
+                            question_start += 1
+                    question_text = self.tokenizer.ids_to_text(question_tokens)
+                    self.logger.experiment.add_text('Val Prompt Text', question_text, self.trainer.global_step)
+
+                # if attention_probs_list is not None:
+                #     for lidx in range(len(attention_probs_list)):
+                #         attention_probs = attention_probs_list[lidx]
+                #         for _i in range(attention_probs.shape[1]):
+                #             attention_probs_sliced = attention_probs[
+                #                 0, _i, :, :
+                #             ]
+                #             phoneme_seq = [question_start, start_of_speech.item()-1]
+                #             alignment_image_sliced = plot_alignment_to_numpy(
+                #                 attention_probs_sliced.cpu().float().numpy().T, phoneme_seq=phoneme_seq, phoneme_ver=1
+                #             )
+                #             self.logger.experiment.add_image(
+                #                 f"Val Attention Probs Layer {lidx} Head {_i}",
+                #                 alignment_image_sliced,
+                #                 self.global_step,
+                #                 dataformats="HWC",
+                #             )
+
                 # Only for the first batch, log TF and autoregressive inference
                 all_preds = torch.stack(all_preds).permute(1, 0, 2) # (B, 8, T)
                 all_preds_example = all_preds[0]
@@ -2107,16 +2140,6 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                         gen_fn_preds_wav = self.additional_models['encodec'].decode([[gen_fn_preds_example[None], None]])[0, 0]
 
                     self.logger.experiment.add_audio('Val {} Wav'.format(gen_type), gen_fn_preds_wav, self.trainer.global_step, sample_rate=24000)
-
-                logging.debug(f"Logging text")
-                if not self.pretraining:
-                    question_tokens = []
-                    for t in range(prompt_len):
-                        if prompt_tokens[0,0,t] < self.tokenizer.vocab_size:
-                            question_tokens.append(prompt_tokens[0,0,t].item())
-                    question_text = self.tokenizer.ids_to_text(question_tokens)
-                    self.logger.experiment.add_text('Val Prompt Text', question_text, self.trainer.global_step)
-                logging.debug(f"Done Logging text")
 
         if isinstance(self.model, list):
             for model_module in self.model:

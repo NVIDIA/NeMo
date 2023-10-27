@@ -79,6 +79,7 @@ except (ImportError, ModuleNotFoundError):
         # Flash Attention 2.X
         from flash_attn import flash_attn_func
         from flash_attn.flash_attn_interface import flash_attn_varlen_func as flash_attn_unpadded_func
+        from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
 
         HAVE_FLASH_ATTENTION = True
 
@@ -976,9 +977,11 @@ class CoreAttention(MegatronModule):
         is_causal = self.attn_mask_type == AttnMaskType.causal and not inference_mode
 
         if attention_bias is not None:
-            return self.flash_attention_triton(
+            output = self.flash_attention_triton(
                 query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal, return_scores=return_scores
             )
+            attn_probs = None
+            return output, attn_probs if return_scores else output
         else:
             return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal, return_scores=return_scores)
 
@@ -1003,14 +1006,18 @@ class CoreAttention(MegatronModule):
 
         if seqlens_q_in_batch == 1 and seqlens_kv_in_batch == 1 and flash_attn_func is not None:
             # [b, sq, np, hn]
-            context_layer, _, attn_probs = flash_attn_func(
+            output = flash_attn_func(
                 query_layer,
                 key_layer,
                 value_layer,
-                dropout_p=self.attention_dropout_p if self.training else 0.0,
+                dropout_p=self.attention_dropout_p if self.training else 0.,
                 causal=is_causal,
-                return_attn_probs=return_scores
+                return_attn_probs=True
             )
+            if isinstance(output, tuple):
+                context_layer, _, attn_probs = output
+            else:
+                context_layer = output
         else:
             q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
             k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
@@ -1058,7 +1065,7 @@ class CoreAttention(MegatronModule):
             if attention_bias.shape[3] == attention_mask_kv.shape[3]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
 
-        context_layer, _, attn_probs = flash_attn_func_triton(query_layer, key_layer, value_layer, attention_bias, is_causal, return_attn_probs=return_scores)
+        context_layer = flash_attn_func_triton(query_layer, key_layer, value_layer, attention_bias, is_causal)
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
@@ -1066,6 +1073,4 @@ class CoreAttention(MegatronModule):
         if attention_mask is not None:
             context_layer = context_layer * attention_mask_q
 
-        if return_scores:
-            return context_layer, attn_probs
         return context_layer

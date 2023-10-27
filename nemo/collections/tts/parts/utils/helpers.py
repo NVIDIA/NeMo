@@ -416,6 +416,7 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
     # if phoneme_seq is not None:
     #     fig, ax = plt.subplots(figsize=(15, 10))
     # else:
+    alignment=np.clip(alignment, a_min=0, a_max=None)
     fig, ax = plt.subplots(figsize=(6, 4))
     im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
     ax.set_title(title)
