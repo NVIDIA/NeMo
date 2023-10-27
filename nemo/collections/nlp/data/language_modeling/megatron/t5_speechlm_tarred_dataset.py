@@ -114,7 +114,7 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         self.base_data_dir = None
         self.segment_max_duration = segment_max_duration
         self.sample_rate = sample_rate
-        self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
+        # self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
         self.pad_multiple = pad_multiple
         self.pitch_augment = pitch_augment
         self.trim = trim
