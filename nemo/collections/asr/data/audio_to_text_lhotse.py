@@ -103,6 +103,7 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler,),
             worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size),
+            persistent_workers=True,  # helps Lhotse Shar maintain shuffling state
         )
     else:
         dloader_kwargs = dict(dataset=dataset, sampler=sampler)
