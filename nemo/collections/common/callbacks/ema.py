@@ -15,13 +15,13 @@ import contextlib
 import copy
 import os
 import threading
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Iterable
 
-import lightning as L
+import pytorch_lightning as pl
 import torch
-from lightning import Callback
-from lightning.pytorch.utilities import rank_zero_info
-from lightning.pytorch.utilities.exceptions import MisconfigurationException
+from pytorch_lightning import Callback
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
+from pytorch_lightning.utilities.rank_zero import rank_zero_info
 
 
 class EMA(Callback):
