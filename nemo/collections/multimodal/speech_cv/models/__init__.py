@@ -12,6 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#############################
+# Visual Speech Recognition #
+#############################
+
+from nemo.collections.multimodal.speech_cv.models.av_ctc_bpe_models import AudioVisualEncDecCTCModelBPE
+
+# CTC
+from nemo.collections.multimodal.speech_cv.models.av_ctc_models import AudioVisualEncDecCTCModel
+from nemo.collections.multimodal.speech_cv.models.av_hybrid_rnnt_ctc_bpe_models import (
+    AudioVisualEncDecHybridRNNTCTCBPEModel,
+)
+
+# Hybrid CTC/RNN-T
+from nemo.collections.multimodal.speech_cv.models.av_hybrid_rnnt_ctc_models import AudioVisualEncDecHybridRNNTCTCModel
+from nemo.collections.multimodal.speech_cv.models.av_rnnt_bpe_models import AudioVisualEncDecRNNTBPEModel
+
+# RNN-T
+from nemo.collections.multimodal.speech_cv.models.av_rnnt_models import AudioVisualEncDecRNNTModel
+
 # CTC
 from nemo.collections.multimodal.speech_cv.models.visual_ctc_bpe_models import VisualEncDecCTCModelBPE
 from nemo.collections.multimodal.speech_cv.models.visual_ctc_models import VisualEncDecCTCModel
@@ -25,3 +44,7 @@ from nemo.collections.multimodal.speech_cv.models.visual_rnnt_bpe_models import 
 
 # RNN-T
 from nemo.collections.multimodal.speech_cv.models.visual_rnnt_models import VisualEncDecRNNTModel
+
+###################################
+# Audio-Visual Speech Recognition #
+###################################
