@@ -16,6 +16,7 @@
 import torch
 from einops import rearrange
 from torch import einsum, nn
+from nemo.utils import logging
 
 __all__ = ['RotaryEmbedding', 'apply_rotary_pos_emb']
 
@@ -48,6 +49,8 @@ class RotaryEmbedding(nn.Module):
         self.base_len = base_len
         self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
         self.augment_seq = augment_seq
+
+        logging.info(f'base_len: {base_len}, seq_len_interpolation_factor: {seq_len_interpolation_factor}, enforce_fp32_pos_idx: {enforce_fp32_pos_idx}, augment_seq: {augment_seq}')
 
     def forward(self, max_seq_len, offset=0, maybe_interpolate=True):
         if self.enforce_fp32_pos_idx:
