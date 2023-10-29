@@ -34,6 +34,7 @@ from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
 from .trt_llm.tensorrt_llm_run import generate, load
 from .utils import is_nemo_file, unpack_nemo_ckpt
 
+import transformers
 
 class TensorRTLLM(ITritonDeployable):
 
@@ -228,9 +229,11 @@ class TensorRTLLM(ITritonDeployable):
         if p_tuning != "no_ptuning":
             np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings_table)
 
-        shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
+        if model_type in ["falcon"]:
+            self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer')) #why save? When loading there is no config to specify huggingface download, it only looks into the dir
+        else:
+            shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         tmp_dir.cleanup()
-
         self._load()
 
     def forward(

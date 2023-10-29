@@ -66,6 +66,11 @@ class DecoderLayerConfigBuilder(ABC):
         """Returns the built input layernorm layer."""
         pass
 
+    @abstractmethod 
+    def build_mlp_layernorm(self, layer) -> LayernormConfig: #Force all other models to implement. But seems this builder is not used.
+        """Returns the built mlp layernorm layer."""
+        pass
+
     @abstractmethod
     def build_attention(self, layer) -> AttentionConfig:
         """Returns the built attention layer."""
@@ -104,6 +109,7 @@ class DecoderLayerConfigBuilder(ABC):
         decoder.max_position_embeddings = self.infer_max_position_embeddings(layer)
 
         decoder.input_layernorm = self.build_input_layernorm(layer)
+        decoder.mlp_layernorm = self.build_mlp_layernorm(layer)
         decoder.attention = self.build_attention(layer)
         decoder.post_layernorm = self.build_post_layernorm(layer)
         decoder.mlp = self.build_mlp(layer)
@@ -169,6 +175,7 @@ class DecoderLayerBuilder(ABC):
         self.hidden_act = layer.mlp.hidden_act
 
         self.decoder = self.build_decoder(layer)
+        print("####Assign weight layer ", layer_id)
         self.assign_weights(layer)
         self.quantize(layer)
 
@@ -177,6 +184,14 @@ class DecoderLayerBuilder(ABC):
         self.decoder.input_layernorm.weight.value = layer.input_layernorm.weight
         if layer.input_layernorm.bias is not None:
             self.decoder.input_layernorm.bias.value = layer.input_layernorm.bias
+
+        if layer.mlp_layernorm is not None: #Falcon has mlp layer norm
+            self.decoder.mlp_layernorm.weight.value = layer.mlp_layernorm.weight
+
+            print(f"########Assigned MLP layernorm weight ########\n{layer.mlp_layernorm.weight}")
+            if layer.mlp_layernorm.bias is not None:
+                self.decoder.mlp_layernorm.bias.value = layer.mlp_layernorm.bias
+                print(f"########Assigned MLP layernorm bias ########\n{layer.mlp_layernorm.bias}")
 
         self.decoder.attention.qkv.weight.value = layer.attention.qkv.weight
         if layer.attention.qkv.bias is not None:

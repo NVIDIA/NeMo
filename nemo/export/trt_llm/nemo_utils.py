@@ -25,7 +25,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 from tensorrt_llm import str_dtype_to_trt
-from transformers import GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
+from transformers import GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer, AutoTokenizer
 
 from .model_config import (
     LAYERNORM_DEFAULT,
@@ -117,6 +117,9 @@ def get_model_config(weights_dir: Path) -> GPT2Config:
 
 def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     """Loads the tokenizer from the decoded NEMO weights dir."""
+    if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
+        return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
+
     model_path = (
         tokenizer_dir_or_path / "tokenizer.model"
         if tokenizer_dir_or_path.is_dir()

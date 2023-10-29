@@ -23,7 +23,7 @@ import numpy as np
 import torch
 from tensorrt_llm._utils import str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
-from transformers import GPT2Tokenizer, LlamaConfig, T5Tokenizer
+from transformers import GPT2Tokenizer, LlamaConfig, T5Tokenizer, AutoTokenizer
 
 import tensorstore  # this is important even though not used
 import zarr
@@ -257,7 +257,7 @@ def load_sharded_metadata(checkpoint_dir: str, torch_tensor=True):
             continue
         key = subdir.name
         arr = zarr.open(str(subdir), 'r')
-        if torch_tensor:
+        if torch_tensor: #Falcon is native bf16
             sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
         else:
             sharded_state_dict[key] = arr[:]
@@ -278,8 +278,12 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     is_mcore = nemo_model_config.get("mcore_gpt", False)
 
     # load position_embedding from rank 0
+    print("Start loading sharded state dict......")
     model = load_sharded_metadata(checkpoints_path)
+    print("Done loading sharded state dict.")
     model_state_dict = model.get("state_dict", model)
+    if 'model.decoder.layers.pre_mlp_layernorm.weight' in model_state_dict:
+        print(f"######## MLP Weight########\n{model_state_dict['model.decoder.layers.pre_mlp_layernorm.weight']}")
 
     has_position_embedding = get_layer_name("position_embedding", is_mcore) in model_state_dict
     has_lm_head = get_layer_name("output_layer", is_mcore) in model_state_dict
@@ -399,13 +403,16 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         weights_dict[key] = model_level_weights[key]
     vocab_size = model_level_weights["model.wte.bin"].shape[0]
 
-    tokenizer_config = update_tokenizer_paths(
-        nemo_model_config["tokenizer"], unpacked_checkpoints_dir
-    )
-    copy_tokenizer_files(tokenizer_config, out_dir)
-    # AMMO modification.
-    tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
-    tokenizer = build_tokenizer(tokenizer_config)
+    if nemo_model_config["tokenizer"]["library"]=="huggingface": #This is first time loading tokenizer, needs download
+        tokenizer = AutoTokenizer.from_pretrained(nemo_model_config["tokenizer"]["type"], use_fast=nemo_model_config["tokenizer"].get("use_fast", False))
+    else:
+        tokenizer_config = update_tokenizer_paths(
+            nemo_model_config["tokenizer"], unpacked_checkpoints_dir
+        )
+        copy_tokenizer_files(tokenizer_config, out_dir)
+        # AMMO modification.
+        tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
+        tokenizer = build_tokenizer(tokenizer_config)
     llm_config = nemo_to_llm_config(
         nemo_model_config,
         vocab_size,
@@ -417,7 +424,10 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     llm_config.is_mcore = is_mcore
 
     config = configparser.ConfigParser()
-    model_name = "llama" if isinstance(llm_config, LlamaConfig) else "gpt"
+    decoder_name_dict = {"llama": "llama", "falcon":"falcon"} #maybe better way than local dict....
+    model_name = decoder_name_dict[args.decoder_type] if args.decoder_type in decoder_name_dict else "gpt"
+    #model_name = "llama" if isinstance(llm_config, LlamaConfig) else "gpt"
+
     config[model_name] = {k: str(v) for k, v in vars(llm_config).items()}
     config[model_name]["storage_dtype"] = args.storage_type
     config_path = out_dir / "config.ini"
@@ -425,6 +435,9 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         config.write(config_file)
 
     # AMMO modification.
+    #print("######## Weights dict keys:", weights_dict.keys())
+    #print(f"######## model.layers.0.pre_mlp_layernorm.weight.bin: {weights_dict['model.layers.0.pre_mlp_layernorm.weight.bin']}")
+    #print(f"######## model.layers.0.pre_mlp_layernorm.bias.bin: {weights_dict['model.layers.0.pre_mlp_layernorm.bias.bin']}")
     return weights_dict, llm_config, tokenizer
 
 

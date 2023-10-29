@@ -32,6 +32,7 @@ DECODER_GPT2 = "gpt2"
 DECODER_GPTJ = "gptj"
 DECODER_LLAMA = "llama"
 DECODER_GPTNEXT = "gptnext"
+DECODER_FALCON = "falcon"
 
 QUANTIZATION_NONE = ""
 QUANTIZATION_FP8 = "fp8"
@@ -300,6 +301,7 @@ class DecoderLayerConfig:
 
     decoder_type: str = ""
     input_layernorm: LayernormConfig = None
+    mlp_layernorm: LayernormConfig = None #Falcon 40B/180B has mlp_layernorm
     attention: AttentionConfig = None
     post_layernorm: LayernormConfig = None
     mlp: MLPConfig = None
@@ -350,6 +352,18 @@ class DecoderLayerConfig:
             weights_dict,
             f"layers.{layer_id}.input_layernorm.bias",
         )
+
+        layer_config.mlp_layernorm = LayernormConfig()
+        layer_config.mlp_layernorm.layernorm_type = LAYERNORM_DEFAULT #Falcon uses default layernorm
+        layer_config.mlp_layernorm.weight = get_tensor_from_dict(
+            weights_dict,
+            f"layers.{layer_id}.pre_mlp_layernorm.weight",
+        )
+        layer_config.mlp_layernorm.bias = get_tensor_from_dict(
+            weights_dict,
+            f"layers.{layer_id}.pre_mlp_layernorm.bias",
+        )
+
         layer_config.post_layernorm = LayernormConfig()
         layer_config.post_layernorm.layernorm_type = (
             LAYERNORM_RMS if isinstance(llm_config, LlamaConfig) else LAYERNORM_DEFAULT
@@ -363,6 +377,12 @@ class DecoderLayerConfig:
             weights_dict,
             f"layers.{layer_id}.post_attention_layernorm.bias",
         )
+
+        if layer_config.post_layernorm.weight is None: #Falcon doesn't have post layernorm
+            layer_config.post_layernorm = None
+
+        if layer_config.mlp_layernorm.weight is None:
+            layer_config.mlp_layernorm = None
 
         layer_config.attention = AttentionConfig.from_nemo(
             weights_dict,

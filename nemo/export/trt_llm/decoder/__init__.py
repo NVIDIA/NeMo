@@ -18,22 +18,25 @@ from ..model_config import (
     DECODER_GPTJ,
     DECODER_GPTNEXT,
     DECODER_LLAMA,
+    DECODER_FALCON,
     QUANTIZATION_NONE,
 )
 from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
 from .gpt import GPTDecoderLayerBuilder, GPTDecoderLayerConfigBuilder
 from .gptj import GPTJDecoderLayerBuilder, GPTJDecoderLayerConfigBuilder
 from .llama import LLAMADecoderLayerBuilder, LLAMADecoderLayerConfigBuilder
+from .falcon import FALCONDecoderLayerBuilder, FALCONDecoderLayerConfigBuilder
 
 DECODER_CONFIG_REGISTRY: Dict[str, Type[DecoderLayerConfigBuilder]] = {
     DECODER_GPT2: GPTDecoderLayerConfigBuilder,
     DECODER_GPTJ: GPTJDecoderLayerConfigBuilder,
     DECODER_LLAMA: LLAMADecoderLayerConfigBuilder,
+    DECODER_FALCON: FALCONDecoderLayerConfigBuilder,
 }
 
 
 def build_decoder_layer_config(layer, decoder: str, dtype=trt.float16, rank=0, tensor_parallel=1):
-    """Builds the decoder layer config with the input torch module."""
+    """Builds the decoder layer config with the input torch module.""" #We never built any config?
     assert decoder in DECODER_CONFIG_REGISTRY, f"{decoder} not supported"
     return DECODER_CONFIG_REGISTRY[decoder](decoder, dtype, rank, tensor_parallel).build_layer(
         layer
@@ -45,6 +48,7 @@ DECODER_REGISTRY: Dict[str, Type[DecoderLayerBuilder]] = {
     DECODER_GPTJ: GPTJDecoderLayerBuilder,
     DECODER_LLAMA: LLAMADecoderLayerBuilder,
     DECODER_GPTNEXT: GPTDecoderLayerBuilder,
+    DECODER_FALCON: FALCONDecoderLayerBuilder,
 }
 
 

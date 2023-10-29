@@ -120,7 +120,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
         with open(serialize_path, "rb") as f:
             engine_buffer = f.read()
         decoder = tensorrt_llm.runtime.GenerationSession(
-            model_config, engine_buffer, runtime_mapping, debug_mode=False
+            model_config, engine_buffer, runtime_mapping, debug_mode=True
         )
 
         sampling_config = SamplingConfig(
