@@ -132,9 +132,6 @@ def nemo_to_model_config(
     """Converts the NEMO file and construct the `ModelConfig` before tensorrt_llm deployment."""
     dtype_str = "bfloat16"
 
-    if os.path.exists(nemo_export_dir):
-        shutil.rmtree(nemo_export_dir)
-
     weights_dict, llm_model_config, tokenizer = _nemo_decode(
         in_file=in_file,
         out_dir=nemo_export_dir,
