@@ -62,6 +62,8 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.seq_len_interpolation_factor = cfg.model.seq_len_interpolation_factor
         gpt_cfg.use_flash_attention = cfg.model.use_flash_attention
         gpt_cfg.window_size = cfg.model.get('window_size')
+        gpt_cfg.enforce_fp32_pos_idx = cfg.model.get('enforce_fp32_pos_idx', False)
+        gpt_cfg.rotary_augment_seq = cfg.model.get('rotary_augment_seq', False)
         assert (
             gpt_cfg.encoder_seq_length == gpt_cfg.max_position_embeddings * gpt_cfg.seq_len_interpolation_factor
         ), 'seq_length should be equal to max_position_embedding * seq_len_interpolation_factor'
