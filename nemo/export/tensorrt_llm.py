@@ -16,6 +16,7 @@ import json
 import os
 import shutil
 from pathlib import Path
+import tempfile
 
 import numpy as np
 import tensorrt_llm
@@ -207,7 +208,9 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model = None
 
-        nemo_export_dir = os.path.join(self.model_dir, "/tmp_nemo/")
+        tmp_dir = tempfile.TemporaryDirectory()
+        nemo_export_dir = Path(tmp_dir.name)
+
         model_configs, self.tokenizer = nemo_to_model_config(
             in_file=nemo_checkpoint_path, decoder_type=model_type, gpus=n_gpus, nemo_export_dir=nemo_export_dir
         )
@@ -226,7 +229,8 @@ class TensorRTLLM(ITritonDeployable):
             np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings_table)
 
         shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
-        shutil.rmtree(nemo_export_dir)
+        tmp_dir.cleanup()
+
         self._load()
 
     def forward(
