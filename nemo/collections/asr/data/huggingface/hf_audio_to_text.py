@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Dict, List, Optional, Tuple, Union
-from omegaconf import DictConfig, open_dict
 import itertools
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import torch
 import datasets as hf_datasets
+import torch
+from datasets.distributed import split_dataset_by_node
+from omegaconf import DictConfig, open_dict
 
+from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
+from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import parsers
@@ -26,16 +30,12 @@ from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
 
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
-from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
-from datasets.distributed import split_dataset_by_node
-
 
 class HFTextProcessor:
     """
     Text processor for huggingface datasets
     """
+
     def __init__(
         self,
         parser: Union[str, Callable],
@@ -88,14 +88,16 @@ def get_nested_dict_value(dictionary: dict, key: str):
     result = dictionary
     for k in nested_keys:
         if k not in result:
-            raise KeyError(f"Key `{key}` not found in [{result.keys()}], target is {nested_keys}, input is {dictionary}")
+            raise KeyError(
+                f"Key `{key}` not found in [{result.keys()}], target is {nested_keys}, input is {dictionary}"
+            )
         result = result[k]
     return result
 
 
 class _HFAudioTextDataset(Dataset):
     def __init__(
-        self, 
+        self,
         audio_key: str,
         text_key: str,
         sample_rate_key: str,
@@ -146,13 +148,13 @@ class _HFAudioTextDataset(Dataset):
         audio_array = get_nested_dict_value(item, self.audio_key)
         origin_sr = get_nested_dict_value(item, self.sample_rate_key)
         audio_segment = AudioSegment(
-            samples=audio_array, 
-            sample_rate=origin_sr, 
-            target_sr=self.sample_rate, 
-            trim=self.trim, 
-            channel_selector=self.channel_selector, 
-            normalize_db=self.normalize_db, 
-            ref_channel=self.ref_channel
+            samples=audio_array,
+            sample_rate=origin_sr,
+            target_sr=self.sample_rate,
+            trim=self.trim,
+            channel_selector=self.channel_selector,
+            normalize_db=self.normalize_db,
+            ref_channel=self.ref_channel,
         )
         self.augmentor.perturb(audio_segment)
         f = torch.tensor(audio_segment.samples, dtype=torch.float)
@@ -168,10 +170,10 @@ class _HFAudioTextDataset(Dataset):
             output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
         return output
-    
+
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, pad_id=self.text_processor.pad_id)
-    
+
 
 class HFAudioToCharDataset(_HFAudioTextDataset):
     @property
@@ -187,7 +189,7 @@ class HFAudioToCharDataset(_HFAudioTextDataset):
         }
 
     def __init__(
-        self, 
+        self,
         audio_key: str,
         text_key: str,
         sample_rate_key: str,
@@ -322,12 +324,13 @@ class HFAudioToBPEDataset(_HFAudioTextDataset):
             ref_channel=ref_channel,
             id_key=id_key,
             normalize_text=normalize_text,
-            symbols_to_keep=symbols_to_keep
+            symbols_to_keep=symbols_to_keep,
         )
+
 
 class _HFIterableAudioTextDataset(IterableDataset):
     def __init__(
-        self, 
+        self,
         audio_key: str,
         text_key: str,
         sample_rate_key: str,
@@ -383,21 +386,23 @@ class _HFIterableAudioTextDataset(IterableDataset):
         self.dataset = split_dataset_by_node(self.dataset, global_rank, world_size)
 
     def __len__(self):
-        raise NotImplementedError(f"len() is not supported for {self.__class__.__name__}. Please set `trainer.max_steps` to explicitly set the number of steps to train for.")
-    
+        raise NotImplementedError(
+            f"len() is not supported for {self.__class__.__name__}. Please set `trainer.max_steps` to explicitly set the number of steps to train for."
+        )
+
     def __iter__(self):
         item = next(iter(self.dataset))
 
         audio_array = get_nested_dict_value(item, self.audio_key)
         origin_sr = get_nested_dict_value(item, self.sample_rate_key)
         audio_segment = AudioSegment(
-            samples=audio_array, 
-            sample_rate=origin_sr, 
-            target_sr=self.sample_rate, 
-            trim=self.trim, 
-            channel_selector=self.channel_selector, 
-            normalize_db=self.normalize_db, 
-            ref_channel=self.ref_channel
+            samples=audio_array,
+            sample_rate=origin_sr,
+            target_sr=self.sample_rate,
+            trim=self.trim,
+            channel_selector=self.channel_selector,
+            normalize_db=self.normalize_db,
+            ref_channel=self.ref_channel,
         )
         self.augmentor.perturb(audio_segment)
         f = torch.tensor(audio_segment.samples, dtype=torch.float)
@@ -412,10 +417,10 @@ class _HFIterableAudioTextDataset(IterableDataset):
             output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
         return itertools.chain([output])
-    
+
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, pad_id=self.text_processor.pad_id)
-    
+
 
 class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
     @property
@@ -431,26 +436,26 @@ class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
         }
 
     def __init__(
-        self, 
+        self,
         labels: List[str],
-        audio_key: str, 
-        text_key: str, 
-        sample_rate_key: str, 
-        hf_data_cfg: DictConfig, 
-        sample_rate: int, 
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None, 
-        trim: bool = False, 
-        bos_id: int | None = None, 
-        eos_id: int | None = None, 
-        pad_id: int = 0, 
-        return_sample_id: bool = False, 
-        id_key: str | None = None, 
-        channel_selector: ChannelSelectorType | None = None, 
-        normalize_db: float | None = None, 
-        ref_channel: int | None = None, 
-        global_rank: int = 0, 
-        world_size: int = 0, 
-        shuffle_n: int = 0, 
+        audio_key: str,
+        text_key: str,
+        sample_rate_key: str,
+        hf_data_cfg: DictConfig,
+        sample_rate: int,
+        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        trim: bool = False,
+        bos_id: int | None = None,
+        eos_id: int | None = None,
+        pad_id: int = 0,
+        return_sample_id: bool = False,
+        id_key: str | None = None,
+        channel_selector: ChannelSelectorType | None = None,
+        normalize_db: float | None = None,
+        ref_channel: int | None = None,
+        global_rank: int = 0,
+        world_size: int = 0,
+        shuffle_n: int = 0,
         shuffle_seed: int = 1234,
         parser: Union[str, Callable] = 'en',
         blank_index: int = -1,
@@ -466,9 +471,9 @@ class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
         )
 
         super().__init__(
-            audio_key=audio_key, 
-            text_key=text_key, 
-            sample_rate_key=sample_rate_key, 
+            audio_key=audio_key,
+            text_key=text_key,
+            sample_rate_key=sample_rate_key,
             hf_data_cfg=hf_data_cfg,
             parser=parser,
             sample_rate=sample_rate,
@@ -505,23 +510,23 @@ class HFIterableAudioToBPEDataset(_HFIterableAudioTextDataset):
         }
 
     def __init__(
-        self, 
-        audio_key: str, 
-        text_key: str, 
-        sample_rate_key: str, 
-        hf_data_cfg: DictConfig, 
+        self,
+        audio_key: str,
+        text_key: str,
+        sample_rate_key: str,
+        hf_data_cfg: DictConfig,
         tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
-        sample_rate: int, 
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None, 
-        trim: bool = False, 
-        return_sample_id: bool = False, 
-        id_key: str | None = None, 
-        channel_selector: ChannelSelectorType | None = None, 
-        normalize_db: float | None = None, 
-        ref_channel: int | None = None, 
-        global_rank: int = 0, 
-        world_size: int = 0, 
-        shuffle_n: int = 0, 
+        sample_rate: int,
+        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        trim: bool = False,
+        return_sample_id: bool = False,
+        id_key: str | None = None,
+        channel_selector: ChannelSelectorType | None = None,
+        normalize_db: float | None = None,
+        ref_channel: int | None = None,
+        global_rank: int = 0,
+        world_size: int = 0,
+        shuffle_n: int = 0,
         shuffle_seed: int = 1234,
         use_start_end_token: bool = True,
         normalize_text: bool = False,
@@ -562,9 +567,9 @@ class HFIterableAudioToBPEDataset(_HFIterableAudioTextDataset):
                 return t
 
         super().__init__(
-            audio_key=audio_key, 
-            text_key=text_key, 
-            sample_rate_key=sample_rate_key, 
+            audio_key=audio_key,
+            text_key=text_key,
+            sample_rate_key=sample_rate_key,
             hf_data_cfg=hf_data_cfg,
             parser=TokenizerWrapper(tokenizer),
             sample_rate=sample_rate,
