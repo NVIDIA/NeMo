@@ -27,7 +27,7 @@ from tensorrt_llm.network import net_guard
 from tensorrt_llm.plugin.plugin import ContextFMHAType
 from tensorrt_llm.quantization import QuantMode
 
-MODEL_NAME = "ammo"
+MODEL_NAME = "NeMo"
 
 
 def get_engine_name(model, dtype, tp_size, rank):
@@ -224,6 +224,8 @@ def build(
     parallel_build=False,
     gpus_per_node=1,
     quantization=None,
+    use_inflight_batching=False,
+    paged_kv_cache=False,
 ):
     """Builds the tensorrt_llm_model to engine."""
     args = argparse.Namespace()
@@ -255,14 +257,16 @@ def build(
     args.per_token = False
     args.int8_kv_cache = False
     args.random_seed = None
-    args.paged_kv_cache = False
+    args.paged_kv_cache = paged_kv_cache
     args.max_prompt_embedding_table_size = max_prompt_embedding_table_size
-    args.use_inflight_batching = False
+    args.use_inflight_batching = use_inflight_batching
     args.use_ib_gpt_attention_plugin = False
     args.use_parallel_embedding = False
     args.use_lookup_plugin = False
     args.tokens_per_block = 64
     args.quantization = quantization
+
+    logger.set_level(args.log_level)
 
     assert not (
         args.use_smooth_quant and args.use_weight_only
@@ -282,8 +286,14 @@ def build(
         assert (
             args.use_gpt_attention_plugin
         ), "You have to use GPT attention plugin for in-flight batching mode"
-        assert args.paged_kv_cache, "You have to use paged kv cache for in-flight batching mode"
-        assert args.remove_input_padding, "You have to remove input padding for in-flight batching"
+
+        if not args.paged_kv_cache:
+            logger.warning("Paged kv cache feature will enabled for in-flight batching mode.")
+            args.paged_kv_cache = True
+
+        if not args.remove_input_padding:
+            logger.warning("Remove input padding feature will enabled for in-flight batching mode.")
+            args.remove_input_padding = True
 
     if args.use_smooth_quant:
         args.quant_mode = QuantMode.use_smooth_quant(args.per_token, args.per_channel)
@@ -298,7 +308,6 @@ def build(
     if args.random_seed is not None:
         torch.manual_seed(args.random_seed)
 
-    logger.set_level(args.log_level)
     tik = time.time()
     _build_impl(rank, tensorrt_llm_model, args)
 

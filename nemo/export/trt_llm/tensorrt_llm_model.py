@@ -416,6 +416,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         max_beam_width: int = 1,
         parallel_build: bool = False,
         max_prompt_embedding_table_size: int = 0,
+        use_inflight_batching=False,
+        paged_kv_cache=False,
     ):
         """Builds the model and generate the tensorrt_llm engine.
 
@@ -452,6 +454,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             parallel_build=parallel_build,
             gpus_per_node=torch.cuda.device_count(),
             quantization=self.quantization,
+            use_inflight_batching=use_inflight_batching,
+            paged_kv_cache=paged_kv_cache,
         )
 
     def print(self):
