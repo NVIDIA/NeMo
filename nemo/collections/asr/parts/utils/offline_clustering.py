@@ -306,7 +306,12 @@ def isGraphFullyConnected(affinity_mat: torch.Tensor, device: torch.device) -> t
     return getTheLargestComponent(affinity_mat, 0, device).sum() == affinity_mat.shape[0]
 
 
-def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int, mask_method: str = 'binary') -> torch.Tensor:
+def getKneighborsConnections(
+    affinity_mat: torch.Tensor,
+    p_value: int,
+    mask_method: str = 'binary',
+    max_dim_on_gpu: int = -1,
+) -> torch.Tensor:
     """
     Binarize top-p values for each row from the given affinity matrix.
 
@@ -317,12 +322,24 @@ def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int, mask_meth
             The number of top values that are selected from each row.
         mask_method (str):
             The method that is used to manipulate the affinity matrix. The default method is 'binary'.
+        max_dim_on_gpu (str):
+            The maximu dim size on a single dimension to perform the operation on GPU. The default method is '-1'.
+            Set to '-1' always use the GPU, a negatif value to set a fallback to CPU.
 
     Returns:
         binarized_affinity_mat (Tensor):
             A binarized affinity matrix based on the given mask method.
     """
+
+    if max_dim_on_gpu < 0:
+        max_dim_on_gpu = float("inf")
+
+    device = affinity_mat.device
     dim = affinity_mat.shape
+
+    if any([d >= max_dim_on_gpu for d in dim]):
+        affinity_mat = affinity_mat.to("cpu")
+
     binarized_affinity_mat = torch.zeros_like(affinity_mat).half()
     sorted_matrix = torch.argsort(affinity_mat, dim=1, descending=True)[:, :p_value]
     binarized_affinity_mat[sorted_matrix.T, torch.arange(affinity_mat.shape[0])] = (
@@ -340,6 +357,10 @@ def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int, mask_meth
         binarized_affinity_mat[indices_row, indices_col] = torch.sigmoid(affinity_mat[indices_row, indices_col]).half()
     else:
         raise ValueError(f'Unknown mask method: {mask_method}')
+
+    if binarized_affinity_mat.device != device:
+        binarized_affinity_mat = binarized_affinity_mat.to(device)
+
     return binarized_affinity_mat
 
 
