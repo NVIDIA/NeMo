@@ -831,13 +831,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
-            batch = next(dataloader_iter)
+            batch_cpu = next(dataloader_iter)
             # TODO: handle speech_mask
 
             # Transfer needed data to GPU
             required_keys = set()
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                required_keys.update(batch.keys())
+                required_keys.update(batch_cpu.keys())
             else:
                 required_keys.add('attention_mask')
                 if parallel_state.is_pipeline_first_stage():
@@ -846,7 +846,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion:
                 required_keys.remove('attention_mask')
-            batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
+            batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch_cpu.items()}
 
             # Model forward pass
             forward_args = {
@@ -915,18 +915,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
                         # print(batch['tokens'][0, 0, question_start])
                         # print(batch['tokens'][0, 0, start_of_speech-1])
-                        if attention_probs_list is not None:
+                        if attention_probs_list is not None and not self.cfg.get('use_flash_attention', False):
                             for lidx in range(len(attention_probs_list)):
                                 attention_probs = attention_probs_list[lidx]
                                 for _i in range(attention_probs.shape[1]):
-
+                                    speech_size = batch["loss_mask"][0].shape[0]
                                     attention_probs_sliced = attention_probs[
-                                        0, _i, :, :
-                                    ]
+                                        0, _i, :speech_size, :speech_size
+                                    ].clone().detach()
+                                    attention_probs_sliced = attention_probs_sliced.T
+                                    # attention_probs_sliced *= batch["loss_mask"][0]
+                                    # attention_probs_sliced *= batch_cpu["attention_mask"][0][0,:,:].to(attention_probs_sliced.device)
                                     phoneme_seq = [question_start, start_of_speech.item()-1]
                                     alignment_image_sliced = plot_alignment_to_numpy(
                                         # attention_probs_sliced.cpu().float().numpy().T, phoneme_seq=(batch['tokens'][0, 0, :] == 0).to(int).detach().cpu().numpy()
-                                        attention_probs_sliced.cpu().float().numpy().T, phoneme_seq=phoneme_seq, phoneme_ver=1
+                                        attention_probs_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1
                                     )
                                     self.logger.experiment.add_image(
                                         f"Attention Probs Layer {lidx} Head {_i}",
@@ -2025,7 +2028,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                 'loss_mask': batch['loss_mask'],
                 'speech_mask': batch['speech_mask'],
                 'return_logits': True,
-                'return_all_selfattention_probs': True,
+                'return_all_selfattention_probs': self.should_log,
             }
 
             if not self.mcore_gpt:
@@ -2064,7 +2067,6 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                 loss_total += layer_loss
 
             if batch_idx == 0 and self.should_log:
-
                 start_of_speech = 0 if self.pretraining else torch.count_nonzero(~batch["loss_mask"][0] * batch['tokens'][0][0]) + 2
                 input_tokens_example = batch['tokens'][0]
 
@@ -2079,23 +2081,28 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                     question_text = self.tokenizer.ids_to_text(question_tokens)
                     self.logger.experiment.add_text('Val Prompt Text', question_text, self.trainer.global_step)
 
-                # if attention_probs_list is not None:
-                #     for lidx in range(len(attention_probs_list)):
-                #         attention_probs = attention_probs_list[lidx]
-                #         for _i in range(attention_probs.shape[1]):
-                #             attention_probs_sliced = attention_probs[
-                #                 0, _i, :, :
-                #             ]
-                #             phoneme_seq = [question_start, start_of_speech.item()-1]
-                #             alignment_image_sliced = plot_alignment_to_numpy(
-                #                 attention_probs_sliced.cpu().float().numpy().T, phoneme_seq=phoneme_seq, phoneme_ver=1
-                #             )
-                #             self.logger.experiment.add_image(
-                #                 f"Val Attention Probs Layer {lidx} Head {_i}",
-                #                 alignment_image_sliced,
-                #                 self.global_step,
-                #                 dataformats="HWC",
-                #             )
+                if attention_probs_list is not None:
+                    for lidx in range(len(attention_probs_list)):
+                        attention_probs = attention_probs_list[lidx]
+                        if attention_probs is not None:
+                            for _i in range(attention_probs.shape[1]):
+                                speech_size = batch["loss_mask"][0].shape[0]
+                                attention_probs_sliced = attention_probs[
+                                    0, _i, :speech_size, :speech_size
+                                ].clone().detach()
+                                # attention_probs_sliced = attention_probs_sliced.T
+                                # attention_probs_sliced *= batch["loss_mask"][0]
+                                # attention_probs_sliced *= batch["attention_mask"][0][0,:,:].to(attention_probs_sliced.device)
+                                phoneme_seq = [question_start, start_of_speech.item()-1]
+                                alignment_image_sliced = plot_alignment_to_numpy(
+                                    attention_probs_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1
+                                )
+                                self.logger.experiment.add_image(
+                                    f"Val Attention Probs Layer {lidx} Head {_i}",
+                                    alignment_image_sliced,
+                                    self.global_step,
+                                    dataformats="HWC",
+                                )
 
                 # Only for the first batch, log TF and autoregressive inference
                 all_preds = torch.stack(all_preds).permute(1, 0, 2) # (B, 8, T)

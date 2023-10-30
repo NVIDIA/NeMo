@@ -881,7 +881,14 @@ class CoreAttention(MegatronModule):
             query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
         )
         if return_scores:
+            context_layer = self.torch_attention(
+                query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
+            )
             context_layer, attention_probs = context_layer
+        else:
+            context_layer = self.attn_fn(
+                query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
+            )
 
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
