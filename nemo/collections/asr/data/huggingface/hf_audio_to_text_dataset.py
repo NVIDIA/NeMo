@@ -13,14 +13,17 @@
 # limitations under the License.
 
 from omegaconf import DictConfig
-from nemo.collections.asr.data.huggingface.hf_audio_to_text import HFAudioToCharDataset, HFAudioToBPEDataset, HFIterableAudioToCharDataset, HFIterableAudioToBPEDataset
+
+from nemo.collections.asr.data.huggingface.hf_audio_to_text import (
+    HFAudioToBPEDataset,
+    HFAudioToCharDataset,
+    HFIterableAudioToBPEDataset,
+    HFIterableAudioToCharDataset,
+)
+
 
 def get_hf_audio_to_text_bpe_dataset(
-    config: DictConfig,
-    global_rank: int,
-    world_size: int,
-    tokenizer,
-    augmentor=None,
+    config: DictConfig, global_rank: int, world_size: int, tokenizer, augmentor=None,
 ):
     if "streaming" in config["hf_data_cfg"] and config["hf_data_cfg"]["streaming"]:
         dataset = HFIterableAudioToBPEDataset(
@@ -64,15 +67,12 @@ def get_hf_audio_to_text_bpe_dataset(
             normalize_text=config.get('normalize_text', False),
             symbols_to_keep=config.get('symbols_to_keep', None),
         )
-    
+
     return dataset
 
 
 def get_hf_audio_to_text_char_dataset(
-    config: DictConfig,
-    global_rank: int,
-    world_size: int,
-    augmentor=None,    
+    config: DictConfig, global_rank: int, world_size: int, augmentor=None,
 ):
     if "streaming" in config["hf_data_cfg"] and config["hf_data_cfg"]["streaming"]:
         dataset = HFIterableAudioToCharDataset(
@@ -130,4 +130,3 @@ def get_hf_audio_to_text_char_dataset(
         )
 
     return dataset
-
