@@ -307,10 +307,7 @@ def isGraphFullyConnected(affinity_mat: torch.Tensor, device: torch.device) -> t
 
 
 def getKneighborsConnections(
-    affinity_mat: torch.Tensor,
-    p_value: int,
-    mask_method: str = 'binary',
-    max_dim_on_gpu: int = -1,
+    affinity_mat: torch.Tensor, p_value: int, mask_method: str = 'binary', max_dim_on_gpu: int = -1,
 ) -> torch.Tensor:
     """
     Binarize top-p values for each row from the given affinity matrix.
