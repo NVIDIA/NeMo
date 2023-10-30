@@ -40,6 +40,7 @@ from nemo.utils import logging
 
 __all__ = ['VisualEncDecRNNTModel']
 
+
 class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
     """Base class for encoder decoder RNNT-based models."""
 

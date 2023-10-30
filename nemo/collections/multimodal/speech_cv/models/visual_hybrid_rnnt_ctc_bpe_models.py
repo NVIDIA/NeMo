@@ -32,6 +32,7 @@ from nemo.utils import logging, model_utils
 
 __all__ = ['VisualEncDecHybridRNNTCTCBPEModel']
 
+
 class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMixin):
     """Base class for encoder decoder RNNT-based models with auxiliary CTC decoder/loss and subword tokenization."""
 
