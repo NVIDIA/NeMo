@@ -15,6 +15,7 @@ import itertools
 import random
 import re
 from typing import List, Optional
+from typing import List, Dict, Optional
 
 import numpy as np
 import torch
@@ -702,6 +703,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         target_lang: str = None,
         return_beam_scores: bool = False,
         log_timing: bool = False,
+        fixed_lang2id: Optional[Dict[str, int]] = None
     ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
@@ -721,18 +723,32 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
                 source_lang, target_lang, self.encoder_tokenizer_library, self.decoder_tokenizer_library
             )
-
+        
         mode = self.training
         prepend_ids = []
         if self.multilingual:
             if source_lang is None or target_lang is None:
                 raise ValueError("Expect source_lang and target_lang to run inference for multilingual model.")
+            """
             src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
             tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
+
             if src_symbol in self.multilingual_ids:
                 prepend_ids = [src_symbol]
             elif tgt_symbol in self.multilingual_ids:
                 prepend_ids = [tgt_symbol]
+            """
+            
+            print("source_lang:", source_lang)
+            print("fixed_lang2id:", fixed_lang2id)
+            print("target_lang:", target_lang)
+            
+
+            if source_lang in fixed_lang2id:
+                prepend_ids = [fixed_lang2id[source_lang]]
+            elif target_lang in fixed_lang2id:
+                prepend_ids = [fixed_lang2id[target_lang]]
+           
 
         if log_timing:
             timer = timers.NamedTimer()
