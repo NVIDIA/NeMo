@@ -79,7 +79,8 @@ model:
       class_token_length: 1
       freeze: True
     pretrain_mm_mlp_adapter: null # path to pretrained mm adapter
-    use_im_start_end: True # only support True now
+    mm_mlp_adapter_type: linear
+    use_im_start_end: False # only support True now
 
   peft:
     peft_scheme: "lora"

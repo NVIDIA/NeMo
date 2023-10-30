@@ -382,6 +382,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
     def process_prompts(self, prompt):
         from nemo.collections.multimodal.data.neva.neva_dataset import (
             DEFAULT_IMAGE_TOKEN,
+            preprocess_v1,
             preprocess_llama_2,
             preprocess_multimodal,
             preprocess_nvgpt,
@@ -416,7 +417,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
                 'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
             }
 
-            for turn in record['conversations']:  #
+            for turn in record['conversations']:
                 if turn.get('value') is not None:
                     turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
             list_data_dict.append(record)
@@ -425,6 +426,20 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
                 copy.deepcopy(list_data_dict), self.multimodal_cfg, self.num_media_latents
             )  # HARDCODED FOR NOW
             data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg)
+        elif self.multimodal_cfg["conv_template"] == "v1":
+            record = {
+                'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
+            }
+
+            for turn in record['conversations']:
+                if turn.get('value') is not None:
+                    turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+            list_data_dict.append(record)
+
+            sources = preprocess_multimodal(
+                copy.deepcopy(list_data_dict), self.multimodal_cfg, self.num_media_latents
+            )  # HARDCODED FOR NOW
+            data_dict = preprocess_v1(sources, self.tokenizer, self.multimodal_cfg)
         else:
             raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
         return data_dict['tokens'].tolist()
