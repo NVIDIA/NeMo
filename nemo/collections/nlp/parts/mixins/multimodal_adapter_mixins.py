@@ -131,11 +131,10 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
 
         if len(missing_keys) > 0:
             logging.warning('Missing keys were detected during the load. Please double check.')
-            logging.warning(f'Missing keys: \n{missing_keys}')
             if len(missing_keys) > 10:
-                logging.warning(f'Missing keys: {", ".join(missing_keys[:10])} and {len(missing_keys) - 10} more.')
+                logging.warning(f'Missing keys: {missing_keys[:10]} and {len(missing_keys) - 10} more.')
             else:
-                logging.warning(f'Missing keys: {", ".join(missing_keys)}')
+                logging.warning(f'Missing keys: {missing_keys}')
         if len(unexpected_keys) > 0:
             logging.critical('Unexpected keys were detected during the load. Please double check.')
             logging.critical(f'Unexpected keys: \n{unexpected_keys}')
