@@ -2090,7 +2090,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                                 attention_probs_sliced = attention_probs[
                                     0, _i, :speech_size, :speech_size
                                 ].clone().detach()
-                                # attention_probs_sliced = attention_probs_sliced.T
+                                attention_probs_sliced = attention_probs_sliced.T
                                 # attention_probs_sliced *= batch["loss_mask"][0]
                                 # attention_probs_sliced *= batch["attention_mask"][0][0,:,:].to(attention_probs_sliced.device)
                                 phoneme_seq = [question_start, start_of_speech.item()-1]
