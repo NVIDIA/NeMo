@@ -343,7 +343,15 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     is_causal=causal_downsampling,
                 )
         else:
-            self.pre_encode = nn.Linear(feat_in, d_model)
+
+            # Linear pre_encode
+            if feat_in:
+                self.pre_encode = nn.Linear(feat_in, d_model)
+
+            # Identity pre_encode
+            else:
+                self.pre_encode = None
+                self._feat_in = d_model
 
         # Reduction
         if reduction and reduction_factor > 1:
@@ -515,8 +523,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
-        if isinstance(self.pre_encode, nn.Linear):
+        # No Pre-encoding
+        if self.pre_encode is None:
+            pass
+        # Linear Pre-encoding
+        elif isinstance(self.pre_encode, nn.Linear):
             audio_signal = self.pre_encode(audio_signal)
+        # Other Pre-encoding
         else:
             audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
             length = length.to(torch.int64)

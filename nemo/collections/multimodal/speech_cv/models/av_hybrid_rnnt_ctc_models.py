@@ -525,7 +525,7 @@ class AudioVisualEncDecHybridRNNTCTCModel(AudioVisualEncDecRNNTModel, ASRBPEMixi
         sample_id = sample_id.cpu().detach().numpy()
         return list(zip(sample_id, best_hyp_text))
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def validation_pass(self, batch, batch_idx, dataloader_idx=0):
         if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True)
 
@@ -630,33 +630,22 @@ class AudioVisualEncDecHybridRNNTCTCModel(AudioVisualEncDecRNNTModel, ASRBPEMixi
             AccessMixin.reset_registry(self)
 
         return tensorboard_logs
+    
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        tensorboard_logs = self.validation_pass(batch, batch_idx, dataloader_idx)
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(tensorboard_logs)
+        else:
+            self.validation_step_outputs.append(tensorboard_logs)
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
+        logs = self.validation_pass(batch, batch_idx, dataloader_idx=dataloader_idx)
         test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
+        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            self.test_step_outputs[dataloader_idx].append(test_logs)
+        else:
+            self.test_step_outputs.append(test_logs)
         return test_logs
-
-    """
-    def test_step(self, batch, batch_idx, dataloader_idx=0):
-        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
-        test_logs = {
-            'test_wer_num': logs['val_wer_num'],
-            'test_wer_denom': logs['val_wer_denom'],
-            # 'test_wer': logs['val_wer'],
-        }
-        if 'val_loss' in logs:
-            test_logs['test_loss'] = logs['val_loss']
-
-        if self.ctc_loss_weight > 0:
-            test_logs['test_wer_num_ctc'] = logs['val_wer_num_ctc']
-            test_logs['test_wer_denom_ctc'] = logs['val_wer_denom_ctc']
-            if 'val_ctc_loss' in logs:
-                test_logs['test_ctc_loss'] = logs['val_ctc_loss']
-            if 'val_rnnt_loss' in logs:
-                test_logs['test_rnnt_loss'] = logs['val_rnnt_loss']
-
-        return test_logs
-    """
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         if self.compute_eval_loss:

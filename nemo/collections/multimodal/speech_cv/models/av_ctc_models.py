@@ -603,9 +603,8 @@ class AudioVisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin,
             self.audio_front_end(processed_audio_signal),
             processed_audio_signal_length,
         )
-        processed_video_signal, processed_video_signal_length = (
-            self.video_front_end(input_signal=processed_video_signal),
-            processed_video_signal_length,
+        processed_video_signal, processed_video_signal_length = self.video_front_end(
+            input_signal=processed_video_signal, length=processed_video_signal_length
         )
 
         # Back-end Networks
@@ -726,7 +725,7 @@ class AudioVisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin,
         sample_id = sample_id.cpu().detach().numpy()
         return list(zip(sample_id, transcribed_texts))
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def validation_pass(self, batch, batch_idx, dataloader_idx=0):
         if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True)
 
@@ -767,6 +766,14 @@ class AudioVisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin,
             AccessMixin.reset_registry(self)
 
         return metrics
+    
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        metrics = self.validation_pass(batch, batch_idx, dataloader_idx)
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
+        return metrics
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         metrics = super().multi_validation_epoch_end(outputs, dataloader_idx)
@@ -779,8 +786,12 @@ class AudioVisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin,
         return metrics
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
+        logs = self.validation_pass(batch, batch_idx, dataloader_idx=dataloader_idx)
         test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
+        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            self.test_step_outputs[dataloader_idx].append(test_logs)
+        else:
+            self.test_step_outputs.append(test_logs)
         return test_logs
 
     def test_dataloader(self):
