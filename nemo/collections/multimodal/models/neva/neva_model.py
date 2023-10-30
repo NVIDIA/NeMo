@@ -54,7 +54,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_model import Me
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTPEFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, MMLinearAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, MMProjectorAdapterConfig
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding, get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
@@ -100,7 +100,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import dist_checkpointing, parallel_state
+    from megatron.core import dist_checkpointing, parallel_state, InferenceParams
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 
@@ -149,14 +149,14 @@ class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
 
 class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
     def init_vision(
-        self,
-        vision_encoder,
-        media_start_id,
-        media_end_id,
-        vision_select_layer=-1,
-        class_token_length=1,
-        use_im_start_end=False,
-        llama_tricks=False,
+            self,
+            vision_encoder,
+            media_start_id,
+            media_end_id,
+            vision_select_layer=-1,
+            class_token_length=1,
+            use_im_start_end=False,
+            llama_tricks=False,
     ):
         self.vision_encoder = vision_encoder
         self.from_hf = isinstance(vision_encoder, CLIPVisionModel)
@@ -166,7 +166,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         self.use_im_start_end = use_im_start_end
         self.vision_select_layer = vision_select_layer
         self.media = None
-        self.set_accepted_adapter_types([MMLinearAdapterConfig._target_])
+        self.set_accepted_adapter_types([MMProjectorAdapterConfig._target_])
         self.llama_tricks = llama_tricks
 
     def set_media(self, media):
@@ -213,9 +213,9 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
                 vision_x = self.vision_encoder(vision_x)
         vision_x = rearrange(vision_x, "(b T F) v d -> b T F v d", b=b, T=T, F=F)
-        vision_x = vision_x[:, :, :, self.class_token_length :]
+        vision_x = vision_x[:, :, :, self.class_token_length:]
         assert self.is_adapter_available(), "Cannot find multimodal vision adapter!"
-        vision_connector = self.get_adapter_module(AdapterName.MM_LINEAR_ADAPTER)
+        vision_connector = self.get_adapter_module(AdapterName.MM_PROJECTOR_ADAPTER)
         vision_x = vision_connector(vision_x)
         return vision_x
 
@@ -243,7 +243,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
                 # locate the first media token positions
                 padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches
                 assert (
-                    input_id[padded_media_indices[idx, : len(media_end_positions)] - 1] == self.media_start_id
+                        input_id[padded_media_indices[idx, : len(media_end_positions)] - 1] == self.media_start_id
                 ).all()
             else:
                 padded_media_indices[idx, : len(media_end_positions)] = media_end_positions - num_patches + 1
@@ -269,11 +269,12 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
         return updated_input_embeds
 
+
 class MCoreNevaModel(MCoreGPTModel):
     def __init__(
-        self, mm_cfg, media_start_id, media_end_id, **kwargs,
+            self, mm_cfg, media_start_id, media_end_id, **kwargs,
     ):
-        super(MCoreNevaModel, self).__init__(**kwargs,)
+        super(MCoreNevaModel, self).__init__(**kwargs, )
 
         self.mm_cfg = mm_cfg
         self.media_start_id = media_start_id
@@ -325,11 +326,11 @@ class MCoreNevaModel(MCoreGPTModel):
                 vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -2),
                 class_token_length=mm_cfg.vision_encoder.get("class_token_length", 1),
                 use_im_start_end=mm_cfg.get("use_im_start_end", False),
-                llama_tricks=(model_type == "llama_2"),
+                llama_tricks=(model_type == "llama_2" or model_type == "v1"),
             )
 
     def forward(
-        self, *args, **kwargs,
+            self, *args, **kwargs,
     ):
         media = kwargs.pop('media', None)
         self.embedding.word_embeddings.set_media(media)
@@ -422,11 +423,12 @@ class MCoreNevaModel(MCoreGPTModel):
             self.language_model.load_state_dict(new_state_dict, strict=True)
         print(f"Restored LLM weights from {nemo_path}.")
 
+
 class NevaModel(GPTModel):
     def __init__(
-        self, mm_cfg, media_start_id, media_end_id, **kwargs,
+            self, mm_cfg, media_start_id, media_end_id, **kwargs,
     ):
-        super(NevaModel, self).__init__(**kwargs,)
+        super(NevaModel, self).__init__(**kwargs, )
 
         self.mm_cfg = mm_cfg
         self.media_start_id = media_start_id
@@ -470,11 +472,11 @@ class NevaModel(GPTModel):
                 vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -2),
                 class_token_length=mm_cfg.vision_encoder.get("class_token_length", 1),
                 use_im_start_end=mm_cfg.get("use_im_start_end", False),
-                llama_tricks=(model_type == "llama_2"),
+                llama_tricks=(model_type == "llama_2" or model_type == "v1"),
             )
 
     def forward(
-        self, *args, **kwargs,
+            self, *args, **kwargs,
     ):
         media = kwargs.pop('media', None)
         self.language_model.embedding.word_embeddings.set_media(media)
@@ -553,14 +555,14 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        # MegatronGPTModel.__init__(self, cfg, trainer)
         super().__init__(cfg, trainer)
         self.init_neva_adapter()
 
     def init_neva_adapter(self):
         self.base_keys = self._get_all_keys()
-        adapter_name = AdapterName.MM_LINEAR_ADAPTER
-        adapter_cfg = MMLinearAdapterConfig(
+        adapter_name = AdapterName.MM_PROJECTOR_ADAPTER
+        adapter_cfg = MMProjectorAdapterConfig(
+            adapter_type=self.cfg.mm_cfg.get("mm_mlp_adapter_type", "linear"),
             in_features=self.cfg.mm_cfg.vision_encoder.hidden_size,
             out_features=self.cfg.hidden_size, bias=True,
         )
@@ -573,7 +575,6 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if self.megatron_amp_O2:
             self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
 
-
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         media_start_id = self.tokenizer.token_to_id(DEFAULT_IM_START_TOKEN)
@@ -583,6 +584,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             if parallel_state.is_unitialized():
                 def dummy():
                     return
+
                 if self.trainer.strategy.launcher is not None:
                     self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
                 self.trainer.strategy.setup_environment()
@@ -794,10 +796,27 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             if media is not None:
                 media = media.cuda()
             labels = None
-            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            # TODO : Should I add labels ?
-            output_tensor = model(tokens, position_ids, attention_mask, labels, media, **extra_arg)
+            if self.mcore_gpt:
+                # if first step, then clear KV cache, otherwise reuse inference_paarms
+                if set_inference_key_value_memory[0].item():
+                    self.inference_params = InferenceParams(
+                        max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
+                    )
+                extra_arg['inference_params'] = self.inference_params
+            else:
+                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+
+            forward_args = {
+                'input_ids': tokens,
+                'position_ids': position_ids,
+                'attention_mask': attention_mask,
+                'labels': labels,
+                'media': media,
+            }
+            if not self.mcore_gpt:
+                forward_args['checkpoint_activations_all_layers'] = None
+            output_tensor = model(**forward_args, **extra_arg)
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
@@ -926,14 +945,14 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building Neva datasets.')
-        ds_dict = make_supervised_data_module(tokenizer=self.tokenizer, model_cfg=self.cfg,)
+        ds_dict = make_supervised_data_module(tokenizer=self.tokenizer, model_cfg=self.cfg, )
         self._train_ds = ds_dict["train_dataset"]
         self._validation_ds = ds_dict["eval_dataset"]
 
         return self._train_ds, self._validation_ds
 
     def build_pretraining_data_loader(
-        self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
+            self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
     ):
         """Buld dataloader given an input dataset."""
 
@@ -990,21 +1009,22 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         # Get the original state dictionary
         original_state_dict = super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
+
         keys_to_keep = list(self.adapter_keys)
         # TODO(yuya): maybe not hard-code vision_encoder keys here
-        if self.megatron_amp_O2:
-            vision_encoder_keys = [
-                k.replace("model.module.", "model.", 1) for k in self.base_keys if "vision_encoder" in k
-            ]
-            llm_keys = [k.replace("model.module.", "model.", 1) for k in self.base_keys if "vision_encoder" not in k]
-        else:
-            vision_encoder_keys = [k for k in self.base_keys if "vision_encoder" in k]
-            llm_keys = [k for k in self.base_keys if "vision_encoder" not in k]
+        vision_encoder_keys = [k for k in self.base_keys if "vision_encoder" in k]
+        llm_keys = [k for k in self.base_keys if "vision_encoder" not in k]
         if not self.cfg.mm_cfg.llm.freeze:
             keys_to_keep += llm_keys
         if not self.cfg.mm_cfg.vision_encoder.freeze:
             keys_to_keep += vision_encoder_keys
-        return {k: original_state_dict[k] for k in keys_to_keep if k in original_state_dict}
+        if self.megatron_amp_O2:
+            new_state_dict = {
+                k: original_state_dict[k.replace("model.", "model.module.", 1)] for k in keys_to_keep
+            }
+        else:
+            new_state_dict = {k: original_state_dict[k] for k in keys_to_keep}
+        return new_state_dict
 
     def load_state_dict(self, state_dict, strict=False):
         logging.warning('Loading state dict for MegatronNevaModel...')
@@ -1013,10 +1033,13 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if len(missing_keys) > 0:
             logging.warning('Missing keys were detected during the load. Please double check.')
             logging.warning(f'Missing keys: \n{missing_keys}')
+            if len(missing_keys) > 10:
+                logging.warning(f'Missing keys: {", ".join(missing_keys[:10])} and {len(missing_keys) - 10} more.')
+            else:
+                logging.warning(f'Missing keys: {", ".join(missing_keys)}')
         if len(unexpected_keys) > 0:
             logging.critical('Unexpected keys were detected during the load. Please double check.')
             logging.critical(f'Unexpected keys: \n{unexpected_keys}')
-            raise ValueError
 
     def on_load_checkpoint(self, checkpoint) -> None:
         pass
@@ -1056,7 +1079,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 return generate(self, **inference_config)
 
     def generate(
-        self, input_prompts, inference_config, length_params: LengthParam, sampling_params: SamplingParam = None,
+            self, input_prompts, inference_config, length_params: LengthParam, sampling_params: SamplingParam = None,
     ) -> OutputType:
 
         # check whether the DDP is initialized

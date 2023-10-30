@@ -69,7 +69,7 @@ model:
     llm:
       from_pretrained: null # path to nemo checkpoint
       freeze: False
-      model_type: llama_2 # Only support nvgpt or llama_2
+      model_type: v1 # Only support nvgpt or v1
     vision_encoder:
       from_pretrained: "openai/clip-vit-large-patch14" # path or name
       from_hf: True
@@ -79,6 +79,7 @@ model:
       class_token_length: 1
       freeze: True
     pretrain_mm_mlp_adapter: null # path to pretrained mm adapter
+    mm_mlp_adapter_type: mlp2x_gelu
     use_im_start_end: False
 
 
@@ -187,7 +188,7 @@ model:
     is_multimodal: True
     sep_image_conv_front: False
     image_token_len: 256
-    conv_template: llama_2 # check `nemo/collections/multimodal/data/neva/conversation.py`
+    conv_template: v1 # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
     image_aspect_ratio: 'square'
 

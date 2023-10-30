@@ -225,8 +225,6 @@ def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cf
             conv.append_message(role, sentence["value"])
         conversations.append(conv.get_prompt())
 
-    # Tokenize conversations
-
     add_extra_token = cfg.get("add_extra_token")
     # Tokenize conversations
     tokens = tokenize(
@@ -236,6 +234,10 @@ def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cf
         add_extra_token=add_extra_token,
     )
 
+    # llama tricks
+    tokens[tokens == 32003] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    tokens[tokens == 32006] = 1  # <s>
+    tokens[tokens == 32007] = 2  # </s>
     labels = tokens.clone().detach()
 
     # Mask labels
@@ -243,8 +245,7 @@ def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cf
     for conversation, target in zip(conversations, labels):
 
         rounds = conversation.split(conv.sep2)
-        cur_len = 1
-        target[:cur_len] = IGNORE_INDEX
+        cur_len = 0
         for i, rou in enumerate(rounds):
             if rou == "":
                 break
@@ -254,9 +255,11 @@ def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cf
                 break
             parts[0] += sep
 
-            round_len = len(tokenizer.text_to_ids(rou))
-            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
-
+            round_len = len(tokenizer.text_to_ids(rou + conv.sep2))
+            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 1
+            if i > 0:
+                round_len -= 1  # Remove extra token added by sp tokenizer
+                instruction_len -= 1
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len

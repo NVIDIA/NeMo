@@ -31,6 +31,7 @@ from nemo.collections.nlp.modules.common.text_generation_server import MegatronS
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
@@ -201,27 +202,31 @@ def main(cfg) -> None:
         if os.path.isdir(cfg.neva_model_file):
             save_restore_connector.model_extracted_dir = cfg.neva_model_file
 
-        pretrained_cfg = MegatronNevaModel.restore_from(
+        neva_cfg = MegatronNevaModel.restore_from(
             restore_path=cfg.neva_model_file,
             trainer=trainer,
             return_config=True,
             save_restore_connector=save_restore_connector,
         )
-        OmegaConf.set_struct(pretrained_cfg, True)
-        with open_dict(pretrained_cfg):
-            pretrained_cfg.sequence_parallel = False
-            pretrained_cfg.activations_checkpoint_granularity = None
-            pretrained_cfg.activations_checkpoint_method = None
-            pretrained_cfg.precision = trainer.precision
-            pretrained_cfg.mm_cfg.llm.from_pretrained = None
-        #    pretrained_cfg.mm_cfg.vision_encoder.from_pretrained = None
+        OmegaConf.set_struct(neva_cfg, True)
+        with open_dict(neva_cfg):
+            neva_cfg.sequence_parallel = False
+            neva_cfg.activations_checkpoint_granularity = None
+            neva_cfg.activations_checkpoint_method = None
+            neva_cfg.precision = trainer.precision
+            neva_cfg.mm_cfg.llm.from_pretrained = cfg.get('llm_model_file', None)
+        #    neva_cfg.mm_cfg.vision_encoder.from_pretrained = None
 
         model = MegatronNevaModel.restore_from(
             restore_path=cfg.neva_model_file,
             trainer=trainer,
-            override_config_path=pretrained_cfg,
+            override_config_path=neva_cfg,
             save_restore_connector=save_restore_connector,
         )
+        if neva_cfg.get('peft') is not None:
+            peft_cfg_cls = PEFT_CONFIG_MAP[neva_cfg.peft.peft_scheme]
+            if peft_cfg_cls is not None:
+                model.load_adapters(cfg.neva_model_file, peft_cfg_cls(neva_cfg))
 
     elif cfg.checkpoint_dir:
         app_state = AppState()
