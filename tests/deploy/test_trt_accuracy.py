@@ -86,7 +86,7 @@ class TestNemoDeployment:
                 trtllm_correct = 0
                 total_sentences = 0
     
-                with open('/workspace/NeMo/tests/deploy/lambada.json', 'r') as file:
+                with open('/opt/NeMo/tests/deploy/lambada.json', 'r') as file:
                     records = json.load(file)
                     
                     for record in records:
