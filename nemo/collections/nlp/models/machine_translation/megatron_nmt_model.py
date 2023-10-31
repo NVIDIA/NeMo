@@ -14,8 +14,7 @@
 import itertools
 import random
 import re
-from typing import List, Optional
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -703,7 +702,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         target_lang: str = None,
         return_beam_scores: bool = False,
         log_timing: bool = False,
-        fixed_lang2id: Optional[Dict[str, int]] = None
+        fixed_lang2id: Optional[Dict[str, int]] = None,
     ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
