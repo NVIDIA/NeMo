@@ -251,6 +251,80 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         self.state[param].update(self.state[fp32_param])
         del self.state[fp32_param]
 
+    @torch.no_grad()
+    def init_param_buffer(self) -> None:
+        """Allocate contiguous buffers for param buckets
+
+        For FP8 params, the FP8 data buffer is made a view into a
+        contiguous buffer.
+
+        """
+
+        # Make sure all params are initialized
+        self.contiguous_param_buffer = True
+        self.init_params()
+
+        # Construct param buffers
+        buffer_sizes = collections.defaultdict(lambda: 0)
+        for bucket in self.state["buckets"]:
+            dtypes = bucket.dtypes()
+            buffer_sizes[dtypes] = max(
+                bucket.contiguous_buffer_offset + bucket.bucket_size,
+                buffer_sizes[dtypes],
+            )
+        for dtypes, buffer_size in buffer_sizes.items():
+            _, _, param_sync_dtype = dtypes
+            self._param_buffers[dtypes] = torch.zeros(
+                [buffer_size],
+                dtype=param_sync_dtype,
+                device=self.device,
+            )
+
+        # Figure out corresponding positions in params and param buffer
+        params = list(self.parameters())
+        param_flat_views = []
+        param_buffer_views = []
+        for i, param in enumerate(params):
+            fragment = self.state[param]["fragments"][0]
+            bucket_id = fragment.bucket_id
+            bucket = self.state["buckets"][bucket_id]
+            param_size = param.numel()
+            bucket_start, _ = fragment.bucket_range
+            buffer_offset = bucket.contiguous_buffer_offset
+            buffer_start = buffer_offset + bucket_start
+            buffer_end = buffer_start + param_size
+            param_buffer = self._param_buffers[bucket.dtypes()]
+            param_buffer_view = param_buffer[buffer_start:buffer_end].detach()
+            if param_buffer_view.device != param.device:
+                raise RuntimeError(
+                    "Attempted to change a parameter with device={param.device} "
+                    f"into a buffer view with device={param_buffer_view.device}"
+                )
+            if _is_fp8_tensor(param):
+                param_flat_views.append(param._data.detach().view(-1))
+            else:
+                if param_buffer_view.dtype != param.dtype:
+                    raise RuntimeError(
+                        f"Attempted to change a parameter with dtype={param.dtype} "
+                        f"into a buffer view with dtype={param_buffer_view.dtype}"
+                    )
+                param_flat_views.append(param.detach().view(-1))
+            param_buffer_views.append(param_buffer_view)
+
+        # Copy values into param buffer
+        _multi_tensor_copy(
+            param_flat_views,
+            param_buffer_views,
+            dummy_overflow_buf=self._dummy_overflow_buf,
+        )
+
+        # Make all params a view into the param buffer
+        for param, buffer_view in zip(params, param_buffer_views):
+            if _is_fp8_tensor(param):
+                param._data = buffer_view.view(param.size())
+            else:
+                param.data = buffer_view.view(param.size())
+
     def try_grad_sync(self, params: Iterable[torch.nn.Parameter]) -> None:
         def is_grad_copy_enabled(param: torch.nn.Parameter) -> bool:
             return not getattr(param, '_disable_greedy_grad_copy', False) and not getattr(
