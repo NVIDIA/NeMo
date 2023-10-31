@@ -33,7 +33,16 @@ from nemo.utils import logging
 
 class HFTextProcessor:
     """
-    Text processor for huggingface datasets
+    Text processor for huggingface datasets, mimicing the behavior of 
+    `nemo.collections.asr.data.audio_to_text.ASRManifestProcessor`. 
+    Basic text cleaning is also supported.
+    Args:
+        parser: Str for a language specific preprocessor or a callable.
+        bos_id: BOS token id to add to the beginning of the transcript.
+        eos_id: EOS token id to add to the end of the transcript.
+        pad_id: PAD token id to pad transcripts to the same length.
+        normalize_text: If true, normalizes text in HFTextProcessor
+        symbols_to_keep: If not None, only keeps symbols in this list when normalizing text
     """
 
     def __init__(
@@ -96,6 +105,28 @@ def get_nested_dict_value(dictionary: dict, key: str):
 
 
 class _HFAudioTextDataset(Dataset):
+    """
+    A Dataset wrapper that loads from HuggingFace datasets and converts to NeMo compatible format.
+    Args:
+        audio_key: key to access audio data from the dataset
+        text_key: key to access text data from the dataset
+        sample_rate_key: key to access sample rate data from the dataset
+        hf_data_cfg: HuggingFace dataset config, all params in this config will be passed to `hf_datasets.load_dataset`
+        parser: Str for a language specific preprocessor or a callable.
+        augmentor: An instance of `nemo.collections.asr.parts.perturb.AudioAugmentor` to apply on audio.
+        trim: If true, trims silence using `nemo.collections.asr.parts.preprocessing.segment.AudioSegment`
+        bos_id: BOS token id to add to the beginning of the transcript.
+        eos_id: EOS token id to add to the end of the transcript.
+        pad_id: PAD token id to pad transcripts to the same length.
+        return_sample_id: If true, returns sample id from the dataset.
+        channel_selector: ChannelSelectorType, which channel(s) to use for audio.
+        normalize_db: Target RMS value for audio normalization.
+        ref_channel: Reference channel for normalization.
+        id_key: key to access sample id from the dataset
+        normalize_text: If true, normalizes text in HFTextProcessor
+        symbols_to_keep: If not None, only keeps symbols in this list when normalizing text 
+    """
+
     def __init__(
         self,
         audio_key: str,
@@ -182,6 +213,10 @@ class _HFAudioTextDataset(Dataset):
 
 
 class HFAudioToCharDataset(_HFAudioTextDataset):
+    """
+    Wrapper class for loading HuggingFace dataset for a char-based ASR model
+    """
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
@@ -248,6 +283,10 @@ class HFAudioToCharDataset(_HFAudioTextDataset):
 
 
 class HFAudioToBPEDataset(_HFAudioTextDataset):
+    """
+    Wrapper class for loading a HuggingFace dataset for a BPE-based ASR model
+    """
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
@@ -335,6 +374,32 @@ class HFAudioToBPEDataset(_HFAudioTextDataset):
 
 
 class _HFIterableAudioTextDataset(IterableDataset):
+    """
+    Wrapper class for loading HuggingFace IterableDataset and converts to NeMo compatible format. 
+    Args:
+        audio_key: key to access audio data from the dataset
+        text_key: key to access text data from the dataset
+        sample_rate_key: key to access sample rate data from the dataset
+        hf_data_cfg: HuggingFace dataset config, all params in this config will be passed to `hf_datasets.load_dataset`
+        parser: Str for a language specific preprocessor or a callable.
+        augmentor: An instance of `nemo.collections.asr.parts.perturb.AudioAugmentor` to apply on audio.
+        trim: If true, trims silence using `nemo.collections.asr.parts.preprocessing.segment.AudioSegment`
+        bos_id: BOS token id to add to the beginning of the transcript.
+        eos_id: EOS token id to add to the end of the transcript.
+        pad_id: PAD token id to pad transcripts to the same length.
+        return_sample_id: If true, returns sample id from the dataset.
+        channel_selector: ChannelSelectorType, which channel(s) to use for audio.
+        normalize_db: Target RMS value for audio normalization.
+        ref_channel: Reference channel for normalization.
+        id_key: key to access sample id from the dataset
+        global_rank: global rank of the current worker
+        world_size: total number of workers
+        shuffle_n: buffer size for shuffling
+        shuffle_seed: seed for shuffling
+        normalize_text: If true, normalizes text in HFTextProcessor
+        symbols_to_keep: If not None, only keeps symbols in this list when normalizing text
+    """
+
     def __init__(
         self,
         audio_key: str,
@@ -349,10 +414,10 @@ class _HFIterableAudioTextDataset(IterableDataset):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         return_sample_id: bool = False,
-        id_key: Optional[str] = None,
         channel_selector: Optional[ChannelSelectorType] = None,
         normalize_db: Optional[float] = None,
         ref_channel: Optional[int] = None,
+        id_key: Optional[str] = None,
         global_rank: int = 0,
         world_size: int = 0,
         shuffle_n: int = 0,
@@ -452,6 +517,10 @@ class _HFIterableAudioTextDataset(IterableDataset):
 
 
 class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
+    """
+    Wrapper class for loading HuggingFace IterableDataset for a char-based ASR model
+    """
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
@@ -526,6 +595,10 @@ class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
 
 
 class HFIterableAudioToBPEDataset(_HFIterableAudioTextDataset):
+    """
+    Wrapper class for loading HuggingFace IterableDataset for a BPE-based ASR model
+    """
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
