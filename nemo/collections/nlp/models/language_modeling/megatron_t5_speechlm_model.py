@@ -1144,16 +1144,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         context_and_question_tokens[i, 0, j].item()
                         for j in range(context_and_question_tokens.shape[2])
                     ]
-                    input_token_list = [
-                        (ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < 30000
-                    ]
+                    input_token_list = [(ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < 30000]
                     context_end_step = input_token_list[0][0]
                     _context_tokens = context_and_question_tokens[i][:, :context_end_step].clone()
                     _context_tokens[0] = _context_tokens[0] - self.speech_offset
                     _context_tokens = torch.clamp(_context_tokens, min=0, max=1023)
-                    _context_wav = self.additional_models['encodec'].decode([[_context_tokens[None], None]])[
-                        0, 0
-                    ]
+                    _context_wav = self.additional_models['encodec'].decode([[_context_tokens[None], None]])[0, 0]
                     self.logger.experiment.add_audio("Context Wav", _context_wav, step, 24000)
 
                     tast_question = self.frozen_model.tokenizer.ids_to_text([v[1] for v in input_token_list])
