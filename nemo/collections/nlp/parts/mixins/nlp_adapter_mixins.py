@@ -473,9 +473,10 @@ class NLPAdapterModelMixin:
             # update the model config of the trained model with params we want to set at inference time.
             peft_cfg.precision = cfg.trainer.precision
             for key, val in cfg.model.items():
-                if key != 'data':
+                if key not in ['data', 'peft']:
                     peft_cfg[key] = val
             peft_cfg.data.test_ds = cfg.model.data.test_ds
+            peft_cfg.peft.restore_from_path = cfg.model.peft.restore_from_path
 
         with open_dict(cfg):
             cfg.inference.add_BOS = peft_cfg.data.test_ds.add_bos

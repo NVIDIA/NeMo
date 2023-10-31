@@ -110,14 +110,15 @@ def use_inference_server(cfg, model, trainer):
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_eval_config")
 def main(cfg) -> None:
-    logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
 
     if cfg.model.peft.restore_from_path:
         model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
     else:
         model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
+
+    logging.info("\n\n************** Experiment configuration ***********")
+    logging.info(f"\n{OmegaConf.to_yaml(model_cfg)}")
 
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
 
