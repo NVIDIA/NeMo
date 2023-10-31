@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,8 +75,8 @@ class SemiSortBatchSampler(DistributedSampler):
             https://www.isca-speech.org/archive/pdfs/interspeech_2021/ge21_interspeech.pdf
         """
         if randomization_factor is None:
-            randomization_factor = 0.2
-            logging.info("Randomization factor not found in config, default value 0.2 will be set.")
+            randomization_factor = 0.1
+            logging.info("Randomization factor not found in config, default value 0.1 will be set.")
         else:
             logging.info(f"A randomization factor {randomization_factor} will be used.")
 
@@ -134,6 +134,7 @@ class SemiSortBatchSampler(DistributedSampler):
             tail: int = len(sorted_indices) % self.micro_batch_size
             exclude = np.random.choice(len(sorted_indices), tail, replace=False)
             sorted_indices = np.delete(sorted_indices, exclude)
+            logging.warning(f"Drop last is set to True, so {len(exclude)} samples will be dropped.")
 
         global_num_batches: int = math.ceil(len(sorted_indices) / self.micro_batch_size)
 

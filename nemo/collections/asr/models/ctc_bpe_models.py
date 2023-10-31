@@ -19,6 +19,8 @@ from typing import Dict, List, Optional, Union
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 
+from nemo.collections.asr.data.audio_to_text import _TarredAudioToTextDataset
+from nemo.collections.common.data.dataset import ConcatDataset
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -120,6 +122,12 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         if config.get('use_semi_sorted_batching', False):
+            if (
+                isinstance(dataset, _TarredAudioToTextDataset) or
+                (isinstance(dataset, ConcatDataset) and isinstance(dataset.datasets, _TarredAudioToTextDataset))
+            ):
+                raise RuntimeError('Semi Sorted Batch sampler can\'t be used with tarred datasets.')
+
             batch_sampler = get_semi_sorted_batch_sampler(self, dataset, config)
             # set batch_size and batch_sampler to None to disable automatic batching
             return torch.utils.data.DataLoader(
