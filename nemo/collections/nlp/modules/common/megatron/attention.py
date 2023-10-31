@@ -877,9 +877,9 @@ class CoreAttention(MegatronModule):
         # relative_position_bias [b, np, sq, sk]
         # context_layer [b, np, sq, hn]
         # ==================================================
-        context_layer = self.attn_fn(
-            query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
-        )
+        # context_layer = self.attn_fn(
+        #     query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
+        # )
         if return_scores:
             context_layer = self.torch_attention(
                 query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
@@ -987,8 +987,9 @@ class CoreAttention(MegatronModule):
             output = self.flash_attention_triton(
                 query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal, return_scores=return_scores
             )
-            attn_probs = None
-            return output, attn_probs if return_scores else output
+            if return_scores:
+                return output, None
+            return output
         else:
             return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal, return_scores=return_scores)
 
