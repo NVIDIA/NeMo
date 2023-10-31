@@ -2093,23 +2093,40 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                                 attention_probs_sliced = attention_probs_sliced.T
                                 # attention_probs_sliced *= batch["loss_mask"][0]
                                 # attention_probs_sliced *= batch["attention_mask"][0][0,:,:].to(attention_probs_sliced.device)
-                                phoneme_seq = [question_start, start_of_speech.item()-1]
+                                start = start_of_speech.item()-1
+                                phoneme_seq = [question_start, start]
                                 alignment_image_sliced = plot_alignment_to_numpy(
                                     attention_probs_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1
                                 )
                                 self.logger.experiment.add_image(
-                                    f"Val Attention Probs Layer {lidx} Head {_i}",
+                                    f"Val Attention Probs Layer {lidx} Head {_i} TF",
+                                    alignment_image_sliced,
+                                    self.global_step,
+                                    dataformats="HWC",
+                                )
+                                length_of_speech = torch.count_nonzero(batch["loss_mask"][0] * batch['tokens'][0][0])
+                                attention_probs_sliced = attention_probs_sliced[:start+length_of_speech, start:start+length_of_speech]
+                                alignment_image_sliced = plot_alignment_to_numpy(
+                                    attention_probs_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=2
+                                )
+                                self.logger.experiment.add_image(
+                                    f"Val Attention Probs Layer {lidx} Head {_i} Sliced TF",
                                     alignment_image_sliced,
                                     self.global_step,
                                     dataformats="HWC",
                                 )
 
                 # Only for the first batch, log TF and autoregressive inference
+
                 all_preds = torch.stack(all_preds).permute(1, 0, 2) # (B, 8, T)
                 all_preds_example = all_preds[0]
                 all_preds_example = self.convert_tokens_to_range(all_preds_example, offset_first_layer=True)
+                input_tokens_example = batch['tokens'][0]
+                input_tokens_example = self.convert_tokens_to_range(input_tokens_example, offset_first_layer=True, offset_all_layers=True, start_of_speech=start_of_speech)
                 with torch.cuda.amp.autocast(enabled=False):
                     all_preds_wav = self.additional_models['encodec'].decode([[all_preds_example[None], None]])[0, 0]
+                    dec_input_wav = self.additional_models['encodec'].decode([[input_tokens_example[None], None]])[0, 0]
+                self.logger.experiment.add_audio('Val Input Wav', dec_input_wav, self.trainer.global_step, sample_rate=24000)
                 self.logger.experiment.add_audio('Val TF Wav', all_preds_wav, self.trainer.global_step, sample_rate=24000)
 
                 prompt_len = 100 if self.pretraining else torch.count_nonzero(~batch["loss_mask"][0] * batch['tokens'][0][0]) + 2
@@ -2275,6 +2292,7 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
             speech_offset=self.cfg.data.get('speech_offset', None),
             train_task=self.cfg.data.get('train_task', "tts"),
             seq_pattern=self.cfg.seq_pattern,
+            context_length=self.cfg.data.get('context_length', None),
         )
 
         rank = parallel_state.get_data_parallel_rank()
@@ -2296,7 +2314,7 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
             else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
 
-        logging.info('build success', len(dataloader), dataset_paths)
+        logging.info(f'build success {len(dataloader)} {dataset_paths}')
         return dataset, dataloader
 
     def build_virtual_prompt_tarred_dataset(
@@ -2332,7 +2350,8 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
             speech_offset=self.cfg.data.get('speech_offset', None),
             train_task=self.cfg.data.get('train_task', "tts"),
             seq_pattern=self.cfg.get('seq_pattern', 'delay_parallel'),
-            decoder_only_model=True
+            decoder_only_model=True,
+            context_length=self.cfg.data.get('context_length', None),
         )
 
         rank = parallel_state.get_data_parallel_rank()

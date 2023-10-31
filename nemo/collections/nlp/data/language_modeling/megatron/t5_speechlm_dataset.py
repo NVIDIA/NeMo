@@ -18,6 +18,7 @@ import random
 from itertools import filterfalse
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
+import math
 
 import numpy as np
 import torch
@@ -129,6 +130,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         self.codec_folder.mkdir(exist_ok=True, parents=True)
 
+        self.context_length = kwargs.pop('context_length', None) #only used in gpt dataset atm
+
         super().__init__(
             datasets=datasets,
             tokenizer=tokenizer,
@@ -173,7 +176,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         skipped = 0
         tts = 0
         i = 0
-        print(f"copy_dataset len === {len(copy_dataset)}")
+        logging.info(f"copy_dataset len === {len(copy_dataset)}")
         for json_line in tqdm(copy_dataset):
             i += 1
 
@@ -199,6 +202,10 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             if doc["context_type"] == "SPEECH":
                 assert "context_duration" in doc, f"context_duration key not in document {doc}"
                 approx_context_len = min(doc["context_duration"] * 76, 400)
+                if self.context_length is not None and doc["context_duration"] < self.context_length:
+                    logging.debug(f"skipped as context_length of {doc['context_duration']} is less than {self.context_length}")
+                    skipped += 1
+                    continue
             approx_question_len = len(doc["question"].split(' ')) + 3
 
             if doc["answer_type"] == "SPEECH":
@@ -790,18 +797,26 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         end_token_index = -1
         if "Text to speech this" in question_in_manifest:
             total_context_len = context_tokens[0].size()[1]
-            reduced_len = min(
-                400,
-                int(total_context_len * 0.2)
-                if total_context_len > 600
-                else int(total_context_len * random.uniform(0.2, 0.5)),
-            )
-            start_token_index = random.randint(
-                0, total_context_len - reduced_len
-            )  # start index can be greater than 440
-            context_tokens[0] = context_tokens[0][
-                :, start_token_index : min(start_token_index + 440, start_token_index + reduced_len)
-            ]
+            if self.context_length is not None:
+                start_token_index = 0
+                if total_context_len > math.ceil(self.context_length * 75):
+                    start_token_index = random.randint(0, total_context_len - math.ceil(self.context_length * 75))
+                context_tokens[0] = context_tokens[0][
+                    :, start_token_index : start_token_index + math.floor(self.context_length * 75)
+                ]
+            else:
+                reduced_len = min(
+                    400,
+                    int(total_context_len * 0.2)
+                    if total_context_len > 600
+                    else int(total_context_len * random.uniform(0.2, 0.5)),
+                )
+                start_token_index = random.randint(
+                    0, total_context_len - reduced_len
+                )  # start index can be greater than 440
+                context_tokens[0] = context_tokens[0][
+                    :, start_token_index : min(start_token_index + 440, start_token_index + reduced_len)
+                ]
         elif "Next token prediction" in question_in_manifest:
             total_context_len = context_tokens[0].size()[1]
             end_token_index = int(total_context_len * random.uniform(0.01, 0.2))
@@ -827,11 +842,11 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
             # question_tokens = question_tokens + [self.tokenizer.eos_id]
             question_tokens = [self.tokenizer.pad_id] + question_tokens + [self.tokenizer.pad_id]
 
-        # Try to truncate input text to fit into the max sequence length
-        if self._get_len(context_tokens, question_tokens, virtual_tokens) > self.max_seq_length:
-            context_tokens, question_tokens, virtual_tokens = self._truncate_input_speech(
-                context_tokens, question_tokens, virtual_tokens
-            )
+        # # Try to truncate input text to fit into the max sequence length
+        # if self._get_len(context_tokens, question_tokens, virtual_tokens) > self.max_seq_length:
+        #     context_tokens, question_tokens, virtual_tokens = self._truncate_input_speech(
+        #         context_tokens, question_tokens, virtual_tokens
+        #     )
 
         virtual_tokens, virtual_tokens_len = self.list_to_tensor(virtual_tokens)
         context_tokens, context_tokens_len = self.list_to_tensor(context_tokens)

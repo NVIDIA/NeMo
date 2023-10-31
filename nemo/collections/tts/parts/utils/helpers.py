@@ -417,7 +417,7 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
     #     fig, ax = plt.subplots(figsize=(15, 10))
     # else:
     alignment=np.clip(alignment, a_min=0, a_max=None)
-    fig, ax = plt.subplots(figsize=(6, 4))
+    fig, ax = plt.subplots(figsize=(8, 6))
     im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
     ax.set_title(title)
     fig.colorbar(im, ax=ax)
@@ -434,7 +434,7 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
             ax.set_yticks(np.arange(len(phoneme_seq)))
             ax.set_yticklabels(phoneme_seq)
             ax.hlines(np.arange(len(phoneme_seq)), xmin=0.0, xmax=max(ax.get_xticks()))
-        else:
+        elif phoneme_ver == 1:
             yticks = ax.get_yticks()
             new_yticks = []
             for tick in yticks:
@@ -443,6 +443,21 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
                 new_yticks.append(tick)
             new_yticks += phoneme_seq
             ax.set_yticks(new_yticks)
+        elif phoneme_ver == 2:
+            yticks = ax.get_yticks()
+            new_yticks = []
+            for tick in yticks:
+                if tick < 0 or tick > alignment.shape[0]:
+                    continue
+                new_yticks.append(tick)
+            new_yticks += phoneme_seq
+            ax.set_yticks(new_yticks)
+
+            xticks = ax.get_xticks()
+            new_xticks = []
+            for tick in xticks:
+                new_xticks.append(f"{tick+phoneme_seq[1]:.0f}")
+            ax.set_xticklabels(new_xticks)
 
     fig.canvas.draw()
     data = save_figure_to_numpy(fig)
