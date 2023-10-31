@@ -268,17 +268,10 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         buffer_sizes = collections.defaultdict(lambda: 0)
         for bucket in self.state["buckets"]:
             dtypes = bucket.dtypes()
-            buffer_sizes[dtypes] = max(
-                bucket.contiguous_buffer_offset + bucket.bucket_size,
-                buffer_sizes[dtypes],
-            )
+            buffer_sizes[dtypes] = max(bucket.contiguous_buffer_offset + bucket.bucket_size, buffer_sizes[dtypes],)
         for dtypes, buffer_size in buffer_sizes.items():
             _, _, param_sync_dtype = dtypes
-            self._param_buffers[dtypes] = torch.zeros(
-                [buffer_size],
-                dtype=param_sync_dtype,
-                device=self.device,
-            )
+            self._param_buffers[dtypes] = torch.zeros([buffer_size], dtype=param_sync_dtype, device=self.device,)
 
         # Figure out corresponding positions in params and param buffer
         params = list(self.parameters())
@@ -313,9 +306,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         # Copy values into param buffer
         _multi_tensor_copy(
-            param_flat_views,
-            param_buffer_views,
-            dummy_overflow_buf=self._dummy_overflow_buf,
+            param_flat_views, param_buffer_views, dummy_overflow_buf=self._dummy_overflow_buf,
         )
 
         # Make all params a view into the param buffer
