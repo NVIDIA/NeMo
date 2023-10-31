@@ -39,12 +39,14 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
         # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
         # The combination of shuffle_shards, and repeat causes this to
         # be an infinite manifest that is internally reshuffled on each epoch.
-        # seed="randomized" means we'll defer setting the seed until the iteration
-        # is triggered, so we can obtain node+worker specific seed thanks to worker_init_fn.
+        # seed="trng" means we'll defer setting the seed until the iteration
+        # is triggered, and we'll use system TRNG to get a completely random seed for each worker.
         # This results in every dataloading worker using full data but in a completely different order.
+        # Note: there is also seed="randomized", but "trng" works around PyTorch-Lightning training loop
+        # that apparently re-creates dataloader on each training "epoch", which results in identical sampling.
         if config.lhotse.get("cuts_path") is not None:
             warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
-        cuts = CutSet.from_shar(in_dir=config.lhotse.shar_path, shuffle_shards=True, seed="randomized").repeat()
+        cuts = CutSet.from_shar(in_dir=config.lhotse.shar_path, shuffle_shards=True, seed="trng").repeat()
     else:
         # Regular Lhotse manifest points to individual audio files (like native NeMo manifest).
         cuts = CutSet.from_file(config.lhotse.cuts_path)
