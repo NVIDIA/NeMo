@@ -27,9 +27,8 @@ from megatron.core import parallel_state
 # Check if Transformer Engine has FP8 tensor class
 HAVE_TE_FP8TENSOR = False
 try:
-    from transformer_engine.pytorch import Float8Tensor
+    from transformer_engine.pytorch.float8_tensor import Float8Tensor
     from transformer_engine.pytorch.cpp_extensions import cast_to_fp8
-    from transformer_engine.pytorch.fp8 import get_fp8_te_dtype
 
     HAVE_TE_FP8TENSOR = True
 except (ImportError, ModuleNotFoundError):
