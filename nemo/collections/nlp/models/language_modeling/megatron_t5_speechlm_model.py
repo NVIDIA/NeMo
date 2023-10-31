@@ -1091,7 +1091,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             wer_score = 0
             for i in range(batch_size):
                 audio_len = (labels[i][0] != 0).sum().item()
-                step = dataloader_idx + i
+                step = batch_idx * batch_size + i
                 if torch.count_nonzero(speech_mask) > 0:
                     dec_input_to_1024 = self.convert_tokens_to_range(dec_input_raw[i, :, 0:audio_len])
                     dec_input_wav = self.additional_models['encodec'].decode([[dec_input_to_1024[None], None]])[0, 0]
@@ -1139,6 +1139,25 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     self.logger.experiment.add_text("Inf GT Text", gt_transcript, step)
                     hyp_pred_transcript_list.append(pred_transcript)
                     gt_transcript_list.append(gt_transcript)
+
+                    input_token_list = [
+                        context_and_question_tokens[i, 0, j].item()
+                        for j in range(context_and_question_tokens.shape[2])
+                    ]
+                    input_token_list = [
+                        (ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < 30000
+                    ]
+                    context_end_step = input_token_list[0][0]
+                    _context_tokens = context_and_question_tokens[i][:, :context_end_step].clone()
+                    _context_tokens[0] = _context_tokens[0] - self.speech_offset
+                    _context_tokens = torch.clamp(_context_tokens, min=0, max=1023)
+                    _context_wav = self.additional_models['encodec'].decode([[_context_tokens[None], None]])[
+                        0, 0
+                    ]
+                    self.logger.experiment.add_audio("Context Wav", _context_wav, step, 24000)
+
+                    tast_question = self.frozen_model.tokenizer.ids_to_text([v[1] for v in input_token_list])
+                    self.logger.experiment.add_text("Task Question", tast_question, step)
 
                     # store predicted_tokens for each layer to compute token error rate
                     for layer_idx in range(8):
