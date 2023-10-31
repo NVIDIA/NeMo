@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import datasets as hf_datasets

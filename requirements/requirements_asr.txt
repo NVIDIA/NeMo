@@ -1,4 +1,5 @@
 braceexpand
+datasets
 editdistance
 g2p_en
 ipywidgets
