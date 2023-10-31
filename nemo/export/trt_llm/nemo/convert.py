@@ -196,7 +196,7 @@ def split_and_save_weight(
         or "post_attention_layernorm.weight" in key
         or "post_attention_layernorm.bias" in key
         or "post_self_attn_layernorm.weight" in key
-        or "mlp.dense_4h_to_h.bias" in key   #Why is dense_4h_to_h.bias? where is post_self_attn_layernorm.bias?
+        or "mlp.dense_4h_to_h.bias" in key
         or "final_layernorm.weight" in key
         or "final_layernorm.bias" in key
     ):

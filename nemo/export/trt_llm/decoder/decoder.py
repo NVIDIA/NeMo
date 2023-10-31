@@ -175,7 +175,6 @@ class DecoderLayerBuilder(ABC):
         self.hidden_act = layer.mlp.hidden_act
 
         self.decoder = self.build_decoder(layer)
-        print("####Assign weight layer ", layer_id)
         self.assign_weights(layer)
         self.quantize(layer)
 
@@ -187,11 +186,8 @@ class DecoderLayerBuilder(ABC):
 
         if layer.mlp_layernorm is not None: #Falcon has mlp layer norm
             self.decoder.mlp_layernorm.weight.value = layer.mlp_layernorm.weight
-
-            print(f"########Assigned MLP layernorm weight ########\n{layer.mlp_layernorm.weight}")
             if layer.mlp_layernorm.bias is not None:
                 self.decoder.mlp_layernorm.bias.value = layer.mlp_layernorm.bias
-                print(f"########Assigned MLP layernorm bias ########\n{layer.mlp_layernorm.bias}")
 
         self.decoder.attention.qkv.weight.value = layer.attention.qkv.weight
         if layer.attention.qkv.bias is not None:

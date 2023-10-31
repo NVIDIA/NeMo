@@ -36,7 +36,7 @@ DECODER_CONFIG_REGISTRY: Dict[str, Type[DecoderLayerConfigBuilder]] = {
 
 
 def build_decoder_layer_config(layer, decoder: str, dtype=trt.float16, rank=0, tensor_parallel=1):
-    """Builds the decoder layer config with the input torch module.""" #We never built any config?
+    """Builds the decoder layer config with the input torch module."""
     assert decoder in DECODER_CONFIG_REGISTRY, f"{decoder} not supported"
     return DECODER_CONFIG_REGISTRY[decoder](decoder, dtype, rank, tensor_parallel).build_layer(
         layer

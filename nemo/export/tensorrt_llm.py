@@ -230,7 +230,7 @@ class TensorRTLLM(ITritonDeployable):
             np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings_table)
 
         if model_type in ["falcon"]:
-            self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer')) #why save? When loading there is no config to specify huggingface download, it only looks into the dir
+            self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
         else:
             shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         tmp_dir.cleanup()
