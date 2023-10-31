@@ -19,23 +19,13 @@ model:
   streaming: false # set True to use streaming mode, which doesn't wait for data downloading but each training step takes longer in the first epoch. If True, you'll need to specify trainer.max_steps instead of trainer.max_epochs.
 
   # keys for audio, sample_rate and text in the huggingface dataset, keys seperated by `.` for nested fields.
-  # An example of data item in the `librispeech_asr` dataset:
-  #   {'chapter_id': 141231,
-  #  'file': '/home/patrick/.cache/huggingface/datasets/downloads/extracted/b7ded9969e09942ab65313e691e6fc2e12066192ee8527e21d634aca128afbe2/dev_clean/1272/141231/1272-141231-0000.flac',
-  #   'audio': {'path': '/home/patrick/.cache/huggingface/datasets/downloads/extracted/b7ded9969e09942ab65313e691e6fc2e12066192ee8527e21d634aca128afbe2/dev_clean/1272/141231/1272-141231-0000.flac',
-  #   'array': array([-0.00048828, -0.00018311, -0.00137329, ...,  0.00079346,
-  #           0.00091553,  0.00085449], dtype=float32),
-  #   'sampling_rate': 16000},
-  #  'id': '1272-141231-0000',
-  #  'speaker_id': 1272,
-  #  'text': 'A MAN SAID TO THE UNIVERSE SIR I EXIST'}
   audio_key: "audio.array"
   sample_rate_key: "audio.sampling_rate"
   text_key: "text"
 
   # simple text cleaning, by default converts all chars to lower-case and only keeps alpha-numeric chars.
   normalize_text: true
-  symbols_to_keep: "-'"
+  symbols_to_keep: "'"
 
   train_ds:
     normalize_text: ${model.normalize_text}
@@ -170,3 +160,16 @@ exp_manager:
   wandb_logger_kwargs:
     name: null
     project: null
+
+
+# An example item in the HuggingFace `librispeech_asr` dataset:
+# {'chapter_id': 141231,
+#  'file': '/home/patrick/.cache/huggingface/datasets/downloads/extracted/b7ded9969e09942ab65313e691e6fc2e12066192ee8527e21d634aca128afbe2/dev_clean/1272/141231/1272-141231-0000.flac',
+#  'audio': {
+#    'path': '/home/patrick/.cache/huggingface/datasets/downloads/extracted/b7ded9969e09942ab65313e691e6fc2e12066192ee8527e21d634aca128afbe2/dev_clean/1272/141231/1272-141231-0000.flac',
+#    'array': array([-0.00048828, -0.00018311, -0.00137329, ...,  0.00079346, 0.00091553,  0.00085449], dtype=float32),
+#    'sampling_rate': 16000
+#   },
+# 'id': '1272-141231-0000',
+# 'speaker_id': 1272,
+# 'text': 'A MAN SAID TO THE UNIVERSE SIR I EXIST'}

@@ -27,7 +27,7 @@ from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.core.neural_types import *
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
 
