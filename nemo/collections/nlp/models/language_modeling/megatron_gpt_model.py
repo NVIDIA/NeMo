@@ -71,6 +71,11 @@ import numpy as np
 from nemo.utils.app_state import AppState
 from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy, plot_encodec_to_numpy
 
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.metrics.wer import word_error_rate
+import os
+import soundfile as sf
+
 try:
     import apex.transformer.pipeline_parallel.utils
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -1806,7 +1811,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         # return_all_crossattention_probs = cfg.get('return_all_crossattention_probs', False)
         # num_cross_attention_heads = cfg.get('num_cross_attention_heads', 12)
 
-    def convert_tokens_to_range(self, tokens, offset_first_layer=False, offset_all_layers=False, start_of_speech=0):
+    def convert_tokens_to_range(self, tokens, offset_first_layer=False, offset_all_layers=False, start_of_speech=0, delay_pattern=True):
         # offset tokens to be in range [0, 1024] and convert delay parallel to parallel
         offset = self.cfg.data.get('speech_offset', self.tokenizer.vocab_size)
         output_tokens = tokens.clone()
@@ -1815,8 +1820,13 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
 
         output_tokens_new = []
         for _c in range(output_tokens.shape[0]):
-            si = _c
-            ei = _c + output_tokens.shape[1] - 8
+            if delay_pattern:
+                si = _c
+                ei = _c + output_tokens.shape[1] - 8
+            else:
+                si = 0
+                ei = output_tokens.shape[1]
+
             if offset_all_layers and _c > 0:
                 output_tokens[_c, :] -= (offset + _c*1024)
             if start_of_speech != 0:
@@ -1831,7 +1841,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         output_tokens = torch.clamp(output_tokens, min=0, max=1023)
 
         return output_tokens
-
+    
     def model_provider_func(self, pre_process, post_process):
         """Very small override of base model so we can have different embedding and output layer size"""
         # logging.info(f"AGAIN1 {self.cfg.get('override_vocab_size')}")
@@ -2196,7 +2206,131 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         torch.cuda.empty_cache()
         return averaged_loss
 
+    def test_step(self, batch, batch_idx):
+        # A few batches to check the model
+        print("test step", batch_idx)
+        if 'asr_model' not in self.additional_models:
+            asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(
+                model_name="stt_en_conformer_transducer_large"
+            )
+            asr_model = asr_model.cuda()
+            asr_model.eval()
+            self.additional_models['asr_model'] = asr_model
+        
+        if 'sv_model' not in self.additional_models:
+            sv_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
+            sv_model = sv_model.cuda()
+            sv_model.eval()
+            self.additional_models['sv_model'] = sv_model
+        
+        _exp_dir_path = self.logger.save_dir
+        _exp_dir_path = _exp_dir_path + '/Sample_Audios'
+        if not os.path.exists(_exp_dir_path):
+            os.mkdir(_exp_dir_path)
 
+        hyp_pred_transcript_list = []
+        gt_transcript_list = []
+        similarity_list = []
+        
+        # Testing it only on 2 batches, remove this if to run on all batches
+        if batch_idx in [0,1]:
+            with torch.no_grad():
+                with torch.cuda.amp.autocast(enabled=False):
+                    forward_keys = ['tokens', 'position_ids', 'attention_mask', 'labels', 'loss_mask', 'speech_mask']
+                    for key in forward_keys:
+                        if batch[key] is not None:
+                            batch[key] = batch[key].cuda()
+                    
+                    # Autoregressive Inference From Generate Function
+                    for sidx in range(batch['tokens'].shape[0]):
+                        print("Batch {}, Sample {}".format(batch_idx, sidx))
+                        prompt_len = 100 if self.pretraining else torch.count_nonzero(~batch["loss_mask"][sidx] * batch['tokens'][sidx][0]) + 2
+                        # prompt_len = prompt_len + 8
+                        prompt_tokens = batch['tokens'][sidx:sidx+1]
+                        max_length = prompt_tokens.shape[2] - prompt_len - 1
+                        lengths = LengthParam(min_length=max_length, max_length=max_length)
+                        sampling_params = get_default_sampling_params()
+                        context_length = torch.tensor([prompt_len], device=self.device).contiguous()
+                        gen_fn_output = self.generate((prompt_tokens.contiguous(), context_length), lengths, sampling_params=sampling_params, mode="multinomial")
+                        gen_fn_preds = torch.tensor(gen_fn_output['token_ids'], device=self.device)
+                        gen_fn_preds = gen_fn_preds[:,:,prompt_len:]
+                        for _i in range(8):
+                            mask = gen_fn_preds[:,_i,:] != 0.
+                            gen_fn_preds[:,_i,:] -= self.tokenizer.vocab_size + 1024*_i
+                            gen_fn_preds[:,_i,:] *= mask
+                        gen_fn_preds_example = self.convert_tokens_to_range(gen_fn_preds[0])
+                        gen_fn_preds_wav = self.additional_models['encodec'].decode([[gen_fn_preds_example[None], None]])[0, 0]
+
+                        _step = batch_idx * batch['tokens'].shape[0] + sidx
+                        self.logger.experiment.add_audio('gen_fn_preds_wav', gen_fn_preds_wav, _step, sample_rate=24000)
+
+                        context_question_tokens = batch['tokens'][sidx][:,:prompt_len]
+                        context_question_tokens_encodec = self.convert_tokens_to_range(context_question_tokens, offset_first_layer=True, offset_all_layers=True, delay_pattern=False)
+                        context_question_wav = self.additional_models['encodec'].decode([[context_question_tokens_encodec[None], None]])[0, 0]
+                        self.logger.experiment.add_audio('context_question_wav', context_question_wav, _step, sample_rate=24000)
+
+                        target_tokens = batch['labels'][sidx][:,prompt_len:]
+                        target_tokens_encodec = self.convert_tokens_to_range(target_tokens, offset_first_layer=True, offset_all_layers=False)
+                        target_wav = self.additional_models['encodec'].decode([[target_tokens_encodec[None], None]])[0, 0]
+                        self.logger.experiment.add_audio('target_wav', target_wav, _step, sample_rate=24000)
+
+                        question_tokens = []
+                        for _t in range(prompt_len):
+                            if context_question_tokens[0, _t] < self.tokenizer.vocab_size:
+                                question_tokens.append(context_question_tokens[0, _t].item())
+                        question_text = self.tokenizer.ids_to_text(question_tokens)
+                        self.logger.experiment.add_text('question text', question_text, _step)
+
+                        audio_fp_pred = os.path.join(_exp_dir_path, f'predicted_wav_{_step}.wav')
+                        sf.write(audio_fp_pred, gen_fn_preds_wav.cpu().numpy(), 24000)
+
+                        audio_fp_gt = os.path.join(_exp_dir_path, f'target_wav_{_step}.wav')
+                        sf.write(audio_fp_gt, target_wav.cpu().numpy(), 24000)
+
+                        spk_embedding_pred = self.additional_models['sv_model'].get_embedding(audio_fp_pred)
+                        spk_embedding_pred = spk_embedding_pred.cpu().detach().numpy().flatten()
+                        spk_embedding_gt = self.additional_models['sv_model'].get_embedding(audio_fp_gt)
+                        spk_embedding_gt = spk_embedding_gt.cpu().detach().numpy().flatten()
+                        similarity = np.dot(spk_embedding_pred, spk_embedding_gt) / (
+                            np.linalg.norm(spk_embedding_pred) * np.linalg.norm(spk_embedding_gt)
+                        )
+
+                        similarity_list.append(similarity)
+
+                        pred_transcript = self.additional_models['asr_model'].transcribe([audio_fp_pred])[0][0]
+                        gt_transcript = self.additional_models['asr_model'].transcribe([audio_fp_gt])[0][0]
+
+                        self.logger.experiment.add_text("Inf Predicted Text", pred_transcript, _step)
+                        self.logger.experiment.add_text("Inf GT Text", gt_transcript, _step)
+
+                        hyp_pred_transcript_list.append(pred_transcript)
+                        gt_transcript_list.append(gt_transcript)
+
+        cer_gtaudio = None
+        wer_gtaudio = None
+        similarity = None
+        if len(hyp_pred_transcript_list) > 0:
+            cer_gtaudio = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=True)
+            wer_gtaudio = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=False)
+            similarity = np.mean(similarity_list)
+            
+        
+        self.test_step_outputs.append({
+            'cer_gtaudio': cer_gtaudio,
+            'wer_gtaudio': wer_gtaudio,
+            'similarity': similarity,
+        })
+    
+    def on_test_epoch_end(self):
+        cers_gtaudio = [x['cer_gtaudio'] for x in self.test_step_outputs if x['cer_gtaudio'] is not None]
+        wers_gtaudio = [x['wer_gtaudio'] for x in self.test_step_outputs if x['wer_gtaudio'] is not None]
+        similarities = [x['similarity'] for x in self.test_step_outputs if x['similarity'] is not None]
+        if len(cers_gtaudio) > 0:
+            self.log('test_cer_gtaudio', np.mean(cers_gtaudio), prog_bar=True, rank_zero_only=True, batch_size=1)
+            self.log('test_wer_gtaudio', np.mean(wers_gtaudio), prog_bar=True, rank_zero_only=True, batch_size=1)
+            self.log('test_similarity', np.mean(similarities), prog_bar=True, rank_zero_only=True, batch_size=1)
+    
+    
 
 class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -2258,7 +2392,27 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
             )
 
     def setup_test_data(self, cfg):
-        pass
+        if self.cfg.data.get('test_ds', None):
+            self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
+                dataset_paths=self.cfg.data.test_ds,
+                batch_size=self.cfg.get("test_global_batch_size", self.cfg.global_batch_size),
+                for_train=True,
+                drop_last=self.cfg.get("test_drop_last", True),
+                shuffle=False,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+        elif self.cfg.data.get('test_manifest', None):
+            self._test_ds, self._test_dl = self.build_virtual_prompt_tarred_dataset(
+                dataset_paths=self.cfg.data.test_manifest,
+                audio_path=self.cfg.data.test_audio_path,
+                batch_size=self.cfg.get("test_global_batch_size", self.cfg.global_batch_size),
+                for_train=True,
+                drop_last=self.cfg.get("test_drop_last", True),
+                shuffle=0,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
 
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory

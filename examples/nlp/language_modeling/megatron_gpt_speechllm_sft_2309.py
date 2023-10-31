@@ -137,7 +137,16 @@ def main(cfg) -> None:
         )
         model = load_from_nemo(MegatronSpeechGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config, restore=cfg.restore)
 
-    trainer.fit(model)
+    mode = cfg.get("mode", "training")
+    if mode == "training":
+        if cfg.get('init_from_ptl_ckpt', None) is not None:
+            print("Initializing from PTL checkpoint")
+            model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
+        trainer.fit(model)
+    elif mode == "inference":
+        # Pass +mode="inference" +init_from_ptl_ckpt="/path/to/model.ckpt"
+        model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
+        trainer.test(model)
 
 
 if __name__ == '__main__':
