@@ -115,6 +115,20 @@ def get_infer_test_data():
     test_data["LLAMA2-13B-base"]["checkpoint"] = "/opt/checkpoints/LLAMA2-13B-base/LLAMA2-13B-base-1.nemo"
     test_data["LLAMA2-13B-base"]["p_tuning_checkpoint"] = "/opt/checkpoints/LLAMA2-13B-PTuning/LLAMA2-13B-PTuning-1.nemo"
 
+    test_data["FALCON-7B-base"] = {}
+    test_data["FALCON-7B-base"]["model_type"] = "falcon"
+    test_data["FALCON-7B-base"]["total_gpus"] = [1]
+    test_data["FALCON-7B-base"]["location"] = "Local"
+    test_data["FALCON-7B-base"]["trt_llm_model_dir"] = "/tmp/FALCON-7B-base/trt_llm_model-1/"
+    test_data["FALCON-7B-base"]["checkpoint"] = "/opt/checkpoints/FALCON-7B-base/FALCON-7B-base-1.nemo"
+
+    test_data["FALCON-40B-base"] = {}
+    test_data["FALCON-40B-base"]["model_type"] = "falcon"
+    test_data["FALCON-40B-base"]["total_gpus"] = [2]
+    test_data["FALCON-40B-base"]["location"] = "Local"
+    test_data["FALCON-40B-base"]["trt_llm_model_dir"] = "/tmp/FALCON-40B-base/trt_llm_model-1/"
+    test_data["FALCON-40B-base"]["checkpoint"] = "/opt/checkpoints/FALCON-40B-base/FALCON-40B-base-1.nemo"
+
     return test_data
 
 

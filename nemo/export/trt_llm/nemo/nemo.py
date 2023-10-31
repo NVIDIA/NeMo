@@ -18,7 +18,7 @@ import typing
 
 import torch
 import yaml
-from transformers import GPT2Config, LlamaConfig
+from transformers import GPT2Config, LlamaConfig, FalconConfig
 
 from .convert import cpu_map_location, gpu_map_location
 
@@ -46,9 +46,9 @@ def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_ty
     }
     kwargs["vocab_size"] = vocab_size
     kwargs["eos_token_id"] = eos_id
-    kwargs["bos_token_id"] = bos_id
-
-    llm_config = LlamaConfig if decoder_type == "llama" else GPT2Config
+    kwargs["bos_token_id"] = eos_id if decoder_type=='falcon' else bos_id #in HF falcon eos==bos
+    config_dict = {"llama": LlamaConfig, "falcon": FalconConfig}
+    llm_config = config_dict[decoder_type] if decoder_type in config_dict else GPT2Config
 
     return llm_config(**kwargs)
 

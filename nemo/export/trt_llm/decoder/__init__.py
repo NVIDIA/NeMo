@@ -18,17 +18,20 @@ from ..model_config import (
     DECODER_GPTJ,
     DECODER_GPTNEXT,
     DECODER_LLAMA,
+    DECODER_FALCON,
     QUANTIZATION_NONE,
 )
 from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
 from .gpt import GPTDecoderLayerBuilder, GPTDecoderLayerConfigBuilder
 from .gptj import GPTJDecoderLayerBuilder, GPTJDecoderLayerConfigBuilder
 from .llama import LLAMADecoderLayerBuilder, LLAMADecoderLayerConfigBuilder
+from .falcon import FALCONDecoderLayerBuilder, FALCONDecoderLayerConfigBuilder
 
 DECODER_CONFIG_REGISTRY: Dict[str, Type[DecoderLayerConfigBuilder]] = {
     DECODER_GPT2: GPTDecoderLayerConfigBuilder,
     DECODER_GPTJ: GPTJDecoderLayerConfigBuilder,
     DECODER_LLAMA: LLAMADecoderLayerConfigBuilder,
+    DECODER_FALCON: FALCONDecoderLayerConfigBuilder,
 }
 
 
@@ -45,6 +48,7 @@ DECODER_REGISTRY: Dict[str, Type[DecoderLayerBuilder]] = {
     DECODER_GPTJ: GPTJDecoderLayerBuilder,
     DECODER_LLAMA: LLAMADecoderLayerBuilder,
     DECODER_GPTNEXT: GPTDecoderLayerBuilder,
+    DECODER_FALCON: FALCONDecoderLayerBuilder,
 }
 
 

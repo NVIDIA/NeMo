@@ -133,8 +133,6 @@ class ModelBuilder(Module):
         if attention_mask is not None:
             attention_mask = expand_mask(attention_mask, shape(input_ids, -1))
 
-        def _forward_has_argument(layer, argument_name):
-            return argument_name in inspect.signature(layer.forward).parameters
 
         for idx, (layer, past, pointers) in enumerate(
             zip(self.layers, past_key_value, kv_cache_block_pointers)
