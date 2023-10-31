@@ -184,7 +184,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     seq_len_interpolation_factor=self.encoder_cfg.get('seq_len_interpolation_factor', None),
                     base_len=self.encoder_cfg.get('base_len', None),
                     enforce_fp32_pos_idx=self.encoder_cfg.get('enforce_fp32_pos_idx', False),
-                    rotary_augment_seq=self.encoder_cfg.get('rotary_augment_seq', False),
+                    augment_seq=self.encoder_cfg.get('rotary_augment_seq', False),
 
                 ) 
                 self.encoder_relative_position_embedding = None
@@ -317,7 +317,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     seq_len_interpolation_factor=self.decoder_cfg.get('seq_len_interpolation_factor', None),
                     base_len=self.decoder_cfg.get('base_len', None),
                     enforce_fp32_pos_idx=self.decoder_cfg.get('enforce_fp32_pos_idx', False),
-                    rotary_augment_seq=self.decoder_cfg.get('rotary_augment_seq', False),
+                    augment_seq=self.decoder_cfg.get('rotary_augment_seq', False),
                 )
                 self.decoder_relative_position_embedding = None
             elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
