@@ -51,7 +51,8 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
     shuffle: true
-    num_workers: 0
+    shuffle_n: 2048
+    num_workers: 8
     pin_memory: true
     use_start_end_token: false
 
@@ -72,6 +73,7 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 8
     shuffle: false
+    shuffle_n: 2048
     num_workers: 8
     pin_memory: true
     use_start_end_token: false
@@ -97,6 +99,7 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 8
     shuffle: false
+    shuffle_n: 2048
     num_workers: 8
     pin_memory: true
     use_start_end_token: false
