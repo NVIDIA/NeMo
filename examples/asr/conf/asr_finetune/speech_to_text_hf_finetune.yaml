@@ -14,32 +14,39 @@ model:
 
   # configs for huggingface load_dataset function
   data_path: "librispeech_asr"
-  data_name: null
-  num_proc: 8  # Number of processes when downloading and generating the dataset locally.
+  data_name: null  # name for the specific dataset to load, e.g., 'en' for MCV datasets, but some datasets don't require this field.
   streaming: false # set True to use streaming mode, which doesn't wait for data downloading but each training step takes longer in the first epoch. If True, you'll need to specify trainer.max_steps instead of trainer.max_epochs.
 
-  # keys for audio, sample_rate and text in the huggingface dataset, keys seperated by `.` for nested fields.
+  # keys for audio, sample_rate and transcription in the huggingface dataset, keys seperated by `.` for nested fields. See example at the bottom of this file.
   audio_key: "audio.array"
   sample_rate_key: "audio.sampling_rate"
-  text_key: "text"
+  text_key: "text"  # the key for groundtruth transcription, e.g., MCV usually uses "sentence" while some others use "text"
 
   # simple text cleaning, by default converts all chars to lower-case and only keeps alpha-numeric chars.
   normalize_text: true
-  symbols_to_keep: "'"
+  symbols_to_keep: ["'"]  # a list of symbols to keep during text cleaning.
 
   train_ds:
+    manifest_filepath: "hugginface"  # set to a not None value to avoid breaking existing code
+    streaming: ${model.streaming}
     normalize_text: ${model.normalize_text}
     symbols_to_keep: ${model.symbols_to_keep}
-    manifest_filepath: "hugginface"  # set to a not None value to avoid breaking existing code
     audio_key: ${model.audio_key}
     sample_rate_key: ${model.sample_rate_key}
     text_key:  ${model.text_key}
-    hf_data_cfg:  # configs for huggingface load_dataset, add more if needed
-      path: ${model.data_path}
-      name: ${model.data_name}
-      split: 'validation.clean'
-      streaming: ${model.streaming}
-      num_proc: ${model.num_proc}
+    hf_data_cfg:  # hf_data_cfg can be a ListConfig or DictConfig. Params for each data are passed into huggingface load_dataset(). Add more params if needed
+      - path: ${model.data_path}
+        name: ${model.data_name}
+        split: 'train.clean.360'
+        streaming: ${model.streaming}
+      - path: ${model.data_path}
+        name: ${model.data_name}
+        split: 'train.clean.100'
+        streaming: ${model.streaming}
+      - path: ${model.data_path}
+        name: ${model.data_name}
+        split: 'train.other.500'
+        streaming: ${model.streaming}
   
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
@@ -49,44 +56,48 @@ model:
     use_start_end_token: false
 
   validation_ds:
+    manifest_filepath: "hugginface"  # set to a not None value to avoid breaking existing code
+    streaming: ${model.streaming}
     normalize_text: ${model.normalize_text}
     symbols_to_keep: ${model.symbols_to_keep}
-    manifest_filepath: "hugginface"  # set to a not None value to avoid breaking existing code
     audio_key: ${model.audio_key}
     sample_rate_key: ${model.sample_rate_key}
     text_key:  ${model.text_key}
-    hf_data_cfg:  # configs for huggingface load_dataset, add more if needed
+    hf_data_cfg:  # An example of using only one dataset
       path: ${model.data_path}
       name: ${model.data_name}
-      split: 'validation.clean'
+      split: 'validation.other'
       streaming: ${model.streaming}
-      num_proc: ${model.num_proc}
 
     sample_rate: ${model.sample_rate}
-    batch_size: 16
+    batch_size: 8
     shuffle: false
-    num_workers: 0
+    num_workers: 8
     pin_memory: true
     use_start_end_token: false
 
   test_ds:
+    manifest_filepath: "hugginface"  # set to a not None value to avoid breaking existing code
+    streaming: ${model.streaming}
     normalize_text: ${model.normalize_text}
     symbols_to_keep: ${model.symbols_to_keep}
-    manifest_filepath: "hugginface"  # set to a not None value to avoid breaking existing code
     audio_key: ${model.audio_key}
     sample_rate_key: ${model.sample_rate_key}
     text_key:  ${model.text_key}
-    hf_data_cfg:  # configs for huggingface load_dataset
-      path: ${model.data_path}
-      name: ${model.data_name}
-      split: 'test.other'
-      streaming: ${model.streaming}
-      num_proc: ${model.num_proc}
+    hf_data_cfg:  # hf_data_cfg can be a ListConfig or DictConfig. Params for each data are passed into huggingface load_dataset(). Add more params if needed
+      - path: ${model.data_path}
+        name: ${model.data_name}
+        split: 'test.other'
+        streaming: ${model.streaming}
+      - path: ${model.data_path}
+        name: ${model.data_name}
+        split: 'test.clean'
+        streaming: ${model.streaming}
 
     sample_rate: ${model.sample_rate}
-    batch_size: 16
+    batch_size: 8
     shuffle: false
-    num_workers: 0
+    num_workers: 8
     pin_memory: true
     use_start_end_token: false
 

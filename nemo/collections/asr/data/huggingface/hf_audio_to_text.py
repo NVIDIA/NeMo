@@ -17,8 +17,9 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import datasets as hf_datasets
 import torch
+from datasets import concatenate_datasets
 from datasets.distributed import split_dataset_by_node
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
@@ -43,7 +44,7 @@ class HFTextProcessor:
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         normalize_text: bool = False,
-        symbols_to_keep: Optional[str] = None,
+        symbols_to_keep: Optional[str | List[str]] = None,
     ):
         self.parser = parser
         self.eos_id = eos_id
@@ -101,7 +102,7 @@ class _HFAudioTextDataset(Dataset):
         audio_key: str,
         text_key: str,
         sample_rate_key: str,
-        hf_data_cfg: DictConfig,
+        hf_data_cfg: Union[DictConfig, ListConfig],
         parser: Union[str, Callable],
         sample_rate: int,
         augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
@@ -132,12 +133,18 @@ class _HFAudioTextDataset(Dataset):
 
         self.text_processor = HFTextProcessor(parser, bos_id, eos_id, pad_id, normalize_text, symbols_to_keep)
 
-        with open_dict(hf_data_cfg):
-            # streaming must be False for random access dataset
-            hf_data_cfg.streaming = False
-
-        logging.info(f"Loading HuggingFace dataset with cfg: {hf_data_cfg}")
-        self.dataset = hf_datasets.load_dataset(**hf_data_cfg)
+        data_config_list = [hf_data_cfg] if isinstance(hf_data_cfg, DictConfig) else hf_data_cfg
+        dataset_list = []
+        for data_cfg in data_config_list:
+            with open_dict(data_cfg):
+                if "streaming" in data_cfg and data_cfg.streaming:
+                    logging.warning(
+                        "streaming must be False for random access dataset, but you use streaming=True. Forcing streaming=False"
+                    )
+                data_cfg.streaming = False
+            logging.info(f"Loading HuggingFace Dataset with cfg: {data_cfg}")
+            dataset_list.append(hf_datasets.load_dataset(**data_cfg))
+        self.dataset = concatenate_datasets(dataset_list)
 
     def __len__(self):
         return len(self.dataset)
@@ -334,7 +341,7 @@ class _HFIterableAudioTextDataset(IterableDataset):
         audio_key: str,
         text_key: str,
         sample_rate_key: str,
-        hf_data_cfg: DictConfig,
+        hf_data_cfg: Union[DictConfig, ListConfig],
         parser: Union[str, Callable],
         sample_rate: int,
         augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
@@ -373,17 +380,25 @@ class _HFIterableAudioTextDataset(IterableDataset):
 
         self.text_processor = HFTextProcessor(parser, bos_id, eos_id, pad_id, normalize_text, symbols_to_keep)
 
-        with open_dict(hf_data_cfg):
-            # streaming must be True for iterable dataset
-            hf_data_cfg.streaming = True
-
-        logging.info(f"Using HuggingFace IterableDataset with cfg: {hf_data_cfg}")
-        self.dataset = hf_datasets.load_dataset(**hf_data_cfg)
+        data_config_list = [hf_data_cfg] if isinstance(hf_data_cfg, DictConfig) else hf_data_cfg
+        dataset_list = []
+        for data_cfg in data_config_list:
+            with open_dict(data_cfg):
+                if "streaming" in data_cfg and not data_cfg.streaming:
+                    logging.warning(
+                        "streaming must be True for streaming dataset, but you use streaming=False. Forcing streaming=True"
+                    )
+                # streaming must be True for iterable dataset
+                data_cfg.streaming = True
+            logging.info(f"Streaming HuggingFace IterableDataset with cfg: {data_cfg}")
+            dataset_list.append(hf_datasets.load_dataset(**data_cfg))
+        self.dataset = concatenate_datasets(dataset_list)
 
         if shuffle_n > 0:
             self.dataset = self.dataset.shuffle(seed=shuffle_seed, buffer_size=shuffle_n)
 
         self.dataset = split_dataset_by_node(self.dataset, global_rank, world_size)
+        self.dataset = self.dataset.map(self._build_sample)
 
     def __len__(self):
         raise NotImplementedError(
@@ -391,10 +406,24 @@ class _HFIterableAudioTextDataset(IterableDataset):
         )
 
     def __iter__(self):
-        item = next(iter(self.dataset))
+        return self.dataset.__iter__()
 
-        audio_array = get_nested_dict_value(item, self.audio_key)
-        origin_sr = get_nested_dict_value(item, self.sample_rate_key)
+    def _collate_fn(self, batch):
+        a_signal = [b['audio_signal'] for b in batch]
+        a_sig_length = [b['a_sig_length'] for b in batch]
+        transcripts = [b['transcripts'] for b in batch]
+        transcript_length = [b['transcript_length'] for b in batch]
+        if self.return_sample_id:
+            sample_id = [b['sample_id'] for b in batch]
+            batch_list = list(zip(a_signal, a_sig_length, transcripts, transcript_length, sample_id))
+        else:
+            batch_list = list(zip(a_signal, a_sig_length, transcripts, transcript_length))
+
+        return _speech_collate_fn(batch_list, pad_id=self.text_processor.pad_id)
+
+    def _build_sample(self, sample):
+        audio_array = get_nested_dict_value(sample, self.audio_key)
+        origin_sr = get_nested_dict_value(sample, self.sample_rate_key)
         audio_segment = AudioSegment(
             samples=audio_array,
             sample_rate=origin_sr,
@@ -408,18 +437,19 @@ class _HFIterableAudioTextDataset(IterableDataset):
         f = torch.tensor(audio_segment.samples, dtype=torch.float)
         fl = torch.tensor(f.shape[0], dtype=torch.long)
 
-        text = get_nested_dict_value(item, self.text_key)
+        text = get_nested_dict_value(sample, self.text_key)
         t, tl = self.text_processor.process_text(text)
 
+        output = {
+            'audio_signal': f,
+            'a_sig_length': fl,
+            'transcripts': torch.tensor(t).long(),
+            'transcript_length': torch.tensor(tl).long(),
+        }
+
         if self.return_sample_id:
-            output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), get_nested_dict_value(item, self.id_key)
-        else:
-            output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
-
-        return itertools.chain([output])
-
-    def _collate_fn(self, batch):
-        return _speech_collate_fn(batch, pad_id=self.text_processor.pad_id)
+            output['sample_id'] = get_nested_dict_value(sample, self.id_key)
+        return output
 
 
 class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
