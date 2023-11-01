@@ -24,6 +24,8 @@ from typing import Any, List, Optional, Union
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn.functional as F
+
 from einops import rearrange, repeat
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -269,32 +271,22 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
         return updated_input_embeds
 
-
-class MCoreNevaModel(MCoreGPTModel):
+class NevaBaseModel:
     def __init__(
             self, mm_cfg, media_start_id, media_end_id, **kwargs,
     ):
-        super(MCoreNevaModel, self).__init__(**kwargs, )
-
         self.mm_cfg = mm_cfg
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.dist_ckpt = False
+        if getattr(self, 'language_model', None) is not None:
+            self.embedding = self.language_model.embedding
 
         if mm_cfg.llm.from_pretrained is not None:
             logging.info(f"Loading LLM weights from checkpoint {mm_cfg.llm.from_pretrained}")
             self.load_llm_weights(mm_cfg.llm.from_pretrained)
-
         if mm_cfg.llm.freeze:
-            for param in chain(
-                    self.embedding.parameters(),
-                    self.decoder.parameters(),
-                    self.output_layer.parameters(),
-            ):
-                param.requires_grad = False
-            self.embedding = self.embedding.eval()
-            self.decoder = self.decoder.eval()
-            self.output_layer = self.output_layer.eval()
+            self.freeze_llm(mm_cfg)
 
         # Initialize vision encoder and freeze it
         if mm_cfg.vision_encoder.from_hf:
@@ -329,12 +321,8 @@ class MCoreNevaModel(MCoreGPTModel):
                 llama_tricks=(model_type == "llama_2" or model_type == "v1"),
             )
 
-    def forward(
-            self, *args, **kwargs,
-    ):
-        media = kwargs.pop('media', None)
-        self.embedding.word_embeddings.set_media(media)
-        return super().forward(*args, **kwargs)
+    def freeze_llm(self, mm_cfg):
+        raise NotImplementedError
 
     def _load_model_weights(self, nemo_path):
         """
@@ -406,6 +394,20 @@ class MCoreNevaModel(MCoreGPTModel):
 
         new_state_dict = {}
         if self.dist_ckpt:
+            if state_dict['model.embedding.word_embeddings.weight'].shape[0] < self.embedding.word_embeddings.num_embeddings:
+                assert state_dict['model.embedding.word_embeddings.weight'].shape == \
+                       state_dict['model.output_layer.weight'].shape
+                assert self.embedding.word_embeddings.num_embeddings == \
+                       self.embedding.word_embeddings.num_embeddings_per_partition, \
+                    "Word embedding doesn't match the word embedding shape from checkpoint!"
+
+                pad_length = self.embedding.word_embeddings.num_embeddings - \
+                             state_dict['model.embedding.word_embeddings.weight'].shape[0]
+                state_dict['model.embedding.word_embeddings.weight'] = F.pad(
+                    state_dict['model.embedding.word_embeddings.weight'], (0, 0, 0, pad_length))
+                state_dict['model.output_layer.weight'] = F.pad(
+                    state_dict['model.output_layer.weight'], (0, 0, 0, pad_length))
+
             for k, v in state_dict.items():
                 new_k = k
                 if k.startswith("model."):
@@ -413,6 +415,20 @@ class MCoreNevaModel(MCoreGPTModel):
                 new_state_dict[new_k] = v
             self.load_state_dict(new_state_dict, strict=True)
         else:
+            if state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0] < self.embedding.word_embeddings.num_embeddings:
+                assert state_dict['model.language_model.embedding.word_embeddings.weight'].shape == \
+                       state_dict['model.language_model.output_layer.weight'].shape
+                assert self.embedding.word_embeddings.num_embeddings == \
+                       self.embedding.word_embeddings.num_embeddings_per_partition, \
+                    "Word embedding doesn't match the word embedding shape from checkpoint!"
+
+                pad_length = self.embedding.word_embeddings.num_embeddings - \
+                             state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0]
+                state_dict['model.language_model.embedding.word_embeddings.weight'] = F.pad(
+                    state_dict['model.language_model.embedding.word_embeddings.weight'], (0, 0, 0, pad_length))
+                state_dict['model.language_model.output_layer.weight'] = F.pad(
+                    state_dict['model.language_model.output_layer.weight'], (0, 0, 0, pad_length))
+
             for k, v in state_dict.items():
                 if k.startswith("model.language_model."):
                     new_k = k.replace("model.language_model.", "", 1)
@@ -423,131 +439,48 @@ class MCoreNevaModel(MCoreGPTModel):
             self.language_model.load_state_dict(new_state_dict, strict=True)
         print(f"Restored LLM weights from {nemo_path}.")
 
-
-class NevaModel(GPTModel):
+class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
     def __init__(
             self, mm_cfg, media_start_id, media_end_id, **kwargs,
     ):
-        super(NevaModel, self).__init__(**kwargs, )
+        MCoreGPTModel.__init__(self, **kwargs)
+        NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, **kwargs)
 
-        self.mm_cfg = mm_cfg
-        self.media_start_id = media_start_id
-        self.media_end_id = media_end_id
-
-        if mm_cfg.llm.from_pretrained is not None:
-            logging.info(f"Loading LLM weights from checkpoint {mm_cfg.llm.from_pretrained}")
-            self.load_llm_weights(self.language_model, mm_cfg.llm.from_pretrained)
-        if mm_cfg.llm.freeze:
-            for param in self.language_model.parameters():
-                param.requires_grad = False
-            self.language_model = self.language_model.eval()
-
-        # Initialize vision encoder and freeze it
-        if mm_cfg.vision_encoder.from_hf:
-            vision_encoder = CLIPVisionModel.from_pretrained(
-                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
-            ).cuda()
-            vision_encoder = vision_encoder.to(torch.bfloat16)
-            if mm_cfg.vision_encoder.freeze:
-                for param in vision_encoder.parameters():
-                    param.requires_grad = False
-                vision_encoder = vision_encoder.eval()
-        else:
-            vision_cfg = MegatronCLIPModel.restore_from(
-                mm_cfg.vision_encoder.from_pretrained, return_config=True
-            ).vision
-            vision_encoder = FrozenCLIPVisionTransformer(vision_cfg, self.config)
-            self.load_vision_encoder_weights(vision_encoder, mm_cfg.vision_encoder.from_pretrained)
-            if mm_cfg.vision_encoder.freeze:
-                vision_encoder.freeze()
-
-        model_type = self.mm_cfg.llm.get("model_type", "nvgpt")
-        # Monkey patch embedding
-        if kwargs.get("pre_process", True):
-            extend_instance(self.language_model.embedding.word_embeddings, NevaWordEmbeddingMixin)
-            self.language_model.embedding.word_embeddings.init_vision(
-                vision_encoder,
-                media_start_id,
-                media_end_id,
-                vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -2),
-                class_token_length=mm_cfg.vision_encoder.get("class_token_length", 1),
-                use_im_start_end=mm_cfg.get("use_im_start_end", False),
-                llama_tricks=(model_type == "llama_2" or model_type == "v1"),
-            )
+    def freeze_llm(self, mm_cfg):
+        for param in chain(
+                self.embedding.parameters(),
+                self.decoder.parameters(),
+                self.output_layer.parameters(),
+        ):
+            param.requires_grad = False
+        self.embedding = self.embedding.eval()
+        self.decoder = self.decoder.eval()
+        self.output_layer = self.output_layer.eval()
 
     def forward(
             self, *args, **kwargs,
     ):
         media = kwargs.pop('media', None)
-        self.language_model.embedding.word_embeddings.set_media(media)
-        return super().forward(*args, **kwargs)
+        self.embedding.word_embeddings.set_media(media)
+        return MCoreNevaModel.forward(self, *args, **kwargs)
 
-    def _load_model_weights(self, nemo_path):
-        """
-        Shared method to load model weights from a given nemo_path.
-        """
-        if torch.cuda.is_available():
-            map_location = torch.device('cuda')
-        else:
-            map_location = torch.device('cpu')
+class NevaModel(GPTModel, NevaBaseModel):
+    def __init__(
+            self, mm_cfg, media_start_id, media_end_id, **kwargs,
+    ):
+        GPTModel.__init__(self, **kwargs)
+        NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, **kwargs)
 
-        save_restore_connector = NLPSaveRestoreConnector()
-        cwd = os.getcwd()
-        app_state = AppState()
+    def freeze_llm(self, mm_cfg):
+        for param in self.language_model.parameters():
+            param.requires_grad = False
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                if os.path.isfile(nemo_path):
-                    save_restore_connector._unpack_nemo_file(path2file=nemo_path, out_folder=tmpdir)
-                else:
-                    tmpdir = nemo_path
-                os.chdir(tmpdir)
-                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                    model_weights = save_restore_connector._inject_model_parallel_rank_for_ckpt(
-                        tmpdir, save_restore_connector.model_weights_ckpt
-                    )
-                else:
-                    model_weights = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
-
-                state_dict = save_restore_connector._load_state_dict_from_disk(
-                    model_weights, map_location=map_location
-                )
-            finally:
-                os.chdir(cwd)
-
-        return state_dict
-
-    def load_vision_encoder_weights(self, vision_encoder, nemo_path):
-        state_dict = self._load_model_weights(nemo_path)
-
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            if k.startswith("model.vision_encoder."):
-                new_k = k.replace("model.vision_encoder.", "")
-                new_state_dict[new_k] = v
-
-        missing, unexpected = vision_encoder.load_state_dict(new_state_dict, strict=False)
-        print(f"Restored from {nemo_path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
-        if len(missing) > 0:
-            print(f"Missing Keys: {missing}")
-        if len(unexpected) > 0:
-            print(f"Unexpected Keys: {unexpected}")
-
-    def load_llm_weights(self, language_model, nemo_path):
-        state_dict = self._load_model_weights(nemo_path)
-
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            if k.startswith("model.language_model."):
-                new_k = k.replace("model.language_model.", "", 1)
-                module_key, param_key = new_k.split(".", 1)
-                if module_key not in new_state_dict:
-                    new_state_dict[module_key] = {}
-                new_state_dict[module_key][param_key] = v
-
-        language_model.load_state_dict(new_state_dict, strict=True)
-        print(f"Restored LLM weights from {nemo_path}.")
-
+    def forward(
+            self, *args, **kwargs,
+    ):
+        media = kwargs.pop('media', None)
+        self.embedding.word_embeddings.set_media(media)
+        return GPTModel.forward(self, *args, **kwargs)
 
 class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     """

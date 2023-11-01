@@ -68,7 +68,11 @@ def load_model(cls, checkpoint, strict, **kwargs):
             model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
             for name, module in model.named_parameters():
                 if name in checkpoint['state_dict']:
-                    module.data = checkpoint['state_dict'][name]
+                    if module.data.shape != checkpoint['state_dict'][name].shape:
+                        print(f"WARNING: Auto padding {name} from {checkpoint['state_dict'][name].shape} to {module.data.shape}")
+                        module.data[:checkpoint['state_dict'][name].size(0), :checkpoint['state_dict'][name].size(1)] = checkpoint['state_dict'][name]
+                    else:
+                        module.data = checkpoint['state_dict'][name]
                     checkpoint['state_dict'].pop(name)
                 else:
                     print(f"Unexpected key: {name} not in checkpoint but in model.")
