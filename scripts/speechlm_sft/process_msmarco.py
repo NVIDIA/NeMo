@@ -7,7 +7,8 @@ from tts_normalization_utils import get_normalizer, normalize
 random.seed(1402)
 
 dataset_name = "msmarco"
-split_name = "test"
+split_name = "validation"
+split_name = "validation"
 output_file = f"{dataset_name}_{split_name}_normalized.json"
 MSG_NOT_FOUND_ANSWER = "I could not find the answer in the audio."
 
