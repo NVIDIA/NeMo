@@ -114,11 +114,8 @@ class LongFormSpeakerClustering(torch.nn.Module):
         return Y_unpack
 
     def split_embs_to_windows(
-        self, 
-        index: int, 
-        emb: torch.Tensor,
-        embeddings_per_chunk: int,
-        ) -> Tuple[torch.Tensor, int]:
+        self, index: int, emb: torch.Tensor, embeddings_per_chunk: int,
+    ) -> Tuple[torch.Tensor, int]:
         """
         Splits the embedding tensor into smaller window-sized tensors based on a given index.
         
@@ -295,7 +292,9 @@ class LongFormSpeakerClustering(torch.nn.Module):
 
         for win_index in pbar:
             # Step-1: Split the embeddings into smaller chunks
-            emb_part, offset_index = self.split_embs_to_windows(index=win_index, emb=emb, embeddings_per_chunk=embeddings_per_chunk)
+            emb_part, offset_index = self.split_embs_to_windows(
+                index=win_index, emb=emb, embeddings_per_chunk=embeddings_per_chunk
+            )
 
             # Step-2: Perform overclustering on the chunks to identify `chunk_cluster_count` clusters
             if emb_part.shape[0] == 1:
