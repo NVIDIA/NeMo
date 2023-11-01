@@ -15,7 +15,6 @@ from torch._dynamo import optimize
 from torch.optim.lr_scheduler import LambdaLR
 
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import build_sdxl_precached_text_train_valid_datasets, build_train_valid_precached_datasets, build_sdxl_train_valid_datasets
-from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.wrappers import OPENAIUNETWRAPPER
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     default,
@@ -26,6 +25,7 @@ from nemo.collections.multimodal.parts.stable_diffusion.utils import (
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import ModelPT, Serialization
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.utils import logging
 
 try:
@@ -54,7 +54,9 @@ UNCONDITIONAL_CONFIG = {
 
 
 class DiffusionEngine(nn.Module, Serialization):
-    def __init__(self, cfg):
+    def __init__(
+        self, cfg, model_parallel_config
+    ):
         super().__init__()
         unet_config = cfg.unet_config
         denoiser_config = cfg.denoiser_config
@@ -66,6 +68,8 @@ class DiffusionEngine(nn.Module, Serialization):
         loss_fn_config = cfg.get('loss_fn_config', None)
         network_wrapper = cfg.get('network_wrapper', None)
         compile_model = cfg.get('compile_model', False)
+        self.config = model_parallel_config
+
 
         self.channels_last = cfg.get('channels_last', False)
         self.log_keys = cfg.get('log_keys', None)
@@ -73,7 +77,11 @@ class DiffusionEngine(nn.Module, Serialization):
         # Precaching
         self.precache_mode = cfg.get('precache_mode')
 
-        self.loss_fn = DiffusionEngine.from_config_dict(loss_fn_config) if loss_fn_config is not None else None
+        self.loss_fn = (
+            DiffusionEngine.from_config_dict(loss_fn_config)
+            if loss_fn_config is not None
+            else None
+        )
 
         model = DiffusionEngine.from_config_dict(unet_config)
         self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(model, compile_model=compile_model)
@@ -81,7 +89,11 @@ class DiffusionEngine(nn.Module, Serialization):
             self.model = optimize("inductor")(self.model)
 
         self.denoiser = DiffusionEngine.from_config_dict(denoiser_config)
-        self.sampler = instantiate_from_config(sampler_config) if sampler_config is not None else None
+        self.sampler = (
+            instantiate_from_config(sampler_config)
+            if sampler_config is not None
+            else None
+        )
 
         self.conditioner = DiffusionEngine.from_config_dict(default(conditioner_config, UNCONDITIONAL_CONFIG))
         self.scheduler_config = scheduler_config
@@ -300,7 +312,8 @@ class DiffusionEngine(nn.Module, Serialization):
         return log
 
 
-class MegatronDiffusionEngine(MegatronMultimodalModel):
+
+class MegatronDiffusionEngine(MegatronBaseModel):
     """Megatron DiffusionEngine Model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -327,14 +340,14 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
 
         self.conditioning_keys = []
 
-        if self.trainer.precision == 'bf16':
+        if self.trainer.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision in [16, '16', '16-mixed']:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
     def get_module_list(self):
         if isinstance(self.model, list):
@@ -346,7 +359,7 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
 
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
-        model = DiffusionEngine(cfg=self.cfg)
+        model = DiffusionEngine(cfg=self.cfg, model_parallel_config=self.model_parallel_config)
         return model
 
     # def forward(self, x, c, *args, **kwargs):
@@ -365,6 +378,48 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
             self.model.on_train_batch_start(batch, batch_idx)
 
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+        tensor_shape = None  # Placeholder
+
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2, )
+
+        # pipeline schedules will get these from self.model.config
+        for module in self.get_module_list():
+            module.config.no_sync_func = no_sync_func
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=dataloader_iter,
+            model=self.model,
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            seq_length=None,
+            micro_batch_size=self.cfg.micro_batch_size,
+        )
+
+        loss_dict = {}
+        if losses_reduced_per_micro_batch:
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                for key in losses_reduced_per_micro_batch[0]:
+                    loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
+                    loss_tensor = torch.stack(loss_tensors_list)
+                    loss_dict[key] = loss_tensor.mean()
+                loss_mean = loss_dict["train/loss"]
+            else:
+                raise NotImplementedError("Losses of micro batches sizes must be uniform!")
+        else:
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+
+        return loss_mean, loss_dict
+
     def training_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
@@ -374,38 +429,7 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             Microbatches are then moved to GPU during the pipeline.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        tensor_shape = None  # Placeholder
-        # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
-        self._optimizer.zero_grad()
-        # run forward and backwards passes for an entire global batch
-        # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=False,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        # losses_reduced_per_micro_batch is a list of dictionaries
-        # [{"loss": 0.1}, {"loss": 0.2}, ...] which are from gradient accumulation steps
-        # only the last stages of the pipeline return losses
-        loss_dict = {}
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            for key in losses_reduced_per_micro_batch[0]:
-                loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.stack(loss_tensors_list)
-                loss_dict[key] = loss_tensor.mean()
-            loss_mean = loss_dict["train/loss"]
-        else:
-            loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+        loss_mean, loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
 
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
@@ -424,15 +448,16 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             #     # main grads are stored in the MainParamsOptimizer wrapper
             #     self._optimizer.allreduce_main_grads()
             self._optimizer.allreduce_main_grads()
-        else:
+        elif not self.cfg.get('ddp_overlap', True):
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        if self.cfg.precision == 16:
+        if self.cfg.precision in [16, '16', '16-mixed']:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
+
 
         self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
@@ -447,6 +472,7 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             batch_size=1,
         )
         return loss_mean
+
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
@@ -515,38 +541,13 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
 
         return fwd_output_and_loss_func
 
-    def get_forward_output_only_func(self):
-        def fwd_output_only_func(batch, model):
-            raise NotImplementedError
-
-        return fwd_output_only_func
-
     def validation_step(self, dataloader_iter, batch_idx):
-        tensor_shape = None  # Placeholder
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        # only the last stages of the pipeline return losses
-        val_loss_dict = {}
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            for key in losses_reduced_per_micro_batch[0]:
-                loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.stack(loss_tensors_list)
-                val_loss_dict[key] = loss_tensor.mean()
+        loss, val_loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
         self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True, batch_size=1)
+
+        return loss
+
 
     def setup(self, stage=None):
         """ PTL hook that is executed after DDP spawns.
@@ -577,7 +578,7 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             f'Total number of model parameters: {total_num_parameters:.2e}.'
         )
 
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
