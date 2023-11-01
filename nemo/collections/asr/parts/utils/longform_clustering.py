@@ -391,7 +391,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
         NOTE: `torch.jit.script` currently does not support `**kwargs` in the function signature therefore,
         we need to use a wrapper function to handle the arguments.
         """
-        if torch.max(multiscale_segment_counts) > embeddings_per_chunk:
+        if embeddings_per_chunk is not None and torch.max(multiscale_segment_counts) > embeddings_per_chunk:
             return self.long_forward_infer(
                 embeddings_in_scales=embeddings_in_scales,
                 timestamps_in_scales=timestamps_in_scales,
