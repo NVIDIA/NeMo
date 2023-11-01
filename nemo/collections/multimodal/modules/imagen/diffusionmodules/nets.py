@@ -62,6 +62,7 @@ class UNetModel(nn.Module):
     :param low_res_cond: Whether conditioned on low-resolution input, used for SR model. Defaults to False.
     :param noise_cond_aug: Whether to add noise conditioned augmentation with low-resolution input. Defaults to False.
     """
+
     def __init__(
         self,
         embed_dim,  # Dimension of embeddings. Also used to calculate the number of channels in ResBlock
@@ -439,6 +440,7 @@ class EfficientUNetModel(nn.Module):
     :param skip_connection_scaling: Whether to use 1/sqrt(2) scaling for ResBlock skip connection, defaults to False.
     :param noise_cond_aug: Whether to add noise conditioned augmentation with low-resolution input. Defaults to False.
     """
+
     def __init__(
         self,
         embed_dim,

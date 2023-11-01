@@ -23,7 +23,15 @@ from nemo.core.classes import Dataset as NeMoDataset
 
 class ControlNetSyntheticDataset(NeMoDataset):
     def __init__(
-        self, image_H, image_W, fake_len=100000, image_key='images', txt_key='txt', control_key='hint', seq_len=80, context_dim=768
+        self,
+        image_H,
+        image_W,
+        fake_len=100000,
+        image_key='images',
+        txt_key='txt',
+        control_key='hint',
+        seq_len=80,
+        context_dim=768,
     ):
         super().__init__()
         self.fake_len = fake_len
@@ -44,7 +52,6 @@ class ControlNetSyntheticDataset(NeMoDataset):
 
     def __len__(self):
         return self.fake_len
-
 
 
 def build_train_valid_datasets(
@@ -78,7 +85,7 @@ def build_train_valid_datasets(
             txt_key=model_cfg.cond_stage_key,
             control_key=model_cfg.control_key,
             context_dim=model_cfg.unet_config.context_dim,
-            fake_len=data_cfg.synthetic_data_length
+            fake_len=data_cfg.synthetic_data_length,
         )
     else:
         train_data = WebDatasetCommon(

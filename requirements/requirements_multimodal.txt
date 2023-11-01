@@ -1,26 +1,26 @@
-Pillow==9.3.0
-kornia
-jax[cpu]
 accelerate
-seaborn
-prefetch_generator
+addict
+basicsr
+git+https://github.com/openai/CLIP.git@main#egg=clip
 diffusers==0.19.3
+einops_exts
+git+https://github.com/NVlabs/nvdiffrast.git@c5caf7bdb8a2448acc491a9faa47753972edd380
+imageio-ffmpeg
+jax[cpu]
+kornia
+nerfacc==0.5.3
+open_clip_torch
+opencv-python==4.8.0.74
+Pillow==9.3.0
+prefetch_generator
+PyMCubes
+pymeshlab
+seaborn
+-e git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
+torch-ema
 torchdiffeq
 torchsde
-addict
-yapf
-basicsr
-open_clip_torch
-torch-ema
 trimesh
-PyMCubes
 xatlas
-imageio-ffmpeg
-pymeshlab
-nerfacc==0.5.3
-einops_exts
-opencv-python==4.8.0.74
-git+https://github.com/openai/CLIP.git@main#egg=clip
-git+https://github.com/NVlabs/nvdiffrast.git@c5caf7bdb8a2448acc491a9faa47753972edd380
--e git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
+yapf
 # webdataset==0.2.48 conflict with ASR models, manually pip install when using multimodal

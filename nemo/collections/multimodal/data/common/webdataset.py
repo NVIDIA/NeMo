@@ -108,6 +108,7 @@ class WebDatasetCommon(NeMoIterableDataset):
     """
     A common dataset object shared by most of NeMo multimodal models.
     """
+
     def __init__(
         self,
         dataset_cfg,

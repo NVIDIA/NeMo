@@ -58,6 +58,7 @@ class ControlledUnetModel(UNetModel):
     '''
     Modified Unet class that combines the output of controlling copy and frozen copy during forward pass.
     '''
+
     def forward(self, x, timesteps=None, context=None, control=None, only_mid_control=False, **kwargs):
         '''
         :param x: latents of diffusion process

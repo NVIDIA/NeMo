@@ -19,7 +19,10 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.multimodal.data.neva.neva_dataset import make_supervised_data_module, DataCollatorForSupervisedDataset
+from nemo.collections.multimodal.data.neva.neva_dataset import (
+    DataCollatorForSupervisedDataset,
+    make_supervised_data_module,
+)
 from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel, NevaModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -266,7 +269,9 @@ def precision():
 def neva_trainer_and_model(model_cfg, trainer_cfg, precision, test_data_dir):
     model_cfg['precision'] = precision
     trainer_cfg['precision'] = precision
-    model_cfg['tokenizer']['model'] = os.path.join(test_data_dir, "multimodal/tiny-neva/tokenizer_add_special.model"),
+    model_cfg['tokenizer']['model'] = (
+        os.path.join(test_data_dir, "multimodal/tiny-neva/tokenizer_add_special.model"),
+    )
 
     strategy = NLPDDPStrategy()
 
@@ -287,7 +292,7 @@ def neva_trainer_and_model(model_cfg, trainer_cfg, precision, test_data_dir):
 
 
 def build_datasets(cfg, tokenizer, test_data_dir):
-    cfg.data.data_path = os.path.join(test_data_dir, "multimodal/tiny-neva/dummy.json"),
+    cfg.data.data_path = (os.path.join(test_data_dir, "multimodal/tiny-neva/dummy.json"),)
     cfg.data.image_folder = os.path.join(test_data_dir, "multimodal/tiny-neva/images")
     ds_dict = make_supervised_data_module(tokenizer=tokenizer, model_cfg=cfg,)
     return ds_dict["train_dataset"], ds_dict["eval_dataset"]
@@ -306,7 +311,7 @@ class TestMegatronNevaModel:
     @pytest.mark.unit
     def test_build_dataset(self, neva_trainer_and_model, test_data_dir):
         neva_model = neva_trainer_and_model[1]
-        neva_model.cfg.data.data_path = os.path.join(test_data_dir, "multimodal/tiny-neva/dummy.json"),
+        neva_model.cfg.data.data_path = (os.path.join(test_data_dir, "multimodal/tiny-neva/dummy.json"),)
         neva_model.cfg.data.image_folder = os.path.join(test_data_dir, "multimodal/tiny-neva/images")
         ds_dict = make_supervised_data_module(tokenizer=neva_model.tokenizer, model_cfg=neva_model.cfg,)
         train_ds, validation_ds = ds_dict["train_dataset"], ds_dict["eval_dataset"]
@@ -357,7 +362,7 @@ class TestMegatronNevaModel:
         position_ids = batch['position_ids'].cuda()
         attention_mask = batch['attention_mask'].cuda()
         labels = batch['labels'].cuda()
-        media  = batch['media'].cuda()
+        media = batch['media'].cuda()
         with torch.no_grad():
             with torch.autocast('cuda', dtype=dtype):
                 output_tensor = neva_model(tokens, position_ids, attention_mask, labels, media)
