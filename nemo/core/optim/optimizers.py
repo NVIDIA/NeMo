@@ -72,7 +72,7 @@ if HAVE_APEX:
 
         AVAILABLE_OPTIMIZERS['megatron_fused_adam'] = MegatronFusedAdam
     except (ImportError, ModuleNotFoundError):
-        logging.warning("Could not import MegatronFusedAdam optimizer")
+        pass
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 

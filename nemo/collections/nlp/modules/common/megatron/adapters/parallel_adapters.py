@@ -571,7 +571,7 @@ class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)
 
 
-class MMLinearAdapter(nn.Module, AdapterModuleUtil):
+class MultiModalLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(self, in_features: int, out_features: int, bias: bool, **kwargs) -> None:
         super().__init__()
         self.linear = torch.nn.Linear(in_features, out_features, bias,)
@@ -581,8 +581,8 @@ class MMLinearAdapter(nn.Module, AdapterModuleUtil):
 
 
 @dataclass
-class MMLinearAdapterConfig:
+class MultiModalLinearAdapterConfig:
     in_features: int
     out_features: int
     bias: bool
-    _target_: str = "{0}.{1}".format(MMLinearAdapter.__module__, MMLinearAdapter.__name__)
+    _target_: str = "{0}.{1}".format(MultiModalLinearAdapter.__module__, MultiModalLinearAdapter.__name__)

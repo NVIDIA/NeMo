@@ -63,8 +63,6 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         self.freeze()
         self.init_peft_modules()
         self.adapter_keys = self.get_all_keys() - self.base_keys
-        if self.megatron_amp_O2:
-            self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
 
     def first_stage_of_pipeline(self):
         if hasattr(self, "model") and hasattr(self.model, "pre_process"):
