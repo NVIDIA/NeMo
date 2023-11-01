@@ -19,6 +19,12 @@ from transformers import T5Config, T5EncoderModel, T5Tokenizer
 
 class T5Encoder(torch.nn.Module):
     def __init__(self, max_seq_len=512, encoder_path=None):
+        """
+        Initialize the T5 Encoder.
+
+        :param max_seq_len: Maximum token length, defaults to 512
+        :param encoder_path: Optional if loaded T5 on the disk, defaults to None
+        """
         super().__init__()
         self.max_seq_len = max_seq_len
 
@@ -39,6 +45,9 @@ class T5Encoder(torch.nn.Module):
             )
 
     def encode(self, text_batch, device='cuda'):
+        '''
+        Encode a batch of text to T5 embeddings.
+        '''
         encoded = self.tokenizer.batch_encode_plus(
             text_batch, return_tensors="pt", padding="max_length", max_length=self.model_seq_len, truncation=True
         )

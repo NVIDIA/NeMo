@@ -79,14 +79,20 @@ model:
       class_token_length: 1
       freeze: True
     pretrain_mm_mlp_adapter: null # path to pretrained mm adapter
-    use_im_start_end: True # only support True now
+    mm_mlp_adapter_type: linear
+    use_im_start_end: False # only support True now
 
   peft:
+    peft_scheme: "lora"
+    restore_from_path: null
     lora_tuning:
       adapter_dim: 32
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      layer_selection:  null  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+      weight_tying: False
+      position_embedding_strategy: null # used only when weight_tying is True
 
   # LLM configs
   # use GPTModel from megatron.core
@@ -189,7 +195,7 @@ model:
     is_multimodal: True
     sep_image_conv_front: False
     image_token_len: 256
-    conv_template: ${model.mm_cfg.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
+    conv_template: ${model.mm_cfg.llm.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
     image_aspect_ratio: 'square'
 

@@ -120,6 +120,7 @@ model:
     legacy: False
     use_flash_attention: True
     enable_amp_o2_fp16: True
+    resblock_gn_groups: 32
 
   first_stage_config:
     _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
@@ -156,7 +157,7 @@ model:
     #    version: openai/clip-vit-large-patch14
     #    device: cuda
     #    max_length: 77
-    #    capture_cudagraph_iters: {$model.capture_cudagraph_iters}
+    #    capture_cudagraph_iters: ${model.capture_cudagraph_iters}
 
 
   # miscellaneous

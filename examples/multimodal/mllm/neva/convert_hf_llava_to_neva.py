@@ -68,7 +68,11 @@ def load_model(cls, checkpoint, strict, **kwargs):
             model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
             for name, module in model.named_parameters():
                 if name in checkpoint['state_dict']:
-                    module.data = checkpoint['state_dict'][name]
+                    if module.data.shape != checkpoint['state_dict'][name].shape:
+                        print(f"WARNING: Auto padding {name} from {checkpoint['state_dict'][name].shape} to {module.data.shape}")
+                        module.data[:checkpoint['state_dict'][name].size(0), :checkpoint['state_dict'][name].size(1)] = checkpoint['state_dict'][name]
+                    else:
+                        module.data = checkpoint['state_dict'][name]
                     checkpoint['state_dict'].pop(name)
                 else:
                     print(f"Unexpected key: {name} not in checkpoint but in model.")
@@ -96,32 +100,36 @@ def load_model(cls, checkpoint, strict, **kwargs):
     return model
 
 
-def load_config(args, llama_config):
+def load_config(args, llava_config):
     nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), 'conf/llava_config.yaml')).model
-    nemo_config.encoder_seq_length = llama_config['max_position_embeddings']
-    nemo_config.num_layers = int(llama_config['num_hidden_layers'])
-    nemo_config.hidden_size = llama_config['hidden_size']
-    nemo_config.ffn_hidden_size = llama_config['intermediate_size']
-    nemo_config.num_attention_heads = llama_config['num_attention_heads']
-    nemo_config.max_position_embeddings = llama_config['max_position_embeddings']
-    nemo_config.init_method_std = llama_config['initializer_range']
-    nemo_config.layernorm_epsilon = llama_config['rms_norm_eps']
-    if 'num_key_value_heads' in llama_config:
-        nemo_config.num_query_groups = llama_config['num_key_value_heads']
+    nemo_config.mm_cfg.mm_mlp_adapter_type = llava_config.get('mm_projector_type', 'linear')
+    nemo_config.mm_cfg.vision_encoder.from_pretrained = llava_config.get('mm_vision_tower', 'openai/clip-vit-large-patch14')
+    if '336' in nemo_config.mm_cfg.vision_encoder.from_pretrained:
+        nemo_config.data.image_token_len = 576
+    nemo_config.encoder_seq_length = llava_config['max_position_embeddings']
+    nemo_config.num_layers = int(llava_config['num_hidden_layers'])
+    nemo_config.hidden_size = llava_config['hidden_size']
+    nemo_config.ffn_hidden_size = llava_config['intermediate_size']
+    nemo_config.num_attention_heads = llava_config['num_attention_heads']
+    nemo_config.max_position_embeddings = llava_config['max_position_embeddings']
+    nemo_config.init_method_std = llava_config['initializer_range']
+    nemo_config.layernorm_epsilon = llava_config['rms_norm_eps']
+    if 'num_key_value_heads' in llava_config:
+        nemo_config.num_query_groups = llava_config['num_key_value_heads']
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
     if args.tokenizer_model is None:
-        nemo_config.tokenizer.model = llama_config['tokenizer_model']
+        nemo_config.tokenizer.model = llava_config['tokenizer_model']
     else:
         nemo_config.tokenizer.model = args.tokenizer_model
-    if llama_config['rope_scaling'] is not None:
-        if llama_config['rope_scaling']['type'] == 'linear':
-            nemo_config['seq_len_interpolation_factor'] = llama_config['rope_scaling']['factor']
+    if llava_config['rope_scaling'] is not None:
+        if llava_config['rope_scaling']['type'] == 'linear':
+            nemo_config['seq_len_interpolation_factor'] = llava_config['rope_scaling']['factor']
         else:
             raise ValueError("Only linear rope scaling type is supported now")
 
     base = 128
-    while llama_config['vocab_size'] % base != 0:
+    while llava_config['vocab_size'] % base != 0:
         base //= 2
     nemo_config.make_vocab_size_divisible_by = base
 
@@ -204,17 +212,19 @@ def convert(args):
 
     # Multimodal projection
     if mcore_gpt:
-        raise NotImplementedError
+        mm_projection_layer_base_name = (
+            f'model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector'
+        )
     else:
         mm_projection_layer_base_name = (
-            f'model.language_model.embedding.word_embeddings.adapter_layer.mm_linear_adapter.linear'
+            f'model.language_model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector'
         )
-        checkpoint['state_dict'][f'{mm_projection_layer_base_name}.weight'] = param_to_weights(
-            model.state_dict()[f'model.mm_projector.weight']
-        )
-        checkpoint['state_dict'][f'{mm_projection_layer_base_name}.bias'] = param_to_weights(
-            model.state_dict()[f'model.mm_projector.bias']
-        )
+    for key in model.state_dict():
+        if 'mm_projector' in key:
+            mm_projection_layer_suffix = key.split('mm_projector')[1]
+            checkpoint['state_dict'][f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'] = param_to_weights(
+                model.state_dict()[key]
+            )
 
     embed_weight = model.state_dict()[f'model.embed_tokens.weight']
     if mcore_gpt:

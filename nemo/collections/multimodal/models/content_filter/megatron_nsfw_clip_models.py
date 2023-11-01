@@ -365,7 +365,7 @@ class MegatronContentFilteringModel(MegatronBaseModel):
             num_workers=cfg.data.num_workers,
             pin_memory=True,
             drop_last=cfg.data.train.get("drop_last", True),
-            persistent_workers=True,
+            persistent_workers=True if cfg.data.num_workers > 0 else False,
         )
 
     def setup_validation_data(self, cfg: DictConfig) -> None:
@@ -383,7 +383,7 @@ class MegatronContentFilteringModel(MegatronBaseModel):
             num_workers=cfg.data.num_workers,
             pin_memory=True,
             drop_last=cfg.data.validation.get("drop_last", True),
-            persistent_workers=True,
+            persistent_workers=True if cfg.data.num_workers > 0 else False,
         )
 
     def parameters(self):

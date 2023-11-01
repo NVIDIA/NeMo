@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+import re
 import enum
 import logging
 from dataclasses import dataclass
@@ -66,7 +67,7 @@ class AdapterName(str, enum.Enum):
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
-    MM_LINEAR_ADAPTER = "mm_linear_adapter"
+    MM_PROJECTOR_ADAPTER = "mm_projector_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
@@ -571,18 +572,34 @@ class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)
 
 
-class MultiModalLinearAdapter(nn.Module, AdapterModuleUtil):
-    def __init__(self, in_features: int, out_features: int, bias: bool, **kwargs) -> None:
+class MMProjectorAdapter(nn.Module, AdapterModuleUtil):
+    def __init__(self, adapter_type: str, in_features: int, out_features: int, bias: bool, **kwargs) -> None:
         super().__init__()
-        self.linear = torch.nn.Linear(in_features, out_features, bias,)
+
+        if adapter_type == 'linear':
+            self.mm_projector = torch.nn.Linear(in_features, out_features, bias)
+        elif adapter_type == 'identity':
+            self.mm_projector = lambda x: x
+        else:
+            mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', adapter_type)
+            if mlp_gelu_match:
+                mlp_depth = int(mlp_gelu_match.group(1))
+                modules = [torch.nn.Linear(in_features, out_features, bias)]
+                for _ in range(1, mlp_depth):
+                    modules.append(torch.nn.GELU())
+                    modules.append(torch.nn.Linear(out_features, out_features, bias))
+                self.mm_projector = torch.nn.Sequential(*modules)
+            else:
+                raise ValueError(f'Unknown mm_mlp_adapter_type type: {adapter_type}')
 
     def forward(self, x):
-        return self.linear(x)
+        return self.mm_projector(x)
 
 
 @dataclass
-class MultiModalLinearAdapterConfig:
+class MMProjectorAdapterConfig:
+    adapter_type: str
     in_features: int
     out_features: int
     bias: bool
-    _target_: str = "{0}.{1}".format(MultiModalLinearAdapter.__module__, MultiModalLinearAdapter.__name__)
+    _target_: str = "{0}.{1}".format(MMProjectorAdapter.__module__, MMProjectorAdapter.__name__)

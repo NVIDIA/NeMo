@@ -938,7 +938,7 @@ class MegatronCLIPModel(MegatronBaseModel):
                 num_workers=cfg.num_workers,
                 pin_memory=True,
                 drop_last=cfg.train.get("drop_last", True),
-                persistent_workers=True,
+                persistent_workers=True if cfg.num_workers > 0 else False,
             )
 
     def setup_validation_data(self, cfg):
@@ -953,7 +953,7 @@ class MegatronCLIPModel(MegatronBaseModel):
                 num_workers=cfg.num_workers,
                 pin_memory=True,
                 drop_last=cfg.train.get("drop_last", True),
-                persistent_workers=True,
+                persistent_workers=True if cfg.num_workers > 0 else False,
             )
 
     def setup_test_data(self, cfg):

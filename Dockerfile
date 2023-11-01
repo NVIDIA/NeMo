@@ -49,18 +49,11 @@ RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
   pip install -e .
 
-# Install megatron core, this can be removed once 0.3 pip package is released
-# We leave it here in case we need to work off of a specific commit in main
-RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
-  cd Megatron-LM && \
-  git checkout 375395c187ff64b8d56a1cd40572bc779864b1bd && \
-  pip install .
-
 # Distributed Adam support for multiple dtypes
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
-  git checkout 52e18c894223800cb611682dce27d88050edf1de && \
-  pip install install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
+  git checkout 9fc94b7d6db1b178adf9a6e92750f070dd9f825d && \
+  pip install install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam --group_norm" ./
 
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   cd TransformerEngine && \
@@ -97,6 +90,23 @@ RUN pip install flash-attn
 RUN pip install triton==2.0.0.dev20221202
 # install numba for latest containers
 RUN pip install numba>=0.57.1
+
+RUN pip install -e git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers --src /opt
+
+RUN cd /tmp                                                                                                  && \
+    git clone https://github.com/ashawkey/stable-dreamfusion.git                                             && \
+    cd stable-dreamfusion                                                                                    && \
+    git checkout 5550b91862a3af7842bb04875b7f1211e5095a63                                                    && \
+    find . -type f -name 'setup.py' -exec sed -i 's/c++14/c++17/g' {} +                                      && \
+    pip install --no-cache-dir ./raymarching                                                                 && \
+    pip install --no-cache-dir ./shencoder                                                                   && \
+    pip install --no-cache-dir ./freqencoder                                                                 && \
+    TORCH_CUDA_ARCH_LIST="6.0 6.1 7.0 7.5 8.0 8.6 9.0+PTX" pip install --no-cache-dir ./gridencoder          && \
+    cd /opt                                                                                                  && \
+    rm -rf /tmp/stable-dreamfusion
+
+RUN TCNN_CUDA_ARCHITECTURES="52,60,61,70,75,80,86,89,90" pip install --no-cache-dir \
+   git+https://github.com/NVlabs/tiny-cuda-nn@6f018a9cd1b369bcb247e1d539968db8e48b2b3f#subdirectory=bindings/torch
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/

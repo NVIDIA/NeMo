@@ -198,22 +198,15 @@ def model_cfg():
     
       data:
         num_workers: 1
-        dataset_type: webdataset
-    
         train:
-          data_path: # List of paths to pkl files or tar files
-            - /lustre/fsw/joc/multimodal/datasets/cc3m/00000-00008_{000000..000001}.tar
-          drop_last: True # drop_last = False is not implemented yet
+          dataset_path: # List of paths to pkl files or tar files
+            - /lustre/fsw/joc/yuya/tiny-datasets/tiny-clip/00000.tar
         validation: # List of paths to pkl files or tar files
-          data_path:
-            - /lustre/fsw/joc/multimodal/datasets/cc3m/00000-00008_000002.tar
-          drop_last: True # drop_last = False is not implemented yet
+          dataset_path:
+            - /lustre/fsw/joc/yuya/tiny-datasets/tiny-clip/00000.tar
         webdataset:
-          object_store: False
-          bucket: datasets
-          pbss_credentials_file: pbss_credential
-          local_root_path: / # tar files local root path
-          chunk_size: 1000 # if data path is list of tar files, chunk_size needs to be provided
+          infinite_sampler: False
+          local_root_path: /
     
         imagenet_val: null # Path to imagenet val set for conducting zero shot evaluation.
     
@@ -312,6 +305,7 @@ def precision():
 def clip_trainer_and_model(model_cfg, trainer_cfg, precision):
     model_cfg['vision']['precision'] = precision
     model_cfg['text']['precision'] = precision
+    model_cfg['precision'] = precision
     trainer_cfg['precision'] = precision
 
     strategy = NLPDDPStrategy()
@@ -332,7 +326,9 @@ def clip_trainer_and_model(model_cfg, trainer_cfg, precision):
     return trainer, model
 
 
-def build_datasets(cfg, tokenizer):
+def build_datasets(cfg, tokenizer, test_data_dir):
+    cfg.data.train.dataset_path = [os.path.join(test_data_dir, "multimodal/tiny-clip/00000.tar")]
+    cfg.data.validation.dataset_path = [os.path.join(test_data_dir, "multimodal/tiny-clip/00000.tar")]
     return build_train_valid_datasets(model_cfg=cfg, consumed_samples=0, tokenizer=tokenizer,)
 
 
@@ -344,16 +340,16 @@ class TestMegatronCLIPModel:
         assert isinstance(clip_model, MegatronCLIPModel)
 
         num_weights = clip_model.num_weights
-        assert num_weights == 46643969
+        assert num_weights == 46656257
 
     @pytest.mark.unit
     def test_build_dataset(self, clip_trainer_and_model, test_data_dir):
         clip_model = clip_trainer_and_model[1]
+        clip_model.cfg.data.train.dataset_path[0] = [os.path.join(test_data_dir, "multimodal/tiny-clip/00000.tar")]
+        clip_model.cfg.data.validation.dataset_path[0] = [os.path.join(test_data_dir, "multimodal/tiny-clip/00000.tar")]
         train_ds, validation_ds = build_train_valid_datasets(
             model_cfg=clip_model.cfg, consumed_samples=0, tokenizer=clip_model.tokenizer,
         )
-        assert len(train_ds) == 2000
-        assert len(validation_ds) == 1000
         sample = next(iter(train_ds))
         assert "captions" in sample
         assert "images" in sample
@@ -387,7 +383,7 @@ class TestMegatronCLIPModel:
             raise ValueError(f"precision: {clip_model.cfg['precision']} is not supported.")
 
         clip_model.eval()
-        _, validation_ds = build_datasets(clip_model.cfg, clip_model.tokenizer)
+        _, validation_ds = build_datasets(clip_model.cfg, clip_model.tokenizer, test_data_dir)
 
         val_loader = torch.utils.data.DataLoader(validation_ds, batch_size=4)
         batch = next(iter(val_loader))

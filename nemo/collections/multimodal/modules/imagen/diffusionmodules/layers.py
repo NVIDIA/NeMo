@@ -44,13 +44,7 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
-try:
-    from group_norm import GroupNormOpt
-
-    OPT_GROUP_NORM = True
-except Exception:
-    print('Fused optimized group norm has not been installed.')
-    OPT_GROUP_NORM = False
+from apex.contrib.group_norm import GroupNorm
 
 
 def conv_nd(dims, *args, **kwargs):
@@ -131,10 +125,7 @@ def normalization(channels, act=""):
     :param channels: number of input channels.
     :return: an nn.Module for normalization.
     """
-    if OPT_GROUP_NORM:
-        return GroupNormOpt(32, channels, act=act)
-
-    return nn.GroupNorm(32, channels)
+    return GroupNorm(32, channels, act=act)
 
 
 def timestep_embedding(timesteps, dim, max_period=10000, dtype=th.float32):
