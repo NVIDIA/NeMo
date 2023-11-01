@@ -62,7 +62,7 @@ model:
   seq_pattern: "delay_parallel" # parallel, delay_parallel, flatten
   speech_head_type: "linear" # token_level, linear
   cross_entropy_type: "vocab_parallel" # regular, vocab_parallel
-  temperature: 0.7 # Temperature to be used for inference
+  temperature: 0.9 # Temperature to be used for inference
   top_k: 80 # Top k to be used for inference
   max_inference_timesteps: 1500 # Maximum number of timesteps to run inference for
 
@@ -91,12 +91,12 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_manifest: ["/Data/MLSData/MLS/audio_24khz_val_unseen_tar_3/tarred_audio_manifest.json"]
-    train_audio_path: "/Data/MLSData/MLS/audio_24khz_val_unseen_tar_3/audio__OP_0..3_CL_.tar"
-    validation_manifest: ["/Data/MLSData/MLS/audio_24khz_val_unseen_tar_3/tarred_audio_manifest.json"]
-    validation_audio_path: "/Data/MLSData/MLS/audio_24khz_val_unseen_tar_3/audio__OP_0..3_CL_.tar"
-    test_manifest: ["/Data/MLSData/MLS/audio_24khz_val_unseen_tar_3/tarred_audio_manifest.json"]
-    test_audio_path: "/Data/MLSData/MLS/audio_24khz_val_unseen_tar_3/audio__OP_0..3_CL_.tar"
+    train_manifest: ["/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/MLS_val_seen_200.json"]
+    train_audio_path: "/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
+    validation_manifest: ["/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/MLS_val_seen_200.json"]
+    validation_audio_path: "/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
+    test_manifest: ["/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/MLS_val_seen_200.json"]
+    test_audio_path: "/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
     max_seq_length: 1536
     sample_rate: 24000
     add_eos: true
