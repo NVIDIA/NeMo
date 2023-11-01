@@ -713,10 +713,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return loss_dict
 
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+    def validation_step(self, dataloader_iter):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
+        loss = self._test_validation_step(dataloader_iter=dataloader_iter)
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
             step_outputs = self.validation_step_outputs[dataloader_idx]
         else:
