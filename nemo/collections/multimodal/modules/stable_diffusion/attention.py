@@ -389,7 +389,7 @@ class SpatialTransformer(nn.Module):
 
         if exists(context_dim) and not isinstance(context_dim, (list, ListConfig)):
             context_dim = [context_dim]
-        elif exists(context_dim) and isinstance(context_dim, list):
+        if exists(context_dim) and isinstance(context_dim, list):
             if depth != len(context_dim):
                 print(
                     f"WARNING: {self.__class__.__name__}: Found context dims {context_dim} of depth {len(context_dim)}, "
@@ -410,7 +410,6 @@ class SpatialTransformer(nn.Module):
             self.proj_in = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
         else:
             self.proj_in = nn.Linear(in_channels, inner_dim)
-
         self.transformer_blocks = nn.ModuleList(
             [
                 BasicTransformerBlock(
@@ -427,7 +426,6 @@ class SpatialTransformer(nn.Module):
                 for d in range(depth)
             ]
         )
-
         if not use_linear:
             self.proj_out = zero_module(nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
         else:

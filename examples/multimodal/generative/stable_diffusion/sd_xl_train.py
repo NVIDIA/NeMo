@@ -12,27 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from datetime import timedelta
-
 import torch
-from omegaconf.omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.strategies.ddp import DDPStrategy
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 
 from nemo.collections.multimodal.models.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPFSDPStrategy,
-    PipelineMixedPrecisionPlugin,
-)
+
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+
+class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
+    """Builder for SD model Trainer with overrides."""
+
+    def _training_strategy(self) -> NLPDDPStrategy:
+        """
+        Returns a ddp strategy passed to Trainer.strategy.
+        """
+        ddp_overlap = self.cfg.model.get('ddp_overlap', True)
+        if ddp_overlap:
+            return NLPDDPStrategy(
+                no_ddp_communication_hook=False,
+                gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
+                find_unused_parameters=True,
+                bucket_cap_mb=256,
+            )
+        else:
+            return NLPDDPStrategy(
+                no_ddp_communication_hook=True,
+                gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
+                find_unused_parameters=False,
+            )
 
 
 @hydra_runner(config_path='conf', config_name='sd_xl_base_train_no_conditions')
@@ -40,66 +52,12 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
-    with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
 
     torch.backends.cuda.matmul.allow_tf32 = True
 
-
-    plugins = []
-    if cfg.model.get('fsdp', False):
-        assert not with_distributed_adam, 'Distributed optimizer cannot be used with FSDP.'
-        if cfg.model.get('megatron_amp_o2', False):
-            logging.info('Torch/FSDP is not compatible with O2 precision recipe. Setting O2 `False`.')
-            cfg.model.megatron_amp_O2 = False
-        strategy = NLPFSDPStrategy(
-            limit_all_gathers=cfg.model.get('limit_all_gathers', True),
-            cpu_offload=cfg.model.get('cpu_offload', False),
-            use_transformer_engine=cfg.model.get('transformer_engine', False),
-            param_dtype=cfg.trainer.precision,
-            reduce_dtype=cfg.model.get('fsdp_grad_reduce_dtype', 32),
-            sharding_strategy=cfg.model.get('fsdp_sharding_strategy', 'full'),
-        )
-    else:
-        strategy = NLPDDPStrategy(
-            no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-            gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-            find_unused_parameters=False,
-        )
-
-    if cfg.trainer.precision in [16, 'bf16']:
-        scaler = None
-        if cfg.trainer.precision == 16:
-            scaler = GradScaler(
-                init_scale=cfg.model.get('native_amp_init_scale', 65536.0),
-                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-                hysteresis=cfg.model.get('hysteresis', 2),
-            )
-        if megatron_amp_O2 and not with_distributed_adam:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
-        else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
-
-    if cfg.get('cluster_type', None) == 'BCP':
-        plugins.append(TorchElasticEnvironment())
-
-    callbacks = []
-    trainer = Trainer(plugins=plugins, strategy=strategy, callbacks=callbacks, **cfg.trainer)
+    trainer = MegatronStableDiffusionTrainerBuilder(cfg).create_trainer()
 
     exp_manager(trainer, cfg.exp_manager)
-    # update resume from checkpoint found by exp_manager
-    if cfg.model.get("resume_from_checkpoint") is not None:
-        resume_from_checkpoint = cfg.model.resume_from_checkpoint
-    else:
-        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
-
-    logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
-
-    trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
-
-    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    with open_dict(cfg):
-        cfg.model.precision = cfg.trainer.precision
 
     model = MegatronDiffusionEngine(cfg.model, trainer)
     trainer.fit(model)

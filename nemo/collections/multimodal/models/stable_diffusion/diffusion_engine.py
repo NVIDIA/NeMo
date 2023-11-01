@@ -9,9 +9,10 @@ import torch.nn as nn
 from einops import rearrange
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.utilities.distributed import rank_zero_only
+from pytorch_lightning.utilities import rank_zero_only
 from safetensors.torch import load_file as load_safetensors
 from torch._dynamo import optimize
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from torch.optim.lr_scheduler import LambdaLR
 
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import build_sdxl_precached_text_train_valid_datasets, build_train_valid_precached_datasets, build_sdxl_train_valid_datasets
