@@ -566,7 +566,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+            batch, batch_idx, dataloader_idx = next(dataloader_iter)
             # convert to list if not already converted.
             if isinstance(batch, dict):
                 # convert to list if not already converted.
@@ -679,7 +679,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
 
         def fwd_output_only_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+            batch, batch_idx, dataloader_idx = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) if torch.is_tensor(x) else x for x in batch]
 
             # map batch and shared args into forward args
@@ -699,7 +699,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     ##########
 
-    def _test_validation_step(self, step_outputs, dataloader_iter, batch_idx, dataloader_idx=0):
+    def _test_validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         """
         Shared code for validation and test step
         """
@@ -709,25 +709,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             return
 
         loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
-        step_outputs.append(loss_dict)
 
         return loss_dict
 
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+    def validation_step(self, dataloader_iter):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
+        loss = self._test_validation_step(dataloader_iter=dataloader_iter)
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
             step_outputs = self.validation_step_outputs[dataloader_idx]
         else:
             step_outputs = self.validation_step_outputs
-
-        return self._test_validation_step(
-            step_outputs=step_outputs,
-            dataloader_iter=dataloader_iter,
-            batch_idx=batch_idx,
-            dataloader_idx=dataloader_idx,
-        )
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
