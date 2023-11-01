@@ -27,6 +27,16 @@ class DreamBoothDataset(Dataset):
     """
     A dataset to prepare the instance and class images with the prompts for fine-tuning the model.
     It pre-processes the images and the tokenizes prompts.
+
+    :param instance_data_root: required, a directory with images files of the object
+    :param instance_prompt: captions with special token associated with instance images
+    :param with_prior_preservation: whether to regularize the model finetuning with the original inference output from the backbone
+    :param reg_data_root: a directory to save inference images from the backbone
+    :param  reg_prompt: prompt used to generate regularization images
+    :param size: resizing images for training data pipeline
+    :param center_crop: whether performing center cropping on input images
+    :param load_cache_latents: when set to True, images will be converted to cached latents which will be directly loaded for training
+    :param vae: vae instance to encode imamges from pixel space to latent space
     """
 
     def __init__(

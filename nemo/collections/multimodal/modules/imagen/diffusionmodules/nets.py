@@ -34,6 +34,34 @@ from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import l
 
 
 class UNetModel(nn.Module):
+    """
+    The full UNet model with attention and timestep embedding used for Imagen Base and SR model.
+
+    :param embed_dim: Dimension of embeddings. Also used to calculate the number of channels in ResBlock.
+    :param image_size: Input image size. Used to calculate where to inject attention layers in UNet.
+    :param channels: Input channel number, defaults to 3.
+    :param text_embed_dim: Dimension of conditioned text embedding. Different text encoders and different model versions have different values, defaults to 512
+    :param num_res_blocks: Number of ResBlock in each level of UNet, defaults to 3.
+    :param channel_mult: Used with embed_dim to calculate the number of channels for each level of UNet, defaults to [1, 2, 3, 4]
+    :param num_attn_heads: The number of heads in the attention layer, defaults to 4.
+    :param per_head_channels: The number of channels per attention head, defaults to 64.
+    :param cond_dim: Dimension of Conditioning projections, defaults to 512.
+    :param attention_type: Type of attention layer, defaults to 'fused'.
+    :param feature_pooling_type: Type of pooling, defaults to 'attention'.
+    :param learned_sinu_pos_emb_dim: Dimension of learned time positional embedding. 0 for unlearned timestep embeddings. Defaults to 16
+    :param attention_resolutions: List of resolutions to inject attention layers. Defaults to [8, 16, 32]
+    :param dropout: The rate of dropout, defaults to 0.
+    :param use_null_token: Whether to create a learned null token for attention, defaults to False.
+    :param init_conv_kernel_size: Initial Conv kernel size, defaults to 3.
+    :param gradient_checkpointing: Whether to use gradient checkpointing, defaults to False.
+    :param scale_shift_norm: Whether to use scale shift norm, defaults to False.
+    :param stable_attention: Whether to use numerically-stable attention calculation, defaults to True.
+    :param flash_attention: Whether to use flash attention calculation, defaults to False.
+    :param resblock_updown: Whether to use ResBlock or Downsample/Upsample, defaults to False.
+    :param resample_with_conv: When resblock_updown=False, whether to use conv in addition to Pooling&ConvTranspose. Defaults to True.
+    :param low_res_cond: Whether conditioned on low-resolution input, used for SR model. Defaults to False.
+    :param noise_cond_aug: Whether to add noise conditioned augmentation with low-resolution input. Defaults to False.
+    """
     def __init__(
         self,
         embed_dim,  # Dimension of embeddings. Also used to calculate the number of channels in ResBlock
@@ -386,6 +414,31 @@ class UNetModel(nn.Module):
 
 
 class EfficientUNetModel(nn.Module):
+    """
+    The full Efficient UNet model with attention and timestep embedding used for Imagen SR model.
+
+    :param embed_dim: Dimension of embeddings. Also used to calculate the number of channels in ResBlock.
+    :param image_size: Input image size. Used to calculate where to inject attention layers in UNet.
+    :param channels: Input channel number, defaults to 3.
+    :param text_embed_dim: Dimension of conditioned text embedding. Different text encoders and different model versions have different values, defaults to 512
+    :param channel_mult: Used with embed_dim to calculate the number of channels for each level of UNet, defaults to [1, 1, 2, 4, 8].
+    :param num_attn_heads: The number of heads in the attention layer, defaults to 8.
+    :param per_head_channels: The number of channels per attention head, defaults to 64.
+    :param attention_type: Type of attention layer, defaults to 'fused'.
+    :param atnn_enabled_at: Whether to enable attention at each level, defaults to [0, 0, 0, 0, 1].
+    :param feature_pooling_type: Type of pooling, defaults to 'attention'.
+    :param stride: Stride in ResBlock, defaults to 2.
+    :param num_resblocks: Used with num_res_blocks to calculate the number of residual blocks at each level of Efficient-UNet. Defaults to [1, 2, 4, 8, 8].
+    :param learned_sinu_pos_emb_dim: Dimension of learned time positional embedding. 0 for unlearned timestep embeddings. Defaults to 16
+    :param use_null_token: Whether to create a learned null token for attention, defaults to False.
+    :param init_conv_kernel_size: Initial Conv kernel size, defaults to 3.
+    :param gradient_checkpointing: Whether to use gradient checkpointing, defaults to False.
+    :param scale_shift_norm: Whether to use scale shift norm, defaults to False.
+    :param stable_attention: Whether to use numerically-stable attention calculation, defaults to True.
+    :param flash_attention: Whether to use flash attention calculation, defaults to False.
+    :param skip_connection_scaling: Whether to use 1/sqrt(2) scaling for ResBlock skip connection, defaults to False.
+    :param noise_cond_aug: Whether to add noise conditioned augmentation with low-resolution input. Defaults to False.
+    """
     def __init__(
         self,
         embed_dim,
@@ -422,6 +475,7 @@ class EfficientUNetModel(nn.Module):
         skip_connection_scaling=False,  # Whether to use 1/sqrt(2) scaling for ResBlock skip connection
         noise_cond_aug=False,
     ):
+
         super().__init__()
 
         self.n_levels = len(channel_mult)

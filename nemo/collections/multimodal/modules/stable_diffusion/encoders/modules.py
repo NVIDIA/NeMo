@@ -437,6 +437,9 @@ class FrozenMegatronCLIPEmbedder(AbstractEncoder):
         return after
 
     def forward(self, text):
+        '''
+        Get embeddings from input text
+        '''
         texts = self.text_transform(text)
         z = self.encode_with_transformer(texts.to(self.device))
         # # Pad the seq length to multiple of 8

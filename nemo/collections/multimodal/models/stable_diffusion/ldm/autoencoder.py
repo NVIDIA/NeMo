@@ -469,12 +469,18 @@ class AutoencoderKL(pl.LightningModule):
         print(f"Restored from {path}")
 
     def encode(self, x):
+        '''
+        Encode input image in pixel space to latent representation.
+        '''
         h = self.encoder(x)
         moments = self.quant_conv(h)
         posterior = DiagonalGaussianDistribution(moments)
         return posterior
 
     def decode(self, z):
+        '''
+        Decode latent representation back to pixel space.
+        '''
         z = self.post_quant_conv(z)
         dec = self.decoder(z)
         return dec
