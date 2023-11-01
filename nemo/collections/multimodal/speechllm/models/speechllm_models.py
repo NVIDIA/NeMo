@@ -1058,10 +1058,6 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
         return averaged_loss, averaged_metric
 
-    def test_epoch_end(self, outputs):
-        averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
-        return averaged_loss
-
     # consistent with speech models
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
         output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
