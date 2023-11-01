@@ -12,26 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Copyright (c) 2007-2020 The scikit-learn developers.
-
-# BSD 3-Clause License
-
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 from typing import Dict, List, Tuple
-
 import torch
 from tqdm import tqdm
-
 from nemo.collections.asr.parts.utils.offline_clustering import (
     SpeakerClustering,
     get_scale_interpolated_embs,
@@ -42,9 +25,7 @@ from nemo.collections.asr.parts.utils.online_clustering import get_merge_quantit
 
 
 class LongFormSpeakerClustering(torch.nn.Module):
-    def __init__(
-        self, chunk_cluster_count: int = 50, embeddings_per_chunk: int = 10000, cuda: bool = False,
-    ):
+    def __init__(self, cuda: bool = False):
         """
         Initializes a speaker clustering class tailored for long-form audio, leveraging methods from the `SpeakerClustering` class.
         The clustering algorithm for long-form content is executed via the `forward_infer` function (not shown here). Input embedding 
@@ -55,10 +36,6 @@ class LongFormSpeakerClustering(torch.nn.Module):
         NOTE: torch.jit.script currently does not support inherited methods with a `super()` call.
 
         Args:
-            chunk_cluster_count (int):
-                Target number of clusters to identify within each chunk.
-            embeddings_per_chunk (int):
-                Size of the chunks in which the algorithm aims to identify `chunk_cluster_count` clusters.
             cuda (bool):
                 Flag indicating whether CUDA is available for computation.
         """
@@ -66,8 +43,6 @@ class LongFormSpeakerClustering(torch.nn.Module):
         self.speaker_clustering = SpeakerClustering(cuda=cuda)
         self.embeddings_in_scales: List[torch.Tensor] = [torch.tensor([0])]
         self.timestamps_in_scales: List[torch.Tensor] = [torch.tensor([0])]
-        self.embeddings_per_chunk: int = embeddings_per_chunk
-        self.chunk_cluster_count: int = chunk_cluster_count
         self.cuda = cuda
         self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
 
@@ -83,25 +58,21 @@ class LongFormSpeakerClustering(torch.nn.Module):
             max_num_speakers (int):
                 The maximum number of speakers to be detected in the audio.
         """
-        self.embeddings_per_chunk = (
-            embeddings_per_chunk if embeddings_per_chunk is not None else self.embeddings_per_chunk
-        )
-        self.chunk_cluster_count = chunk_cluster_count if chunk_cluster_count is not None else self.chunk_cluster_count
-        if self.chunk_cluster_count is None or self.embeddings_per_chunk is None:
+        if chunk_cluster_count is None or embeddings_per_chunk is None:
             raise ValueError(
-                f"chunk_cluster_count ({self.chunk_cluster_count}) and embeddings_per_chunk ({self.embeddings_per_chunk}) should be set."
+                f"chunk_cluster_count ({chunk_cluster_count}) and embeddings_per_chunk ({embeddings_per_chunk}) should be set."
             )
         elif (
-            all(v is not None for v in [self.chunk_cluster_count, self.embeddings_per_chunk])
-            and self.chunk_cluster_count >= self.embeddings_per_chunk
+            all(v is not None for v in [chunk_cluster_count, embeddings_per_chunk])
+            and chunk_cluster_count >= embeddings_per_chunk
         ):
             raise ValueError(
-                f"chunk_cluster_count ({self.chunk_cluster_count}) should be smaller than embeddings_per_chunk ({self.embeddings_per_chunk})."
+                f"chunk_cluster_count ({chunk_cluster_count}) should be smaller than embeddings_per_chunk ({embeddings_per_chunk})."
             )
 
-        if self.chunk_cluster_count <= max_num_speakers:
+        if chunk_cluster_count <= max_num_speakers:
             raise ValueError(
-                f"chunk_cluster_count ({self.chunk_cluster_count}) should be larger than max_num_speakers ({max_num_speakers})."
+                f"chunk_cluster_count ({chunk_cluster_count}) should be larger than max_num_speakers ({max_num_speakers})."
             )
 
     def unpack_labels(
@@ -142,15 +113,22 @@ class LongFormSpeakerClustering(torch.nn.Module):
                     Y_unpack[abs_mapping[0]] = inferred_merged_embs.clone()
         return Y_unpack
 
-    def split_embs_to_windows(self, index: int, emb: torch.Tensor) -> Tuple[torch.Tensor, int]:
+    def split_embs_to_windows(
+        self, 
+        index: int, 
+        emb: torch.Tensor,
+        embeddings_per_chunk: int,
+        ) -> Tuple[torch.Tensor, int]:
         """
         Splits the embedding tensor into smaller window-sized tensors based on a given index.
         
         Args:
             index (int): The index of the desired window. This determines the starting point 
                          of the window using the formula:
-                         start = self.embeddings_per_chunk * index
+                         start = embeddings_per_chunk * index
             emb (Tensor): The embedding tensor which needs to be split.
+            embeddings_per_chunk (int):
+                The size of the windows in which the algorithm aims to identify `chunk_cluster_count` clusters.
 
         Returns:
             emb_part (Tensor): 
@@ -158,12 +136,12 @@ class LongFormSpeakerClustering(torch.nn.Module):
             offset_index (int): 
                 The starting position of the window in the `emb` tensor.
         """
-        if self.embeddings_per_chunk * (index + 1) > emb.shape[0]:
-            emb_part = emb[-1 * self.embeddings_per_chunk :]
-            offset_index = emb.shape[0] - self.embeddings_per_chunk
+        if embeddings_per_chunk * (index + 1) > emb.shape[0]:
+            emb_part = emb[-1 * embeddings_per_chunk :]
+            offset_index = emb.shape[0] - embeddings_per_chunk
         else:
-            emb_part = emb[self.embeddings_per_chunk * index : self.embeddings_per_chunk * (index + 1)]
-            offset_index = self.embeddings_per_chunk * index
+            emb_part = emb[embeddings_per_chunk * index : embeddings_per_chunk * (index + 1)]
+            offset_index = embeddings_per_chunk * index
         return emb_part, offset_index
 
     def forward(self, param_dict: Dict[str, torch.Tensor]) -> torch.LongTensor:
@@ -308,7 +286,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
         total_emb: List[torch.Tensor] = []
         window_range_list: List[List[int]] = []
         absolute_merge_mapping: List[List[torch.Tensor]] = []
-        total_window_count = self.get_div_ceil_count(numer=emb.shape[0], denomin=self.embeddings_per_chunk)
+        total_window_count = self.get_div_ceil_count(numer=emb.shape[0], denomin=embeddings_per_chunk)
 
         if not torch.jit.is_scripting():
             pbar = tqdm(range(total_window_count), desc="Clustering Sub-Windows", leave=True, unit="window")
@@ -317,26 +295,26 @@ class LongFormSpeakerClustering(torch.nn.Module):
 
         for win_index in pbar:
             # Step-1: Split the embeddings into smaller chunks
-            emb_part, offset_index = self.split_embs_to_windows(index=win_index, emb=emb)
-            mat = getCosAffinityMatrix(emb_part)
-            overcluster_count = min(self.chunk_cluster_count, mat.shape[0])
+            emb_part, offset_index = self.split_embs_to_windows(index=win_index, emb=emb, embeddings_per_chunk=embeddings_per_chunk)
 
             # Step-2: Perform overclustering on the chunks to identify `chunk_cluster_count` clusters
             if emb_part.shape[0] == 1:
                 Y_part = torch.zeros((1,), dtype=torch.int64)
             else:
+                mat = getCosAffinityMatrix(emb_part)
+                overcluster_count = min(chunk_cluster_count, mat.shape[0])
                 Y_part = self.speaker_clustering.forward_unit_infer(
                     mat=mat,
                     oracle_num_speakers=overcluster_count,
                     max_rp_threshold=max_rp_threshold,
-                    max_num_speakers=self.chunk_cluster_count,
+                    max_num_speakers=chunk_cluster_count,
                     sparse_search_volume=sparse_search_volume,
                 )
 
             # Step-3: Merge the clusters to form the aggregated clustering labels `Y_aggr`
             num_to_be_merged = int(min(embeddings_per_chunk, emb_part.shape[0]) - chunk_cluster_count)
             min_count_per_cluster = self.get_div_ceil_count(
-                numer=self.chunk_cluster_count, denomin=len(torch.unique(Y_part))
+                numer=chunk_cluster_count, denomin=len(torch.unique(Y_part))
             )
 
             # We want only one embedding vector for each cluster, so we calculate the number of embedding vectors to be removed
@@ -414,11 +392,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
         NOTE: `torch.jit.script` currently does not support `**kwargs` in the function signature therefore,
         we need to use a wrapper function to handle the arguments.
         """
-        self.embeddings_per_chunk = (
-            embeddings_per_chunk if embeddings_per_chunk is not None else self.embeddings_per_chunk
-        )
-        self.chunk_cluster_count = chunk_cluster_count if chunk_cluster_count is not None else self.chunk_cluster_count
-        if embeddings_in_scales.shape[0] > self.embeddings_per_chunk:
+        if torch.max(multiscale_segment_counts) > embeddings_per_chunk:
             return self.long_forward_infer(
                 embeddings_in_scales=embeddings_in_scales,
                 timestamps_in_scales=timestamps_in_scales,
