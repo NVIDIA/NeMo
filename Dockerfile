@@ -43,11 +43,13 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/
-# install megatron core, this can be removed once 0.3 pip package is released
+
+# Install megatron core, this can be removed once 0.3 pip package is released
+# We leave it here in case we need to work off of a specific commit in main
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
-  pip install -e .
+  git checkout 375395c187ff64b8d56a1cd40572bc779864b1bd && \
+  pip install .
 
 # Distributed Adam support for multiple dtypes
 RUN git clone https://github.com/NVIDIA/apex.git && \
@@ -86,8 +88,6 @@ RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-chec
 
 # install flash attention dependencies
 RUN pip install flash-attn
-# pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
-RUN pip install triton==2.0.0.dev20221202
 # install numba for latest containers
 RUN pip install numba>=0.57.1
 
