@@ -827,7 +827,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
-            batch = next(dataloader_iter)
+            batch, batch_idx, dataloader_idx = next(dataloader_iter)
 
             # Transfer needed data to GPU
             required_keys = set()
@@ -893,7 +893,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+            batch, batch_idx, dataloader_idx = next(dataloader_iter)
             extra_arg = {}
             if len(batch) == 3:
                 batch = [x.cuda() for x in batch]
@@ -939,7 +939,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter, batch_idx):
+    def validation_step(self, dataloader_iter):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size

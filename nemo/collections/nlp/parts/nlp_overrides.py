@@ -29,7 +29,6 @@ from omegaconf import OmegaConf
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
 from pytorch_lightning.loops.fetchers import _DataFetcher
-from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
@@ -141,7 +140,7 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer
-            self._model = _LightningModuleWrapperBase(self.model)
+            self._model = self.model
         else:
             app_state = AppState()
 
@@ -158,7 +157,7 @@ class NLPDDPStrategy(DDPStrategy):
                 # self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
                 self._model = DistributedDataParallel(
-                    _LightningModuleWrapperBase(self.model),
+                    self.model,
                     process_group=parallel_state.get_data_parallel_group(),
                     **self._ddp_kwargs,
                 )
