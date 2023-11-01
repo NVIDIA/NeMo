@@ -158,7 +158,6 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
             vision_select_layer=-1,
             class_token_length=1,
             use_im_start_end=False,
-            llama_tricks=False,
     ):
         self.vision_encoder = vision_encoder
         self.from_hf = isinstance(vision_encoder, CLIPVisionModel)
@@ -169,23 +168,13 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         self.vision_select_layer = vision_select_layer
         self.media = None
         self.set_accepted_adapter_types([MMProjectorAdapterConfig._target_])
-        self.llama_tricks = llama_tricks
 
     def set_media(self, media):
         self.media = media
 
     def forward(self, input_ids, **kwargs):
         media = self.media  # avoid change the signature of embedding forward function
-        if self.llama_tricks and not self.use_im_start_end:
-            masked_input_ids = input_ids.detach().clone()
-            if self.num_embeddings < 32000:
-                raise ValueError("Not supported tokenizer with llama 2!")
-            else:
-                masked_input_ids[masked_input_ids >= 32000] = 0
-            words_embeddings = super().forward(masked_input_ids, **kwargs)
-
-        else:
-            words_embeddings = super().forward(input_ids, **kwargs)
+        words_embeddings = super().forward(input_ids, **kwargs)
 
         return self.replace_media_embeddings(input_ids, words_embeddings, media)
 
@@ -307,7 +296,6 @@ class NevaBaseModel:
             if mm_cfg.vision_encoder.freeze:
                 vision_encoder.freeze()
 
-        model_type = self.mm_cfg.llm.get("model_type", "nvgpt")
         # Monkey patch embedding
         if kwargs.get("pre_process", True):
             extend_instance(self.embedding.word_embeddings, NevaWordEmbeddingMixin)
@@ -318,7 +306,6 @@ class NevaBaseModel:
                 vision_select_layer=mm_cfg.vision_encoder.get("vision_select_layer", -2),
                 class_token_length=mm_cfg.vision_encoder.get("class_token_length", 1),
                 use_im_start_end=mm_cfg.get("use_im_start_end", False),
-                llama_tricks=(model_type == "llama_2" or model_type == "v1"),
             )
 
     def freeze_llm(self, mm_cfg):
