@@ -157,7 +157,7 @@ model:
     #    version: openai/clip-vit-large-patch14
     #    device: cuda
     #    max_length: 77
-    #    capture_cudagraph_iters: {$model.capture_cudagraph_iters}
+    #    capture_cudagraph_iters: ${model.capture_cudagraph_iters}
 
 
   # miscellaneous
