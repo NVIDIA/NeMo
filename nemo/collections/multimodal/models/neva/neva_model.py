@@ -469,7 +469,7 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
     ):
         media = kwargs.pop('media', None)
         self.embedding.word_embeddings.set_media(media)
-        return MCoreNevaModel.forward(self, *args, **kwargs)
+        return MCoreGPTModel.forward(self, *args, **kwargs)
 
 
 class NevaModel(GPTModel, NevaBaseModel):
