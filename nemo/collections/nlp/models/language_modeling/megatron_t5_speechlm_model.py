@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-import os
 import json
+import os
 from typing import Any, List
 
 import editdistance
@@ -839,11 +839,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             logging.info(f'Test {key}: {average_metrics[key]}')
             self.log(f'test_{key}', average_metrics[key], prog_bar=True, rank_zero_only=True, batch_size=1)
             self.logger.experiment.add_scalar(f'Inf Cumulative {key}', average_metrics[key], 0)
-        
+
         # save average metrics into json file
         with open(os.path.join(self.logger.log_dir, 'output_metrics.json'), 'w') as f:
             json.dump(average_metrics, f)
-
 
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
