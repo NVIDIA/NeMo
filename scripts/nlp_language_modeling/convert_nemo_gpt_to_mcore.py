@@ -38,15 +38,15 @@ Script to convert a legacy (non-mcore path) nemo checkpoint into mcore-path chec
         
 Then, run this conversion script:
 python convert_nemo_gpt_to_mcore.py \
- --in-file <path to extracted, TP1 PP1 legacy checkpoint folder> \
- --out-file <path to output nemo ile>
+ --in-folder <path to extracted, TP1 PP1 legacy checkpoint folder> \
+ --out-file <path to output nemo file>
 """
 
 
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file", type=str, default=None, required=True, help="Path to extracted, TP1 PP1 NeMo GPT checkpoint.",
+        "--in-folder", type=str, default=None, required=True, help="Path to extracted, TP1 PP1 NeMo GPT checkpoint.",
     )
     parser.add_argument(
         "--out-file", type=str, default=None, required=True, help="Path to output mcore weights file (ends in .nemo)."
@@ -56,6 +56,11 @@ def get_args():
         action="store_true",
         help="Load model in cpu only. Useful if the model cannot fit in GPU memory, "
         "but this option makes the conversion script significantly slower.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Run conversion again and overwrite output file when the output file already exists",
     )
     args = parser.parse_args()
     return args
@@ -179,6 +184,7 @@ def restore_model(nemo_file, cpu_only=False):
 def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_only=False):
     if skip_if_output_exists and os.path.exists(output_nemo_file):
         logging.info(f"Output file already exists ({output_nemo_file}), skipping conversion...")
+        logging.info("If you want to overwrite the output file, please run with --overwrite flag")
         return
     nemo_model = restore_model(input_nemo_file, cpu_only=cpu_only)
 
@@ -264,13 +270,14 @@ def run_sanity_checks(nemo_file, mcore_file, cpu_only=False):
 if __name__ == '__main__':
     args = get_args()
 
-    input_nemo_file = args.in_file
+    input_nemo_file = args.in_folder
     output_nemo_file = args.out_file
     cpu_only = args.cpu_only
+    overwrite = args.overwrite
 
     os.makedirs(os.path.dirname(output_nemo_file), exist_ok=True)
     try:
-        convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_only=cpu_only)
+        convert(input_nemo_file, output_nemo_file, skip_if_output_exists=not overwrite, cpu_only=cpu_only)
     except torch.cuda.OutOfMemoryError:
         print("Could not convert due to torch.cuda.OutOfMemoryError.")
         print("Please run the script with --cpu-only flag")
