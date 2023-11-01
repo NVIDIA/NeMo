@@ -14,8 +14,28 @@
 
 import amp_C
 import torch
-from apex.multi_tensor_apply import multi_tensor_applier
-from apex.optimizers import FusedAdam
+from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
+
+try:
+    from megatron.core import parallel_state
+    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
+try:
+    from apex.multi_tensor_apply import multi_tensor_applier
+    from apex.optimizers import FusedAdam
+
+    HAVE_APEX = True
+
+except ModuleNotFoundError:
+    HAVE_APEX = False
+
+
 
 
 class MegatronFusedAdam(FusedAdam):
@@ -34,11 +54,6 @@ class MegatronFusedAdam(FusedAdam):
         self.norm_type = float(norm_type)
 
     def step(self, closure=None, grad_scaler=None):
-        from megatron.core import parallel_state
-        from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
-
-        from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
-
         # Code path below assumes capturable=True and master_weights=True
         if not (self.capturable and self.master_weights):
             return super().step(closure=closure, grad_scaler=grad_scaler)
