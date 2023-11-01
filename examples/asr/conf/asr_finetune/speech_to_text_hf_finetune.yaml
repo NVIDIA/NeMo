@@ -1,4 +1,4 @@
-name: "Speech_To_Text_HF_Finetuning"
+name: "Speech_To_Text_HF_Finetuning_using_HF_Datasets"
 
 # use `init_from_nemo_model` or `init_from_pretrained_model` to initialize the model
 # We do not currently support `init_from_ptl_ckpt` to create a single script for all types of models.
