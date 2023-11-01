@@ -207,7 +207,7 @@ def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_o
 
     mcore_model.cfg.use_cpu_initialization = False
     mcore_model.save_to(output_nemo_file)
-    logging.info(f"Done. Model saved to {output_nemo_file}")
+    logging.info(f"✅ Done. Model saved to {output_nemo_file}")
 
 
 def run_sanity_checks(nemo_file, mcore_file, cpu_only=False):
@@ -269,6 +269,14 @@ if __name__ == '__main__':
     cpu_only = args.cpu_only
 
     os.makedirs(os.path.dirname(output_nemo_file), exist_ok=True)
-    convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_only=cpu_only)
+    try:
+        convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_only=cpu_only)
+    except torch.cuda.OutOfMemoryError:
+        print("Could not convert due to torch.cuda.OutOfMemoryError.")
+        print("Please run the script with --cpu-only flag")
     torch.cuda.empty_cache()
-    run_sanity_checks(input_nemo_file, output_nemo_file, cpu_only=cpu_only)
+    try:
+        run_sanity_checks(input_nemo_file, output_nemo_file, cpu_only=cpu_only)
+    except torch.cuda.OutOfMemoryError:
+        print("✅ Conversion was successful, but could not run sanity check due to torch.cuda.OutOfMemoryError.")
+        print("Please run the script with the same command again to run sanity check.")
