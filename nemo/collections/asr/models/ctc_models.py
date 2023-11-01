@@ -23,8 +23,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.data.audio_to_text import _TarredAudioToTextDataset
-from nemo.collections.common.data.dataset import ConcatDataset
+from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -381,11 +380,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         if config.get('use_semi_sorted_batching', False):
-            if (
-                isinstance(dataset, _TarredAudioToTextDataset) or
-                (isinstance(dataset, ConcatDataset) and isinstance(dataset.datasets, _TarredAudioToTextDataset))
-            ):
-                raise RuntimeError('Semi Sorted Batch sampler can\'t be used with tarred datasets.')
+            if not isinstance(dataset, _AudioTextDataset):
+                raise RuntimeError(
+                    "Semi Sorted Batch sampler can be used with AudioToCharDataset or AudioToBPEDataset "
+                    f"but found dataset of type {type(dataset)}"
+                )
 
             batch_sampler = get_semi_sorted_batch_sampler(self, dataset, config)
             # set batch_size and batch_sampler to None to disable automatic batching
