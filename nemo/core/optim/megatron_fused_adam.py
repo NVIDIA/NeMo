@@ -36,8 +36,6 @@ except ModuleNotFoundError:
     HAVE_APEX = False
 
 
-
-
 class MegatronFusedAdam(FusedAdam):
     """Wrapper class that supports NeMo-Megatron optimizations
 
