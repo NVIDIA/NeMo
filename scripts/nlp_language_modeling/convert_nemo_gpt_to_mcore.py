@@ -193,6 +193,8 @@ def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_o
                 mcore_state_dict[mcore_param] = torch.cat(
                     [nemo_state_dict[nemo_param], nemo_state_dict[second_param]], dim=0
                 )
+            else:
+                mcore_state_dict[mcore_param] = nemo_state_dict[nemo_param]
         else:
             mcore_state_dict[mcore_param] = nemo_state_dict[nemo_param]
 
@@ -239,7 +241,8 @@ def run_sanity_checks(nemo_file, mcore_file, cpu_only=False):
                 # linear_fc1.weight should map to concat(dense_h_to_4h.weight, dense_h_to_4h_2.weight)
                 # but build_key_mapping only maps it to dense_h_to_4h.weight, so we handle the concat here.
                 second_param = nemo_param.replace("dense_h_to_4h.weight", "dense_h_to_4h_2.weight")
-                nemo_weight = torch.cat([nemo_weight, nemo_state_dict.pop(second_param)])
+                if second_param in nemo_state_dict:
+                    nemo_weight = torch.cat([nemo_weight, nemo_state_dict.pop(second_param)])
             assert torch.allclose(mcore_weight, nemo_weight), f"❌ parameter {mcore_param} does not match"
         except KeyError:
             buffers = [k for k, v in mcore_model.named_buffers()]
