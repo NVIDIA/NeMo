@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import torch
+import sys
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPFSDPStrategy
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 
 from nemo.collections.multimodal.models.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
@@ -31,20 +32,35 @@ class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
         """
         Returns a ddp strategy passed to Trainer.strategy.
         """
-        ddp_overlap = self.cfg.model.get('ddp_overlap', True)
-        if ddp_overlap:
-            return NLPDDPStrategy(
-                no_ddp_communication_hook=False,
-                gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
-                find_unused_parameters=True,
-                bucket_cap_mb=256,
+        """
+                Returns a DDP or a FSDP strategy passed to Trainer.strategy.
+                """
+        # check interactive environment
+        _IS_INTERACTIVE = hasattr(sys, "ps1") or bool(sys.flags.interactive)
+        if _IS_INTERACTIVE and self.cfg.trainer.devices == 1:
+            logging.info("Detected interactive environment, using NLPDDPStrategyNotebook")
+            return NLPDDPStrategyNotebook(no_ddp_communication_hook=True, find_unused_parameters=False, )
+
+        if self.cfg.model.get('fsdp', False):
+            assert (
+                not self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+            ), 'Distributed optimizer cannot be used with FSDP.'
+            if self.cfg.model.get('megatron_amp_O2', False):
+                logging.info('Torch FSDP is not compatible with O2 precision recipe. Setting O2 `False`.')
+                self.cfg.model.megatron_amp_O2 = False
+            return NLPFSDPStrategy(
+                limit_all_gathers=self.cfg.model.get('fsdp_limit_all_gathers', True),
+                sharding_strategy=self.cfg.model.get('fsdp_sharding_strategy', 'full'),
+                cpu_offload=self.cfg.model.get('fsdp_cpu_offload', False),
+                grad_reduce_dtype=self.cfg.model.get('fsdp_grad_reduce_dtype', 32),
+                precision=self.cfg.trainer.precision,
             )
-        else:
-            return NLPDDPStrategy(
-                no_ddp_communication_hook=True,
-                gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
-                find_unused_parameters=False,
-            )
+
+        return NLPDDPStrategy(
+            no_ddp_communication_hook=(not self.cfg.model.get('ddp_overlap')),
+            gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
+            find_unused_parameters=False,
+        )
 
 
 @hydra_runner(config_path='conf', config_name='sd_xl_base_train_no_conditions')

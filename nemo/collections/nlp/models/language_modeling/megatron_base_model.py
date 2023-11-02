@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional, Union
 
 import omegaconf
 import torch
+import torch.nn as nn
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
@@ -208,6 +209,8 @@ class MegatronBaseModel(NLPModel):
             gc.disable()
             self.validation_global_step = 1
 
+        self.use_fsdp = cfg.get('fsdp', False)
+
     def _reconfigure_val_batches(self):
         """
         Reconfigure trainer.limit_val_batches for pretraining
@@ -358,7 +361,7 @@ class MegatronBaseModel(NLPModel):
                 parameters = self._optimizer.get_parameters_with_grad()
             else:
                 parameters = self.get_parameters_with_grad()
-            grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+            grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val, use_fsdp=self.use_fsdp,)
 
         self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
@@ -632,10 +635,14 @@ class MegatronBaseModel(NLPModel):
                 with open_dict(self.cfg):
                     self.cfg.gradient_accumulation_fusion = False
 
-        if self.cfg.get('gradient_accumulation_fusion', False) and not self.cfg.get('megatron_amp_O2', False):
-            logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
-            with open_dict(self.cfg):
-                self.cfg.gradient_accumulation_fusion = False
+            if self.cfg.get('fsdp', False):
+                logging.info("When using FSDP, gradient accumulation cannot be fused to gradient computation.")
+                with open_dict(self.cfg):
+                    self.cfg.gradient_accumulation_fusion = False
+            if not self.cfg.get('megatron_amp_O2', False):
+                logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
+                with open_dict(self.cfg):
+                    self.cfg.gradient_accumulation_fusion = False
 
         if self.cfg.get('use_emha', False):
             raise ValueError('use_emha is not yet supported please set to False')
@@ -657,6 +664,9 @@ class MegatronBaseModel(NLPModel):
                 )
                 with open_dict(self.cfg):
                     self.cfg.ub_tp_comm_overlap = False
+
+        if self.cfg.get('fsdp', False) and self.cfg.get('fp8', False):
+            raise ValueError('Torch FSDP does not support FP8.')
 
     def is_data_parallel_rank_zero(self):
         if is_global_rank_zero():
@@ -845,3 +855,37 @@ class MegatronBaseModel(NLPModel):
             return iterator, True
         # reinsert the element back to the iterator
         return itertools.chain([element], iterator), False
+
+
+
+    def configure_sharded_model(self):
+        def find_frozen_submodules(model):
+            frozen_submodules = []
+            frozen_submodule_names = []
+            for name, module in model.named_modules():
+                if (
+                        isinstance(module, nn.Module)
+                        and list(module.parameters())
+                        and all(not param.requires_grad for param in module.parameters())
+                ):
+                    frozen_submodule_names.append(name)
+                    frozen_submodules.append(module)
+            return frozen_submodule_names, frozen_submodules
+
+        if self.use_fsdp:
+            """ Top-evel FSDP model sharding """
+            # Cast the full model to initialization precision to match the precision among parameters.
+            params_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision, None)
+            self.model = self.model.to(params_dtype)
+            # Shard the top-level model with FSDP. We shard the strategy-unwrapped model not
+            # to lose the structure of non-FSDP wrapped parameters (e.g, embedding)
+            frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
+            self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
+            self.model = self.trainer.strategy._setup_model(self.model)
+            # Keep the master parameters in fp32.
+            # The parameters can be initialized in half-precision to save memory before sharding
+            self.model = self.model.float()
+            # Move model from CPU to GPU, which is to avoid out-of-memory crash before sharding.
+            # FSDP with `use_cpu_initialization` has the model initialized on CPU then move GPU after sharding.
+            # In case of GPU-initialized model, this is no-op.
+            self.model = self.model.cuda(torch.cuda.current_device())

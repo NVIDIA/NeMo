@@ -14,6 +14,7 @@
 
 import sys
 
+from typing import Union
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
@@ -25,6 +26,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     NLPDDPStrategyNotebook,
+    NLPFSDPStrategy,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
@@ -39,15 +41,30 @@ class MegatronTrainerBuilder:
     def __init__(self, cfg: DictConfig) -> None:
         self.cfg = cfg
 
-    def _training_strategy(self) -> NLPDDPStrategy:
+    def _training_strategy(self) -> Union[NLPDDPStrategy, NLPFSDPStrategy]:
         """
-        Returns a ddp strategy passed to Trainer.strategy.
+        Returns a DDP or a FSDP strategy passed to Trainer.strategy.
         """
         # check interactive environment
         _IS_INTERACTIVE = hasattr(sys, "ps1") or bool(sys.flags.interactive)
         if _IS_INTERACTIVE and self.cfg.trainer.devices == 1:
             logging.info("Detected interactive environment, using NLPDDPStrategyNotebook")
             return NLPDDPStrategyNotebook(no_ddp_communication_hook=True, find_unused_parameters=False,)
+
+        if self.cfg.model.get('fsdp', False):
+            assert (
+                not self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+            ), 'Distributed optimizer cannot be used with FSDP.'
+            if self.cfg.model.get('megatron_amp_O2', False):
+                logging.info('Torch FSDP is not compatible with O2 precision recipe. Setting O2 `False`.')
+                self.cfg.model.megatron_amp_O2 = False
+            return NLPFSDPStrategy(
+                limit_all_gathers=self.cfg.model.get('fsdp_limit_all_gathers', True),
+                sharding_strategy=self.cfg.model.get('fsdp_sharding_strategy', 'full'),
+                cpu_offload=self.cfg.model.get('fsdp_cpu_offload', False),
+                grad_reduce_dtype=self.cfg.model.get('fsdp_grad_reduce_dtype', 32),
+                precision=self.cfg.trainer.precision,
+            )
 
         return NLPDDPStrategy(
             no_ddp_communication_hook=True,

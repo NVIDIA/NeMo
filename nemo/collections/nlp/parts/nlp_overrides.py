@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import itertools
 import os
-import re
 import shutil
 import tempfile
 from collections import OrderedDict, defaultdict
@@ -25,26 +25,39 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapp
 import pytorch_lightning as pl
 import torch
 from lightning_fabric.utilities.cloud_io import get_filesystem
+from lightning_fabric.utilities.optimizer import _optimizer_to_device
+from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
+from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
-from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.strategies import DDPStrategy, FSDPStrategy, Strategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
+from torch._C._distributed_c10d import ReduceOp
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import MixedPrecision, OptimStateKeyType, ShardingStrategy, StateDictType
+from torch.distributed.fsdp.api import FullOptimStateDictConfig
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -75,143 +88,47 @@ except (ImportError, ModuleNotFoundError):
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
-class NLPDDPStrategy(DDPStrategy):
-    """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
+def init_model_parallel(global_rank: int, world_size: int) -> None:
+    """ Initializes Megatron-LM model parallel if using model parallelism.
 
     Args:
-        no_ddp_communication_hook: Disable DDP communication hook when using AMP-O2
-        with FP32 gradient accumulation.
+        global_rank (int): the global process index.
+        world_size (int): the total number of GPUs, num_nodes * num_devices
     """
+    app_state = AppState()
 
-    def __init__(
-        self,
-        parallel_devices: Optional[List[torch.device]] = None,
-        cluster_environment: ClusterEnvironment = None,
-        checkpoint_io: Optional[CheckpointIO] = None,
-        no_ddp_communication_hook: bool = False,
-        **kwargs: Union[Any, Dict[str, Any]],
-    ) -> None:
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+    # we initialize megatron-lm model parallel and data parallel groups
+    # after initializing DDP with PTL.
+    if app_state.model_parallel_size is not None:
+        # destroy groups in case they have already been created
+        # this happens with multiple calls to trainer.test for example
+        parallel_state.destroy_model_parallel()
+        if torch.distributed.is_initialized():
+            parallel_state.initialize_model_parallel(
+                tensor_model_parallel_size=app_state.tensor_model_parallel_size,
+                pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+                virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
+                pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                use_fp8=app_state.use_fp8,
             )
 
-        if not HAVE_MEGATRON_CORE:
-            raise ImportError(
-                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
-        super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
+            # assert that fake tp and pp rank match after model parallel init
+            assert app_state.tensor_model_parallel_rank == parallel_state.get_tensor_model_parallel_rank()
+            assert app_state.pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
 
-        self.no_ddp_communication_hook = no_ddp_communication_hook
+            app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
+            app_state.data_parallel_group = parallel_state.get_data_parallel_group()
+            app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
+            app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
+            app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
-    def setup(self, trainer: "pl.Trainer") -> None:
-        """
-        Override setup() of DDPStrategy to avoid _sync_module_states(self.model) during eval as it can cause PP > 1 to hang
-        due to assumption in DDPStrategy class that the same model is replicated across GPUs
-        """
-        trainer_fn = trainer.state.fn
-        if trainer_fn == TrainerFn.FITTING:
-            super().setup(trainer)
-        else:
-            assert self.accelerator is not None
-            self.accelerator.setup(trainer)
+            # create MPI process group for UCX-based communication APIs
+            if app_state.init_mpi_proc_group:
+                torch.distributed.new_group(backend='mpi')
 
-            # move the model to the correct device
-            self.model_to_device()
-            self.setup_precision_plugin()
-            assert self.model is not None
 
-    def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
-        # call PTL init ddp
-        super().setup_distributed()
-
-        # init model parallel if needed
-        if not parallel_state.model_parallel_is_initialized():
-            app_state = AppState()
-
-            if app_state.model_parallel_size is not None:
-                self.init_model_parallel(app_state.global_rank, app_state.world_size)
-
-    def configure_ddp(self):
-        """ Override LightningModule ddp if using model parallel.
-            Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
-        """
-
-        if (hasattr(self.model, 'megatron_amp_O2') and self.model.megatron_amp_O2) or (
-            hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
-        ):
-            # do not use DDP if using megatron amp O2 or distributed optimizer
-            self._model = _LightningModuleWrapperBase(self.model)
-        else:
-            app_state = AppState()
-
-            if app_state.model_parallel_size is not None:
-
-                logging.info(f"Configuring DDP for model parallelism.")
-
-                # With model parallelism, multiple GPUs form a large "logical GPU"
-                # this means that data parallel groups span multiple GPUs
-                # and are non-trivial
-                # TODO: for megatron-lm self.model is a list
-                # Removing self.pre_configure_ddp() as DDP's 'find_unused_parameters' now defaults
-                # to False in PTL 2.0 and hence pre_configure_ddp() is removed in ddp.py
-                # self.pre_configure_ddp()
-                # device_ids = self.determine_ddp_device_ids()
-                self._model = DistributedDataParallel(
-                    _LightningModuleWrapperBase(self.model),
-                    process_group=parallel_state.get_data_parallel_group(),
-                    **self._ddp_kwargs,
-                )
-
-                if self.no_ddp_communication_hook:
-                    # When using custom gradient accumulation and allreduce, disable
-                    # DDP communication hook that works on the gradient bucket.
-                    # Instead, use the custom gradient function and communication hook,
-                    # which is defined in the master optimizer wrapper.
-                    self._model.require_backward_grad_sync = False
-                    self._model.register_comm_hook(None, noop_hook)
-
-            else:
-                super().configure_ddp()
-
-    def init_model_parallel(self, global_rank: int, world_size: int) -> None:
-        """ Initializes Megatron-LM model parallel if using model parallelism.
-
-        Args:
-            global_rank (int): the global process index.
-            world_size (int): the total number of GPUs, num_nodes * num_devices
-            is_slurm_managing_tasks (bool, optional): is the cluster managed by SLURM.
-        """
-        app_state = AppState()
-
-        # we initialize megatron-lm model parallel and data parallel groups
-        # after initializing DDP with PTL.
-        if app_state.model_parallel_size is not None:
-            # destroy groups in case they have already been created
-            # this happens with multiple calls to trainer.test for example
-            parallel_state.destroy_model_parallel()
-            if torch.distributed.is_initialized():
-                parallel_state.initialize_model_parallel(
-                    tensor_model_parallel_size=app_state.tensor_model_parallel_size,
-                    pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
-                    virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
-                    pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
-                    use_fp8=app_state.use_fp8,
-                )
-
-                # assert that fake tp and pp rank match after model parallel init
-                assert app_state.tensor_model_parallel_rank == parallel_state.get_tensor_model_parallel_rank()
-                assert app_state.pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
-
-                app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
-                app_state.data_parallel_group = parallel_state.get_data_parallel_group()
-                app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
-                app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
-                app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
-
-                # create MPI process group for UCX-based communication APIs
-                if app_state.init_mpi_proc_group:
-                    torch.distributed.new_group(backend='mpi')
+class ModelParallelCheckpointStrategy(Strategy):
+    """ Define model-parallel checkpoint save and resume methods shared by multiple strategies. """
 
     def optimizer_sharded_state_dict(self):
         """
@@ -278,7 +195,6 @@ class NLPDDPStrategy(DDPStrategy):
             When using megatron core, the distributed checkpointing library expects save functions to be
             called on every rank and internally does the rank checking.
         """
-
         # check if using distributed checkpointing
         if (
             hasattr(self.lightning_module, 'sharded_state_dict')
@@ -355,7 +271,7 @@ class NLPDDPStrategy(DDPStrategy):
 
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
         """ PTL method which we override to integrate distributed checkpoints for model parallel models.
-            In order to load distributed checkpoints we need to provide the sharded_state_dict to 
+            In order to load distributed checkpoints we need to provide the sharded_state_dict to
             the distributed load function. We get the sharded_state_dict from self.lightning_module
             which makes it convenient to have the loading logic happen at the strategy level.
         """
@@ -413,6 +329,106 @@ class NLPDDPStrategy(DDPStrategy):
                 logging.info(f'Removing checkpoint: {filepath}')
                 self.checkpoint_io.remove_checkpoint(filepath)
 
+
+class NLPDDPStrategy(ModelParallelCheckpointStrategy, DDPStrategy):
+    """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
+
+    Args:
+        no_ddp_communication_hook: Disable DDP communication hook when using AMP-O2
+        with FP32 gradient accumulation.
+    """
+
+    def __init__(
+        self,
+        parallel_devices: Optional[List[torch.device]] = None,
+        cluster_environment: ClusterEnvironment = None,
+        checkpoint_io: Optional[CheckpointIO] = None,
+        no_ddp_communication_hook: bool = False,
+        **kwargs: Union[Any, Dict[str, Any]],
+    ) -> None:
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+        DDPStrategy.__init__(self, parallel_devices, cluster_environment, checkpoint_io, **kwargs)
+
+        self.no_ddp_communication_hook = no_ddp_communication_hook
+
+    def setup(self, trainer: "pl.Trainer") -> None:
+        """
+        Override setup() of DDPStrategy to avoid _sync_module_states(self.model) during eval as it can cause PP > 1 to hang
+        due to assumption in DDPStrategy class that the same model is replicated across GPUs
+        """
+        trainer_fn = trainer.state.fn
+        if trainer_fn == TrainerFn.FITTING:
+            super().setup(trainer)
+        else:
+            assert self.accelerator is not None
+            self.accelerator.setup(trainer)
+
+            # move the model to the correct device
+            self.model_to_device()
+            self.setup_precision_plugin()
+            assert self.model is not None
+
+    def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
+        # call PTL init ddp
+        super().setup_distributed()
+
+        # init model parallel if needed
+        if not parallel_state.model_parallel_is_initialized():
+            app_state = AppState()
+
+            if app_state.model_parallel_size is not None:
+                init_model_parallel(app_state.global_rank, app_state.world_size)
+
+    def configure_ddp(self):
+        """ Override LightningModule ddp if using model parallel.
+            Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
+        """
+
+        if (hasattr(self.model, 'megatron_amp_o2') and self.model.megatron_amp_o2) or (
+            hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
+        ):
+            # do not use DDP if using megatron amp O2 or distributed optimizer
+            self._model = _LightningModuleWrapperBase(self.model)
+        else:
+            app_state = AppState()
+
+            if app_state.model_parallel_size is not None:
+
+                logging.info(f"Configuring DDP for model parallelism.")
+
+                # With model parallelism, multiple GPUs form a large "logical GPU"
+                # this means that data parallel groups span multiple GPUs
+                # and are non-trivial
+                # TODO: for megatron-lm self.model is a list
+                # Removing self.pre_configure_ddp() as DDP's 'find_unused_parameters' now defaults
+                # to False in PTL 2.0 and hence pre_configure_ddp() is removed in ddp.py
+                # self.pre_configure_ddp()
+                # device_ids = self.determine_ddp_device_ids()
+                self._model = DistributedDataParallel(
+                    _LightningModuleWrapperBase(self.model),
+                    process_group=parallel_state.get_data_parallel_group(),
+                    **self._ddp_kwargs,
+                )
+
+                if self.no_ddp_communication_hook:
+                    # When using custom gradient accumulation and allreduce, disable
+                    # DDP communication hook that works on the gradient bucket.
+                    # Instead, use the custom gradient function and communication hook,
+                    # which is defined in the master optimizer wrapper.
+                    self._model.require_backward_grad_sync = False
+                    self._model.register_comm_hook(None, noop_hook)
+
+            else:
+                super().configure_ddp()
+
     @property
     def distributed_sampler_kwargs(self):
         app_state = AppState()
@@ -431,7 +447,7 @@ class NLPDDPStrategy(DDPStrategy):
     @property
     def restore_checkpoint_after_setup(self) -> bool:
         """ This needs to be True for distributed checkpointing because
-            we require the model to have configured the optimizer before 
+            we require the model to have configured the optimizer before
             deserializing the checkpoint.
         """
         return True
@@ -447,6 +463,190 @@ class NLPDDPStrategyNotebook(NLPDDPStrategy):
 
     def _configure_launcher(self):
         self._launcher = None
+
+
+class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
+    """ FSDP plugin for Pytorch Lightning with the support for tensor-parallelism.
+
+    Args:
+        sharding_strategy: FSDP parameter sharding strategy.
+        grad_reduce_dtype: Data type for FSDP gradient shard ReduceScatter.
+        precision: Precision recipe to be used with FSDP.
+    """
+
+    def __init__(
+        self,
+        sharding_strategy: str = 'full',
+        grad_reduce_dtype: Union[int, str] = None,
+        precision: Union[int, str] = 'bf16-mixed',
+        **kwargs: Union[Any, Dict[str, Any]],
+    ) -> None:
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        # Set the mixed precision recipe
+        kwargs['mixed_precision'] = self._set_mixed_precision_recipe(precision, grad_reduce_dtype)
+        # Use the default FSDP backward-prefetch policy for proper communication overlap.
+        kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
+
+        # Set FSDP wrapping policy: use Transformer layer module as the FSDP sharding granularity.
+        self.fsdp_wrap_module = {
+            MCoreTransformerLayer,
+            AutocastTransformerLayer,
+            ParallelTransformerLayer,
+            BasicTransformerBlock,
+        }
+        kwargs['auto_wrap_policy'] = functools.partial(
+            transformer_auto_wrap_policy, transformer_layer_cls=self.fsdp_wrap_module
+        )
+
+        # Set FSDP sharding strategy.
+        fsdp_sharding_strategy = {
+            'full': ShardingStrategy.FULL_SHARD,
+            'hybrid': ShardingStrategy.HYBRID_SHARD,
+            'grad': ShardingStrategy.SHARD_GRAD_OP,
+        }
+        assert sharding_strategy in list(fsdp_sharding_strategy.keys()), "Not a supported sharding strategy."
+        assert sharding_strategy != 'hybrid', "Hybrid sharding is currrently not supported."
+        kwargs['sharding_strategy'] = fsdp_sharding_strategy[sharding_strategy]
+
+        super().__init__(**kwargs)
+
+    def _set_mixed_precision_recipe(
+        self, precision: Union[int, str], grad_reduce_dtype: Union[int, str]
+    ) -> MixedPrecision:
+        # Set FSDP mixed precision recipe.
+        if precision == "16-mixed":
+            buffer_dtype = torch.float32
+            param_dtype = reduce_dtype = torch.float16
+        elif precision == "bf16-mixed":
+            buffer_dtype = torch.float32
+            param_dtype = reduce_dtype = torch.bfloat16
+        elif precision in ["16-true", 16]:
+            param_dtype = reduce_dtype = buffer_dtype = torch.float16
+        elif precision in ["bf16-true", "bf16"]:
+            param_dtype = reduce_dtype = buffer_dtype = torch.bfloat16
+        elif precision in ["32-true", 32]:
+            param_dtype = reduce_dtype = buffer_dtype = torch.float
+        else:
+            raise ValueError(f"Was unable to infer precision type, received {precision!r}.")
+        # Over-write gradient reduction dtype to support bf16 computation with fp32 grad reduction
+        if grad_reduce_dtype is not None:
+            reduce_dtype = utils_funcs.torch_dtype_from_precision(grad_reduce_dtype, None)
+        logging.info(f'Set up FSDP with param_dtype:{param_dtype}, reduce_dtype:{reduce_dtype}, buffer_dtype:{buffer_dtype}')
+        return MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype,)
+
+    def setup_environment(self) -> None:
+        """
+        Overriding to set parallel states.
+        """
+        super().setup_environment()
+
+        # init model parallel if needed
+        if not parallel_state.model_parallel_is_initialized():
+            app_state = AppState()
+            assert app_state.pipeline_model_parallel_size == 1, "FSDP does not support pipeline parallelism"
+            if self.kwargs['sharding_strategy'] == ShardingStrategy.HYBRID_SHARD:
+                assert (
+                    app_state.tensor_model_parallel_size == 1
+                ), "FSDP hybrid sharding cannot be used when tensor_model_parallel_size > 1."
+            init_model_parallel(app_state.global_rank, app_state.world_size)
+            # Set the FSDP process group as DP process group
+            self._process_group = parallel_state.get_data_parallel_group()
+
+        # Set the params to omit from sharding.
+        self.kwargs["ignored_states"] = []
+        if parallel_state.get_tensor_model_parallel_world_size() > 1:
+            for p in self.model.parameters():
+                # Ignore sequence-parallel params to facilitate TP domain reduction.
+                if getattr(p, "sequence_parallel", False):
+                    self.kwargs["ignored_states"].append(p)
+                else:
+                    # Ignore params with TP-duplicate to facilitate grad norm calculation.
+                    is_not_tp_duplicate = torch.tensor(
+                        int(param_is_not_tensor_parallel_duplicate(p)),
+                        dtype=torch.int8,
+                        device=torch.cuda.current_device(),
+                    )
+                    torch.distributed.all_reduce(
+                        is_not_tp_duplicate, op=ReduceOp.MIN, group=parallel_state.get_tensor_model_parallel_group()
+                    )
+                    if is_not_tp_duplicate == 0:
+                        self.kwargs["ignored_states"].append(p)
+
+    def lightning_module_state_dict(self) -> Dict[str, Any]:
+        """
+        Store the full model state dict
+        """
+        assert self.lightning_module is not None
+        state_dic_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=False)
+        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg):
+            state_dict = self.lightning_module.state_dict()
+        return state_dict
+
+    def optimizer_state(self, optimizer: torch.optim.Optimizer) -> Dict[str, torch.Tensor]:
+        """
+        Store the full optimizer state dict
+        """
+        if isinstance(optimizer, LightningOptimizer):
+            optimizer = optimizer._optimizer
+        state_dic_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=False)
+        optim_state_dic_cfg = FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=False)
+        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg, optim_state_dic_cfg):
+            optim_state_dict = FSDP.optim_state_dict(self.model, optimizer)
+        return optim_state_dict
+
+    def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
+        """
+        Re-key the full optimizer state dict to sharded optimizer state dict
+        """
+        optimizer_states = checkpoint["optimizer_states"]
+        state_dic_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=False)
+        optim_state_dic_cfg = FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=False)
+
+        def get_osd(opt_state):
+            temp_opt_state = opt_state
+            while True:
+                if "state" in temp_opt_state:
+                    return temp_opt_state
+                assert isinstance(temp_opt_state, dict), "Fail to find optimizer state dict."
+                temp_opt_state = temp_opt_state[list(temp_opt_state.keys())[0]]
+
+        for optimizer, opt_state in zip(self.optimizers, optimizer_states):
+            with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg, optim_state_dic_cfg):
+                full_osd = get_osd(opt_state)
+                if isinstance(list(full_osd["state"].keys())[0], int):
+                    try:
+                        # Optimizer state dict stored without FSDP
+                        with FSDP.summon_full_params(self.model, writeback=True, rank0_only=False):
+                            full_osd = FSDP.rekey_optim_state_dict(full_osd, OptimStateKeyType.PARAM_NAME, self.model)
+                        sharded_osd = FSDP.shard_full_optim_state_dict(full_osd, self.model)
+                        sharded_osd = FSDP.optim_state_dict_to_load(
+                            optim_state_dict=sharded_osd, model=self.model, optim=optimizer,
+                        )
+                    except Exception as e:
+                        print(f"Failed to load optimzier state dicts. Errored with {e}")
+                        exit(1)
+                else:
+                    # Optimizer state dict stored with FSDP
+                    sharded_osd = FSDP.rekey_optim_state_dict(full_osd, OptimStateKeyType.PARAM_NAME, self.model)
+                    sharded_osd = FSDP.optim_state_dict_to_load(
+                        optim_state_dict=sharded_osd, model=self.model, optim=optimizer,
+                    )
+
+                optimizer.load_state_dict(sharded_osd)
+                _optimizer_to_device(optimizer, self.root_device)
+
+
+
+
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
@@ -587,69 +787,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             for key in state_dict.keys():
                 new_key = key.replace('model.', 'model.module.', 1)
                 new_state_dict[new_key] = state_dict[key]
-            state_dict = new_state_dict
-
-        new_state_dict = {}
-        for key in state_dict.keys():
-            new_key = key.replace('word_embeddings.adapter_layer.mm_linear_adapter.linear', 'word_embeddings.adapter_layer.mm_projector_adapter.mm_projector', 1)
-            new_state_dict[new_key] = state_dict[key]
-        state_dict = new_state_dict
-
-        # compatibility for inductor in inference
-        if not conf.get('inductor', False):
-            new_state_dict = {}
-            for key in state_dict.keys():
-                new_key = key.replace('._orig_mod', '', 1)
-                new_state_dict[new_key] = state_dict[key]
-            state_dict = new_state_dict
-
-        # Modify state key for Dreambooth inference
-        if (
-            conf.get('target')
-            == 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
-        ):
-            new_state_dict = {}
-            for key in state_dict.keys():
-                new_key = key.replace('unet', 'model.diffusion_model')
-                new_key = new_key.replace('vae', 'first_stage_model')
-                new_key = new_key.replace('text_encoder', 'cond_stage_model')
-                new_key = new_key.replace('.noise_scheduler', '')
-                new_state_dict[new_key] = state_dict[key]
-            state_dict = new_state_dict
-
-        loaded_keys = state_dict.keys()
-        if 'model.model.diffusion_model.input_blocks.1.0.in_layers.2.weight' in loaded_keys:
-            new_state_dict = {}
-            # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
-            def should_process(key):
-                base_str = "model.model.diffusion_model."
-                blocks = ["input_blocks", "middle_block", "output_blocks"]
-                for block in blocks:
-                    for layer_type in ["in_layers", "out_layers"]:
-                        for index in [2, 3]:  # The layers index.
-                            for param in ["weight", "bias"]:
-                                if block == 'middle_block':
-                                    for num in [0, 2]:
-                                        template = f"{base_str}{block}.{num}.{layer_type}.{index}.{param}"
-                                        if key == template:
-                                            return True
-                                else:
-                                    for num in range(12):  # 12 blocks, adjust as needed.
-                                        template = f"{base_str}{block}.{num}.0.{layer_type}.{index}.{param}"
-                                        if key == template:
-                                            return True
-                return False
-
-            for key_ in state_dict.keys():
-                if key_ == "model.cond_stage_model.transformer.text_model.embeddings.position_ids":
-                    continue
-                if should_process(key_):
-                    s = key_.split('.')
-                    idx = int(s[-2])
-                    new_key_ = ".".join(s[:-2] + [str(int(idx - 1))] + [s[-1]])
-                    new_state_dict[new_key_] = state_dict[key_]
-                else:
-                    new_state_dict[key_] = state_dict[key_]
             state_dict = new_state_dict
 
         return state_dict
