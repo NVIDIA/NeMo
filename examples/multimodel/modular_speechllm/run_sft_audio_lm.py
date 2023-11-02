@@ -22,6 +22,7 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -32,7 +33,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.model_utils import inject_model_parallel_rank
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 
 mp.set_start_method("spawn", force=True)
 

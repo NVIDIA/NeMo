@@ -26,6 +26,7 @@ from nemo.collections.multimodal.speechllm.models.speechllm_models import Modula
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTPEFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -36,7 +37,6 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 
 mp.set_start_method("spawn", force=True)
 """
