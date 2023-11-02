@@ -645,7 +645,7 @@ class IPATokenizer(BaseTokenizer):
         sep='|',  # To be able to distinguish between symbols
         add_blank_at=None,
         pad_with_space=False,
-        read_phones_from_file=False
+        read_phones_from_file=False,
     ):
         """General-purpose IPA-based tokenizer.
         Args:
@@ -689,7 +689,7 @@ class IPATokenizer(BaseTokenizer):
             self.phoneme_probability = g2p.phoneme_probability
         if read_phones_from_file:
             # if input text is phoneme sequence, only phonemes will be used in training
-            self.phoneme_probability=1
+            self.phoneme_probability = 1
 
         if locale == "en-US":
             self.text_preprocessing_func = lambda text: english_text_preprocessing(text, lower=False)
