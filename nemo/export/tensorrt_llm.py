@@ -146,6 +146,8 @@ class TensorRTLLM(ITritonDeployable):
         max_input_token: int = 512,
         max_output_token: int = 512,
         max_batch_size: int = 32,
+        use_inflight_batching=False,
+        paged_kv_cache=False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -160,8 +162,8 @@ class TensorRTLLM(ITritonDeployable):
             max_input_token (int): max input length.
             max_output_token (int): max output length.
             max_batch_size (int): max batch size.
-            quantization (bool): if True, applies naive quantization.
-            parallel_build (bool): build in parallel or not.
+            use_inflight_batching (bool): if True, enables inflight batching for TensorRT-LLM Triton backend.
+            paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
         """
 
         p_tuning = "no_ptuning"
@@ -213,7 +215,10 @@ class TensorRTLLM(ITritonDeployable):
         nemo_export_dir = Path(tmp_dir.name)
 
         model_configs, self.tokenizer = nemo_to_model_config(
-            in_file=nemo_checkpoint_path, decoder_type=model_type, gpus=n_gpus, nemo_export_dir=nemo_export_dir
+            in_file=nemo_checkpoint_path,
+            decoder_type=model_type,
+            gpus=n_gpus,
+            nemo_export_dir=nemo_export_dir,
         )
 
         model_config_to_tensorrt_llm(
@@ -224,6 +229,8 @@ class TensorRTLLM(ITritonDeployable):
             max_output_len=max_output_token,
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+            use_inflight_batching=use_inflight_batching,
+            paged_kv_cache=paged_kv_cache,
         )
 
         if p_tuning != "no_ptuning":

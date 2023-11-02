@@ -17,10 +17,10 @@ import copy
 import datetime
 import logging
 import os
-import shutil
 import sys
 import tempfile
 from pathlib import Path
+import typing
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -130,7 +130,7 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
 
 
 def nemo_to_model_config(
-    in_file: str, decoder_type: str, nemo_export_dir: str, gpus: int = 1
+    in_file: str, decoder_type: str, nemo_export_dir: typing.Union[str, Path], gpus: int = 1
 ) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
     """Converts the NEMO file and construct the `ModelConfig` before tensorrt_llm deployment."""
     dtype_str = "bfloat16"

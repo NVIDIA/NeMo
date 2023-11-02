@@ -144,7 +144,7 @@ class ModelBuilder(Module):
                 kv_cache_params=KeyValueCacheParams(
                     past_key_value=[past],
                     host_past_key_value_lengths=host_past_key_value_lengths,
-                    kv_cache_block_pointers=pointers,
+                    kv_cache_block_pointers=[pointers],
                     cache_indirection=cache_indirection
                 ),
                 attention_params=AttentionParams(
@@ -262,7 +262,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         max_batch_size,
         max_input_len,
         max_new_tokens,
-        use_cache,
+        use_cache=True,
         max_beam_width: int = 1,
         paged_kv_cache: bool = False,
         tokens_per_block: int = 64,
@@ -387,7 +387,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             model_inputs["past_key_value"],
             model_inputs["sequence_length"],
             model_inputs["host_past_key_value_lengths"],
-            True,
+            use_cache,
             model_inputs["last_token_ids"],
             model_inputs["attention_mask"],
             model_inputs["cache_indirection"],
@@ -414,6 +414,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         max_beam_width: int = 1,
         parallel_build: bool = False,
         max_prompt_embedding_table_size: int = 0,
+        use_inflight_batching=False,
+        paged_kv_cache=False,
     ):
         """Builds the model and generate the tensorrt_llm engine.
 
@@ -450,6 +452,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             parallel_build=parallel_build,
             gpus_per_node=torch.cuda.device_count(),
             quantization=self.quantization,
+            use_inflight_batching=use_inflight_batching,
+            paged_kv_cache=paged_kv_cache,
         )
 
     def print(self):

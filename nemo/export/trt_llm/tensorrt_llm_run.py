@@ -88,6 +88,7 @@ def _read_config(config_path: Path):
         paged_kv_cache=paged_kv_cache,
         tokens_per_block=tokens_per_block,
         use_prompt_tuning=use_prompt_tuning,
+        dtype="bfloat16" if paged_kv_cache else ""
     )
 
     dtype = config["builder_config"]["precision"]
