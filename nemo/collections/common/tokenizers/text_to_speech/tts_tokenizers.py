@@ -21,6 +21,7 @@ from typing import List, Optional
 
 from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import (
     get_grapheme_character_set,
+    get_ipa_character_set,
     get_ipa_punctuation_list,
     validate_locale,
 )
@@ -644,6 +645,7 @@ class IPATokenizer(BaseTokenizer):
         sep='|',  # To be able to distinguish between symbols
         add_blank_at=None,
         pad_with_space=False,
+        read_phones_from_file=False
     ):
         """General-purpose IPA-based tokenizer.
         Args:
@@ -667,6 +669,9 @@ class IPATokenizer(BaseTokenizer):
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
                 if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            read_phones_from_file: Whether the text input read from the manifest should be taken as the sentence's 
+                phoneme sequence representation. With this set to true, if fixed_vocab is not passed, the phoneme
+                tokens to be used wil be the ones defined in the g2p module of the given locale.
         """
         if not hasattr(g2p, "symbols"):
             logging.error(
@@ -682,6 +687,9 @@ class IPATokenizer(BaseTokenizer):
         self.phoneme_probability = None
         if hasattr(g2p, "phoneme_probability"):
             self.phoneme_probability = g2p.phoneme_probability
+        if read_phones_from_file:
+            # if input text is phoneme sequence, only phonemes will be used in training
+            self.phoneme_probability=1
 
         if locale == "en-US":
             self.text_preprocessing_func = lambda text: english_text_preprocessing(text, lower=False)
@@ -698,6 +706,8 @@ class IPATokenizer(BaseTokenizer):
                     "Did not replace G2P valid symbol set since the given set is equivalent to the existing one."
                 )
                 self.set_fixed_vocab = False
+            elif read_phones_from_file:
+                tokens = get_ipa_character_set(locale)
             else:
                 g2p.replace_symbols(tokens)
         else:
@@ -734,14 +744,19 @@ class IPATokenizer(BaseTokenizer):
         self.pad_with_space = pad_with_space
 
         self.g2p = g2p
+        self.read_phones_from_file = read_phones_from_file
 
     def encode(self, text: str) -> List[int]:
         """See base class for more information."""
         # normalize the input text with "NFC" form.
         text = self.text_preprocessing_func(text)
 
-        # transliterate the text into phoneme sequences and/or grapheme sequences.
-        g2p_text = self.g2p(text)
+        if self.read_phones_from_file:
+            # separate text input by chars if is to be used as phonemes
+            g2p_text = [c for c in text]
+        else:
+            # transliterate the text into phoneme sequences and/or grapheme sequences.
+            g2p_text = self.g2p(text)
 
         return self.encode_from_g2p(g2p_text, text)
 

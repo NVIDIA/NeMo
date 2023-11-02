@@ -216,6 +216,19 @@ class TestTTSTokenizers:
         chars, tokens = self._parse_text(tokenizer, input_text)
 
         assert chars == expected_output
+    
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_ipa_tokenizer_fr_fr_from_text(self):
+        input_text = "bɔ̃ʒˈuʁ lˈə- mˈɔ̃d"
+        expected_output = "bɔ̃ʒˈuʁ lˈə- mˈɔ̃d"
+
+        g2p = IpaG2p(phoneme_dict=self.PHONEME_DICT_FR, locale="fr-FR")
+        tokenizer = IPATokenizer(g2p=g2p, locale="fr-FR", read_phones_from_file=True)
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
