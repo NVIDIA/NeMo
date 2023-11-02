@@ -46,7 +46,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-def QuickGELUActivation(input: Tensor):
+def ApproxGELUActivation(input: Tensor):
     """
     Applies GELU approximation that is fast but somewhat inaccurate. See: https://github.com/hendrycks/GELUs
     """
