@@ -14,3 +14,4 @@ target_lang: null
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0
+override_tgt_languages: ['cs', 'da', 'de', 'el', 'es', 'fi', 'fr', 'hu', 'it', 'lt', 'lv', 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk', 'sv', 'zh', 'ja', 'hi', 'ko', 'et', 'sl', 'bg', 'uk', 'hr', 'ar', 'vi', 'tr', 'id']

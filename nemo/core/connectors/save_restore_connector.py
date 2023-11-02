@@ -18,7 +18,7 @@ import shutil
 import tarfile
 import tempfile
 import uuid
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -74,6 +74,7 @@ class SaveRestoreConnector:
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        override_tgt_languages: Optional[List[str]] = None
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -155,6 +156,10 @@ class SaveRestoreConnector:
                 os.chdir(cwd)
                 # get the class
                 calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
+
+                if override_tgt_languages:
+                    conf['tgt_language'] = override_tgt_languages
+
                 instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override

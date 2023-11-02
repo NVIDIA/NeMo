@@ -263,9 +263,15 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             for lng in src_language:
                 multilingual_ids.append(None)
         else:
+            print("Assigning ids to langs...")
             for lng in tgt_language:
                 if f"<{lng}>" not in encoder_tokenizer.vocab:
                     encoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
+
+                    print("lang:", lng)
+                    print("id:", encoder_tokenizer.token_to_id(f"<{lng}>"))
+                    print()
+
                 multilingual_ids.append(encoder_tokenizer.token_to_id(f"<{lng}>"))
 
         if isinstance(src_language, ListConfig):

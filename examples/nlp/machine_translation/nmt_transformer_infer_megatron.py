@@ -73,9 +73,16 @@ def main(cfg) -> None:
     if cfg.model_file is not None:
         if not os.path.exists(cfg.model_file):
             raise ValueError(f"Model file {cfg.model_file} does not exist")
-        model = MegatronNMTModel.restore_from(
-            restore_path=cfg.model_file, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
-        )
+
+        if 'override_tgt_languages' in cfg:
+            model = MegatronNMTModel.restore_from(
+                restore_path=cfg.model_file, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(), override_tgt_languages=cfg.override_tgt_languages
+            )
+        else:
+            model = MegatronNMTModel.restore_from(
+                restore_path=cfg.model_file, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
+            )
+
     elif cfg.checkpoint_dir is not None:
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
