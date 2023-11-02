@@ -1194,6 +1194,8 @@ class ParallelTransformer(MegatronModule):
                 remove_bias_from_layernorm(self.final_layernorm)
 
         # Hacky set up for vision encoder select layer, won't support PP
+        # It indicates the layer number of hidden states that we want to return.
+        # For example -2 means we skip the last layer in the decoder, and return at -2 layer.
         self.return_select_layer = 0
 
     def _get_layer(self, layer_number):
