@@ -146,7 +146,7 @@ class ModelBuilder(Module):
                 kv_cache_params=KeyValueCacheParams(
                     past_key_value=[past],
                     host_past_key_value_lengths=host_past_key_value_lengths,
-                    kv_cache_block_pointers=pointers,
+                    kv_cache_block_pointers=[pointers],
                     cache_indirection=cache_indirection
                 ),
                 attention_params=AttentionParams(
