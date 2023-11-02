@@ -174,7 +174,10 @@ class _HFAudioTextDataset(Dataset):
                 data_cfg.streaming = False
             logging.info(f"Loading HuggingFace Dataset with cfg: {data_cfg}")
             dataset_list.append(hf_datasets.load_dataset(**data_cfg))
+            logging.info(f"Dataset loaded with {len(dataset_list[-1])} samples")
         self.dataset = concatenate_datasets(dataset_list)
+
+        logging.info(f"Total number of samples loaded: {len(self.dataset)}")
 
     def __len__(self):
         return len(self.dataset)
@@ -456,7 +459,9 @@ class _HFIterableAudioTextDataset(IterableDataset):
                 data_cfg.streaming = True
             logging.info(f"Streaming HuggingFace IterableDataset with cfg: {data_cfg}")
             dataset_list.append(hf_datasets.load_dataset(**data_cfg))
+
         self.dataset = concatenate_datasets(dataset_list)
+        logging.info(f"Total number of samples cannot be extracted from HF streaming dataset")
 
         if shuffle_n > 0:
             self.dataset = self.dataset.shuffle(seed=shuffle_seed, buffer_size=shuffle_n)
