@@ -20,6 +20,7 @@ from apex.contrib.group_norm import GroupNorm
 from einops import rearrange, repeat
 from torch import einsum, nn
 from torch._dynamo import disable
+from nemo.utils import logging
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
 
@@ -384,14 +385,14 @@ class SpatialTransformer(nn.Module):
         use_flash_attention=False,
     ):
         super().__init__()
-        print(f"constructing {self.__class__.__name__} of depth {depth} w/ {in_channels} channels and {n_heads} heads")
+        logging.info(f"constructing {self.__class__.__name__} of depth {depth} w/ {in_channels} channels and {n_heads} heads")
         from omegaconf import ListConfig
 
         if exists(context_dim) and not isinstance(context_dim, (list, ListConfig)):
             context_dim = [context_dim]
         if exists(context_dim) and isinstance(context_dim, list):
             if depth != len(context_dim):
-                print(
+                logging.info(
                     f"WARNING: {self.__class__.__name__}: Found context dims {context_dim} of depth {len(context_dim)}, "
                     f"which does not match the specified 'depth' of {depth}. Setting context_dim to {depth * [context_dim[0]]} now."
                 )

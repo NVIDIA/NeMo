@@ -21,6 +21,7 @@ import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+from nemo.utils import logging
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
@@ -253,7 +254,7 @@ class ResBlock(TimestepBlock):
         self.skip_t_emb = skip_t_emb
         self.emb_out_channels = 2 * self.out_channels if use_scale_shift_norm else self.out_channels
         if self.skip_t_emb:
-            print(f"Skipping timestep embedding in {self.__class__.__name__}")
+            logging.info(f"Skipping timestep embedding in {self.__class__.__name__}")
             assert not self.use_scale_shift_norm
             self.emb_layers = None
             self.exchange_temb_dims = False
@@ -573,7 +574,7 @@ class UNetModel(nn.Module):
             assert all(
                 map(lambda i: self.num_res_blocks[i] >= num_attention_blocks[i], range(len(num_attention_blocks)),)
             )
-            print(
+            logging.info(
                 f"Constructor of UNetModel received num_attention_blocks={num_attention_blocks}. "
                 f"This option has LESS priority than attention_resolutions {attention_resolutions}, "
                 f"i.e., in cases where num_attention_blocks[i] > 0 but 2**i not in attention_resolutions, "
@@ -599,7 +600,7 @@ class UNetModel(nn.Module):
             if isinstance(self.num_classes, int):
                 self.label_emb = nn.Embedding(num_classes, time_embed_dim)
             elif self.num_classes == "continuous":
-                print("setting up linear c_adm embedding layer")
+                logging.info("setting up linear c_adm embedding layer")
                 self.label_emb = nn.Linear(1, time_embed_dim)
             elif self.num_classes == "timestep":
                 self.label_emb = nn.Sequential(
@@ -848,11 +849,11 @@ class UNetModel(nn.Module):
                 state_dict = state_dict['state_dict']
             missing_key, unexpected_keys, _, _ = self._load_pretrained_model(state_dict, from_NeMo=from_NeMo)
             if len(missing_key) > 0:
-                print(
+                logging.info(
                     'Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
                 )
-                print(f"Missing keys: {missing_key}")
-                print(f"Unexpected keys: {unexpected_keys}")
+                logging.info(f"Missing keys: {missing_key}")
+                logging.info(f"Unexpected keys: {unexpected_keys}")
 
         if enable_amp_o2_fp16:
             self.convert_to_fp16()
