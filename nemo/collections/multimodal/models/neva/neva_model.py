@@ -381,20 +381,6 @@ class NevaBaseModel:
 
         new_state_dict = {}
         if self.dist_ckpt:
-            if state_dict['model.embedding.word_embeddings.weight'].shape[0] < self.embedding.word_embeddings.num_embeddings:
-                assert state_dict['model.embedding.word_embeddings.weight'].shape == \
-                       state_dict['model.output_layer.weight'].shape
-                assert self.embedding.word_embeddings.num_embeddings == \
-                       self.embedding.word_embeddings.num_embeddings_per_partition, \
-                    "Word embedding doesn't match the word embedding shape from checkpoint!"
-
-                pad_length = self.embedding.word_embeddings.num_embeddings - \
-                             state_dict['model.embedding.word_embeddings.weight'].shape[0]
-                state_dict['model.embedding.word_embeddings.weight'] = F.pad(
-                    state_dict['model.embedding.word_embeddings.weight'], (0, 0, 0, pad_length))
-                state_dict['model.output_layer.weight'] = F.pad(
-                    state_dict['model.output_layer.weight'], (0, 0, 0, pad_length))
-
             for k, v in state_dict.items():
                 new_k = k
                 if k.startswith("model."):
@@ -402,9 +388,7 @@ class NevaBaseModel:
                 new_state_dict[new_k] = v
             self.load_state_dict(new_state_dict, strict=True)
         else:
-            if state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0] < self.embedding.word_embeddings.num_embeddings:
-                assert state_dict['model.language_model.embedding.word_embeddings.weight'].shape == \
-                       state_dict['model.language_model.output_layer.weight'].shape
+            if state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0] < self.embedding.word_embeddings.num_embeddings_per_partition:
                 assert self.embedding.word_embeddings.num_embeddings == \
                        self.embedding.word_embeddings.num_embeddings_per_partition, \
                     "Word embedding doesn't match the word embedding shape from checkpoint!"
@@ -413,8 +397,12 @@ class NevaBaseModel:
                              state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0]
                 state_dict['model.language_model.embedding.word_embeddings.weight'] = F.pad(
                     state_dict['model.language_model.embedding.word_embeddings.weight'], (0, 0, 0, pad_length))
-                state_dict['model.language_model.output_layer.weight'] = F.pad(
-                    state_dict['model.language_model.output_layer.weight'], (0, 0, 0, pad_length))
+
+                if 'model.language_model.output_layer.weight' in state_dict:
+                    assert state_dict['model.language_model.embedding.word_embeddings.weight'].shape == \
+                           state_dict['model.language_model.output_layer.weight'].shape
+                    state_dict['model.language_model.output_layer.weight'] = F.pad(
+                        state_dict['model.language_model.output_layer.weight'], (0, 0, 0, pad_length))
 
             for k, v in state_dict.items():
                 if k.startswith("model.language_model."):
