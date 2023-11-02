@@ -133,7 +133,9 @@ def read_as_cutset(config) -> Tuple[CutSet, bool]:
         if is_tarred:
             cuts = CutSet(
                 LazyNeMoTarredIterator(
-                    config["manifest_filepath"], tar_paths=[...], shuffle_shards=config.get("shuffle", False)
+                    config["manifest_filepath"],
+                    tar_paths=config["tarred_audio_filepaths"],
+                    shuffle_shards=config.get("shuffle", False),
                 )
             )
         else:
