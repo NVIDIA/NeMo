@@ -1,5 +1,8 @@
 ARG FROM_IMAGE_NAME=nvcr.io/nvidia/pytorch:23.09-py3
+ARG DEBIAN_FRONTEND=noninteractive
 FROM ${FROM_IMAGE_NAME}
+ENV TZ=Etc/UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/lib/x86_64-linux-gnu"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -14,6 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 		wget \
 		htop \
 		g++ \
+		python3-flask \
+		python3-flask-restful \
 		build-essential \
 		software-properties-common \
 	&& rm -rf /var/lib/apt/lists/*
@@ -27,7 +32,8 @@ RUN pip install -r requirements/requirements_lightning.txt
 #RUN pip install -r requirements/requirements_nlp.txt
 RUN pip install boto3 datasets einops h5py ijson matplotlib>=3.3.2
 RUN pip install nltk>=3.6.5 rouge_score zarr tensorstore fasttext sacrebleu
-RUN pip install ftfy gdown jieba markdown2 opencc pangu rapidfuzz 
+RUN pip install ftfy gdown jieba markdown2 opencc pangu rapidfuzz
+RUN pip install Werkzeug==2.2.2 gradio==3.34.0
 
 WORKDIR /workspace
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
