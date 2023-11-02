@@ -356,6 +356,8 @@ class GPTModel(MegatronModule):
         speech_mask=None,
         return_logits=None,
         return_all_selfattention_probs=False,
+        attention_prior=None,
+        global_step=0,
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
@@ -375,6 +377,8 @@ class GPTModel(MegatronModule):
             checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             speech_mask=speech_mask if self.use_speech_mask_for_embedding else None,
             return_all_selfattention_probs=return_all_selfattention_probs,
+            attention_prior=attention_prior,
+            global_step=global_step,
         )
 
         if self.post_process:

@@ -38,6 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
+from nemo.utils import logging
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -715,6 +716,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 )
                 self._output_layer_key = 'output_layer'
         self.set_accepted_adapter_types([PromptEncoderAdapterConfig._target_])
+        self.num_attention_heads = num_attention_heads
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
@@ -746,6 +748,8 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         checkpoint_activations_all_layers=None,
         speech_mask=None,
         return_all_selfattention_probs=False,
+        attention_prior=None,
+        global_step=0,
     ):
         if speech_mask is not None:
             speech_mask = speech_mask.T.unsqueeze(-1)
@@ -801,12 +805,44 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             or self.position_embedding_type == 'sandwich'
             or self.position_embedding_type == 'kerple'
         ):
+            if attention_prior is not None:
+                raise NotImplementedError("You passed a prior and are using an attention pos embedding")
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
             # causal attention bias: [1, head, 1, k]
             # non-causal attention bias: [1, head, q, k]
+        if attention_prior is not None:
+            attn_prior_end_step = 11000
+            attn_prior_scaledown_start_step = 10000
+            num_attention_heads = self.num_attention_heads
+            assert attn_prior_scaledown_start_step < attn_prior_end_step
+            logging.debug(f"attn_prior_scaledown_start_step {attn_prior_scaledown_start_step}")
+            logging.debug(f"attn_prior_scaledown_start_step {attn_prior_end_step}")
+            if global_step >= attn_prior_end_step:
+                encoder_self_attention_relative_position_bias = None
+            elif global_step > attn_prior_scaledown_start_step and global_step < attn_prior_end_step:
+                #TODO: might need to update this
+                total_annealing_steps = attn_prior_end_step - attn_prior_scaledown_start_step
+                curr_annealing_step = global_step - attn_prior_scaledown_start_step
+                curr_attention_prior = attention_prior + (
+                    (1.0 - attention_prior) * curr_annealing_step / total_annealing_steps
+                )
+                encoder_self_attention_relative_position_bias = curr_attention_prior.unsqueeze(1).repeat(
+                    1, num_attention_heads, 1, 1
+                )
+                encoder_self_attention_relative_position_bias = torch.log(encoder_self_attention_relative_position_bias)
+            else:
+                logging.debug(f"global_step {global_step}, prior_scaling_factor {1}")
+                encoder_self_attention_relative_position_bias = attention_prior.unsqueeze(1).repeat(
+                    1, num_attention_heads, 1, 1
+                )
+                logging.debug(
+                    "encoder_self_attention_relative_position_bias {encoder_self_attention_relative_position_bias.shape}"
+                )
+                encoder_self_attention_relative_position_bias = torch.log(encoder_self_attention_relative_position_bias)
 
+        # import ipdb; ipdb.set_trace()
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(

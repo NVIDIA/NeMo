@@ -842,6 +842,7 @@ class CoreAttention(MegatronModule):
         # ==================================================
         # Update attention bias. [b, np, sq, sk]
         # ==================================================
+        # import ipdb; ipdb.set_trace()
         if relative_position_bias is not None:
             relative_position_bias = relative_position_bias[
                 :,
@@ -850,6 +851,7 @@ class CoreAttention(MegatronModule):
                 -sq:,
                 -sk:,
             ]
+        # ipdb.set_trace()
 
         # ==================================================
         # Update query_layer, key_layer, value_layer
@@ -906,6 +908,7 @@ class CoreAttention(MegatronModule):
             return context_layer
 
     def torch_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode, return_scores=False):
+        # import ipdb; ipdb.set_trace()
         sq, b, np, hn = query_layer.shape
         sk = key_layer.shape[0]
 
@@ -938,7 +941,7 @@ class CoreAttention(MegatronModule):
         attention_scores = matmul_result.view(b, np, sq, sk)
 
         if attention_bias is not None:
-            attention_scores += attention_bias
+            attention_scores = torch.log_softmax(attention_scores, dim=2) + attention_bias
             # # attention_bias is not None only for cross attention layers right now
             # # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
             # eps = 1e-8

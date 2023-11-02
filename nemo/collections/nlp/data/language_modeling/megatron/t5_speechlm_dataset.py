@@ -32,7 +32,11 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_model import T5Se
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
-from nemo.collections.tts.parts.utils.tts_dataset_utils import general_padding, get_base_dir
+from nemo.collections.tts.parts.utils.tts_dataset_utils import (
+    beta_binomial_prior_distribution,
+    general_padding,
+    get_base_dir,
+)
 from nemo.utils import logging
 
 __all__ = ['T5SpeechLMDataset']
@@ -78,6 +82,10 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         speech_offset: Optional[int] = None,
         train_task: Optional[str] = None,
         seq_pattern: Optional[str] = "parallel",
+        use_attention_prior: Optional[bool] = False,
+        attention_prior_scaling_factor: Optional[float] = 1.0,
+        cross_attention_epsilon: Optional[float] = 0.0,
+        attention_prior_strength: Optional[float] = 0.5,
         **kwargs,
     ):
         """
@@ -115,6 +123,10 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         self.trim_hop_length = trim_hop_length if trim_hop_length is not None else 512
         self.speech_offset = speech_offset if speech_offset is not None else 3
         self.seq_pattern = seq_pattern
+        self.use_attention_prior = use_attention_prior
+        self.attention_prior_scaling_factor = attention_prior_scaling_factor
+        self.cross_attention_epsilon = cross_attention_epsilon  # value of prior for context tokens (b/w 0 and 1)
+        assert self.cross_attention_epsilon >= 0.0 and self.cross_attention_epsilon <= 1.0
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
@@ -131,6 +143,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         self.codec_folder.mkdir(exist_ok=True, parents=True)
 
         self.context_length = kwargs.pop('context_length', None) #only used in gpt dataset atm
+        self.attention_prior_strength = attention_prior_strength
 
         super().__init__(
             datasets=datasets,
@@ -955,6 +968,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         max_decoder_input_len = (
             max(decoder_input_len).item() if decoder_input_len is not None else 0
         )
+        max_decoder_input_len_1 = max_decoder_input_len - 1
         # if isinstance(decoder_input_len, tuple):
         #     decoder_input_len = torch.stack(decoder_input_len)
 
@@ -966,6 +980,10 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
             [],
             [],
         )
+        inverse_prior_strength = 1 - self.attention_prior_strength
+        cross_attention_prior = torch.zeros(len(batch), max_decoder_input_len_1, max_decoder_input_len_1) + self.cross_attention_epsilon + inverse_prior_strength
+        start_of_question_offset = 5 # For "<pad>Text to Speech this"
+        end_of_question_offset = 3 #"<extra_id_0><pad>"
         for i, sample_tuple in enumerate(batch):
             (
                 context_tokens,
@@ -1007,10 +1025,27 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
 
             decoder_mask[i, :context_tokens_len+question_tokens_len] = 0  # Mask out context and question
 
+            if self.use_attention_prior:
+                cross_attention_question_prior = torch.from_numpy(
+                    beta_binomial_prior_distribution(
+                        question_tokens_len.item() - start_of_question_offset - end_of_question_offset,
+                        input_ids_len.item()-1,
+                        scaling_factor=self.attention_prior_scaling_factor,
+                    )
+                )
+                # import ipdb; ipdb.set_trace()
+                # print(cross_attention_question_prior.shape)
+                # print(cross_attention_prior[i, context_tokens_len + question_tokens_len:context_tokens_len + question_tokens_len+input_ids_len-1, context_tokens_len + num_question_offset : context_tokens_len + question_tokens_len].shape)
+                # cross_attention_prior[
+                #     i, context_tokens_len + num_question_offset : context_tokens_len + question_tokens_len,context_tokens_len + question_tokens_len:context_tokens_len + question_tokens_len+input_ids_len-1
+                # ] = cross_attention_question_prior.T
+                cross_attention_prior[
+                    i, context_tokens_len + question_tokens_len:context_tokens_len + question_tokens_len+input_ids_len-1, context_tokens_len + start_of_question_offset : context_tokens_len + question_tokens_len - end_of_question_offset
+                ] = cross_attention_question_prior * self.attention_prior_strength + inverse_prior_strength
         # Using causal attention mask for whole input
         batch_size = len(decoder_input_list)
-        attention_mask = torch.tril(torch.ones((batch_size, max_decoder_input_len-1, max_decoder_input_len-1))).view(
-            batch_size, 1, max_decoder_input_len-1, max_decoder_input_len-1
+        attention_mask = torch.tril(torch.ones((batch_size, max_decoder_input_len_1, max_decoder_input_len_1))).view(
+            batch_size, 1, max_decoder_input_len_1, max_decoder_input_len_1
         )
 
         # Convert attention mask from float to bool
@@ -1026,6 +1061,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
             "labels": torch.stack(decoder_labels_list),
             "speech_mask": decoder_mask,  # For TTS, can just be loss_mask since answer will always be speech
             "loss_mask": decoder_mask,  # Mask out context and question and padding
+            "attention_prior": cross_attention_prior,
         }
 
         return data_dict

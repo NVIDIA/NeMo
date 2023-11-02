@@ -444,14 +444,15 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
             new_yticks += phoneme_seq
             ax.set_yticks(new_yticks)
         elif phoneme_ver == 2:
-            yticks = ax.get_yticks()
-            new_yticks = []
-            for tick in yticks:
-                if tick < 0 or tick > alignment.shape[0]:
-                    continue
-                new_yticks.append(tick)
-            new_yticks += phoneme_seq
-            ax.set_yticks(new_yticks)
+            # yticks = ax.get_yticks()
+            # new_yticks = []
+            # for tick in yticks:
+            #     new_yticks.append(f"{tick+phoneme_seq[0]:.0f}")
+            # ax.set_yticklabels(new_yticks)
+            phones = phoneme_seq[2:]
+            ax.set_yticks(np.arange(len(phones)))
+            ax.set_yticklabels(phones)
+            ax.hlines(np.arange(0.5, len(phones)-0.5, 1.), xmin=0., xmax=alignment.shape[1]-0.5, colors="black")
 
             xticks = ax.get_xticks()
             new_xticks = []
