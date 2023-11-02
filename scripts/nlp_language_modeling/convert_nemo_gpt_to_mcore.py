@@ -188,6 +188,7 @@ def restore_model(nemo_file, cpu_only=False):
     model.cfg.megatron_amp_O2 = orig_megatron_amp_O2_value
     return model
 
+
 def convert(input_nemo_file, output_nemo_file, skip_if_output_exists=True, cpu_only=False):
     if skip_if_output_exists and os.path.exists(output_nemo_file):
         logging.info(f"Output file already exists ({output_nemo_file}), skipping conversion...")
