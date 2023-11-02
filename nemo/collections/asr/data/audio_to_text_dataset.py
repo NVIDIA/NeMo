@@ -902,7 +902,7 @@ def get_chain_dataset(datasets, ds_config, rank=0):
     if bucketing_strategy == 'fixed_order':
         return ChainDataset(datasets)
     elif bucketing_strategy == 'synced_randomized':
-        return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=0)
+        return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=random.randint(0, 30000))
     elif bucketing_strategy == 'fully_randomized':
         return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=random.randint(0, 30000) + rank)
     else:
