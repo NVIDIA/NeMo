@@ -36,6 +36,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 
 mp.set_start_method("spawn", force=True)
 """
@@ -65,36 +66,7 @@ def main(cfg) -> None:
     megatron_amp_o2 = cfg.model.get("megatron_amp_O2", False)
     with_distributed_adam = False
 
-    plugins = []
-    strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-        find_unused_parameters=False,
-    )
-    if cfg.trainer.precision in [16, 'bf16']:
-        scaler = None
-        if cfg.trainer.precision == 16:
-            scaler = GradScaler(
-                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-                hysteresis=cfg.model.get('hysteresis', 2),
-                enabled=False
-                if cfg.model.pipeline_model_parallel_size > 1
-                else True,  # turn off the grad scale for pipeline parallel LM model
-            )
-            # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
-            plugin_precision = '16-mixed'
-        else:
-            plugin_precision = 'bf16-mixed'
-        if megatron_amp_o2 and not with_distributed_adam:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-        else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-
-    if cfg.get("cluster_type", None) == "BCP":
-        plugins.append(TorchElasticEnvironment())
-
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = MegatronTrainerBuilder(cfg).create_trainer()
     if cfg.model.peft.restore_from_path:
         if cfg.model.peft.restore_from_path.endswith(".nemo"):
             peft_model_cfg = MegatronGPTPEFTModel.restore_from(
