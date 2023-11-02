@@ -123,6 +123,8 @@ def build_rank_engine(
     if args.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
 
+    use_cache = not args.paged_kv_cache
+
     with net_guard(network):
         # Prepare
         network.set_named_parameters(tensorrt_llm_gpt.named_parameters())
@@ -132,7 +134,7 @@ def build_rank_engine(
             args.max_batch_size,
             args.max_input_len,
             args.max_output_len,
-            True,
+            use_cache,
             args.max_beam_width,
             paged_kv_cache=args.paged_kv_cache,
             tokens_per_block=args.tokens_per_block,
