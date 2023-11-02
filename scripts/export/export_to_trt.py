@@ -107,6 +107,14 @@ def get_args(argv):
     )
 
     parser.add_argument(
+        "-uib",
+        "--use_inflight_batching",
+        default="False",
+        type=str,
+        help="Enable inflight batching for TensorRT-LLM Triton backend."
+    )
+
+    parser.add_argument(
         "-dm",
         "--debug_mode",
         default="False",
@@ -130,6 +138,11 @@ def nemo_export(argv):
     logging.info("Logging level set to {}".format(loglevel))
     logging.info(args)
 
+    if args.use_inflight_batching == "True":
+        args.use_inflight_batching = True
+    else:
+        args.use_inflight_batching = False
+
     if args.dtype != "bf16":
         logging.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
                       "Support for the other precisions will be added in the coming releases.")
@@ -147,6 +160,7 @@ def nemo_export(argv):
             max_input_token=args.max_input_len,
             max_output_token=args.max_output_len,
             max_batch_size=args.max_batch_size,
+            use_inflight_batching=args.use_inflight_batching,
         )
 
         logging.info("Export is successful.")
