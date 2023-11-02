@@ -19,6 +19,7 @@ from lhotse.dataset import (
 from lhotse.dataset.collation import collate_vectors
 from omegaconf import DictConfig
 
+from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 
 
@@ -272,13 +273,19 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
     """
 
     def __init__(
-        self, manifest_path: str | Path, tar_paths: Sequence[str | Path], shuffle_shards: bool = False,
+        self, manifest_path: str | Path, tar_paths: str | Sequence[str | Path], shuffle_shards: bool = False,
     ) -> None:
         from cytoolz import groupby
 
+        def strip_pipe(p):
+            if isinstance(p, str) and p.startswith("pipe:"):
+                return Path(p[5:])
+            return p
+
         self.source = lhotse.lazy.LazyJsonlIterator(manifest_path)
         self.shard_id_to_manifest: Dict[int, str] = groupby("shard_id", self.source)
-        self.shard_id_to_tar_path: Dict[int, Path] = {int(p.stem.split("_")[1]): p for p in tar_paths}
+        tar_paths = expand_sharded_filepaths(tar_paths, shard_strategy="replicate", world_size=1, global_rank=0)
+        self.shard_id_to_tar_path: Dict[int, Path] = {int(strip_pipe(p).stem.split("_")[1]): p for p in tar_paths}
         self.shuffle_shards = shuffle_shards
         self._validate()
 
