@@ -15,7 +15,7 @@
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.multimodal.models.clip.megatron_clip_models import MegatronCLIPModel
+from nemo.collections.multimodal.models.foundation.clip import MegatronCLIPModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

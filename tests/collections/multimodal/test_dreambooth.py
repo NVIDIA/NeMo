@@ -16,7 +16,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.multimodal.models.dreambooth.dreambooth import MegatronDreamBooth
+from nemo.collections.multimodal.models.generative.dreambooth import MegatronDreamBooth
 from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 

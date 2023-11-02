@@ -20,7 +20,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
 
-from nemo.collections.multimodal.models.dreambooth.dreambooth import MegatronDreamBooth
+from nemo.collections.multimodal.models.generative.dreambooth import MegatronDreamBooth
 from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
 from nemo.collections.multimodal.parts.stable_diffusion.pipeline import pipeline
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference

@@ -32,13 +32,13 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.multimodal.models.clip.megatron_clip_models import MegatronCLIPModel
-from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
-from nemo.collections.multimodal.models.dreambooth.dreambooth import MegatronDreamBooth
-from nemo.collections.multimodal.models.imagen.imagen import MegatronImagen
-from nemo.collections.multimodal.models.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
-from nemo.collections.multimodal.models.kosmos.megatron_kosmos_model import MegatronKosmosModel
-from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
+from nemo.collections.multimodal.models.foundation.clip import MegatronCLIPModel
+from nemo.collections.multimodal.models.generative.controlnet.controlnet import MegatronControlNet
+from nemo.collections.multimodal.models.generative.dreambooth import MegatronDreamBooth
+from nemo.collections.multimodal.models.generative.imagen import MegatronImagen
+from nemo.collections.multimodal.models.generative.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
+from nemo.collections.multimodal.models.multimodal_llm.kosmos import MegatronKosmosModel
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector

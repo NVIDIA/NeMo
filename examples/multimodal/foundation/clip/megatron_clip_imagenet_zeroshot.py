@@ -29,7 +29,7 @@ from nemo.collections.multimodal.data.clip.clip_dataset import (
     tokenize,
 )
 from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import imagenet_classnames, openai_imagenet_template
-from nemo.collections.multimodal.models.clip.megatron_clip_models import MegatronCLIPModel
+from nemo.collections.multimodal.models.foundation.clip import MegatronCLIPModel
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector

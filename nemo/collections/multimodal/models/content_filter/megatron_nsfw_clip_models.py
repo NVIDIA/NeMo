@@ -28,7 +28,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.multimodal.data.clip.clip_dataset import tokenize
 from nemo.collections.multimodal.data.nsfw.nsfw_dataset import build_dataset
-from nemo.collections.multimodal.models.clip.megatron_clip_models import CLIPTextTransformer, CLIPVisionTransformer
+from nemo.collections.multimodal.models.foundation.clip import CLIPTextTransformer, CLIPVisionTransformer
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule

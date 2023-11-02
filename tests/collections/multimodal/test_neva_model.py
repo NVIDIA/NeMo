@@ -20,7 +20,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.multimodal.data.neva.neva_dataset import make_supervised_data_module, DataCollatorForSupervisedDataset
-from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel, NevaModel
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel, NevaModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 

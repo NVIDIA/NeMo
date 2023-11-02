@@ -5,7 +5,7 @@ import torch
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.multimodal.models.imagen.imagen_pipeline import ImagenPipeline
+from nemo.collections.multimodal.models.generative.imagen.imagen_pipeline import ImagenPipeline
 from nemo.core.config import hydra_runner
 
 

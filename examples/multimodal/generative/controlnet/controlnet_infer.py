@@ -16,8 +16,8 @@ import einops
 import torch
 from PIL import Image
 
-from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
-from nemo.collections.multimodal.models.controlnet.util import get_preprocessing_function
+from nemo.collections.multimodal.models.generative.controlnet.controlnet import MegatronControlNet
+from nemo.collections.multimodal.models.generative.controlnet import get_preprocessing_function
 from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
 from nemo.collections.multimodal.models.stable_diffusion.samplers.plms import PLMSSampler
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference

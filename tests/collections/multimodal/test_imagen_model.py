@@ -17,7 +17,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-from nemo.collections.multimodal.models.imagen.imagen import DUMMY_TENSOR, MegatronImagen
+from nemo.collections.multimodal.models.generative.imagen import DUMMY_TENSOR, MegatronImagen
 from nemo.collections.multimodal.data.imagen.imagen_dataset import build_train_valid_datasets
 
 DEVICE_CAPABILITY = None
