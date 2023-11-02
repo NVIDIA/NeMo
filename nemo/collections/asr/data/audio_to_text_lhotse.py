@@ -197,7 +197,7 @@ class LazyNeMoIterator(lhotse.lazy.ImitatesDict):
     def __iter__(self):
         for data in self.source:
             recording = lhotse.Recording(
-                id=...,
+                id=Path(data["audio_filepath"]).name,
                 sources=[lhotse.audio.AudioSource(type="file", channels=[0], source=data["audio_filepath"],)],
                 sampling_rate=self.sampling_rate,
                 duration=data["duration"],
