@@ -114,9 +114,6 @@ def build_rank_engine(
                 dtype=args.use_ib_gpt_attention_plugin
             )
 
-        if args.use_inflight_batching:
-            network.plugin_config.enable_in_flight_batching()
-
         if args.use_lookup_plugin:
             # Use the plugin for the embedding parallelism and sharing
             network.plugin_config.set_lookup_plugin(dtype=args.dtype)
