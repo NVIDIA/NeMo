@@ -95,18 +95,19 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
     dataset = LhotseSpeechToTextBpeDataset(tokenizer=tokenizer, noise_cuts=config.lhotse.get("noise_cuts"))
 
     # 5. Creating dataloader (wrapper is explained in 4. and worker_init_fn in 1.).
+    num_workers = config.get('num_workers', 0)
     if is_tarred:
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler,),
             worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size),
-            persistent_workers=True,  # helps Lhotse Shar maintain shuffling state
+            persistent_workers=num_workers > 0,  # helps Lhotse Shar maintain shuffling state
         )
     else:
         dloader_kwargs = dict(dataset=dataset, sampler=sampler)
     dloader = torch.utils.data.DataLoader(
         **dloader_kwargs,
         batch_size=None,
-        num_workers=config.get('num_workers', 0),
+        num_workers=num_workers,
         pin_memory=config.get('pin_memory', False),
     )
 
@@ -280,8 +281,10 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
         from cytoolz import groupby
 
         def strip_pipe(p):
-            if isinstance(p, str) and p.startswith("pipe:"):
-                return Path(p[5:])
+            if isinstance(p, str):
+                if p.startswith("pipe:"):
+                    p = p[5:]
+                return Path(p)
             return p
 
         self.source = lhotse.lazy.LazyJsonlIterator(manifest_path)
