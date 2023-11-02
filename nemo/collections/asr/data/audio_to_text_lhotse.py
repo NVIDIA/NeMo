@@ -37,24 +37,10 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
     Some fields in the original NeMo configuration are ignored (e.g. ``batch_size``).
     To learn about lhotse specific parameters, search this code for ``config.lhotse``.
     """
-    use_shar = config.lhotse.get("shar_path") is not None
 
-    # 1. Load Lhotse manifest.
-    if use_shar:
-        # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
-        # The combination of shuffle_shards, and repeat causes this to
-        # be an infinite manifest that is internally reshuffled on each epoch.
-        # seed="trng" means we'll defer setting the seed until the iteration
-        # is triggered, and we'll use system TRNG to get a completely random seed for each worker.
-        # This results in every dataloading worker using full data but in a completely different order.
-        # Note: there is also seed="randomized", but "trng" works around PyTorch-Lightning training loop
-        # that apparently re-creates dataloader on each training "epoch", which results in identical sampling.
-        if config.lhotse.get("cuts_path") is not None:
-            warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
-        cuts = CutSet.from_shar(in_dir=config.lhotse.shar_path, shuffle_shards=True, seed="trng").repeat()
-    else:
-        # Regular Lhotse manifest points to individual audio files (like native NeMo manifest).
-        cuts = CutSet.from_file(config.lhotse.cuts_path)
+    # 1. Load a manifest as a Lhotse CutSet.
+    #    TODO: support mixing data from multiple sources via CutSet.mux()
+    cuts, is_tarred = read_as_cutset(config)
 
     # Duration filtering, same as native NeMo dataloaders.
     cuts = cuts.filter(
@@ -84,8 +70,8 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
             buffer_size=config.lhotse.get("buffer_size", 10000),
             shuffle_buffer_size=config.lhotse.get("shuffle_buffer_size", 10000),
             quadratic_duration=config.lhotse.get("quadratic_duration", None),
-            rank=0 if use_shar else global_rank,
-            world_size=1 if use_shar else world_size,
+            rank=0 if is_tarred else global_rank,
+            world_size=1 if is_tarred else world_size,
         )
     else:
         # Non-bucketing, similar to NeMo's regular non-tarred manifests,
@@ -97,8 +83,8 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
             shuffle=config.get("shuffle", False),
             drop_last=config.lhotse.get("drop_last", True),
             shuffle_buffer_size=config.lhotse.get("shuffle_buffer_size", 10000),
-            rank=0 if use_shar else global_rank,
-            world_size=1 if use_shar else world_size,
+            rank=0 if is_tarred else global_rank,
+            world_size=1 if is_tarred else world_size,
         )
 
     # 4. Dataset only maps CutSet -> batch of tensors.
@@ -108,7 +94,7 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
     dataset = LhotseSpeechToTextBpeDataset(tokenizer=tokenizer, noise_cuts=config.lhotse.get("noise_cuts"))
 
     # 5. Creating dataloader (wrapper is explained in 4. and worker_init_fn in 1.).
-    if use_shar:
+    if is_tarred:
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler,),
             worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size),
@@ -124,6 +110,51 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
     )
 
     return dloader
+
+
+def read_as_cutset(config) -> Tuple[CutSet, bool]:
+    """
+    Reads NeMo configuration and creates a CutSet either from Lhotse or NeMo manifests.
+
+    Returns a tuple of ``CutSet`` and a boolean indicating whether the data is tarred (True) or not (False).
+    """
+    # First, we'll figure out if we should read Lhotse manifest or NeMo manifest.
+    use_nemo_manifest = all(config.lhotse.get(opt) is None for opt in ("cuts_path", "shar_path"))
+    if use_nemo_manifest:
+        assert (
+            config.get("manifest_filepath") is not None
+        ), "You must specify either: manifest_filepath, lhotse.cuts_path, or lhotse.shar_path"
+        is_tarred = config.get("tarred_audio_filepaths") is not None
+    else:
+        is_tarred = config.lhotse.get("shar_path") is not None
+    if use_nemo_manifest:
+        # Read NeMo manifest -- use the right wrapper depending on tarred/non-tarred.
+        if is_tarred:
+            cuts = CutSet(
+                LazyNeMoTarredIterator(
+                    config["manifest_filepath"], tar_paths=[...], shuffle_shards=config.get("shuffle", False)
+                )
+            )
+        else:
+            cuts = CutSet(LazyNeMoIterator(config["manifest_filepath"], sampling_rate=config.get("sample_rate")))
+    else:
+        # Read Lhotse manifest (again handle both tarred(shar)/non-tarred).
+        if is_tarred:
+            # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
+            # The combination of shuffle_shards, and repeat causes this to
+            # be an infinite manifest that is internally reshuffled on each epoch.
+            # seed="trng" means we'll defer setting the seed until the iteration
+            # is triggered, and we'll use system TRNG to get a completely random seed for each worker.
+            # This results in every dataloading worker using full data but in a completely different order.
+            # Note: there is also seed="randomized", but "trng" works around PyTorch-Lightning training loop
+            # that apparently re-creates dataloader on each training "epoch", which results in identical sampling.
+            if config.lhotse.get("cuts_path") is not None:
+                warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
+            cuts = CutSet.from_shar(in_dir=config.lhotse.shar_path, shuffle_shards=True, seed="trng").repeat()
+        else:
+            # Regular Lhotse manifest points to individual audio files (like native NeMo manifest).
+            cuts = CutSet.from_file(config.lhotse.cuts_path)
+    return cuts, is_tarred
 
 
 class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
