@@ -212,6 +212,7 @@ pipeline {
             sh 'python examples/asr/speech_to_text_finetune.py \
             --config-path="conf/asr_finetune" --config-name="speech_to_text_hf_finetune" \
             ~model.train_ds.hf_data_cfg \
+            model.train_ds.num_workers=1 \
             model.train_ds.streaming=true \
             +model.train_ds.hf_data_cfg.path="librispeech_asr" \
             +model.train_ds.hf_data_cfg.name=null \
@@ -227,7 +228,7 @@ pipeline {
             init_from_nemo_model=/home/TestData/asr/stt_en_fastconformer_transducer_large.nemo \
             model.tokenizer.update_tokenizer=False \
             model.optim.sched.warmup_steps=0 \
-            model.optim.sched.max_steps=20 \
+            model.optim.sched.max_steps=3 \
             trainer.max_epochs=null \
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
