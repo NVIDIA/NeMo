@@ -10,7 +10,7 @@ from omegaconf import OmegaConf
 from polygraphy import cuda
 from transformers import CLIPTokenizer
 
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion
+from nemo.collections.multimodal.models.generative.stable_diffusion.ldm.ddpm import LatentDiffusion
 from nemo.collections.multimodal.modules.nerf.guidance.txt2img_guidance_base import Txt2ImgGuidanceBase
 from nemo.collections.multimodal.modules.nerf.utils.trt_engine import Engine, device_view
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (

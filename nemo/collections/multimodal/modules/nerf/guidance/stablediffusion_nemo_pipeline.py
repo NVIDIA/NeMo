@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import OmegaConf
 
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion
+from nemo.collections.multimodal.models.generative.stable_diffusion.ldm.ddpm import LatentDiffusion
 from nemo.collections.multimodal.modules.nerf.guidance.txt2img_guidance_base import Txt2ImgGuidanceBase
 from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import (
     DiagonalGaussianDistribution,

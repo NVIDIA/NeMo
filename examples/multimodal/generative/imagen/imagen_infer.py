@@ -15,7 +15,7 @@ import os
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.multimodal.models.imagen.imagen_pipeline import ImagenPipeline, ImagenPipelineConfig
+from nemo.collections.multimodal.models.generative.imagen.imagen_pipeline import ImagenPipeline, ImagenPipelineConfig
 from nemo.core.config import hydra_runner
 
 

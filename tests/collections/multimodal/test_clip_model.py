@@ -20,7 +20,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.multimodal.data.clip.clip_dataset import build_train_valid_datasets
-from nemo.collections.multimodal.models.clip.megatron_clip_models import (
+from nemo.collections.multimodal.models.foundation.clip import (
     CLIPModel,
     CLIPTextTransformer,
     CLIPVisionTransformer,

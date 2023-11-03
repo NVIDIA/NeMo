@@ -11,8 +11,8 @@ from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentation
     construct_image_augmentations,
     identical_transform,
 )
-from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
-from nemo.collections.multimodal.models.controlnet.util import ImageLogger
+from nemo.collections.multimodal.models.generative.controlnet.controlnet import MegatronControlNet
+from nemo.collections.multimodal.models.generative.controlnet import ImageLogger
 from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import (

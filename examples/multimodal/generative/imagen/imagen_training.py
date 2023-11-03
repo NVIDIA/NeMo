@@ -20,7 +20,7 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import _Checkpoin
 from torch._dynamo import disable
 from torch._inductor import config as inductor_config
 
-from nemo.collections.multimodal.models.imagen.imagen import MegatronImagen
+from nemo.collections.multimodal.models.generative.imagen import MegatronImagen
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
