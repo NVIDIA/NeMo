@@ -15,7 +15,7 @@
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.multimodal.models.content_filter.megatron_nsfw_clip_models import MegatronContentFilteringModel
+from nemo.collections.multimodal.models.foundation.megatron_nsfw_clip_models import MegatronContentFilteringModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner

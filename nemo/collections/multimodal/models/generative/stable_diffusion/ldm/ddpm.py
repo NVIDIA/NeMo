@@ -39,13 +39,13 @@ from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset 
     build_train_valid_datasets,
     build_train_valid_precached_datasets,
 )
-from nemo.collections.multimodal.models.stable_diffusion.diffusion_model import DiffusionModel
-from nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder import (
+from nemo.collections.multimodal.models.generative.stable_diffusion.diffusion_model import DiffusionModel
+from nemo.collections.multimodal.models.generative.stable_diffusion.ldm.autoencoder import (
     AutoencoderKL,
     IdentityFirstStage,
     VQModelInterface,
 )
-from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
+from nemo.collections.multimodal.models.generative.stable_diffusion.samplers.ddim import DDIMSampler
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     extract_into_tensor,
     make_beta_schedule,

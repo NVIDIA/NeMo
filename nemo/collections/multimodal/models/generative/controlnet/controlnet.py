@@ -12,8 +12,8 @@ from torch._inductor import config as inductor_config
 from torchvision.utils import make_grid
 
 from nemo.collections.multimodal.data.controlnet.controlnet_dataset import build_train_valid_datasets
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion
-from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
+from nemo.collections.multimodal.models.generative.stable_diffusion.ldm.ddpm import LatentDiffusion
+from nemo.collections.multimodal.models.generative.stable_diffusion.samplers.ddim import DDIMSampler
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import (
     AttentionBlock,

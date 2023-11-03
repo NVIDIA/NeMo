@@ -15,8 +15,8 @@
 
 import torch
 
-from nemo.collections.multimodal.models.stable_diffusion.samplers import Sampler
-from nemo.collections.multimodal.models.stable_diffusion.samplers.base_sampler import AbstractBaseSampler
+from nemo.collections.multimodal.models.generative.stable_diffusion.samplers import Sampler
+from nemo.collections.multimodal.models.generative.stable_diffusion.samplers.base_sampler import AbstractBaseSampler
 
 
 class PLMSSampler(AbstractBaseSampler):

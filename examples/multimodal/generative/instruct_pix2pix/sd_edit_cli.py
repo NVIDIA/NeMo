@@ -31,7 +31,7 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch import autocast
 
 from nemo.collections.multimodal.models.generative.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
-from nemo.collections.multimodal.models.stable_diffusion.samplers.k_diffusion import (
+from nemo.collections.multimodal.models.generative.stable_diffusion.samplers.k_diffusion import (
     DiscreteEpsDDPMDenoiser,
     sample_euler_ancestral,
 )

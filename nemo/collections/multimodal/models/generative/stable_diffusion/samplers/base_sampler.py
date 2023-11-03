@@ -17,7 +17,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from nemo.collections.multimodal.models.stable_diffusion.samplers import Sampler
+from nemo.collections.multimodal.models.generative.stable_diffusion.samplers import Sampler
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     make_ddim_sampling_parameters,
     make_ddim_timesteps,

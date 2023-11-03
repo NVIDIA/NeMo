@@ -19,7 +19,7 @@ from omegaconf.omegaconf import OmegaConf
 from PIL import Image
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
-from nemo.collections.multimodal.models.content_filter.megatron_nsfw_clip_models import MegatronContentFilteringModel
+from nemo.collections.multimodal.models.foundation.megatron_nsfw_clip_models import MegatronContentFilteringModel
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
