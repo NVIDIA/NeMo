@@ -17,7 +17,8 @@
 import enum
 import logging
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List, Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.init as init
@@ -28,7 +29,6 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
-
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
