@@ -68,6 +68,7 @@ try:
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
     
     HAVE_MEGATRON_CORE = True
 
@@ -182,7 +183,7 @@ class MegatronBertModel(MegatronBaseModel):
             #TODO : Change transformer_layer_spec layer spec
             model = MCoreBertModel(
                 config=self.transformer_config,
-                transformer_layer_spec=transformer_layer_spec,
+                transformer_layer_spec=bert_layer_with_transformer_engine_spec,
                 vocab_size=self.padded_vocab_size,
                 max_sequence_length=cfg.max_position_embeddings,
                 num_tokentypes=num_tokentypes, 
