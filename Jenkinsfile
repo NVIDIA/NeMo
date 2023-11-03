@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
           image 'nvcr.io/nvidia/pytorch:23.09-py3'
-          args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=1 --env HYDRA_FULL_ERROR=1'
+          args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1'
         }
   }
   options {
@@ -57,16 +57,17 @@ pipeline {
       }
     }
 
-    stage('Megatron Core installation') {
-      steps {
-        // pinned MCore https://github.com/NVIDIA/Megatron-LM/commit/ab0336a5c8eab77aa74ae604ba1e73decbf6d560
-        // ToT for 23.08 branch
-        sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
-            cd Megatron-LM && \
-            git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
-            pip install -e .'
-      }
-    }
+    // megatron-core 0.3 has been pinned in the requirements, this should not be needed on r1.21.0
+    // stage('Megatron Core installation') {
+    //   steps {
+    //     // pinned MCore https://github.com/NVIDIA/Megatron-LM/commit/ab0336a5c8eab77aa74ae604ba1e73decbf6d560
+    //     // ToT for 23.08 branch
+    //     sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
+    //         cd Megatron-LM && \
+    //         git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
+    //         pip install -e .'
+    //   }
+    // }
 
 
     stage('PyTorch Lightning version') {
@@ -800,7 +801,7 @@ pipeline {
             // TODO: pleasefixme @redoctopus
             // stage('ByT5G2P training, evaluation and inference') {
             //   steps {
-            //     sh 'TRANSFORMERS_OFFLINE=1 && cd examples/tts/g2p && \
+            //     sh 'cd examples/tts/g2p && \
             //         TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_T5=output_byt5_${TIME} && \
             //         python g2p_train_and_evaluate.py \
             //             train_manifest=/home/TestData/g2p/g2p.json \
@@ -817,7 +818,7 @@ pipeline {
             //         python g2p_inference.py \
             //             pretrained_model=${OUTPUT_DIR_T5}/T5G2P/test/checkpoints/T5G2P.nemo \
             //             manifest_filepath=/home/TestData/g2p/g2p.json \
-            //             phoneme_field=text && TRANSFORMERS_OFFLINE=1'
+            //             phoneme_field=text'
             //   }
             // }
            stage('HeteronymClassificationModel training, evaluation and inference') {
@@ -944,7 +945,7 @@ pipeline {
       parallel {
         stage('Dialogue: Intent and slot classification using GPT') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+            sh 'cd examples/nlp/dialogue && \
             python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
@@ -971,7 +972,7 @@ pipeline {
         }
         stage('Intent and slot classification using SGDQA') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+            sh 'cd examples/nlp/dialogue && \
             python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.dataset.dialogues_example_dir=sgd_gen_bert_outputs \
@@ -994,7 +995,7 @@ pipeline {
         }
         stage('Intent and slot classification using IntentSlotClassificationModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+            sh 'cd examples/nlp/dialogue && \
             python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/processed_assistant \
             model.dataset.dialogues_example_dir=sgd_gen_bert_intent_classification_outputs \
@@ -1011,12 +1012,12 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-uncased \
             trainer.accelerator=gpu \
             exp_manager=null  && \
-            rm -rf sgd_gen_bert_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
+            rm -rf sgd_gen_bert_intent_classification_outputs'
           }
         }
         stage('Intent classification using ZeroShotIntentModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+            sh 'cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/drive_thru_revised \
@@ -1036,12 +1037,12 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-uncased \
             trainer.accelerator=gpu \
             exp_manager=null  && \
-            rm -rf sgd_gen_zero_shot_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
+            rm -rf sgd_gen_zero_shot_intent_classification_outputs'
           }
         }
         stage('Design Intent classification using ZeroShotIntentModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+            sh 'cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/design_dataset \
@@ -1062,12 +1063,12 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-uncased \
             trainer.accelerator=gpu \
             exp_manager=null  && \
-            rm -rf design_zero_shot_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
+            rm -rf design_zero_shot_intent_classification_outputs'
           }
         }
         stage('Design Intent classification using ZeroShotIntentModel BART Classifier') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+            sh 'cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/design_dataset \
@@ -1081,12 +1082,12 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-uncased \
             trainer.accelerator=gpu \
             exp_manager=null  && \
-            rm -rf design_zero_shot_intent_classification_bart_outputs && TRANSFORMERS_OFFLINE=1'
+            rm -rf design_zero_shot_intent_classification_bart_outputs'
           }
         }
         stage('Design Intent classification using DialogueNearestNeighbourModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+            sh 'cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/design_dataset \
@@ -1099,7 +1100,7 @@ pipeline {
             model.language_model.pretrained_model_name=sentence-transformers/all-MiniLM-L6-v2 \
             trainer.accelerator=gpu \
             exp_manager=null  && \
-            rm -rf design_dialogue_nearest_neighbour_classification_outputs && TRANSFORMERS_OFFLINE=1'
+            rm -rf design_dialogue_nearest_neighbour_classification_outputs'
           }
         }
       }
@@ -1115,7 +1116,7 @@ pipeline {
       parallel {
         stage('Dialogue: Answer Extender using DialogueS2SGenerationModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+            sh 'cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
@@ -1140,7 +1141,7 @@ pipeline {
         }
         stage('Dialogue: SGD Based Answer Extender using DialogueS2SGenerationModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+            sh 'cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
@@ -1181,7 +1182,7 @@ pipeline {
 //       parallel {
 //         stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
 //           steps {
-//             sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+//             sh 'cd examples/nlp/dialogue && \
 //             python dialogue.py \
 //             do_training=False \
 //             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
@@ -1211,7 +1212,7 @@ pipeline {
       parallel {
         stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            sh 'cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
@@ -1335,7 +1336,7 @@ pipeline {
         stage('BERT SQUAD 1.1') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/question_answering && \
+            sh 'cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
@@ -1354,13 +1355,13 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
-            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+            exp_manager=null'
           }
         }
         stage('BERT SQUAD 2.0') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/question_answering && \
+            sh 'cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
@@ -1376,7 +1377,7 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
-            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+            exp_manager=null'
           }
         }
       }
@@ -1394,7 +1395,7 @@ pipeline {
         stage('BART SQUAD 1.1') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/question_answering && \
+            sh 'cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
@@ -1414,13 +1415,13 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
-            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+            exp_manager=null'
           }
         }
         stage('BART SQUAD 2.0') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/question_answering && \
+            sh 'cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
@@ -1437,7 +1438,7 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
-            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+            exp_manager=null'
           }
         }
       }
@@ -1455,7 +1456,7 @@ pipeline {
         stage('GPT2 SQUAD 1.1') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
+            sh 'cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
@@ -1475,13 +1476,13 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
-            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+            exp_manager=null'
           }
         }
         stage('GPT2 SQUAD 2.0') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/question_answering && \
+            sh 'cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
@@ -1498,7 +1499,7 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
-            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+            exp_manager=null'
           }
         }
       }
