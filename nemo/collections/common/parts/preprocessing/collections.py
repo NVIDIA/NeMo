@@ -390,7 +390,8 @@ class ALMAudioTextCollection(ALMAudioText):
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
 
-        ids, audio_files, durations, questions, answers, offsets, = (
+        ids, audio_files, durations, questions, tts_contexts, answers, offsets, = (
+            [],
             [],
             [],
             [],
@@ -417,13 +418,14 @@ class ALMAudioTextCollection(ALMAudioText):
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
             questions.append(item['question'])
+            tts_contexts.append(item['tts_context'])
             answers.append(item['answer'])
             offsets.append(item['offset'])
             speakers.append(item['speaker'])
             orig_srs.append(item['orig_sr'])
             langs.append(item['lang'])
         super().__init__(
-            ids, audio_files, durations, questions, answers, offsets, speakers, orig_srs, langs, *args, **kwargs
+            ids, audio_files, durations, questions, tts_contexts, answers, offsets, speakers, orig_srs, langs, *args, **kwargs
         )
 
     def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
@@ -490,6 +492,7 @@ class ALMAudioTextCollection(ALMAudioText):
             audio_file=item['audio_file'],
             duration=item['duration'],
             question=item['question'],
+            tts_context=item.get(['tts_context'], None),
             answer=item['answer'],
             offset=item.get('offset', None),
             speaker=item.get('speaker', None),

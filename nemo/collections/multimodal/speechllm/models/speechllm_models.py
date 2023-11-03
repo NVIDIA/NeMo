@@ -468,6 +468,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 sep_id=self.sep_id,
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
                 virtual_tokens=self.virtual_tokens,
+                tts_parser=self.tts_model.parser if self.tts_model else None
             )
 
     def build_data_loader(self, dataset, data_cfg, consumed_samples=0):

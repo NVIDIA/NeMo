@@ -231,6 +231,7 @@ class TextProcessing(object):
         end_string: Optional[str] = None,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
+        tts_parser=None
     ):
         self.input_key = input_key
         self.output_key = output_key
@@ -251,6 +252,7 @@ class TextProcessing(object):
         self.end_string = end_string
         self.sample_alpha = sample_alpha
         self.audio_locator = audio_locator
+        self.tts_parser = tts_parser
 
         if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             self.bos_id = tokenizer.bos_id
@@ -467,6 +469,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
+        tts_parser=None
     ):
         super().__init__(
             tokenizer=tokenizer,
@@ -489,6 +492,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             end_string=end_string,
             sample_alpha=sample_alpha,
             audio_locator=audio_locator,
+            tts_parser=tts_parser,
         )
 
         if isinstance(manifest_filepath, str):
@@ -542,7 +546,10 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             output["audio_signal"] = torch.zeros([8000])
             # accomodates normalize_batch
             output["audio_length"] = torch.tensor(8000)
-
+            if sample.context:
+                output["context"] = self.tts_parser(sample.context)
+            else:
+                output["context"] = torch.zeros([8000])
         text_data = self._process_example(context=sample.question, output=sample.answer)
 
         output.update(text_data)
@@ -1243,6 +1250,7 @@ def get_aqa_dataset_from_config(
     sep_id: Optional[int] = None,
     answer_only_loss: bool = True,
     virtual_tokens: int = 0,
+    tts_parser=None
 ):
     if isinstance(config.manifest_filepath, str):
         manifest_filepath = config.manifest_filepath.split(',')
@@ -1320,6 +1328,7 @@ def get_aqa_dataset_from_config(
             random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
             question_file=question_file,
             audio_locator=config.get('audio_locator', None),
+            tts_parser=tts_parser,
         )
         datasets.append(dataset)
 
