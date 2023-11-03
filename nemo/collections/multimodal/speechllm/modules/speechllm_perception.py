@@ -324,3 +324,25 @@ class CascadedAudioPerceptionModel(AmQueryAudioPerceptionModel):
 
     def cross_attend(self, encoded, encoded_len, llm_encoded, llm_encoded_len):
         return llm_encoded, llm_encoded_len, {}
+
+
+class ConcatCascadedAudioPerceptionModel(AmQueryAudioPerceptionModel):
+    """Audio perception model with extra attention to match LM."""
+
+    def _concat_features(self, embs1, emb1_lens, embs2, emb2_lens):
+        concat_emb = []
+        concat_len = []
+        for emb1, emb1_len, emb2, emb2_len in zip(embs1, emb1_lens, embs2, emb2_lens):
+            new_len = emb1_len + emb2_len
+            new_emb = torch.concat([emb1[:emb1_len], emb2[:emb2_len]], axis=0)
+            padded_new_emb = torch.zeros(emb1.shape[0] + emb2.shape[0], emb1.shape[-1], device=emb1.device)
+            padded_new_emb[:new_len, ...] = new_emb
+            concat_emb.append(padded_new_emb)
+            concat_len.append(new_len)
+        concat_emb = torch.stack(concat_emb, dim=0)
+        concat_len = torch.stack(concat_len, dim=0)
+        return concat_emb, concat_len
+
+    def cross_attend(self, encoded, encoded_len, llm_encoded, llm_encoded_len):
+        concat_encoded, concat_encoded_len = self._concat_features(encoded, encoded_len, llm_encoded, llm_encoded_len)
+        return concat_encoded, concat_encoded_len, {}
