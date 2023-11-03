@@ -91,7 +91,12 @@ from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 
-from nemo.collections.multimodal.models.featex_for_speechllm import RQFeatExModel, EmbFeatExModel, KmeansFeatExModel
+from nemo.collections.multimodal.models.featex_for_speechllm import (
+    RQFeatExModel, 
+    EmbFeatExModel, 
+    KmeansFeatExModel,
+    EncodecFeatExModel,
+)
 
 @dataclass
 class ParallelTranscriptionConfig:
@@ -109,13 +114,15 @@ class ParallelTranscriptionConfig:
     trainer: TrainerConfig = TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
 
 
-def match_train_config(predict_ds, train_ds):
+def match_train_config(predict_ds, train_ds, keep_predict_ds_sample_rate=False):
     # It copies the important configurations from the train dataset of the model
     # into the predict_ds to be used for prediction. It is needed to match the training configurations.
     if train_ds is None:
         return
 
-    predict_ds.sample_rate = train_ds.get("sample_rate", 16000)
+    if not keep_predict_ds_sample_rate:
+        predict_ds.sample_rate = train_ds.get("sample_rate", 16000)
+    
     cfg_name_list = [
         "int_values",
         "use_start_end_token",
@@ -201,13 +208,17 @@ def main(cfg: ParallelTranscriptionConfig):
     # now, for the actual feat-ex model
     trainer = ptl.Trainer(**cfg.trainer)
     
-    if cfg.featex_model_# model = RQFeatExModel(cfg.model_cfg.model, trainer=trainer)
+    # model = RQFeatExModel(cfg.model_cfg.model, trainer=trainer)
     # model = EmbFeatExModel(cfg.model_cfg, trainer=trainer)
-    model = KmeansFeatExModel(cfg.model_cfg, trainer=trainer)
+    # model = KmeansFeatExModel(cfg.model_cfg, trainer=trainer)
+    model = EncodecFeatExModel(cfg.model_cfg, trainer=trainer)
 
     # trainer = ptl.Trainer(**cfg.trainer)
     cfg.predict_ds.return_sample_id = True
-    cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=asr_model.cfg.train_ds)
+    cfg.predict_ds = match_train_config(
+                            predict_ds=cfg.predict_ds,
+                            train_ds=asr_model.cfg.train_ds,
+                            keep_predict_ds_sample_rate=cfg.predict_ds.keep_sample_rate,)
     data_loader = asr_model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.out_save_dir, exist_ok=True)

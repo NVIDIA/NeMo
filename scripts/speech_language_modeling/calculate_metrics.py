@@ -48,7 +48,10 @@ def get_speaker_specific_transcript(transcript):
             speaker = transcript[i].strip("<>")
             if speaker not in speaker2words:
                 speaker2words[speaker] = []
-            speaker2words[speaker].append(transcript[i+1])
+            try:
+                speaker2words[speaker].append(transcript[i+1])
+            except:
+                speaker2words[speaker].append('')
 
     for speaker in speaker2words:
         speaker2words[speaker] = " ".join(speaker2words[speaker])

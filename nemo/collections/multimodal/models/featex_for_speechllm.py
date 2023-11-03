@@ -23,7 +23,7 @@ from typing import List
 from math import ceil
 from typing import Dict, List, Optional, Union
 
-import torch
+import torch, torchaudio
 import numpy as np
 import torch.nn as nn
 from omegaconf import DictConfig
@@ -245,6 +245,8 @@ class KmeansFeatExModel(EmbFeatExModel):
             AccessMixin.set_access_enabled(access_enabled=True)
 
         signal, signal_len, transcript, transcript_len, sample_id = batch
+        # signal [b, t]
+        # signal_len [b]
         encoded = self.forward(input_signal=signal, input_signal_length=signal_len)
         
         assert len(encoded['codes'].shape) == 2, "Expected 2D codes, got {}".format(encoded['codes'].shape)
@@ -260,6 +262,12 @@ class KmeansFeatExModel(EmbFeatExModel):
         return result
     
 
+try:
+    from encodec import EncodecModel
+except ImportError:
+    raise ImportError("encodec module not available; refer to https://github.com/facebookresearch/encodec")
+
+
 class EncodecFeatExModel(FeatExBaseModel):
     """Wrapper for Encodec Model"""
     def __init__(
@@ -274,10 +282,41 @@ class EncodecFeatExModel(FeatExBaseModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Encodec Model
-        try:
-            from encodec import EncodecModel
-        except ImportError:
-            raise ImportError("encodec module not available")
+        self.model = self._get_encodec_model(bandwidth=24.0)
+        self.resampler = torchaudio.transforms.Resample(16000, 24000)
+    
+    def _get_encodec_model(self, bandwidth=24.0):
+        model = EncodecModel.encodec_model_24khz()
+        model.set_target_bandwidth(bandwidth)
+        return model.eval()
+
+    def forward(self, input_signal=None, input_signal_length=None,):
+        encoded_frames = self.model.encode(input_signal)
+        codes = torch.cat([encoded[0] for encoded in encoded_frames], dim=-1)  # [B, n_q, T]
+        codes_len = torch.ceil((input_signal_length / self.model.sample_rate) * 75 ).to(torch.int64)
+
+        return {'codes': codes, 'codes_len':codes_len}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        pass
+        signal, signal_len, transcript, transcript_len, sample_id = batch
+        # signal [b, t]
+        # signal_len [b]
+        
+        # resample 
+        signal = self.resampler.to(signal.device)(signal)
+        signal_len = torch.ceil((signal_len / 16000) * 24000 ).to(torch.int64)
+        
+        
+        # currently [B, T] EnCodec expects  [B, C, T]
+        signal = signal.unsqueeze(1)
+        encoded = self.forward(signal, signal_len)
+
+        assert len(encoded['codes'].shape) == 3, "Expected 3D codes, got {}".format(encoded['codes'].shape)
+        del signal
+
+        sample_id = sample_id.cpu().detach().numpy()
+        result = []
+        for i, id in enumerate(sample_id):
+            codes = encoded['codes'][i][:, :encoded['codes_len'][i]].detach().cpu().numpy()
+            result.append((id, {'codes': codes}))
+        return result
