@@ -99,10 +99,12 @@ model:
       keep_frozen: 
         - linear_in
         - linear_out
-      layer_in_init_sigma: 1.0
-      layer_out_init_sigma: 1.0
-      dim_transform: "vector"
-      out_transform: "vector"
+      linear_in_init: "normal"  # can be normal xavier or zero
+      linear_out_init: "normal"  # can be normal xavier or zero
+      linear_in_init_sigma: 1.0  # used when layer_in_init is normal
+      linear_out_init_sigma: 1.0 # user when layer_out_init is normal
+      dim_transform: "vector"  # can be vector affine or null
+      out_transform: null # can be vector or null
 
     lora_tuning:
       adapter_dim: 32

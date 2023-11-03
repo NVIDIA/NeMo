@@ -121,8 +121,10 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
         out_features: int,
         dim: int,
         keep_frozen: List[str] =["linear_in", "linear_out"],
-        layer_in_init_sigma: float = 1.0,
-        layer_out_init_sigma: float = 1.0,
+        linear_in_init: str = "normal",
+        linear_out_init: str = "normal",
+        linear_in_init_sigma: float = 1.0,
+        linear_out_init_sigma: float = 1.0,
         dim_transform: Optional[str] = "vector",
         out_transform: Optional[str] = "vector",
         model_parallel_config: Optional[ModelParallelConfig] = None,
@@ -130,24 +132,28 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
     ):
         super().__init__()
         self.keep_frozen = keep_frozen
+        assert linear_in_init in ["normal", "xavier", "zero"]
         self.linear_in = ColumnParallelLinear(
             in_features,
             dim,
             config=model_parallel_config,
             bias=False,
             gather_output=True,
-            init_method=init_method_normal(layer_in_init_sigma),
+            init_method=self._get_init_fn(linear_in_init, linear_in_init_sigma),
         )
+        assert linear_out_init in ["normal", "xavier", "zero"]
         self.linear_out = ColumnParallelLinear(
             dim,
             out_features,
             config=model_parallel_config,
             bias=False,
             gather_output=False,
-            init_method=init_method_normal(layer_out_init_sigma),
+            init_method=self._get_init_fn(linear_out_init, linear_out_init_sigma),
         )
         self.dim_transform = dim_transform
         assert self.dim_transform in ["vector", "affine", None]
+        if "dim_scalar" in keep_frozen:
+            assert self.dim_transform == "vector"
         if self.dim_transform == "vector":
             self.dim_scalar = nn.Linear(1, dim, bias=False)
             self.dim_scalar.weight.data.fill_(1.)
@@ -161,6 +167,7 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
 
         self.out_transform = out_transform
         assert self.out_transform in ["vector", None]
+        out_const = 1.0 if "out_scalar" in self.keep_frozen else 0.0
         if self.out_transform == "vector":
             self.out_scalar = ColumnParallelLinear(
                 1,
@@ -168,10 +175,23 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
                 config=model_parallel_config,
                 bias=False,
                 gather_output=False,
-                init_method=init_method_const(0.0),
+                init_method=init_method_const(out_const),
             )
         else:
             self.out_scalar = None
+
+    def _get_init_fn(self, init_method: str, val: float = 0.0):
+        if init_method == 'xavier':
+            init_fn = init.xavier_normal_
+        elif init_method == 'normal':
+            init_fn = init_method_normal(val)
+        elif init_method == "const":
+            init_fn = init_method_const(val)
+        elif init_method == "zero":
+            init_fn = init_method_const(0.0)
+        else:
+            raise NotImplementedError("out_init_method should be zero, normal or xavier")
+        return init_fn
 
     def adapter_unfreeze(self,):
 
@@ -242,8 +262,10 @@ class VeraAdapterConfig(AdapterConfig):
     out_features: int
     dim: int
     keep_frozen: List[str] =["linear_in", "linear_out"],
-    layer_in_init_sigma: float = 1.0,
-    layer_out_init_sigma: float = 1.0,
+    linear_in_init: str = "normal",
+    linear_out_init: str = "normal",
+    linear_in_init_sigma: float = 1.0,
+    linear_out_init_sigma: float = 1.0,
     dim_transform: Optional[str] = "vector",
     out_transform: Optional[str] = "vector",
     _target_: str = "{0}.{1}".format(VeraAdapter.__module__, VeraAdapter.__name__)
