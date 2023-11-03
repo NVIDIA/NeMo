@@ -136,6 +136,9 @@ parser.add_argument(
 parser.add_argument(
     '--spe_control_symbols', default=None, type=str, nargs='+', help='Control symbols for SentencePiece'
 )
+parser.add_argument(
+    '--spe_byte_fallback', action='store_true', help='If <unk>, fallback to a byte sequence of the characters.'
+)
 parser.add_argument('--spe_split_digits', action='store_true', help='Split digits into separate tokens.')
 
 parser.add_argument(
