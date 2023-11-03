@@ -1336,7 +1336,7 @@ pipeline {
         stage('BERT SQUAD 1.1') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'examples/nlp/question_answering && \
+            sh 'cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
