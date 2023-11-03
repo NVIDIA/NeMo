@@ -213,6 +213,7 @@ pipeline {
             --config-path="conf/asr_finetune" --config-name="speech_to_text_hf_finetune" \
             ~model.train_ds.hf_data_cfg \
             model.train_ds.num_workers=1 \
+            model.train_ds.batch_size=2 model.validation_ds.batch_size=2 \
             model.train_ds.streaming=true \
             +model.train_ds.hf_data_cfg.path="librispeech_asr" \
             +model.train_ds.hf_data_cfg.name=null \
