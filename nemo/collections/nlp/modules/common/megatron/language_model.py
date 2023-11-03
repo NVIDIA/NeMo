@@ -129,6 +129,9 @@ def get_language_model(
     output_size=None,
     embedding_scale=1.0,
     seq_len_interpolation_factor=None,
+    attn_prior_end_step=11000,
+    attn_prior_scaledown_start_step=10000,
+    attn_prior_starting_strength=0.5
 ):
     """Build language model and return along with the key to save."""
 
@@ -207,6 +210,9 @@ def get_language_model(
         output_size=output_size,
         embedding_scale=embedding_scale,
         seq_len_interpolation_factor=seq_len_interpolation_factor,
+        attn_prior_end_step=attn_prior_end_step,
+        attn_prior_scaledown_start_step=attn_prior_scaledown_start_step,
+        attn_prior_starting_strength=attn_prior_starting_strength,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -509,10 +515,17 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         output_size=None,
         embedding_scale=1.0,
         seq_len_interpolation_factor=None,
+        attn_prior_end_step=11000,
+        attn_prior_scaledown_start_step=10000,
+        attn_prior_starting_strength=0.5,
     ):
         super(TransformerLanguageModel, self).__init__(
             config=config, share_token_embeddings=share_embeddings_and_output_weights
         )
+
+        self.attn_prior_end_step = attn_prior_end_step
+        self.attn_prior_scaledown_start_step = attn_prior_scaledown_start_step
+        self.attn_prior_starting_strength = attn_prior_starting_strength
 
         self.pre_process = pre_process
         self.post_process = post_process
@@ -813,34 +826,29 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             # causal attention bias: [1, head, 1, k]
             # non-causal attention bias: [1, head, q, k]
         if attention_prior is not None:
-            attn_prior_end_step = 11000
-            attn_prior_scaledown_start_step = 10000
+            # self.attn_prior_end_step = 11000
+            # self.attn_prior_scaledown_start_step = 10000
             num_attention_heads = self.num_attention_heads
-            assert attn_prior_scaledown_start_step < attn_prior_end_step
-            logging.debug(f"attn_prior_scaledown_start_step {attn_prior_scaledown_start_step}")
-            logging.debug(f"attn_prior_scaledown_start_step {attn_prior_end_step}")
-            if global_step >= attn_prior_end_step:
+            assert self.attn_prior_scaledown_start_step < self.attn_prior_end_step
+            logging.debug(f"self.attn_prior_scaledown_start_step {self.attn_prior_scaledown_start_step}")
+            logging.debug(f"self.attn_prior_end_step {self.attn_prior_end_step}")
+            logging.debug(f"global_step {global_step}")
+            if global_step >= self.attn_prior_end_step:
+                logging.debug("Post attn_prior_end_step")
                 encoder_self_attention_relative_position_bias = None
-            elif global_step > attn_prior_scaledown_start_step and global_step < attn_prior_end_step:
-                #TODO: might need to update this
-                total_annealing_steps = attn_prior_end_step - attn_prior_scaledown_start_step
-                curr_annealing_step = global_step - attn_prior_scaledown_start_step
-                curr_attention_prior = attention_prior + (
-                    (1.0 - attention_prior) * curr_annealing_step / total_annealing_steps
-                )
-                encoder_self_attention_relative_position_bias = curr_attention_prior.unsqueeze(1).repeat(
-                    1, num_attention_heads, 1, 1
-                )
-                encoder_self_attention_relative_position_bias = torch.log(encoder_self_attention_relative_position_bias)
-            else:
-                logging.debug(f"global_step {global_step}, prior_scaling_factor {1}")
+            else:  # still using prior
+                logging.debug("Using prior")
+                prior_strength = 0.5
+                if global_step > self.attn_prior_scaledown_start_step:  # In scaledown region
+                    total_annealing_steps = self.attn_prior_end_step - self.attn_prior_scaledown_start_step
+                    curr_annealing_step = global_step - self.attn_prior_scaledown_start_step
+                    prior_strength = (1. - curr_annealing_step / total_annealing_steps) * prior_strength
+                attention_prior = attention_prior * prior_strength + 1 - prior_strength
+                logging.debug(f"Modifying setup with strength: {prior_strength}")
                 encoder_self_attention_relative_position_bias = attention_prior.unsqueeze(1).repeat(
                     1, num_attention_heads, 1, 1
                 )
-                logging.debug(
-                    "encoder_self_attention_relative_position_bias {encoder_self_attention_relative_position_bias.shape}"
-                )
-                encoder_self_attention_relative_position_bias = torch.log(encoder_self_attention_relative_position_bias)
+                encoder_self_attention_relative_position_bias = torch.log(encoder_self_attention_relative_position_bias + 1e-8)
 
         # import ipdb; ipdb.set_trace()
         # encoder.

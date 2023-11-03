@@ -936,7 +936,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                                     phoneme_seq = [question_start, start_of_speech.item()-1]
                                     alignment_image_sliced = plot_alignment_to_numpy(
                                         # attention_probs_sliced.cpu().float().numpy().T, phoneme_seq=(batch['tokens'][0, 0, :] == 0).to(int).detach().cpu().numpy()
-                                        attention_probs_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1
+                                        attention_probs_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1, vmin=0., vmax=1.
                                     )
                                     self.logger.experiment.add_image(
                                         f"Attention Probs Layer {lidx} Head {_i}",
@@ -1810,8 +1810,6 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         self.return_all_selfattention_probs = self.cfg.get('return_all_selfattention_probs', False)
         self.train_check_interval  = self.cfg.get('train_check_interval', 1500)
         # TODO: pass these down to language_model.py
-        self.attn_prior_scaledown_start_step = cfg.get('attn_prior_scaledown_start_step', 10000)
-        self.attn_prior_end_step = cfg.get('attn_prior_end_step', 11000)
         # return_all_crossattention_probs = cfg.get('return_all_crossattention_probs', False)
         # num_cross_attention_heads = cfg.get('num_cross_attention_heads', 12)
 
@@ -1924,6 +1922,9 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             speech_loss_scale=self.cfg.get('speech_loss_scale', 1.0),
             text_size=self.cfg.get('text_size', 256000),
             use_speech_mask_for_embedding=self.cfg.get('use_speech_mask_for_embedding', False),
+            attn_prior_end_step=self.cfg.get('attn_prior_end_step', 10000),
+            attn_prior_scaledown_start_step=self.cfg.get('attn_prior_scaledown_start_step', 12000),
+            attn_prior_starting_strength=self.cfg.get('attn_prior_starting_strength', 0.5),
         )
 
         return model
@@ -2114,7 +2115,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                                 # attention_probs_sliced *= batch["loss_mask"][0]
                                 # attention_probs_sliced *= batch["attention_mask"][0][0,:,:].to(attention_probs_sliced.device)
                                 alignment_image_sliced = plot_alignment_to_numpy(
-                                    attention_probs_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1
+                                    attention_probs_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1, vmin=0., vmax=1.
                                 )
                                 self.logger.experiment.add_image(
                                     f"Val Attention Probs Layer {lidx} Head {_i} TF",
@@ -2129,7 +2130,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                     attention_sliced = torch.stack(attention_sliced_list)
                     attention_sliced = torch.mean(attention_sliced, 0)
                     alignment_image_sliced = plot_alignment_to_numpy(
-                        attention_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=2
+                        attention_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=2, vmin=0., vmax=1.
                     )
                     self.logger.experiment.add_image(
                         f"Val Attention Probs Average Sliced TF",
@@ -2138,28 +2139,28 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                         dataformats="HWC",
                     )
 
-                    phoneme_seq = [question_start, start]
-                    prior = batch['attention_prior'][0,:,:].T
-                    prior_data = plot_alignment_to_numpy(
-                        prior.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1
-                    )
-                    self.logger.experiment.add_image(
-                        f"Attention Prior",
-                        prior_data,
-                        self.global_step,
-                        dataformats="HWC",
-                    )
-                    phoneme_seq += question_ids
-                    prior = prior[question_start:start, start:start+length_of_speech]
-                    prior_data = plot_alignment_to_numpy(
-                        prior.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=2
-                    )
-                    self.logger.experiment.add_image(
-                        f"Attention Prior Sliced",
-                        prior_data,
-                        self.global_step,
-                        dataformats="HWC",
-                    )
+                    # phoneme_seq = [question_start, start]
+                    # prior = batch['attention_prior'][0,:,:].T
+                    # prior_data = plot_alignment_to_numpy(
+                    #     prior.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1, vmin=0., vmax=1.
+                    # )
+                    # self.logger.experiment.add_image(
+                    #     f"Attention Prior",
+                    #     prior_data,
+                    #     self.global_step,
+                    #     dataformats="HWC",
+                    # )
+                    # phoneme_seq += question_ids
+                    # prior = prior[question_start:start, start:start+length_of_speech]
+                    # prior_data = plot_alignment_to_numpy(
+                    #     prior.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=2, vmin=0., vmax=1.
+                    # )
+                    # self.logger.experiment.add_image(
+                    #     f"Attention Prior Sliced",
+                    #     prior_data,
+                    #     self.global_step,
+                    #     dataformats="HWC",
+                    # )
 
                 # Only for the first batch, log TF and autoregressive inference
 
@@ -2484,7 +2485,7 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
             context_length=self.cfg.data.get('context_length', None),
             use_attention_prior=self.cfg.data.get('use_attention_prior', True),
             attention_prior_scaling_factor=self.cfg.data.get('attention_prior_scaling_factor', 1.),
-            cross_attention_epsilon=self.cfg.data.get('cross_attention_epsilon', 1e-8),
+            # cross_attention_epsilon=self.cfg.data.get('cross_attention_epsilon', 1e-8),
         )
 
         rank = parallel_state.get_data_parallel_rank()

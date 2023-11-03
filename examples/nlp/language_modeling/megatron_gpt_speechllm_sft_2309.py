@@ -65,6 +65,10 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.use_speech_mask_for_embedding = cfg.model.use_speech_mask_for_embedding
         gpt_cfg.return_all_selfattention_probs = cfg.model.return_all_selfattention_probs
         gpt_cfg.train_check_interval = cfg.model.train_check_interval
+        gpt_cfg.train_check_interval = cfg.model.train_check_interval
+        gpt_cfg.attn_prior_end_step = cfg.model.attn_prior_end_step
+        gpt_cfg.attn_prior_scaledown_start_step = cfg.model.attn_prior_scaledown_start_step
+        gpt_cfg.attn_prior_starting_strength = cfg.model.attn_prior_starting_strength
         # gpt_cfg.bias_activation_fusion = cfg.model.bias_activation_fusion  # Missing from older checkpoints?
         # gpt_cfg.bias_dropout_add_fusion = cfg.model.bias_dropout_add_fusion  # Missing from older checkpoints?
         sft_cls = MegatronSpeechGPTModel
@@ -123,7 +127,7 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    if cfg.model.restore_from_path:
+    if "restore_from_path" in cfg.model:
         logging.info("Restore from {cfg.model.restore_from_path}")
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.model.restore_from_path):
@@ -136,7 +140,8 @@ def main(cfg) -> None:
             map_location="cpu",
         )
         model = load_from_nemo(MegatronSpeechGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config, restore=cfg.restore)
-
+    else:
+        model = MegatronSpeechGPTSFTModel(cfg.model, trainer)
     mode = cfg.get("mode", "training")
     if mode == "training":
         if cfg.get('init_from_ptl_ckpt', None) is not None:

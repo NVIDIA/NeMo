@@ -236,6 +236,9 @@ class GPTModel(MegatronModule):
         text_size=256000,
         seq_len_interpolation_factor=None,
         use_speech_mask_for_embedding=False,
+        attn_prior_end_step=11000,
+        attn_prior_scaledown_start_step=10000,
+        attn_prior_starting_strength=0.5,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -323,6 +326,9 @@ class GPTModel(MegatronModule):
             output_size=output_size,
             embedding_scale=embedding_scale,
             seq_len_interpolation_factor=seq_len_interpolation_factor,
+            attn_prior_end_step = attn_prior_end_step,
+            attn_prior_scaledown_start_step = attn_prior_scaledown_start_step,
+            attn_prior_starting_strength=attn_prior_starting_strength,
         )
 
         if self.share_embeddings_and_output_weights:
