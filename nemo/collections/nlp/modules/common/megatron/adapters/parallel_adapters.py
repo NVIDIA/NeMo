@@ -121,7 +121,6 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         in_features: int,
         out_features: int,
         dim: int,
-
         activation: str = 'swish',
         norm_position: Optional[str] = 'post',
         norm_type: Optional[str] = 'mixedfusedlayernorm',

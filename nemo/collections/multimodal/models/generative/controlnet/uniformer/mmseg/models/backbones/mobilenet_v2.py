@@ -3,7 +3,11 @@ import logging
 import torch.nn as nn
 from torch.nn.modules.batchnorm import _BatchNorm
 
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.cnn import ConvModule, constant_init, kaiming_init
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.cnn import (
+    ConvModule,
+    constant_init,
+    kaiming_init,
+)
 from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.runner import load_checkpoint
 
 from ..builder import BACKBONES

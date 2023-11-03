@@ -3,7 +3,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.cnn import CONV_LAYERS, ConvAWS2d, constant_init
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.cnn import (
+    CONV_LAYERS,
+    ConvAWS2d,
+    constant_init,
+)
 from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.ops.deform_conv import deform_conv2d
 from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.utils import TORCH_VERSION, digit_version
 

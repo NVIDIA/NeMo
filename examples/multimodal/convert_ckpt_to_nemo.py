@@ -37,9 +37,9 @@ from nemo.collections.multimodal.models.generative.controlnet.controlnet import 
 from nemo.collections.multimodal.models.generative.dreambooth import MegatronDreamBooth
 from nemo.collections.multimodal.models.generative.imagen import MegatronImagen
 from nemo.collections.multimodal.models.generative.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
+from nemo.collections.multimodal.models.generative.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
 from nemo.collections.multimodal.models.multimodal_llm.kosmos import MegatronKosmosModel
 from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
-from nemo.collections.multimodal.models.generative.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging

@@ -50,7 +50,9 @@ def collect_env():
         for name, device_ids in devices.items():
             env_info['GPU ' + ','.join(device_ids)] = name
 
-        from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.utils.parrots_wrapper import _get_cuda_home
+        from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.utils.parrots_wrapper import (
+            _get_cuda_home,
+        )
 
         CUDA_HOME = _get_cuda_home()
         env_info['CUDA_HOME'] = CUDA_HOME

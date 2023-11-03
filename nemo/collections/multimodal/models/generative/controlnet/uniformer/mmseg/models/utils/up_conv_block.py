@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.cnn import ConvModule, build_upsample_layer
+
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.cnn import (
+    ConvModule,
+    build_upsample_layer,
+)
 
 
 class UpConvBlock(nn.Module):

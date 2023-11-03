@@ -1,6 +1,8 @@
 import os.path as osp
 
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.runner import DistEvalHook as _DistEvalHook
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.runner import (
+    DistEvalHook as _DistEvalHook,
+)
 from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.runner import EvalHook as _EvalHook
 
 

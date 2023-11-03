@@ -1,8 +1,12 @@
 import torch
 import torch.nn as nn
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.cnn import ConvModule, DepthwiseSeparableConvModule
 
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.cnn import (
+    ConvModule,
+    DepthwiseSeparableConvModule,
+)
 from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmseg.ops import resize
+
 from ..builder import HEADS
 from .aspp_head import ASPPHead, ASPPModule
 

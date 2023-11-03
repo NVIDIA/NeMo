@@ -8,9 +8,15 @@ from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.par
     MMDataParallel,
     MMDistributedDataParallel,
 )
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.runner import build_optimizer, build_runner
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.runner import (
+    build_optimizer,
+    build_runner,
+)
 from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmseg.core import DistEvalHook, EvalHook
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmseg.datasets import build_dataloader, build_dataset
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmseg.datasets import (
+    build_dataloader,
+    build_dataset,
+)
 from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmseg.utils import get_root_logger
 
 

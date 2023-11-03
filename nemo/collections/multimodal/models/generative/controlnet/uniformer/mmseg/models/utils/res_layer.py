@@ -1,6 +1,9 @@
 from torch import nn as nn
 
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.cnn import build_conv_layer, build_norm_layer
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.cnn import (
+    build_conv_layer,
+    build_norm_layer,
+)
 
 
 class ResLayer(nn.Sequential):

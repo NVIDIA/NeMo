@@ -1,5 +1,7 @@
 import nemo.collections.multimodal.models.generative.controlnet.uniformer.mmseg as mmseg
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.utils import collect_env as collect_base_env
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.utils import (
+    collect_env as collect_base_env,
+)
 from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.utils import get_git_hash
 
 

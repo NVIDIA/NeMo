@@ -1,5 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.utils import Registry, is_method_overridden
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.utils import (
+    Registry,
+    is_method_overridden,
+)
 
 HOOKS = Registry('hook')
 

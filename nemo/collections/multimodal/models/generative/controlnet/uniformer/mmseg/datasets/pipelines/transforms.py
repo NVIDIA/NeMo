@@ -2,7 +2,10 @@ import numpy as np
 from numpy import random
 
 import nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv as mmcv
-from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.utils import deprecated_api_warning, is_tuple_of
+from nemo.collections.multimodal.models.generative.controlnet.uniformer.mmcv.utils import (
+    deprecated_api_warning,
+    is_tuple_of,
+)
 
 from ..builder import PIPELINES
 

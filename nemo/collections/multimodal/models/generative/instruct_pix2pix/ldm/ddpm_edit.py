@@ -28,7 +28,10 @@ from torchvision.utils import make_grid
 from tqdm import tqdm
 
 from nemo.collections.multimodal.data.instruct_pix2pix.edit_dataset import EditDataset
-from nemo.collections.multimodal.models.generative.stable_diffusion.ldm.ddpm import LatentDiffusion, MegatronLatentDiffusion
+from nemo.collections.multimodal.models.generative.stable_diffusion.ldm.ddpm import (
+    LatentDiffusion,
+    MegatronLatentDiffusion,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
