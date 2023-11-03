@@ -82,7 +82,7 @@ def get_mcore_model_from_nemo_file(nemo_restore_from_path, cpu_only=False):
         app_state.nemo_file_folder = nemo_restore_from_path
     else:
         logging.warning(
-            "`nemo_file_folder` is NOT set because checkpoint is not pre-extracted. Subsequent operations may fail."
+            "⚠️ `nemo_file_folder` is NOT set because checkpoint is not pre-extracted. Subsequent operations may fail."
         )
     mcore_model = MegatronGPTModel(model_cfg, trainer=trainer)
     return mcore_model
@@ -176,6 +176,9 @@ def restore_model(nemo_file, cpu_only=False):
 
     # To copy weights in the original precision, we have to turn on O2.
     orig_megatron_amp_O2_value = model_config.megatron_amp_O2
+    if model_config.target.endswith("MegatronGPTSFTModel"):
+        logging.warning("⚠️ Model target is `MegatronGPTSFTModel` which may not work with this conversion script. "
+                        "This is a known issue. For now, please modify the config yaml file to use `MegatronGPTModel`.")
 
     if model_config.precision in ['bf16', 'bf16-mixed']:
         model_config.megatron_amp_O2 = True
