@@ -31,25 +31,26 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from .falcon_decoder_layer import FalconTransformerLayer, FalconTransformerLayerSubmodules
 
 # Use this spec for an implementation using modules in TE
-falcon_layer_spec = ModuleSpec(
-    module=FalconTransformerLayer,
-    submodules=FalconTransformerLayerSubmodules(
-        input_layernorm=TENorm,
-        self_attention=ModuleSpec(
-            module=SelfAttention,
-            params={"attn_mask_type": AttnMaskType.causal},
-            submodules=SelfAttentionSubmodules(
-                linear_qkv=TEColumnParallelLinear,
-                dot_product_attention=TEDotProductAttention,
-                linear_proj=TERowParallelLinear,
+def get_gpt_layer_with_transformer_engine_spec() -> ModuleSpec:
+    return ModuleSpec(
+        module=FalconTransformerLayer,
+        submodules=FalconTransformerLayerSubmodules(
+            input_layernorm=TENorm,
+            self_attention=ModuleSpec(
+                module=SelfAttention,
+                params={"attn_mask_type": AttnMaskType.causal},
+                submodules=SelfAttentionSubmodules(
+                    linear_qkv=TEColumnParallelLinear,
+                    core_attention=TEDotProductAttention,
+                    linear_proj=TERowParallelLinear,
+                ),
             ),
+            self_attn_bda=get_bias_dropout_add,
+            post_self_attn_layernorm=TENorm,
+            pre_mlp_layernorm=TENorm,
+            mlp=ModuleSpec(
+                module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
+            ),
+            mlp_bda=get_bias_dropout_add,
         ),
-        self_attn_bda=get_bias_dropout_add,
-        post_self_attn_layernorm=TENorm,
-        pre_mlp_layernorm=TENorm,
-        mlp=ModuleSpec(
-            module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
-        ),
-        mlp_bda=get_bias_dropout_add,
-    ),
-)
+    )
