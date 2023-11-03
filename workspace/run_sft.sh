@@ -39,6 +39,7 @@ run_sft_audio_lm.py --config-path="../examples/multimodel/conf/speechllm/" --con
     model.pretrained_audio_model=$ASR_MODEL \
     model.restore_from_path=$MEGATRON_CKPT \
     model.global_batch_size=$GLOBAL_BATCH \
+    model.perception.target=nemo.collections.multimodal.speechllm.modules.speechllm_perception.ConcatCascadedAudioPerceptionModel \
     model.micro_batch_size=$MICRO_BATCH \
     ++model.data.train_ds.max_seq_length=128 \
     ++model.data.validation_ds.max_seq_length=128 \
