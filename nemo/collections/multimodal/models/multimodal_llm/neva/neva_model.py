@@ -412,27 +412,13 @@ class NevaBaseModel:
             "Word embedding doesn't match the word embedding shape from checkpoint!"
 
         pad_length = self.embedding.word_embeddings.num_embeddings - \
-                state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0]
-                < self.embedding.word_embeddings.num_embeddings_per_partition
-            ):
-                assert (
-                    self.embedding.word_embeddings.num_embeddings
-                    == self.embedding.word_embeddings.num_embeddings_per_partition
-                ), "Word embedding doesn't match the word embedding shape from checkpoint!"
-
-                pad_length = (
-                    self.embedding.word_embeddings.num_embeddings
-                    - state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0]
-                )
+                     state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0]
         state_dict['model.language_model.embedding.word_embeddings.weight'] = F.pad(
-                    state_dict['model.language_model.embedding.word_embeddings.weight'], (0, 0, 0, pad_length)
-                )
+            state_dict['model.language_model.embedding.word_embeddings.weight'], (0, 0, 0, pad_length))
 
         if 'model.language_model.output_layer.weight' in state_dict:
-                    assert (
-                        state_dict['model.language_model.embedding.word_embeddings.weight'].shape
-                        == state_dict['model.language_model.output_layer.weight'].shape
-                    )
+            assert state_dict['model.language_model.embedding.word_embeddings.weight'].shape == \
+                   state_dict['model.language_model.output_layer.weight'].shape
             state_dict['model.language_model.output_layer.weight'] = F.pad(
                 state_dict['model.language_model.output_layer.weight'], (0, 0, 0, pad_length))
         return state_dict
@@ -1021,7 +1007,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 return generate(self, **inference_config)
 
     def generate(
-        self, input_prompts, inference_config, length_params: LengthParam, sampling_params: SamplingParam = None,
+            self, input_prompts, inference_config, length_params: LengthParam, sampling_params: SamplingParam = None,
     ) -> OutputType:
 
         # check whether the DDP is initialized
