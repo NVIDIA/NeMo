@@ -21,6 +21,7 @@ import torch.nn as nn
 from apex.transformer.enums import AttnMaskType, AttnType
 from omegaconf.dictconfig import DictConfig
 
+from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron as MLP
 from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention
@@ -346,3 +347,51 @@ class ConcatCascadedAudioPerceptionModel(AmQueryAudioPerceptionModel):
     def cross_attend(self, encoded, encoded_len, llm_encoded, llm_encoded_len):
         concat_encoded, concat_encoded_len = self._concat_features(encoded, encoded_len, llm_encoded, llm_encoded_len)
         return concat_encoded, concat_encoded_len, {}
+
+
+class CtcAudioPerceptionModel(AudioPerceptionModel):
+    """Audio perception model with extra attention to match LM."""
+
+    def __init__(self, cfg: DictConfig, pretrained_audio_model: str, llm_tokenizer):
+        super().__init__(cfg)
+        self.cfg = cfg
+        self.asr_loss = CTCLoss(num_classes=llm_tokenizer.vocab_size - 1, zero_infinity=True, reduction="mean_batch",)
+
+    def forward(
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
+        lm_embedding=None,
+        labels=None,
+        labels_len=None,
+        pad_id=0,
+    ):
+        processed_signal, processed_signal_length = self.maybe_preprocess_audio(
+            input_signal, input_signal_length, processed_signal, processed_signal_length
+        )
+
+        # Spec augment is not applied during evaluation/testing
+        if self.spec_augmentation is not None and self.training:
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+
+        am_encoded, am_encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        encoded, encoded_len = self.modality_adapter(audio_signal=am_encoded, length=am_encoded_len)
+        # b, t, c
+        encoded = self.proj(encoded.transpose(1, 2))
+
+        asr_loss_weight = self.cfg.get('asr_loss_weight', 0.0)
+        aux_loss = {}
+        if labels is not None and asr_loss_weight > 0.0:
+            assert labels_len is not None
+            # multiply am_encoded and lm_embedding
+            mat = torch.matmul(encoded, lm_embedding.weight.transpose(0, 1))
+            # get the log softmax
+            log_probs = torch.nn.functional.log_softmax(mat, dim=-1)
+
+            asr_loss = self.asr_loss(
+                log_probs=log_probs, targets=labels, input_lengths=encoded_len, target_lengths=labels_len
+            )
+            aux_loss['asr_loss'] = asr_loss * asr_loss_weight
+        return encoded, encoded_len, aux_loss
