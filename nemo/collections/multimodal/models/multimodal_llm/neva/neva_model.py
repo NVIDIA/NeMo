@@ -262,11 +262,12 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
 class NevaBaseModel:
     def __init__(
-            self, mm_cfg, media_start_id, media_end_id, **kwargs,
+            self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
     ):
         self.mm_cfg = mm_cfg
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
+        self.mcore_gpt = mcore_gpt
         self.dist_ckpt = False
         if getattr(self, 'language_model', None) is not None:
             self.embedding = self.language_model.embedding
@@ -380,29 +381,17 @@ class NevaBaseModel:
         state_dict = self._load_model_weights(nemo_path)
 
         new_state_dict = {}
-        if self.dist_ckpt:
+        if self.dist_ckpt or self.mcore_gpt:
             for k, v in state_dict.items():
                 new_k = k
                 if k.startswith("model."):
                     new_k = k.replace("model.", "", 1)
                 new_state_dict[new_k] = v
-            self.load_state_dict(new_state_dict, strict=True)
+            self.load_state_dict(new_state_dict, strict=False)
         else:
-            if state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0] < self.embedding.word_embeddings.num_embeddings_per_partition:
-                assert self.embedding.word_embeddings.num_embeddings == \
-                       self.embedding.word_embeddings.num_embeddings_per_partition, \
-                    "Word embedding doesn't match the word embedding shape from checkpoint!"
-
-                pad_length = self.embedding.word_embeddings.num_embeddings - \
-                             state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0]
-                state_dict['model.language_model.embedding.word_embeddings.weight'] = F.pad(
-                    state_dict['model.language_model.embedding.word_embeddings.weight'], (0, 0, 0, pad_length))
-
-                if 'model.language_model.output_layer.weight' in state_dict:
-                    assert state_dict['model.language_model.embedding.word_embeddings.weight'].shape == \
-                           state_dict['model.language_model.output_layer.weight'].shape
-                    state_dict['model.language_model.output_layer.weight'] = F.pad(
-                        state_dict['model.language_model.output_layer.weight'], (0, 0, 0, pad_length))
+            if 'model.language_model.embedding.word_embeddings.weight' in state_dict and \
+                    state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0] < self.embedding.word_embeddings.num_embeddings_per_partition:
+                state_dict = self.pad_word_embeddings(state_dict)
 
             for k, v in state_dict.items():
                 if k.startswith("model.language_model."):
@@ -411,15 +400,32 @@ class NevaBaseModel:
                     if module_key not in new_state_dict:
                         new_state_dict[module_key] = {}
                     new_state_dict[module_key][param_key] = v
-            self.language_model.load_state_dict(new_state_dict, strict=True)
+            self.language_model.load_state_dict(new_state_dict, strict=False)
         print(f"Restored LLM weights from {nemo_path}.")
+
+    def pad_word_embeddings(self, state_dict):
+        assert self.embedding.word_embeddings.num_embeddings == \
+               self.embedding.word_embeddings.num_embeddings_per_partition, \
+            "Word embedding doesn't match the word embedding shape from checkpoint!"
+
+        pad_length = self.embedding.word_embeddings.num_embeddings - \
+                     state_dict['model.language_model.embedding.word_embeddings.weight'].shape[0]
+        state_dict['model.language_model.embedding.word_embeddings.weight'] = F.pad(
+            state_dict['model.language_model.embedding.word_embeddings.weight'], (0, 0, 0, pad_length))
+
+        if 'model.language_model.output_layer.weight' in state_dict:
+            assert state_dict['model.language_model.embedding.word_embeddings.weight'].shape == \
+                   state_dict['model.language_model.output_layer.weight'].shape
+            state_dict['model.language_model.output_layer.weight'] = F.pad(
+                state_dict['model.language_model.output_layer.weight'], (0, 0, 0, pad_length))
+        return state_dict
 
 class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
     def __init__(
-            self, mm_cfg, media_start_id, media_end_id, **kwargs,
+            self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
     ):
         MCoreGPTModel.__init__(self, **kwargs)
-        NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, **kwargs)
+        NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs)
 
     def freeze_llm(self, mm_cfg):
         for param in chain(
@@ -441,10 +447,10 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
 
 class NevaModel(GPTModel, NevaBaseModel):
     def __init__(
-            self, mm_cfg, media_start_id, media_end_id, **kwargs,
+            self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
     ):
         GPTModel.__init__(self, **kwargs)
-        NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, **kwargs)
+        NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs)
 
     def freeze_llm(self, mm_cfg):
         for param in self.language_model.parameters():
@@ -501,6 +507,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 mm_cfg=self.cfg.mm_cfg,
                 media_start_id=media_start_id,
                 media_end_id=media_end_id,
+                mcore_gpt=self.mcore_gpt,
                 config=self.transformer_config,
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
@@ -517,6 +524,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 mm_cfg=self.cfg.mm_cfg,
                 media_start_id=media_start_id,
                 media_end_id=media_end_id,
+                mcore_gpt=self.mcore_gpt,
                 config=self.model_parallel_config,
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 hidden_size=self.cfg.hidden_size,
