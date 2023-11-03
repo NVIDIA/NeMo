@@ -175,13 +175,17 @@ if __name__ == "__main__":
         "position_embedding_type": "rope",
         "precision": args.precision,
         "init_method_std": falcon_config.initializer_range,
-        "new_decoder_architecture": falcon_config.new_decoder_architecture,
-        "parallel_attention": falcon_config.parallel_attn,
         "activation": "gelu",
         "bias_activation_fusion": False,
         "bias_dropout_add_fusion": False,
         "seq_len_interpolation_factor": None,
     }
+
+    mcore_customization_config_dict={
+        "new_decoder_architecture": falcon_config.new_decoder_architecture,
+        "parallel_attention": falcon_config.parallel_attn,
+    }
+
     tokenizer_dict = {
         "library": "huggingface",
         "type": args.input,
@@ -239,6 +243,7 @@ if __name__ == "__main__":
     model_dict.update(override_model_dict)
     model_dict["tokenizer"] = tokenizer_dict
     model_dict["name"] = 'megatron_falcon_gpt'
+    model_dict["mcore_customization_config"] = mcore_customization_config_dict
 
     omega_cfg = OmegaConf.create(model_dict)
 

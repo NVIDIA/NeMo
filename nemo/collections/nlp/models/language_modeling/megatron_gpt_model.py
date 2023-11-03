@@ -76,7 +76,6 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.models.gpt.gpt_layer_specs import gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.spec_utils import import_module
@@ -104,28 +103,22 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 
-def import_falcon_gpt_model():
-    """Conditionally import FalconGPTModel.
-    """
+def get_specs(spec_name, spec_func='get_gpt_layer_with_transformer_engine_spec'): #Assumes the default spec function name
+    import importlib.util
+    name_spec_dict = {
+        "": "megatron.core.models.gpt.gpt_layer_specs", #default GPT
+        "megatron_falcon_gpt": "nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec" #Other customized model spec locations
+    }
+    module_path = name_spec_dict.get(spec_name)
+    if not module_path:
+        raise ImportError(f"Failed to import {spec_name}, please ensure {spec_name} is supported.")
+
+    module = importlib.import_module(module_path)
     try:
-        # from megatron.core.models.falcon.falcon_gpt_model import FalconGPTModel
-        from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_gpt_model import FalconGPTModel
-        from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import falcon_layer_spec
-
-        return FalconGPTModel, falcon_layer_spec
-    except (ImportError, ModuleNotFoundError):
-        raise ImportError("Failed to import FalconGPTModel. Please ensure the necessary dependencies are installed.")
-
-
-@dataclass
-class FalconTransformerConfig(TransformerConfig):
-    """
-    Transformer Config for Falcon Variants
-    """
-
-    new_decoder_architecture: bool = False
-    parallel_attention: bool = False
-
+        spec = getattr(module, spec_func)()
+    except AttributeError:
+        raise ImportError(f"Module {module_path} does not have {spec_func}")
+    return spec
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     """
@@ -239,10 +232,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
-        # Falcon specific args
-        self.falcon_name = cfg.get('name', 'megatron_falcon_gpt')
-        self.new_decoder_architecture = cfg.get('new_decoder_architecture', False)
-        self.parallel_attention = cfg.get('parallel_attention', False)
+        self.spec_name = cfg.get('name', '')
 
         self.rampup_batch_size = self.cfg.get('rampup_batch_size', None)
         if self.rampup_batch_size:
@@ -333,28 +323,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
-        if self.mcore_gpt and self.falcon_name:
-            FalconGPTModel, falcon_layer_spec = import_falcon_gpt_model()
-            transformer_layer_spec = falcon_layer_spec
-            model = FalconGPTModel(
-                config=self.transformer_config,
-                transformer_layer_spec=transformer_layer_spec,
-                vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
-                max_sequence_length=self.cfg.get('encoder_seq_length', 512),
-                pre_process=pre_process,
-                post_process=post_process,
-                parallel_output=True,
-                share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
-                position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
-                rotary_percent=self.cfg.get('rotary_percentage', 1.0),
-                seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-            )
-
-        elif self.mcore_gpt:
-            transformer_layer_spec = gpt_layer_with_transformer_engine_spec
+        if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec=transformer_layer_spec,
+                transformer_layer_spec=get_specs(self.spec_name),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
@@ -1563,10 +1535,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         gated_linear_unit = activation.endswith('glu')
         activation_func = activation_to_func(activation)
 
-        mcore_gpt = self.cfg.get('mcore_gpt', False)
-        new_decoder_architecture = self.cfg.get('new_decoder_architecture', False)
-        parallel_attention = self.cfg.get('parallel_attention', False)
-
         normalization = self.cfg.get('normalization', 'layernorm')
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
         if normalization == 'layernorm':
@@ -1653,14 +1621,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     f"Add this key to cfg or config_mapping to make to make it configurable."
                 )
 
-        if mcore_gpt and (new_decoder_architecture or parallel_attention):
-            transformer_config = FalconTransformerConfig(
-                **transformer_config_dict,
-                new_decoder_architecture=new_decoder_architecture,
-                parallel_attention=parallel_attention,
-            )
-        else:
-            transformer_config = TransformerConfig(**transformer_config_dict)
+        transformer_config = TransformerConfig(**transformer_config_dict)
+
+        #pass mcore customization configs directly to mcore
+        mcore_customization_config_dict = self.cfg.get('mcore_customization_config', {})
+        for key,value in mcore_customization_config_dict.items():
+            setattr(transformer_config, key, value)
 
         return transformer_config
 
