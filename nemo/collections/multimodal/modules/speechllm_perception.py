@@ -18,8 +18,10 @@ from typing import Any, Dict, Optional
 import torch
 import torch.distributed
 import torch.nn as nn
+from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 
+from nemo.core import adapter_mixins
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
@@ -63,8 +65,45 @@ class AudioPerceptionModel(NeuralModule, Exportable):
             }
         )
 
+    def setup_adapter(self, cfg: DictConfig, model):
+        if 'adapter' not in cfg:
+            return
+        # Setup adapters
+        with open_dict(cfg.adapter):
+            # Extract the name of the adapter (must be give for training)
+            adapter_name = 'adapter'
+            adapter_type = cfg.adapter.pop("adapter_type")
+
+            # Resolve the config of the specified `adapter_type`
+            if adapter_type not in cfg.adapter.keys():
+                raise ValueError(
+                    f"Adapter type ({adapter_type}) config could not be found. Adapter setup config - \n"
+                    f"{OmegaConf.to_yaml(cfg.adapter)}"
+                )
+
+            adapter_type_cfg = cfg.adapter[adapter_type]
+            print(f"Found `{adapter_type}` config :\n" f"{OmegaConf.to_yaml(adapter_type_cfg)}")
+
+        model.add_adapter(adapter_name, cfg=adapter_type_cfg)
+        assert model.is_adapter_available()
+
+        # Disable all other adapters, enable just the current adapter.
+        model.set_enabled_adapters(enabled=False)  # disable all adapters prior to training
+        model.set_enabled_adapters(adapter_name, enabled=True)  # enable just one adapter by name
+
+        # First, Freeze all the weights of the model (not just encoder, everything)
+        model.freeze()
+        # Then, Unfreeze just the adapter weights that were enabled above (no part of encoder/decoder/joint/etc)
+        model.unfreeze_enabled_adapters()
+
     def __init__(self, cfg: DictConfig):
         super().__init__()
+        if 'adapter' in cfg:
+            # Update encoder adapter compatible config
+            adapter_metadata = adapter_mixins.get_registered_adapter(cfg.encoder._target_)
+            if adapter_metadata is not None:
+                cfg.encoder._target_ = adapter_metadata.adapter_class_path
+
         # Initialize components
         self.preprocessor = self.from_config_dict(cfg.preprocessor)
         self.encoder = self.from_config_dict(cfg.encoder)
@@ -74,6 +113,7 @@ class AudioPerceptionModel(NeuralModule, Exportable):
             self.spec_augmentation = None
         self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
         self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
+        self.setup_adapter(cfg, self.encoder)
 
     def maybe_preprocess_audio(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
