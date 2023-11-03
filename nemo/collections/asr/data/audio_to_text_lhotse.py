@@ -105,10 +105,7 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
     else:
         dloader_kwargs = dict(dataset=dataset, sampler=sampler)
     dloader = torch.utils.data.DataLoader(
-        **dloader_kwargs,
-        batch_size=None,
-        num_workers=num_workers,
-        pin_memory=config.get('pin_memory', False),
+        **dloader_kwargs, batch_size=None, num_workers=num_workers, pin_memory=config.get('pin_memory', False),
     )
 
     return dloader
@@ -132,13 +129,28 @@ def read_as_cutset(config) -> Tuple[CutSet, bool]:
     if use_nemo_manifest:
         # Read NeMo manifest -- use the right wrapper depending on tarred/non-tarred.
         if is_tarred:
-            cuts = CutSet(
-                LazyNeMoTarredIterator(
-                    config["manifest_filepath"],
-                    tar_paths=config["tarred_audio_filepaths"],
-                    shuffle_shards=config.get("shuffle", False),
+            if isinstance(config["manifest_filepath"], str):
+                # Single manifest / tar file
+                cuts = CutSet(
+                    LazyNeMoTarredIterator(
+                        config["manifest_filepath"],
+                        tar_paths=config["tarred_audio_filepaths"],
+                        shuffle_shards=config.get("shuffle", False),
+                    )
                 )
-            )
+            else:
+                # Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
+                # This is the format for multiple NeMo buckets.
+                cutsets = []
+                for (mp,), (tp,) in zip(config["manifest_filepath"], config["tarred_audio_filepaths"]):
+                    cutsets.append(
+                        CutSet(
+                            LazyNeMoTarredIterator(
+                                manifest_path=mp, tar_paths=tp, shuffle_shards=config.get("shuffle", False),
+                            )
+                        )
+                    )
+                cuts = CutSet.mux(*cutsets)  # TODO: handle weights=... for individual data sources
         else:
             cuts = CutSet(LazyNeMoIterator(config["manifest_filepath"], sampling_rate=config.get("sample_rate")))
     else:
@@ -258,13 +270,14 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
     ``LazyNeMoTarredIterator`` reads a NeMo tarred JSON manifest and converts it on the fly to an ``Iterable[Cut]``.
     It's used to create a ``lhotse.CutSet``.
 
-
-
     Currently, it requires (and exclusively supports) the following keys in NeMo manifests:
     - "audio_filepath"
     - "duration"
     - "text"
     - "shard_id"
+
+    Args ``manifest_path`` and ``tar_paths`` can be either a path/string to a single file, or a string in NeMo format
+    that indicates multiple paths (e.g. "[[data/bucket0/tarred_audio_paths.json],[data/bucket1/...]]").
 
     Example of CutSet with inter-shard shuffling enabled::
 
@@ -275,9 +288,7 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
         ... ))
     """
 
-    def __init__(
-        self, manifest_path: str | Path, tar_paths: str | Sequence[str | Path], shuffle_shards: bool = False,
-    ) -> None:
+    def __init__(self, manifest_path: str | Path, tar_paths: str | list, shuffle_shards: bool = False,) -> None:
         from cytoolz import groupby
 
         def strip_pipe(p):
