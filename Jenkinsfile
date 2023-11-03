@@ -228,7 +228,7 @@ pipeline {
             init_from_nemo_model=/home/TestData/asr/stt_en_fastconformer_transducer_large.nemo \
             model.tokenizer.update_tokenizer=False \
             model.optim.sched.warmup_steps=0 \
-            model.optim.sched.max_steps=3 \
+            +model.optim.sched.max_steps=3 \
             trainer.max_epochs=null \
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
