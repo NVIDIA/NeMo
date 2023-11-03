@@ -91,7 +91,7 @@ RUN pip install flash-attn
 # install numba for latest containers
 RUN pip install numba>=0.57.1
 
-RUN pip install -e git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers --src /opt
+RUN pip install -e git+https://github.com/CompVis/taming-transformers.git@3ba01b241669f5ade541ce990f7650a3b8f65318#egg=taming-transformers --src /opt
 
 RUN cd /tmp                                                                                                  && \
     git clone https://github.com/ashawkey/stable-dreamfusion.git                                             && \
