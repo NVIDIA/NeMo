@@ -141,7 +141,12 @@ def read_as_cutset(config) -> Tuple[CutSet, bool]:
             else:
                 # Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
                 # This is the format for multiple NeMo buckets.
+                # Note: we set "weights" here to be proportional to the number of utterances in each data source.
+                #       this ensures that we distribute the data from each source uniformly throughout each epoch.
+                #       Setting equal weights would exhaust the shorter data sources closer towatds the beginning
+                #       of an epoch (or over-sample it in the case of infinite CutSet iteration with .repeat()).
                 cutsets = []
+                weights = []
                 for (mp,), (tp,) in zip(config["manifest_filepath"], config["tarred_audio_filepaths"]):
                     cutsets.append(
                         CutSet(
@@ -150,7 +155,8 @@ def read_as_cutset(config) -> Tuple[CutSet, bool]:
                             )
                         )
                     )
-                cuts = CutSet.mux(*cutsets)  # TODO: handle weights=... for individual data sources
+                    weights.append(len(cutsets[-1]))
+                cuts = CutSet.mux(*cutsets, weights=weights)
         else:
             cuts = CutSet(LazyNeMoIterator(config["manifest_filepath"], sampling_rate=config.get("sample_rate")))
     else:
