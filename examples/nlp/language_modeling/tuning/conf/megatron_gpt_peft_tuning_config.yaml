@@ -96,7 +96,13 @@ model:
     vera_tuning:
       adapter_dim: 32
       weight_tying: True  # the in and out projections will be tied (and set to random normal)
-      sigma: 1.0
+      keep_frozen: 
+        - linear_in
+        - linear_out
+      layer_in_init_sigma: 1.0
+      layer_out_init_sigma: 1.0
+      dim_transform: "vector"
+      out_transform: "vector"
 
     lora_tuning:
       adapter_dim: 32

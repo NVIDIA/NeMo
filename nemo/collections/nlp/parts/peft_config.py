@@ -70,7 +70,11 @@ class VeraPEFTConfig(PEFTConfig):
             "in_features": cfg.hidden_size,
             "out_features": qkv_projection_size,
             "dim": vera_cfg.adapter_dim,
-            "sigma": vera_cfg.sigma,
+            "keep_frozen": vera_cfg.keep_frozen,
+            "dim_transform": vera_cfg.dim_transform,
+            "out_transform": vera_cfg.out_transform,
+            "layer_in_init_sigma": vera_cfg.layer_in_init_sigma,
+            "layer_out_init_sigma": vera_cfg.layer_out_init_sigma,
         }
         adapter_cfg = VeraAdapterConfig(**config_args)
         name_key_to_cfg = {

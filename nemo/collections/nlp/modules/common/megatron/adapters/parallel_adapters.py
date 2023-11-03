@@ -17,7 +17,7 @@
 import enum
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 import torch
 import torch.nn as nn
 import torch.nn.init as init
@@ -120,18 +120,23 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
         in_features: int,
         out_features: int,
         dim: int,
-        sigma: float,
+        keep_frozen: List[str] =["linear_in", "linear_out"],
+        layer_in_init_sigma: float = 1.0,
+        layer_out_init_sigma: float = 1.0,
+        dim_transform: Optional[str] = "vector",
+        out_transform: Optional[str] = "vector",
         model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
     ):
         super().__init__()
+        self.keep_frozen = keep_frozen
         self.linear_in = ColumnParallelLinear(
             in_features,
             dim,
             config=model_parallel_config,
             bias=False,
             gather_output=True,
-            init_method=init_method_normal(sigma),
+            init_method=init_method_normal(layer_in_init_sigma),
         )
         self.linear_out = ColumnParallelLinear(
             dim,
@@ -139,28 +144,62 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
             config=model_parallel_config,
             bias=False,
             gather_output=False,
-            init_method=init_method_normal(sigma),
+            init_method=init_method_normal(layer_out_init_sigma),
         )
-        self.dim_scalar = nn.Parameter(torch.ones(dim))
-        self.out_scalar = ColumnParallelLinear(
-            1,
-            out_features,
-            config=model_parallel_config,
-            bias=False,
-            gather_output=False,
-            init_method=init_method_const(0.0),
-        )
+        self.dim_transform = dim_transform
+        assert self.dim_transform in ["vector", "affine", None]
+        if self.dim_transform == "vector":
+            self.dim_scalar = nn.Linear(1, dim, bias=False)
+            self.dim_scalar.weight.data.fill_(1.)
+        elif self.dim_transform == "affine":
+            self.dim_scalar = nn.Linear(dim, dim, bias=True)
+            self.dim_scalar.weight.data.fill_(0.)
+            self.dim_scalar.bias.data.fill_(0.)
+            self.dim_scalar.weight.data.fill_diagonal_(1.0)
+        else:
+            self.dim_scalar = None
+
+        self.out_transform = out_transform
+        assert self.out_transform in ["vector", None]
+        if self.out_transform == "vector":
+            self.out_scalar = ColumnParallelLinear(
+                1,
+                out_features,
+                config=model_parallel_config,
+                bias=False,
+                gather_output=False,
+                init_method=init_method_const(0.0),
+            )
+        else:
+            self.out_scalar = None
 
     def adapter_unfreeze(self,):
+
         for p in self.linear_in.parameters():
-            p.requires_grad = False
+            if "linear_in" in self.keep_frozen:
+                p.requires_grad = False
+            else:
+                p.required_grad = True
 
         for p in self.linear_out.parameters():
-            p.requires_grad = False
+            if "linear_out" in self.keep_frozen:
+                p.requires_grad = False
+            else:
+                p.requires_grad = True
 
-        self.dim_scalar.requires_grad = True
-        for p in self.out_scalar.parameters():
-            p.requires_grad = True
+        if self.out_scalar:
+            for p in self.out_scalar.parameters():
+                if "out_scalar" in self.keep_frozen:
+                    p.requires_grad = False
+                else:
+                    p.requires_grad = True
+
+        if self.dim_scalar:
+            for p in self.dim_scalar.parameters():
+                if "dim_scalar" in self.keep_frozen:
+                    p.requires_grad = False
+                else:
+                    p.requires_grad = True
 
         return True
 
@@ -181,7 +220,14 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
     def forward(self, x):
 
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
-        x = x * self.dim_scalar[None, None, :]
+        if self.dim_transform == "vector":
+            x = (
+                x * self.dim_scalar.weight.squeeze()[None, None, :]
+            )  # (@adithyare) quick hack to get scaling/bias with tp>1
+        elif self.dim_transform == "affine":
+            x = self.dim_scalar(x)
+        else:
+            pass
         x, _ = self.linear_out(x)
         x = (
             x * self.out_scalar.weight.squeeze()[None, None, :]
@@ -195,7 +241,11 @@ class VeraAdapterConfig(AdapterConfig):
     in_features: int
     out_features: int
     dim: int
-    sigma: float
+    keep_frozen: List[str] =["linear_in", "linear_out"],
+    layer_in_init_sigma: float = 1.0,
+    layer_out_init_sigma: float = 1.0,
+    dim_transform: Optional[str] = "vector",
+    out_transform: Optional[str] = "vector",
     _target_: str = "{0}.{1}".format(VeraAdapter.__module__, VeraAdapter.__name__)
 
 
