@@ -121,8 +121,8 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
         out_features: int,
         dim: int,
         keep_frozen: List[str] =["linear_in", "linear_out"],
-        linear_in_init: str = "normal",
-        linear_out_init: str = "normal",
+        linear_in_init: str = "kaiming_uniform",
+        linear_out_init: str = "kaiming_uniform",
         linear_in_init_sigma: float = 1.0,
         linear_out_init_sigma: float = 1.0,
         dim_transform: Optional[str] = "vector",
@@ -132,23 +132,23 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
     ):
         super().__init__()
         self.keep_frozen = keep_frozen
-        assert linear_in_init in ["normal", "xavier", "zero"]
+        assert linear_in_init in ["normal", "xavier", "zero", "kaiming_normal", "kaiming_uniform"]
         self.linear_in = ColumnParallelLinear(
             in_features,
             dim,
             config=model_parallel_config,
             bias=False,
             gather_output=True,
-            init_method=self._get_init_fn(linear_in_init, linear_in_init_sigma),
+            init_method=self._get_init_fn(linear_in_init, linear_in_init_sigma * 2 / float(in_features)),
         )
-        assert linear_out_init in ["normal", "xavier", "zero"]
+        assert linear_out_init in ["normal", "xavier", "zero", "kaiming_normal", "kaiming_uniform"]
         self.linear_out = ColumnParallelLinear(
             dim,
             out_features,
             config=model_parallel_config,
             bias=False,
             gather_output=False,
-            init_method=self._get_init_fn(linear_out_init, linear_out_init_sigma),
+            init_method=self._get_init_fn(linear_out_init, linear_out_init_sigma * 2.0 / float(dim)),
         )
         self.dim_transform = dim_transform
         assert self.dim_transform in ["vector", "affine", None]
@@ -156,12 +156,12 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
             assert self.dim_transform == "vector"
         if self.dim_transform == "vector":
             self.dim_scalar = nn.Linear(1, dim, bias=False)
-            self.dim_scalar.weight.data.fill_(1.)
+            self.dim_scalar.weight.data.fill_(0.1)
         elif self.dim_transform == "affine":
             self.dim_scalar = nn.Linear(dim, dim, bias=True)
             self.dim_scalar.weight.data.fill_(0.)
             self.dim_scalar.bias.data.fill_(0.)
-            self.dim_scalar.weight.data.fill_diagonal_(1.0)
+            self.dim_scalar.weight.data.fill_diagonal_(0.1)
         else:
             self.dim_scalar = None
 
@@ -183,6 +183,10 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
     def _get_init_fn(self, init_method: str, val: float = 0.0):
         if init_method == 'xavier':
             init_fn = init.xavier_normal_
+        elif  init_method == 'kaiming_normal':
+            init_fn = init.kaiming_normal_
+        elif  init_method == 'kaiming_uniform':
+            init_fn = init.kaiming_uniform_
         elif init_method == 'normal':
             init_fn = init_method_normal(val)
         elif init_method == "const":
@@ -266,8 +270,8 @@ class VeraAdapterConfig(AdapterConfig):
     out_features: int
     dim: int
     keep_frozen: List[str] =["linear_in", "linear_out"],
-    linear_in_init: str = "normal",
-    linear_out_init: str = "normal",
+    linear_in_init: str = "kaiming_uniform",
+    linear_out_init: str = "kaiming_uniform",
     linear_in_init_sigma: float = 1.0,
     linear_out_init_sigma: float = 1.0,
     dim_transform: Optional[str] = "vector",
