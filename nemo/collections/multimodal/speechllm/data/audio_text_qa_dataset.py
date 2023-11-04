@@ -134,6 +134,8 @@ def _audio_text_collate_fn(
     contexts = [item['context_ids'] for item in batch]
     context_lengths = torch.LongTensor([item['context_length'] for item in batch])
     answers = [item['answer_ids'] for item in batch]
+    tts_contexts = [item['tts_context_ids'] for item in batch]
+    tts_contexts_lengths = [item['tts_context_ids'] for item in batch]
 
     loss_mask = [_build_loss_mask(item)[1:] for item in batch]
 
@@ -154,6 +156,9 @@ def _audio_text_collate_fn(
     contexts = torch.LongTensor(_collate_item(contexts, max_length=max_length, pad_id=text_pad_id))
     answers = torch.LongTensor(_collate_item(answers, max_length=max_length, pad_id=text_pad_id))
 
+    #tts_context_lengths = torch.LongTensor([len(x) for x in tts_contexts])
+    tts_contexts = torch.LongTensor(_collate_item(tts_contexts, max_length=max_length, pad_id=text_pad_id))
+
     batch = {
         'sample_ids': sample_ids,
         'audio_signal': audio_signal,
@@ -166,6 +171,8 @@ def _audio_text_collate_fn(
         'contexts': contexts,
         'context_lengths': context_lengths,
         'answers': answers,
+        'tts_context': tts_contexts,
+        #'tts_context_lengths': tts_context_lengths,
         'max_length': torch.LongTensor(max_length),
         'metadata': [x['metadata'] for x in batch],
     }
@@ -546,10 +553,14 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             output["audio_signal"] = torch.zeros([8000])
             # accomodates normalize_batch
             output["audio_length"] = torch.tensor(8000)
-            if sample.context:
-                output["context"] = self.tts_parser(sample.context)
-            else:
-                output["context"] = torch.zeros([8000])
+
+        if sample.tts_context and self.tts_parser:
+            output["tts_context_ids"] = self.tts_parser(sample.tts_context)
+            #output["tts_context_length"] = len(output["tts_context_ids"])
+        else:
+            output["tts_context_ids"] = torch.zeros([1])
+            #output["tts_context_lengths"] = 0
+
         text_data = self._process_example(context=sample.question, output=sample.answer)
 
         output.update(text_data)
