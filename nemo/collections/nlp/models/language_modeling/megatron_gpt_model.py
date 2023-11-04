@@ -227,7 +227,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
             )
         else:
-            fp8_enabled = cfg.get('fp8', False)
+            fp8_enabled = cfg.get('fp8', False) and int(os.getenv("NEMO_WITH_FP8_PARAMS", "1"))
             make_model_context = nullcontext
             if fp8_enabled and HAVE_TE:
                 fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
