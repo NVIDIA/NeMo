@@ -128,9 +128,11 @@ model:
       embedding_dim: 1024  # the size of the prompt encoder embeddings
       init_std: 0.023
 
+  # TTS model and optional enhancer to be used for samples with tts_context field available
   tts_model:
     model_path: None
     enhancer_path: None
+
   perception:
     modality_adapter: 
       _target_: nemo.collections.asr.modules.ConformerEncoder
