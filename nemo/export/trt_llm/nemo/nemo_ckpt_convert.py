@@ -88,8 +88,12 @@ def rename_key_dist_ckpt(old_key: str, layer: int):
             new_key = new_key.replace("self_attention", "attention")
         if "attention.linear_qkv.layer_norm_weight" in new_key:
             new_key = new_key.replace("attention.linear_qkv.layer_norm_weight", "input_layernorm.weight")
+        if "attention.linear_qkv.layer_norm_bias" in new_key:
+            new_key = new_key.replace("attention.linear_qkv.layer_norm_bias", "input_layernorm.bias")
         if "mlp.linear_fc1.layer_norm_weight" in new_key:
             new_key = new_key.replace("mlp.linear_fc1.layer_norm_weight", "post_attention_layernorm.weight")
+        if "mlp.linear_fc1.layer_norm_bias" in new_key:
+            new_key = new_key.replace("mlp.linear_fc1.layer_norm_bias", "post_attention_layernorm.bias")
 
     return new_key
 
