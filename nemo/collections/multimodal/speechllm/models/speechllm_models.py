@@ -101,13 +101,21 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
 
         if hasattr(self._cfg.model, 'tts_model'):
-            if self._cfg.model.tts_model.get("model_path", False):
-                self.tts_model = FastPitchModel.restore_from(self._cfg.model.tts_model.model_path, map_location="cpu").eval()
+            tts_model_path = self._cfg.model.tts_model.get("model_path", False)
+            enhancer_model_path = self._cfg.model.tts_model.get("enhancer_path", False)
+            if tts_model_path:
+                if tts_model_path.endswith(".nemo"):
+                    self.tts_model = FastPitchModel.restore_from(tts_model_path, map_location="cpu")
+                else:
+                    self.tts_model = FastPitchModel.from_pretrained(model_name=tts_model_path, map_location="cpu")
+                self.tts_model.eval()
                 self.tts_enhancer_model = None
-                if self._cfg.model.tts_model.get("enhancer_path", False):
-                    self.tts_enhancer_model = SpectrogramEnhancerModel.restore_from(
-                        self._cfg.model.tts_model.enhancer_path, map_location="cpu"
-                    ).eval()
+                if enhancer_model_path:
+                    if enhancer_model_path.endswith(".nemo"):
+                        self.tts_enhancer_model = SpectrogramEnhancerModel.restore_from(enhancer_model_path, map_location="cpu")
+                    else:
+                        self.tts_enhancer_model = SpectrogramEnhancerModel.from_pretrained(model_name=enhancer_model_path, map_location="cpu")
+                    self.tts_enhancer_model.eval()
                 # TODO: limit speakers by reading them from a file, needed to separate test and validation/test speakers
                 self.speakers = range(0, self.tts_model.cfg.n_speakers)
         else:
