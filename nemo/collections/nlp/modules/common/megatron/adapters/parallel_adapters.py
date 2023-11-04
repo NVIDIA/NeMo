@@ -240,18 +240,22 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
     def forward(self, x):
 
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
-        if self.dim_transform == "vector":
-            x = (
-                x * self.dim_scalar.weight.squeeze()[None, None, :]
-            )  # (@adithyare) quick hack to get scaling/bias with tp>1
-        elif self.dim_transform == "affine":
-            x = self.dim_scalar(x)
-        else:
-            pass
+        if self.dim_scalar:
+            if self.dim_transform == "vector":
+                x = (
+                    x * self.dim_scalar.weight.squeeze()[None, None, :]
+                )  # (@adithyare) quick hack to get scaling/bias with tp>1
+            elif self.dim_transform == "affine":
+                x = self.dim_scalar(x)
+            else:
+                pass
+
         x, _ = self.linear_out(x)
-        x = (
-            x * self.out_scalar.weight.squeeze()[None, None, :]
-        )  # (@adithyare) quick hack to get scaling/bias with tp>1
+
+        if self.out_scalar:
+            x = (
+                x * self.out_scalar.weight.squeeze()[None, None, :]
+            )  # (@adithyare) quick hack to get scaling/bias with tp>1
 
         return x
 
