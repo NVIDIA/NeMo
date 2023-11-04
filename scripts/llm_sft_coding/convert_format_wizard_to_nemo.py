@@ -1,7 +1,8 @@
+import json
 import random
+
 from datasets import load_dataset
 from tqdm import tqdm
-import json
 
 output_manifest = "./wizard_evolved_80k.json"
 

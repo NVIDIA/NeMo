@@ -156,7 +156,7 @@ def _audio_text_collate_fn(
     contexts = torch.LongTensor(_collate_item(contexts, max_length=max_length, pad_id=text_pad_id))
     answers = torch.LongTensor(_collate_item(answers, max_length=max_length, pad_id=text_pad_id))
 
-    #tts_context_lengths = torch.LongTensor([len(x) for x in tts_contexts])
+    # tts_context_lengths = torch.LongTensor([len(x) for x in tts_contexts])
     tts_contexts = torch.LongTensor(_collate_item(tts_contexts, max_length=max_length, pad_id=text_pad_id))
 
     batch = {
@@ -238,7 +238,7 @@ class TextProcessing(object):
         end_string: Optional[str] = None,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
-        tts_parser=None
+        tts_parser=None,
     ):
         self.input_key = input_key
         self.output_key = output_key
@@ -476,7 +476,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
-        tts_parser=None
+        tts_parser=None,
     ):
         super().__init__(
             tokenizer=tokenizer,
@@ -556,10 +556,10 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
 
         if sample.tts_context and self.tts_parser:
             output["tts_context_ids"] = self.tts_parser(sample.tts_context)
-            #output["tts_context_length"] = len(output["tts_context_ids"])
+            # output["tts_context_length"] = len(output["tts_context_ids"])
         else:
             output["tts_context_ids"] = torch.zeros([1])
-            #output["tts_context_lengths"] = 0
+            # output["tts_context_lengths"] = 0
 
         text_data = self._process_example(context=sample.question, output=sample.answer)
 
@@ -1261,7 +1261,7 @@ def get_aqa_dataset_from_config(
     sep_id: Optional[int] = None,
     answer_only_loss: bool = True,
     virtual_tokens: int = 0,
-    tts_parser=None
+    tts_parser=None,
 ):
     if isinstance(config.manifest_filepath, str):
         manifest_filepath = config.manifest_filepath.split(',')

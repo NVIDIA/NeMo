@@ -15,8 +15,8 @@
 import itertools
 import json
 import os
-from typing import Dict, List, Optional, Union
 import random
+from typing import Dict, List, Optional, Union
 
 import sacrebleu
 import torch
@@ -24,9 +24,9 @@ from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
 
 from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.parts.features import clean_spectrogram_batch, normalize_batch
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.multimodal.speechllm.data.audio_text_qa_dataset import (
@@ -52,12 +52,10 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.text_generation_utils import get_computeprob_response
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, PEFTSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
+from nemo.core.classes import typecheck
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.utils import AppState, logging, model_utils
-
-from nemo.collections.asr.parts.features import clean_spectrogram_batch, normalize_batch
-from nemo.core.classes import typecheck
-
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
@@ -112,9 +110,13 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 self.tts_enhancer_model = None
                 if enhancer_model_path:
                     if enhancer_model_path.endswith(".nemo"):
-                        self.tts_enhancer_model = SpectrogramEnhancerModel.restore_from(enhancer_model_path, map_location="cpu")
+                        self.tts_enhancer_model = SpectrogramEnhancerModel.restore_from(
+                            enhancer_model_path, map_location="cpu"
+                        )
                     else:
-                        self.tts_enhancer_model = SpectrogramEnhancerModel.from_pretrained(model_name=enhancer_model_path, map_location="cpu")
+                        self.tts_enhancer_model = SpectrogramEnhancerModel.from_pretrained(
+                            model_name=enhancer_model_path, map_location="cpu"
+                        )
                     self.tts_enhancer_model.eval()
                 # TODO: limit speakers by reading them from a file, needed to separate test and validation/test speakers
                 self.speakers = range(0, self.tts_model.cfg.n_speakers)
@@ -330,19 +332,24 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         num_audios = audio_batch.get("num_audios", None)
         context_start_idx = audio_batch.get("context_start_idx", None)
 
-        #TODO: how to properly detect that current sample does not have audio (how to detect fake audio)
+        # TODO: how to properly detect that current sample does not have audio (how to detect fake audio)
         if self.tts_model is not None and audio_batch['tts_contexts'].size()[1] > 1:
             src_ids = audio_batch['tts_contexts']
             with torch.no_grad():
                 speaker_id = random.choice(self.speakers)
                 speaker = torch.tensor([speaker_id]).to(src_ids.device)
-                input_signal, input_signal_length, *_ = self.tts_model(text=src_ids, durs=None, pitch=None, speaker=speaker, pace=1.0)
+                input_signal, input_signal_length, *_ = self.tts_model(
+                    text=src_ids, durs=None, pitch=None, speaker=speaker, pace=1.0
+                )
                 if self.enhancer_model is not None:
                     with typecheck.disable_checks():
-                        input_signal = self.enhancer_model.forward(input_spectrograms=input_signal, lengths=input_signal_length)
-                #input_signal = normalize_batch(input_signal, input_signal_length, self.perception._cfg.preprocessor["normalize"])[0]
-                input_signal = clean_spectrogram_batch(input_signal, input_signal_length, fill_value=self.perception.preprocessor.featurizer.pad_to)
-
+                        input_signal = self.enhancer_model.forward(
+                            input_spectrograms=input_signal, lengths=input_signal_length
+                        )
+                # input_signal = normalize_batch(input_signal, input_signal_length, self.perception._cfg.preprocessor["normalize"])[0]
+                input_signal = clean_spectrogram_batch(
+                    input_signal, input_signal_length, fill_value=self.perception.preprocessor.featurizer.pad_to
+                )
 
         # [b, t, c]
         encoded, encoded_len = self.perception(
@@ -510,7 +517,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 sep_id=self.sep_id,
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
                 virtual_tokens=self.virtual_tokens,
-                tts_parser=self.tts_model.parser if self.tts_model else None
+                tts_parser=self.tts_model.parser if self.tts_model else None,
             )
 
     def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
