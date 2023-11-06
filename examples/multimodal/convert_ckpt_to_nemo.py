@@ -32,7 +32,7 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.multimodal.models.foundation.clip import MegatronCLIPModel
+from nemo.collections.multimodal.models.vision_language_foundation.clip import MegatronCLIPModel
 from nemo.collections.multimodal.models.generative.controlnet.controlnet import MegatronControlNet
 from nemo.collections.multimodal.models.generative.dreambooth import MegatronDreamBooth
 from nemo.collections.multimodal.models.generative.imagen import MegatronImagen

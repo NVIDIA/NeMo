@@ -15,15 +15,14 @@
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.multimodal.models.foundation.megatron_nsfw_clip_models import MegatronContentFilteringModel
+from nemo.collections.multimodal.models.vision_language_foundation.clip import MegatronCLIPModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="megatron_nsfw_config")
+@hydra_runner(config_path="conf", config_name="megatron_clip_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
@@ -41,19 +40,9 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    model = MegatronContentFilteringModel.restore_from(
-        restore_path=cfg.model.restore_from_path,
-        trainer=trainer,
-        override_config_path=cfg.model,
-        save_restore_connector=NLPSaveRestoreConnector(),
-        strict=False,
-    )
+    model = MegatronCLIPModel(cfg.model, trainer)
 
     trainer.fit(model)
-
-    if "save_path" in cfg.model:
-        logging.info(f"Saving model to path: {cfg.model.save_path}")
-        model.save_to(cfg.model.save_path)
 
 
 if __name__ == '__main__':
