@@ -4,7 +4,10 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch._utils import _flatten_dense_tensors, _take_tensors, _unflatten_dense_tensors
 
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import TORCH_VERSION, digit_version
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import (
+    TORCH_VERSION,
+    digit_version,
+)
 
 from .registry import MODULE_WRAPPERS
 from .scatter_gather import scatter_kwargs

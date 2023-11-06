@@ -1,7 +1,11 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os.path as osp
 
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import TORCH_VERSION, digit_version
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import (
+    TORCH_VERSION,
+    digit_version,
+)
+
 from ...dist_utils import master_only
 from ..hook import HOOKS
 from .base import LoggerHook

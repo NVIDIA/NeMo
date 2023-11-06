@@ -9,7 +9,10 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     constant_init,
 )
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.ops.deform_conv import deform_conv2d
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import TORCH_VERSION, digit_version
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import (
+    TORCH_VERSION,
+    digit_version,
+)
 
 
 @CONV_LAYERS.register_module(name='SAC')

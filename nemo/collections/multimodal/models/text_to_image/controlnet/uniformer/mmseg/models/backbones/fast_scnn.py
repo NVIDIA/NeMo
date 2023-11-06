@@ -8,7 +8,9 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     constant_init,
     kaiming_init,
 )
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.models.decode_heads.psp_head import PPM
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.models.decode_heads.psp_head import (
+    PPM,
+)
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
 
 from ..builder import BACKBONES

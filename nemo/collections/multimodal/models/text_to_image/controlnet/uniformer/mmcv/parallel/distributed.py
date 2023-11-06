@@ -3,7 +3,10 @@ import torch
 from torch.nn.parallel.distributed import DistributedDataParallel, _find_tensors
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv import print_log
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import TORCH_VERSION, digit_version
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import (
+    TORCH_VERSION,
+    digit_version,
+)
 
 from .scatter_gather import scatter_kwargs
 
