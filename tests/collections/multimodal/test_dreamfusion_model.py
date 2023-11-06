@@ -17,7 +17,7 @@ from hydra.utils import get_class, instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.multimodal.models.generative.nerf import DreamFusion
+from nemo.collections.multimodal.models.text_to_3d.nerf import DreamFusion
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
