@@ -1046,6 +1046,9 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
                 cross_attention_prior[
                     i, context_tokens_len + question_tokens_len:context_tokens_len + question_tokens_len+input_ids_len-1, context_tokens_len + start_of_question_offset : context_tokens_len + question_tokens_len - end_of_question_offset
                 ] = cross_attention_question_prior
+                # cross_attention_prior[
+                #     i, context_tokens_len + start_of_question_offset : context_tokens_len + question_tokens_len - end_of_question_offset, context_tokens_len + question_tokens_len:context_tokens_len + question_tokens_len+input_ids_len-1
+                # ] = cross_attention_question_prior.T
         # Using causal attention mask for whole input
         batch_size = len(decoder_input_list)
         attention_mask = torch.tril(torch.ones((batch_size, max_decoder_input_len_1, max_decoder_input_len_1))).view(
@@ -1053,7 +1056,11 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         )
 
         # Convert attention mask from float to bool
-        attention_mask = attention_mask < 0.5
+        attention_mask = attention_mask >= 0.5  # Currently not used, not sure if correct either
+        # print(attention_mask)
+        # print(torch.max(torch.sum(cross_attention_prior, 2)))
+        # print(torch.max(torch.sum(attention_mask[:,0,:,:] * cross_attention_prior, 2)))
+        # import ipdb; ipdb.set_trace()
 
 
         decoder_input = torch.stack(decoder_input_list)
@@ -1061,7 +1068,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         data_dict = {
             "tokens": decoder_input,
             "position_ids": position_ids,
-            "attention_mask": attention_mask,
+            "attention_mask": None,
             "labels": torch.stack(decoder_labels_list),
             "speech_mask": decoder_mask,  # For TTS, can just be loss_mask since answer will always be speech
             "loss_mask": decoder_mask,  # Mask out context and question and padding

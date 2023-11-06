@@ -874,7 +874,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 # TODO: @eharper can we add this to mcore?
                 forward_args.pop('loss_mask')
-            (output_tensor, logits), attention_probs_list = model(**forward_args)
+            (output_tensor, logits), attention_probs_list, prior = model(**forward_args)
 
             if self.trainer.global_step % self.train_check_interval == 0 and batch['speech_mask'][0].sum() != 0 and self.should_log and (not validation_step):
                 # Logs every if the first item in the batch is speech
@@ -1032,7 +1032,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
                 extra_arg['speech_mask'] = speech_mask
-            output_tensor, attention_probs_list = model(tokens, position_ids, attention_mask, **extra_arg)
+            output_tensor, attention_, prior = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.
             if self.inference_params:
@@ -2056,7 +2056,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                 # TODO: @eharper can we add this to mcore?
                 forward_args.pop('loss_mask')
 
-            (_, logits), attention_probs_list = self.model(**forward_args)
+            (_, logits), attention_probs_list, prior = self.model(**forward_args)
             layerwise_metrics = {}
             loss_total = 0.0
             all_preds = []
@@ -2138,29 +2138,30 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                         self.global_step,
                         dataformats="HWC",
                     )
-
-                    # phoneme_seq = [question_start, start]
-                    # prior = batch['attention_prior'][0,:,:].T
-                    # prior_data = plot_alignment_to_numpy(
-                    #     prior.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1, vmin=0., vmax=1.
-                    # )
-                    # self.logger.experiment.add_image(
-                    #     f"Attention Prior",
-                    #     prior_data,
-                    #     self.global_step,
-                    #     dataformats="HWC",
-                    # )
-                    # phoneme_seq += question_ids
-                    # prior = prior[question_start:start, start:start+length_of_speech]
-                    # prior_data = plot_alignment_to_numpy(
-                    #     prior.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=2, vmin=0., vmax=1.
-                    # )
-                    # self.logger.experiment.add_image(
-                    #     f"Attention Prior Sliced",
-                    #     prior_data,
-                    #     self.global_step,
-                    #     dataformats="HWC",
-                    # )
+                    if prior is not None:
+                        phoneme_seq = [question_start, start]
+                        # prior = batch['attention_prior'][0,:,:].T
+                        prior = torch.exp(prior[0,0,:,:].T)
+                        prior_data = plot_alignment_to_numpy(
+                            prior.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=1, vmin=0., vmax=1.
+                        )
+                        self.logger.experiment.add_image(
+                            f"Attention Prior",
+                            prior_data,
+                            self.global_step,
+                            dataformats="HWC",
+                        )
+                        # phoneme_seq += question_ids
+                        # prior = prior[question_start:start, start:start+length_of_speech]
+                        # prior_data = plot_alignment_to_numpy(
+                        #     prior.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=2, vmin=0., vmax=1.
+                        # )
+                        # self.logger.experiment.add_image(
+                        #     f"Attention Prior Sliced",
+                        #     prior_data,
+                        #     self.global_step,
+                        #     dataformats="HWC",
+                        # )
 
                 # Only for the first batch, log TF and autoregressive inference
 

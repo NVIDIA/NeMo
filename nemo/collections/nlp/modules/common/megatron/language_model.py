@@ -838,17 +838,23 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 encoder_self_attention_relative_position_bias = None
             else:  # still using prior
                 logging.debug("Using prior")
-                prior_strength = 0.5
+                prior_strength = self.attn_prior_starting_strength
                 if global_step > self.attn_prior_scaledown_start_step:  # In scaledown region
+                    logging.debug("Scaling down prior")
                     total_annealing_steps = self.attn_prior_end_step - self.attn_prior_scaledown_start_step
                     curr_annealing_step = global_step - self.attn_prior_scaledown_start_step
                     prior_strength = (1. - curr_annealing_step / total_annealing_steps) * prior_strength
-                attention_prior = attention_prior * prior_strength + 1 - prior_strength
-                logging.debug(f"Modifying setup with strength: {prior_strength}")
+                attn_len = attention_prior.shape[-1]
+                modifier = (1-prior_strength)
+                modifier = (attn_len ** modifier - 1) / (attn_len - 1)
+                attention_prior = attention_prior + (1-attention_prior) * modifier
+                logging.debug(f"Modifying setup with strength: {prior_strength} and modifier: {modifier}")
+                # attention_prior = torch.log_softmax(attention_prior+1e-8, -2)
                 encoder_self_attention_relative_position_bias = attention_prior.unsqueeze(1).repeat(
                     1, num_attention_heads, 1, 1
                 )
                 encoder_self_attention_relative_position_bias = torch.log(encoder_self_attention_relative_position_bias + 1e-8)
+                encoder_self_attention_relative_position_bias = torch.log_softmax(encoder_self_attention_relative_position_bias, dim=-1)
 
         # import ipdb; ipdb.set_trace()
         # encoder.
@@ -882,9 +888,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         # similarity between two sequences by average pooling
         if not self.add_decoder or output_enc_hidden_only:
             if self.add_pooler and self.post_process:
-                return (encoder_output, pooled_output), attention_probs_list
+                return (encoder_output, pooled_output), attention_probs_list, encoder_self_attention_relative_position_bias
             else:
-                return (encoder_output), attention_probs_list
+                return (encoder_output), attention_probs_list, encoder_self_attention_relative_position_bias
 
         # Decoder Embedding
         dec_embedding_output = self.embedding(dec_input_ids, dec_position_ids)

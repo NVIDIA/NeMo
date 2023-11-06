@@ -371,7 +371,7 @@ class GPTModel(MegatronModule):
         if return_logits is None:
             return_logits = encoder_input is not None
 
-        lm_output, attention_probs_list = self.language_model(
+        lm_output, attention_probs_list, prior = self.language_model(
             input_ids,
             position_ids,
             attention_mask,
@@ -424,7 +424,7 @@ class GPTModel(MegatronModule):
                     raise NotImplementedError("No implementation for speechllm")
                 return res if logits is None else res, logits
             else:
-                return post_process_result, attention_probs_list
+                return post_process_result, attention_probs_list, prior
         else:
             if attention_probs_list is not None:
                 raise NotImplementedError("No implementation for speechllm")

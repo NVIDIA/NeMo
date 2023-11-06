@@ -638,12 +638,13 @@ def check_resume(
         trainer.ckpt_path = str(checkpoint)
         logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
+    trainer.strategy.barrier()
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
         files_to_move = []
         if Path(log_dir).exists():
             for child in Path(log_dir).iterdir():
-                if child.is_file():
+                if child.is_file() and not child.name.startswith("events.out.tfevents"):
                     files_to_move.append(child)
 
         if len(files_to_move) > 0:
