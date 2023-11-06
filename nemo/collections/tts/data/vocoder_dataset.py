@@ -25,8 +25,6 @@ import webdataset as wd
 from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.tts.parts.preprocessing.feature_processors import FeatureProcessor
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     filter_dataset_by_duration,
@@ -82,6 +80,7 @@ def audio_collate_fn(batch: List[dict]):
     }
 
     return batch_dict
+
 
 def audio_collate_fn(batch: List[dict]):
     dataset_name_list = []
