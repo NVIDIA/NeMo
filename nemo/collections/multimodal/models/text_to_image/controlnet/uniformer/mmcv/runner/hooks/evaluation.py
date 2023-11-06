@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.fileio import FileClient
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import is_seq_of
+
 from .hook import Hook
 from .logger import LoggerHook
 
@@ -118,7 +119,9 @@ class EvalHook(Hook):
         self.initial_flag = True
 
         if test_fn is None:
-            from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.engine import single_gpu_test
+            from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.engine import (
+                single_gpu_test,
+            )
 
             self.test_fn = single_gpu_test
         else:
@@ -441,7 +444,9 @@ class DistEvalHook(EvalHook):
     ):
 
         if test_fn is None:
-            from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.engine import multi_gpu_test
+            from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.engine import (
+                multi_gpu_test,
+            )
 
             test_fn = multi_gpu_test
 

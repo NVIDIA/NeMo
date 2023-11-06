@@ -5,7 +5,10 @@ import warnings
 import torch
 import torch.nn as nn
 
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv import ConfigDict, deprecated_api_warning
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv import (
+    ConfigDict,
+    deprecated_api_warning,
+)
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import (
     Linear,
     build_activation_layer,

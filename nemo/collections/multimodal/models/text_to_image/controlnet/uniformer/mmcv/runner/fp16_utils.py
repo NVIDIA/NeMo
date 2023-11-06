@@ -8,7 +8,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import TORCH_VERSION, digit_version
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import (
+    TORCH_VERSION,
+    digit_version,
+)
+
 from .dist_utils import allreduce_grads as _allreduce_grads
 
 try:
