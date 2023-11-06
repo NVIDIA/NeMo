@@ -33,8 +33,8 @@ from nemo.collections.multimodal.data.kosmos.kosmos_dataset import MAX_NUM_IMAGE
 from nemo.collections.multimodal.data.kosmos.kosmos_dataset import (
     build_train_valid_datasets as build_media_train_valid_datasets,
 )
-from nemo.collections.multimodal.models.vision_language_foundation.clip import CLIPVisionTransformer
 from nemo.collections.multimodal.models.multimodal_llm.kosmos.perceiver_resampler import PerceiverResampler
+from nemo.collections.multimodal.models.vision_language_foundation.clip import CLIPVisionTransformer
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
