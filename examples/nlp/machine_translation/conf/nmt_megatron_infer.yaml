@@ -14,3 +14,41 @@ target_lang: null
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0
+
+# setting tgt_language during inference. It can be set as a list:
+# tgt_language:
+#   - en
+#   - de
+tgt_language: 
+  - 'cs'
+  - 'da'
+  - 'de'
+  - 'el'
+  - 'es'
+  - 'fi'
+  - 'fr'
+  - 'hu'
+  - 'it'
+  - 'lt'
+  - 'lv'
+  - 'nl'
+  - 'no'
+  - 'pl'
+  - 'pt'
+  - 'ro'
+  - 'ru'
+  - 'sk'
+  - 'sv'
+  - 'zh'
+  - 'ja'
+  - 'hi'
+  - 'ko'
+  - 'et'
+  - 'sl'
+  - 'bg'
+  - 'uk'
+  - 'hr'
+  - 'ar'
+  - 'vi'
+  - 'tr'
+  - 'id'  

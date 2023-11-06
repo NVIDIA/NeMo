@@ -34,6 +34,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
+from omegaconf import OmegaConf, open_dict
 
 try:
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
@@ -46,7 +47,6 @@ except (ImportError, ModuleNotFoundError):
 
 @hydra_runner(config_path="conf", config_name="nmt_megatron_infer")
 def main(cfg) -> None:
-
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     assert (
@@ -73,9 +73,25 @@ def main(cfg) -> None:
     if cfg.model_file is not None:
         if not os.path.exists(cfg.model_file):
             raise ValueError(f"Model file {cfg.model_file} does not exist")
+
+        # getting the model's config and updating tgt_language if needed
+        pretrained_cfg = MegatronNMTModel.restore_from(cfg.model_file, trainer=trainer, return_config=True)
+
+        # modifying the config
+        OmegaConf.set_struct(pretrained_cfg, True)
+        with open_dict(pretrained_cfg):
+            if hasattr(cfg, 'tgt_language') and cfg.tgt_language is not None:
+                pretrained_cfg.tgt_language = cfg.tgt_language
+
         model = MegatronNMTModel.restore_from(
-            restore_path=cfg.model_file, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
+            restore_path=cfg.model_file,
+            trainer=trainer,
+            save_restore_connector=NLPSaveRestoreConnector(),
+            override_config_path=pretrained_cfg,
         )
+        
+        print(model.tgt_language)
+
     elif cfg.checkpoint_dir is not None:
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
@@ -92,13 +108,19 @@ def main(cfg) -> None:
             src_text.append(line.strip())
             if len(src_text) == cfg.batch_size:
                 translations = model.translate(
-                    text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang,
+                    text=src_text,
+                    source_lang=cfg.source_lang,
+                    target_lang=cfg.target_lang,
                 )
                 for translation in translations:
                     tgt_f.write(translation + "\n")
                 src_text = []
         if len(src_text) > 0:
-            translations = model.translate(text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang,)
+            translations = model.translate(
+                text=src_text,
+                source_lang=cfg.source_lang,
+                target_lang=cfg.target_lang,
+            )
             for translation in translations:
                 tgt_f.write(translation + "\n")
 
