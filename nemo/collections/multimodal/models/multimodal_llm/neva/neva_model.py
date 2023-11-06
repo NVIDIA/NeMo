@@ -57,7 +57,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
-    MMProjectorAdapterConfig,
+    MultimodalProjectorAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding, get_language_model
@@ -169,7 +169,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         self.use_im_start_end = use_im_start_end
         self.vision_select_layer = vision_select_layer
         self.media = None
-        self.set_accepted_adapter_types([MMProjectorAdapterConfig._target_])
+        self.set_accepted_adapter_types([MultimodalProjectorAdapterConfig._target_])
 
     def set_media(self, media):
         self.media = media
@@ -208,7 +208,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         vision_x = rearrange(vision_x, "(b T F) v d -> b T F v d", b=b, T=T, F=F)
         vision_x = vision_x[:, :, :, self.class_token_length :]
         assert self.is_adapter_available(), "Cannot find multimodal vision adapter!"
-        vision_connector = self.get_adapter_module(AdapterName.MM_PROJECTOR_ADAPTER)
+        vision_connector = self.get_adapter_module(AdapterName.MULTIMODAL_PROJECTOR_ADAPTER)
         vision_x = vision_connector(vision_x)
         return vision_x
 
@@ -486,8 +486,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def init_neva_adapter(self):
         self.base_keys = self._get_all_keys()
-        adapter_name = AdapterName.MM_PROJECTOR_ADAPTER
-        adapter_cfg = MMProjectorAdapterConfig(
+        adapter_name = AdapterName.MULTIMODAL_PROJECTOR_ADAPTER
+        adapter_cfg = MultimodalProjectorAdapterConfig(
             adapter_type=self.cfg.mm_cfg.get("mm_mlp_adapter_type", "linear"),
             in_features=self.cfg.mm_cfg.vision_encoder.hidden_size,
             out_features=self.cfg.hidden_size,

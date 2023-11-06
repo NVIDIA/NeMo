@@ -67,7 +67,7 @@ class AdapterName(str, enum.Enum):
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
-    MM_PROJECTOR_ADAPTER = "mm_projector_adapter"
+    MULTIMODAL_PROJECTOR_ADAPTER = "mm_projector_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
@@ -572,7 +572,7 @@ class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)
 
 
-class MMProjectorAdapter(nn.Module, AdapterModuleUtil):
+class MultimodalProjectorAdapter(nn.Module, AdapterModuleUtil):
     def __init__(self, adapter_type: str, in_features: int, out_features: int, bias: bool, **kwargs) -> None:
         super().__init__()
 
@@ -597,9 +597,9 @@ class MMProjectorAdapter(nn.Module, AdapterModuleUtil):
 
 
 @dataclass
-class MMProjectorAdapterConfig:
+class MultimodalProjectorAdapterConfig:
     adapter_type: str
     in_features: int
     out_features: int
     bias: bool
-    _target_: str = "{0}.{1}".format(MMProjectorAdapter.__module__, MMProjectorAdapter.__name__)
+    _target_: str = "{0}.{1}".format(MultimodalProjectorAdapter.__module__, MultimodalProjectorAdapter.__name__)
