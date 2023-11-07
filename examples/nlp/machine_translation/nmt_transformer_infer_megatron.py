@@ -90,8 +90,6 @@ def main(cfg) -> None:
             override_config_path=pretrained_cfg,
         )
         
-        print(model.tgt_language)
-
     elif cfg.checkpoint_dir is not None:
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
