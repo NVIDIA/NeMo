@@ -1,6 +1,6 @@
 import logging
 
-from nemo.collections.multimodal.models.text_to_3d.nerf.base import NerfModelBase
+from nemo.collections.multimodal.models.nerf.base import NerfModelBase
 
 
 class Txt2NerfBase(NerfModelBase):
