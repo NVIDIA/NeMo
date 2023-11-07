@@ -38,10 +38,10 @@ from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
+from nemo.collections.nlp.parts.utils_funcs import activation_to_func
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.collections.nlp.parts.utils_funcs import activation_to_func
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -81,7 +81,7 @@ class MegatronBaseModel(NLPModel):
       with O2 level optimizations and/or model parallelism.
     - Perform gradient clipping: `grad_clip_pl_default` triggers
       the PyTorch Lightning default implementation, `with_distributed_adam` triggers
-      the distributed optimizer's implementation, `megatron_amp_o2` triggers gradient clipping on the main grads,
+      the distributed optimizer's implementation, `megatron_amp_O2` triggers gradient clipping on the main grads,
       and otherwise gradient clipping is performed on the model grads.
 
     """
@@ -125,6 +125,7 @@ class MegatronBaseModel(NLPModel):
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
+        self.with_megatron_fused_adam = cfg.optim.get('name') == 'megatron_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
@@ -279,7 +280,7 @@ class MegatronBaseModel(NLPModel):
 
         if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
             tokens_list = omegaconf.OmegaConf.to_object(self._cfg.tokenizer.additional_special_tokens)
-            self.tokenizer.add_special_tokens({'additional_special_tokens': tokens_list})
+            self.tokenizer.add_special_tokens(tokens_list)
 
     def on_train_start(self) -> None:
         super().on_train_start()
@@ -438,6 +439,10 @@ class MegatronBaseModel(NLPModel):
         if clip_val <= 0:
             return
 
+        if self.with_megatron_fused_adam:
+            # Gradient clipping is done in optimizer step
+            return
+
         if self.grad_clip_pl_default:
             # use the default behavior
             return super().configure_gradient_clipping(*args, **kwargs)
@@ -445,7 +450,7 @@ class MegatronBaseModel(NLPModel):
         if self.with_distributed_adam:
             grad_norm = clip_grad_norm_distributed_optimizer(self._optimizer, clip_val)
         else:
-            if self.megatron_amp_o2:
+            if self.megatron_amp_O2:
                 # grep fp32 master parameters for gradient clipping
                 parameters = self._optimizer.get_parameters_with_grad()
             else:
@@ -565,7 +570,7 @@ class MegatronBaseModel(NLPModel):
 
             # Match param allgather with model dtype
             model_dtype = torch.float32
-            if self.megatron_amp_o2 and hasattr(self, 'autocast_dtype'):
+            if self.megatron_amp_O2 and hasattr(self, 'autocast_dtype'):
                 model_dtype = self.autocast_dtype
             optim_kwargs['param_sync_dtype'] = model_dtype
 
@@ -584,7 +589,7 @@ class MegatronBaseModel(NLPModel):
         self.setup_optimization()
 
         # Wrap the baseline optimizer with the optimizer class with master parameters
-        if self.megatron_amp_o2 and not self.with_distributed_adam and self._optimizer is not None:
+        if self.megatron_amp_O2 and not self.with_distributed_adam and self._optimizer is not None:
             if self.torch_dtype == torch.bfloat16:
                 fp32_grad_accum = True
                 contiguous_grad_bucket = True
@@ -598,8 +603,12 @@ class MegatronBaseModel(NLPModel):
 
             # if using tensor parallel only, we automatically use async grad all-reduce
             # if using pipeline parallel or sequence parallel or gradient accumulation fusion, then we disable it
-            if self.cfg.get('pipeline_model_parallel_size', 1) == 1 and not (
-                self.cfg.get('sequence_parallel', False) or self.cfg.get('gradient_accumulation_fusion', False)
+            if (
+                self.cfg.get('pipeline_model_parallel_size', 1) == 1
+                and not (
+                    self.cfg.get('sequence_parallel', False) or self.cfg.get('gradient_accumulation_fusion', False)
+                )
+                and self.cfg.get('async_grad_allreduce', True)
             ):
                 async_grad_allreduce = True
             else:
