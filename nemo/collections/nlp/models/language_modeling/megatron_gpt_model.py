@@ -1499,22 +1499,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
 
-        # create a dictionary copy of the model config
-        cfg = OmegaConf.to_container(self.cfg, resolve=True)
-
-        # create a dict to store the transformer config arguments
-        transformer_config_dict = {}
-
-        # get model parallel configs from the base class
-        model_parallel_config = self.build_model_parallel_config()
-
-        add_bias_linear = self.cfg.get('bias', True)
-
-        activation = self.cfg.get('activation', 'gelu')
-        # TODO: need to check which activation functions are supported in mcore
-        gated_linear_unit = activation.endswith('glu')
-        activation_func = activation_to_func(activation)
-
         normalization = self.cfg.get('normalization', 'layernorm')
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
         if normalization == 'layernorm':
@@ -1530,31 +1514,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 f"Supported types are LayerNorm and RMSNorm."
             )
 
-        init_method_std = self.cfg.get('init_method_std', 0.02)
-        # default used in mcore
-        init_method = init_method_normal(init_method_std)
-
-        output_layer_init_method = init_method
-        num_layers = self.cfg.get('num_layers', 1)
-        use_scaled_init_method = self.cfg.get('use_scaled_init_method', True)
-        if use_scaled_init_method:
-            output_layer_init_method = scaled_init_method_normal(init_method_std, num_layers=num_layers)
-
-        attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
-        apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
-        if apply_query_key_layer_scaling:
-            attention_softmax_in_fp32 = True
-
-        bias_activation_fusion = self.cfg.get('bias_activation_fusion', True)
-        bias_gelu_fusion = True if bias_activation_fusion else False
-
-        bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
-
-        # TODO: need to check if recompute APIs are matching up properly
-        recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
-        recompute_method = self.cfg.get('activations_checkpoint_method', None)
-        recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
-
         if not self.cfg.get('fp8', False):
             fp8 = None
         elif self.cfg.get('fp8_e4m3', False):
@@ -1565,75 +1524,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             raise ValueError(f"fp8 enabled but fp8_format (fp8_e4m3 | fp8_hybrid) is not set.")
 
         # any configs that are not in the nemo model config will be added here
-        config_mapping = {
-            'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
+        model_specific_configs = {
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
-            'add_bias_linear': add_bias_linear,
-            'gated_linear_unit': gated_linear_unit,
-            'activation_func': activation_func,
             'normalization': normalization,
-            'init_method': init_method,
-            'output_layer_init_method': output_layer_init_method,
-            'attention_softmax_in_fp32': attention_softmax_in_fp32,
-            'bias_gelu_fusion': bias_gelu_fusion,
-            'bias_dropout_fusion': bias_dropout_fusion,
-            'recompute_granularity': recompute_granularity,
-            'recompute_method': recompute_method,
-            'recompute_num_layers': recompute_num_layers,
-            'distribute_saved_activations': False,  # not currently used in NeMo
             'fp8': fp8,
         }
 
-        # populate the transformer config dict
-        for field in fields(TransformerConfig):
-            # config mapping has priority
-            if field.name in config_mapping:
-                transformer_config_dict[field.name] = config_mapping[field.name]
-            # then config
-            elif field.name in cfg:
-                transformer_config_dict[field.name] = cfg[field.name]
-            # then model parallel config
-            elif field in fields(model_parallel_config):
-                transformer_config_dict[field.name] = getattr(model_parallel_config, field.name)
-            else:
-                logging.warning(
-                    f"The model: {self} does not have field.name: {field.name} in its cfg. "
-                    f"Add this key to cfg or config_mapping to make to make it configurable."
-                )
-
-        transformer_config = TransformerConfig(**transformer_config_dict)
-
+        transformer_config = super().build_transformer_config(model_specific_configs)
         return transformer_config
 
-    def _wrap_model_for_O2(self):
-        """ Wraps self.model in a float16 wrapper if the model is using megatron amp O2.
-            Args:
-                model: The model to wrap. Can be a list of modules or a single module.
-            Returns:
-                The wrapped model. Returns a list of wrapped modules or a single wrapped module.
-        """
-        Float16Wrapper = MCoreFloat16Module if self.mcore_gpt else Float16Module
-
-        nemo_args = {
-            'config': self.model_parallel_config,
-            'precision': self.cfg.precision,
-            'share_token_embeddings': self.cfg.get('share_embeddings_and_output_weights', True),
-        }
-        mcore_args = {
-            'config': self.transformer_config,
-        }
-
-        args = mcore_args if self.mcore_gpt else nemo_args
-
-        # Model wrapper to convert both model and inputs to half precision
-        if isinstance(self.model, list):
-            converted_model = []
-            for module in self.model:
-                args['module'] = module
-                converted_model.append(Float16Wrapper(**args))
-            self.model = converted_model
-        else:
-            args['module'] = self.model
-            self.model = Float16Wrapper(**args)
-
-        args.pop('module')

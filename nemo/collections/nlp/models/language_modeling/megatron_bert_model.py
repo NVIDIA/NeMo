@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, Dict, List, Optional, Union
 from dataclasses import fields
-from omegaconf import OmegaConf
-        
+from typing import Any, Dict, List, Optional, Union
+
 import torch
 import torch.nn.functional as F
+from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -27,7 +27,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.parts.utils_funcs import activation_to_func
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -38,7 +37,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
@@ -64,12 +63,16 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state
     from megatron.core.models.bert import BertModel as MCoreBertModel
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
+<<<<<<< HEAD
     from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
     
+=======
+
+>>>>>>> 505cefeed3d3fc0fe73bd6eec2f64f171a082103
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -178,20 +181,20 @@ class MegatronBertModel(MegatronBaseModel):
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
         num_tokentypes = 2 if cfg.bert_binary_head else 0
-        
+
         if self.mcore_bert:
-            #TODO : Change transformer_layer_spec layer spec
+            # TODO : Change transformer_layer_spec layer spec
             model = MCoreBertModel(
                 config=self.transformer_config,
                 transformer_layer_spec=bert_layer_with_transformer_engine_spec,
                 vocab_size=self.padded_vocab_size,
                 max_sequence_length=cfg.max_position_embeddings,
-                num_tokentypes=num_tokentypes, 
+                num_tokentypes=num_tokentypes,
                 add_binary_head=cfg.bert_binary_head,
                 share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
                 parallel_output=True,
                 pre_process=pre_process,
-                post_process=post_process
+                post_process=post_process,
             )
         else:
             model = BertModel(
@@ -277,7 +280,7 @@ class MegatronBertModel(MegatronBaseModel):
 
             forward_args = {
                 "input_ids": tokens,
-                "attention_mask" : padding_mask,
+                "attention_mask": padding_mask,
                 "lm_labels": lm_labels,
             }
 
@@ -458,8 +461,10 @@ class MegatronBertModel(MegatronBaseModel):
                 else:
                     module = self.model
             if module.share_token_embeddings:
-                word_embeddings_weight = module.shared_embedding_or_output_weight() if self.mcore_bert else module.word_embeddings_weight()
-            
+                word_embeddings_weight = (
+                    module.shared_embedding_or_output_weight() if self.mcore_bert else module.word_embeddings_weight()
+                )
+
                 if self.megatron_amp_o2:
                     # O2 recipe stores a "main" copy of weights and grads
                     grad = word_embeddings_weight.main_grad
@@ -759,11 +764,19 @@ class MegatronBertModel(MegatronBaseModel):
             if isinstance(self.model, list):
                 for i, module in enumerate(self.model):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    sync_embeddings = module.initialize_last_stage_with_word_embeddings if self.mcore_bert else module.sync_initial_word_embeddings
+                    sync_embeddings = (
+                        module.initialize_last_stage_with_word_embeddings
+                        if self.mcore_bert
+                        else module.sync_initial_word_embeddings
+                    )
                     sync_embeddings()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
-                sync_embeddings = self.model.initialize_last_stage_with_word_embeddings if self.mcore_bert else self.model.sync_initial_word_embeddings
+                sync_embeddings = (
+                    self.model.initialize_last_stage_with_word_embeddings
+                    if self.mcore_bert
+                    else self.model.sync_initial_word_embeddings
+                )
                 sync_embeddings()
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_bert', False):
@@ -953,7 +966,7 @@ class MegatronBertModel(MegatronBaseModel):
                     if isinstance(module, Float16Module, MCoreFloat16Module):
                         module = module.module
                     stage_bucket = []
-                    #TODO Fill this out 
+                    # TODO Fill this out
                     layers = module.transformer.layers if self.mcore_bert else module.language_model.encoder.layers
                     for layer in layers:
                         stage_bucket.extend(
@@ -1026,86 +1039,12 @@ class MegatronBertModel(MegatronBaseModel):
 
     def build_transformer_config(self) -> TransformerConfig:
         """ Builds the megatron core gpt transformer config for the model.
-            For attributes in the nemo model config that are the same 
+            For attributes in the nemo model config that are the same
             as the megatron core TransformerConfig, we will use the value from the nemo model config.
             For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
-        # create a dictionary copy of the model config
-        cfg = OmegaConf.to_container(self.cfg, resolve=True)
-
-        # create a dict to store the transformer config arguments
-        transformer_config_dict = {}
-
-        # get model parallel configs from the base class
-        model_parallel_config = self.build_model_parallel_config()
-
-        add_bias_linear = self.cfg.get('bias', True)
-
         activation = self.cfg.get('activation', 'gelu')
-        # TODO: need to check which activation functions are supported in mcore
-        activation_func = activation_to_func(activation)
         assert activation == 'gelu', "Only gelu activation is support for BERT at the moment."
-
-        init_method_std = self.cfg.get('init_method_std', 0.02)
-        # default used in mcore
-        init_method = init_method_normal(init_method_std)
-
-        output_layer_init_method = init_method
-        num_layers = self.cfg.get('num_layers', 1)
-        use_scaled_init_method = self.cfg.get('use_scaled_init_method', True)
-        if use_scaled_init_method:
-            output_layer_init_method = scaled_init_method_normal(init_method_std, num_layers=num_layers)
-
-        attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
-        apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
-        if apply_query_key_layer_scaling:
-            attention_softmax_in_fp32 = True
-
-        bias_activation_fusion = self.cfg.get('bias_activation_fusion', True)
-        bias_gelu_fusion = True if bias_activation_fusion else False
-
-        bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
-
-        # TODO: need to check if recompute APIs are matching up properly
-        recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
-        recompute_method = self.cfg.get('activations_checkpoint_method', None)
-        recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
-
-        # any configs that are not in the nemo model config will be added here
-        config_mapping = {
-            'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
-            'layernorm_zero_centered_gamma': False,  # not currently used in NeMo
-            'add_bias_linear': add_bias_linear,
-            'gated_linear_unit': False,  # TODO: is this used in NeMo?
-            'activation_func': activation_func,
-            'init_method': init_method,
-            'output_layer_init_method': output_layer_init_method,
-            'attention_softmax_in_fp32': attention_softmax_in_fp32,
-            'bias_gelu_fusion': bias_gelu_fusion,
-            'bias_dropout_fusion': bias_dropout_fusion,
-            'recompute_granularity': recompute_granularity,
-            'recompute_method': recompute_method,
-            'recompute_num_layers': recompute_num_layers,
-            'distribute_saved_activations': False,  # not currently used in NeMo
-        }
-
-        # populate the transformer config dict
-        for field in fields(TransformerConfig):
-            # model config has priority
-            if field.name in cfg:
-                transformer_config_dict[field.name] = cfg[field.name]
-            # then model parallel config
-            elif field in fields(model_parallel_config):
-                transformer_config_dict[field.name] = getattr(model_parallel_config, field.name)
-            # then config mapping
-            elif field.name in config_mapping:
-                transformer_config_dict[field.name] = config_mapping[field.name]
-            else:
-                logging.warning(
-                    f"The model: {self} does not have field.name: {field.name} in its cfg. "
-                    f"Add this key to cfg or config_mapping to make to make it configurable."
-                )
-
-        transformer_config = TransformerConfig(**transformer_config_dict)
-
+        transformer_config = super().build_transformer_config()
         return transformer_config
+
