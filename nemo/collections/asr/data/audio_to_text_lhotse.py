@@ -42,6 +42,8 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
     # 1. Load a manifest as a Lhotse CutSet.
     #    TODO: support mixing data from multiple sources via CutSet.mux()
     cuts, is_tarred = read_as_cutset(config)
+    # Resample as a safeguard; it's a no-op when SR is already OK
+    cuts = cuts.resample(config["sample_rate"])
 
     # Duration filtering, same as native NeMo dataloaders.
     cuts = cuts.filter(
