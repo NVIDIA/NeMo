@@ -203,7 +203,7 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
             if "linear_in" in self.keep_frozen:
                 p.requires_grad = False
             else:
-                p.required_grad = True
+                p.requires_grad = True
 
         for p in self.linear_out.parameters():
             if "linear_out" in self.keep_frozen:
