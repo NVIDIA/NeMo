@@ -125,6 +125,7 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
         linear_out_init: str = "normal",
         dim_transform: Optional[str] = "vector",
         out_transform: Optional[str] = "vector",
+        out_const: Optional[float] = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
     ):
@@ -165,7 +166,7 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
 
         self.out_transform = out_transform
         assert self.out_transform in ["vector", None]
-        out_const = 1.0 if "out_scalar" in self.keep_frozen else 0.0
+        assert out_const in [0.0 , 1.0]
         if self.out_transform == "vector":
             self.out_scalar = ColumnParallelLinear(
                 1,
@@ -272,6 +273,7 @@ class VeraAdapterConfig(AdapterConfig):
     linear_out_init: str = "normal",
     dim_transform: Optional[str] = "vector",
     out_transform: Optional[str] = "vector",
+    out_const: Optional[float] = 0.0,
     _target_: str = "{0}.{1}".format(VeraAdapter.__module__, VeraAdapter.__name__)
 
 
