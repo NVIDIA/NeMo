@@ -33,16 +33,19 @@ def main():
     parser = argparse.ArgumentParser()
     # Required parameters
     parser.add_argument(
-        "--lora_checkpoint_dir", type=str, required=True,
-        help="Path to the directory containing unpacked lora checkpoints."
+        "--lora_checkpoint_dir",
+        type=str,
+        required=True,
+        help="Path to the directory containing unpacked lora checkpoints.",
     )
     parser.add_argument(
-        "--target_lora_checkpoint_dir", type=str, required=True,
-        help="Path to the output directory containing unpacked lora checkpoints."
+        "--target_lora_checkpoint_dir",
+        type=str,
+        required=True,
+        help="Path to the output directory containing unpacked lora checkpoints.",
     )
     parser.add_argument(
-        "--tp", type=int, required=True,
-        help="Tensor parallelism for the input lora checkpoint",
+        "--tp", type=int, required=True, help="Tensor parallelism for the input lora checkpoint",
     )
     args = parser.parse_args()
 
