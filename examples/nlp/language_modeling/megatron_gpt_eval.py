@@ -286,6 +286,7 @@ def main(cfg) -> None:
         "add_BOS": cfg.inference.add_BOS,
         "all_probs": cfg.inference.all_probs,
         "compute_logprob": cfg.inference.compute_logprob,
+        "attention_mask_type": cfg.inference.attention_mask_type,
         "end_strings": cfg.inference.end_strings,
     }
 

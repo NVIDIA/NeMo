@@ -63,7 +63,7 @@ class TextGenerationStrategy:
             self.model.eval()
         self._end_of_generation_cache = None
 
-    def forward_step(self, batch, tensor_shape):
+    def forward_step(self, batch, tensor_shape, attention_mask_type):
         fwd_bwd_function = get_forward_backward_func()
         output_tensor = fwd_bwd_function(
             forward_step_func=self.model.get_forward_output_only_func(),
@@ -73,6 +73,7 @@ class TextGenerationStrategy:
             forward_only=True,
             seq_length=tensor_shape[0],
             micro_batch_size=tensor_shape[1],
+            attention_mask_type=attention_mask_type,
         )
 
         return output_tensor

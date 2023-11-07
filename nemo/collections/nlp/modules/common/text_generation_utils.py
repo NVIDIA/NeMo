@@ -72,6 +72,7 @@ def get_default_sampling_params():
         "add_BOS": True,
         "all_probs": False,
         "compute_logprob": False,
+        "attention_mask_type": "no_mask",
         "end_strings": ["<|endoftext|>", "<extra_id_1>"],
     }
 
@@ -109,6 +110,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
             greedy=sampling_params['use_greedy'],
             repetition_penalty=sampling_params['repetition_penalty'],
             end_strings=sampling_params['end_strings'],
+            attention_mask_type=None,
             min_tokens_to_generate=length_params['min_length'],
             compute_attention_mask=sampling_params.get("compute_attention_mask", True),
             **strategy_args,
@@ -131,6 +133,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
                 greedy=sampling_params['use_greedy'],
                 repetition_penalty=sampling_params['repetition_penalty'],
                 end_strings=sampling_params['end_strings'],
+                attention_mask_type=sampling_params['attention_mask_type'],
                 min_tokens_to_generate=length_params['min_length'],
                 **strategy_args,
             )
@@ -442,6 +445,7 @@ def synced_generate(
     tokens_to_generate,
     all_probs,
     temperature,
+    attention_mask_type,
     top_k=0,
     top_p=0.0,
     greedy=False,
@@ -473,6 +477,7 @@ def synced_generate(
             context_length_tensor,
             tokens_to_generate,
             all_probs,
+            attention_mask_type=attention_mask_type,
             compute_attention_mask=compute_attention_mask,
             compute_logprob=compute_logprob,
             temperature=temperature,
@@ -544,6 +549,7 @@ def generate(
     top_p=0.0,
     greedy=False,
     compute_attention_mask=True,
+    attention_mask_type=None,
     compute_logprob=False,
     repetition_penalty=1.0,
     end_strings=['<|endoftext|>'],
@@ -627,6 +633,7 @@ def generate(
         all_probs,
         temperature,
         compute_attention_mask=compute_attention_mask,
+        attention_mask_type=attention_mask_type,
         compute_logprob=compute_logprob,
         top_k=top_k,
         top_p=top_p,
@@ -714,6 +721,7 @@ def sample_sequence_batch(
     tokens_to_generate,
     all_probs=False,
     compute_attention_mask=True,
+    attention_mask_type=None,
     compute_logprob=False,
     type_ids=None,
     temperature=None,
@@ -722,7 +730,6 @@ def sample_sequence_batch(
     extra={},
 ):
     # Importing here to avoid circular import errors
-
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
     _reconfigure_microbatch_calculator(
@@ -777,7 +784,7 @@ def sample_sequence_batch(
                 batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                     tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
                 )
-            output = inference_strategy.forward_step(batch, tensor_shape)
+            output = inference_strategy.forward_step(batch, tensor_shape, attention_mask_type)
 
             if parallel_state.is_pipeline_last_stage():
 
