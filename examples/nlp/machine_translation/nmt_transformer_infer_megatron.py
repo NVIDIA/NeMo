@@ -24,6 +24,7 @@ USAGE Example:
 
 import os
 
+from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
@@ -34,7 +35,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
-from omegaconf import OmegaConf, open_dict
 
 try:
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
@@ -89,7 +89,7 @@ def main(cfg) -> None:
             save_restore_connector=NLPSaveRestoreConnector(),
             override_config_path=pretrained_cfg,
         )
-        
+
     elif cfg.checkpoint_dir is not None:
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
@@ -106,19 +106,13 @@ def main(cfg) -> None:
             src_text.append(line.strip())
             if len(src_text) == cfg.batch_size:
                 translations = model.translate(
-                    text=src_text,
-                    source_lang=cfg.source_lang,
-                    target_lang=cfg.target_lang,
+                    text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang,
                 )
                 for translation in translations:
                     tgt_f.write(translation + "\n")
                 src_text = []
         if len(src_text) > 0:
-            translations = model.translate(
-                text=src_text,
-                source_lang=cfg.source_lang,
-                target_lang=cfg.target_lang,
-            )
+            translations = model.translate(text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang,)
             for translation in translations:
                 tgt_f.write(translation + "\n")
 
