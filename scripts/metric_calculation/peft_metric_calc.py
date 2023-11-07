@@ -95,10 +95,7 @@ def main():
         default="pred",
     )
     parser.add_argument(
-        '--split_prediction',
-        type=str,
-        help="split the predictions and use only second part of the split",
-        default="",
+        '--split_prediction', type=str, help="split the predictions and use only second part of the split", default="",
     )
     parser.add_argument(
         '--label_field',
@@ -149,7 +146,15 @@ def main():
     r1_score = 100 * (r1_score / total)
     r2_score = 100 * (r2_score / total)
     r3_score = 100 * (r3_score / total)
-    res = {'exact_match': exact_match, 'f1': f1, "rL": rl_score, "r1": r1_score, "r2": r2_score, "r3": r3_score, 'total': total}
+    res = {
+        'exact_match': exact_match,
+        'f1': f1,
+        "rL": rl_score,
+        "r1": r1_score,
+        "r2": r2_score,
+        "r3": r3_score,
+        'total': total,
+    }
     print('\t'.join([f"{k} {v:.3f}" for k, v in res.items()]))
 
 
