@@ -55,6 +55,9 @@ class MegatronTrainerBuilder:
             assert (
                 not self.cfg.model.optim.get('name') == 'distributed_fused_adam'
             ), 'Distributed optimizer cannot be used with FSDP.'
+            sharded_checkpoint = self.cfg.model.get('fsdp_sharded_checkpoint', False)
+            if self.cfg.model.get('tensor_model_parallel_size', 1) > 1:
+                assert not sharded_checkpoint, 'FSDP sharded checkpoint is not supported when TP size > 1.'
             if self.cfg.model.get('megatron_amp_O2', False):
                 logging.info('Torch FSDP is not compatible with O2 precision recipe. Setting O2 `False`.')
                 self.cfg.model.megatron_amp_O2 = False
@@ -63,6 +66,7 @@ class MegatronTrainerBuilder:
                 sharding_strategy=self.cfg.model.get('fsdp_sharding_strategy', 'full'),
                 cpu_offload=self.cfg.model.get('fsdp_cpu_offload', False),
                 grad_reduce_dtype=self.cfg.model.get('fsdp_grad_reduce_dtype', 32),
+                sharded_checkpoint=sharded_checkpoint,
                 precision=self.cfg.trainer.precision,
             )
 
