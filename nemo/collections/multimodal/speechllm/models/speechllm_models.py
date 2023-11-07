@@ -198,8 +198,12 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         concat_emb = []
         concat_len = []
         for emb1, emb1_len, emb2, emb2_len in zip(embs1, emb1_lens, embs2, emb2_lens):
-            new_len = emb1_len + emb2_len
-            new_emb = torch.concat([emb1[:emb1_len], emb2[:emb2_len]], axis=0)
+            if self.cfg.get('ignore_dummy_audio', False) and emb1_len <= 1:  # TODO: ignore the dummy audio emb
+                new_len = emb2_len
+                new_emb = emb2[:emb2_len]
+            else:
+                new_len = emb1_len + emb2_len
+                new_emb = torch.concat([emb1[:emb1_len], emb2[:emb2_len]], axis=0)
             padded_new_emb = torch.zeros(emb1.shape[0] + emb2.shape[0], emb1.shape[-1], device=emb1.device)
             padded_new_emb[:new_len, ...] = new_emb
             concat_emb.append(padded_new_emb)
@@ -347,6 +351,10 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         We prepend audio embeddings to the instruction and label text tokens 
         as the LLM input.
         """
+        if 'audio_ratio' in audio_batch:
+            self.log(
+                'audio_ratio', audio_batch['audio_ratio'].mean(), prog_bar=True, batch_size=1, rank_zero_only=False
+            )
         encoder_input, attention_mask, labels, loss_mask, _, aux_loss = self.prepare_llm_input(audio_batch)
         output = self.model(
             input_ids=None,
@@ -409,6 +417,15 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(loss_mask, output_tensor)
+                if 'audio_ratio' in batch:
+                    text_loss_weight = self.cfg.get('text_loss_weight', 1.0)
+                    audio_ratio = batch['audio_ratio']
+                    scaled_loss_mask = loss_mask * torch.unsqueeze(
+                        (1 * audio_ratio + text_loss_weight * (1 - audio_ratio)), 1
+                    )
+                    loss_for_ub = self.loss_func(scaled_loss_mask, output_tensor)
+                else:
+                    loss_for_ub = self.loss_func(loss_mask, output_tensor)
                 self.log('raw_lm_loss', loss_for_ub, prog_bar=True, rank_zero_only=True, batch_size=1)
                 for k, v in aux_loss.items():
                     self.log(k, v, prog_bar=True, rank_zero_only=True, batch_size=1)
@@ -542,7 +559,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         OmegaConf.set_struct(gpt_cfg, True)
         OmegaConf.resolve(cfg)
         with open_dict(gpt_cfg):
+            gpt_cfg.ignore_dummy_audio = cfg.model.get('ignore_dummy_audio', False)
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
+            gpt_cfg.text_loss_weight = cfg.model.get('text_loss_weight', 1.0)
             gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
             gpt_cfg.freeze_modality_adapter = cfg.model.get('freeze_modality_adapter', False)
             gpt_cfg.pretrained_audio_model = cfg.model.get('pretrained_audio_model', None)

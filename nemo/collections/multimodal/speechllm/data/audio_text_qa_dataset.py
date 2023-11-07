@@ -155,6 +155,7 @@ def _audio_text_collate_fn(
     contexts = torch.LongTensor(_collate_item(contexts, max_length=max_length, pad_id=text_pad_id))
     answers = torch.LongTensor(_collate_item(answers, max_length=max_length, pad_id=text_pad_id))
 
+    audio_ratio = [item['audio_ratio'] for item in batch if 'audio_ratio' in item]
     batch = {
         'sample_ids': sample_ids,
         'audio_signal': audio_signal,
@@ -170,6 +171,8 @@ def _audio_text_collate_fn(
         'max_length': torch.LongTensor(max_length),
         'metadata': [x['metadata'] for x in batch],
     }
+    if audio_ratio != []:
+        batch['audio_ratio'] = torch.FloatTensor(audio_ratio)
 
     return batch
 
@@ -567,11 +570,13 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             f, fl = features, torch.tensor(features.shape[0]).long()
             output["audio_signal"] = f
             output["audio_length"] = fl
+            audio_ratio = 1
         else:
             # dummy features
             output["audio_signal"] = torch.zeros([8000])
             # accomodates normalize_batch
             output["audio_length"] = torch.tensor(8000)
+            audio_ratio = 0
 
         text_data = self._process_example(context=sample.question, output=sample.answer)
 
@@ -581,6 +586,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             'offset': offset,
             'duration': sample.duration,
         }
+        output['audio_ratio'] = torch.tensor(audio_ratio)
         return output
 
     def __len__(self):
@@ -1033,6 +1039,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             'offset': offset,
             'duration': manifest_entry.duration,
         }
+        output['audio_ratio'] = torch.tensor(1)
         return output
 
     def get_manifest_sample(self, sample_id):
@@ -1055,6 +1062,149 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
 
     def __len__(self):
         return self.len
+
+
+class IterableTextDataset(TextProcessing, IterableDataset):
+    def __getitem__(self, index):
+        output = {"idx": index}
+        sample = self.collection[index]
+        # handle pure text case in the joint training
+        assert sample.audio_file is None
+        offset = sample.offset
+
+        if offset is None:
+            offset = 0
+
+        # dummy features
+        output["audio_signal"] = torch.zeros([8000])
+        # accomodates normalize_batch
+        output["audio_length"] = torch.tensor(8000)
+
+        text_data = self._process_example(context=sample.question, output=sample.answer)
+
+        output.update(text_data)
+        output['metadata'] = {
+            'audio_filepath': sample.audio_file,
+            'offset': offset,
+            'duration': sample.duration,
+        }
+        output['audio_ratio'] = torch.tensor(0)
+        return output
+
+    def _collate_fn(self, batch):
+        return _audio_text_collate_fn(
+            batch=batch,
+            tokens_to_generate=self.tokens_to_generate,
+            pad_to_max_length=self.pad_to_max_length,
+            max_seq_length=self.max_seq_length,
+            text_pad_id=self.pad_id,
+        )
+
+    def __iter__(self):
+        for _ in range(self.__len__()):
+            yield self.__getitem__(np.random.randint(0, len(self.collection)))
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        shard_strategy: str = "scatter",
+        shard_manifests: bool = False,
+        global_rank: int = 0,
+        world_size: int = 0,
+        max_seq_length: int = 1024,
+        min_seq_length: int = 1,
+        add_bos: bool = False,
+        add_eos: bool = True,
+        add_sep: bool = False,
+        sep_id: int = None,
+        seed: int = 1234,
+        separate_prompt_and_response_with_newline: bool = False,
+        answer_only_loss: bool = True,
+        truncation_field: str = "answer",
+        pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
+        prompt_template: str = None,
+        virtual_tokens: int = 0,
+        tokens_to_generate: int = 0,
+        input_key: str = 'input',
+        output_key: str = 'output',
+        end_string: Optional[str] = None,
+        question_file: Optional[str] = None,
+        random_context_prob: Optional[float] = None,
+        random_context_num: Optional[int] = 3,
+        random_context_positive_percent: Optional[float] = 0.1,
+        sample_alpha: Optional[float] = None,
+        max_iter_num: Optional[int] = 1e9,
+    ):
+        super().__init__(
+            tokenizer=tokenizer,
+            max_seq_length=max_seq_length,
+            min_seq_length=min_seq_length,
+            add_bos=add_bos,
+            add_eos=add_eos,
+            add_sep=add_sep,
+            sep_id=sep_id,
+            seed=seed,
+            separate_prompt_and_response_with_newline=separate_prompt_and_response_with_newline,
+            answer_only_loss=answer_only_loss,
+            truncation_field=truncation_field,
+            pad_to_max_length=pad_to_max_length,
+            prompt_template=prompt_template,
+            virtual_tokens=virtual_tokens,
+            tokens_to_generate=tokens_to_generate,
+            input_key=input_key,
+            output_key=output_key,
+            end_string=end_string,
+            sample_alpha=sample_alpha,
+        )
+
+        self.max_iter_num = max_iter_num
+        self.shard_manifests = shard_manifests
+
+        # Shard manifests if necessary and possible and then expand the paths
+        manifest_filepath = shard_manifests_if_needed(
+            shard_manifests=shard_manifests,
+            shard_strategy=shard_strategy,
+            manifest_filepaths=manifest_filepath,
+            world_size=world_size,
+            global_rank=global_rank,
+        )
+
+        # If necessary, cache manifests from object store
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath)
+
+        self.collection = collections.ALMAudioTextCollection(
+            manifests_files=manifest_filepath,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            index_by_file_id=True,
+            question_file=question_file,
+            random_context_prob=random_context_prob,
+            random_context_num=random_context_num,
+            random_context_positive_percent=random_context_positive_percent,
+        )
+
+        self.len = self._compute_len()
+
+        # handle the text-only case
+        logging.info(f"Non-WebDataset is created for {manifest_filepath}")
+
+    def _compute_len(self):
+        # TODO: need to figure out why here needs to be divided by world_size, while in ASR we don't need to.
+        if self.shard_manifests and torch.distributed.is_available() and torch.distributed.is_initialized():
+            my_len = torch.tensor(len(self.collection), dtype=torch.int32).cuda()
+            torch.distributed.all_reduce(my_len)
+            my_len = my_len.int() // parallel_state.get_data_parallel_world_size()
+            logging.info(f'Sharded manifests: Total length: {my_len}')
+        else:
+            my_len = len(self.collection) // parallel_state.get_data_parallel_world_size()
+
+        return my_len
+
+    def __len__(self):
+        return min(self.max_iter_num // parallel_state.get_data_parallel_world_size(), self.len)
 
 
 def get_tarred_aqa_dataset(
@@ -1105,46 +1255,85 @@ def get_tarred_aqa_dataset(
             question_file = question_file_set[dataset_idx]
         else:
             question_file = None
-        dataset = TarredAudioQuestionAnswerDataset(
-            audio_tar_filepaths=tarred_audio_filepath,
-            manifest_filepath=manifest_filepath,
-            tokenizer=tokenizer,
-            sample_rate=config['sample_rate'],
-            int_values=config.get('int_values', False),
-            augmentor=augmentor,
-            shuffle_n=shuffle_n,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            trim=config.get('trim_silence', False),
-            shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
-            shard_manifests=config.get('shard_manifests', False),
-            global_rank=global_rank,
-            world_size=world_size,
-            max_seq_length=config.max_seq_length,
-            min_seq_length=config.min_seq_length,
-            add_bos=config.get('add_bos', False),
-            add_eos=config.get('add_eos', True),
-            add_sep=config.get('add_sep', False),
-            sep_id=sep_id,
-            separate_prompt_and_response_with_newline=config.get('separate_prompt_and_response_with_newline', True),
-            answer_only_loss=answer_only_loss,
-            truncation_field=config.get('truncation_field', 'context'),
-            pad_to_max_length=False,
-            prompt_template=config.get('prompt_template', None),
-            virtual_tokens=virtual_tokens,
-            tokens_to_generate=config.get(
-                'tokens_to_generate', 0
-            ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
-            input_key=config.get('input_key', 'input'),
-            output_key=config.get('output_key', 'output'),
-            end_string=config.get('end_string', None),
-            sample_alpha=config.get('sample_alpha', None),
-            input_text_mask_ratio=config.get('input_text_mask_ratio', None),
-            question_file=question_file,
-            random_context_num=config.get('random_context_num', 3),
-            random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
-            random_context_prob=config.get('random_context_prob', None),
-        )
+        if tarred_audio_filepath == []:
+            dataset = IterableTextDataset(
+                manifest_filepath=manifest_filepath,
+                tokenizer=tokenizer,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
+                shard_manifests=config.get('shard_manifests', False),
+                global_rank=global_rank,
+                world_size=world_size,
+                max_seq_length=config.max_seq_length,
+                min_seq_length=config.min_seq_length,
+                add_bos=config.get('add_bos', False),
+                add_eos=config.get('add_eos', True),
+                add_sep=config.get('add_sep', False),
+                sep_id=sep_id,
+                separate_prompt_and_response_with_newline=config.get(
+                    'separate_prompt_and_response_with_newline', True
+                ),
+                answer_only_loss=answer_only_loss,
+                truncation_field=config.get('truncation_field', 'context'),
+                pad_to_max_length=False,
+                prompt_template=config.get('prompt_template', None),
+                virtual_tokens=virtual_tokens,
+                tokens_to_generate=config.get(
+                    'tokens_to_generate', 0
+                ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
+                input_key=config.get('input_key', 'input'),
+                output_key=config.get('output_key', 'output'),
+                end_string=config.get('end_string', None),
+                sample_alpha=config.get('sample_alpha', None),
+                question_file=question_file,
+                random_context_num=config.get('random_context_num', 3),
+                random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
+                random_context_prob=config.get('random_context_prob', None),
+                max_iter_num=config.get('max_iter_num', 1e9),
+            )
+        else:
+            dataset = TarredAudioQuestionAnswerDataset(
+                audio_tar_filepaths=tarred_audio_filepath,
+                manifest_filepath=manifest_filepath,
+                tokenizer=tokenizer,
+                sample_rate=config['sample_rate'],
+                int_values=config.get('int_values', False),
+                augmentor=augmentor,
+                shuffle_n=shuffle_n,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                trim=config.get('trim_silence', False),
+                shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
+                shard_manifests=config.get('shard_manifests', False),
+                global_rank=global_rank,
+                world_size=world_size,
+                max_seq_length=config.max_seq_length,
+                min_seq_length=config.min_seq_length,
+                add_bos=config.get('add_bos', False),
+                add_eos=config.get('add_eos', True),
+                add_sep=config.get('add_sep', False),
+                sep_id=sep_id,
+                separate_prompt_and_response_with_newline=config.get(
+                    'separate_prompt_and_response_with_newline', True
+                ),
+                answer_only_loss=answer_only_loss,
+                truncation_field=config.get('truncation_field', 'context'),
+                pad_to_max_length=False,
+                prompt_template=config.get('prompt_template', None),
+                virtual_tokens=virtual_tokens,
+                tokens_to_generate=config.get(
+                    'tokens_to_generate', 0
+                ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
+                input_key=config.get('input_key', 'input'),
+                output_key=config.get('output_key', 'output'),
+                end_string=config.get('end_string', None),
+                sample_alpha=config.get('sample_alpha', None),
+                question_file=question_file,
+                random_context_num=config.get('random_context_num', 3),
+                random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
+                random_context_prob=config.get('random_context_prob', None),
+            )
 
         if bucketing_weights:
             [datasets.append(dataset) for _ in range(bucketing_weights[dataset_idx])]
@@ -1176,6 +1365,8 @@ def get_concat_tarred_aqa_dataset(
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
         conf['tarred_audio_filepaths'] = tarred_audio_filepath
+        question_file_set = config.get('question_file_set', None)
+        conf['question_file_set'] = [question_file_set[dataset_idx]]
         dataset = get_tarred_aqa_dataset(
             config=conf,
             tokenizer=tokenizer,
@@ -1221,14 +1412,19 @@ def get_tarred_aqa_dataset_from_config(
             )
             return None
 
-        if config['concat_sampling_technique'] == 'random':
+        if 'concat_sampling_technique' in config and config['concat_sampling_technique'] == 'random':
             if not 'concat_sampling_probabilities' in config:
                 logging.warning(f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}")
                 return None
             else:
                 if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
                     logging.warning(f"`concat_sampling_probabilities` need to sum to 1. Config: {config}")
-                    return None
+                    concat_sampling_probabilities = config['concat_sampling_probabilities']
+                    concat_sampling_probabilities = [
+                        float(x) / sum(concat_sampling_probabilities) for x in concat_sampling_probabilities
+                    ]
+                    logging.info(f"Normalized concat dataset sampling probabilities: {concat_sampling_probabilities}")
+                    config['concat_sampling_probabilities'] = concat_sampling_probabilities
 
     data_parallel_size = parallel_state.get_data_parallel_world_size()
     num_micro_batches = config.global_batch_size // (config.micro_batch_size * data_parallel_size)
