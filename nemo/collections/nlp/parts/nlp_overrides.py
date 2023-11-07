@@ -670,7 +670,7 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
         """
         Re-key the full optimizer state dict to sharded optimizer state dict
         """
-        def get_osd(opt_state):
+        def _get_osd(opt_state):
             temp_opt_state = opt_state
             while True:
                 if "state" in temp_opt_state:
@@ -681,25 +681,25 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
         optimizer_states = checkpoint["optimizer_states"]
         for optimizer, opt_state in zip(self.optimizers, optimizer_states):
             with self.state_dict_context(self.model):
-                full_osd = get_osd(opt_state)
-                if isinstance(list(full_osd["state"].keys())[0], int):
+                temp_osd = _get_osd(opt_state)
+                if isinstance(list(temp_osd["state"].keys())[0], int):
+                    # Normal optimizer state dict without FSDP
                     try:
-                        # Optimizer state dict stored without FSDP
                         with FSDP.summon_full_params(self.model, writeback=True, rank0_only=False):
-                            full_osd = FSDP.rekey_optim_state_dict(full_osd, OptimStateKeyType.PARAM_NAME, self.model)
-                        sharded_osd = FSDP.shard_full_optim_state_dict(full_osd, self.model)
-                        sharded_osd = FSDP.optim_state_dict_to_load(
-                            optim_state_dict=sharded_osd, model=self.model, optim=optimizer,
-                        )
+                            # rekey the osd stored from non-FSDP model
+                            rekeyed_osd = FSDP.rekey_optim_state_dict(
+                                temp_osd,
+                                OptimStateKeyType.PARAM_NAME,
+                                self.model,
+                            )
+                        temp_osd = FSDP.shard_full_optim_state_dict(rekeyed_osd, self.model)
                     except Exception as e:
                         print(f"Failed to load optimzier state dicts. Errored with {e}")
                         exit(1)
-                else:
-                    # Optimizer state dict stored with FSDP
-                    sharded_osd = FSDP.rekey_optim_state_dict(full_osd, OptimStateKeyType.PARAM_NAME, self.model)
-                    sharded_osd = FSDP.optim_state_dict_to_load(
-                        optim_state_dict=sharded_osd, model=self.model, optim=optimizer,
-                    )
+                # Shard optimizer state dict
+                sharded_osd = FSDP.optim_state_dict_to_load(
+                    optim_state_dict=temp_osd, model=self.model, optim=optimizer,
+                )
 
                 optimizer.load_state_dict(sharded_osd)
                 _optimizer_to_device(optimizer, self.root_device)
@@ -722,6 +722,7 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
         """ Load checkpoints
         """
+        # 1. Load normal or FSDP-sharded checkpoints.
         fs = get_filesystem(checkpoint_path)
 
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
@@ -739,7 +740,9 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
     
     @property
     def restore_checkpoint_after_setup(self) -> bool:
-        """ Need to restore checkpoint after configureing FSDP sharding.
+        """ When loading FSDP-sharded checkpoint, need to restore checkpoint after configuring
+            FSDP sharding to match FSDP-sharded format between the checkpoint and the current
+            model and optimizer.
         """
         return True
 
