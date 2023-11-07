@@ -480,7 +480,7 @@ class ALMAudioTextCollection(ALMAudioText):
             item['question'] = "what does this audio mean"
         else:
             question = np.random.choice(self.random_questions).strip()
-            if self.random_context_prob is not None:
+            if self.random_context_prob is not None and self.random_context_prob > 0:
                 current_words = item['answer'].strip().split()
                 if np.random.random() < self.random_context_prob and self.random_context:
                     positive_num = int(self.random_context_num * self.random_context_positive_percent)
