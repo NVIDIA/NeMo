@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 import torch.distributed
 import torch.nn as nn
-from omegaconf.dictconfig import DictConfig
+from omegaconf import DictConfig, open_dict
 
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.core.classes import Exportable, NeuralModule
@@ -69,8 +69,13 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         # Initialize components
         self.preprocessor = self.from_config_dict(cfg.preprocessor)
         encoder = self.from_config_dict(cfg.encoder)
-        if "multi_layer_feat" in cfg and cfg.multi_layer_feat is not None:
+        if cfg.get("use_multi_layer_feat", False) and cfg.get("multi_layer_feat", None):
             self.encoder = ConformerMultiLayerFeatureExtractor(cfg=cfg.multi_layer_feat, encoder=encoder)
+            if cfg.multi_layer_feat.aggregator.mode == "cat":
+                with open_dict(cfg.modality_adapter):
+                    cfg.modality_adapter.input_dim = cfg.modality_adapter.input_dim * len(
+                        cfg.multi_layer_feat.layer_idx_list
+                    )
         else:
             self.encoder = encoder
         if 'spec_augment' in cfg and cfg.spec_augment is not None:
@@ -124,13 +129,17 @@ class AudioPerceptionModel(NeuralModule, Exportable):
 class Aggregator(nn.Module):
     def __init__(self, cfg: DictConfig, channel_dim: int = 1):
         super().__init__()
-        self.mode = cfg.get("mode", "concat")
+        self.mode = cfg.get("mode", "cat")
         self.channel_dim = channel_dim
         self.pooling = cfg.get("pooling", "avg")
         self.rounding = cfg.get("rounding", "floor")
 
     def _have_same_length(self, encoded_len: List[torch.Tensor]) -> bool:
-        return all(x == encoded_len[0] for x in encoded_len)
+        sample_len = encoded_len[0]
+        for x in encoded_len:
+            if torch.sum(x - sample_len) != 0:
+                return False
+        return True
 
     def forward(
         self, encoded: List[torch.Tensor], encoded_len: List[torch.Tensor]
@@ -138,7 +147,7 @@ class Aggregator(nn.Module):
         if not self._have_same_length(encoded_len):
             return self.merge_different_features(encoded, encoded_len)
 
-        if self.mode == "concat":
+        if self.mode == "cat":
             return torch.cat(encoded, dim=self.channel_dim), encoded_len[0]
         elif self.mode == "sum":
             return torch([x.unsqueeze(-1) for x in encoded], dim=-1).sum(dim=-1), encoded_len[0]
@@ -199,6 +208,7 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
             encoded_list.append(layer_outputs[0])  # [B, D, T]
             encoded_len_list.append(layer_lengths[0])  # [B]
 
+        self.encoder.reset_registry()
         self.set_access_enabled(access_enabled=old_access_flag)
 
         return self.aggregator(encoded_list, encoded_len_list)

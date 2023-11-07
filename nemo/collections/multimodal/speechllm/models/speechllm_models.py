@@ -599,7 +599,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             return_config=True,
             save_restore_connector=base_model_save_restore_connector,
         )
-        pretrained_audio_model = cfg.model.pretrained_audio_model
+        pretrained_audio_model = cfg.model.get("pretrained_audio_model", None)
         try:
             if pretrained_audio_model.endswith('.nemo'):
                 logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
@@ -635,14 +635,17 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             strict=False,
         )
         # load am
-        if cfg.model.get('load_audio_encoder', True):
-            model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
+        if pretrained_audio_model is not None:
+            if cfg.model.perception.get("use_multi_layer_feat", False):
+                model.perception.encoder.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
+            else:
+                model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
             logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
-        else:
-            logging.info(f'Not load pretrained audio model from {pretrained_audio_model}')
+
         if cfg.model.get('use_am_tokenizer', False):
             model.tokenizer = audio_model.tokenizer
             logging.info(f'Use AM tokenizer: {audio_model.tokenizer}')
+
         if 'inference' in cfg:
             inference_cfg = OmegaConf.to_container(cfg.inference, resolve=True)
             model.set_inference_config(inference_cfg)
