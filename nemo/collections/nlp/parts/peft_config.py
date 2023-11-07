@@ -73,6 +73,7 @@ class VeraPEFTConfig(PEFTConfig):
             "keep_frozen": vera_cfg.keep_frozen,
             "dim_transform": vera_cfg.dim_transform,
             "out_transform": vera_cfg.out_transform,
+            "out_const": vera_cfg.out_const,
             "linear_in_init": vera_cfg.linear_in_init,
             "linear_out_init": vera_cfg.linear_out_init,
         }

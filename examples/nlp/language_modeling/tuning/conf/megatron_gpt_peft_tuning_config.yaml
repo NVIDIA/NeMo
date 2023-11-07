@@ -103,6 +103,7 @@ model:
       linear_out_init: "normal"  # can be kaiming_normal, kaiming_uniform, normal xavier or zero
       dim_transform: "vector"  # can be vector affine or null
       out_transform: "vector" # can be vector or null
+      out_const: 0.0 # can be 0.0 or 1.0
 
     lora_tuning:
       adapter_dim: 32
