@@ -99,12 +99,10 @@ model:
       keep_frozen: 
         - linear_in
         - linear_out
-      linear_in_init: "kaiming_uniform"  # can be kaiming_normal, kaiming_uniform, normal xavier or zero
-      linear_out_init: "kaiming_uniform"  # can be kaiming_normal, kaiming_uniform, normal xavier or zero
-      linear_in_init_sigma: 1.0  # used when layer_in_init is normal
-      linear_out_init_sigma: 1.0 # user when layer_out_init is normal
+      linear_in_init: "kaiming_normal"  # can be kaiming_normal, kaiming_uniform, normal xavier or zero
+      linear_out_init: "kaiming_normal"  # can be kaiming_normal, kaiming_uniform, normal xavier or zero
       dim_transform: "vector"  # can be vector affine or null
-      out_transform: null # can be vector or null
+      out_transform: "vector" # can be vector or null
 
     lora_tuning:
       adapter_dim: 32

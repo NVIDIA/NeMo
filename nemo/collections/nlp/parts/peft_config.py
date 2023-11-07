@@ -75,8 +75,6 @@ class VeraPEFTConfig(PEFTConfig):
             "out_transform": vera_cfg.out_transform,
             "linear_in_init": vera_cfg.linear_in_init,
             "linear_out_init": vera_cfg.linear_out_init,
-            "linear_in_init_sigma": vera_cfg.linear_in_init_sigma,
-            "linear_out_init_sigma": vera_cfg.linear_out_init_sigma,
         }
         adapter_cfg = VeraAdapterConfig(**config_args)
         name_key_to_cfg = {
