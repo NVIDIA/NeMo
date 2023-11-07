@@ -69,6 +69,7 @@ def get_lhotse_audio_to_text_char_dataloader_from_config(
             num_buckets=config.lhotse.get("num_buckets", 10),
             shuffle=config.get("shuffle", False),
             drop_last=config.lhotse.get("drop_last", True),
+            duration_bins=config.lhotse.get("duration_bins", None),
             num_cuts_for_bins_estimate=config.lhotse.get("num_cuts_for_bins_estimate", 10000),
             buffer_size=config.lhotse.get("buffer_size", 10000),
             shuffle_buffer_size=config.lhotse.get("shuffle_buffer_size", 10000),
