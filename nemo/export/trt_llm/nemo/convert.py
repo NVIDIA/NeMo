@@ -315,7 +315,7 @@ def split_and_save_weight(
         v_split = np.split(qkv[2], split_factor, axis=1)
 
         # Concatenate Q, K, and V together
-        split_vals = [np.concatenate([q_split[i], k_split[i], v_split[i]], axis=1) for i in range(split_factor)]
+        split_vals = [np.concatenate([q_split[i].reshape(hidden_dim, -1), k_split[i].reshape(hidden_dim, -1), v_split[i].reshape(hidden_dim, -1)], axis=1) for i in range(split_factor)]
 
         if "attention.linear_qkv.weight" in key:
             key = key.replace("attention.linear_qkv.weight", "attention.query_key_value.weight")
