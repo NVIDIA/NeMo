@@ -1532,4 +1532,3 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         transformer_config = super().build_transformer_config(model_specific_configs)
         return transformer_config
-
