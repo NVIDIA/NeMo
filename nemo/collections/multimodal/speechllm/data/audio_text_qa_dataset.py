@@ -22,7 +22,7 @@ import braceexpand
 import numpy as np
 import torch
 import webdataset as wd
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.data.audio_to_text import (
     cache_datastore_manifests,
@@ -1143,7 +1143,7 @@ def get_concat_tarred_aqa_dataset(
         conf['manifest_filepath'] = manifest_filepath
         conf['tarred_audio_filepaths'] = tarred_audio_filepath
         question_files = config.get('question_file', None)
-        if isinstance(question_files, list) and len(question_files) == len(manifest_filepaths):
+        if isinstance(question_files, ListConfig) and len(question_files) == len(manifest_filepaths):
             conf['question_file'] = question_files[dataset_idx]
         else:
             conf['question_file'] = question_files
@@ -1277,7 +1277,7 @@ def get_aqa_dataset_from_config(
 
     for dataset_idx, (file_path, num_samples) in enumerate(zip(manifest_filepath, num_train_samples_per_dataset)):
         question_file = config.get('question_file', None)
-        if isinstance(question_file, list) and len(question_file) == len(manifest_filepath):
+        if isinstance(question_file, ListConfig) and len(question_file) == len(manifest_filepath):
             question_file = question_file[dataset_idx]
         dataset = data_cls(
             manifest_filepath=file_path,
