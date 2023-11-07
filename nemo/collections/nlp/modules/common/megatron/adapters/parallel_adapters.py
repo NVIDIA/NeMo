@@ -146,7 +146,7 @@ class VeraAdapter(nn.Module, AdapterModuleUtil):
             config=model_parallel_config,
             bias=False,
             gather_output=False,
-            init_method=self._get_init_fn(linear_in_init, val=1.0),
+            init_method=self._get_init_fn(linear_out_init, val=1.0),
         )
         self.dim_transform = dim_transform
         assert self.dim_transform in ["vector", "affine", None]
