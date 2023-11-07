@@ -95,6 +95,12 @@ def main():
         default="pred",
     )
     parser.add_argument(
+        '--split_prediction',
+        type=str,
+        help="split the predictions and use only second part of the split",
+        default="",
+    )
+    parser.add_argument(
         '--label_field',
         type=str,
         help="The field in the json file that contains the ground truth tokens",
@@ -104,9 +110,9 @@ def main():
     args = parser.parse_args()
 
     pred_file = args.pred_file
-    scorer = rouge_scorer.RougeScorer(['rougeL'], use_stemmer=True)
+    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rouge3', 'rougeL'], use_stemmer=True)
     preds = open(pred_file, encoding="utf-8").readlines()
-    f1 = exact_match = total = r_score = 0
+    f1 = exact_match = total = rl_score = r1_score = r2_score = r3_score = 0
 
     for i in range(len(preds)):
         pred_line = json.loads(preds[i])
@@ -115,19 +121,35 @@ def main():
         true_answers = pred_line[args.label_field]
         if not isinstance(true_answers, list):
             true_answers = [true_answers]
+        if args.split_prediction != "":
+            pred_answer = pred_answer.split(args.split_prediction)[-1]
+            true_answers = [_ta.split(args.split_prediction)[-1] for _ta in true_answers]
 
-        r_scores = []
+        rl_scores = []
+        r1_scores = []
+        r2_scores = []
+        r3_scores = []
         for ta in true_answers:
-            r_scores.append(scorer.score(ta, pred_answer)['rougeL'].fmeasure)
-        r_score += max(r_scores)
+            all_scores = scorer.score(ta, pred_answer)
+            rl_scores.append(all_scores['rougeL'].fmeasure)
+            r1_scores.append(all_scores['rouge1'].fmeasure)
+            r2_scores.append(all_scores['rouge2'].fmeasure)
+            r3_scores.append(all_scores['rouge3'].fmeasure)
+        rl_score += max(rl_scores)
+        r1_score += max(r1_scores)
+        r2_score += max(r2_scores)
+        r3_score += max(r3_scores)
         exact_match += metric_max_over_ground_truths(exact_match_score, pred_answer, true_answers)
         f1 += metric_max_over_ground_truths(f1_score, pred_answer, true_answers)
         total += 1
 
     exact_match = 100.0 * exact_match / total
     f1 = 100.0 * f1 / total
-    r_score = 100 * (r_score / total)
-    res = {'exact_match': exact_match, 'f1': f1, "rougeL": r_score, 'total': total}
+    rl_score = 100 * (rl_score / total)
+    r1_score = 100 * (r1_score / total)
+    r2_score = 100 * (r2_score / total)
+    r3_score = 100 * (r3_score / total)
+    res = {'exact_match': exact_match, 'f1': f1, "rL": rl_score, "r1": r1_score, "r2": r2_score, "r3": r3_score, 'total': total}
     print('\t'.join([f"{k} {v:.3f}" for k, v in res.items()]))
 
 
