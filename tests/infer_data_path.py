@@ -43,7 +43,7 @@ def get_infer_test_data():
 
     test_data["NV-GPT-8B-Base-16k"] = {}
     test_data["NV-GPT-8B-Base-16k"]["model_type"] = "gptnext"
-    test_data["NV-GPT-8B-Base-16k"]["total_gpus"] = [1, 2, 4, 8]]
+    test_data["NV-GPT-8B-Base-16k"]["total_gpus"] = [1, 2, 4, 8]
     test_data["NV-GPT-8B-Base-16k"]["location"] = "Local"
     test_data["NV-GPT-8B-Base-16k"]["trt_llm_model_dir"] = "/tmp/NV-GPT-8B-Base-16k/nv-gpt-8b-base-16k_v1.0/"
     test_data["NV-GPT-8B-Base-16k"]["checkpoint"] = "/opt/checkpoints/NV-GPT-8B-Base-16k/nv-gpt-8b-base-16k_v1.0/NV-GPT-8B-Base-16k.nemo"
