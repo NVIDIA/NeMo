@@ -45,6 +45,15 @@ class TestNemoDeployment:
             )
             if Path(model_info["checkpoint"]).exists():
                 n_gpu = model_info["total_gpus"][0]
+
+                if n_gpu > torch.cuda.device_count():
+                    print(
+                        "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
+                            model_info["checkpoint"], model_name, n_gpu, torch.cuda.device_count()
+                        )
+                    )
+                    continue
+
                 print(
                     "Path: {0} and model: {1} with {2} gpus will be tested".format(
                         model_info["checkpoint"], model_name, n_gpu

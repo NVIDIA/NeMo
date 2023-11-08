@@ -39,6 +39,14 @@ class TestNemoExport:
             )
             if Path(model_info["checkpoint"]).exists():
                 for n_gpu in model_info["total_gpus"]:
+                    if n_gpu > torch.cuda.device_count():
+                        print(
+                            "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
+                                model_info["checkpoint"], model_name, n_gpu, torch.cuda.device_count()
+                            )
+                        )
+                        continue
+
                     Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
 
                     print(
