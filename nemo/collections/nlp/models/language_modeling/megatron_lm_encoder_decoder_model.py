@@ -31,12 +31,13 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_model import Me
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
-    MegatronTokenLevelEncoderDecoderModule,
+    MegatronTokenLevelEncoderDecoderModule, AttnMaskType,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
+    build_attention_mask_3d,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     compute_beam_search_len_penalty,
@@ -62,7 +63,14 @@ try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.models.T5 import T5Model as MCoreT5Model
+    from megatron.core.models.T5.t5_spec import (
+        get_t5_encoder_with_transformer_engine_block_spec,
+        get_t5_decoder_with_transformer_engine_block_spec,
+        get_t5_encoder_with_local_block_spec,
+        get_t5_decoder_with_local_block_spec,
+    )
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -95,6 +103,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Make sure trainer.accumulate_grad_batches is 1.
         self._validate_trainer()
 
+        self.mcore_t5 = cfg.get('mcore_t5', False)
+        self.transformer_config = self.build_transformer_config()
+
         # TODO: Currently does not support interleaved pipeline parallelism.
         # This means we can only use pipeline parallelism without the interleaved schedule.
         if isinstance(self.trainer.accelerator, CPUAccelerator):
@@ -124,9 +135,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 self.enc_dec_model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            self.enc_dec_model = Float16Module(
-                config=self.model_parallel_config, module=self.enc_dec_model, precision=self.cfg.precision
-            )
+            self._wrap_model_for_O2()
 
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
@@ -253,29 +262,55 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             embedding_dropout = self.cfg.embedding_dropout
 
-        model = MegatronTokenLevelEncoderDecoderModule(
-            config=self.model_parallel_config,
-            encoder_cfg=self.cfg.encoder,
-            decoder_cfg=self.cfg.decoder,
-            vocab_size=self.padded_vocab_size,
-            max_position_embeddings=self.cfg.max_position_embeddings,
-            num_tokentypes=0,
-            parallel_output=True,
-            pre_process=pre_process,
-            post_process=post_process,
-            fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
-            precision=self.cfg.get('precision', 16),
-            embedding_init_method_std=embedding_init_method_std,
-            embedding_dropout=embedding_dropout,
-            label_smoothing=self.cfg.get('label_smoothing', 0.0),
-            add_encoder=add_encoder,
-            add_decoder=add_decoder,
-            share_token_embeddings=self.cfg.get('share_token_embeddings', True),
-            share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
-            tokens_head_bias=self.cfg.get('tokens_head_bias', True),
-            hiddens_cfg=self.cfg.get('hiddens', None),
-        )
+        if hasattr(self, 'mcore_t5') and self.mcore_t5:
+            print("*************** using mcore T5!!! ****************")
+            assert HAVE_MEGATRON_CORE, "Cannot use MCore T5 since Megatron Core is not found"
+            assert self.cfg.get('share_token_embeddings', True), "share_token_embeddings must be True if using MCore T5 model"
+            if self.cfg.get('transformer_engine', False):
+                enc_dec_spec_fns = get_t5_encoder_with_transformer_engine_block_spec, get_t5_decoder_with_transformer_engine_block_spec
+            else:
+                enc_dec_spec_fns = get_t5_encoder_with_local_block_spec, get_t5_decoder_with_local_block_spec
+
+            en_block_spec = enc_dec_spec_fns[0](self.transformer_config)
+            de_block_spec = enc_dec_spec_fns[1](self.transformer_config)
+            model = MCoreT5Model(
+                config=self.transformer_config,
+                transformer_layer_spec=[en_block_spec, de_block_spec],
+                vocab_size=self.padded_vocab_size,
+                max_sequence_length=self.cfg.max_position_embeddings,
+                pre_process=pre_process,
+                post_process=post_process,
+                fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
+                parallel_output=True,
+                share_embeddings_and_output_weights=self.cfg.get('share_decoder_tokens_head_embeddings', True),
+                position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+                rotary_percent=self.cfg.get('rotary_percentage', 1.0),
+                seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+            )
+        else:
+            model = MegatronTokenLevelEncoderDecoderModule(
+                config=self.model_parallel_config,
+                encoder_cfg=self.cfg.encoder,
+                decoder_cfg=self.cfg.decoder,
+                vocab_size=self.padded_vocab_size,
+                max_position_embeddings=self.cfg.max_position_embeddings,
+                num_tokentypes=0,
+                parallel_output=True,
+                pre_process=pre_process,
+                post_process=post_process,
+                fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
+                megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
+                precision=self.cfg.get('precision', 16),
+                embedding_init_method_std=embedding_init_method_std,
+                embedding_dropout=embedding_dropout,
+                label_smoothing=self.cfg.get('label_smoothing', 0.0),
+                add_encoder=add_encoder,
+                add_decoder=add_decoder,
+                share_token_embeddings=self.cfg.get('share_token_embeddings', True),
+                share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
+                tokens_head_bias=self.cfg.get('tokens_head_bias', True),
+                hiddens_cfg=self.cfg.get('hiddens', None),
+            )
         return model
 
     def forward(
@@ -291,18 +326,21 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         output_enc_hidden_only=False,
         enc_input=None,
     ):
-        output_tensor = self.enc_dec_model(
-            enc_input_ids=encoder_input_ids,
-            dec_input_ids=decoder_input_ids,
-            enc_attn_mask=encoder_attn_mask,
-            dec_attn_mask=decoder_attn_mask,
-            token_type_ids=token_type_ids,
-            labels=lm_labels,
-            enc_output=enc_output,
-            enc_output_attn_mask=enc_output_attn_mask,
-            output_enc_hidden_only=output_enc_hidden_only,
-            enc_input=enc_input,
-        )
+        if self.mcore_t5:
+            raise NotImplementedError("mcore path for forward() function is not implemented")
+        else:
+            output_tensor = self.enc_dec_model(
+                enc_input_ids=encoder_input_ids,
+                dec_input_ids=decoder_input_ids,
+                enc_attn_mask=encoder_attn_mask,
+                dec_attn_mask=decoder_attn_mask,
+                token_type_ids=token_type_ids,
+                labels=lm_labels,
+                enc_output=enc_output,
+                enc_output_attn_mask=enc_output_attn_mask,
+                output_enc_hidden_only=output_enc_hidden_only,
+                enc_input=enc_input,
+            )
 
         return output_tensor
 
@@ -583,15 +621,29 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 batch_data,
             ) = batch
 
-            output = model(
-                encoder_input_ids,  # enc_input_ids
-                encoder_attn_mask,  # enc_attn_mask
-                decoder_input_ids,  # dec_input_ids
-                decoder_attn_mask,  # dec_attn_mask
-                None,  # token_type_ids
-                lm_labels,  # labels
-                batch_data,  # batch_data
-            )
+            if self.mcore_t5:
+                # attn mask logic follows megatron.data.t5_dataset.py in Megatron-LM
+                encoder_attn_mask_3d = build_attention_mask_3d(encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding)
+                decoder_attn_mask_3d = build_attention_mask_3d(decoder_attn_mask, decoder_attn_mask, AttnMaskType.causal)
+                enc_dec_attn_mask_3d = build_attention_mask_3d(decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding)
+                output = model(         # model is MCoreT5Model
+                    encoder_input_ids,  # encoder_input_ids
+                    decoder_input_ids,  # decoder_input_ids
+                    encoder_attn_mask_3d,  # encoder_attn_mask
+                    decoder_attn_mask_3d,  # decoder_attn_mask
+                    enc_dec_attn_mask_3d,  # encoder_decoder_attn_mask
+                    lm_labels,  # lm_labels
+                )
+            else:
+                output = model(         # model is MegatronTokenLevelEncoderDecoderModule
+                    encoder_input_ids,  # enc_input_ids
+                    encoder_attn_mask,  # enc_attn_mask
+                    decoder_input_ids,  # dec_input_ids
+                    decoder_attn_mask,  # dec_attn_mask
+                    None,  # token_type_ids
+                    lm_labels,  # labels
+                    batch_data,  # batch_data
+                )
 
             def loss_func(output_tensor):
                 if isinstance(output_tensor, dict):
@@ -685,7 +737,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # map batch and shared args into forward args
             args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
-            output = model(*args).contiguous()
+
+            extra_kwargs = {}
+            if self.mcore_t5:
+                # todo
+                self.inference_params = InferenceParams(
+                    max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
+                )
+                extra_kwargs['inference_params'] = self.inference_params
+
+            output = model(*args, **extra_kwargs).contiguous()
 
             def id_func(output_tensor):
                 if isinstance(output_tensor, dict):
@@ -1068,6 +1129,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline.append(encoder_input)
             arg_names.append('enc_input')
 
+        # TODO inference params for mcore path
         forward_step_func = self._get_forward_output_only_func(
             arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
         )
@@ -1238,7 +1300,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
-
+            # todo inference params for mcore path
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             fwd_bwd_func = get_forward_backward_func()
 
@@ -1514,3 +1576,95 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 f'encoder.hidden_size not found in {self.cfg}. Set this in model_parallel_config if using pipeline parallelism.'
             )
         return model_parallel_config
+
+    def get_t5_module_list(self):
+        if isinstance(self.enc_dec_model, list):
+            return [
+                model.module if isinstance(model, (Float16Module, MCoreFloat16Module)) else model
+                for model in self.enc_dec_model
+            ]
+        elif isinstance(self.enc_dec_model, (Float16Module, MCoreFloat16Module)):
+            return [self.enc_dec_model.module]
+        else:
+            return [self.enc_dec_model]
+
+    def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
+        """
+        Creates the sharded state dict which is used by dist_checkpoint to save the sharded tensors to disk.
+        When given the sharded_stated_dict, dist_checkpoint.load will load the tensors corresponding to
+        self.state_dict().
+        The sharded tensor mapping is defined in the T5Model class from mcore.
+        """
+
+        if self.mcore_t5:
+            module_prefix = f'{prefix}enc_dec_model.'
+            sharded_state_dict = {}
+            for index, module in enumerate(self.get_t5_module_list()):
+                if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                    # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                    module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
+                    sharded_state_dict[f'model_{index}'] = module_sharded_state_dict
+                else:
+                    module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
+                    sharded_state_dict.update(module_sharded_state_dict)
+
+            # reset vp rank
+            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+            return sharded_state_dict
+
+    def on_save_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-save-checkpoint
+        """
+        # mcore uses distributed checkpointing
+        if self.mcore_t5:
+            checkpoint['sharded_state_dict'] = self.sharded_state_dict()
+
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+        """
+
+        # mcore uses distributed checkpointing
+        if self.mcore_t5:
+            # TODO
+            if 'state_dict' in checkpoint and checkpoint['state_dict']:
+                for index, module in enumerate(self.get_t5_module_list()):
+                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                        checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
+                    else:
+                        checkpoint_state_dict = checkpoint['state_dict']
+                    # checkpoint_state_dict has "model." but module does not so we need to remove it when loading
+                    checkpoint_state_dict = {
+                        key.replace('model.', ''): checkpoint_state_dict.pop(key)
+                        for key in list(checkpoint_state_dict.keys())
+                    }
+                    module.load_state_dict(checkpoint_state_dict, strict=True)
+            else:
+                # when restoring a distributed checkpoint from a ptl checkpoint we need to defer loading the state_dict
+                # see NLPModel.on_load_checkpoint
+                checkpoint['state_dict'] = {}
+
+
+    def _wrap_model_for_O2(self):
+        """ Wraps self.enc_dec_model in a float16 wrapper if the model is using megatron amp O2.
+            Args:
+                model: The model to wrap. Can be a list of modules or a single module.
+            Returns:
+                The wrapped model. Returns a list of wrapped modules or a single wrapped module.
+        """
+        Float16Wrapper = MCoreFloat16Module if self.mcore_t5 else Float16Module
+
+        nemo_kwargs = {
+            'config': self.model_parallel_config,
+            'precision': self.cfg.precision,
+            'module': self.enc_dec_model
+        }
+        mcore_kwargs = {
+            'config': self.transformer_config,
+            'module': self.enc_dec_model
+        }
+        kwargs = mcore_kwargs if self.mcore_t5 else nemo_kwargs
+        self.enc_dec_model = Float16Wrapper(**kwargs)
