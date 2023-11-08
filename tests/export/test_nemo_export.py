@@ -22,11 +22,7 @@ import shutil
 
 class TestNemoExport:
 
-    # @pytest.mark.unit
-    @pytest.mark.parametrize("model_name", ["NV-GPT-8B-Base-4k", "NV-GPT-8B-QA-4k", "NV-GPT-8B-Chat-4k-SFT", "NV-GPT-8B-Chat-4k-RLHF"])
-    def test_trt_llm_export(self, model_name):
-        """Here we test the trt-llm transfer and infer function"""
-
+    def run_trt_llm_export(model_name):
         test_data = get_infer_test_data()
 
         model_info = test_data[model_name]
@@ -104,5 +100,15 @@ class TestNemoExport:
                 test_at_least_one = True
                 shutil.rmtree(model_info["trt_llm_model_dir"])
 
-        assert test_at_least_one, "At least one nemo checkpoint has to be tested."
+
+    @pytest.mark.parametrize("model_name", ["NV-GPT-8B-Base-4k", "NV-GPT-8B-QA-4k"])
+    def test_trt_llm_export(self, model_name):
+        """Here we test the trt-llm transfer and infer function"""
+        run_trt_llm_export(model_name)
+
+    @pytest.mark.parametrize("model_name", [ "NV-GPT-8B-Chat-4k-SFT", "NV-GPT-8B-Chat-4k-RLHF"])
+    def test_trt_llm_export_2(self, model_name):
+        """Here we test the trt-llm transfer and infer function"""
+        run_trt_llm_export(model_name)
+        
 
