@@ -482,7 +482,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return super().configure_optimizers()
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, attention_mask_type):
-        output_tensor = self.model(tokens, text_position_ids, attention_mask, attention_mask_type=attention_mask_type, labels=labels)
+        output_tensor = self.model(
+            tokens, text_position_ids, attention_mask, attention_mask_type=attention_mask_type, labels=labels
+        )
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, attention_mask_type=None):
