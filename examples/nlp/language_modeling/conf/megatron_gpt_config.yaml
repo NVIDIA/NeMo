@@ -47,7 +47,7 @@ exp_manager:
 
 model:
   # use GPTModel from megatron.core
-  mcore_gpt: True
+  mcore_gpt: False
 
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
@@ -166,7 +166,7 @@ model:
   sequence_parallel: False
 
   ## Transformer Engine
-  transformer_engine: False
+  transformer_engine: True
   fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3 
   fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
