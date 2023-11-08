@@ -21,7 +21,7 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.tts.losses.audio_codec_loss import (
@@ -479,19 +479,14 @@ class AudioCodecModel(ModelPT):
 
     @staticmethod
     def get_dataset(cfg):
-        if 'is_sharded' in cfg.dataset:
-            is_sharded = cfg.dataset.is_sharded
-            del cfg.dataset.is_sharded
-        else:
-            is_sharded = False
+        with open_dict(cfg):
+            is_sharded = cfg.dataset.pop('is_sharded', False)
 
         if is_sharded:
             cfg.dataset._target_ = 'nemo.collections.tts.data.vocoder_dataset.TarredVocoderDataset'
-            dataset = instantiate(cfg.dataset)
-            sampler = None
-        else:
-            dataset = instantiate(cfg.dataset)
-            sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
+
+        dataset = instantiate(cfg.dataset)
+        sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
         return dataset, sampler
 
     @staticmethod

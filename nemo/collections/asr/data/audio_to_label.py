@@ -566,7 +566,6 @@ class _TarredAudioLabelDataset(IterableDataset):
             world_size=world_size,
             global_rank=global_rank,
         )
-        print("world_size", world_size)
         # Put together WebDataset
         self._dataset = wd.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
 
