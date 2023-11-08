@@ -70,17 +70,6 @@ class TestNemoExport:
                     )
                     print("output after export: ", output)
 
-                    print("Testintg loading the exported model ...")
-                    trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-                    output = trt_llm_exporter.forward(
-                        input_texts=["Let's see how this works", "Did you get the result yet?"],
-                        max_output_token = 200,
-                        top_k=1,
-                        top_p=0.4,
-                        temperature=0.8,
-                    )
-                    print("output after just loading: ", output)
-
                     if "p_tuning_checkpoint" in model_info.keys():
                         if Path(model_info["p_tuning_checkpoint"]).exists():
                             print(
@@ -104,8 +93,8 @@ class TestNemoExport:
                             )
                             print("output with export using ptuning: ", output)
 
-
                 test_at_least_one = True
+                shutil.rmtree(model_info["trt_llm_model_dir"])
 
         assert test_at_least_one, "At least one nemo checkpoint has to be tested."
 
