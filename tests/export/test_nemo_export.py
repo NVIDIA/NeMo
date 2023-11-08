@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 from nemo.export import TensorRTLLM
 from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
+import torch
 
 
 class TestNemoExport:
