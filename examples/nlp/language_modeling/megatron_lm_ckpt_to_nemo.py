@@ -48,9 +48,11 @@ from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.migration import pl_legacy_patch
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
@@ -146,7 +148,8 @@ def get_args():
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
     parser.add_argument("--pipeline_model_parallel_size", type=int, required=False, default=1)
 
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument("--local-rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    # parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
 
     parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert"])
 
@@ -167,7 +170,12 @@ def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, conver
         else:
             num_parameters = torch.prod(torch.tensor(weight_dict[key].cpu().size())).item()
             total[0] += num_parameters
+            if "_extra_state" in key: # we don't count the ._extra_state
+                total[0] -= num_parameters
             final_key = 'model' + parent_key + '.' + new_key
+            # print("final_key: " + str(final_key))
+            # print("key: " + str(key))
+            # print("\n")
             converted[final_key] = weight_dict[key]
 
 
@@ -273,7 +281,82 @@ def load_from_checkpoint(
         parse_weights(
             old_checkpoint['model'], "", total_params, checkpoint['state_dict'], translator=kwargs['translator']
         )
-        print('converted {:.2f}M parameters'.format(total_params[0] / 1e6))
+        print("\n".join(checkpoint['state_dict'].keys()))
+        print('converted {:.2f}M parameters ( not counting the ._extra_state keys from mcore checkpoint)'.format(total_params[0]))
+
+
+        # convert megatron to nemo T5 key
+        converted_state_dict = {}
+        translate = {}
+        # word and position embeddings
+        translate.update({
+            'enc_dec_model.module.encoder_embedding.word_embeddings.weight':'model.embedding.word_embeddings.weight',
+            'enc_dec_model.module.encoder_embedding.position_embeddings.weight':'model.embedding.position_embeddings.weight',
+            'enc_dec_model.module.decoder_embedding.word_embeddings.weight':'model.embedding.word_embeddings.weight',
+            'enc_dec_model.module.decoder_embedding.position_embeddings.weight':'model.embedding.position_embeddings.weight',
+        })
+        # encoder
+        num_layers = 12
+        for layer in range(num_layers):
+            translate.update({
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.input_layernorm.weight'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_qkv.layer_norm_weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.input_layernorm.bias'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_qkv.layer_norm_bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.query_key_value.weight'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_qkv.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.query_key_value.bias'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_qkv.bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.dense.weight'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_proj.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.dense.bias'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_proj.bias'.format(str(layer)),
+
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.post_attention_layernorm.weight'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc1.layer_norm_weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.post_attention_layernorm.bias'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc1.layer_norm_bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_h_to_4h.weight'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc1.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_h_to_4h.bias'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc1.bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_4h_to_h.weight'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc2.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_4h_to_h.bias'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc2.bias'.format(str(layer)),
+            })
+        translate.update({
+                'enc_dec_model.module.enc_dec_model.encoder.model.final_layernorm.weight':'model.encoder.final_layernorm.weight',
+                'enc_dec_model.module.enc_dec_model.encoder.model.final_layernorm.bias':'model.encoder.final_layernorm.bias',
+            })
+        # decoder
+        num_layers = 12
+        for layer in range(num_layers):
+            translate.update({
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.input_layernorm.weight'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_qkv.layer_norm_weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.input_layernorm.bias'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_qkv.layer_norm_bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.query_key_value.weight'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_qkv.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.query_key_value.bias'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_qkv.bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.dense.weight'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_proj.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.dense.bias'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_proj.bias'.format(str(layer)),
+
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_attention_layernorm.weight'.format(str(layer)):'model.decoder.layers.{}.pre_cross_attn_layernorm.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_attention_layernorm.bias'.format(str(layer)):'model.decoder.layers.{}.pre_cross_attn_layernorm.bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.query.weight'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_q.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.query.bias'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_q.bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.key_value.weight'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_kv.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.key_value.bias'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_kv.bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.dense.weight'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_proj.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.dense.bias'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_proj.bias'.format(str(layer)),
+
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_inter_attention_layernorm.weight'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc1.layer_norm_weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_inter_attention_layernorm.bias'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc1.layer_norm_bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_h_to_4h.weight'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc1.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_h_to_4h.bias'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc1.bias'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_4h_to_h.weight'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc2.weight'.format(str(layer)),
+                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_4h_to_h.bias'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc2.bias'.format(str(layer)),
+            })
+        translate.update({
+                'enc_dec_model.module.enc_dec_model.decoder.model.final_layernorm.weight':'model.decoder.final_layernorm.weight',
+                'enc_dec_model.module.enc_dec_model.decoder.model.final_layernorm.bias':'model.decoder.final_layernorm.bias',
+            })
+        # lm_head
+        translate.update({
+            'enc_dec_model.module.tokens_head.bias':'model.lm_head.output_layer.bias'
+        })
+        # translate
+        for key in translate:
+            converted_state_dict[key] = checkpoint['state_dict'][translate[key]]
+        checkpoint['state_dict'] = converted_state_dict
+
 
         if hparams_file is not None:
             extension = hparams_file.split(".")[-1]
@@ -399,7 +482,10 @@ def convert(local_rank, rank, world_size, args):
     num_nodes = world_size // args.gpus_per_node
     assert world_size % args.gpus_per_node == 0, "world_size must be divisible by gpus_per_node"
 
-    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes)
+    # trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes)
+    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes, plugins=[TorchElasticEnvironment()])
+    print("args.checkpoint_folder: " + str(args.checkpoint_folder))
+    print("os.path.join(args.checkpoint_folder, args.checkpoint_name): " + str(os.path.join(args.checkpoint_folder, args.checkpoint_name)))
     checkpoint_path = megatron_lm_inject_model_parallel_rank(
         os.path.join(args.checkpoint_folder, args.checkpoint_name)
     )
@@ -429,6 +515,18 @@ def convert(local_rank, rank, world_size, args):
         name_translate['word_embeddings_for_head'] = 'word_embeddings'
         checkpoint, consumed, steps, version = load_from_checkpoint(
             MegatronBertModel,
+            checkpoint_path,
+            hparams_file=args.hparams_file,
+            trainer=trainer,
+            translator=name_translate,
+            strict=False,
+        )
+    elif args.model_type == 't5':
+        # this dictionary is used to rename the model parameters
+        name_translate = {}
+
+        checkpoint, consumed, steps, version = load_from_checkpoint(
+            MegatronT5Model,
             checkpoint_path,
             hparams_file=args.hparams_file,
             trainer=trainer,
@@ -465,8 +563,13 @@ def convert(local_rank, rank, world_size, args):
             model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
         elif args.model_type == 'bert':
             model = load_model(MegatronBertModel, checkpoint, strict=False, trainer=trainer)
+        elif args.model_type == 't5':
+            model = load_model(MegatronT5Model, checkpoint, strict=False, trainer=trainer)
         else:
             raise NotImplemented("{} is not supported".format(args.model_type))
+
+        total_params = sum(p.numel() for p in model.parameters())
+        print("Number of Nemo params: " + str(total_params))
 
         # verify tensor parallel rank id and pipeline parallel rank id matches
         assert app_state.data_parallel_size == 1
