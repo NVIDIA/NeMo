@@ -46,9 +46,9 @@ from lightning_fabric.utilities.cloud_io import _load as pl_load
 from megatron.core import parallel_state
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.migration import pl_legacy_patch
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -170,7 +170,7 @@ def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, conver
         else:
             num_parameters = torch.prod(torch.tensor(weight_dict[key].cpu().size())).item()
             total[0] += num_parameters
-            if "_extra_state" in key: # we don't count the ._extra_state
+            if "_extra_state" in key:  # we don't count the ._extra_state
                 total[0] -= num_parameters
             final_key = 'model' + parent_key + '.' + new_key
             # print("final_key: " + str(final_key))
@@ -282,81 +282,170 @@ def load_from_checkpoint(
             old_checkpoint['model'], "", total_params, checkpoint['state_dict'], translator=kwargs['translator']
         )
         print("\n".join(checkpoint['state_dict'].keys()))
-        print('converted {:.2f}M parameters ( not counting the ._extra_state keys from mcore checkpoint)'.format(total_params[0]))
-
+        print(
+            'converted {:.2f}M parameters ( not counting the ._extra_state keys from mcore checkpoint)'.format(
+                total_params[0]
+            )
+        )
 
         # convert megatron to nemo T5 key
         converted_state_dict = {}
         translate = {}
         # word and position embeddings
-        translate.update({
-            'enc_dec_model.module.encoder_embedding.word_embeddings.weight':'model.embedding.word_embeddings.weight',
-            'enc_dec_model.module.encoder_embedding.position_embeddings.weight':'model.embedding.position_embeddings.weight',
-            'enc_dec_model.module.decoder_embedding.word_embeddings.weight':'model.embedding.word_embeddings.weight',
-            'enc_dec_model.module.decoder_embedding.position_embeddings.weight':'model.embedding.position_embeddings.weight',
-        })
+        translate.update(
+            {
+                'enc_dec_model.module.encoder_embedding.word_embeddings.weight': 'model.embedding.word_embeddings.weight',
+                'enc_dec_model.module.encoder_embedding.position_embeddings.weight': 'model.embedding.position_embeddings.weight',
+                'enc_dec_model.module.decoder_embedding.word_embeddings.weight': 'model.embedding.word_embeddings.weight',
+                'enc_dec_model.module.decoder_embedding.position_embeddings.weight': 'model.embedding.position_embeddings.weight',
+            }
+        )
         # encoder
         num_layers = 12
         for layer in range(num_layers):
-            translate.update({
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.input_layernorm.weight'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_qkv.layer_norm_weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.input_layernorm.bias'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_qkv.layer_norm_bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.query_key_value.weight'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_qkv.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.query_key_value.bias'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_qkv.bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.dense.weight'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_proj.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.dense.bias'.format(str(layer)):'model.encoder.layers.{}.self_attention.linear_proj.bias'.format(str(layer)),
-
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.post_attention_layernorm.weight'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc1.layer_norm_weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.post_attention_layernorm.bias'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc1.layer_norm_bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_h_to_4h.weight'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc1.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_h_to_4h.bias'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc1.bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_4h_to_h.weight'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc2.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_4h_to_h.bias'.format(str(layer)):'model.encoder.layers.{}.mlp.linear_fc2.bias'.format(str(layer)),
-            })
-        translate.update({
-                'enc_dec_model.module.enc_dec_model.encoder.model.final_layernorm.weight':'model.encoder.final_layernorm.weight',
-                'enc_dec_model.module.enc_dec_model.encoder.model.final_layernorm.bias':'model.encoder.final_layernorm.bias',
-            })
+            translate.update(
+                {
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.input_layernorm.weight'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.self_attention.linear_qkv.layer_norm_weight'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.input_layernorm.bias'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.self_attention.linear_qkv.layer_norm_bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.query_key_value.weight'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.self_attention.linear_qkv.weight'.format(
+                        str(layer)
+                    ),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.query_key_value.bias'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.self_attention.linear_qkv.bias'.format(
+                        str(layer)
+                    ),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.dense.weight'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.self_attention.linear_proj.weight'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.self_attention.dense.bias'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.self_attention.linear_proj.bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.post_attention_layernorm.weight'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.mlp.linear_fc1.layer_norm_weight'.format(
+                        str(layer)
+                    ),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.post_attention_layernorm.bias'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.mlp.linear_fc1.layer_norm_bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_h_to_4h.weight'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.mlp.linear_fc1.weight'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_h_to_4h.bias'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.mlp.linear_fc1.bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_4h_to_h.weight'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.mlp.linear_fc2.weight'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.encoder.model.layers.{}.mlp.dense_4h_to_h.bias'.format(
+                        str(layer)
+                    ): 'model.encoder.layers.{}.mlp.linear_fc2.bias'.format(str(layer)),
+                }
+            )
+        translate.update(
+            {
+                'enc_dec_model.module.enc_dec_model.encoder.model.final_layernorm.weight': 'model.encoder.final_layernorm.weight',
+                'enc_dec_model.module.enc_dec_model.encoder.model.final_layernorm.bias': 'model.encoder.final_layernorm.bias',
+            }
+        )
         # decoder
         num_layers = 12
         for layer in range(num_layers):
-            translate.update({
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.input_layernorm.weight'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_qkv.layer_norm_weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.input_layernorm.bias'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_qkv.layer_norm_bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.query_key_value.weight'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_qkv.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.query_key_value.bias'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_qkv.bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.dense.weight'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_proj.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.dense.bias'.format(str(layer)):'model.decoder.layers.{}.self_attention.linear_proj.bias'.format(str(layer)),
-
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_attention_layernorm.weight'.format(str(layer)):'model.decoder.layers.{}.pre_cross_attn_layernorm.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_attention_layernorm.bias'.format(str(layer)):'model.decoder.layers.{}.pre_cross_attn_layernorm.bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.query.weight'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_q.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.query.bias'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_q.bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.key_value.weight'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_kv.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.key_value.bias'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_kv.bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.dense.weight'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_proj.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.dense.bias'.format(str(layer)):'model.decoder.layers.{}.cross_attention.linear_proj.bias'.format(str(layer)),
-
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_inter_attention_layernorm.weight'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc1.layer_norm_weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_inter_attention_layernorm.bias'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc1.layer_norm_bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_h_to_4h.weight'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc1.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_h_to_4h.bias'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc1.bias'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_4h_to_h.weight'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc2.weight'.format(str(layer)),
-                'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_4h_to_h.bias'.format(str(layer)):'model.decoder.layers.{}.mlp.linear_fc2.bias'.format(str(layer)),
-            })
-        translate.update({
-                'enc_dec_model.module.enc_dec_model.decoder.model.final_layernorm.weight':'model.decoder.final_layernorm.weight',
-                'enc_dec_model.module.enc_dec_model.decoder.model.final_layernorm.bias':'model.decoder.final_layernorm.bias',
-            })
+            translate.update(
+                {
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.input_layernorm.weight'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.self_attention.linear_qkv.layer_norm_weight'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.input_layernorm.bias'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.self_attention.linear_qkv.layer_norm_bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.query_key_value.weight'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.self_attention.linear_qkv.weight'.format(
+                        str(layer)
+                    ),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.query_key_value.bias'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.self_attention.linear_qkv.bias'.format(
+                        str(layer)
+                    ),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.dense.weight'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.self_attention.linear_proj.weight'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.self_attention.dense.bias'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.self_attention.linear_proj.bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_attention_layernorm.weight'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.pre_cross_attn_layernorm.weight'.format(
+                        str(layer)
+                    ),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_attention_layernorm.bias'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.pre_cross_attn_layernorm.bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.query.weight'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.cross_attention.linear_q.weight'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.query.bias'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.cross_attention.linear_q.bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.key_value.weight'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.cross_attention.linear_kv.weight'.format(
+                        str(layer)
+                    ),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.key_value.bias'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.cross_attention.linear_kv.bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.dense.weight'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.cross_attention.linear_proj.weight'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.inter_attention.dense.bias'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.cross_attention.linear_proj.bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_inter_attention_layernorm.weight'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.mlp.linear_fc1.layer_norm_weight'.format(
+                        str(layer)
+                    ),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.post_inter_attention_layernorm.bias'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.mlp.linear_fc1.layer_norm_bias'.format(
+                        str(layer)
+                    ),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_h_to_4h.weight'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.mlp.linear_fc1.weight'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_h_to_4h.bias'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.mlp.linear_fc1.bias'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_4h_to_h.weight'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.mlp.linear_fc2.weight'.format(str(layer)),
+                    'enc_dec_model.module.enc_dec_model.decoder.model.layers.{}.mlp.dense_4h_to_h.bias'.format(
+                        str(layer)
+                    ): 'model.decoder.layers.{}.mlp.linear_fc2.bias'.format(str(layer)),
+                }
+            )
+        translate.update(
+            {
+                'enc_dec_model.module.enc_dec_model.decoder.model.final_layernorm.weight': 'model.decoder.final_layernorm.weight',
+                'enc_dec_model.module.enc_dec_model.decoder.model.final_layernorm.bias': 'model.decoder.final_layernorm.bias',
+            }
+        )
         # lm_head
-        translate.update({
-            'enc_dec_model.module.tokens_head.bias':'model.lm_head.output_layer.bias'
-        })
+        translate.update({'enc_dec_model.module.tokens_head.bias': 'model.lm_head.output_layer.bias'})
         # translate
         for key in translate:
             converted_state_dict[key] = checkpoint['state_dict'][translate[key]]
         checkpoint['state_dict'] = converted_state_dict
-
 
         if hparams_file is not None:
             extension = hparams_file.split(".")[-1]
@@ -483,9 +572,14 @@ def convert(local_rank, rank, world_size, args):
     assert world_size % args.gpus_per_node == 0, "world_size must be divisible by gpus_per_node"
 
     # trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes)
-    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes, plugins=[TorchElasticEnvironment()])
+    trainer = Trainer(
+        devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes, plugins=[TorchElasticEnvironment()]
+    )
     print("args.checkpoint_folder: " + str(args.checkpoint_folder))
-    print("os.path.join(args.checkpoint_folder, args.checkpoint_name): " + str(os.path.join(args.checkpoint_folder, args.checkpoint_name)))
+    print(
+        "os.path.join(args.checkpoint_folder, args.checkpoint_name): "
+        + str(os.path.join(args.checkpoint_folder, args.checkpoint_name))
+    )
     checkpoint_path = megatron_lm_inject_model_parallel_rank(
         os.path.join(args.checkpoint_folder, args.checkpoint_name)
     )
