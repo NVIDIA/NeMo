@@ -52,7 +52,10 @@ class TestNemoExport:
                     Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
 
                     print("")
-                    print("---------------------------------------------------")
+                    print("")
+                    print("################################################## NEW MODEL ##################################################")
+                    print("")
+
                     print(
                         "Path: {0} and model: {1} with {2} gpus will be tested".format(
                             model_info["checkpoint"], model_name, n_gpu
@@ -96,6 +99,7 @@ class TestNemoExport:
                             )
                             print("output with export using ptuning: ", output)
 
+                trt_llm_exporter = None
                 test_at_least_one = True
                 shutil.rmtree(model_info["trt_llm_model_dir"])
 
