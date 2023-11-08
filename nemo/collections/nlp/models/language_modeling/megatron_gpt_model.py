@@ -75,7 +75,9 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec  # todo new version uses gpt_layer_... variable
+    from megatron.core.models.gpt.gpt_layer_specs import (
+        get_gpt_layer_with_transformer_engine_spec,  # todo new version uses gpt_layer_... variable
+    )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
@@ -1489,7 +1491,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for mod in module.modules():
                 if hasattr(mod, "sequence_parallel"):
                     mod.sequence_parallel = self.last_sequence_parallel
-
 
     def _wrap_model_for_O2(self):
         """ Wraps self.model in a float16 wrapper if the model is using megatron amp O2.

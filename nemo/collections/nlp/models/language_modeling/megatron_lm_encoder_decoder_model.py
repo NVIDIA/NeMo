@@ -31,13 +31,14 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_model import Me
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
-    MegatronTokenLevelEncoderDecoderModule, AttnMaskType,
+    AttnMaskType,
+    MegatronTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
-    get_params_for_weight_decay_optimization,
     build_attention_mask_3d,
+    get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     compute_beam_search_len_penalty,
@@ -62,15 +63,16 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.models.T5 import T5Model as MCoreT5Model
     from megatron.core.models.T5.t5_spec import (
-        get_t5_encoder_with_transformer_engine_block_spec,
+        get_t5_decoder_with_local_block_spec,
         get_t5_decoder_with_transformer_engine_block_spec,
         get_t5_encoder_with_local_block_spec,
-        get_t5_decoder_with_local_block_spec,
+        get_t5_encoder_with_transformer_engine_block_spec,
     )
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -265,9 +267,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if hasattr(self, 'mcore_t5') and self.mcore_t5:
             print("*************** using mcore T5!!! ****************")
             assert HAVE_MEGATRON_CORE, "Cannot use MCore T5 since Megatron Core is not found"
-            assert self.cfg.get('share_token_embeddings', True), "share_token_embeddings must be True if using MCore T5 model"
+            assert self.cfg.get(
+                'share_token_embeddings', True
+            ), "share_token_embeddings must be True if using MCore T5 model"
             if self.cfg.get('transformer_engine', False):
-                enc_dec_spec_fns = get_t5_encoder_with_transformer_engine_block_spec, get_t5_decoder_with_transformer_engine_block_spec
+                enc_dec_spec_fns = (
+                    get_t5_encoder_with_transformer_engine_block_spec,
+                    get_t5_decoder_with_transformer_engine_block_spec,
+                )
             else:
                 enc_dec_spec_fns = get_t5_encoder_with_local_block_spec, get_t5_decoder_with_local_block_spec
 
@@ -623,10 +630,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             if self.mcore_t5:
                 # attn mask logic follows megatron.data.t5_dataset.py in Megatron-LM
-                encoder_attn_mask_3d = build_attention_mask_3d(encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding)
-                decoder_attn_mask_3d = build_attention_mask_3d(decoder_attn_mask, decoder_attn_mask, AttnMaskType.causal)
-                enc_dec_attn_mask_3d = build_attention_mask_3d(decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding)
-                output = model(         # model is MCoreT5Model
+                encoder_attn_mask_3d = build_attention_mask_3d(
+                    encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
+                )
+                decoder_attn_mask_3d = build_attention_mask_3d(
+                    decoder_attn_mask, decoder_attn_mask, AttnMaskType.causal
+                )
+                enc_dec_attn_mask_3d = build_attention_mask_3d(
+                    decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding
+                )
+                output = model(  # model is MCoreT5Model
                     encoder_input_ids,  # encoder_input_ids
                     decoder_input_ids,  # decoder_input_ids
                     encoder_attn_mask_3d,  # encoder_attn_mask
@@ -635,7 +648,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     lm_labels,  # lm_labels
                 )
             else:
-                output = model(         # model is MegatronTokenLevelEncoderDecoderModule
+                output = model(  # model is MegatronTokenLevelEncoderDecoderModule
                     encoder_input_ids,  # enc_input_ids
                     encoder_attn_mask,  # enc_attn_mask
                     decoder_input_ids,  # dec_input_ids
@@ -1647,7 +1660,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 # see NLPModel.on_load_checkpoint
                 checkpoint['state_dict'] = {}
 
-
     def _wrap_model_for_O2(self):
         """ Wraps self.enc_dec_model in a float16 wrapper if the model is using megatron amp O2.
             Args:
@@ -1660,11 +1672,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         nemo_kwargs = {
             'config': self.model_parallel_config,
             'precision': self.cfg.precision,
-            'module': self.enc_dec_model
+            'module': self.enc_dec_model,
         }
-        mcore_kwargs = {
-            'config': self.transformer_config,
-            'module': self.enc_dec_model
-        }
+        mcore_kwargs = {'config': self.transformer_config, 'module': self.enc_dec_model}
         kwargs = mcore_kwargs if self.mcore_t5 else nemo_kwargs
         self.enc_dec_model = Float16Wrapper(**kwargs)

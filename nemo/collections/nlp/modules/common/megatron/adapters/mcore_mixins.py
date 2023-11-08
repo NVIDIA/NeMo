@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import torch
+from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.transformer_layer import TransformerLayer
-from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.utils import make_viewless_tensor
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
