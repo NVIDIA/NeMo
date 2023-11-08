@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn.functional as F
-from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -37,7 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
-from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
@@ -67,7 +66,6 @@ try:
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.utils import init_method_normal, scaled_init_method_normal
 
     HAVE_MEGATRON_CORE = True
 
