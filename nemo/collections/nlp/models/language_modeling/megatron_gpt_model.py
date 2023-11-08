@@ -482,9 +482,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return super().configure_optimizers()
 
     def forward(self, tokens, text_position_ids, attention_mask, labels):
-        output_tensor = self.model(
-            tokens, text_position_ids, attention_mask, labels=labels
-        )
+        output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, attention_mask_type=None):
@@ -926,7 +924,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            output_tensor = model(tokens, position_ids, attention_mask, attention_mask_type=attention_mask_type, **extra_arg)
+            output_tensor = model(
+                tokens, position_ids, attention_mask, attention_mask_type=attention_mask_type, **extra_arg
+            )
 
             # Advance inference sequence offset.
             if self.inference_params:
