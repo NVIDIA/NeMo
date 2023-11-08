@@ -466,6 +466,7 @@ def synced_generate(
             context_length_tensor,
             tokens_to_generate,
             all_probs,
+            attention_mask_type=attention_mask_type,
             compute_attention_mask=compute_attention_mask,
             temperature=temperature,
         )
@@ -913,6 +914,7 @@ def tab_sample_sequence_batch(
     context_lengths,
     tokens_to_generate,
     all_probs=True,
+    attention_mask_type=None,
     compute_attention_mask=True,
     type_ids=None,
     temperature=None,
@@ -973,7 +975,7 @@ def tab_sample_sequence_batch(
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                 tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
             )
-            output = inference_strategy.forward_step(batch, tensor_shape)
+            output = inference_strategy.forward_step(batch, tensor_shape, attention_mask_type)
 
             if parallel_state.is_pipeline_last_stage():
                 output = output[0]['logits'].float()

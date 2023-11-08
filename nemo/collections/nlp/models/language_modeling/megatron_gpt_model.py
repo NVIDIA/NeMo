@@ -481,11 +481,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return super().configure_optimizers()
 
-    def forward(self, tokens, text_position_ids, attention_mask, labels):
-        output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
+    def forward(self, tokens, text_position_ids, attention_mask, labels, attention_mask_type):
+        output_tensor = self.model(tokens, text_position_ids, attention_mask, attention_mask_type=attention_mask_type, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, attention_mask_type=None):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -515,6 +515,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             forward_only=forward_only,
             seq_length=self.cfg.encoder_seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
+            attention_mask_type=attention_mask_type,
         )
 
         # only the last stages of the pipeline return losses
@@ -850,6 +851,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'attention_mask': batch['attention_mask'],
                 'labels': batch['labels'],
                 'loss_mask': batch['loss_mask'],
+                'attention_mask_type': None,
             }
 
             if not self.mcore_gpt:
@@ -959,7 +961,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for model_module in self.model:
                 model_module.eval()
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True, attention_mask_type=None)
 
         if isinstance(self.model, list):
             for model_module in self.model:
