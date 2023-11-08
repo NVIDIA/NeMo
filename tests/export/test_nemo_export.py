@@ -17,6 +17,7 @@ import pytest
 from nemo.export import TensorRTLLM
 from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
 import torch
+import shutil
 
 
 class TestNemoExport:
@@ -50,6 +51,8 @@ class TestNemoExport:
 
                     Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
 
+                    print("")
+                    print("---------------------------------------------------")
                     print(
                         "Path: {0} and model: {1} with {2} gpus will be tested".format(
                             model_info["checkpoint"], model_name, n_gpu
@@ -65,8 +68,8 @@ class TestNemoExport:
                         input_texts=["Hi, how are you?", "I am good, thanks, how about you?"],
                         max_output_token=128,
                         top_k=1,
-                        top_p=0.2,
-                        temperature=0.4,
+                        top_p=0.0,
+                        temperature=1.0,
                     )
                     print("output after export: ", output)
 
