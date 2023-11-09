@@ -24,7 +24,7 @@ USAGE Example:
 
 import os
 
-from omegaconf.omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
@@ -47,7 +47,6 @@ except (ImportError, ModuleNotFoundError):
 
 @hydra_runner(config_path="conf", config_name="nmt_megatron_infer")
 def main(cfg) -> None:
-
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     assert (
@@ -75,16 +74,23 @@ def main(cfg) -> None:
     if cfg.model_file is not None:
         if not os.path.exists(cfg.model_file):
             raise ValueError(f"Model file {cfg.model_file} does not exist")
+
+        # getting the model's config and updating tgt_language if needed
         pretrained_cfg = MegatronNMTModel.restore_from(cfg.model_file, trainer=trainer, return_config=True)
+
+        # modifying the config
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
-            pretrained_cfg.precision = trainer.precision
+            if hasattr(cfg, 'tgt_language') and cfg.tgt_language is not None:
+                pretrained_cfg.tgt_language = cfg.tgt_language
+
         model = MegatronNMTModel.restore_from(
             restore_path=cfg.model_file,
             trainer=trainer,
             save_restore_connector=NLPSaveRestoreConnector(),
             override_config_path=pretrained_cfg,
         )
+
     elif cfg.checkpoint_dir is not None:
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
