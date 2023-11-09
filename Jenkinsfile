@@ -60,8 +60,6 @@ pipeline {
     // megatron-core 0.3 has been pinned in the requirements, this should not be needed on r1.21.0
     stage('Megatron Core installation') {
       steps {
-         // pinned MCore https://github.com/NVIDIA/Megatron-LM/commit/ab0336a5c8eab77aa74ae604ba1e73decbf6d560
-         // ToT for 23.08 branch
         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
             git checkout ad4c68568d5d6f5a723652db003897e3c2b62545 && \

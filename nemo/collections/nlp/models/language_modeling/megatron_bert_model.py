@@ -351,7 +351,7 @@ class MegatronBertModel(MegatronBaseModel):
             # manually interact with the parameter.
             modules = self.model if isinstance(self.model, list) else [self.model]
             for module in modules:
-                if isinstance(module, Float16Module, MCoreFloat16Module):
+                if isinstance(module, (Float16Module, MCoreFloat16Module)):
                     module = module.module
                 if not self.mcore_bert:
                     module = module.language_model
@@ -957,10 +957,9 @@ class MegatronBertModel(MegatronBaseModel):
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 # Initialize a bucket for each virtual pipeline stage
                 for module in self.model:
-                    if isinstance(module, Float16Module, MCoreFloat16Module):
+                    if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
                     stage_bucket = []
-                    # TODO Fill this out
                     layers = module.transformer.layers if self.mcore_bert else module.language_model.encoder.layers
                     for layer in layers:
                         stage_bucket.extend(
@@ -971,7 +970,7 @@ class MegatronBertModel(MegatronBaseModel):
                 # Initialize a bucket for each Transformer layer
                 modules = self.model if isinstance(self.model, list) else [self.model]
                 for module in modules:
-                    if isinstance(module, Float16Module, MCoreFloat16Module):
+                    if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
                     layers = module.transformer.layers if self.mcore_bert else module.language_model.encoder.layers
                     for layer in layers:

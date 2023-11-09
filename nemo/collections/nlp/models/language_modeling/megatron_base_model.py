@@ -296,7 +296,7 @@ class MegatronBaseModel(NLPModel):
         if self.gc_interval > 0 and self.gc_in_validation:
             gc.collect()
 
-    def build_transformer_config(self, model_specific_config=None) -> TransformerConfig:
+    def build_transformer_config(self) -> TransformerConfig:
         """ Builds the megatron core transformer config for the model.
             For attributes in the nemo model config that are the same
             as the megatron core TransformerConfig, we will use the value from the nemo model config.
@@ -367,11 +367,8 @@ class MegatronBaseModel(NLPModel):
 
         # populate the transformer config dict
         for field in fields(TransformerConfig):
-            # model specif mapping has highest priority
-            if field.name in model_specific_config:
-                transformer_config_dict[field.name] = config_mapping[field.name]
             # config mapping has second highest priority
-            elif field.name in config_mapping:
+            if field.name in config_mapping:
                 transformer_config_dict[field.name] = config_mapping[field.name]
             # then config
             elif field.name in cfg:
