@@ -18,6 +18,7 @@ from nemo.export import TensorRTLLM
 from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
 import torch
 import shutil
+import json
 
 
 def get_accuracy_with_lambada(model):
@@ -37,6 +38,7 @@ def get_accuracy_with_lambada(model):
                 prompt = record["text_before_last_word"]
                 expected_output = record["last_word"]
                 trtllm_output = model.forward(input_texts=[prompt], max_output_token=1, top_k=1, top_p=0, temperature=0.1)
+                trtllm_output = trtllm_output[0][0]
 
                 all_expected_outputs.append(expected_output)
                 all_trtllm_outputs.append(trtllm_output)
