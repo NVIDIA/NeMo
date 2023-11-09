@@ -76,7 +76,7 @@ def get_args(argv):
     parser.add_argument(
         "-t",
         "--temperature",
-        default=0.0,
+        default=1.0,
         type=float,
         help="temperature"
     )
