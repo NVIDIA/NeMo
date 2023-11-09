@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import librosa
 import soundfile as sf
 import torch.utils.data
 import webdataset as wd
@@ -107,7 +108,7 @@ class VocoderDataset(Dataset):
     def __init__(
         self,
         dataset_meta: Dict,
-        sample_rate: int,
+        sample_rate: int = 24000,
         n_samples: Optional[int] = None,
         weighted_sampling_steps_per_epoch: Optional[int] = None,
         feature_processors: Optional[Dict[str, FeatureProcessor]] = None,
@@ -281,7 +282,7 @@ class TarredVocoderDataset(IterableDataset):
         self,
         *,
         dataset_meta: Dict,
-        sample_rate: int,
+        sample_rate: int = 24000,
         n_samples: Optional[int] = None,
         shuffle_n: int = 0,
         min_duration: float = 0.1,
@@ -308,17 +309,15 @@ class TarredVocoderDataset(IterableDataset):
             self.feature_processors = []
 
         self.data_samples = []
-        self.sample_weights = []
         self.audio_tar_filepaths = []
         for dataset_name, dataset_info in dataset_meta.items():
             audio_tar_filepaths = dataset_info['audio_tar_filepaths']
             self.audio_tar_filepaths += audio_tar_filepaths
             dataset = DatasetMeta(**dataset_info)
-            samples, weights = VocoderDataset._preprocess_manifest(
+            samples, _ = VocoderDataset._preprocess_manifest(
                 dataset_name=dataset_name, dataset=dataset, min_duration=min_duration, max_duration=max_duration,
             )
             self.data_samples += samples
-            self.sample_weights += weights
 
         self.mapping = {}
         for sample in enumerate(self.data_samples):
@@ -375,7 +374,13 @@ class TarredVocoderDataset(IterableDataset):
         file_id = os.path.splitext(os.path.basename(audio_filename))[0]
         data = self.mapping[file_id]
 
-        audio_array, _ = sf.read(file=io.BytesIO(audio_bytes), dtype='float32')
+        audio_array, sr = sf.read(file=io.BytesIO(audio_bytes), dtype='float32')
+        if sr != self.sample_rate:
+            logging.warning(
+                f"Sample rate of {sr} does not match target sample rate of {self.sample_rate}. Resampling audio."
+            )
+            audio_array = librosa.core.resample(audio_array, orig_sr=sr, target_sr=self.sample_rate)
+
         audio_array = torch.from_numpy(audio_array)
         if self.n_samples:
             len_audio = audio_array.shape[0]
