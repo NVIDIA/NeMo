@@ -47,7 +47,7 @@ def run_trt_llm_export(model_name, n_gpu):
 
         print("")
         print("")
-        print("################################################## NEW MODEL ##################################################")
+        print("################################################## NEW TEST ##################################################")
         print("")
 
         print(
@@ -68,7 +68,12 @@ def run_trt_llm_export(model_name, n_gpu):
             top_p=0.0,
             temperature=1.0,
         )
-        print("output after export: ", output)
+
+        print("")
+        print("--- Prompt: ", model_info["prompt_template"])
+        print("")
+        print("--- Output: ", output)
+        print("")
 
         if "p_tuning_checkpoint" in model_info.keys():
             if Path(model_info["p_tuning_checkpoint"]).exists():
