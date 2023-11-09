@@ -20,7 +20,7 @@ import torch
 import shutil
 
 
-def run_trt_llm_export(model_name):
+def run_trt_llm_export(model_name, n_gpu):
     test_data = get_infer_test_data()
 
     model_info = test_data[model_name]
@@ -35,78 +35,89 @@ def run_trt_llm_export(model_name):
         )
     )
     if Path(model_info["checkpoint"]).exists():
-        for n_gpu in model_info["total_gpus"]:
-            if n_gpu > torch.cuda.device_count():
-                print(
-                    "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
-                        model_info["checkpoint"], model_name, n_gpu, torch.cuda.device_count()
-                    )
-                )
-                continue
-
-            Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
-
-            print("")
-            print("")
-            print("################################################## NEW MODEL ##################################################")
-            print("")
-
+        if n_gpu > torch.cuda.device_count():
             print(
-                "Path: {0} and model: {1} with {2} gpus will be tested".format(
-                    model_info["checkpoint"], model_name, n_gpu
+                "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
+                    model_info["checkpoint"], model_name, n_gpu, torch.cuda.device_count()
                 )
             )
-            trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-            trt_llm_exporter.export(
-                nemo_checkpoint_path=model_info["checkpoint"],
-                model_type=model_info["model_type"],
-                n_gpus=n_gpu,
+            return
+
+        Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
+
+        print("")
+        print("")
+        print("################################################## NEW MODEL ##################################################")
+        print("")
+
+        print(
+            "Path: {0} and model: {1} with {2} gpus will be tested".format(
+                model_info["checkpoint"], model_name, n_gpu
             )
-            output = trt_llm_exporter.forward(
-                input_texts=["Hi, how are you?", "I am good, thanks, how about you?"],
-                max_output_token=128,
-                top_k=1,
-                top_p=0.0,
-                temperature=1.0,
-            )
-            print("output after export: ", output)
+        )
+        trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
+        trt_llm_exporter.export(
+            nemo_checkpoint_path=model_info["checkpoint"],
+            model_type=model_info["model_type"],
+            n_gpus=n_gpu,
+        )
+        output = trt_llm_exporter.forward(
+            input_texts=["Hi, how are you?", "I am good, thanks, how about you?"],
+            max_output_token=128,
+            top_k=1,
+            top_p=0.0,
+            temperature=1.0,
+        )
+        print("output after export: ", output)
 
-            if "p_tuning_checkpoint" in model_info.keys():
-                if Path(model_info["p_tuning_checkpoint"]).exists():
-                    print(
-                        "Path: {0} and model: {1} with {2} gpus will be tested with PTuning checkpoint {3}".format(
-                            model_info["checkpoint"], model_name, n_gpu, model_info["p_tuning_checkpoint"]
-                        )
+        if "p_tuning_checkpoint" in model_info.keys():
+            if Path(model_info["p_tuning_checkpoint"]).exists():
+                print(
+                    "Path: {0} and model: {1} with {2} gpus will be tested with PTuning checkpoint {3}".format(
+                        model_info["checkpoint"], model_name, n_gpu, model_info["p_tuning_checkpoint"]
                     )
+                )
 
-                    trt_llm_exporter.export(
-                        nemo_checkpoint_path=model_info["checkpoint"],
-                        model_type=model_info["model_type"],
-                        n_gpus=n_gpu,
-                        prompt_embeddings_checkpoint_path=model_info["p_tuning_checkpoint"],
-                    )
-                    output = trt_llm_exporter.forward(
-                        input_texts=["Let's see how this works", "Did you get the result yet with ptuning as well?"],
-                        max_output_token = 50,
-                        top_k=1,
-                        top_p=0.3,
-                        temperature=0.5,
-                    )
-                    print("output with export using ptuning: ", output)
+                trt_llm_exporter.export(
+                    nemo_checkpoint_path=model_info["checkpoint"],
+                    model_type=model_info["model_type"],
+                    n_gpus=n_gpu,
+                    prompt_embeddings_checkpoint_path=model_info["p_tuning_checkpoint"],
+                )
+                output = trt_llm_exporter.forward(
+                    input_texts=["Let's see how this works", "Did you get the result yet with ptuning as well?"],
+                    max_output_token = 50,
+                    top_k=1,
+                    top_p=0.3,
+                    temperature=0.5,
+                )
+                print("output with export using ptuning: ", output)
 
-            trt_llm_exporter = None
-            test_at_least_one = True
-            shutil.rmtree(model_info["trt_llm_model_dir"])
+        trt_llm_exporter = None
+        test_at_least_one = True
+        shutil.rmtree(model_info["trt_llm_model_dir"])
 
 
-@pytest.mark.parametrize("model_name", ["NV-GPT-8B-Base-4k", "NV-GPT-8B-QA-4k"])
-def test_trt_llm_export(model_name):
+@pytest.mark.parametrize("n_gpus", [1])
+def test_NV_GPT_8B_Base_4k(n_gpus):
     """Here we test the trt-llm transfer and infer function"""
-    run_trt_llm_export(model_name)
+    run_trt_llm_export("NV-GPT-8B-Base-4k", n_gpus)
 
-@pytest.mark.parametrize("model_name", [ "NV-GPT-8B-Chat-4k-SFT", "NV-GPT-8B-Chat-4k-RLHF"])
-def test_trt_llm_export_2(model_name):
+
+@pytest.mark.parametrize("n_gpus", [1])
+def test_NV_GPT_8B_QA_4k(n_gpus):
     """Here we test the trt-llm transfer and infer function"""
-    run_trt_llm_export(model_name)
+    run_trt_llm_export("NV-GPT-8B-QA-4k", n_gpus)
+
+
+@pytest.mark.parametrize("n_gpus", [1])
+def test_NV_GPT_8B_Chat_4k_SFT(n_gpus):
+    """Here we test the trt-llm transfer and infer function"""
+    run_trt_llm_export("NV-GPT-8B-Chat-4k-SFT", n_gpus)
         
+
+@pytest.mark.parametrize("n_gpus", [1])
+def test_NV_GPT_8B_Chat_4k_RLHF(n_gpus):
+    """Here we test the trt-llm transfer and infer function"""
+    run_trt_llm_export("NV-GPT-8B-Chat-4k-RLHF", n_gpus)
 
