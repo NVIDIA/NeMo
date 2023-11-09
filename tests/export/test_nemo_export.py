@@ -46,7 +46,7 @@ def get_accuracy_with_lambada(model):
                 if expected_output == trtllm_output:
                     trtllm_correct += 1
 
-                print("-- expected_output: {0} and trtllm_output: {1}".format(expected_output, trtllm_output))
+                # print("-- expected_output: {0} and trtllm_output: {1}".format(expected_output, trtllm_output))
                 
         trtllm_accuracy = trtllm_correct / len(all_expected_outputs)
         return trtllm_accuracy, all_trtllm_outputs, all_expected_outputs
@@ -116,6 +116,7 @@ def run_trt_llm_export(model_name, n_gpu):
 
         trtllm_accuracy, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(trt_llm_exporter)
         print("****** model accuracy: ", trtllm_accuracy)
+        assert trtllm_accuracy > 0.5, "Model accuracy is below 0.5"
 
         if "p_tuning_checkpoint" in model_info.keys():
             if Path(model_info["p_tuning_checkpoint"]).exists():
