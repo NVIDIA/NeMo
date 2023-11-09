@@ -20,6 +20,36 @@ import torch
 import shutil
 
 
+def get_accuracy_with_lambada(model):
+        # lambada dataset based accuracy test, which includes more than 5000 sentences.
+        # Use generated last token with original text's last token for accuracy comparison.
+        # If the generated last token start with the original token, trtllm_correct make an increment.
+        # It generates a CSV file for text comparison detail.
+
+        trtllm_correct = 0
+        all_expected_outputs = []
+        all_trtllm_outputs = []
+
+        with open('/opt/NeMo/tests/deploy/lambada.json', 'r') as file:
+            records = json.load(file)
+
+            for record in records:
+                prompt = record["text_before_last_word"]
+                expected_output = record["last_word"]
+                trtllm_output = model.forward(input_texts=[prompt], max_output_token=1, top_k=1, top_p=0, temperature=0.1)
+
+                all_expected_outputs.append(expected_output)
+                all_trtllm_outputs.append(trtllm_output)
+
+                if expected_output == trtllm_output:
+                    trtllm_correct += 1
+
+                print("-- expected_output: {0} and trtllm_output: {1}".format(expected_output, trtllm_output))
+                
+        trtllm_accuracy = trtllm_correct / len(all_expected_outputs)
+        return trtllm_accuracy, all_trtllm_outputs, all_expected_outputs
+
+
 def run_trt_llm_export(model_name, n_gpu):
     test_data = get_infer_test_data()
 
@@ -60,6 +90,8 @@ def run_trt_llm_export(model_name, n_gpu):
             nemo_checkpoint_path=model_info["checkpoint"],
             model_type=model_info["model_type"],
             n_gpus=n_gpu,
+            max_input_token=1024,
+            max_output_token=128,
             max_batch_size=model_info["max_batch_size"],
         )
         output = trt_llm_exporter.forward(
@@ -79,6 +111,9 @@ def run_trt_llm_export(model_name, n_gpu):
         for i in range(len(output)):
             ew = model_info["expected_keyword"][i] 
             assert (output[i][0].find(ew) > -1 or output[i][0].find(ew.lower()) > -1), "Keyword: {0} couldn't be found in output: {1}".format(ew, output[i][0])
+
+        trtllm_accuracy, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(trt_llm_exporter)
+        print("****** model accuracy: ", trtllm_accuracy)
 
         if "p_tuning_checkpoint" in model_info.keys():
             if Path(model_info["p_tuning_checkpoint"]).exists():
@@ -105,7 +140,6 @@ def run_trt_llm_export(model_name, n_gpu):
                 print("output with export using ptuning: ", output)
 
         trt_llm_exporter = None
-        test_at_least_one = True
         shutil.rmtree(model_info["trt_llm_model_dir"])
 
 
