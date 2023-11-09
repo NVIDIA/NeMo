@@ -60,10 +60,11 @@ def run_trt_llm_export(model_name, n_gpu):
             nemo_checkpoint_path=model_info["checkpoint"],
             model_type=model_info["model_type"],
             n_gpus=n_gpu,
+            max_batch_size=model_info["max_batch_size"],
         )
         output = trt_llm_exporter.forward(
             input_texts=model_info["prompt_template"],
-            max_output_token=128,
+            max_output_token=model_info["max_output_token"],
             top_k=1,
             top_p=0.0,
             temperature=1.0,
@@ -74,6 +75,10 @@ def run_trt_llm_export(model_name, n_gpu):
         print("")
         print("--- Output: ", output)
         print("")
+
+        for i in range(len(output)):
+            ew = model_info["expected_keyword"] 
+            assert (ew in output[i] or ew.lower() in output[i]), "Keyword: {0} couldn't be found in output: {1}".format(ew, output[i])
 
         if "p_tuning_checkpoint" in model_info.keys():
             if Path(model_info["p_tuning_checkpoint"]).exists():
@@ -87,11 +92,12 @@ def run_trt_llm_export(model_name, n_gpu):
                     nemo_checkpoint_path=model_info["checkpoint"],
                     model_type=model_info["model_type"],
                     n_gpus=n_gpu,
+                    max_batch_size=model_info["max_batch_size"],
                     prompt_embeddings_checkpoint_path=model_info["p_tuning_checkpoint"],
                 )
                 output = trt_llm_exporter.forward(
                     input_texts=model_info["prompt_template"],
-                    max_output_token = 50,
+                    max_output_token = model_info["max_output_token"],
                     top_k=1,
                     top_p=0.0,
                     temperature=1.0,
