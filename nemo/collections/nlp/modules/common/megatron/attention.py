@@ -946,7 +946,7 @@ class CoreAttention(MegatronModule):
             # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
             eps = 1e-8
             attention_bias_log = torch.log(attention_bias + eps)
-            attention_scores = torch.log_softmax(attention_scores, dim=2) + attention_bias_log
+            attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias_log
             # attention_scores += attention_bias
 
         _attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
