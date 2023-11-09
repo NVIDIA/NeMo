@@ -608,7 +608,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             add_eos=True,
             for_train=True,
             drop_last=False,
-            shuffle=True,
+            shuffle=True, # Change this!
             num_workers=self.cfg.data.get("num_workers", 1),
             pin_memory=True,
             num_neighbors=self.cfg.data.train_ds.neighbors,

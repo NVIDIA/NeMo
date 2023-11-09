@@ -18,7 +18,7 @@ trainer:
   max_epochs: 2 # PTL default. In practice we don't usually train for more than 1 epoch.
   max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 0.25
+  val_check_interval: 0.5
   limit_val_batches: null
   limit_test_batches: null
   accumulate_grad_batches: 1
@@ -166,9 +166,9 @@ model:
     splits_string: 100,250,650
     seq_length: 2048  # must be multiple of the chunk_size in your dataset
     skip_warmup: True
-    num_workers: 4
+    num_workers: 1
     dataloader_type: single # cyclic
-    neighbors: 95  # number of retrieved neighbors
+    neighbors: 5  # number of retrieved neighbors
 
     max_seq_length: 1024
     retrieved_doc_length: 150

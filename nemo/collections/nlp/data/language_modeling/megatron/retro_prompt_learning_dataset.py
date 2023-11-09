@@ -242,6 +242,9 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
                     prompt_template_fields,
                     virtual_token_splits,
                 )
+                skipped += 1
+                continue
+                
 
             # Skip example if the final length doesn't fit length requirements even after truncation
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
