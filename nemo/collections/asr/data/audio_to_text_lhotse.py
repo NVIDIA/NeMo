@@ -175,7 +175,18 @@ def read_as_cutset(config) -> Tuple[CutSet, bool]:
             # that apparently re-creates dataloader on each training "epoch", which results in identical sampling.
             if config.lhotse.get("cuts_path") is not None:
                 warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
-            cuts = CutSet.from_shar(in_dir=config.lhotse.shar_path, shuffle_shards=True, seed="trng").repeat()
+            if isinstance(config.lhotse.shar_path, str):
+                # Single dataset in Lhotse Shar format
+                cuts = CutSet.from_shar(in_dir=config.lhotse.shar_path, shuffle_shards=True, seed="trng").repeat()
+            else:
+                # Multiple datasets in Lhotse Shar format: we will dynamically multiplex them
+                # with probability approximately proportional to their size
+                cutsets = []
+                weights = []
+                for lsp in config.lhotse.shar_path:
+                    cutsets.append(CutSet.from_shar(in_dir=lsp, shuffle_shards=True, seed="trng"))
+                    weights.append(len(cutsets[-1]))
+                cuts = CutSet.mux(*cutsets, weights=weights)
         else:
             # Regular Lhotse manifest points to individual audio files (like native NeMo manifest).
             cuts = CutSet.from_file(config.lhotse.cuts_path)
