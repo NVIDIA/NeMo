@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import nullcontext
+from dataclasses import fields
+from functools import partial
 import itertools
 import os
 import queue
-import warnings
-from dataclasses import fields
-from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
+import warnings
 
 import torch
 from omegaconf import OmegaConf
@@ -233,11 +234,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
             )
         else:
-            self.model = build_model(
-                model_provider_func=self.model_provider_func,
-                wrap_with_ddp=False,
-                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-            )
+            make_model_context = nullcontext
+            if HAVE_TE and cfg.get('fp8', False) and cfg.get('fp8_params', False):
+                fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
+                    margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3,
+                )
+                make_model_context = partial(transformer_engine.pytorch.fp8_model_init, enabled=True)
+            with make_model_context():
+                self.model = build_model(
+                    model_provider_func=self.model_provider_func,
+                    wrap_with_ddp=False,
+                    virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                )
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
@@ -469,12 +477,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                             [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
                         )
             buckets.reverse()
-            used_params = set()
-            for bucket in buckets:
-                used_params.update(bucket)
-            remaining_params = [p for p in self.parameters() if p not in used_params]
-            if remaining_params:
-                buckets.append(remaining_params)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
