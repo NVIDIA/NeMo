@@ -566,7 +566,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         ]
 
     def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(dataloader_iter, model):
+        def fwd_output_and_loss_func(dataloader_iter, model, attention_mask_type):
             batch = next(dataloader_iter)
             # convert to list if not already converted.
             if isinstance(batch, dict):
@@ -679,7 +679,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         kwargs - shared arguments (non tensors)
         """
 
-        def fwd_output_only_func(dataloader_iter, model):
+        def fwd_output_only_func(dataloader_iter, model, attention_mask_type):
             batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) if torch.is_tensor(x) else x for x in batch]
 
