@@ -77,7 +77,7 @@ def run_trt_llm_export(model_name, n_gpu):
         print("")
 
         for i in range(len(output)):
-            ew = model_info["expected_keyword"] 
+            ew = model_info["expected_keyword"][i] 
             assert (ew in output[i] or ew.lower() in output[i]), "Keyword: {0} couldn't be found in output: {1}".format(ew, output[i])
 
         if "p_tuning_checkpoint" in model_info.keys():
