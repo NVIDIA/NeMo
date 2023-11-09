@@ -36,9 +36,9 @@ def get_accuracy_with_lambada(model):
 
             for record in records:
                 prompt = record["text_before_last_word"]
-                expected_output = record["last_word"]
+                expected_output = record["last_word"].strip().lower()
                 trtllm_output = model.forward(input_texts=[prompt], max_output_token=1, top_k=1, top_p=0, temperature=0.1)
-                trtllm_output = trtllm_output[0][0]
+                trtllm_output = trtllm_output[0][0].strip().lower()
 
                 all_expected_outputs.append(expected_output)
                 all_trtllm_outputs.append(trtllm_output)
