@@ -83,6 +83,30 @@ def audio_collate_fn(batch: List[dict]):
     return batch_dict
 
 
+def preprocess_manifest(
+    dataset_name: str, dataset: DatasetMeta, min_duration: float, max_duration: float,
+):
+    entries = read_manifest(dataset.manifest_path)
+    filtered_entries, total_hours, filtered_hours = filter_dataset_by_duration(
+        entries=entries, min_duration=min_duration, max_duration=max_duration
+    )
+
+    logging.info(dataset_name)
+    logging.info(f"Original # of files: {len(entries)}")
+    logging.info(f"Filtered # of files: {len(filtered_entries)}")
+    logging.info(f"Original duration: {total_hours:.2f} hours")
+    logging.info(f"Filtered duration: {filtered_hours:.2f} hours")
+
+    samples = []
+    sample_weights = []
+    for entry in filtered_entries:
+        sample = DatasetSample(dataset_name=dataset_name, manifest_entry=entry, audio_dir=Path(dataset.audio_dir))
+        samples.append(sample)
+        sample_weights.append(dataset.sample_weight)
+
+    return samples, sample_weights
+
+
 @experimental
 class VocoderDataset(Dataset):
     """
@@ -136,7 +160,7 @@ class VocoderDataset(Dataset):
         self.sample_weights = []
         for dataset_name, dataset_info in dataset_meta.items():
             dataset = DatasetMeta(**dataset_info)
-            samples, weights = self._preprocess_manifest(
+            samples, weights = preprocess_manifest(
                 dataset_name=dataset_name, dataset=dataset, min_duration=min_duration, max_duration=max_duration,
             )
             self.data_samples += samples
@@ -150,30 +174,6 @@ class VocoderDataset(Dataset):
             sample_weights=self.sample_weights, batch_size=batch_size, num_steps=self.weighted_sampling_steps_per_epoch
         )
         return sampler
-
-    @staticmethod
-    def _preprocess_manifest(
-        dataset_name: str, dataset: DatasetMeta, min_duration: float, max_duration: float,
-    ):
-        entries = read_manifest(dataset.manifest_path)
-        filtered_entries, total_hours, filtered_hours = filter_dataset_by_duration(
-            entries=entries, min_duration=min_duration, max_duration=max_duration
-        )
-
-        logging.info(dataset_name)
-        logging.info(f"Original # of files: {len(entries)}")
-        logging.info(f"Filtered # of files: {len(filtered_entries)}")
-        logging.info(f"Original duration: {total_hours:.2f} hours")
-        logging.info(f"Filtered duration: {filtered_hours:.2f} hours")
-
-        samples = []
-        sample_weights = []
-        for entry in filtered_entries:
-            sample = DatasetSample(dataset_name=dataset_name, manifest_entry=entry, audio_dir=Path(dataset.audio_dir))
-            samples.append(sample)
-            sample_weights.append(dataset.sample_weight)
-
-        return samples, sample_weights
 
     def __len__(self):
         return len(self.data_samples)
@@ -311,10 +311,10 @@ class TarredVocoderDataset(IterableDataset):
         self.data_samples = []
         self.audio_tar_filepaths = []
         for dataset_name, dataset_info in dataset_meta.items():
-            audio_tar_filepaths = dataset_info['audio_tar_filepaths']
+            audio_tar_filepaths = dataset_info.audio_tar_filepaths
             self.audio_tar_filepaths += audio_tar_filepaths
             dataset = DatasetMeta(**dataset_info)
-            samples, _ = VocoderDataset._preprocess_manifest(
+            samples, _ = preprocess_manifest(
                 dataset_name=dataset_name, dataset=dataset, min_duration=min_duration, max_duration=max_duration,
             )
             self.data_samples += samples
@@ -331,7 +331,7 @@ class TarredVocoderDataset(IterableDataset):
 
         logging.info(f"world size: {world_size}")
         audio_tar_filepaths = expand_sharded_filepaths(
-            sharded_filepaths=audio_tar_filepaths,
+            sharded_filepaths=self.audio_tar_filepaths,
             global_rank=global_rank,
             world_size=world_size,
             shard_strategy=shard_strategy,
