@@ -13,8 +13,7 @@
 # limitations under the License.
 
 import itertools
-from dataclasses import fields
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
