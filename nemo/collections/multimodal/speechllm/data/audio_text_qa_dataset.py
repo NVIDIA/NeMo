@@ -1192,15 +1192,6 @@ def get_tarred_aqa_dataset_from_config(
             )
             return None
 
-        if config['concat_sampling_technique'] == 'random':
-            if not 'concat_sampling_probabilities' in config:
-                logging.warning(f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}")
-                return None
-            else:
-                if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
-                    logging.warning(f"`concat_sampling_probabilities` need to sum to 1. Config: {config}")
-                    return None
-
     data_parallel_size = parallel_state.get_data_parallel_world_size()
     num_micro_batches = config.global_batch_size // (config.micro_batch_size * data_parallel_size)
     global_batch_size_on_this_data_parallel_rank = num_micro_batches * config.micro_batch_size

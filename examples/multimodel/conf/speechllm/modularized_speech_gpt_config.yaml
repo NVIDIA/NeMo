@@ -133,7 +133,7 @@ model:
     multi_layer_feat:
       layer_idx_list: [0,16]
       aggregator:
-        mode: "concat"
+        mode: "cat"
         pooling: "avg"
         rounding: "floor"
 
