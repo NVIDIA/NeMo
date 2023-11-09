@@ -144,7 +144,7 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         output, output_bias = self.linear_fc2(intermediate_parallel)
         return output, output_bias
 
-      
+
 class MCoreGPTEmbeddingMixin(LanguageModelEmbedding, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         """
