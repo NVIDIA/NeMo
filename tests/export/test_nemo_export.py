@@ -62,7 +62,7 @@ def run_trt_llm_export(model_name, n_gpu):
             n_gpus=n_gpu,
         )
         output = trt_llm_exporter.forward(
-            input_texts=["Hi, how are you?", "I am good, thanks, how about you?"],
+            input_texts=model_info["prompt_template"],
             max_output_token=128,
             top_k=1,
             top_p=0.0,
@@ -85,11 +85,11 @@ def run_trt_llm_export(model_name, n_gpu):
                     prompt_embeddings_checkpoint_path=model_info["p_tuning_checkpoint"],
                 )
                 output = trt_llm_exporter.forward(
-                    input_texts=["Let's see how this works", "Did you get the result yet with ptuning as well?"],
+                    input_texts=model_info["prompt_template"],
                     max_output_token = 50,
                     top_k=1,
-                    top_p=0.3,
-                    temperature=0.5,
+                    top_p=0.0,
+                    temperature=1.0,
                 )
                 print("output with export using ptuning: ", output)
 
