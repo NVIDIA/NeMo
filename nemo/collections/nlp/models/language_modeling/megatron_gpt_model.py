@@ -687,6 +687,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.log('global_batch_size', current_global_batch_size, prog_bar=True, rank_zero_only=True, batch_size=1)
             self.if_first_step = 1
 
+        # print(f"loss: {loss_mean}")
+        # import ipdb; ipdb.set_trace()
         return loss_mean
 
     def backward(self, *args, **kwargs):
@@ -849,8 +851,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
                     required_keys.update(('labels', 'loss_mask'))
-            if self.get_attention_mask_from_fusion:
-                required_keys.remove('attention_mask')
+            # if self.get_attention_mask_from_fusion:
+            #     required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch_cpu.items()}
 
             # Model forward pass
@@ -2130,7 +2132,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                     attention_sliced = torch.stack(attention_sliced_list)
                     attention_sliced = torch.mean(attention_sliced, 0)
                     alignment_image_sliced = plot_alignment_to_numpy(
-                        attention_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=2, vmin=0., vmax=1.
+                        attention_sliced.cpu().float().numpy(), phoneme_seq=phoneme_seq, phoneme_ver=2, vmin=0.
                     )
                     self.logger.experiment.add_image(
                         f"Val Attention Probs Average Sliced TF",
@@ -2486,6 +2488,9 @@ class MegatronSpeechGPTSFTModel(MegatronSpeechGPTModel):
             context_length=self.cfg.data.get('context_length', None),
             use_attention_prior=self.cfg.data.get('use_attention_prior', True),
             attention_prior_scaling_factor=self.cfg.data.get('attention_prior_scaling_factor', 1.),
+            spec_aug = self.cfg.data.get('spec_aug', False),
+            spec_aug_time_width = self.cfg.data.get('spec_aug_time_width', 0.2),
+            spec_aug_time_masks = self.cfg.data.get('spec_aug_time_masks', 2),
             # cross_attention_epsilon=self.cfg.data.get('cross_attention_epsilon', 1e-8),
         )
 

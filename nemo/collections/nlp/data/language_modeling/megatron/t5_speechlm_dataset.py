@@ -84,6 +84,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         seq_pattern: Optional[str] = "parallel",
         use_attention_prior: Optional[bool] = False,
         attention_prior_scaling_factor: Optional[float] = 1.0,
+        spec_aug = False,
+        spec_aug_time_width = 0.2,
+        spec_aug_time_masks = 2,
         # cross_attention_epsilon: Optional[float] = 0.0,
         # attention_prior_strength: Optional[float] = 0.5,
         **kwargs,
@@ -103,6 +106,10 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         **kwargs,
         """
         # These two variables need to be set before calling super().__init__() because the parent class calls `load_data()` which requires these attributes.
+        self._rng = random.Random()
+        self.spec_aug = spec_aug if for_train else False
+        self.time_width = spec_aug_time_width
+        self.time_masks = spec_aug_time_masks
         self.decoder_starts_with_pad = decoder_starts_with_pad
         self.add_eos_to_decoder_output = add_eos_to_decoder_output
         self.add_sentinel_to_input = add_sentinel_to_input
@@ -973,6 +980,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         #     decoder_input_len = torch.stack(decoder_input_len)
 
         decoder_mask = get_mask_from_lengths(decoder_input_len-1)
+        speech_mask = get_mask_from_lengths(decoder_input_len-1)
         (
             decoder_input_list,
             decoder_labels_list,
@@ -1025,6 +1033,20 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
             decoder_labels_list.append(decoder_labels)
 
             decoder_mask[i, :context_tokens_len+question_tokens_len] = 0  # Mask out context and question
+            speech_mask[i, :context_tokens_len+question_tokens_len] = 0  # Mask out context and question
+
+            if self.spec_aug:
+                # Derive time width, sometimes based percentage of input length.
+                time_max_width = max(1, int(input_ids_len.item() * self.time_width))
+                time_start_upper_bound = max(1, input_ids_len.item() - time_max_width)
+                time_start = context_tokens_len.item() + question_tokens_len.item()
+                time_start_upper_bound += time_start
+
+                # Set time masking
+                for _ in range(self.time_masks):
+                    start = self._rng.randint(time_start, time_start_upper_bound)
+                    width = self._rng.randint(0, time_max_width)
+                    speech_mask[i, start : start + width] = 0
 
             if self.use_attention_prior:
                 cross_attention_question_prior = torch.from_numpy(
@@ -1056,7 +1078,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         )
 
         # Convert attention mask from float to bool
-        attention_mask = attention_mask >= 0.5  # Currently not used, not sure if correct either
+        attention_mask = attention_mask < 0.5  # Currently not used, not sure if correct either
         # print(attention_mask)
         # print(torch.max(torch.sum(cross_attention_prior, 2)))
         # print(torch.max(torch.sum(attention_mask[:,0,:,:] * cross_attention_prior, 2)))
@@ -1068,9 +1090,9 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         data_dict = {
             "tokens": decoder_input,
             "position_ids": position_ids,
-            "attention_mask": None,
+            "attention_mask": attention_mask,
             "labels": torch.stack(decoder_labels_list),
-            "speech_mask": decoder_mask,  # For TTS, can just be loss_mask since answer will always be speech
+            "speech_mask": speech_mask,  # For TTS, can just be loss_mask since answer will always be speech
             "loss_mask": decoder_mask,  # Mask out context and question and padding
             "attention_prior": cross_attention_prior,
         }
