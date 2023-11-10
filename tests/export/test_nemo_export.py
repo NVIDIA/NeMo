@@ -28,6 +28,7 @@ def get_accuracy_with_lambada(model):
         # It generates a CSV file for text comparison detail.
 
         trtllm_correct = 0
+        trtllm_correct_relaxed = 0
         all_expected_outputs = []
         all_trtllm_outputs = []
 
@@ -46,10 +47,16 @@ def get_accuracy_with_lambada(model):
                 if expected_output == trtllm_output:
                     trtllm_correct += 1
 
+                if expected_output == trtllm_output or trtllm_output.startswith(expected_output) or expected_output.startswith(trtllm_output):
+                    if len(trtllm_output) == 1 and len(expected_output) > 1:
+                        continue
+                    trtllm_correct_relaxed += 1
+
                 # print("-- expected_output: {0} and trtllm_output: {1}".format(expected_output, trtllm_output))
                 
         trtllm_accuracy = trtllm_correct / len(all_expected_outputs)
-        return trtllm_accuracy, all_trtllm_outputs, all_expected_outputs
+        trtllm_accuracy_relaxed = trtllm_correct_relaxed / len(all_expected_outputs)
+        return trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs
 
 
 def run_trt_llm_export(model_name, n_gpu):
@@ -111,9 +118,9 @@ def run_trt_llm_export(model_name, n_gpu):
         print("")
         
         print("Start model accuracy testing ...")
-        trtllm_accuracy, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(trt_llm_exporter)
-        print("Model Accuracy: ", trtllm_accuracy)
-        #assert trtllm_accuracy > 0.5, "Model accuracy is below 0.5"
+        trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(trt_llm_exporter)
+        print("Model Accuracy: {0}, Relaxed Model Accuracy: {1}".format(trtllm_accuracy, trtllm_accuracy_relaxed))
+        assert trtllm_accuracy_relaxed > 0.5, "Model accuracy is below 0.5"
 
         for i in range(len(output)):
             ew = model_info["expected_keyword"][i] 
