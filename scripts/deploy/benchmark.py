@@ -243,6 +243,10 @@ def nemo_deploy(args):
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
 
     if args.nemo_checkpoint is not None:
+        if args.ptuning_table_len > 0:
+            hs = trt_llm_exporter.get_hidden_size()
+            prompt_embedding_table = np.random.rand(args.ptuning_table_len, hs)
+
         trt_llm_exporter.export(
             nemo_checkpoint_path=args.nemo_checkpoint,
             model_type=args.model_type,
@@ -250,12 +254,8 @@ def nemo_deploy(args):
             max_input_token=args.max_input_len,
             max_output_token=args.max_output_len,
             max_batch_size=args.max_batch_size,
+            prompt_embeddings_table=prompt_embedding_table if args.ptuning_table_len > 0 else None
         )
-
-        if args.ptuning_table_len > 0:
-            hs = trt_llm_exporter.get_hidden_size()
-            prompt_embedding_table = np.random.rand(args.ptuning_table_len, hs)
-            trt_llm_exporter.set_prompt_embeddings(prompt_embedding_table)
 
         run_forward(trt_llm_exporter, args)
 

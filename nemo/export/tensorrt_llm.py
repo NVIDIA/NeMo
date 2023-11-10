@@ -125,9 +125,11 @@ class TensorRTLLM(ITritonDeployable):
             unpack_nemo_ckpt(prompt_embeddings_checkpoint_path, temp_dir)
             mw_path = os.path.join(temp_dir, "model_weights.ckpt")
             if not Path(mw_path).exists():
-                raise FileNotFoundError("File: {0} could not be found in the nemo checkpoint. "
-                                        "Please check the nemo checkpoint format for the prompt "
-                                        "embedding table.".format(mw_path))
+                mw_path = os.path.join(temp_dir, "mp_rank_00", "model_weights.ckpt")
+                if not Path(mw_path).exists():
+                    raise FileNotFoundError("File: {0} could not be found in the nemo checkpoint. "
+                                            "Please check the nemo checkpoint format for the prompt "
+                                            "embedding table.".format(mw_path))
             weights = torch.load(mw_path)
             weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
 
