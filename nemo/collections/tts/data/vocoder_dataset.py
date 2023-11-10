@@ -292,8 +292,10 @@ class TarredVocoderDataset(IterableDataset):
         shard_strategy: str = "scatter",
         global_rank: int = 0,
         world_size: int = 2,
+        **kwargs,
     ):
         super().__init__()
+
         self.sample_rate = sample_rate
         self.n_samples = n_samples
 
@@ -312,18 +314,18 @@ class TarredVocoderDataset(IterableDataset):
         self.audio_tar_filepaths = []
         for dataset_name, dataset_info in dataset_meta.items():
             audio_tar_filepaths = dataset_info.audio_tar_filepaths
-            self.audio_tar_filepaths += audio_tar_filepaths
+            self.audio_tar_filepaths += [audio_tar_filepaths]
             dataset = DatasetMeta(**dataset_info)
             samples, _ = preprocess_manifest(
                 dataset_name=dataset_name, dataset=dataset, min_duration=min_duration, max_duration=max_duration,
             )
             self.data_samples += samples
 
-        self.mapping = {}
-        for sample in enumerate(self.data_samples):
+        self.file_id_to_sample_map = {}
+        for sample in self.data_samples:
             file_id = os.path.splitext(os.path.basename(sample.manifest_entry["audio_filepath"]))[0]
-            if file_id not in self.mapping:
-                self.mapping[file_id] = sample
+            if file_id not in self.file_id_to_sample_map:
+                self.file_id_to_sample_map[file_id] = sample
             else:
                 raise ValueError(
                     f"Duplicate file_id {file_id} found in manifest {sample.manifest_entry['audio_filepath']}"
@@ -331,7 +333,7 @@ class TarredVocoderDataset(IterableDataset):
 
         logging.info(f"world size: {world_size}")
         audio_tar_filepaths = expand_sharded_filepaths(
-            sharded_filepaths=self.audio_tar_filepaths,
+            sharded_filepaths=audio_tar_filepaths,
             global_rank=global_rank,
             world_size=world_size,
             shard_strategy=shard_strategy,
@@ -353,9 +355,9 @@ class TarredVocoderDataset(IterableDataset):
 
     def _filter(self, iterator):
         class FilteredIterator:
-            def __init__(self, mapping):
+            def __init__(self, file_id_to_sample_map):
                 self.iterator = iterator
-                self.mapping = mapping
+                self.file_id_to_sample_map = file_id_to_sample_map
 
             def __iter__(self):
                 return self
@@ -364,15 +366,15 @@ class TarredVocoderDataset(IterableDataset):
                 while True:
                     audio_bytes, audio_filename = next(self.iterator)
                     file_id = os.path.splitext(os.path.basename(audio_filename))[0]
-                    if file_id in self.mapping:
+                    if file_id in self.file_id_to_sample_map:
                         return audio_bytes, audio_filename
 
-        return FilteredIterator(self.mapping)
+        return FilteredIterator(self.file_id_to_sample_map)
 
     def _build_sample(self, tup):
         audio_bytes, audio_filename = tup
         file_id = os.path.splitext(os.path.basename(audio_filename))[0]
-        data = self.mapping[file_id]
+        data = self.file_id_to_sample_map[file_id]
 
         audio_array, sr = sf.read(file=io.BytesIO(audio_bytes), dtype='float32')
         if sr != self.sample_rate:
@@ -420,10 +422,4 @@ class TarredVocoderDataset(IterableDataset):
         return self._dataset.__iter__()
 
     def __len__(self):
-        return len(self.mapping)
-
-    def __iter__(self):
-        return self._dataset.__iter__()
-
-    def __len__(self):
-        return len(self.mapping)
+        return len(self.file_id_to_sample_map)
