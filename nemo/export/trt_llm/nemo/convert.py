@@ -300,38 +300,23 @@ def split_and_save_weight(
 
         # When the merge factor exceeds 1, the 'vals' list will have multiple entries.
         # Depending on the format, 'vals' can look like either [QQQQ..KV, QQQQ..KV, ...](for GQA) or [QKV, QKV, ...](for MHA).
-        # We transform 'vals' into a unified structure: [QQQQQ...KK..VV..].
-        # If the split factor surpasses 1, this array undergoes a split along its last dimension, which is 'size_per_head'.
 
-        # Reshape each elements of the vals array to shape:
-        # (hidden_dim, q_num + 2, num_kv_heads // tp_size, size_per_head)
-        vals = [
-            val.reshape(hidden_dim, num_kv_heads // tp_size, q_num + 2, size_per_head).transpose(
-                0, 2, 1, 3
-            )
-            for val in vals
-        ]
+        # We first concat all sub weights per tp rank together.
+        len_vals = len(vals)
+        val = np.concatenate(vals, axis=1)
 
-        # Combine all the Qs, Ks and Vs together for each val
-        q_splits, k_splits, v_splits = zip(
-            *[np.split(val, [q_num, q_num + 1], axis=1) for val in vals]
-        )
+        val = val.reshape(hidden_dim, num_kv_heads * len_vals // tp_size, q_num + 2, size_per_head)
 
-        # Concatenate Q, K, and V separately
-        q_splits_concat = np.concatenate(q_splits, axis=1)
-        k_splits_concat = np.concatenate(k_splits, axis=1)
-        v_splits_concat = np.concatenate(v_splits, axis=1)
+        # Split the QKV to separate variables.
+        qkv = np.split(val, [q_num, q_num + 1], axis=2)
 
-        # Concatenate Q, K, and V together and reshape
-        qkv_split_concat = np.concatenate(
-            [q_splits_concat, k_splits_concat, v_splits_concat], axis=1
-        )
-        qkv_split_concat = qkv_split_concat.reshape(
-            hidden_dim, q_num + 2, (num_kv_heads // tp_size) * size_per_head * merge_factor
-        )
+        q_split = np.split(qkv[0], split_factor, axis=1)
+        k_split = np.split(qkv[1], split_factor, axis=1)
+        v_split = np.split(qkv[2], split_factor, axis=1)
 
-        # Final split
-        split_vals = np.split(qkv_split_concat, split_factor, axis=-1)
+        # Concatenate Q, K, and V together
+        split_vals = [np.concatenate([q_split[i].reshape(hidden_dim, -1), k_split[i].reshape(hidden_dim, -1), v_split[i].reshape(hidden_dim, -1)], axis=1) for i in range(split_factor)]
+
         if "attention.linear_qkv.weight" in key:
             key = key.replace("attention.linear_qkv.weight", "attention.query_key_value.weight")
         save_split(split_vals, saved_dir, key, tp_rank, split_factor)
