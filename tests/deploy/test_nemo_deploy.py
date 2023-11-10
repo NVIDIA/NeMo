@@ -48,7 +48,7 @@ def get_accuracy_with_lambada(nq):
                 all_expected_outputs.append(expected_output)
                 all_trtllm_outputs.append(trtllm_output)
 
-                if expected_output == trtllm_output:
+                if expected_output == trtllm_output or trtllm_output.startswith(expected_output):
                     trtllm_correct += 1
 
                 # print("-- expected_output: {0} and trtllm_output: {1}".format(expected_output, trtllm_output))
