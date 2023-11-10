@@ -408,9 +408,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def inference_step(self, dataloader_iter, mode):
         # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
+        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        # if done:
+        #     return
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
