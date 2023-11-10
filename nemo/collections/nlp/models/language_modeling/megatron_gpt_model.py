@@ -485,7 +485,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, forward_only):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -566,7 +566,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         self.initialize_ub = False
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
             The input batch to each micro-batch is fetched using the dataloader function
@@ -605,7 +605,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        loss_mean = self.fwd_bwd_step(dataloader_iter, False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -827,7 +827,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
-            batch, batch_idx, dataloader_idx = next(dataloader_iter)
+            batch, _, _ = next(dataloader_iter)
 
             # Transfer needed data to GPU
             required_keys = set()
@@ -893,7 +893,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
-            batch, batch_idx, dataloader_idx = next(dataloader_iter)
+            batch, _, _ = next(dataloader_iter)
             extra_arg = {}
             if len(batch) == 3:
                 batch = [x.cuda() for x in batch]
@@ -947,9 +947,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
+        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        # if done:
+        #     return
         mode = 'test' if self.trainer.testing else 'val'
         # Initialize userbuffer communicators.
         if self.initialize_ub:
@@ -959,7 +959,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for model_module in self.model:
                 model_module.eval()
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        loss = self.fwd_bwd_step(dataloader_iter, True)
 
         if isinstance(self.model, list):
             for model_module in self.model:
@@ -999,8 +999,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return averaged_loss
 
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+    def test_step(self, dataloader_iter):
+        return self.validation_step(dataloader_iter)
 
     def on_test_epoch_end(self):
         averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
