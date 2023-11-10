@@ -311,11 +311,12 @@ class EMAOptimizer(torch.optim.Optimizer):
         """
         return (param for group in self.param_groups for param in group["params"])
 
-    def step(self, closure=None, **kwargs):
+    def step(self, closure=None, grad_scaler=None, **kwargs):
         """Takes a closure step that reevaluates the model and returns the loss.
 
         Args:
             closure: a closure
+            grad_scaler: a gradient scaler
             kwargs: additional keyword arguments
         Returns:
             the loss
@@ -336,7 +337,10 @@ class EMAOptimizer(torch.optim.Optimizer):
             )
             self.rebuild_ema_params = False
 
-        loss = self.optimizer.step(closure)
+        if getattr(self.optimizer, "_step_supports_amp_scaling", False) and grad_scaler is not None:
+            loss = self.optimizer.step(closure=closure, grad_scaler=grad_scaler)
+        else:
+            loss = self.optimizer.step(closure)
 
         if self._should_update_at_step():
             self.update()
