@@ -119,15 +119,16 @@ def run_trt_llm_export(model_name, n_gpu):
         print("")
         print("--- Output: ", output)
         print("")
+        
+        print("Start model accuracy testing ...")
+        trtllm_accuracy, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(nq)
+        print("Model Accuracy: ", trtllm_accuracy)
+        assert trtllm_accuracy > 0.5, "Model accuracy is below 0.5"
 
         for i in range(len(output)):
             ew = model_info["expected_keyword"][i] 
             assert (output[i][0].find(ew) > -1 or output[i][0].find(ew.lower()) > -1), "Keyword: {0} couldn't be found in output: {1}".format(ew, output[i][0])
 
-        print("Start model accuracy testing ...")
-        trtllm_accuracy, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(nq)
-        print("Model Accuracy: ", trtllm_accuracy)
-        assert trtllm_accuracy > 0.5, "Model accuracy is below 0.5"
 
         trt_llm_exporter = None
         shutil.rmtree(model_info["trt_llm_model_dir"])
