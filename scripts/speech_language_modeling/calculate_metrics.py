@@ -21,12 +21,14 @@ from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric, TokenF1Score
 from torchmetrics.text.wer import WordErrorRate
+from torchmetrics.text import BLEUScore
 
 
 task2metric= {
     "asr": WordErrorRate,
     "speaker_verification": ExactStringMatchMetric,
     "speaker_attributed_asr": WordErrorRate,
+    "translation": BLEUScore,
 }
 
 LANGUAGES=[
@@ -34,11 +36,11 @@ LANGUAGES=[
     "Spanish",
 ]
 
-TASKS = ['asr', 'speaker_verification', 'speaker_attributed_asr']
+TASKS = ['asr', 'speaker_verification', 'speaker_attributed_asr', 'translation']
+# TASKS = ['translation']
 
 
 pred_label_manifest_path='/home/kpuvvada/Downloads/val_predictions_validation_dev-blend_inputs_preds_labels.jsonl'
-
 
 def get_speaker_specific_transcript(transcript):
     transcript = transcript.split()
@@ -110,6 +112,11 @@ def calculate_metric(manifest_items, task, language=None):
 
         #print(f"task: {task}, language: {language}, \n pred: {pred},\n label: {label}")
         #print("---------------------------------------------------")
+        if task == 'translation':
+            pred = [pred]
+            label = [[label]]
+
+
         metric.update(pred, label)
         num_examples += 1
 
