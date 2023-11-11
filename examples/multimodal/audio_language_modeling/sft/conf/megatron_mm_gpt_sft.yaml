@@ -109,10 +109,10 @@ model:
     answer_key: "answer"
 
   - taskname: "translation"
-    prompt_template: "Context: {context} Question: {question} Answer: {answer}"
-    truncation_keys: "context"
+    prompt_template: "Context: {source} Question: {question} Answer: {target}"
+    truncation_keys: "source,target"
     audio_keys: null
-    answer_key: "answer"
+    answer_key: "target"
   
   data:
     train_ds:
@@ -182,7 +182,7 @@ model:
       truncation_field: ${model.data.train_ds.truncation_field} # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      tokens_to_generate: 64 # decide how many tokens we want to generate to evaluate performance with string metrics
+      tokens_to_generate: 512 # decide how many tokens we want to generate to evaluate performance with string metrics
       hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
       # audio related args
@@ -220,7 +220,7 @@ model:
       truncation_field: ${model.data.train_ds.truncation_field} # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      tokens_to_generate: 64 # decide how many tokens we want to generate to evaluate performance with string metrics
+      tokens_to_generate: 512 # decide how many tokens we want to generate to evaluate performance with string metrics
       hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
       truncation_method: 'right' # Truncation from which position, Options: Options: ['left', 'right']
       # audio related args
@@ -239,25 +239,17 @@ model:
 
   
   optim:
-    name: fused_adam
-    lr: 2.5e-4
-    weight_decay: 0.1
-    betas:
+    name: fused_adam # Supports distributed optimizer for memory savings. To enable, set to 'distributed_fused_adam'. Needs Apex to be built with specific args to work.
+    lr: 3e-5
+    weight_decay: 0.01 
+    betas: 
     - 0.9
     - 0.98
-    sched:
-      name: CosineAnnealing
-      warmup_steps: 500
-      constant_steps: 0
-      min_lr: 2.5e-5
-  
-  # optim:
-  #   name: fused_adam # Supports distributed optimizer for memory savings. To enable, set to 'distributed_fused_adam'. Needs Apex to be built with specific args to work.
-  #   lr: 3e-5
-  #   weight_decay: 0.01 
-  #   betas: 
-  #   - 0.9
-  #   - 0.98
+    #sched:
+    #  name: CosineAnnealing
+    #  warmup_steps: 500
+    #  constant_steps: 0
+    #  min_lr: 2.5e-5
 
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
