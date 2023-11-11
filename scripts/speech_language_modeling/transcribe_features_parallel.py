@@ -158,13 +158,19 @@ class FeaturePredictionWriter(BasePredictionWriter):
             dataset, 
             save_dir: str, 
             output_file: str, 
-            key_for_out_manifest: str = 'audio_codes'):
+            key_for_out_manifest: str = 'audio_codes',
+            key_for_npz: str = 'codes',
+            fps_at_output: float = None,  # this is just for logging purposes
+        ):
         super().__init__(write_interval="batch")
         self.save_dir = save_dir
         self.outf = open(output_file, 'w', encoding='utf-8')
         self.dataset = dataset
         self.samples_num = 0
         self.key_for_out_manifest = key_for_out_manifest
+        self.key_for_npz = key_for_npz if key_for_npz is not None else 'codes'
+        assert fps_at_output is not None, "fps_at_output must be provided"
+        self.fps_at_output = fps_at_output
 
     def write_on_batch_end(
         self,
@@ -177,11 +183,27 @@ class FeaturePredictionWriter(BasePredictionWriter):
         dataloader_idx: int,
     ):
         for sample_id, feature_dict in prediction:
+
+            # update the key if not none
+            # assumption is that the feature_dict has only one key
+            # and it is codes
+            # update key and add fps
+            feature_dict = {self.key_for_npz: feature_dict['codes'],
+                            f"{self.key_for_npz}_fps": np.array(self.fps_at_output)}
+            
             item = {}
             sample = self.dataset.get_manifest_sample(sample_id)
 
             feature_filename = Path(sample.audio_file).stem + '.npz'
             feature_filepath = os.path.join(self.save_dir, feature_filename)
+            # check if the file already exists
+            # if it does, load and add the new feature to the existing file
+            if os.path.exists(feature_filepath):
+                feature_dict_old = np.load(feature_filepath)
+                feature_dict_old = dict(feature_dict_old)
+                feature_dict_old.update(feature_dict)
+                feature_dict = feature_dict_old
+                
             np.savez(feature_filepath, **feature_dict)
 
             # prepare manifest items
@@ -210,8 +232,8 @@ def main(cfg: ParallelTranscriptionConfig):
     
     # model = RQFeatExModel(cfg.model_cfg.model, trainer=trainer)
     # model = EmbFeatExModel(cfg.model_cfg, trainer=trainer)
-    # model = KmeansFeatExModel(cfg.model_cfg, trainer=trainer)
-    model = EncodecFeatExModel(cfg.model_cfg, trainer=trainer)
+    model = KmeansFeatExModel(cfg.model_cfg, trainer=trainer)
+    # model = EncodecFeatExModel(cfg.model_cfg, trainer=trainer)
 
     # trainer = ptl.Trainer(**cfg.trainer)
     cfg.predict_ds.return_sample_id = True
@@ -226,7 +248,13 @@ def main(cfg: ParallelTranscriptionConfig):
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
     global_rank = trainer.node_rank * trainer.num_devices + int(os.environ.get("LOCAL_RANK", 0))
     output_file = os.path.join(cfg.out_manifest_dir, f"manifest_feature_{global_rank}.json")
-    predictor_writer = FeaturePredictionWriter(dataset=data_loader.dataset, save_dir=cfg.out_save_dir, output_file=output_file, key_for_out_manifest=cfg.key_for_out_manifest)
+    predictor_writer = FeaturePredictionWriter(dataset=data_loader.dataset, 
+                                               save_dir=cfg.out_save_dir, 
+                                               output_file=output_file, 
+                                               key_for_out_manifest=cfg.key_for_out_manifest,
+                                               key_for_npz=cfg.get('key_for_npz', 'codes'),
+                                               fps_at_output=cfg.fps_at_output,
+                                            )
     trainer.callbacks.extend([predictor_writer])
 
     predictions = trainer.predict(model=model, dataloaders=data_loader, return_predictions=cfg.return_predictions)
