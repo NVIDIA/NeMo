@@ -158,6 +158,7 @@ def _forward(
         # Loading the global context initialized from the `load` API.
         global tensorrt_llm_worker_context
         decoder = tensorrt_llm_worker_context.decoder
+        assert decoder is not None, "Invalid worker context, decoder is not loaded."
         sampling_config = tensorrt_llm_worker_context.sampling_config
         max_batch_size = tensorrt_llm_worker_context.max_batch_size
         max_input_len = tensorrt_llm_worker_context.max_input_len
@@ -328,3 +329,15 @@ def generate(
         for b in range(output_tensor.shape[0])
     ]
     return output_lines_list
+
+
+def unload(host_context: TensorrtLLMHostContext):
+    """Frees the GPU resource from the TensorrtLLMHostContext and reset the host_context."""
+    if host_context.executor is not None:
+        host_context.executor.shutdown(wait=True)
+        host_context.executor = None
+        return
+
+    global tensorrt_llm_worker_context
+    tensorrt_llm_worker_context.decoder = None
+    tensorrt_llm_worker_context = TensorrtLLMWorkerContext()
