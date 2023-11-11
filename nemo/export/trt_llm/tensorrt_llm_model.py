@@ -431,10 +431,10 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         # Uncomment the following to print the network for debugging purpose.
         # self.print()
 
-        if self.rank < torch.cuda.device_count():
-            print(f"warning: Rank {self.rank} larger than GPUs available")
-        if self._tensor_parallel < torch.cuda.device_count():
-            print(f"warning: Not enough GPUs locally, requesting {self._tensor_parallel}")
+        if self.rank > torch.cuda.device_count():
+            print(f"warning: Rank {self.rank} larger than GPUs available ({torch.cuda.device_count()})")
+        if self._tensor_parallel > torch.cuda.device_count():
+            print(f"warning: Not enough GPUs locally, requesting {self._tensor_parallel}, having ({torch.cuda.device_count()}")
 
         build(
             tensorrt_llm_model=self,
