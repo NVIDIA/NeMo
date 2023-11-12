@@ -192,7 +192,7 @@ def get_args(argv):
         '-temperature',
         '--temperature',
         type=float,
-        default=0.0,
+        default=1.0,
         required=False,
         help='top p for sampling'
     )
