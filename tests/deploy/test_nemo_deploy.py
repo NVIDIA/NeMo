@@ -64,7 +64,7 @@ def get_accuracy_with_lambada(nq):
         return trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs
 
 
-def run_trt_llm_export(model_name, n_gpu):
+def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False):
     test_data = get_infer_test_data()
 
     model_info = test_data[model_name]
@@ -127,15 +127,11 @@ def run_trt_llm_export(model_name, n_gpu):
         print("--- Output: ", output)
         print("")
         
-        print("Start model accuracy testing ...")
-        trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(nq)
-        print("Model Accuracy: {0}, Relaxed Model Accuracy: {1}".format(trtllm_accuracy, trtllm_accuracy_relaxed))
-        assert trtllm_accuracy_relaxed > 0.5, "Model accuracy is below 0.5"
-
-        for i in range(len(output)):
-            ew = model_info["expected_keyword"][i] 
-            #assert (output[i][0].find(ew) > -1 or output[i][0].find(ew.lower()) > -1), "Keyword: {0} couldn't be found in output: {1}".format(ew, output[i][0])
-
+        if not skip_accuracy:
+            print("Start model accuracy testing ...")
+            trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(nq)
+            print("Model Accuracy: {0}, Relaxed Model Accuracy: {1}".format(trtllm_accuracy, trtllm_accuracy_relaxed))
+            assert trtllm_accuracy_relaxed > 0.5, "Model accuracy is below 0.5"
 
         trt_llm_exporter = None
         shutil.rmtree(model_info["trt_llm_model_dir"])
@@ -214,3 +210,10 @@ def test_LLAMA2_70B_base_2gpu(n_gpus):
     run_trt_llm_export("LLAMA2-70B-base", n_gpus)
 
 
+@pytest.mark.parametrize("n_gpus", [1])
+def test_GPT_2B_001_bf16_tp1_1gpu(n_gpus):
+    """Here we test the trt-llm transfer and infer function"""
+    if n_gpus > torch.cuda.device_count():
+        pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
+
+    run_trt_llm_export("GPT-2B-001-bf16-tp1", n_gpus, skip_accuracy=True)

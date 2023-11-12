@@ -19,20 +19,18 @@ from pathlib import Path
 def get_infer_test_data():
     test_data = {}
 
-    '''
-    test_data["GPT-2B-HF-base"] = {}
-    test_data["GPT-2B-HF-base"]["model_type"] = "gptnext"
-    test_data["GPT-2B-HF-base"]["total_gpus"] = [1]
-    test_data["GPT-2B-HF-base"]["location"] = "HF"
-    test_data["GPT-2B-HF-base"]["trt_llm_model_dir"] = "/tmp/GPT-2B-hf-base/trt_llm_model-1/"
-    test_data["GPT-2B-HF-base"]["checkpoint_dir"] = "/tmp/GPT-2B-hf-base/nemo_checkpoint/"
-    test_data["GPT-2B-HF-base"]["checkpoint"] = (
+    test_data["GPT-2B-001-bf16-tp1"] = {}
+    test_data["GPT-2B-001-bf16-tp1"]["model_type"] = "gptnext"
+    test_data["GPT-2B-001-bf16-tp1"]["total_gpus"] = [1]
+    test_data["GPT-2B-001-bf16-tp1"]["location"] = "HF"
+    test_data["GPT-2B-001-bf16-tp1"]["trt_llm_model_dir"] = "/tmp/GPT-2B-hf-base/trt_llm_model-1/"
+    test_data["GPT-2B-001-bf16-tp1"]["checkpoint_dir"] = "/tmp/GPT-2B-hf-base/nemo_checkpoint/"
+    test_data["GPT-2B-001-bf16-tp1"]["checkpoint"] = (
         "/opt/checkpoints/GPT-2B.nemo"
     )
     test_data["GPT-2B-HF-base"]["checkpoint_link"] = (
         "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/GPT-2B-001_bf16_tp1.nemo"
     )
-    '''
 
     test_data["NV-GPT-8B-Base-4k"] = {}
     test_data["NV-GPT-8B-Base-4k"]["model_type"] = "gptnext"
