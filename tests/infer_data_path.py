@@ -31,6 +31,10 @@ def get_infer_test_data():
     test_data["GPT-2B-001-bf16-tp1"]["checkpoint_link"] = (
         "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/GPT-2B-001_bf16_tp1.nemo"
     )
+    test_data["NV-GPT-8B-Base-4k"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"] 
+    test_data["NV-GPT-8B-Base-4k"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"] 
+    test_data["NV-GPT-8B-Base-4k"]["max_output_token"] = 128
+    test_data["NV-GPT-8B-Base-4k"]["max_batch_size"] = 10
 
     test_data["NV-GPT-8B-Base-4k"] = {}
     test_data["NV-GPT-8B-Base-4k"]["model_type"] = "gptnext"
