@@ -40,7 +40,7 @@ def get_infer_test_data():
     test_data["NV-GPT-8B-Base-4k"]["location"] = "Local"
     test_data["NV-GPT-8B-Base-4k"]["trt_llm_model_dir"] = "/tmp/NV-GPT-8B-Base-4k/nv-gpt-8b-base-4k_v1.0/"
     test_data["NV-GPT-8B-Base-4k"]["checkpoint"] = "/opt/checkpoints/NV-GPT-8B-Base-4k/nv-gpt-8b-base-4k_v1.0/NV-GPT-8B-Base-4k.nemo"
-    test_data["NV-GPT-8B-Base-4k"]["prompt_template"] = ["The capital of France is ", "Largest animal in the sea is ", "Fastest animal in the world is "] 
+    test_data["NV-GPT-8B-Base-4k"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"] 
     test_data["NV-GPT-8B-Base-4k"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"] 
     test_data["NV-GPT-8B-Base-4k"]["max_output_token"] = 128
     test_data["NV-GPT-8B-Base-4k"]["max_batch_size"] = 10
@@ -52,7 +52,7 @@ def get_infer_test_data():
     test_data["NV-GPT-8B-Base-16k"]["location"] = "Local"
     test_data["NV-GPT-8B-Base-16k"]["trt_llm_model_dir"] = "/tmp/NV-GPT-8B-Base-16k/nv-gpt-8b-base-16k_v1.0/"
     test_data["NV-GPT-8B-Base-16k"]["checkpoint"] = "/opt/checkpoints/NV-GPT-8B-Base-16k/nv-gpt-8b-base-16k_v1.0/NV-GPT-8B-Base-16k.nemo"
-    test_data["NV-GPT-8B-Base-16k"]["prompt_template"] = ["The capital of France is ", "Largest animal in the sea is ", "Fastest animal in the world is "] 
+    test_data["NV-GPT-8B-Base-16k"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"]
     test_data["NV-GPT-8B-Base-16k"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"]
     test_data["NV-GPT-8B-Base-16k"]["max_output_token"] = 128
     test_data["NV-GPT-8B-Base-16k"]["max_batch_size"] = 20
@@ -120,7 +120,7 @@ def get_infer_test_data():
     test_data["LLAMA2-13B-base"]["trt_llm_model_dir"] = "/tmp/LLAMA2-13B-base/trt_llm_model-1/"
     test_data["LLAMA2-13B-base"]["checkpoint"] = "/opt/checkpoints/LLAMA2-13B-base/LLAMA2-13B-base-1.nemo"
     test_data["LLAMA2-13B-base"]["p_tuning_checkpoint"] = "/opt/checkpoints/LLAMA2-13B-PTuning/LLAMA2-13B-PTuning-1.nemo"
-    test_data["LLAMA2-13B-base"]["prompt_template"] = ["The capital of France is ", "Largest animal in the sea is ", "Fastest animal in the world is "] 
+    test_data["LLAMA2-13B-base"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"] 
     test_data["LLAMA2-13B-base"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"]
     test_data["LLAMA2-13B-base"]["max_output_token"] = 128
     test_data["LLAMA2-13B-base"]["max_batch_size"] = 10
@@ -131,7 +131,7 @@ def get_infer_test_data():
     test_data["LLAMA2-70B-base"]["location"] = "Local"
     test_data["LLAMA2-70B-base"]["trt_llm_model_dir"] = "/tmp/LLAMA2-70B-base/trt_llm_model-1/"
     test_data["LLAMA2-70B-base"]["checkpoint"] = "/opt/checkpoints/LLAMA2-70B-base/LLAMA2-70B-base-1.nemo"
-    test_data["LLAMA2-70B-base"]["prompt_template"] = ["The capital of France is ", "Largest animal in the sea is ", "Fastest animal in the world is "] 
+    test_data["LLAMA2-70B-base"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"]
     test_data["LLAMA2-70B-base"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"]
     test_data["LLAMA2-70B-base"]["max_output_token"] = 128
     test_data["LLAMA2-70B-base"]["max_batch_size"] = 10
@@ -142,7 +142,7 @@ def get_infer_test_data():
     test_data["FALCON-7B-base"]["location"] = "Local"
     test_data["FALCON-7B-base"]["trt_llm_model_dir"] = "/tmp/FALCON-7B-base/trt_llm_model-1/"
     test_data["FALCON-7B-base"]["checkpoint"] = "/opt/checkpoints/FALCON-7B-base/FALCON-7B-base-1.nemo"
-    test_data["FALCON-7B-base"]["prompt_template"] = ["The capital of France is ", "Largest animal in the sea is ", "Fastest animal in the world is "] 
+    test_data["FALCON-7B-base"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"]
     test_data["FALCON-7B-base"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"]
     test_data["FALCON-7B-base"]["max_output_token"] = 128
     test_data["FALCON-7B-base"]["max_batch_size"] = 10
@@ -153,7 +153,7 @@ def get_infer_test_data():
     test_data["FALCON-40B-base"]["location"] = "Local"
     test_data["FALCON-40B-base"]["trt_llm_model_dir"] = "/tmp/FALCON-40B-base/trt_llm_model-1/"
     test_data["FALCON-40B-base"]["checkpoint"] = "/opt/checkpoints/FALCON-40B-base/FALCON-40B-base-1.nemo"
-    test_data["FALCON-40B-base"]["prompt_template"] = ["The capital of France is ", "Largest animal in the sea is ", "Fastest animal in the world is "] 
+    test_data["FALCON-40B-base"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"]
     test_data["FALCON-40B-base"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"]
     test_data["FALCON-40B-base"]["max_output_token"] = 128
     test_data["FALCON-40B-base"]["max_batch_size"] = 10
@@ -164,7 +164,7 @@ def get_infer_test_data():
     test_data["FALCON-180B-base"]["location"] = "Local"
     test_data["FALCON-180B-base"]["trt_llm_model_dir"] = "/tmp/FALCON-180B-base/trt_llm_model-1/"
     test_data["FALCON-180B-base"]["checkpoint"] = "/opt/checkpoints/FALCON-180B-base/FALCON-180B-base-1.nemo"
-    test_data["FALCON-180B-base"]["prompt_template"] = ["The capital of France is ", "Largest animal in the sea is ", "Fastest animal in the world is "] 
+    test_data["FALCON-180B-base"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"]
     test_data["FALCON-180B-base"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"]
     test_data["FALCON-180B-base"]["max_output_token"] = 128
     test_data["FALCON-180B-base"]["max_batch_size"] = 10
