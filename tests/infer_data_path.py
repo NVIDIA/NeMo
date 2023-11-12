@@ -33,8 +33,8 @@ def get_infer_test_data():
     )
     test_data["GPT-2B-001-bf16-tp1"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"] 
     test_data["GPT-2B-001-bf16-tp1"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"] 
-    test_data["GPT-2B-001-bf16-tp1"]["max_output_token"] = 128
-    test_data["GPT-2B-001-bf16-tp1"]["max_batch_size"] = 10
+    test_data["GPT-2B-001-bf16-tp1"]["max_output_token"] = 64
+    test_data["GPT-2B-001-bf16-tp1"]["max_batch_size"] = 5
 
     test_data["NV-GPT-8B-Base-4k"] = {}
     test_data["NV-GPT-8B-Base-4k"]["model_type"] = "gptnext"
