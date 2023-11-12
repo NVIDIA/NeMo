@@ -28,7 +28,7 @@ def get_infer_test_data():
     test_data["GPT-2B-001-bf16-tp1"]["checkpoint"] = (
         "/opt/checkpoints/GPT-2B.nemo"
     )
-    test_data["GPT-2B-HF-base"]["checkpoint_link"] = (
+    test_data["GPT-2B-001-bf16-tp1"]["checkpoint_link"] = (
         "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/GPT-2B-001_bf16_tp1.nemo"
     )
 
