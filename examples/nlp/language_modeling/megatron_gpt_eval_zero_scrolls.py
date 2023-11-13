@@ -203,7 +203,7 @@ def main(cfg) -> None:
                 pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
             )
-        checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+        #checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
     else:
         raise ValueError('need at least a nemo file or checkpoint dir')
@@ -227,6 +227,7 @@ def main(cfg) -> None:
         prompt=cfg.chatbot_config.prompt if cfg.chat else None,
         task=cfg.inference.task,
         max_seq_length=cfg.inference.max_seq_length,
+        truncation_pos=cfg.inference.truncation_pos,
         data_dir=cfg.inference.data_dir,
         n_jobs=cfg.inference.n_jobs,
         remove_newline_tab=cfg.inference.remove_newline_tab,
