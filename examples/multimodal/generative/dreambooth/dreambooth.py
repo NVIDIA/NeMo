@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+
 import pytorch_lightning as pl
 import torch
-
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -25,13 +25,13 @@ from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import Megatro
 from nemo.collections.multimodal.parts.stable_diffusion.pipeline import pipeline
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -111,6 +111,21 @@ def main(cfg):
     exp_manager(trainer, cfg.exp_manager)
 
     model = MegatronDreamBooth(cfg.model, trainer)
+
+    if cfg.model.get('peft', None):
+
+        peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
+
+        if cfg.model.peft.restore_from_path is not None:
+            # initialize peft weights from a checkpoint instead of randomly
+            # This is not the same as resume training because optimizer states are not restored.
+            logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
+            model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+        elif peft_cfg_cls is not None:
+            logging.info("Adding adapter weights to the model for PEFT")
+            model.add_adapter(peft_cfg_cls(cfg.model))
+        else:
+            logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
 
     trainer.fit(model)
 

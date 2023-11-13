@@ -14,11 +14,12 @@
 # limitations under the License.
 
 
-import re
 import enum
 import logging
+import re
 from dataclasses import dataclass
 from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.init as init
@@ -29,7 +30,6 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
-
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
@@ -68,6 +68,7 @@ class AdapterName(str, enum.Enum):
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
     MM_PROJECTOR_ADAPTER = "mm_projector_adapter"
+    PARALLEL_LINEAR_ADAPTER = "parallel_linear_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
@@ -140,6 +141,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             raise RuntimeError("ParallelLinearAdapter can not run without Megatron-core.")
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
+        self.dim = dim
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.

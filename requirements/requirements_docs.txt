@@ -1,3 +1,4 @@
+boto3
 Jinja2<3.1
 latexcodec
 numpy
@@ -11,4 +12,3 @@ sphinxcontrib-bibtex
 sphinxext-opengraph
 urllib3<2.0.0
 wrapt
-boto3

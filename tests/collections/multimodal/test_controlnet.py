@@ -5,17 +5,18 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
 from nemo.collections.multimodal.data.controlnet.controlnet_dataset import build_train_valid_datasets
+from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
     DEVICE_CAPABILITY = torch.cuda.get_device_capability()
 
+
 @pytest.fixture()
 def model_cfg():
-    model_cfg_string="""
+    model_cfg_string = """
         precision: ${trainer.precision}
         # specify micro_batch_size, global_batch_size, and model parallelism
         # gradient accumulation will be done automatically based on data_parallel_size
@@ -190,6 +191,7 @@ def model_cfg():
     model_cfg = OmegaConf.create(model_cfg_string)
     return model_cfg
 
+
 @pytest.fixture()
 def trainer_cfg():
     trainer_cfg_string = """
@@ -249,9 +251,11 @@ def exp_manager_cfg():
 
     return exp_manager_cfg
 
+
 @pytest.fixture()
 def precision():
     return 32
+
 
 @pytest.fixture()
 def controlnet_trainer_and_model(model_cfg, trainer_cfg, precision):
@@ -275,6 +279,7 @@ def controlnet_trainer_and_model(model_cfg, trainer_cfg, precision):
     model.trainer.strategy.setup_environment()
 
     return trainer, model
+
 
 @pytest.mark.run_only_on('GPU')
 class TestMegatronControlNet:
@@ -323,15 +328,16 @@ class TestMegatronControlNet:
             dtype = torch.bfloat16
         else:
             raise ValueError(f"precision: {controlnet_model.cfg['precision']} is not supported.")
-        
-        
+
         controlnet_model = controlnet_model.cuda()
         controlnet_model.eval()
 
         train_ds, _ = build_train_valid_datasets(controlnet_model.cfg, 0)
         train_loader = torch.utils.data.DataLoader(train_ds, batch_size=controlnet_model.cfg.micro_batch_size)
         batch = next(iter(train_loader))
-        batch[controlnet_model.cfg.first_stage_key] = batch[controlnet_model.cfg.first_stage_key].cuda(non_blocking=True)
+        batch[controlnet_model.cfg.first_stage_key] = batch[controlnet_model.cfg.first_stage_key].cuda(
+            non_blocking=True
+        )
         x, c = controlnet_model.model.get_input(batch, controlnet_model.cfg.first_stage_key)
 
         if not isinstance(c, dict):
@@ -352,4 +358,3 @@ class TestMegatronControlNet:
         with torch.no_grad():
             loss, _ = controlnet_model.model(x, c)
         assert loss.dtype == torch.float
-

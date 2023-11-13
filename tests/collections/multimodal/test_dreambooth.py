@@ -16,8 +16,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.multimodal.models.dreambooth.dreambooth import MegatronDreamBooth
 from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset
+from nemo.collections.multimodal.models.dreambooth.dreambooth import MegatronDreamBooth
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 DEVICE_CAPABILITY = None
@@ -191,6 +191,7 @@ def model_cfg():
     model_cfg = OmegaConf.create(model_cfg_string)
     return model_cfg
 
+
 @pytest.fixture()
 def trainer_cfg():
     trainer_cfg_string = """
@@ -213,6 +214,7 @@ def trainer_cfg():
     trainer_cfg = OmegaConf.create(trainer_cfg_string)
 
     return trainer_cfg
+
 
 @pytest.fixture()
 def exp_manager_cfg():
@@ -243,9 +245,11 @@ def exp_manager_cfg():
 
     return exp_manager_cfg
 
+
 @pytest.fixture()
 def precision():
     return 32
+
 
 @pytest.fixture()
 def dreambooth_trainer_and_model(model_cfg, trainer_cfg, precision, test_data_dir):
@@ -260,8 +264,6 @@ def dreambooth_trainer_and_model(model_cfg, trainer_cfg, precision, test_data_di
 
     model = MegatronDreamBooth(cfg=cfg, trainer=trainer)
 
-
-
     def dummy():
         return
 
@@ -273,7 +275,6 @@ def dreambooth_trainer_and_model(model_cfg, trainer_cfg, precision, test_data_di
     return trainer, model
 
 
-
 @pytest.mark.run_only_on('GPU')
 class TestMegatronDreamBooth:
     @pytest.mark.unit
@@ -283,7 +284,6 @@ class TestMegatronDreamBooth:
 
         num_weights = dreambooth_model.num_weights
         assert num_weights == 859520964
-
 
     @pytest.mark.parametrize(
         "precision",
@@ -299,7 +299,6 @@ class TestMegatronDreamBooth:
             ),
         ],
     )
-
     @pytest.mark.unit
     def test_forward(self, dreambooth_trainer_and_model, test_data_dir, precision=None):
         trainer, dreambooth_model = dreambooth_trainer_and_model

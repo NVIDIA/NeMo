@@ -69,8 +69,12 @@ def load_model(cls, checkpoint, strict, **kwargs):
             for name, module in model.named_parameters():
                 if name in checkpoint['state_dict']:
                     if module.data.shape != checkpoint['state_dict'][name].shape:
-                        print(f"WARNING: Auto padding {name} from {checkpoint['state_dict'][name].shape} to {module.data.shape}")
-                        module.data[:checkpoint['state_dict'][name].size(0), :checkpoint['state_dict'][name].size(1)] = checkpoint['state_dict'][name]
+                        print(
+                            f"WARNING: Auto padding {name} from {checkpoint['state_dict'][name].shape} to {module.data.shape}"
+                        )
+                        module.data[
+                            : checkpoint['state_dict'][name].size(0), : checkpoint['state_dict'][name].size(1)
+                        ] = checkpoint['state_dict'][name]
                     else:
                         module.data = checkpoint['state_dict'][name]
                     checkpoint['state_dict'].pop(name)
@@ -103,7 +107,9 @@ def load_model(cls, checkpoint, strict, **kwargs):
 def load_config(args, llava_config):
     nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), 'conf/llava_config.yaml')).model
     nemo_config.mm_cfg.mm_mlp_adapter_type = llava_config.get('mm_projector_type', 'linear')
-    nemo_config.mm_cfg.vision_encoder.from_pretrained = llava_config.get('mm_vision_tower', 'openai/clip-vit-large-patch14')
+    nemo_config.mm_cfg.vision_encoder.from_pretrained = llava_config.get(
+        'mm_vision_tower', 'openai/clip-vit-large-patch14'
+    )
     if '336' in nemo_config.mm_cfg.vision_encoder.from_pretrained:
         nemo_config.data.image_token_len = 576
     nemo_config.encoder_seq_length = llava_config['max_position_embeddings']
@@ -222,9 +228,9 @@ def convert(args):
     for key in model.state_dict():
         if 'mm_projector' in key:
             mm_projection_layer_suffix = key.split('mm_projector')[1]
-            checkpoint['state_dict'][f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'] = param_to_weights(
-                model.state_dict()[key]
-            )
+            checkpoint['state_dict'][
+                f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'
+            ] = param_to_weights(model.state_dict()[key])
 
     embed_weight = model.state_dict()[f'model.embed_tokens.weight']
     if mcore_gpt:

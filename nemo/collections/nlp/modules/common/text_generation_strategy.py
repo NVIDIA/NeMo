@@ -382,10 +382,10 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
     def process_prompts(self, prompt):
         from nemo.collections.multimodal.data.neva.neva_dataset import (
             DEFAULT_IMAGE_TOKEN,
-            preprocess_v1,
             preprocess_llama_2,
             preprocess_multimodal,
             preprocess_nvgpt,
+            preprocess_v1,
         )
 
         list_data_dict = []
