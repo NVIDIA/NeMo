@@ -76,13 +76,16 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
             world_size=1 if is_tarred else world_size,
         )
 
-    # 4. Creating dataloader (worker_init_fn is explained in 1.).
+    # 4. Creating dataloader.
     num_workers = config.get('num_workers', 0)
     if is_tarred:
         # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
         # because then I/O happens upon sampler iteration. Normally, the sampler resides
         # in the training loop process, but when we use iterable dataset, we can move it to
         # the dataloading worker process.
+        # We use lhotse's own worker_init_fn which leverages information such as rank, world_size,
+        # worker_id, etc. to set a different random seed for each (node, worker) combination.
+        # This together with infinite datasets removes the need to split data across nodes/workers.
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
             worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size),
