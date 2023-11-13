@@ -27,13 +27,8 @@ except (ImportError, ModuleNotFoundError):
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
-    InfusedAdapterConfig,
-    LoraKQVAdapterConfig,
-    LoraKQVAdapterWeightTyingConfig,
-    MLPInfusedAdapterConfig,
+    LoraQAdapterConfig,
     ParallelLinearAdapterConfig,
-    ParallelLinearAdapterWeightTyingConfig,
-    PromptEncoderAdapterConfig,
 )
 
 
@@ -184,6 +179,34 @@ class CanonicalAdaptersPEFTConfig(PEFTConfig):
         super().__init__(adapter_tuning_cfg, name_key_to_cfg)
 
 
+class SDLoraPEFTConfig(PEFTConfig):
+    def __init__(self, cfg):
+        lora_cfg = cfg.peft.lora_tuning
+
+        # Stable diffusion has different attn dimensions, we pass a dummy config and infer from each module when adding adapter
+        config_args = {
+            "in_features": None,
+            "out_features": None,
+            "dim": lora_cfg.adapter_dim,
+            "norm_position": None,
+            "norm_type": None,
+            "activation": "identity",
+            "column_init_method": lora_cfg.get("column_init_method", "normal"),
+            "row_init_method": lora_cfg.get("row_init_method", "zero"),
+            "gather_output": False,
+            "dropout": lora_cfg.adapter_dropout,
+        }
+
+        name_key_to_cfg = {
+            AdapterName.PARALLEL_LINEAR_ADAPTER: ParallelLinearAdapterConfig(**config_args)
+            # AdapterName.LORA_Q_ADAPTER: LoraQAdapterConfig(**config_args),
+            # AdapterName.LORA_K_ADAPTER: LoraKAdapterConfig(**config_args),
+            # AdapterName.LORA_V_ADAPTER: LoraVAdapterConfig(**config_args),
+        }
+        self.name_key_to_mcore_mixins = None
+        super().__init__(lora_cfg, name_key_to_cfg)
+
+
 PEFT_CONFIG_MAP = {
     "adapter": CanonicalAdaptersPEFTConfig,
     "ia3": IA3PEFTConfig,
@@ -191,4 +214,5 @@ PEFT_CONFIG_MAP = {
     "lora": LoraPEFTConfig,
     'none': None,
     None: None,
+    "sdlora": SDLoraPEFTConfig,
 }

@@ -481,6 +481,7 @@ class UNetModel(nn.Module):
         # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
         use_flash_attention: bool = False,
         enable_amp_o2_fp16: bool = False,
+        lora_network_alpha=None,
     ):
         super().__init__()
         if use_spatial_transformer:
@@ -578,6 +579,7 @@ class UNetModel(nn.Module):
                             use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
+                            lora_network_alpha=lora_network_alpha,
                         )
                     )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -642,6 +644,7 @@ class UNetModel(nn.Module):
                 use_linear=use_linear_in_transformer,
                 use_checkpoint=use_checkpoint,
                 use_flash_attention=use_flash_attention,
+                lora_network_alpha=lora_network_alpha,
             ),
             ResBlock(
                 ch,
@@ -698,6 +701,7 @@ class UNetModel(nn.Module):
                             use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
+                            lora_network_alpha=lora_network_alpha,
                         )
                     )
                 if level and i == num_res_blocks:

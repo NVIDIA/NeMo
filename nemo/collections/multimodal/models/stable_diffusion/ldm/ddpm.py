@@ -14,7 +14,7 @@
 import itertools
 from contextlib import contextmanager
 from functools import partial
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pytorch_lightning as pl
@@ -46,6 +46,7 @@ from nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder import 
     VQModelInterface,
 )
 from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
+from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     extract_into_tensor,
     make_beta_schedule,
@@ -68,9 +69,12 @@ from nemo.collections.multimodal.parts.utils import randn_like
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization
-from nemo.utils import logging
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
+from nemo.utils import logging, model_utils
 
 try:
     from apex import amp
@@ -1604,7 +1608,7 @@ class LatentDiffusion(DDPM, Serialization):
         pass
 
 
-class MegatronLatentDiffusion(MegatronBaseModel):
+class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
     """Megatron LatentDiffusion Model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -1897,6 +1901,7 @@ class MegatronLatentDiffusion(MegatronBaseModel):
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)
         self.setup_test_data(self.cfg.data)
+        self.setup_complete = True
 
     def build_train_valid_test_datasets(self):
         logging.info('Building datasets for Stable Diffusion...')
@@ -2112,6 +2117,74 @@ class MegatronLatentDiffusion(MegatronBaseModel):
         finally:
             cls._set_model_restore_state(is_being_restored=False)
         return checkpoint
+
+    def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
+        if isinstance(module, AdapterModuleMixin):
+            if isinstance(module, LinearWrapper):
+                peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
+            else:
+                return
+            if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                module.add_adapter(
+                    name=peft_name,
+                    cfg=peft_cfg,
+                    base_model_cfg=self.cfg,
+                    model_parallel_config=self.model_parallel_config,
+                )
+
+    def load_adapters(
+        self, filepath: str, peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None, map_location: str = None,
+    ):
+        """
+                Utility method that restores only the adapter module(s), and not the entire model itself.
+                This allows the sharing of adapters which are often just a fraction of the size of the full model,
+                enabling easier deliver.
+
+                .. note::
+
+                    During restoration, assumes that the model does not currently already have one or more adapter modules.
+
+                Args:
+                    filepath: Filepath of the .ckpt or .nemo file.
+                    peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration.
+                        If none, will infer from the .nemo checkpoint
+                    map_location: Pytorch flag, where to place the adapter(s) state dict(s).
+                """
+
+        def _modify_state_dict(state_dict):
+            # Modify state key for Dreambooth inference
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('unet', 'model.diffusion_model')
+                new_key = new_key.replace('vae', 'first_stage_model')
+                new_key = new_key.replace('text_encoder', 'cond_stage_model')
+                new_key = new_key.replace('.noise_scheduler', '')
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+            return state_dict
+
+        # Determine device
+        if map_location is None:
+            if torch.cuda.is_available():
+                map_location = 'cuda'
+            else:
+                map_location = 'cpu'
+
+        if filepath.endswith('.nemo'):
+            conf, state_dict = self._get_config_and_state_dict_from_nemo(filepath, map_location)
+        elif filepath.endswith('.ckpt'):
+            state_dict = torch.load(filepath, map_location)['state_dict']
+        else:
+            raise RuntimeError(f"{filepath} is not nemo file or ckpt file")
+        if not peft_cfgs:
+            assert filepath.endswith(
+                '.nemo'
+            ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
+            peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
+        self.add_adapter(peft_cfgs)
+        state_dict = _modify_state_dict(state_dict)
+        assert set(state_dict.keys()) == self.adapter_keys
+        super().load_state_dict(state_dict, strict=False)
 
 
 class DiffusionWrapper(pl.LightningModule, Serialization):

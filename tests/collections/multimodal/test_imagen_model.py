@@ -16,17 +16,19 @@ import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-from nemo.collections.multimodal.models.imagen.imagen import DUMMY_TENSOR, MegatronImagen
+
 from nemo.collections.multimodal.data.imagen.imagen_dataset import build_train_valid_datasets
+from nemo.collections.multimodal.models.imagen.imagen import DUMMY_TENSOR, MegatronImagen
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
     DEVICE_CAPABILITY = torch.cuda.get_device_capability()
 
+
 @pytest.fixture()
 def model_cfg():
-    
+
     model_cfg_string = """
         precision: 16
         micro_batch_size: 2 # limited by GPU memory
@@ -113,6 +115,7 @@ def model_cfg():
     model_cfg = OmegaConf.create(model_cfg_string)
     return model_cfg
 
+
 @pytest.fixture()
 def trainer_cfg():
 
@@ -136,6 +139,7 @@ def trainer_cfg():
     trainer_cfg = OmegaConf.create(trainer_cfg_string)
 
     return trainer_cfg
+
 
 @pytest.fixture()
 def exp_manager_cfg():
@@ -170,9 +174,11 @@ def exp_manager_cfg():
 
     return exp_manager_cfg
 
+
 @pytest.fixture()
 def precision():
     return 16
+
 
 @pytest.fixture()
 def imagen_trainer_and_model(model_cfg, trainer_cfg, precision):
@@ -207,20 +213,17 @@ class TestMegatronImagenModel:
 
         num_weights = imagen_model.num_weights
         assert num_weights == 524897540
-    
+
     @pytest.mark.unit
     def test_build_dataset(self, imagen_trainer_and_model, test_data_dir):
         imagen_model = imagen_trainer_and_model[1]
-        train_ds, validation_ds = build_train_valid_datasets(
-            model_cfg=imagen_model.cfg, consumed_samples=0,
-        )
+        train_ds, validation_ds = build_train_valid_datasets(model_cfg=imagen_model.cfg, consumed_samples=0,)
         assert len(train_ds) == 800000
         assert validation_ds is None
         sample = next(iter(train_ds))
         assert "t5_text_embeddings" in sample
         assert "t5_text_mask" in sample
         assert "images" in sample
-    
 
     @pytest.mark.unit
     def test_forward(self, imagen_trainer_and_model, test_data_dir, precision=None):
@@ -241,7 +244,6 @@ class TestMegatronImagenModel:
         train_loader = torch.utils.data.DataLoader(trainer_ds, batch_size=4)
         batch = next(iter(train_loader))
 
-        
         imagen_model = imagen_model.to('cuda')
         input_args = {
             'x_start': batch['images'].cuda(),

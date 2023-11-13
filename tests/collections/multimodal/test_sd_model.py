@@ -16,17 +16,19 @@ import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
+
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import build_train_valid_datasets
+from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
     DEVICE_CAPABILITY = torch.cuda.get_device_capability()
 
+
 @pytest.fixture()
 def model_cfg():
-    
+
     model_cfg_string = """
     precision: 16
     # specify micro_batch_size, global_batch_size, and model parallelism
@@ -185,6 +187,7 @@ def model_cfg():
     model_cfg = OmegaConf.create(model_cfg_string)
     return model_cfg
 
+
 @pytest.fixture()
 def trainer_cfg():
 
@@ -208,6 +211,7 @@ def trainer_cfg():
     trainer_cfg = OmegaConf.create(trainer_cfg_string)
 
     return trainer_cfg
+
 
 @pytest.fixture()
 def exp_manager_cfg():
@@ -239,9 +243,11 @@ def exp_manager_cfg():
 
     return exp_manager_cfg
 
+
 @pytest.fixture()
 def precision():
     return 16
+
 
 @pytest.fixture()
 def sd_trainer_and_model(model_cfg, trainer_cfg, precision):
@@ -276,19 +282,16 @@ class TestMegatronSDModel:
 
         num_weights = sd_model.num_weights
         assert num_weights == 859520964
-    
+
     @pytest.mark.unit
     def test_build_dataset(self, sd_trainer_and_model, test_data_dir):
         sd_model = sd_trainer_and_model[1]
-        train_ds, validation_ds = build_train_valid_datasets(
-            model_cfg=sd_model.cfg, consumed_samples=0,
-        )
+        train_ds, validation_ds = build_train_valid_datasets(model_cfg=sd_model.cfg, consumed_samples=0,)
         assert len(train_ds) == 100000
         assert validation_ds is None
         sample = next(iter(train_ds))
         assert "captions" in sample
         assert "images" in sample
-    
 
     @pytest.mark.unit
     def test_forward(self, sd_trainer_and_model, test_data_dir, precision=None):
@@ -309,7 +312,6 @@ class TestMegatronSDModel:
         train_loader = torch.utils.data.DataLoader(trainer_ds, batch_size=4)
         batch = next(iter(train_loader))
 
-        
         sd_model = sd_model.to('cuda')
         batch['images'] = batch['images'].cuda()
         x, c = sd_model.model.get_input(batch, 'images')
