@@ -17,3 +17,4 @@ scipy>=0.14
 soundfile
 sox
 texterrors
+graphviz @ git+https://github.com/xflr6/graphviz@448d1a0  # Temporary fix until 0.20.2
