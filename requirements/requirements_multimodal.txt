@@ -3,6 +3,8 @@ basicsr
 git+https://github.com/openai/CLIP.git@a1d071733d7111c9c014f024669f959182114e33#egg=clip
 diffusers>=0.19.3
 einops_exts
+# webdataset>=0.2.48 conflict with ASR models, manually pip install when using multimodal
+flash-attn>=2.0.1
 git+https://github.com/NVlabs/nvdiffrast.git@c5caf7bdb8a2448acc491a9faa47753972edd380
 imageio-ffmpeg
 kornia
@@ -17,4 +19,3 @@ torchsde
 trimesh
 xatlas
 yapf
-# webdataset>=0.2.48 conflict with ASR models, manually pip install when using multimodal
