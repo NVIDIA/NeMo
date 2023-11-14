@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-from typing import Tuple, Sequence
+from typing import Sequence, Tuple
 
 from lhotse import CutSet
 
