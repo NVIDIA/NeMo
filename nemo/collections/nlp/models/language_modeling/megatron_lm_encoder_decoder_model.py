@@ -1658,8 +1658,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         checkpoint_state_dict2[submodule_name][remaining_key_name] = val
 
                     # populate lm_head which is an alias for output_layer
-                    checkpoint_state_dict2['lm_head'] = {'output_layer.' + k: v for k, v in
-                                                     checkpoint_state_dict2['output_layer'].items()}
+                    checkpoint_state_dict2['lm_head'] = {
+                        'output_layer.' + k: v for k, v in checkpoint_state_dict2['output_layer'].items()
+                    }
                     # load_state_dict in mcore repo
                     module.load_state_dict(checkpoint_state_dict2, strict=True)
             else:
