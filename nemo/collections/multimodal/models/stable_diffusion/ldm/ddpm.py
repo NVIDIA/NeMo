@@ -2159,6 +2159,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 new_key = new_key.replace('vae', 'first_stage_model')
                 new_key = new_key.replace('text_encoder', 'cond_stage_model')
                 new_key = new_key.replace('.noise_scheduler', '')
+                new_key = new_key.replace('._orig_mod', '')
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
             return state_dict

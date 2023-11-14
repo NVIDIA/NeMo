@@ -46,7 +46,7 @@ def merge(base_model_state_dict: Dict[str, Any], lora_state_dict: Dict[int, Any]
             continue
         key_lora_in = key
         key_lora_out = key.replace('linear_in', 'linear_out')
-        key_base_model = key.replace('.adapter_layer.parallel_linear_adapter.linear_in', '')
+        key_base_model = key.replace('.adapter_layer.parallel_linear_adapter.linear_in', '').replace('._orig_mod', '')
 
         wt_lora_in = lora_state_dict[key_lora_in]
         wt_lora_out = lora_state_dict[key_lora_out]

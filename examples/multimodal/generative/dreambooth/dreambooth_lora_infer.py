@@ -31,8 +31,8 @@ def main(cfg):
         model_cfg.ckpt_path = None
         model_cfg.inductor = False
         model_cfg.target = 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
-        if cfg.model.get('unet_config', None):
-            model_cfg.unet_config.from_pretrained = cfg.unet_config.from_pretrained
+        if cfg.model.unet_config.from_pretrained:
+            model_cfg.unet_config.from_pretrained = cfg.model.unet_config.from_pretrained
 
     model_cfg = MegatronLatentDiffusion.restore_from(
         restore_path=cfg.model.peft.restore_from_path,

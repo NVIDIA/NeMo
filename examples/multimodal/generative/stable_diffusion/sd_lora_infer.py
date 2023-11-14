@@ -30,8 +30,8 @@ def main(cfg):
         model_cfg.precision = cfg.trainer.precision
         model_cfg.ckpt_path = None
         model_cfg.inductor = False
-        if cfg.model.get('unet_config', None):
-            model_cfg.unet_config.from_pretrained = cfg.unet_config.from_pretrained
+        if cfg.model.unet_config.from_pretrained:
+            model_cfg.unet_config.from_pretrained = cfg.model.unet_config.from_pretrained
 
     model_cfg = MegatronLatentDiffusion.restore_from(
         restore_path=cfg.model.peft.restore_from_path,
