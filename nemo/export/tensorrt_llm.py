@@ -144,7 +144,8 @@ class TensorRTLLM(ITritonDeployable):
         prompt_embeddings_table = None,
         prompt_embeddings_checkpoint_path=None,
         delete_existing_files: bool = True,
-        n_gpus: int = 1,
+        tensor_parallel_size: int = 1,
+        pipeline_parallel_size: int = 1,
         max_input_token: int = 512,
         max_output_token: int = 512,
         max_batch_size: int = 32,
@@ -226,14 +227,15 @@ class TensorRTLLM(ITritonDeployable):
             in_file=nemo_checkpoint_path,
             decoder_type=model_type,
             dtype=dtype,
-            gpus=n_gpus,
+            tensor_parallel_size=tensor_parallel_size,
+            pipeline_parallel_size=pipeline_parallel_size,
             nemo_export_dir=nemo_export_dir,
         )
 
         model_config_to_tensorrt_llm(
             model_configs,
             self.model_dir,
-            n_gpus,
+            world_size=tensor_parallel_size*pipeline_parallel_size,
             max_input_len=max_input_token,
             max_output_len=max_output_token,
             max_batch_size=max_batch_size,

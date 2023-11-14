@@ -34,7 +34,7 @@ class TensorrtLLMHostContext:
     """The host side context for TRT LLM inference."""
 
     executor: MPIPoolExecutor = None
-    tensor_parallel: int = 1
+    world_size: int = 1
     tokenizer: PreTrainedTokenizer = None
     max_batch_size: int = 0
     max_input_len: int = 0
@@ -59,24 +59,23 @@ def _read_config(config_path: Path):
         config = json.load(f)
     use_gpt_attention_plugin = config["plugin_config"]["gpt_attention_plugin"]
     remove_input_padding = config["plugin_config"]["remove_input_padding"]
-    world_size = config["builder_config"]["tensor_parallel"]
-    assert (
-        world_size == tensorrt_llm.mpi_world_size()
-    ), f"Engine world size ({world_size}) != Runtime world size ({tensorrt_llm.mpi_world_size()})"
+    tensor_parallel_size = config["builder_config"]["tensor_parallel"]
+    pipeline_parallel_size = config["builder_config"]["pipeline_parallel"]
+    world_size = tensor_parallel_size * pipeline_parallel_size
 
     assert world_size <= torch.cuda.device_count(), f"Not enough GPUs, requesting {world_size}"
 
     num_heads = config["builder_config"]["num_heads"]
     num_kv_heads = config["builder_config"].get("num_kv_heads", num_heads)
-    hidden_size = config["builder_config"]["hidden_size"] // world_size
+    hidden_size = config["builder_config"]["hidden_size"] // tensor_parallel_size
     vocab_size = config["builder_config"]["vocab_size"]
     num_layers = config["builder_config"]["num_layers"]
     paged_kv_cache = config["plugin_config"]["paged_kv_cache"]
     tokens_per_block = config["builder_config"]["tokens_per_block"]
     use_prompt_tuning = config["builder_config"]["use_prompt_tuning"]
 
-    num_heads = num_heads // world_size
-    num_kv_heads = (num_kv_heads + world_size - 1) // world_size
+    num_heads = num_heads // tensor_parallel_size
+    num_kv_heads = (num_kv_heads + tensor_parallel_size - 1) // tensor_parallel_size
 
     model_config = ModelConfig(
         num_heads=num_heads,
@@ -88,7 +87,7 @@ def _read_config(config_path: Path):
         remove_input_padding=remove_input_padding,
         paged_kv_cache=paged_kv_cache,
         tokens_per_block=tokens_per_block,
-        use_prompt_tuning=use_prompt_tuning,
+        max_prompt_embedding_table_size=0,
         dtype="bfloat16" if paged_kv_cache else ""
     )
 
@@ -96,7 +95,7 @@ def _read_config(config_path: Path):
     max_input_len = config["builder_config"]["max_input_len"]
     max_batch_size = config["builder_config"]["max_batch_size"]
 
-    return model_config, world_size, dtype, max_input_len, max_batch_size
+    return model_config, world_size, tensor_parallel_size, pipeline_parallel_size, dtype, max_input_len, max_batch_size
 
 
 def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
@@ -106,18 +105,20 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
 
         engine_dir = Path(engine_dir)
         config_path = engine_dir / "config.json"
-        model_config, world_size, dtype, max_input_len, max_batch_size = _read_config(config_path)
+        model_config, world_size, tp_size, pp_size, \
+            dtype, max_input_len, max_batch_size = _read_config(config_path)
 
         runtime_rank = tensorrt_llm.mpi_rank()
 
         assert runtime_rank < torch.cuda.device_count(), f"Rank {runtime_rank} out of bound"
+        runtime_mapping = tensorrt_llm.Mapping(
+            world_size, runtime_rank, tp_size=tp_size, pp_size=pp_size)
 
-        # todo: we assume that the world size is equal to tp_size. This may not always be correct.
-        runtime_mapping = tensorrt_llm.Mapping(world_size, runtime_rank, tp_size=world_size)
         torch.cuda.set_device(runtime_rank % runtime_mapping.gpus_per_node)
-
-        engine_name = get_engine_name(MODEL_NAME, dtype, world_size, runtime_rank)
+        engine_name = get_engine_name(
+            MODEL_NAME, dtype, runtime_mapping.tp_rank, runtime_mapping.pp_rank)
         serialize_path = os.path.join(engine_dir, engine_name)
+        print(f"{torch.cuda.current_device()} loading from serialize_path {serialize_path}")
 
         with open(serialize_path, "rb") as f:
             engine_buffer = f.read()
@@ -263,14 +264,14 @@ def load(
     config_path = os.path.join(engine_dir, "config.json")
     with open(config_path, "r") as f:
         config = json.load(f)
-    tensor_parallel = config["builder_config"]["tensor_parallel"]
-    if tensor_parallel == 1:
+    world_size = config["builder_config"]["world_size"]
+    if world_size == 1:
         _load(tokenizer, engine_dir, num_beams)
         executor = None
     else:
-        executor = MPIPoolExecutor(max_workers=tensor_parallel)
+        executor = MPIPoolExecutor(max_workers=world_size)
         futures = []
-        for _ in range(tensor_parallel):
+        for _ in range(world_size):
             future = executor.submit(_load, tokenizer, engine_dir, num_beams)
             futures.append(future)
         for future in futures:
@@ -281,7 +282,7 @@ def load(
 
     return TensorrtLLMHostContext(
         executor=executor,
-        tensor_parallel=tensor_parallel,
+        world_size=world_size,
         tokenizer=tokenizer,
         max_batch_size=max_batch_size,
         max_input_len=max_input_len,
@@ -315,8 +316,8 @@ def forward(
         max_length <= max_input_len
     ), f"input length {max_length} exceedng max input length {max_input_len}"
 
-    tensor_parallel = host_context.tensor_parallel
-    if tensor_parallel == 1:
+    world_size = host_context.world_size
+    if world_size == 1:
         return _forward(
             input_tensors=input_tensors,
             max_output_len=max_output_len,
@@ -334,7 +335,7 @@ def forward(
     else:
         executor = host_context.executor
         futures = []
-        for _ in range(tensor_parallel):
+        for _ in range(world_size):
             future = executor.submit(
                 _forward,
                 input_tensors=input_tensors,

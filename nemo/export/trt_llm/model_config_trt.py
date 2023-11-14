@@ -24,7 +24,7 @@ from .tensorrt_llm_model import LMHeadModelBuilder
 def model_config_to_tensorrt_llm(
     model_configs: List[ModelConfig],
     engine_dir: Union[str, Path],
-    gpus: int = 1,
+    world_size: int = 1,
     max_input_len: int = 200,
     max_output_len: int = 200,
     max_batch_size: int = 1,
@@ -57,7 +57,8 @@ def model_config_to_tensorrt_llm(
         "Before engine building, CPU RAM Used (GB):"
         f" {psutil.Process().memory_info().rss / 1024 / 1024 / 1024}"
     )
-    for rank in range(gpus):
+
+    for rank in range(world_size):
         model_configs[rank].use_prompt_tuning = max_prompt_embedding_table_size > 0
         builder = LMHeadModelBuilder(model_configs[rank])
         builder.build(
