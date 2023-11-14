@@ -15,8 +15,8 @@ lhotse = pytest.importorskip(
 )
 
 
-@pytest.fixture()
-def cutset_path(tmp_path: Path) -> Path:
+@pytest.fixture(scope="session")
+def cutset_path(tmp_path_factory) -> Path:
     """10 utterances of length 1s as a Lhotse CutSet."""
     from lhotse.testing.dummies import DummyManifest
     from lhotse import CutSet
@@ -26,13 +26,15 @@ def cutset_path(tmp_path: Path) -> Path:
         c.features = None
         c.custom = None
         c.supervisions[0].custom = None
+
+    tmp_path = tmp_path_factory.mktemp("data")
     p = tmp_path / "cuts.jsonl.gz"
     pa = tmp_path / "audio"
     cuts.save_audios(pa).to_file(p)
     return p
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def cutset_shar_path(cutset_path: Path) -> Path:
     """10 utterances of length 1s as a Lhotse Shar (tarred) CutSet."""
     from lhotse import CutSet
@@ -44,7 +46,19 @@ def cutset_shar_path(cutset_path: Path) -> Path:
     return p
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
+def cutset_shar_path_other(cutset_path: Path) -> Path:
+    """10 utterances of length 1s as a Lhotse Shar (tarred) CutSet, but with different IDs."""
+    from lhotse import CutSet
+
+    cuts = CutSet.from_file(cutset_path).modify_ids(lambda id: f"other-{id}")
+    p = cutset_path.parent / "shar-other"
+    p.mkdir(exist_ok=True)
+    cuts.to_shar(p, fields={"recording": "wav"}, shard_size=5)
+    return p
+
+
+@pytest.fixture(scope="session")
 def nemo_manifest_path(cutset_path: Path):
     """10 utterances of length 1s as a NeMo manifest."""
     from lhotse import CutSet
@@ -58,7 +72,7 @@ def nemo_manifest_path(cutset_path: Path):
     return p
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def nemo_tarred_manifest_path(nemo_manifest_path: Path) -> Tuple[str, str]:
     """10 utterances of length 1s as a NeMo tarred manifest."""
     from lhotse.serialization import load_jsonl, SequentialJsonlWriter
@@ -80,7 +94,7 @@ def nemo_tarred_manifest_path(nemo_manifest_path: Path) -> Tuple[str, str]:
 class UnsupervisedAudioDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: lhotse.CutSet) -> Dict[str, torch.Tensor]:
         audio, audio_lens = lhotse.dataset.collation.collate_audio(cuts)
-        return {"audio": audio, "audio_lens": audio_lens}
+        return {"audio": audio, "audio_lens": audio_lens, "ids": [c.id for c in cuts]}
 
 
 def test_dataloader_from_lhotse_cuts(cutset_path: Path):
@@ -97,6 +111,8 @@ def test_dataloader_from_lhotse_cuts(cutset_path: Path):
                 "drop_last": False,
                 "batch_duration": 4.0,  # seconds
                 "quadratic_duration": 15.0,  # seconds
+                "shuffle_buffer_size": 10,
+                "buffer_size": 100,
                 "seed": 0,
             },
         }
@@ -110,24 +126,20 @@ def test_dataloader_from_lhotse_cuts(cutset_path: Path):
     assert len(batches) == 4
 
     b = batches[0]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[1]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[2]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[3]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
 
 def test_dataloader_from_lhotse_shar_cuts(cutset_shar_path: Path):
@@ -144,7 +156,10 @@ def test_dataloader_from_lhotse_shar_cuts(cutset_shar_path: Path):
                 "drop_last": False,
                 "batch_duration": 4.0,  # seconds
                 "quadratic_duration": 15.0,  # seconds
+                "shuffle_buffer_size": 10,
+                "buffer_size": 100,
                 "seed": 0,
+                "shar_seed": 0,
             },
         }
     )
@@ -158,24 +173,20 @@ def test_dataloader_from_lhotse_shar_cuts(cutset_shar_path: Path):
     assert len(batches) == 4
 
     b = batches[0]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[1]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[2]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[3]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
 
 def test_dataloader_from_nemo_manifest(nemo_manifest_path: Path):
@@ -192,6 +203,8 @@ def test_dataloader_from_nemo_manifest(nemo_manifest_path: Path):
                 "drop_last": False,
                 "batch_duration": 4.0,  # seconds
                 "quadratic_duration": 15.0,  # seconds
+                "shuffle_buffer_size": 10,
+                "buffer_size": 100,
                 "seed": 0,
             },
         }
@@ -205,24 +218,20 @@ def test_dataloader_from_nemo_manifest(nemo_manifest_path: Path):
     assert len(batches) == 4
 
     b = batches[0]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[1]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[2]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[3]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
 
 def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: Path):
@@ -241,6 +250,8 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: Path):
                 "drop_last": False,
                 "batch_duration": 4.0,  # seconds
                 "quadratic_duration": 15.0,  # seconds
+                "shuffle_buffer_size": 10,
+                "buffer_size": 100,
                 "seed": 0,
             },
         }
@@ -254,21 +265,123 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: Path):
     assert len(batches) == 4
 
     b = batches[0]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[1]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[2]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
 
     b = batches[3]
-    assert set(b.keys()) == {"audio", "audio_lens"}
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
-    assert all(isinstance(v, torch.Tensor) for v in b.values())
+
+
+def test_dataloader_from_lhotse_shar_cuts_combine_datasets_unweighted(
+    cutset_shar_path: Path, cutset_shar_path_other: Path
+):
+    """
+    Note: if we iterated more mini-batches in this test, in the expectation there
+    will be 50-50 % mini-batch occupancy of examples from both datasets.
+    """
+    config = OmegaConf.create(
+        {
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "lhotse": {
+                "shar_path": [cutset_shar_path, cutset_shar_path_other],
+                "use_bucketing": True,
+                "num_buckets": 2,
+                "drop_last": False,
+                "batch_duration": 4.0,  # seconds
+                "quadratic_duration": 15.0,  # seconds
+                "shuffle_buffer_size": 10,
+                "buffer_size": 100,
+                "seed": 0,
+                "shar_seed": 0,
+            },
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    # Note: we use islice here because with Lhotse Shar the dataloader will always be infinite.
+    batches = [batch for batch in islice(dl, 4)]
+    assert len(batches) == 4
+
+    b = batches[0]
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 0  # dataset 2
+
+    b = batches[1]
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 0  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 3  # dataset 2
+
+    b = batches[2]
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 1  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 2  # dataset 2
+
+    b = batches[3]
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 2  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 1  # dataset 2
+
+
+def test_dataloader_from_lhotse_shar_cuts_combine_datasets_weighted(
+    cutset_shar_path: Path, cutset_shar_path_other: Path
+):
+    """
+    Note: if we iterated more mini-batches in this test, in the expectation there
+    will be 90-10 % mini-batch occupancy of examples from both datasets.
+    """
+    config = OmegaConf.create(
+        {
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "lhotse": {
+                "shar_path": [[cutset_shar_path, 90], [cutset_shar_path_other, 10]],
+                "use_bucketing": True,
+                "num_buckets": 2,
+                "drop_last": False,
+                "batch_duration": 4.0,  # seconds
+                "quadratic_duration": 15.0,  # seconds
+                "shuffle_buffer_size": 10,
+                "buffer_size": 100,
+                "seed": 0,
+                "shar_seed": 0,
+            },
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    # Note: we use islice here because with Lhotse Shar the dataloader will always be infinite.
+    batches = [batch for batch in islice(dl, 4)]
+    assert len(batches) == 4
+
+    b = batches[0]
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 0  # dataset 2
+
+    b = batches[1]
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 2  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 1  # dataset 2
+
+    b = batches[2]
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 0  # dataset 2
+
+    b = batches[3]
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 0  # dataset 2
