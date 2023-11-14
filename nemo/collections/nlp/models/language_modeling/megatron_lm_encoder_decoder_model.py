@@ -15,6 +15,7 @@
 import copy
 import functools
 import inspect
+from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -1601,7 +1602,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             return [self.enc_dec_model]
 
-    def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
+    def sharded_state_dict(self, prefix: str = '') -> Optional[Dict[str, Any]]:
         """
         Creates the sharded state dict which is used by dist_checkpoint to save the sharded tensors to disk.
         When given the sharded_stated_dict, dist_checkpoint.load will load the tensors corresponding to
@@ -1626,6 +1627,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             return sharded_state_dict
+        return None
 
     def on_save_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
@@ -1642,7 +1644,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # mcore uses distributed checkpointing
         if self.mcore_t5:
-            # TODO
             if 'state_dict' in checkpoint and checkpoint['state_dict']:
                 for index, module in enumerate(self.get_t5_module_list()):
                     if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -1650,11 +1651,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     else:
                         checkpoint_state_dict = checkpoint['state_dict']
                     # checkpoint_state_dict has "model." but module does not so we need to remove it when loading
-                    checkpoint_state_dict = {
-                        key.replace('model.', ''): checkpoint_state_dict.pop(key)
-                        for key in list(checkpoint_state_dict.keys())
-                    }
-                    module.load_state_dict(checkpoint_state_dict, strict=True)
+                    checkpoint_state_dict2 = defaultdict(dict)
+                    # rearrange state dict to conform with mcore T5 format
+                    for key, val in checkpoint_state_dict.items():
+                        submodule_name, remaining_key_name = key.replace('enc_dec_model.', '').split('.', 1)
+                        checkpoint_state_dict2[submodule_name][remaining_key_name] = val
+
+                    # populate lm_head which is an alias for output_layer
+                    checkpoint_state_dict2['lm_head'] = {'output_layer.' + k: v for k, v in
+                                                     checkpoint_state_dict2['output_layer'].items()}
+                    # load_state_dict in mcore repo
+                    module.load_state_dict(checkpoint_state_dict2, strict=True)
             else:
                 # when restoring a distributed checkpoint from a ptl checkpoint we need to defer loading the state_dict
                 # see NLPModel.on_load_checkpoint
