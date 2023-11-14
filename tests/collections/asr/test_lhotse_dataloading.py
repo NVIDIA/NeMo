@@ -2,7 +2,7 @@ import tarfile
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
-from typing import Dict, Tuple, List
+from typing import Dict, List, Tuple
 
 import pytest
 import torch.utils.data
@@ -18,8 +18,8 @@ lhotse = pytest.importorskip(
 @pytest.fixture(scope="session")
 def cutset_path(tmp_path_factory) -> Path:
     """10 utterances of length 1s as a Lhotse CutSet."""
-    from lhotse.testing.dummies import DummyManifest
     from lhotse import CutSet
+    from lhotse.testing.dummies import DummyManifest
 
     cuts = DummyManifest(CutSet, begin_id=0, end_id=10, with_data=True)
     for c in cuts:
@@ -75,7 +75,7 @@ def nemo_manifest_path(cutset_path: Path):
 @pytest.fixture(scope="session")
 def nemo_tarred_manifest_path(nemo_manifest_path: Path) -> Tuple[str, str]:
     """10 utterances of length 1s as a NeMo tarred manifest."""
-    from lhotse.serialization import load_jsonl, SequentialJsonlWriter
+    from lhotse.serialization import SequentialJsonlWriter, load_jsonl
     from lhotse.shar.writers import TarWriter
 
     root = nemo_manifest_path.parent / "nemo_tar"

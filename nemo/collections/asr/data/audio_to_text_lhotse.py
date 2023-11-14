@@ -2,10 +2,7 @@ from typing import Dict, Optional, Tuple
 
 import torch.utils.data
 from lhotse import CutSet
-from lhotse.dataset import (
-    AudioSamples,
-    CutMix,
-)
+from lhotse.dataset import AudioSamples, CutMix
 from lhotse.dataset.collation import collate_vectors
 
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType

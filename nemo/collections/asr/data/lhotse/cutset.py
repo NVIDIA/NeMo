@@ -4,7 +4,7 @@ from typing import Tuple, Sequence
 
 from lhotse import CutSet
 
-from nemo.collections.asr.data.lhotse.nemo_adapters import LazyNeMoTarredIterator, LazyNeMoIterator
+from nemo.collections.asr.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
 
 
 def read_cutset_from_config(config) -> Tuple[CutSet, bool]:
