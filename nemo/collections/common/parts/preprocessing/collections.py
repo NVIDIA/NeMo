@@ -411,7 +411,9 @@ class ALMAudioTextCollection(ALMAudioText):
         item = json.loads(line)
 
         # Audio file
-        if 'audio_filename' in item:
+        if 'audio_filepath_ssml' in item:
+            item['audio_file'] = item.pop('audio_filepath_ssml')
+        elif 'audio_filename' in item:
             item['audio_file'] = item.pop('audio_filename')
         elif 'audio_filepath' in item:
             item['audio_file'] = item.pop('audio_filepath')
@@ -428,10 +430,14 @@ class ALMAudioTextCollection(ALMAudioText):
         # Duration.
         if 'duration' not in item:
             item['duration'] = None
+        if 'duration_ssml' in item:
+            item['duration'] = item.pop('duration_ssml')
 
         # Answer.
         if 'answer' in item:
             pass
+        elif 'text_normed_ssml' in item:
+            item['answer'] = item.pop('text_normed_ssml')
         elif 'text' in item:
             item['answer'] = item.pop('text')
         elif 'text_filepath' in item:
