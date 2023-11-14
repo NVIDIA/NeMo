@@ -103,13 +103,24 @@ def get_infer_test_data():
     test_data["NV-GPT-8B-Chat-4k-SteerLM"]["max_output_token"] = 128
     test_data["NV-GPT-8B-Chat-4k-SteerLM"]["max_batch_size"] = 10
 
+    test_data["GPT-43B-Base"] = {}
+    test_data["GPT-43B-Base"]["model_type"] = "gptnext"
+    test_data["GPT-43B-Base"]["total_gpus"] = [2, 4, 8]
+    test_data["GPT-43B-Base"]["location"] = "Local"
+    test_data["GPT-43B-Base"]["trt_llm_model_dir"] = "/tmp/GPT-43B-Base/gpt-43B-base/"
+    test_data["GPT-43B-Base"]["checkpoint"] = "/opt/checkpoints/GPT-43B-Base/gpt-43B-base.nemo"
+    test_data["GPT-43B-Base"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"] 
+    test_data["GPT-43B-Base"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"] 
+    test_data["GPT-43B-Base"]["max_output_token"] = 128
+    test_data["GPT-43B-Base"]["max_batch_size"] = 10
+
     test_data["LLAMA2-7B-base"] = {}
     test_data["LLAMA2-7B-base"]["model_type"] = "llama"
     test_data["LLAMA2-7B-base"]["total_gpus"] = [1, 2, 4, 8]
     test_data["LLAMA2-7B-base"]["location"] = "Local"
     test_data["LLAMA2-7B-base"]["trt_llm_model_dir"] = "/tmp/LLAMA2-7B-base/trt_llm_model-1/"
     test_data["LLAMA2-7B-base"]["checkpoint"] = "/opt/checkpoints/LLAMA2-7B-base/LLAMA2-7B-base-1.nemo"
-    # test_data["LLAMA2-7B-base"]["p_tuning_checkpoint"] = "/opt/checkpoints/LLAMA2-7B-PTuning/LLAMA2-7B-PTuning-1.nemo"
+    test_data["LLAMA2-7B-base"]["p_tuning_checkpoint"] = "/opt/checkpoints/LLAMA2-7B-PTuning/LLAMA2-7B-PTuning-1.nemo"
     test_data["LLAMA2-7B-base"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea", "Fastest animal in the world"]
     test_data["LLAMA2-7B-base"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"]
     test_data["LLAMA2-7B-base"]["max_output_token"] = 128
