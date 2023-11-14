@@ -58,23 +58,6 @@ def main(cfg) -> None:
 
     torch.backends.cuda.matmul.allow_tf32 = True
 
-    if cfg.model.capture_cudagraph_iters >= 0:
-        # Required by CUDA graph with DDP
-        os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0"
-
-        # Hack to avoid CUDA graph issue with AMP, PyTorch Lightning doesn't support
-        # changing autocast arguments for now.
-        # https://github.com/pytorch/pytorch/blob/v1.13.1/torch/cuda/graphs.py#L234
-        def amp_autocast_init(self, *args, **kwargs):
-            if "cache_enabled" not in kwargs:
-                kwargs["cache_enabled"] = False
-            return self.__orig_init__(*args, **kwargs)
-
-        torch.cuda.amp.autocast.__orig_init__ = torch.cuda.amp.autocast.__init__
-        torch.cuda.amp.autocast.__init__ = amp_autocast_init
-        torch.autocast.__orig_init__ = torch.autocast.__init__
-        torch.autocast.__init__ = amp_autocast_init
-
     trainer = MegatronStableDiffusionTrainerBuilder(cfg).create_trainer()
 
     exp_manager(trainer, cfg.exp_manager)
