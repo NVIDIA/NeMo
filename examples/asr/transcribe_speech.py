@@ -121,6 +121,7 @@ class TranscriptionConfig:
     eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
 
     # General configs
+    output_dir: Optional[str] = None
     output_filename: Optional[str] = None
     batch_size: int = 32
     num_workers: int = 0

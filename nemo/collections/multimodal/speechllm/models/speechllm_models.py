@@ -808,6 +808,15 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 logging.info(f"Label: `{labels_text[0]}`")
                 logging.info(f"Pred: `{preds_text[0]}`")
 
+        # if loss is nan, print the input, label and pred
+        if loss.isnan():
+            logging.info("++++++++++++++ NaN loss detected ++++++++++++++")
+            for i in range(len(inputs_text)):
+                logging.info(f"Input: `{inputs_text[i]}`")
+                logging.info(f"Label: `{labels_text[i]}`")
+                logging.info(f"Pred: `{preds_text[i]}`")
+            logging.info("++++++++++++++++++++++++++++++++++++++++++++++++")
+
         outputs = {
             'loss': loss,
             'preds': preds_text,  # [str]
