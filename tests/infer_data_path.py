@@ -42,6 +42,7 @@ def get_infer_test_data():
     test_data["NV-GPT-8B-Base-4k"]["location"] = "Local"
     test_data["NV-GPT-8B-Base-4k"]["trt_llm_model_dir"] = "/tmp/NV-GPT-8B-Base-4k/nv-gpt-8b-base-4k_v1.0/"
     test_data["NV-GPT-8B-Base-4k"]["checkpoint"] = "/opt/checkpoints/NV-GPT-8B-Base-4k/nv-gpt-8b-base-4k_v1.0/NV-GPT-8B-Base-4k.nemo"
+    test_data["NV-GPT-8B-Base-4k"]["p_tuning_checkpoint"] = "/opt/checkpoints/NV-GPT-8B-PTuning/nv-gpt-8B-ptuning.nemo"
     test_data["NV-GPT-8B-Base-4k"]["prompt_template"] = ["The capital of France is", "Largest animal in the sea is", "Fastest animal in the world is"] 
     test_data["NV-GPT-8B-Base-4k"]["expected_keyword"] = ["Paris", "Whale", "Cheetah"] 
     test_data["NV-GPT-8B-Base-4k"]["max_output_token"] = 128
