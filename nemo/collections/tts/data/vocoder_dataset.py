@@ -218,7 +218,7 @@ class VocoderDataset(Dataset):
 
 class TarredVocoderDataset(IterableDataset):
     """
-    A similar Dataset to the VocoderDataset, but which loads tarred audio files.
+    A similar Dataset to the VocoderDataset, but loads tarred audio files.
 
     Accepts a single comma-separated JSON manifest file (in the same style as for the VocoderDataset),
     as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
@@ -280,7 +280,6 @@ class TarredVocoderDataset(IterableDataset):
 
     def __init__(
         self,
-        *,
         dataset_meta: Dict,
         sample_rate: int = 24000,
         n_samples: Optional[int] = None,
@@ -295,6 +294,11 @@ class TarredVocoderDataset(IterableDataset):
         **kwargs,
     ):
         super().__init__()
+
+        if len(kwargs) > 0:
+            logging.warning(
+                f"Arguments {kwargs.keys()} does not support for TarredVocoderDataset, they will be ignored."
+            )
 
         self.sample_rate = sample_rate
         self.n_samples = n_samples

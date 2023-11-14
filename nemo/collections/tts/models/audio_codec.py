@@ -24,6 +24,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
+from nemo.collections.tts.data.vocoder_dataset import TarredVocoderDataset, VocoderDataset
 from nemo.collections.tts.losses.audio_codec_loss import (
     MultiResolutionMelLoss,
     MultiResolutionSTFTLoss,
@@ -477,28 +478,29 @@ class AudioCodecModel(ModelPT):
         }
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
 
-    @staticmethod
-    def get_dataset(cfg):
+    def get_dataset(self, cfg):
         with open_dict(cfg):
             is_sharded = cfg.dataset.pop('is_sharded', False)
 
         if is_sharded:
-            cfg.dataset._target_ = 'nemo.collections.tts.data.vocoder_dataset.TarredVocoderDataset'
+            with open_dict(cfg):
+                cfg.dataset.global_rank = self.global_rank
+                cfg.dataset.world_size = self.world_size
+                cfg.dataset._target_ = 'nemo.collections.tts.data.vocoder_dataset.TarredVocoderDataset'
 
         dataset = instantiate(cfg.dataset)
+
         sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
         return dataset, sampler
 
-    @staticmethod
-    def _setup_train_dataloader(cfg):
-        dataset, sampler = AudioCodecModel.get_dataset(cfg)
+    def _setup_train_dataloader(self, cfg):
+        dataset, sampler = self.get_dataset(cfg)
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
         )
         return data_loader
 
-    @staticmethod
-    def _setup_test_dataloader(cfg):
+    def _setup_test_dataloader(self, cfg):
         dataset = instantiate(cfg.dataset)
         data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
         return data_loader
