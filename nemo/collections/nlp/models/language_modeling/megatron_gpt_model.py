@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from contextlib import nullcontext
-from dataclasses import fields
-from functools import partial
 import itertools
 import os
 import queue
-from typing import Any, Dict, Iterator, List, Optional, Union
 import warnings
+from contextlib import nullcontext
+from dataclasses import fields
+from functools import partial
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
 from omegaconf import OmegaConf
