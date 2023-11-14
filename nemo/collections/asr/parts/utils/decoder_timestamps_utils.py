@@ -23,10 +23,10 @@ from omegaconf import OmegaConf
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
-from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
+from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE, EncDecClassificationModel
 from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
-from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
+from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, FrameBatchVAD
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
@@ -232,6 +232,41 @@ def get_wer_feat_logit(audio_file_path, asr, frame_len, tokens_per_chunk, delay,
     return hyp, tokens, log_prob
 
 
+def get_wer_feat_logit_single(
+    feat_buffer, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask
+):
+    """
+    Create a preprocessor to convert audio samples into raw features,
+    Normalization will be done per buffer in frame_bufferer.
+    """
+    #???? frame_mask
+    hyps, tokens_list = [], []
+    features = feat_buffer.unsqueeze(0)
+    feat_len = torch.tensor(feat_buffer.shape[1]).unsqueeze(0)
+    hyp, tokens, log_prob  = frame_asr.transcribe_with_ts_stream(features, feat_len, tokens_per_chunk, delay)
+    hyps.append(hyp)
+    tokens_list.append(tokens)
+    return hyps, tokens_list, features.shape, log_prob
+
+def get_vad_feat_logit_single(
+    feat_buffer, frame_vad, frame_len, tokens_per_chunk, delay, model_stride_in_secs
+):
+    """
+    Get VAD timestamp from raw features.
+    """
+    features = feat_buffer.unsqueeze(0)
+
+    feat_len = torch.tensor(feat_buffer.shape[1]).unsqueeze(0)
+    chunk_len_in_feat = int(frame_len * 100)
+    # we need last chunk_len_in_feat from this buffer to update VAD result. 
+    # Adding additional frame_vad.prev_len_features for sliding during segment generating 
+    extract_last_features_from_buffer = frame_vad.prev_len_features + chunk_len_in_feat
+    chunk_features_with_half_window = features[:, :, -extract_last_features_from_buffer:]
+
+    ts = frame_vad.infer_to_ts_with_feature(chunk_features_with_half_window, feat_len, tokens_per_chunk, delay)
+    return ts
+
+
 class FrameBatchASRLogits(FrameBatchASR):
     """
     A class for streaming frame-based ASR.
@@ -256,10 +291,25 @@ class FrameBatchASRLogits(FrameBatchASR):
     def read_audio_file_and_return(self, audio_filepath: str, delay: float, model_stride_in_secs: float):
         samples = get_samples(audio_filepath)
         samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+        print("here to AudioFeatureIterator")
         frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
         self.set_frame_reader(frame_reader)
 
     @torch.no_grad()
+    def infer_buffer_logits(self, feat_signal, feat_signal_len):
+        feat_signal, feat_signal_len = feat_signal.to(self.asr_model.device), feat_signal_len.to(self.asr_model.device)
+        log_probs, encoded_len, predictions = self.asr_model(
+              processed_signal=feat_signal, processed_signal_length=feat_signal_len
+        )
+        preds = torch.unbind(predictions)
+        for pred in preds:
+            self.all_preds.append(pred.cpu().numpy())
+        log_probs_tup = torch.unbind(log_probs)
+        for log_prob in log_probs_tup:
+            self.all_logprobs.append(log_prob)
+        del encoded_len
+        del predictions
+
     def _get_batch_preds(self, keep_logits):
         device = self.asr_model.device
         for batch in iter(self.data_loader):
@@ -279,7 +329,7 @@ class FrameBatchASRLogits(FrameBatchASR):
             del log_probs, log_probs_tup
             del encoded_len
             del predictions
-
+    
     def transcribe_with_ts(
         self, tokens_per_chunk: int, delay: int,
     ):
@@ -296,6 +346,37 @@ class FrameBatchASRLogits(FrameBatchASR):
             len(self.unmerged) == self.unmerged_logprobs.shape[0]
         ), "Unmerged decoded result and log prob lengths are different."
         return self.greedy_merge(self.unmerged), self.unmerged, self.unmerged_logprobs
+
+    def transcribe_with_ts_stream(
+        self, feat_signal, feat_signal_len, tokens_per_chunk: int, delay: int, streaming_mode=False
+    ):
+        self.infer_buffer_logits(feat_signal, feat_signal_len)
+        self.unmerged = []
+        self.part_logprobs = []
+        self.unmerged = self.all_preds[0].tolist()
+        self.part_logprobs.append( self.all_logprobs[0])
+        self.unmerged_logprobs = torch.cat(self.part_logprobs, 0)
+        assert (
+            len(self.unmerged) == self.unmerged_logprobs.shape[0]
+        ), "Unmerged decoded result and log prob lengths are different."
+        return self.greedy_merge(self.unmerged), self.unmerged, self.unmerged_logprobs
+
+class FrameBatchASRLogitsSample(FrameBatchASRLogits):
+    """
+    A class for streaming frame-based ASR.
+    Inherits from FrameBatchASR and adds new capability of returning the logit output.
+    Please refer to FrameBatchASR for more detailed information.
+    """
+
+    def __init__(self, asr_model, frame_len=1.0, total_buffer=4.0, batch_size=4):
+        super().__init__(asr_model, frame_len, total_buffer, batch_size)
+        self.frame_len = frame_len
+        self.total_buffer = total_buffer
+        self.batch_size = batch_size
+
+    def buffer_reset(self):
+        self.clear_buffer()
+        self.reset()
 
 
 class ASRDecoderTimeStamps:
@@ -348,7 +429,7 @@ class ASRDecoderTimeStamps:
             self.encdec_class = EncDecCTCModelBPE
             self.decoder_delay_in_sec = if_none_get_default(self.params['decoder_delay_in_sec'], 0.08)
             self.word_ts_anchor_offset = if_none_get_default(self.params['word_ts_anchor_offset'], 0.12)
-            self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 16)
+            self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 1)
             self.model_stride_in_secs = 0.04
             # Conformer requires buffered inference and the parameters for buffered processing.
             self.chunk_len_in_sec = 5
@@ -363,7 +444,8 @@ class ASRDecoderTimeStamps:
             self.model_stride_in_secs = 0.08
 
         else:
-            raise ValueError(f"Cannot find the ASR model class for: {self.params['self.ASR_model_name']}")
+            import ipdb; ipdb.set_trace()
+            raise ValueError(f"Cannot find the ASR model class for: {self.ASR_model_name}")
 
         if self.ASR_model_name.endswith('.nemo'):
             asr_model = self.encdec_class.restore_from(restore_path=self.ASR_model_name)
@@ -599,16 +681,16 @@ class ASRDecoderTimeStamps:
         # Disable config overwriting
         OmegaConf.set_struct(cfg.preprocessor, True)
 
-        onset_delay = (
+        self.onset_delay = (
             math.ceil(((self.total_buffer_in_secs - self.chunk_len_in_sec) / 2) / self.model_stride_in_secs) + 1
         )
-        mid_delay = math.ceil(
+        self.mid_delay = math.ceil(
             (self.chunk_len_in_sec + (self.total_buffer_in_secs - self.chunk_len_in_sec) / 2)
             / self.model_stride_in_secs
         )
-        tokens_per_chunk = math.ceil(self.chunk_len_in_sec / self.model_stride_in_secs)
+        self.tokens_per_chunk = math.ceil(self.chunk_len_in_sec / self.model_stride_in_secs)
 
-        return onset_delay, mid_delay, tokens_per_chunk
+        return self.onset_delay, self.mid_delay, self.tokens_per_chunk
 
     def run_ASR_BPE_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
         """
