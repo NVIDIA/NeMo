@@ -6,7 +6,6 @@ batch_size: 64
 device: "cuda"
 
 diarizer:
-  #manifest_filepath: "/home/taejinp/projects/data/diar_manifest_input/ch109.json"
   manifest_filepath: null
   simulation_uniq_id: null
   out_dir: null
@@ -18,32 +17,6 @@ diarizer:
   vad:
     model_path:  null # .nemo local model path or pretrained model name or none
     external_vad_manifest: null # This option is provided to use external vad and provide its speech activity labels for speaker embeddings extraction. Only one of model_path or external_vad_manifest should be set
-
-    # parameters: # Tuned parameters for CH109 (using the 11 multi-speaker sessions as dev set) 
-      # window_length_in_sec: 0.15 #0.15  # Window length in sec for VAD context input 
-      # shift_length_in_sec: 0.01 # Shift length in sec for generate frame level VAD prediction
-      # smoothing: "median" # False or type of smoothing method (eg: median)
-      # overlap: 0.875 # Overlap ratio for overlapped mean/median smoothing filter
-      # onset: 0.4 # Onset threshold for detecting the beginning and end of a speech 
-      # offset: 0.7 # Offset threshold for detecting the end of a speech
-      # # pad_onset: 0.05 # Adding durations before each speech segment 
-      # # pad_offset: -0.1 # Adding durations after each speech segment 
-      # min_duration_on: 0.2 # Threshold for small non_speech deletion
-      # min_duration_off: 0.2 # Threshold for short speech segment deletion
-      # filter_speech_first: True 
-
-
-      ##  below configs will generate vad timestamp on session en_0638
-        # tensor([[0.9600, 1.1100],
-        #   [1.3500, 2.9600],
-        #   [3.2800, 4.3200],
-        #   [4.5700, 5.5500]])
-
-      # and cause
-      #File "/home/fjia/code/tj/NeMo-tj/nemo/collections/asr/models/online_diarizer.py", line 402, in _run_embedding_extractor
-    # audio_signal = torch.stack(audio_signal).float().to(self.device)
-    # RuntimeError: stack expects each tensor to be equal size, but got [65761] at entry 0 and [32000] at entry 1 
-      
     parameters: # Tuned parameters for CH109 (using the 11 multi-speaker sessions as dev set) 
       window_length_in_sec: 0.15  # Window length in sec for VAD context input 
       shift_length_in_sec: 0.01 # Shift length in sec for generate frame level VAD prediction
@@ -57,9 +30,7 @@ diarizer:
       min_duration_off: 0.2 # Threshold for short speech segment deletion
       filter_speech_first: True 
 
-
   speaker_embeddings:
-    #model_path: "/home/taejinp/Downloads/titanet-m.nemo" # .nemo local model path or pretrained model name (titanet_large, ecapa_tdnn or speakerverification_speakernet)
     model_path: null # .nemo local model path or pretrained model name (titanet_large, ecapa_tdnn or speakerverification_speakernet)
     parameters:
       window_length_in_sec: [1.6,0.8,0.4] # Window length(s) in sec (floating-point number). Either a number or a list. Ex) 1.5 or [1.5,1.0,0.5]
@@ -74,13 +45,10 @@ diarizer:
       enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
-
-      # Online clustering parameters
-      history_buffer_size: 100
-      current_buffer_size: 150
+      history_buffer_size: 100 # The number of previous speaker embeddings to be stored in the history buffer.
+      current_buffer_size: 150 # The number of speaker embeddings in FIFO queue to be stored.
     
   asr:
-    #model_path: "/home/taejinp/gdrive/model/ASR_models/Conformer-CTC-BPE_large_Riva_ASR_set_3.0_ep60.nemo" # Provide NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purposes.
     model_path: null # Provide NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purposes.
     parameters:
       asr_based_vad: False # if True, speech segmentation for diarization is based on word-timestamps from ASR inference.
