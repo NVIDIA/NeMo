@@ -15,7 +15,7 @@
 # limitations under the License.
 
 K2_REPO=https://github.com/k2-fsa/k2
-# uncomment the following line after the next k2 version is released (>1.24.3)
+# get latest release tag
 LATEST_RELEASE=$(git -c 'versionsort.suffix=-' \
     ls-remote --exit-code --refs --sort='version:refname' --tags ${K2_REPO} '*.*' \
     | tail --lines=1 \
