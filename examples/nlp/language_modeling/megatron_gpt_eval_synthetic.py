@@ -206,17 +206,17 @@ def main(cfg) -> None:
     if fp8_enabled:
         nb_paddings = 0
 
-
     if cfg.inference.get('input_file', None):
         print('Read dataset...')
         import json
+
         with open(cfg.inference.input_file) as f:
             lines, request = [], []
             for line in f:
                 line = json.loads(line)
                 lines.append(line)
                 request.append(line["input"])
-                
+
         print('Running inference...')
         bs = cfg.inference.batch_size
         ds = RequestDataSet(request)
@@ -231,11 +231,10 @@ def main(cfg) -> None:
             if output_file is not None:
                 with open(output_file, "w", encoding="utf-8") as f:
                     for line, res in zip(lines, response):
-                        line['pred'] = res[len(line['input']):]
+                        line['pred'] = res[len(line['input']) :]
                         f.write(json.dumps(line) + '\n')
                 print("predictions saved to {}".format(output_file))
         print("***************************")
-
 
     # if fp8_enabled:
     #     response[-1] = remove_padded_prompts(response[-1], nb_paddings)
