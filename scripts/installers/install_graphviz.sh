@@ -45,7 +45,7 @@ fi
     git clone ${GRAPHVIZ_REPO} -b ${GRAPHVIZ_LATEST_RELEASE} && cd graphviz
     ./autogen.sh && ./configure --disable-python --disable-perl
     $MAYBE_SUDO make -j && $MAYBE_SUDO make install
-    cd .. && rm -rf graphviz
+    cd .. && $MAYBE_SUDO rm -rf graphviz
     pip install -v "git+${GRAPHVIZ_PY_REPO}@${GRAPHVIZ_PY_LATEST_RELEASE}#egg=graphviz"
 } || { echo "graphviz installed with errors! Please check installation manually."; exit 1; }
 echo "graphviz (re-) installed successfully!"

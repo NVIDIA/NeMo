@@ -32,8 +32,8 @@ ARG REQUIRE_AIS_CLI=false
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
 # libavdevice-dev rerquired for latest torchaudio
+# libraries libtool, ... , libgts-dev are required for graphviz
 # graphviz is required for k2 and pynini visualization
-# The apt-get version of graphviz is bugged. It'll be further re-installed if REQUIRE_K2=true
 RUN apt-get update && \
   apt-get upgrade -y && \
   apt-get install -y \
@@ -54,8 +54,7 @@ RUN apt-get update && \
   fontconfig \
   libcairo2-dev \
   libpango1.0-dev \
-  libgts-dev \
-  graphviz && \
+  libgts-dev && \
   rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/
