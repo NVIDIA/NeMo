@@ -148,6 +148,7 @@ def _forward(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        **sampling_kwargs,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
@@ -202,6 +203,9 @@ def _forward(
             sampling_config.top_k = top_k
             sampling_config.top_p = top_p
             sampling_config.temperature = temperature
+            for key, param in sampling_kwargs:
+                # set any additional SamplingConfig kwargs
+                setattr(sampling_config, key, param)
 
             decoder.setup(batch_size, max_context_length=max_length, max_new_tokens=max_output_len)
 
@@ -272,6 +276,7 @@ def forward(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        **sampling_kwargs,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
     batch_size = len(input_tensors)
@@ -287,12 +292,12 @@ def forward(
 
     tensor_parallel = host_context.tensor_parallel
     if tensor_parallel == 1:
-        return _forward(input_tensors, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size)
+        return _forward(input_tensors, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size, **sampling_kwargs)
     else:
         executor = host_context.executor
         futures = []
         for _ in range(tensor_parallel):
-            future = executor.submit(_forward, input_tensors, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size)
+            future = executor.submit(_forward, input_tensors, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size, **sampling_kwargs)
             futures.append(future)
         for future in futures:
             result = future.result()
@@ -311,6 +316,7 @@ def generate(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        **sampling_kwargs,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
@@ -320,7 +326,7 @@ def generate(
     input_tensors = [
         torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
     ]
-    output_tensor = forward(input_tensors, max_output_len, host_context, top_k, top_p, temperature, prompt_table, task_vocab_size)
+    output_tensor = forward(input_tensors, max_output_len, host_context, top_k, top_p, temperature, prompt_table, task_vocab_size, **sampling_kwargs)
     assert output_tensor is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]

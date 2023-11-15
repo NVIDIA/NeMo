@@ -252,6 +252,7 @@ class TensorRTLLM(ITritonDeployable):
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
+        **sampling_kwargs,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -262,6 +263,7 @@ class TensorRTLLM(ITritonDeployable):
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            sampling_kwargs: Additional kwargs to set in the SamplingConfig.
         """
         if self.model is None:
             raise Exception(
@@ -277,6 +279,7 @@ class TensorRTLLM(ITritonDeployable):
                 temperature= temperature,
                 prompt_table=self.prompt_table,
                 task_vocab_size=self.task_vocab_size,
+                **sampling_kwargs,
             )
         
 
