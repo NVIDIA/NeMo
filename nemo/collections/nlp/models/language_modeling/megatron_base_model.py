@@ -562,10 +562,11 @@ class MegatronBaseModel(NLPModel):
             overlap_params = []
             no_overlap_params = []
             for p in self.parameters():
-                if getattr(p, '_disable_overlap_grad_sync', False):
-                    no_overlap_params.append(p)
-                else:
-                    overlap_params.append(p)
+                if p.requires_grad:
+                    if getattr(p, '_disable_overlap_grad_sync', False):
+                        no_overlap_params.append(p)
+                    else:
+                        overlap_params.append(p)
             self._optimizer.init_params(reversed(overlap_params))
             self._optimizer.init_params(reversed(no_overlap_params))
 
