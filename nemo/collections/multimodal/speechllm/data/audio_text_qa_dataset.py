@@ -878,7 +878,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             end_string=end_string,
             sample_alpha=sample_alpha,
         )
-
+        self.is_megatron_iterable = True
         self.shard_manifests = shard_manifests
 
         # Shard manifests if necessary and possible and then expand the paths
