@@ -66,7 +66,6 @@ class ModelBuilder(Module):
         """Initializes the ModelBuilder from a model_config."""
         super().__init__()
         self.quantization = model_config.quantization
-        self.rank = model_config.rank
         self.max_position_embeddings = model_config.max_position_embeddings
         self.hidden_act = model_config.hidden_act
 
@@ -80,6 +79,7 @@ class ModelBuilder(Module):
         self._num_kv_heads = model_config.num_kv_heads
         self._use_prompt_tuning = model_config.use_prompt_tuning
         self._mapping = model_config.mapping
+        self.rank = model_config.mapping.rank
 
         # TODO: support use_parallel_embedding.
         if self._mapping.is_first_pp_rank():
@@ -314,7 +314,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         enable_two_optimization_profiles = True
 
         head_size = self._hidden_size // self._num_heads
-        num_heads_kv = (self._num_kv_heads + self._tensor_parallel - 1) // self._tensor_parallel
+        num_heads_kv = self._num_kv_heads   
+        # num_heads_kv = (self._num_kv_heads + self._tensor_parallel - 1) // self._tensor_parallel
         remove_input_padding = default_net().plugin_config.remove_input_padding
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
 

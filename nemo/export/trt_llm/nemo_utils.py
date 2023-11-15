@@ -173,7 +173,6 @@ def nemo_to_model_config(
         model_configs[i].final_layernorm.layernorm_type = (
             LAYERNORM_RMS if isinstance(llm_model_config, LlamaConfig) else LAYERNORM_DEFAULT
         )
-
         model_configs[i].mapping = tensorrt_llm.Mapping(
             world_size=world_size, 
             rank=i, 
@@ -181,18 +180,17 @@ def nemo_to_model_config(
             pp_size=pipeline_parallel_size)
 
     for i in range(llm_model_config.n_layer):
-        for j in range(tensor_parallel_size):
-            for k in range(pipeline_parallel_size):
-                model_configs[j*tensor_parallel_size + k].layers.append(
-                    DecoderLayerConfig.from_nemo(
-                        weights_dict=weights_dict,
-                        llm_config=llm_model_config,
-                        decoder_type=decoder_type,
-                        layer_id=i,
-                        rank=j,
-                        is_mcore=llm_model_config.is_mcore,
-                    )
+        for j in range(world_size):
+            model_configs[j].layers.append(
+                DecoderLayerConfig.from_nemo(
+                    weights_dict=weights_dict,
+                    llm_config=llm_model_config,
+                    decoder_type=decoder_type,
+                    layer_id=i,
+                    rank=model_configs[j].mapping.tp_rank,
+                    is_mcore=llm_model_config.is_mcore,
                 )
+            )
 
     lm_head_weight = get_tensor_from_dict(weights_dict, "lm_head.weight")
 
@@ -205,7 +203,7 @@ def nemo_to_model_config(
     for i in range(world_size):
         model_configs[i].lm_head = LinearConfig(linear_type=LINEAR_COLUMN)
         model_configs[i].lm_head.weight = np.ascontiguousarray(
-            split(lm_head_weight, model_configs[i].tensor_parallel, model_configs[i].rank)
+            split(lm_head_weight, model_configs[i].mapping.tp_size, model_configs[i].mapping.rank)
         )
 
     return model_configs, tokenizer
