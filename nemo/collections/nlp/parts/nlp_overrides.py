@@ -25,12 +25,10 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapp
 
 import pytorch_lightning as pl
 import torch
-from torch._C._distributed_c10d import ReduceOp
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
-from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
@@ -46,22 +44,21 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch._C._distributed_c10d import ReduceOp
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
-from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
-from torch.distributed.fsdp.wrap import enable_wrap
+from torch.distributed.fsdp.wrap import enable_wrap, transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.parts import utils_funcs
+from nemo.collections.nlp.parts.fsdp_patch import BackwardPrefetch, FullStateDictConfig
 from nemo.collections.nlp.parts.fsdp_patch import FullyShardedDataParallel
 from nemo.collections.nlp.parts.fsdp_patch import FullyShardedDataParallel as FSDP
-from nemo.collections.nlp.parts.fsdp_patch import BackwardPrefetch, FullStateDictConfig
 from nemo.collections.nlp.parts.fsdp_patch import (
     MixedPrecision,
     OptimStateKeyType,
+    ShardedStateDictConfig,
     ShardingStrategy,
     StateDictType,
-    ShardedStateDictConfig,
 )
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
@@ -571,9 +568,7 @@ class NLPDDPStrategyNotebook(NLPDDPStrategy):
         self._launcher = None
 
 
-def _get_sharded_state_dict_context(
-        module: torch.nn.Module, rank0_only: bool = False
-) -> Generator[None, None, None]:
+def _get_sharded_state_dict_context(module: torch.nn.Module, rank0_only: bool = False) -> Generator[None, None, None]:
     state_dict_config = ShardedStateDictConfig(offload_to_cpu=True)
     optim_state_dict_config = ShardedOptimStateDictConfig(offload_to_cpu=True)
     state_dict_type_context = FSDP.state_dict_type(
@@ -585,9 +580,7 @@ def _get_sharded_state_dict_context(
     return state_dict_type_context
 
 
-def _get_full_state_dict_context(
-    module: torch.nn.Module, rank0_only: bool = False
-) -> Generator[None, None, None]:
+def _get_full_state_dict_context(module: torch.nn.Module, rank0_only: bool = False) -> Generator[None, None, None]:
     # Store checkpoint at rank0 only when using DP=1 and non-shrded checkpoint.
     # When TP > 1, all data-parallel rank0 should generate and save checkpoints.
     optim_state_dict_config = FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=rank0_only)
@@ -656,7 +649,9 @@ class NLPFSDPStrategy(FSDPStrategy):
 
         # Set FSDP state dict configs
         self.sharded_checkpoint = sharded_checkpoint
-        self.state_dict_context = _get_sharded_state_dict_context if sharded_checkpoint else _get_full_state_dict_context
+        self.state_dict_context = (
+            _get_sharded_state_dict_context if sharded_checkpoint else _get_full_state_dict_context
+        )
 
         super().__init__(**kwargs)
 
@@ -727,9 +722,11 @@ class NLPFSDPStrategy(FSDPStrategy):
         """
         assert self.lightning_module is not None
         # Store checkpoint at rank0 only when using DP=1 and non-shrded checkpoint.
-        rank0_only = True if (
-            not self.sharded_checkpoint and parallel_state.get_tensor_model_parallel_world_size() == 1
-        ) else False
+        rank0_only = (
+            True
+            if (not self.sharded_checkpoint and parallel_state.get_tensor_model_parallel_world_size() == 1)
+            else False
+        )
         with self.state_dict_context(self.model, rank0_only=rank0_only):
             state_dict = self.lightning_module.state_dict()
         return state_dict
@@ -771,6 +768,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         """
         Re-key the full optimizer state dict to sharded optimizer state dict
         """
+
         def _get_osd(opt_state):
             temp_opt_state = opt_state
             while True:
@@ -789,9 +787,7 @@ class NLPFSDPStrategy(FSDPStrategy):
                         with FSDP.summon_full_params(self.model, writeback=True, rank0_only=False):
                             # rekey the osd stored from non-FSDP model
                             rekeyed_osd = FSDP.rekey_optim_state_dict(
-                                temp_osd,
-                                OptimStateKeyType.PARAM_NAME,
-                                self.model,
+                                temp_osd, OptimStateKeyType.PARAM_NAME, self.model,
                             )
                         temp_osd = FSDP.shard_full_optim_state_dict(rekeyed_osd, self.model)
                     except Exception as e:
@@ -827,27 +823,24 @@ class NLPFSDPStrategy(FSDPStrategy):
         fs = get_filesystem(checkpoint_path)
 
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
-        checkpoint_path = inject_model_parallel_rank(
-            checkpoint_path, fsdp_sharded_ckpt=self.sharded_checkpoint
-        )
+        checkpoint_path = inject_model_parallel_rank(checkpoint_path, fsdp_sharded_ckpt=self.sharded_checkpoint)
         if not fs.exists(checkpoint_path):
             raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
         torch.cuda.empty_cache()
 
         from torch.distributed._shard.api import load_with_process_group
+
         with load_with_process_group(process_group=parallel_state.get_data_parallel_group()):
             checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path)
         return checkpoint
-    
+
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         """ Remove checkpoints
         """
         # legacy checkpoint logic, does not use megatron core
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
-        filepath = inject_model_parallel_rank(
-            filepath, fsdp_sharded_ckpt=self.sharded_checkpoint
-        )
+        filepath = inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=self.sharded_checkpoint)
         if not self.sharded_checkpoint:
             logging.info(f'Removing checkpoint: {filepath}')
             self.checkpoint_io.remove_checkpoint(filepath)
@@ -855,7 +848,7 @@ class NLPFSDPStrategy(FSDPStrategy):
             if app_state.data_parallel_rank == 0:
                 logging.info(f'Removing checkpoint: {filepath}')
                 self.checkpoint_io.remove_checkpoint(filepath)
-    
+
     @property
     def restore_checkpoint_after_setup(self) -> bool:
         """ When loading FSDP-sharded checkpoint, need to restore checkpoint after configuring
@@ -883,7 +876,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         )
 
         return wrapped_module
-    
+
     @contextmanager
     def model_sharded_context(self) -> Generator:
         """ Redefine `model_sharded_context` to override `FullyShardedDataParallel` with patch """
