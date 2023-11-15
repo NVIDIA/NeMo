@@ -720,7 +720,9 @@ class MaskEstimatorFlexChannels(NeuralModule):
 
 class MaskEstimatorGSS(NeuralModule):
     """Estimate masks using guided source separation with a complex
-    angular Central Gaussian Mixture Model (cACGMM).
+    angular Central Gaussian Mixture Model (cACGMM) [1].
+
+    This module corresponds to `GSS` in Fig. 2 in [2].
 
     Notation is approximately following [1], where `gamma` denotes
     the time-frequency mask, `alpha` denotes the mixture weights,
@@ -762,7 +764,7 @@ class MaskEstimatorGSS(NeuralModule):
         logging.debug('\teps:            %g', self.eps)
         logging.debug('\tdtype:          %s', self.dtype)
 
-    def normalize(self, x: torch.Tensor, dim: int = -3) -> torch.Tensor:
+    def normalize(self, x: torch.Tensor, dim: int = 1) -> torch.Tensor:
         """Normalize input to have a unit L2-norm across `dim`.
         By default, normalizes across the input channels.
 
@@ -798,9 +800,9 @@ class MaskEstimatorGSS(NeuralModule):
         """
         # (B, num_outputs, F)
         # normalize across outputs in the log domain
-        gamma = log_pdf - torch.max(log_pdf, axis=-3, keepdim=True)[0]
+        log_gamma = log_pdf - torch.max(log_pdf, axis=-3, keepdim=True)[0]
 
-        gamma = torch.exp(gamma)
+        gamma = torch.exp(log_gamma)
 
         # calculate the mask using weight, pdf and source activity
         gamma = alpha[..., None] * gamma * activity[..., None, :]
@@ -882,10 +884,9 @@ class MaskEstimatorGSS(NeuralModule):
         log_detBM = torch.sum(torch.log(L), dim=-1)
 
         # calculate the energy term using the inverse eigenvalues
-        # # note: keeping an alternative implementation for reference (slower)
+        # NOTE: keeping an alternative implementation for reference (slower)
         # zH_invBM_z = torch.einsum('bift,bmfij,bmfj,bmfkj,bkft->bmft', z.conj(), Q, (1 / L).to(Q.dtype), Q.conj(), z)
-        # # small regularization
-        # zH_invBM_z = zH_invBM_z.abs() + self.eps
+        # zH_invBM_z = zH_invBM_z.abs() + self.eps # small regularization
 
         # calc sqrt(L) * Q^H * z
         zH_invBM_z = torch.einsum('bmfj,bmfkj,bkft->bmftj', (1 / L.sqrt()).to(Q.dtype), Q.conj(), z)
