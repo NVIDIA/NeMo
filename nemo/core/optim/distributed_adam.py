@@ -12,48 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
-import itertools
 from typing import Callable, Iterable, Optional, Union
 
-import torch
 from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam, _disable_pre_forward_hook
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
 from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_param_map, optim_state_to_sharding_state
+import torch
 
-
-def _str_to_dtype(dtype: Union[str, torch.dtype]) -> torch.dtype:
-    if isinstance(dtype, torch.dtype):
-        return dtype
-    name = str(dtype).strip().lower()
-    if name.startswith("torch."):
-        name = name.replace("torch.", "", 1)
-    if name.startswith("fp"):
-        name = name.replace("fp", "float", 1)
-    dtype = dict(
-        float32=torch.float32,
-        float=torch.float32,
-        float64=torch.float64,
-        double=torch.float64,
-        float16=torch.float16,
-        half=torch.float16,
-        bfloat16=torch.bfloat16,
-        bf16=torch.bfloat16,
-        uint8=torch.uint8,
-        byte=torch.uint8,
-        int8=torch.int8,
-        char=torch.int8,
-        int16=torch.int16,
-        short=torch.int16,
-        int32=torch.int32,
-        int=torch.int32,
-        int64=torch.int64,
-        long=torch.int64,
-        bool=torch.bool,
-    )[name]
-    return dtype
+from nemo.utils import str_to_dtype
 
 
 class MegatronDistributedFusedAdam(DistributedFusedAdam):
@@ -84,7 +52,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Make sure dtypes are in right type
         for keyword in ('dtype', 'grad_sync_dtype', 'param_sync_dtype'):
             if keyword in kwargs:
-                kwargs[keyword] = _str_to_dtype(kwargs[keyword])
+                kwargs[keyword] = str_to_dtype(kwargs[keyword])
 
         # Make sure params are in consistent format (list of param group dicts)
         param_groups = list(params)
@@ -104,7 +72,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 )
             if fp32_params:
                 assert self.dtype == torch.float32, (
-                    'Param requires FP32 state, ' f'but optimizer is initialized with {dtype}'
+                    f'Param requires FP32 state but optimizer is initialized with {self.dtype}'
                 )
                 self.init_params_bucket(
                     fp32_params, grad_sync_dtype=torch.float32,

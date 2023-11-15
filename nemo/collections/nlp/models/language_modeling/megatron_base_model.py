@@ -39,7 +39,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, logging, str_to_dtype
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
@@ -457,19 +457,34 @@ class MegatronBaseModel(NLPModel):
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+
+        def get_config_arg(key: str, default_value: Optional[Any] = None) -> Any:
+            """Get keyword argument from config"""
+            val = None
+            if val is None and optim_kwargs:
+                val = optim_kwargs.get(key, None)
+            if val is None and optim_config:
+                val = optim_config.get(key, None)
+            if val is None and self._cfg.optim:
+                val = self._cfg.optim.get(key, None)
+            if val is None:
+                val = default_value
+            return val
+
         if self.with_distributed_adam:
 
             # Allocate contiguous buffer to avoid extra copies
             optim_kwargs['contiguous_grad_buffer'] = True
 
             # Make sure optimizer state is in FP32
-            optim_dtype = torch.float32
+            optim_dtype = str_to_dtype(get_config_arg('dtype', torch.float32))
             optim_kwargs['dtype'] = optim_dtype
 
             # Make sure embedding grad reductions are in FP32
-            for name, param in self.named_parameters():
-                if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
-                    param._with_fp32_optimizer = True
+            if optim_dtype == torch.float32:
+                for name, param in self.named_parameters():
+                    if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
+                        param._with_fp32_optimizer = True
 
             # Match param allgather with model dtype
             model_dtype = torch.float32
