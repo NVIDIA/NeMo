@@ -359,6 +359,7 @@ class ALMAudioTextCollection(ALMAudioText):
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
         random_context_positive_percent: Optional[float] = 0.1,
+        include_voice_name: Optional[bool] = False,
         *args,
         **kwargs,
     ):
@@ -393,6 +394,7 @@ class ALMAudioTextCollection(ALMAudioText):
         self.random_context_num = random_context_num
         self.random_context_positive_percent = random_context_positive_percent
         self.random_context = []
+        self.include_voice_name = include_voice_name
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
@@ -447,6 +449,8 @@ class ALMAudioTextCollection(ALMAudioText):
             item['answer'] = item['normalized_text']
         else:
             item['answer'] = ""
+        if 'voice_name' in item and self.include_voice_name:
+            item['answer'] = f"<voice name='{item['voice_name']}'>{item['answer']}</voice>"
         if isinstance(item['answer'], list):
             item['answer'] = " ".join([i['str'] for i in item['answer']])
 

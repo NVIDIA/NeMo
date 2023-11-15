@@ -258,7 +258,7 @@ class TextProcessing:
             prob = random.random()
             mask_or_not = prob < mask_ratio
             if mask_or_not:
-                output_tokens[i] = mask_token if sample_tokens is None else sample_tokens[i]
+                output_tokens[i] = mask_token if sample_tokens is None or i >= len(sample_tokens) else sample_tokens[i]
             mask.append(mask_or_not)
         return output_tokens, mask
 
@@ -455,6 +455,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         question_file: Optional[str] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
+        include_voice_name: Optional[bool] = False,
         random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
         input_text_mask_ratio: Optional[float] = None,
@@ -497,6 +498,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             max_num_samples=max_num_samples,
             question_file=question_file,
             random_context_num=random_context_num,
+            include_voice_name=include_voice_name,
             random_context_positive_percent=random_context_positive_percent,
             random_context_prob=random_context_prob,
         )
@@ -745,6 +747,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         question_file: Optional[str] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
+        include_voice_name: Optional[bool] = False,
         random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
         input_text_mask_ratio: Optional[float] = None,
@@ -794,6 +797,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             question_file=question_file,
             random_context_prob=random_context_prob,
             random_context_num=random_context_num,
+            include_voice_name=include_voice_name,
             random_context_positive_percent=random_context_positive_percent,
         )
 
@@ -988,6 +992,7 @@ class IterableTextDataset(TextProcessing, IterableDataset):
         question_file: Optional[str] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
+        include_voice_name: Optional[bool] = False,
         random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
         max_iter_num: Optional[int] = 1e9,
@@ -1037,6 +1042,7 @@ class IterableTextDataset(TextProcessing, IterableDataset):
             question_file=question_file,
             random_context_prob=random_context_prob,
             random_context_num=random_context_num,
+            include_voice_name=include_voice_name,
             random_context_positive_percent=random_context_positive_percent,
         )
 
@@ -1142,6 +1148,7 @@ def get_tarred_aqa_dataset(
                 sample_alpha=config.get('sample_alpha', None),
                 question_file=question_file,
                 random_context_num=config.get('random_context_num', 3),
+                include_voice_name=config.get('include_voice_name', False),
                 random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
                 random_context_prob=config.get('random_context_prob', None),
                 max_iter_num=config.get('max_iter_num', 1e9),
@@ -1185,6 +1192,7 @@ def get_tarred_aqa_dataset(
                 sample_alpha=config.get('sample_alpha', None),
                 question_file=question_file,
                 random_context_num=config.get('random_context_num', 3),
+                include_voice_name=config.get('include_voice_name', False),
                 random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
                 random_context_prob=config.get('random_context_prob', None),
             )
@@ -1395,6 +1403,7 @@ def get_aqa_dataset_from_config(
             input_text_mask_ratio=config.get('input_text_mask_ratio', None),
             random_context_prob=config.get('random_context_prob', None),
             random_context_num=config.get('random_context_num', 3),
+            include_voice_name=config.get('include_voice_name', False),
             random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
             question_file=question_file,
         )
