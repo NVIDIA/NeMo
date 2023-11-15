@@ -24,7 +24,6 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.tts.data.vocoder_dataset import TarredVocoderDataset, VocoderDataset
 from nemo.collections.tts.losses.audio_codec_loss import (
     MultiResolutionMelLoss,
     MultiResolutionSTFTLoss,
