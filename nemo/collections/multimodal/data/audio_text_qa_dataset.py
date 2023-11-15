@@ -995,6 +995,7 @@ class IterableTextDataset(TextProcessing, IterableDataset):
         include_voice_name: Optional[bool] = False,
         random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
+        input_text_mask_ratio: Optional[float] = None,
         max_iter_num: Optional[int] = 1e9,
     ):
         super().__init__(
@@ -1017,6 +1018,7 @@ class IterableTextDataset(TextProcessing, IterableDataset):
             output_key=output_key,
             end_string=end_string,
             sample_alpha=sample_alpha,
+            input_text_mask_ratio=input_text_mask_ratio,
         )
 
         self.max_iter_num = max_iter_num
@@ -1146,6 +1148,7 @@ def get_tarred_aqa_dataset(
                 output_key=config.get('output_key', 'output'),
                 end_string=config.get('end_string', None),
                 sample_alpha=config.get('sample_alpha', None),
+                input_text_mask_ratio=config.get('input_text_mask_ratio', None),
                 question_file=question_file,
                 random_context_num=config.get('random_context_num', 3),
                 include_voice_name=config.get('include_voice_name', False),
@@ -1190,6 +1193,7 @@ def get_tarred_aqa_dataset(
                 output_key=config.get('output_key', 'output'),
                 end_string=config.get('end_string', None),
                 sample_alpha=config.get('sample_alpha', None),
+                input_text_mask_ratio=config.get('input_text_mask_ratio', None),
                 question_file=question_file,
                 random_context_num=config.get('random_context_num', 3),
                 include_voice_name=config.get('include_voice_name', False),
