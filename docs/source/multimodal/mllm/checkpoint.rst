@@ -88,6 +88,7 @@ For conversion:
      --in-file /path/to/llava-llama-2-13b-chat-lightning-preview \
      --out-file /path/to/neva-llava-llama-2-13b-chat-lightning-preview.nemo \
      --tokenizer-model /path/to/llava-llama-2-13b-chat-lightning-preview/tokenizer_add_special.model
+     --conv-template llama_2
 
 
 Model Parallelism Adjustment
