@@ -29,15 +29,14 @@ from nemo.core.config import hydra_runner
 
 
 class SamplingPipeline:
-    def __init__(self, config_path, device="cuda", use_fp16=True,) -> None:
-        self.config = config_path
+    def __init__(self, model, device="cuda", use_fp16=True, is_legacy=False) -> None:
         self.device = device
-        self.config = OmegaConf.load(self.config)
-        self.model = DiffusionEngine(self.config.model).to(self.device)
+        self.model = model
         if use_fp16:
             model.conditioner.half()
             model.model.half()
-        self.vae_scale_factor = 2 ** (len(self.config.model.first_stage_config.ddconfig.ch_mult) - 1)
+        self.vae_scale_factor = 2 ** (self.model.first_stage_model.encoder.num_resolutions - 1)
+        self.is_legacy=is_legacy
 
     def text_to_image(
         self,
@@ -61,9 +60,9 @@ class SamplingPipeline:
             samples,
             params.height,
             params.width,
-            self.config.model.unet_config.in_channels,
+            self.model.model.diffusion_model.in_channels,
             self.vae_scale_factor,
-            force_uc_zero_embeddings=["txt"] if not self.config.model.is_legacy else [],
+            force_uc_zero_embeddings=["txt"] if not self.is_legacy else [],
             return_latents=return_latents,
             filter=None,
             seed=seed,
@@ -97,7 +96,7 @@ class SamplingPipeline:
             sampler,
             value_dict,
             samples,
-            force_uc_zero_embeddings=["txt"] if not self.config.model.is_legacy else [],
+            force_uc_zero_embeddings=["txt"] if not self.model.is_legacy else [],
             return_latents=return_latents,
             filter=None,
             seed=seed,

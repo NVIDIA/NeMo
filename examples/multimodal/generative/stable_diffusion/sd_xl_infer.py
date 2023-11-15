@@ -1,49 +1,46 @@
-from omegaconf.omegaconf import OmegaConf
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import torch
 
-from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally
+from nemo.collections.multimodal.models.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
+from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import SamplingPipeline
-from nemo.core.config import hydra_runner
+from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally
 
-'''
-SD_XL_BASE_RATIOS = {
-    "0.5": (704, 1408),
-    "0.52": (704, 1344),
-    "0.57": (768, 1344),
-    "0.6": (768, 1280),
-    "0.68": (832, 1216),
-    "0.72": (832, 1152),
-    "0.78": (896, 1152),
-    "0.82": (896, 1088),
-    "0.88": (960, 1088),
-    "0.94": (960, 1024),
-    "1.0": (1024, 1024),
-    "1.07": (1024, 960),
-    "1.13": (1088, 960),
-    "1.21": (1088, 896),
-    "1.29": (1152, 896),
-    "1.38": (1152, 832),
-    "1.46": (1216, 832),
-    "1.67": (1280, 768),
-    "1.75": (1344, 768),
-    "1.91": (1344, 704),
-    "2.0": (1408, 704),
-    "2.09": (1472, 704),
-    "2.4": (1536, 640),
-    "2.5": (1600, 640),
-    "2.89": (1664, 576),
-    "3.0": (1728, 576),
-'''
+from nemo.core.config import hydra_runner
 
 
 @hydra_runner(config_path='conf', config_name='sd_xl_infer')
 def main(cfg):
-    base_model_config = cfg.base_model_config
-    base = SamplingPipeline(base_model_config, use_fp16=cfg.use_fp16)
-    use_refiner = cfg.get('use_refiner', False)
-    if use_refiner:
-        refiner_config = cfg.refiner_config
-        refiner = SamplingPipeline(refiner_config, use_fp16=cfg.use_fp16)
+    def model_cfg_modifier(model_cfg):
+        model_cfg.precision = cfg.trainer.precision
+        model_cfg.ckpt_path = None
+        model_cfg.inductor = False
+        model_cfg.unet_config.from_pretrained = None
+        model_cfg.first_stage_config.from_pretrained = None
+        model_cfg.fsdp=False
 
+    torch.backends.cuda.matmul.allow_tf32 = True
+    trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
+        model_provider=MegatronDiffusionEngine, cfg=cfg, model_cfg_modifier=model_cfg_modifier
+    )
+
+    model = megatron_diffusion_model.model
+    model.cuda().eval()
+
+    base = SamplingPipeline(model, use_fp16=cfg.use_fp16, is_legacy=cfg.model.is_legacy)
+    use_refiner = cfg.get('use_refiner', False)
     for prompt in cfg.infer.prompt:
         samples = base.text_to_image(
             params=cfg.sampling.base,
@@ -52,22 +49,6 @@ def main(cfg):
             samples=cfg.infer.num_samples,
             return_latents=True if use_refiner else False,
         )
-
-        if use_refiner:
-            assert isinstance(samples, (tuple, list))
-            samples, samples_z = samples
-            assert samples is not None
-            assert samples_z is not None
-
-            perform_save_locally(cfg.out_path, samples)
-
-            samples = refiner.refiner(
-                params=cfg.sampling.refiner,
-                image=samples_z,
-                prompt=cfg.infer.prompt,
-                negative_prompt=cfg.infer.negative_prompt,
-                samples=cfg.infer.num_samples,
-            )
 
         perform_save_locally(cfg.out_path, samples)
 
