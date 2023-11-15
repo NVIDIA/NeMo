@@ -45,14 +45,6 @@ from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
 from torch._C._distributed_c10d import ReduceOp
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
-from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
-from torch.distributed.fsdp import (
-    MixedPrecision,
-    OptimStateKeyType,
-    ShardedStateDictConfig,
-    ShardingStrategy,
-    StateDictType,
-)
 from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.distributed.fsdp.wrap import enable_wrap
@@ -64,7 +56,13 @@ from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.fsdp_patch import FullyShardedDataParallel
 from nemo.collections.nlp.parts.fsdp_patch import FullyShardedDataParallel as FSDP
 from nemo.collections.nlp.parts.fsdp_patch import BackwardPrefetch, FullStateDictConfig
-from nemo.collections.nlp.parts.fsdp_patch import MixedPrecision, OptimStateKeyType, ShardingStrategy, StateDictType
+from nemo.collections.nlp.parts.fsdp_patch import (
+    MixedPrecision,
+    OptimStateKeyType,
+    ShardingStrategy,
+    StateDictType,
+    ShardedStateDictConfig,
+)
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
@@ -143,42 +141,47 @@ class NLPDDPStrategy(DDPStrategy):
     """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
 
     Args:
-        global_rank (int): the global process index.
-        world_size (int): the total number of GPUs, num_nodes * num_devices
+        no_ddp_communication_hook: Disable DDP communication hook when using AMP-O2
+        with FP32 gradient accumulation.
     """
-    app_state = AppState()
 
-    # we initialize megatron-lm model parallel and data parallel groups
-    # after initializing DDP with PTL.
-    if app_state.model_parallel_size is not None:
-        # destroy groups in case they have already been created
-        # this happens with multiple calls to trainer.test for example
-        parallel_state.destroy_model_parallel()
-        if torch.distributed.is_initialized():
-            parallel_state.initialize_model_parallel(
-                tensor_model_parallel_size=app_state.tensor_model_parallel_size,
-                pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
-                virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
-                pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
-                use_fp8=app_state.use_fp8,
+    def __init__(
+        self,
+        parallel_devices: Optional[List[torch.device]] = None,
+        cluster_environment: ClusterEnvironment = None,
+        checkpoint_io: Optional[CheckpointIO] = None,
+        no_ddp_communication_hook: bool = False,
+        **kwargs: Union[Any, Dict[str, Any]],
+    ) -> None:
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        DDPStrategy.__init__(self, parallel_devices, cluster_environment, checkpoint_io, **kwargs)
+        super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
 
-            app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
-            app_state.data_parallel_group = parallel_state.get_data_parallel_group()
-            app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
-            app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
-            app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
+        self.no_ddp_communication_hook = no_ddp_communication_hook
 
-            # create MPI process group for UCX-based communication APIs
-            if app_state.init_mpi_proc_group:
-                torch.distributed.new_group(backend='mpi')
+    def setup(self, trainer: "pl.Trainer") -> None:
+        """
+        Override setup() of DDPStrategy to avoid _sync_module_states(self.model) during eval as it can cause PP > 1 to hang
+        due to assumption in DDPStrategy class that the same model is replicated across GPUs
+        """
+        trainer_fn = trainer.state.fn
+        if trainer_fn == TrainerFn.FITTING:
+            super().setup(trainer)
+        else:
+            assert self.accelerator is not None
+            self.accelerator.setup(trainer)
 
+            # move the model to the correct device
+            self.model_to_device()
+            self.setup_precision_plugin()
+            assert self.model is not None
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
@@ -196,7 +199,7 @@ class NLPDDPStrategy(DDPStrategy):
             Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
         """
 
-        if (hasattr(self.model, 'megatron_amp_o2') and self.model.megatron_amp_o2) or (
+        if (hasattr(self.model, 'megatron_amp_O2') and self.model.megatron_amp_O2) or (
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer
@@ -495,7 +498,7 @@ class NLPDDPStrategy(ModelParallelCheckpointStrategy, DDPStrategy):
             Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
         """
 
-        if (hasattr(self.model, 'megatron_amp_o2') and self.model.megatron_amp_o2) or (
+        if (hasattr(self.model, 'megatron_amp_O2') and self.model.megatron_amp_O2) or (
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer
