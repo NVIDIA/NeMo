@@ -706,7 +706,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # perform all_reduce when grad is None.
             # grad can be None when performing PeFT training.
             if sequence_parallel_param and param.requires_grad:
-                if self.megatron_amp_o2:
+                if self.megatron_amp_O2:
                     grad = param.main_grad
                 else:
                     grad = param.grad
