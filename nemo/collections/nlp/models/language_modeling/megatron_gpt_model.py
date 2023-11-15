@@ -1546,7 +1546,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             attention_softmax_in_fp32 = True
 
         bias_activation_fusion = self.cfg.get('bias_activation_fusion', True)
-        bias_gelu_fusion = True if bias_activation_fusion else False
 
         bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
 
@@ -1577,7 +1576,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'init_method': init_method,
             'output_layer_init_method': output_layer_init_method,
             'attention_softmax_in_fp32': attention_softmax_in_fp32,
-            'bias_gelu_fusion': bias_gelu_fusion,
+            'bias_activation_fusion': bias_activation_fusion,
             'bias_dropout_fusion': bias_dropout_fusion,
             'recompute_granularity': recompute_granularity,
             'recompute_method': recompute_method,
