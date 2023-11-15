@@ -38,6 +38,7 @@ _str_to_dtype: Dict[str, torch.dtype] = dict(
     bool=torch.bool,
 )
 
+
 def str_to_dtype(dtype: Union[str, torch.dtype]) -> torch.dtype:
     """Convert a data type name to a PyTorch data type"""
     if isinstance(dtype, torch.dtype):

@@ -14,12 +14,12 @@
 
 from typing import Callable, Iterable, Optional, Union
 
+import torch
 from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam, _disable_pre_forward_hook
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
 from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_param_map, optim_state_to_sharding_state
-import torch
 
 from nemo.utils import str_to_dtype
 
@@ -71,9 +71,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     filter(lambda param: getattr(param, '_with_fp32_optimizer', False), param_group['params'],)
                 )
             if fp32_params:
-                assert self.dtype == torch.float32, (
-                    f'Param requires FP32 state but optimizer is initialized with {self.dtype}'
-                )
+                assert (
+                    self.dtype == torch.float32
+                ), f'Param requires FP32 state but optimizer is initialized with {self.dtype}'
                 self.init_params_bucket(
                     fp32_params, grad_sync_dtype=torch.float32,
                 )
