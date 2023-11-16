@@ -25,6 +25,7 @@ import torch
 from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.runtime import ModelConfig, SamplingConfig
 from transformers import PreTrainedTokenizer
+from tensorrt_llm.logger import logger
 
 from .tensorrt_llm_build import get_engine_name, MODEL_NAME  # isort:skip
 
@@ -87,7 +88,7 @@ def _read_config(config_path: Path):
         remove_input_padding=remove_input_padding,
         paged_kv_cache=paged_kv_cache,
         tokens_per_block=tokens_per_block,
-        max_prompt_embedding_table_size=0,
+        use_prompt_tuning=use_prompt_tuning,
         dtype="bfloat16" if paged_kv_cache else ""
     )
 
@@ -118,7 +119,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
         engine_name = get_engine_name(
             MODEL_NAME, dtype, runtime_mapping.tp_rank, runtime_mapping.pp_rank)
         serialize_path = os.path.join(engine_dir, engine_name)
-        print(f"{torch.cuda.current_device()} loading from serialize_path {serialize_path}")
+        logger.info(f"Reading from serialize path {serialize_path}")
 
         with open(serialize_path, "rb") as f:
             engine_buffer = f.read()
