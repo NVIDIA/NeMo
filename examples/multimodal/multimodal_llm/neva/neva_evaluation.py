@@ -257,7 +257,6 @@ def main(cfg) -> None:
     model.freeze()
 
     # Have to turn off activations_checkpoint_method for inference
-    # Have to turn off activations_checkpoint_method for inference
     try:
         model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
@@ -297,7 +296,6 @@ def main(cfg) -> None:
     )
 
     # =================== Start Quantization ====================
-    #  see https://gitlab-master.nvidia.com/omniml/ammo/-/tree/main/examples/nemo/neva for details
     if HAVE_AMMO and cfg.quantization.enable == True:
         print(f"Using quantization algorithm: {cfg.quantization.algorithm}")
         if cfg.quantization.algorithm == "int8_sq":

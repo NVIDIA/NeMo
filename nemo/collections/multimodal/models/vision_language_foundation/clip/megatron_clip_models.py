@@ -44,7 +44,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank, is_last_rank
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank, is_last_rank, torch_dtype_from_precision
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -354,15 +354,7 @@ class MegatronCLIPModel(MegatronBaseModel):
                     config=self.model_parallel_config, module=self.model, precision=cfg.precision
                 )
 
-        if self.trainer.precision in ['bf16', 'bf16-mixed']:
-            self.autocast_dtype = torch.bfloat16
-        elif self.trainer.precision in [32, '32', '32-true']:
-            self.autocast_dtype = torch.float
-        elif self.trainer.precision in [16, '16', '16-mixed']:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
-
+        self.autocast_dtype = torch_dtype_from_precision(self.trainer.precision)
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )

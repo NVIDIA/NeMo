@@ -35,9 +35,6 @@ def main(cfg) -> None:
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    with open_dict(cfg):
-        cfg.model.precision = cfg.trainer.precision
     if cfg.model.restore_from_path is None:
         model_cfg = cfg.model
         model = MegatronNevaModel(cfg.model, trainer)

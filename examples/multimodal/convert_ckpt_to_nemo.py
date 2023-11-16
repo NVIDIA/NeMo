@@ -63,7 +63,7 @@ def get_args():
         type=str,
         default=None,
         required=True,
-        help="Path to PTL checkpoints saved during training. Ex: /raid/nemo_experiments/megatron_gpt/checkpoints",
+        help="Path to PTL checkpoints saved during training. Ex: /raid/nemo_experiments/multimodal/checkpoints",
     )
     parser.add_argument(
         "--checkpoint_name",

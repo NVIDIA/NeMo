@@ -33,6 +33,7 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip import M
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -80,15 +81,7 @@ def main(cfg) -> None:
         vision_encoder = model.model.vision_encoder
         text_encoder = model.model.text_encoder
 
-    # get autocast_dtype
-    if trainer.precision in ['bf16', 'bf16-mixed']:
-        autocast_dtype = torch.bfloat16
-    elif trainer.precision in [32, '32', '32-true']:
-        autocast_dtype = torch.float
-    elif trainer.precision in [16, '16', '16-mixed']:
-        autocast_dtype = torch.half
-    else:
-        raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+    autocast_dtype = torch_dtype_from_precision(trainer.precision)
 
     with open_dict(cfg):
         cfg.model["vision"] = model.cfg.vision

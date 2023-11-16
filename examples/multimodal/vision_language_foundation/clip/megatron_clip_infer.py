@@ -24,6 +24,7 @@ from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fn
 from nemo.collections.multimodal.models.vision_language_foundation.clip import MegatronCLIPModel
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -58,15 +59,7 @@ def main(cfg) -> None:
 
     val_image_transform, text_transform = get_preprocess_fns(model.cfg, model.tokenizer, is_train=False,)
 
-    # get autocast_dtype
-    if trainer.precision in ['bf16', 'bf16-mixed']:
-        autocast_dtype = torch.bfloat16
-    elif trainer.precision in [32, '32', '32-true']:
-        autocast_dtype = torch.float
-    elif trainer.precision in [16, '16', '16-mixed']:
-        autocast_dtype = torch.half
-    else:
-        raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+    autocast_dtype = torch_dtype_from_precision(trainer.precision)
 
     image = Image.open(cfg.image_path).convert('RGB')
     with torch.no_grad(), torch.cuda.amp.autocast(
