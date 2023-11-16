@@ -122,18 +122,15 @@ if __name__ == "__main__":
         "--input",
         type=str,
         required=True,
-        help="Falcon variants from HuggingFace hub or local dir with downloaded model",
+        help="Path to Falcon variants checkpoint from HuggingFace hub or local dir",
     )
-    parser.add_argument("--output", type=str, default=".", help="Path to dir where to store output .nemo file")
+    parser.add_argument("--output", type=str, default="None", required=True, help="Path to dir where to store output .nemo file")
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
     parser.add_argument("--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving")
 
     args = parser.parse_args()
-
-    if not os.path.isdir(args.output):
-        raise FileNotFoundError(f"Output directory '{args.output}' does not exist")
 
     falcon_config = load_falcon_config(args)
     with open(args.config, "r", encoding="utf_8") as f:
@@ -288,9 +285,8 @@ if __name__ == "__main__":
     dtype = torch.bfloat16 if args.precision == "bf16" else torch.float32
     model = model.to(dtype=dtype)
     model.cfg.update(use_cpu_initialization=False)
-    tokenizer_name_part = model.cfg.tokenizer["type"].split("/")[1]
-    model.save_to(os.path.join(args.output, f'falcon_{tokenizer_name_part}_{args.precision}_tp1_pp1.nemo'))
-    logging.info("Done.")
+    model.save_to(args.output)
+    logging.info(f'Done. NeMo model saved to: {args.output}')
     tok = time.time()
     t = time.strftime('%H:%M:%S', time.gmtime(tok - tik))
     logging.info(f'nemo model created and saved. Total time: {t}')
