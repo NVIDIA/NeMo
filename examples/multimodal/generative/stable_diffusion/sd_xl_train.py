@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import torch._dynamo.config as dynamo_config
 import sys
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
@@ -69,6 +70,9 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
+    if cfg.model.get('inductor', False):
+        # SDXL has 140 CrossAttention, default cache size is 64
+        dynamo_config.cache_size_limit = 256
 
     torch.backends.cuda.matmul.allow_tf32 = True
 
