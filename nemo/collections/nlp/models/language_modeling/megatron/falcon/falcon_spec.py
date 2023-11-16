@@ -49,7 +49,8 @@ def get_gpt_layer_with_transformer_engine_spec() -> ModuleSpec:
             post_self_attn_layernorm=TENorm,
             pre_mlp_layernorm=TENorm,
             mlp=ModuleSpec(
-                module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
+                module=MLP,
+                submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
             ),
             mlp_bda=get_bias_dropout_add,
         ),

@@ -103,11 +103,14 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 
-def get_specs(spec_name, spec_func='get_gpt_layer_with_transformer_engine_spec'): #Assumes the default spec function name
+def get_specs(
+    spec_name, spec_func='get_gpt_layer_with_transformer_engine_spec'
+):  # Assumes the default spec function name
     import importlib.util
+
     name_spec_dict = {
-        "": "megatron.core.models.gpt.gpt_layer_specs", #default GPT
-        "megatron_falcon_gpt": "nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec" #Other customized model spec locations
+        "": "megatron.core.models.gpt.gpt_layer_specs",  # default GPT
+        "megatron_falcon_gpt": "nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec",  # Other customized model spec locations
     }
     module_path = name_spec_dict.get(spec_name)
     if not module_path:
@@ -119,6 +122,7 @@ def get_specs(spec_name, spec_func='get_gpt_layer_with_transformer_engine_spec')
     except AttributeError:
         raise ImportError(f"Module {module_path} does not have {spec_func}")
     return spec
+
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     """
@@ -1623,9 +1627,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         transformer_config = TransformerConfig(**transformer_config_dict)
 
-        #pass mcore customization configs directly to mcore
+        # pass mcore customization configs directly to mcore
         mcore_customization_config_dict = self.cfg.get('mcore_customization_config', {})
-        for key,value in mcore_customization_config_dict.items():
+        for key, value in mcore_customization_config_dict.items():
             setattr(transformer_config, key, value)
 
         return transformer_config

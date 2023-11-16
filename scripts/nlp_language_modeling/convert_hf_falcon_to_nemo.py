@@ -181,7 +181,7 @@ if __name__ == "__main__":
         "seq_len_interpolation_factor": None,
     }
 
-    mcore_customization_config_dict={
+    mcore_customization_config_dict = {
         "new_decoder_architecture": falcon_config.new_decoder_architecture,
         "parallel_attention": falcon_config.parallel_attn,
     }
