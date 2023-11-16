@@ -1,7 +1,8 @@
+import json
 import random
+
 from datasets import load_dataset
 from tqdm import tqdm
-import json
 from tts_normalization_utils import get_normalizer, normalize
 
 random.seed(1402)
@@ -62,4 +63,3 @@ with open(output_file, 'w', encoding='utf-8') as outf:
     print("Writing the output file...")
     for sample in new_samples:
         outf.write(json.dumps(sample) + "\n")
-

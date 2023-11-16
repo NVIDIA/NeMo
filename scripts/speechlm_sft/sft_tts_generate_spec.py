@@ -1,13 +1,14 @@
-import os
-import torch
-import random
-from tqdm import tqdm
 import json
-from tts_normalization_utils import get_normalizer, normalize
-from nemo.collections.asr.parts.preprocessing.features import normalize_batch, clean_spectrogram_batch
-from nemo.core.classes import typecheck
+import os
+import random
 
+import torch
+from tqdm import tqdm
+from tts_normalization_utils import get_normalizer, normalize
+
+from nemo.collections.asr.parts.preprocessing.features import clean_spectrogram_batch, normalize_batch
 from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
+from nemo.core.classes import typecheck
 
 manifest_file = "squadv2_train_not_normalized.json"
 output_dir = f"./features_{manifest_file}"
@@ -43,7 +44,9 @@ n_speakers = tts_model.cfg.n_speakers
 tts_model.eval().cuda()
 
 if use_enhancer:
-    enhancer_model = SpectrogramEnhancerModel.from_pretrained(model_name="tts_en_spectrogram_enhancer_for_asr_finetuning")
+    enhancer_model = SpectrogramEnhancerModel.from_pretrained(
+        model_name="tts_en_spectrogram_enhancer_for_asr_finetuning"
+    )
     enhancer_model.eval().cuda()
 else:
     enhancer_model = None
@@ -58,7 +61,13 @@ os.makedirs(output_dir, exist_ok=True)
 with open(manifest_file, 'r') as f:
     for line in tqdm(f):
         sample = json.loads(line)
-        spec = generate_spec(tts_model, text=sample["context"], normalizer=normalizer, do_lowercase=do_lowercase, enhancer_model=enhancer_model)
+        spec = generate_spec(
+            tts_model,
+            text=sample["context"],
+            normalizer=normalizer,
+            do_lowercase=do_lowercase,
+            enhancer_model=enhancer_model,
+        )
         output_file_path = os.path.join(output_dir, sample["sample_id"]) + ".pt"
         torch.save(spec, output_file_path)
         print("Saved:", output_file_path)

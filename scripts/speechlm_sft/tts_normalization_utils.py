@@ -1,7 +1,9 @@
-from nemo_text_processing.text_normalization.normalize import Normalizer
 import tempfile
 from pathlib import Path
+
 import wget
+from nemo_text_processing.text_normalization.normalize import Normalizer
+
 
 def get_normalizer():
     WHITELIST_URL = (

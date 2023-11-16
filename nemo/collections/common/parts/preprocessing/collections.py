@@ -428,7 +428,18 @@ class ALMAudioTextCollection(ALMAudioText):
             orig_srs.append(item['orig_sr'])
             langs.append(item['lang'])
         super().__init__(
-            ids, audio_files, durations, questions, tts_contexts, answers, offsets, speakers, orig_srs, langs, *args, **kwargs
+            ids,
+            audio_files,
+            durations,
+            questions,
+            tts_contexts,
+            answers,
+            offsets,
+            speakers,
+            orig_srs,
+            langs,
+            *args,
+            **kwargs,
         )
 
     def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
