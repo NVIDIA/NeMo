@@ -57,17 +57,25 @@ pipeline {
       }
     }
 
-    // megatron-core 0.3 has been pinned in the requirements, this should not be needed on r1.21.0
+    stage('Transformer Engine installation') {
+      steps {
+         sh 'git clone https://github.com/NVIDIA/TransformerEngine.git && \
+             cd TransformerEngine && \
+             git fetch origin 8eae4ce2b8fdfbbe525fc8bfecb0df5498cc9687 && \
+             git checkout FETCH_HEAD && \
+             git submodule init && git submodule update && \
+             NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .'
+      }
+    }
+
     stage('Megatron Core installation') {
       steps {
-         // pinned MCore https://github.com/NVIDIA/Megatron-LM/commit/ab0336a5c8eab77aa74ae604ba1e73decbf6d560
-         // ToT for 23.08 branch
          sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
              cd Megatron-LM && \
              git checkout 443ce9f3f98fdc5a53c6b480c6e21b79944d198e && \
              pip install -e .'
-       }
-     }
+      }
+    }
 
     stage('PyTorch Lightning version') {
       steps {
