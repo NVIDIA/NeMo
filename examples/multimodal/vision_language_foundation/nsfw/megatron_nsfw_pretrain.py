@@ -39,7 +39,6 @@ def main(cfg) -> None:
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-
     model = MegatronContentFilteringModel.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
