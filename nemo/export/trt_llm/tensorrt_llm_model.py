@@ -100,6 +100,7 @@ class ModelBuilder(Module):
                     quantization=model_config.quantization,
                     rank=self.rank,
                     tensor_parallel=self._tensor_parallel,
+                    tp_group=model_config.mapping.tp_group
                 )
                 for layer_id in get_transformer_layers(self._mapping, self._num_layers)
             ]
@@ -208,7 +209,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 model_config.vocab_size_padded,
                 bias=False,
                 dtype=self._dtype,
-                tp_group=get_tensor_parallel_group(self._tensor_parallel),
+                tp_group=self._mapping.tp_group,
                 tp_size=self._tensor_parallel,
                 gather_output=True,
                 share_weight=share_weight,

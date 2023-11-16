@@ -203,7 +203,7 @@ def nemo_to_model_config(
     for i in range(world_size):
         model_configs[i].lm_head = LinearConfig(linear_type=LINEAR_COLUMN)
         model_configs[i].lm_head.weight = np.ascontiguousarray(
-            split(lm_head_weight, model_configs[i].mapping.tp_size, model_configs[i].mapping.rank)
+            split(lm_head_weight, model_configs[i].mapping.tp_size, model_configs[i].mapping.tp_rank)
         )
 
     return model_configs, tokenizer
