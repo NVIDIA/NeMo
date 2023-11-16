@@ -9,6 +9,9 @@ pipeline {
     timeout(time: 8, unit: 'HOURS')
     disableConcurrentBuilds(abortPrevious: true)
   }
+  environment {
+    NVTE_APPLY_QK_LAYER_SCALING = 1
+  }
 
   stages {
 
@@ -3186,7 +3189,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.max_position_embeddings=128 \
         model.encoder_seq_length=128 \
         model.data.seq_length=128 \
-        model.position_embedding_type=rope \
         model.rotary_percentage=0.5 \
         model.normalization=rmsnorm \
         model.bias=False \
