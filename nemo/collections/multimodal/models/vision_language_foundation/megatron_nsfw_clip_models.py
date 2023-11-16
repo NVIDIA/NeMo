@@ -35,7 +35,7 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip import (
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank, torch_dtype_from_precision
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
@@ -141,17 +141,6 @@ class ContentFilteringModel(MegatronModule):
 
         return result_list
 
-
-def _get_autocast_dtype(precision: str):
-    if precision in ["bf16", "bf16-mixed"]:
-        return torch.bfloat16
-    if precision in [32, "32", "32-true"]:
-        return torch.float
-    if precision in [16, "16", "16-mixed"]:
-        return torch.half
-    raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
-
-
 class MegatronContentFilteringModel(MegatronBaseModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super(MegatronContentFilteringModel, self).__init__(cfg, trainer)
@@ -176,7 +165,7 @@ class MegatronContentFilteringModel(MegatronBaseModel):
                     config=self.model_parallel_config, module=self.model, precision=cfg.precision
                 )
 
-        self.autocast_dtype = _get_autocast_dtype(self.trainer.precision)
+        self.autocast_dtype = torch_dtype_from_precision(self.trainer.precision)
         self.enable_autocast = (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16])
 
         self.init_consumed_samples = 0
