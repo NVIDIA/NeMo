@@ -99,6 +99,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         self.norm_self_att = LayerNorm(d_model)
         MHA_max_cache_len = att_context_size[0]
 
+        # Which one am I using?
         if self_attention_model == 'rel_pos':
             self.self_attn = RelPositionMultiHeadAttention(
                 n_head=n_heads,

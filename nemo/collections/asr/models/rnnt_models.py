@@ -254,6 +254,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         # Model's mode and device
         mode = self.training
         device = next(self.parameters()).device
+        # dtype =  next(self.parameters()).dtype
+        # dtypes = [p.dtype for p in self.parameters()]
+        # print("GALVEZ: dtypes=", dtypes)
         dither_value = self.preprocessor.featurizer.dither
         pad_to_value = self.preprocessor.featurizer.pad_to
 
@@ -292,15 +295,20 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=(not verbose)):
+                    torch.cuda.nvtx.range_push("encoder")
                     encoded, encoded_len = self.forward(
-                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                        input_signal=test_batch[0].to(device),
+                        input_signal_length=test_batch[1].to(device)
                     )
+                    torch.cuda.nvtx.range_pop()
+                    torch.cuda.nvtx.range_push("decoding")
                     best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
                         encoded,
                         encoded_len,
                         return_hypotheses=return_hypotheses,
                         partial_hypotheses=partial_hypothesis,
                     )
+                    torch.cuda.nvtx.range_pop()
 
                     hypotheses += best_hyp
                     if all_hyp is not None:
@@ -657,6 +665,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+
+        dtype =  next(self.parameters()).dtype
+        processed_signal = processed_signal.to(dtype)
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         return encoded, encoded_len

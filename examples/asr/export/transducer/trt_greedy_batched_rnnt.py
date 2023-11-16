@@ -30,7 +30,9 @@ class ExportedModelGreedyBatchedRNNTInfer:
         with torch.no_grad():
             # Apply optional preprocessing
             # print("GALVEZ: original inputs=", audio_signal.shape, length.max())
+            torch.cuda.nvtx.range_push("encoder")
             encoder_output, encoded_lengths = self.run_encoder(audio_signal=audio_signal, length=length)
+            torch.cuda.nvtx.range_pop()
             # print("GALVEZ: encoded shapes=", encoder_output.shape, encoded_lengths.max())
             if torch.is_tensor(encoder_output):
                 encoder_output = encoder_output.transpose(1, 2)
@@ -39,8 +41,9 @@ class ExportedModelGreedyBatchedRNNTInfer:
             logitlen = encoded_lengths
 
             inseq = encoder_output  # [B, T, D]
+            torch.cuda.nvtx.range_push("iteration")
             hypotheses, timestamps = self._greedy_decode(inseq, logitlen)
-
+            torch.cuda.nvtx.range_pop()
             # Pack the hypotheses results
             packed_result = [rnnt_utils.Hypothesis(score=-1.0, y_sequence=[]) for _ in range(len(hypotheses))]
             for i in range(len(packed_result)):
@@ -80,6 +83,7 @@ class ExportedModelGreedyBatchedRNNTInfer:
         # assert max_out_len.item() <= x.shape[1]
         max_out_len = min(max_out_len, x.shape[1])
         for time_idx in range(max_out_len):
+            torch.cuda.nvtx.range_push("decoder iteration")
             f = x[:, time_idx : time_idx + 1, :]  # [B, 1, D]
             # print("GALVEZ:max_out_len=", max_out_len)
             # print("GALVEZ:xshape=", x.shape)
@@ -116,6 +120,7 @@ class ExportedModelGreedyBatchedRNNTInfer:
                         g = last_label.astype(np.int32)
                 # Batched joint step - Output = [B, V + 1]
                 joint_out, hidden_prime = self.run_decoder_joint(f, g, target_lengths, *hidden)
+                
                 logp, pred_lengths = joint_out
                 logp = logp[:, 0, 0, :]
 
@@ -182,7 +187,7 @@ class ExportedModelGreedyBatchedRNNTInfer:
                             timesteps[kidx].append(time_idx)
 
                     symbols_added += 1
-
+            torch.cuda.nvtx.range_pop()
         return label, timesteps
 
     def _setup_blank_index(self):
@@ -290,9 +295,7 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         # This appears to be incorrect...
         # output_length = ((audio_len + 1) // 2 + 1 ) // 2
         output_length = (audio_len - 1) // 2 + 1
-        print(output_length)
         output_length = (output_length - 1) // 2 + 1
-        print(output_length)
         # output_length = ((((audio_len - 1) // 2 + 1 ) - 1 ) // 2) + 1
         output1_shape = (audio_signal.shape[0], 512, output_length)
         output2_shape = (audio_signal.shape[0],)

@@ -558,10 +558,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
-        if self.decoder.blank_as_pad:
-            self._greedy_decode = self._greedy_decode_blank_as_pad
-        else:
-            self._greedy_decode = self._greedy_decode_masked
+        self._greedy_decode = self._greedy_decode_fast
+        # if self.decoder.blank_as_pad:
+        #     self._greedy_decode = self._greedy_decode_blank_as_pad
+        # else:
+        #     self._greedy_decode = self._greedy_decode_masked
 
     @typecheck()
     def forward(
@@ -653,7 +654,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # Get max sequence length
             max_out_len = out_len.max()
+            # This implicitly codes  blocking memory copy from GPU to CPU
+            max_out_len = max_out_len.item()
             for time_idx in range(max_out_len):
+                torch.cuda.nvtx.range_push("time iteration")
                 f = x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
 
                 # Prepare t timestamp batch variables
@@ -686,6 +690,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         :, 0, 0, :
                     ]
 
+                    # print("GALVEZ:", logp.dtype)
+
+                    # Why is this necessary???
                     if logp.dtype != torch.float32:
                         logp = logp.float()
 
@@ -729,11 +736,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # If all samples predict / have predicted prior blanks, exit loop early
                     # This is equivalent to if single sample predicted k
-                    if blank_mask.all():
+                    if blank_mask.all(): # GPU -> CPU
                         not_blank = False
                     else:
                         # Collect batch indices where blanks occurred now/past
-                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
+                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False) # GPU -> CPU copy
 
                         # Recover prior state for all samples which predicted blank now/past
                         if hidden is not None:
@@ -758,13 +765,16 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # Force the current predicted label to also be blank
                         # This ensures that blanks propogate across all timesteps
                         # once they have occured (normally stopping condition of sample level loop).
+
+                        # Some kind of CPU synchronization happening
+                        # here... Is there a better way? We could
+                        # remove this from the main loop. But how?
                         for kidx, ki in enumerate(k):
-                            if blank_mask[kidx] == 0:
+                            if blank_mask[kidx] == 0: # GPU -> CPU copy
                                 hypotheses[kidx].y_sequence.append(ki)
                                 hypotheses[kidx].timestep.append(time_idx)
                                 hypotheses[kidx].score += float(v[kidx])
                         symbols_added += 1
-
                 # If preserving alignments, convert the current Uj alignments into a torch.Tensor
                 # Then preserve U at current timestep Ti
                 # Finally, forward the timestep history to Ti+1 for that sample
@@ -788,6 +798,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         if len(hypotheses[batch_idx].frame_confidence[-1]) > 0:
                             hypotheses[batch_idx].frame_confidence.append([])  # blank buffer for next timestep
 
+                torch.cuda.nvtx.range_pop()
             # Remove trailing empty list of alignments at T_{am-len} x Uj
             if self.preserve_alignments:
                 for batch_idx in range(batchsize):
@@ -1017,6 +1028,155 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
 
         return hypotheses
+
+    def _greedy_decode_fast(
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        device: torch.device,
+        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
+
+        assert not self.preserve_alignments
+        assert not self.preserve_frame_confidence
+
+        with torch.inference_mode():
+            # x: [B, T, D]
+            # out_len: [B]
+            # device: torch.device
+
+            # Initialize list of Hypothesis
+            batchsize = x.shape[0]
+            hypotheses = [
+                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
+            ]
+
+            # Initialize Hidden state matrix (shared by entire batch)
+            hidden = None
+
+            # Last Label buffer + Last Label without blank buffer
+            # batch level equivalent of the last_label
+            last_label = torch.full([batchsize, 1], fill_value=self._blank_index, dtype=torch.long, device=device)
+
+            # Mask buffers
+            blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
+            blank_mask_prev = None
+
+            # Get max sequence length
+            max_out_len = out_len.max()
+            # This implicitly codes  blocking memory copy from GPU to CPU
+            max_out_len = max_out_len.item()
+            for time_idx in range(max_out_len):
+                torch.cuda.nvtx.range_push("time iteration")
+                f = x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
+
+                # Prepare t timestamp batch variables
+                not_blank = True
+                symbols_added = 0
+
+                # Reset blank mask
+                blank_mask.mul_(False)
+
+                # Update blank mask with time mask
+                # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
+                # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
+                blank_mask = time_idx >= out_len
+                # Could do this in a separate stream
+                blank_mask_prev = blank_mask.clone()
+
+                # Start inner loop
+                while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
+                    # Batch prediction and joint network steps
+                    # If very first prediction step, submit SOS tag (blank) to pred_step.
+                    # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
+                    torch.cuda.nvtx.range_push("prediction")
+                    if time_idx == 0 and symbols_added == 0 and hidden is None:
+                        g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
+                    else:
+                        # Perform batch step prediction of decoder, getting new states and scores ("g")
+                        g, hidden_prime = self._pred_step(last_label, hidden, batch_size=batchsize)
+                    torch.cuda.nvtx.range_pop()
+
+                    # Batched joint step - Output = [B, V + 1]
+                    # If preserving per-frame confidence, log_normalize must be true
+                    torch.cuda.nvtx.range_push("joint")
+                    logp = self._joint_step(f, g, log_normalize=None)[
+                        :, 0, 0, :
+                    ]
+                    torch.cuda.nvtx.range_pop()
+
+                    # print("GALVEZ:", logp.dtype)
+
+                    # Why is this necessary???
+                    if logp.dtype != torch.float32:
+                        logp = logp.float()
+
+                    # Get index k, of max prob for batch
+                    v, k = logp.max(1)
+                    del g
+
+                    # Update blank mask with current predicted blanks
+                    # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
+                    k_is_blank = k == self._blank_index
+                    blank_mask.bitwise_or_(k_is_blank)
+
+                    del k_is_blank
+
+                    del logp
+
+                    blank_mask_prev.bitwise_or_(blank_mask)
+
+                    # If all samples predict / have predicted prior blanks, exit loop early
+                    # This is equivalent to if single sample predicted k
+                    if blank_mask.all(): # GPU -> CPU
+                        not_blank = False
+                    else:
+                        # Collect batch indices where blanks occurred now/past
+                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False) # GPU -> CPU copy
+
+                        # Recover prior state for all samples which predicted blank now/past
+                        if hidden is not None:
+                            # LSTM has 2 states
+                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
+
+                        elif len(blank_indices) > 0 and hidden is None:
+                            # Reset state if there were some blank and other non-blank predictions in batch
+                            # Original state is filled with zeros so we just multiply
+                            # LSTM has 2 states
+                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
+
+                        # Recover prior predicted label for all samples which predicted blank now/past
+                        k[blank_indices] = last_label[blank_indices, 0]
+
+                        # Update new label and hidden state for next iteration
+                        last_label = k.clone().view(-1, 1)
+                        hidden = hidden_prime
+
+                        # Update predicted labels, accounting for time mask
+                        # If blank was predicted even once, now or in the past,
+                        # Force the current predicted label to also be blank
+                        # This ensures that blanks propogate across all timesteps
+                        # once they have occured (normally stopping condition of sample level loop).
+
+                        # Some kind of CPU synchronization happening
+                        # here... Is there a better way? We could
+                        # remove this from the main loop. But how?
+                        for kidx, ki in enumerate(k):
+                            if blank_mask[kidx] == 0: # GPU -> CPU copy
+                                hypotheses[kidx].y_sequence.append(ki)
+                                hypotheses[kidx].timestep.append(time_idx)
+                                hypotheses[kidx].score += float(v[kidx])
+                        symbols_added += 1
+                torch.cuda.nvtx.range_pop()
+
+        # Preserve states
+        for batch_idx in range(batchsize):
+            hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
+
+        return hypotheses
+
 
 
 class ExportedModelGreedyBatchedRNNTInfer:
@@ -2780,3 +2940,65 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
         raise NotImplementedError("masked greedy-batched decode is not supported for TDT models.")
+
+class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
+
+    def __init__(self, encoder_model: str, decoder_joint_model: str, max_symbols_per_step: Optional[int] = 10):
+        super().__init__(
+            encoder_model=encoder_model,
+            decoder_joint_model=decoder_joint_model,
+            max_symbols_per_step=max_symbols_per_step,
+        )
+
+        self.logger = trt.Logger(trt.Logger.WARNING)
+        self.runtime = trt.Runtime(self.logger)
+
+        with open(encoder_model, "rb") as f:
+            serialized_engine = f.read()
+        encoder_engine = self.runtime.deserialize_cuda_engine(serialized_engine)
+
+        with open(decoder_joint_model, "rb") as f:
+            serialized_engine = f.read()
+        decoder_joint_engine = self.runtime.deserialize_cuda_engine(serialized_engine)
+
+        self.encoder_module = PythonTorchTensorRTModule(
+            encoder_engine, ["audio_signal", "length"], 
+            ["outputs", "encoded_lengths"])
+
+        self.decoder_joint_module = PythonTorchTensorRTModule(
+            decoder_joint_engine,
+            ["encoder_outputs", "targets", "target_length", "input_states_1", "input_states_2"],
+            ["outputs", "prednet_lengths", "output_states_1", "output_states_2"])
+
+    def _setup_blank_index(self):
+        # ASSUME: Single input with no time length information
+        # I'm confused
+        dynamic_dim = 16
+        seq_len = 96
+        ip_shape = [dynamic_dim, 80, seq_len]
+        enc_logits, encoded_length = self.run_encoder(
+            audio_signal=torch.randn(*ip_shape), length=torch.randint(0, 1, size=(dynamic_dim,))
+        )
+
+        # prepare states
+        states = self._get_initial_states(batchsize=dynamic_dim)
+
+        # run decoder 1 step
+        joint_out, states = self.run_decoder_joint(enc_logits[:,:,0:1], None, None, *states)
+        log_probs, lengths = joint_out
+
+        self._blank_index = log_probs.shape[-1] - 1  # last token of vocab size is blank token
+        logging.info(
+            f"Enc-Dec-Joint step was evaluated, blank token id = {self._blank_index}; vocab size = {log_probs.shape[-1]}"
+        )
+
+    def run_encoder(self, audio_signal, length):
+        return self.encoder_module(audio_signal, length)
+
+    def run_decoder_joint(self, enc_logits, targets, target_length, *states):
+        return self.decoder_joint_module(enc_logits, targets, target_length, *states)
+
+    def _get_initial_states(self, batchsize):
+        input_states = [torch.zeros(1, batchsize, 640),
+                        torch.zeros(1, batchsize, 640)]
+        return input_states

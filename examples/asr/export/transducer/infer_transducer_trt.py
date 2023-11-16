@@ -143,6 +143,7 @@ def main():
 
     if torch.cuda.is_available():
         nemo_model = nemo_model.to('cuda')
+        # nemo_model = nemo_model.to(torch.float16)
 
     # export_model_if_required(args, nemo_model)
 
@@ -150,12 +151,19 @@ def main():
     encoder_model = args.trt_encoder
     decoder_model = args.trt_decoder
     max_symbols_per_step = args.max_symbold_per_step
-    decoding = TRTGreedyBatchedRNNTInfer(encoder_model, decoder_model, max_symbols_per_step)
+    # decoding = TRTGreedyBatchedRNNTInfer(encoder_model, decoder_model, max_symbols_per_step)
 
     audio_filepath = resolve_audio_filepaths(args)
 
+    audio_filepath = audio_filepath[:16 * 4]
+
     # Evaluate Pytorch Model (CPU/GPU)
-    # actual_transcripts = nemo_model.transcribe(audio_filepath, batch_size=args.batch_size)[0]
+    torch.cuda.cudart().cudaProfilerStart()
+    with torch.inference_mode(): # , torch.autocast("cuda"):
+        actual_transcripts = nemo_model.transcribe(audio_filepath, batch_size=args.batch_size)[0]
+    torch.cuda.cudart().cudaProfilerStop()
+    import sys; sys.exit()
+    assert False
 
     #torch.cuda.empty_cache() # to empty all cuda memory
 
@@ -177,8 +185,10 @@ def main():
         for i, test_batch in enumerate(tqdm(temporary_datalayer, desc="TRT Transcribing")):
             if i == 2:
                 torch.cuda.cudart().cudaProfilerStart()
-            if i == 3:
+            if i == 5:
+                import sys; sys.exit()
                 torch.cuda.cudart().cudaProfilerStop()
+            torch.cuda.nvtx.range_push("iteration")
             # if i < 36:
             #     continue
             # if i > 38:
@@ -192,8 +202,10 @@ def main():
             processed_audio, processed_audio_len = nemo_model.preprocessor(
                 input_signal=input_signal, length=input_signal_length
             )
+            torch.cuda.nvtx.range_push("decoding")
             # RNNT Decoding loop
             hypotheses = decoding(audio_signal=processed_audio, length=processed_audio_len)
+            torch.cuda.nvtx.range_pop()
 
             # Process hypothesis (map char/subword token ids to text)
             hypotheses = nemo_model.decoding.decode_hypothesis(hypotheses)  # type: List[str]
@@ -204,7 +216,7 @@ def main():
             all_hypothesis += texts
             del processed_audio, processed_audio_len
             del test_batch
-
+            torch.cuda.nvtx.range_pop()
     if args.log:
         for pt_transcript, onnx_transcript in zip(actual_transcripts, all_hypothesis):
             print(f"Pytorch Transcripts : {pt_transcript}")
