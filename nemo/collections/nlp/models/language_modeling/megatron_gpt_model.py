@@ -485,7 +485,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, attention_mask_type=None):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -515,7 +515,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             forward_only=forward_only,
             seq_length=self.cfg.encoder_seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
-            attention_mask_type=attention_mask_type,
         )
 
         # only the last stages of the pipeline return losses
@@ -851,7 +850,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'attention_mask': batch['attention_mask'],
                 'labels': batch['labels'],
                 'loss_mask': batch['loss_mask'],
-                'attention_mask_type': None,
             }
 
             if not self.mcore_gpt:
@@ -894,7 +892,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return fwd_output_and_loss_func
 
     def get_forward_output_only_func(self):
-        def fwd_output_only_func(dataloader_iter, model, attention_mask_type):
+        def fwd_output_only_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             extra_arg = {}
             if len(batch) == 3:
@@ -924,9 +922,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            output_tensor = model(
-                tokens, position_ids, attention_mask, attention_mask_type=attention_mask_type, **extra_arg
-            )
+            output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.
             if self.inference_params:

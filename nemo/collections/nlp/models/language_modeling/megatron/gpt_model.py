@@ -279,7 +279,6 @@ class GPTModel(MegatronModule):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         checkpoint_activations_all_layers=None,
-        attention_mask_type=None,
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
