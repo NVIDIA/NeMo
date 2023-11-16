@@ -13,7 +13,7 @@
 # limitations under the License.
 
 r"""
-Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
+Script to convert HuggingFace LLaVA checkpoints into .nemo file.
   Example to run this conversion script:
     python convert_hf_llava_to_nevo.py \
      --in-file <path_to_hf_checkpoints_folder> \
