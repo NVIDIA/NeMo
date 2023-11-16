@@ -100,9 +100,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
             self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
 
-        if hasattr(self._cfg.model, 'tts_model'):
-            tts_model_path = self._cfg.model.tts_model.get("model_path", False)
-            enhancer_model_path = self._cfg.model.tts_model.get("enhancer_path", False)
+        if hasattr(self._cfg, 'tts_model'):
+            tts_model_path = self._cfg.tts_model.get("model_path", False)
+            enhancer_model_path = self._cfg.tts_model.get("enhancer_path", False)
             if tts_model_path:
                 if tts_model_path.endswith(".nemo"):
                     self.tts_model = FastPitchModel.restore_from(tts_model_path, map_location="cpu")
