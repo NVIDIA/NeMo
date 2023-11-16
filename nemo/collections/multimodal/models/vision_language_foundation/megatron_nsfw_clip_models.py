@@ -141,6 +141,7 @@ class ContentFilteringModel(MegatronModule):
 
         return result_list
 
+
 class MegatronContentFilteringModel(MegatronBaseModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super(MegatronContentFilteringModel, self).__init__(cfg, trainer)
