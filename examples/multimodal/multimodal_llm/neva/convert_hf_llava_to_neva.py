@@ -15,7 +15,7 @@
 r"""
 Script to convert HuggingFace LLaVA checkpoints into .nemo file.
   Example to run this conversion script:
-    python convert_hf_llava_to_nevo.py \
+    python convert_hf_llava_to_neva.py \
      --in-file <path_to_hf_checkpoints_folder> \
      --out-file <path_to_output_nemo_file> \
      --tokenizer-model <path_to_sp_tokenizer_model>
