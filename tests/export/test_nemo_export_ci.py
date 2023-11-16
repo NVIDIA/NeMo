@@ -71,14 +71,8 @@ def get_args():
         type=int,
     )
     parser.add_argument(
-        "--ptuning",
-        type=str,
-        default="False",
-    )
-    parser.add_argument(
         "--p_tuning_checkpoint",
         type=str,
-        default="/opt/checkpoints/ptuning.nemo",
     )
     args = parser.parse_args()
 
@@ -124,7 +118,7 @@ def get_accuracy_with_lambada(model):
 
 
 def run_trt_llm_export(args):
-    ptuning = args.ptuning == "True"
+    ptuning = not args.p_tuning_checkpoint
 
     prompt_template=["The capital of France is", "Largest animal in the sea is"]
     expected_keyword=["Paris", "Whale", "Cheetah"]
