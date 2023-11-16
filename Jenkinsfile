@@ -58,17 +58,16 @@ pipeline {
     }
 
     // megatron-core 0.3 has been pinned in the requirements, this should not be needed on r1.21.0
-    // stage('Megatron Core installation') {
-    //   steps {
-    //     // pinned MCore https://github.com/NVIDIA/Megatron-LM/commit/ab0336a5c8eab77aa74ae604ba1e73decbf6d560
-    //     // ToT for 23.08 branch
-    //     sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
-    //         cd Megatron-LM && \
-    //         git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
-    //         pip install -e .'
-    //   }
-    // }
-
+    stage('Megatron Core installation') {
+      steps {
+         // pinned MCore https://github.com/NVIDIA/Megatron-LM/commit/ab0336a5c8eab77aa74ae604ba1e73decbf6d560
+         // ToT for 23.08 branch
+         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
+             cd Megatron-LM && \
+             git checkout 443ce9f3f98fdc5a53c6b480c6e21b79944d198e && \
+             pip install -e .'
+       }
+     }
 
     stage('PyTorch Lightning version') {
       steps {
