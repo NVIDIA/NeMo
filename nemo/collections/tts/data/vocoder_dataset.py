@@ -12,21 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-import librosa
 import torch.utils.data
 
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.tts.parts.preprocessing.feature_processors import FeatureProcessor
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     filter_dataset_by_duration,
-    get_abs_rel_paths,
     get_weighted_sampler,
+    load_audio,
+    sample_audio,
     stack_tensors,
 )
 from nemo.core.classes import Dataset
@@ -43,6 +41,7 @@ class DatasetMeta:
 
 @dataclass
 class DatasetSample:
+    dataset_name: str
     manifest_entry: dict
     audio_dir: Path
 
@@ -66,8 +65,7 @@ class VocoderDataset(Dataset):
         max_duration: Optional float, if provided audio files in the training manifest longer than 'max_duration'
             will be ignored.
         trunc_duration: Optional int, if provided audio will be truncated to at most 'trunc_duration' seconds.
-        num_audio_retries: Number of read attempts to make when sampling audio file, to avoid training failing
-            from sporadic IO errors.
+        volume_norm: Whether to apply volume normalization to loaded audio.
     """
 
     def __init__(
@@ -80,20 +78,16 @@ class VocoderDataset(Dataset):
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
         trunc_duration: Optional[float] = None,
-        num_audio_retries: int = 5,
+        volume_norm: bool = False,
     ):
         super().__init__()
 
         self.sample_rate = sample_rate
         self.n_samples = n_samples
+        self.trunc_duration = trunc_duration
+        self.volume_norm = volume_norm
         self.weighted_sampling_steps_per_epoch = weighted_sampling_steps_per_epoch
-        self.num_audio_retries = num_audio_retries
         self.load_precomputed_mel = False
-
-        if trunc_duration:
-            self.trunc_samples = int(trunc_duration * self.sample_rate)
-        else:
-            self.trunc_samples = None
 
         if feature_processors:
             logging.info(f"Found feature processors {feature_processors.keys()}")
@@ -120,33 +114,6 @@ class VocoderDataset(Dataset):
         )
         return sampler
 
-    def _segment_audio(self, audio_filepath: Path) -> AudioSegment:
-        # Retry file read multiple times as file seeking can produce random IO errors.
-        for _ in range(self.num_audio_retries):
-            try:
-                audio_segment = AudioSegment.segment_from_file(
-                    audio_filepath, target_sr=self.sample_rate, n_segments=self.n_samples,
-                )
-                return audio_segment
-            except Exception:
-                traceback.print_exc()
-
-        raise ValueError(f"Failed to read audio {audio_filepath}")
-
-    def _sample_audio(self, audio_filepath: Path) -> Tuple[torch.Tensor, torch.Tensor]:
-        if not self.n_samples:
-            audio_array, _ = librosa.load(audio_filepath, sr=self.sample_rate)
-        else:
-            audio_segment = self._segment_audio(audio_filepath)
-            audio_array = audio_segment.samples
-
-        if self.trunc_samples:
-            audio_array = audio_array[: self.trunc_samples]
-
-        audio = torch.tensor(audio_array)
-        audio_len = torch.tensor(audio.shape[0])
-        return audio, audio_len
-
     @staticmethod
     def _preprocess_manifest(
         dataset_name: str, dataset: DatasetMeta, min_duration: float, max_duration: float,
@@ -165,7 +132,7 @@ class VocoderDataset(Dataset):
         samples = []
         sample_weights = []
         for entry in filtered_entries:
-            sample = DatasetSample(manifest_entry=entry, audio_dir=Path(dataset.audio_dir),)
+            sample = DatasetSample(dataset_name=dataset_name, manifest_entry=entry, audio_dir=Path(dataset.audio_dir))
             samples.append(sample)
             sample_weights.append(dataset.sample_weight)
 
@@ -177,12 +144,31 @@ class VocoderDataset(Dataset):
     def __getitem__(self, index):
         data = self.data_samples[index]
 
-        audio_filepath = Path(data.manifest_entry["audio_filepath"])
-        audio_filepath_abs, audio_filepath_rel = get_abs_rel_paths(input_path=audio_filepath, base_path=data.audio_dir)
+        if self.n_samples:
+            audio_array, _, audio_filepath_rel = sample_audio(
+                manifest_entry=data.manifest_entry,
+                audio_dir=data.audio_dir,
+                sample_rate=self.sample_rate,
+                n_samples=self.n_samples,
+                volume_norm=self.volume_norm,
+            )
+        else:
+            audio_array, _, audio_filepath_rel = load_audio(
+                manifest_entry=data.manifest_entry,
+                audio_dir=data.audio_dir,
+                sample_rate=self.sample_rate,
+                max_duration=self.trunc_duration,
+                volume_norm=self.volume_norm,
+            )
+        audio = torch.tensor(audio_array, dtype=torch.float32)
+        audio_len = audio.shape[0]
 
-        audio, audio_len = self._sample_audio(audio_filepath_abs)
-
-        example = {"audio_filepath": audio_filepath_rel, "audio": audio, "audio_len": audio_len}
+        example = {
+            "dataset_name": data.dataset_name,
+            "audio_filepath": audio_filepath_rel,
+            "audio": audio,
+            "audio_len": audio_len,
+        }
 
         for processor in self.feature_processors:
             processor.process(example)
@@ -190,11 +176,13 @@ class VocoderDataset(Dataset):
         return example
 
     def collate_fn(self, batch: List[dict]):
+        dataset_name_list = []
         audio_filepath_list = []
         audio_list = []
         audio_len_list = []
 
         for example in batch:
+            dataset_name_list.append(example["dataset_name"])
             audio_filepath_list.append(example["audio_filepath"])
             audio_list.append(example["audio"])
             audio_len_list.append(example["audio_len"])
@@ -205,6 +193,7 @@ class VocoderDataset(Dataset):
         batch_audio = stack_tensors(audio_list, max_lens=[audio_max_len])
 
         batch_dict = {
+            "dataset_names": dataset_name_list,
             "audio_filepaths": audio_filepath_list,
             "audio": batch_audio,
             "audio_lens": batch_audio_len,

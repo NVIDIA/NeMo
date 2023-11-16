@@ -45,6 +45,7 @@ from torch import Tensor
 
 from nemo.collections.tts.losses.audio_codec_loss import MaskedMSELoss
 from nemo.collections.tts.modules.audio_codec_modules import (
+    CodecActivation,
     Conv1dNorm,
     Conv2dNorm,
     ConvTranspose1dNorm,
@@ -56,29 +57,31 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, Index, LengthsType, LossType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 
 class SEANetResnetBlock(NeuralModule):
-    def __init__(self, channels: int):
+    def __init__(self, channels: int, activation: str = "elu"):
         super().__init__()
-        self.activation = nn.ELU()
+        self.pre_activation = CodecActivation(activation=activation, channels=channels)
         hidden_channels = channels // 2
         self.pre_conv = Conv1dNorm(in_channels=channels, out_channels=channels, kernel_size=1)
         self.res_conv1 = Conv1dNorm(in_channels=channels, out_channels=hidden_channels, kernel_size=3)
+        self.post_activation = CodecActivation(activation=activation, channels=hidden_channels)
         self.res_conv2 = Conv1dNorm(in_channels=hidden_channels, out_channels=channels, kernel_size=1)
 
     @property
     def input_types(self):
         return {
             "inputs": NeuralType(('B', 'C', 'T_input'), VoidType()),
-            "lengths": NeuralType(tuple('B'), LengthsType()),
+            "input_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
-            "out": [NeuralType(('B', 'C', 'T_out'), VoidType())],
+            "out": NeuralType(('B', 'C', 'T_out'), VoidType()),
         }
 
     def remove_weight_norm(self):
@@ -86,14 +89,15 @@ class SEANetResnetBlock(NeuralModule):
         self.res_conv1.remove_weight_norm()
         self.res_conv2.remove_weight_norm()
 
-    def forward(self, inputs, lengths):
-        res = self.activation(inputs)
-        res = self.res_conv1(res, lengths)
-        res = self.activation(res)
-        res = self.res_conv2(res, lengths)
+    @typecheck()
+    def forward(self, inputs, input_len):
+        res = self.pre_activation(inputs)
+        res = self.res_conv1(inputs=res, input_len=input_len)
+        res = self.post_activation(res)
+        res = self.res_conv2(inputs=res, input_len=input_len)
 
-        out = self.pre_conv(inputs, lengths) + res
-        out = mask_sequence_tensor(out, lengths)
+        out = self.pre_conv(inputs=inputs, input_len=input_len) + res
+        out = mask_sequence_tensor(out, input_len)
         return out
 
 
@@ -112,20 +116,21 @@ class SEANetRNN(NeuralModule):
     def input_types(self):
         return {
             "inputs": NeuralType(('B', 'C', 'T'), VoidType()),
-            "lengths": NeuralType(tuple('B'), LengthsType()),
+            "input_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
-            "out": [NeuralType(('B', 'C', 'T'), VoidType())],
+            "out": NeuralType(('B', 'C', 'T'), VoidType()),
         }
 
-    def forward(self, inputs, lengths):
+    @typecheck()
+    def forward(self, inputs, input_len):
         inputs = rearrange(inputs, "B C T -> B T C")
 
         packed_inputs = nn.utils.rnn.pack_padded_sequence(
-            inputs, lengths=lengths.cpu(), batch_first=True, enforce_sorted=False
+            inputs, lengths=input_len.cpu(), batch_first=True, enforce_sorted=False
         )
         packed_out, _ = self.rnn(packed_inputs)
         out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
@@ -145,6 +150,7 @@ class SEANetEncoder(NeuralModule):
         in_kernel_size: int = 7,
         out_kernel_size: int = 7,
         encoded_dim: int = 128,
+        activation: str = "elu",
         rnn_layers: int = 2,
         rnn_type: str = "lstm",
         rnn_skip: bool = True,
@@ -155,15 +161,16 @@ class SEANetEncoder(NeuralModule):
         super().__init__()
 
         self.down_sample_rates = down_sample_rates
-        self.activation = nn.ELU()
         self.pre_conv = Conv1dNorm(in_channels=1, out_channels=base_channels, kernel_size=in_kernel_size)
 
         in_channels = base_channels
         self.res_blocks = nn.ModuleList([])
         self.down_sample_conv_layers = nn.ModuleList([])
+        self.activations = nn.ModuleList([])
         for i, down_sample_rate in enumerate(self.down_sample_rates):
             res_block = SEANetResnetBlock(channels=in_channels)
             self.res_blocks.append(res_block)
+            self.activations.append(CodecActivation(activation=activation, channels=in_channels))
 
             out_channels = 2 * in_channels
             kernel_size = 2 * down_sample_rate
@@ -177,50 +184,53 @@ class SEANetEncoder(NeuralModule):
             in_channels = out_channels
             self.down_sample_conv_layers.append(down_sample_conv)
 
+        self.post_activation = CodecActivation(activation=activation, channels=in_channels)
         self.rnn = SEANetRNN(dim=in_channels, num_layers=rnn_layers, rnn_type=rnn_type, use_skip=rnn_skip)
         self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=encoded_dim, kernel_size=out_kernel_size)
 
     @property
     def input_types(self):
         return {
-            "audio": NeuralType(('B', 'C', 'T_audio'), AudioSignal()),
+            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
             "audio_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
-            "encoded": [NeuralType(('B', 'D', 'T_encoded'), EncodedRepresentation())],
-            "encoded_len": [NeuralType(tuple('B'), LengthsType())],
+            "encoded": NeuralType(('B', 'D', 'T_encoded'), EncodedRepresentation()),
+            "encoded_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     def remove_weight_norm(self):
         self.pre_conv.remove_weight_norm()
+        self.post_conv.remove_weight_norm()
         for res_block in self.res_blocks:
             res_block.remove_weight_norm()
         for down_sample_conv in self.down_sample_conv_layers:
             down_sample_conv.remove_weight_norm()
 
+    @typecheck()
     def forward(self, audio, audio_len):
         encoded_len = audio_len
         audio = rearrange(audio, "B T -> B 1 T")
         # [B, C, T_audio]
-        out = self.pre_conv(audio, encoded_len)
-        for res_block, down_sample_conv, down_sample_rate in zip(
-            self.res_blocks, self.down_sample_conv_layers, self.down_sample_rates
+        out = self.pre_conv(inputs=audio, input_len=encoded_len)
+        for res_block, down_sample_conv, down_sample_rate, activation in zip(
+            self.res_blocks, self.down_sample_conv_layers, self.down_sample_rates, self.activations
         ):
             # [B, C, T]
-            out = res_block(out, encoded_len)
-            out = self.activation(out)
+            out = res_block(inputs=out, input_len=encoded_len)
+            out = activation(out)
 
             encoded_len = encoded_len // down_sample_rate
             # [B, 2 * C, T / down_sample_rate]
-            out = down_sample_conv(out, encoded_len)
+            out = down_sample_conv(inputs=out, input_len=encoded_len)
 
-        out = self.rnn(out, encoded_len)
-        out = self.activation(out)
+        out = self.rnn(inputs=out, input_len=encoded_len)
+        out = self.post_activation(out)
         # [B, encoded_dim, T_encoded]
-        encoded = self.post_conv(out, encoded_len)
+        encoded = self.post_conv(inputs=out, input_len=encoded_len)
         return encoded, encoded_len
 
 
@@ -232,6 +242,7 @@ class SEANetDecoder(NeuralModule):
         in_kernel_size: int = 7,
         out_kernel_size: int = 3,
         encoded_dim: int = 128,
+        activation: str = "elu",
         rnn_layers: int = 2,
         rnn_type: str = "lstm",
         rnn_skip: bool = True,
@@ -242,14 +253,15 @@ class SEANetDecoder(NeuralModule):
         super().__init__()
 
         self.up_sample_rates = up_sample_rates
-        self.activation = nn.ELU()
         self.pre_conv = Conv1dNorm(in_channels=encoded_dim, out_channels=base_channels, kernel_size=in_kernel_size)
         self.rnn = SEANetRNN(dim=base_channels, num_layers=rnn_layers, rnn_type=rnn_type, use_skip=rnn_skip)
 
         in_channels = base_channels
         self.res_blocks = nn.ModuleList([])
         self.up_sample_conv_layers = nn.ModuleList([])
+        self.activations = nn.ModuleList([])
         for i, up_sample_rate in enumerate(self.up_sample_rates):
+            self.activations.append(CodecActivation(activation=activation, channels=in_channels))
             out_channels = in_channels // 2
             kernel_size = 2 * up_sample_rate
             up_sample_conv = ConvTranspose1dNorm(
@@ -261,6 +273,7 @@ class SEANetDecoder(NeuralModule):
             res_block = SEANetResnetBlock(channels=in_channels)
             self.res_blocks.append(res_block)
 
+        self.post_activation = CodecActivation(activation=activation, channels=in_channels)
         self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=1, kernel_size=out_kernel_size)
         self.out_activation = nn.Tanh()
 
@@ -274,7 +287,7 @@ class SEANetDecoder(NeuralModule):
     @property
     def output_types(self):
         return {
-            "audio": NeuralType(('B', 'C', 'T_audio'), AudioSignal()),
+            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
             "audio_len": NeuralType(tuple('B'), LengthsType()),
         }
 
@@ -285,23 +298,24 @@ class SEANetDecoder(NeuralModule):
         for res_block in self.res_blocks:
             res_block.remove_weight_norm()
 
+    @typecheck()
     def forward(self, inputs, input_len):
         audio_len = input_len
         # [B, C, T_encoded]
-        out = self.pre_conv(inputs, audio_len)
-        out = self.rnn(out, audio_len)
-        for res_block, up_sample_conv, up_sample_rate in zip(
-            self.res_blocks, self.up_sample_conv_layers, self.up_sample_rates
+        out = self.pre_conv(inputs=inputs, input_len=audio_len)
+        out = self.rnn(inputs=out, input_len=audio_len)
+        for res_block, up_sample_conv, up_sample_rate, activation in zip(
+            self.res_blocks, self.up_sample_conv_layers, self.up_sample_rates, self.activations
         ):
             audio_len = audio_len * up_sample_rate
-            out = self.activation(out)
+            out = activation(out)
             # [B, C / 2, T * up_sample_rate]
-            out = up_sample_conv(out, audio_len)
-            out = res_block(out, audio_len)
+            out = up_sample_conv(inputs=out, input_len=audio_len)
+            out = res_block(inputs=out, input_len=audio_len)
 
-        out = self.activation(out)
+        out = self.post_activation(out)
         # [B, 1, T_audio]
-        out = self.post_conv(out, audio_len)
+        out = self.post_conv(inputs=out, input_len=audio_len)
         audio = self.out_activation(out)
         audio = rearrange(audio, "B 1 T -> B T")
         return audio, audio_len
@@ -356,6 +370,7 @@ class DiscriminatorSTFT(NeuralModule):
             "fmap": [NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())],
         }
 
+    @typecheck()
     def forward(self, audio):
         fmap = []
 
@@ -363,11 +378,11 @@ class DiscriminatorSTFT(NeuralModule):
         out = self.stft(audio)
         for conv in self.conv_layers:
             # [batch, filters, T_spec, fft // 2**i]
-            out = conv(out)
+            out = conv(inputs=out)
             out = self.activation(out)
             fmap.append(out)
         # [batch, 1, T_spec, fft // 8]
-        scores = self.conv_post(out)
+        scores = self.conv_post(inputs=out)
         fmap.append(scores)
         scores = rearrange(scores, "B 1 T C -> B C T")
 
@@ -382,7 +397,7 @@ class MultiResolutionDiscriminatorSTFT(NeuralModule):
     @property
     def input_types(self):
         return {
-            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
+            "audio_real": NeuralType(('B', 'T_audio'), AudioSignal()),
             "audio_gen": NeuralType(('B', 'T_audio'), AudioSignal()),
         }
 
@@ -395,6 +410,7 @@ class MultiResolutionDiscriminatorSTFT(NeuralModule):
             "fmaps_gen": [[NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())]],
         }
 
+    @typecheck()
     def forward(self, audio_real, audio_gen):
         scores_real = []
         scores_gen = []
@@ -538,8 +554,8 @@ class EuclideanCodebook(NeuralModule):
         codebook_size: int,
         codebook_dim: int,
         decay: float = 0.99,
-        threshold_ema_dead_code: Optional[int] = 2,
-        kmeans_iters: Optional[int] = None,
+        threshold_ema_dead_code: Optional[float] = 2.0,
+        kmeans_iters: Optional[int] = 50,
     ):
         super().__init__()
         self.decay = decay
@@ -627,6 +643,7 @@ class EuclideanCodebook(NeuralModule):
             "indices": NeuralType(('B', 'T'), Index()),
         }
 
+    @typecheck()
     def forward(self, inputs, input_len):
         input_flat = rearrange(inputs, "B T D -> (B T) D")
         self._init_codes(input_flat)
@@ -679,7 +696,6 @@ class ResidualVectorQuantizer(NeuralModule):
 
     Args:
         num_codebooks: Number of codebooks to use.
-        commit_loss_scale: Loss scale for codebook commit loss.
         codebook_size: Number of codes to use for each codebook.
         codebook_dim: Dimension of each code.
         decay: Decay for exponential moving average over the codebooks.
@@ -693,20 +709,15 @@ class ResidualVectorQuantizer(NeuralModule):
     def __init__(
         self,
         num_codebooks: int,
-        commit_loss_scale: float = 1.0,
         codebook_size: int = 1024,
         codebook_dim: int = 128,
         decay: float = 0.99,
-        threshold_ema_dead_code: Optional[int] = 2,
+        threshold_ema_dead_code: Optional[float] = 2.0,
         kmeans_iters: Optional[int] = 50,
     ):
         super().__init__()
         self.codebook_dim = codebook_dim
-
-        if commit_loss_scale:
-            self.commit_loss_fn = MaskedMSELoss(loss_scale=commit_loss_scale)
-        else:
-            self.commit_loss_fn = None
+        self.commit_loss_fn = MaskedMSELoss()
 
         self.codebooks = nn.ModuleList(
             [
@@ -719,16 +730,6 @@ class ResidualVectorQuantizer(NeuralModule):
                 )
                 for _ in range(num_codebooks)
             ]
-        )
-
-    def _commit_loss(self, input, target, input_len):
-        if not self.commit_loss_fn:
-            return 0.0
-
-        return self.commit_loss_fn(
-            predicted=rearrange(input, "B T D -> B D T"),
-            target=rearrange(target, "B T D -> B D T"),
-            target_len=input_len,
         )
 
     @property
@@ -746,6 +747,7 @@ class ResidualVectorQuantizer(NeuralModule):
             "commit_loss": NeuralType((), LossType()),
         }
 
+    @typecheck()
     def forward(self, inputs: Tensor, input_len: Tensor) -> Tuple[Tensor, Tensor, float]:
         commit_loss = 0.0
         residual = rearrange(inputs, "B D T -> B T D")
@@ -756,13 +758,17 @@ class ResidualVectorQuantizer(NeuralModule):
             dequantized_i, indices_i = codebook(inputs=residual, input_len=input_len)
 
             if self.training:
-                dequantized_i = residual + (dequantized_i - residual).detach()
                 dequantized_i_const = dequantized_i.detach()
-                commit_loss_i = self._commit_loss(input=residual, target=dequantized_i_const, input_len=input_len)
+
+                commit_loss_i = self.commit_loss_fn(
+                    predicted=rearrange(residual, "B T D -> B D T"),
+                    target=rearrange(dequantized_i_const, "B T D -> B D T"),
+                    target_len=input_len,
+                )
                 commit_loss = commit_loss + commit_loss_i
 
                 residual = residual - dequantized_i_const
-
+                dequantized_i = residual + (dequantized_i - residual).detach()
             else:
                 residual = residual - dequantized_i
 
@@ -809,4 +815,144 @@ class ResidualVectorQuantizer(NeuralModule):
             dequantized_i = codebook.decode(indices=codebook_indices, input_len=input_len)
             dequantized = dequantized + dequantized_i
         dequantized = rearrange(dequantized, "B T D -> B D T")
+        return dequantized
+
+
+class GroupResidualVectorQuantizer(NeuralModule):
+    """Split the input vector into groups and apply RVQ on each group separately.
+
+    Args:
+        num_codebooks: total number of codebooks
+        num_groups: number of groups to split the input into, each group will be quantized separately using num_codebooks//num_groups codebooks
+        codebook_dim: embedding dimension, will be split into num_groups
+        **kwargs: parameters of ResidualVectorQuantizer
+
+    References:
+        Yang et al, HiFi-Codec: Group-residual Vector quantization for High Fidelity Audio Codec, 2023 (http://arxiv.org/abs/2305.02765).
+    """
+
+    def __init__(self, num_codebooks: int, num_groups: int, codebook_dim: int, **kwargs):
+        super().__init__()
+
+        self.num_codebooks = num_codebooks
+        self.num_groups = num_groups
+        self.codebook_dim = codebook_dim
+
+        # Initialize RVQ for each group
+        self.rvqs = torch.nn.ModuleList(
+            [
+                ResidualVectorQuantizer(
+                    num_codebooks=self.num_codebooks_per_group, codebook_dim=self.codebook_dim_per_group, **kwargs
+                )
+                for _ in range(self.num_groups)
+            ]
+        )
+
+        logging.debug('Initialized %s with', self.__class__.__name__)
+        logging.debug('\tnum_codebooks:           %d', self.num_codebooks)
+        logging.debug('\tnum_groups:              %d', self.num_groups)
+        logging.debug('\tcodebook_dim:            %d', self.codebook_dim)
+        logging.debug('\tnum_codebooks_per_group: %d', self.num_codebooks_per_group)
+        logging.debug('\tcodebook_dim_per_group:  %d', self.codebook_dim_per_group)
+
+    @property
+    def num_codebooks_per_group(self):
+        """Number of codebooks for each group.
+        """
+        if self.num_codebooks % self.num_groups != 0:
+            raise ValueError(
+                f'num_codebooks ({self.num_codebooks}) must be divisible by num_groups ({self.num_groups})'
+            )
+
+        return self.num_codebooks // self.num_groups
+
+    @property
+    def codebook_dim_per_group(self):
+        """Input vector dimension for each group.
+        """
+        if self.codebook_dim % self.num_groups != 0:
+            raise ValueError(f'codebook_dim ({self.codebook_dim}) must be divisible by num_groups ({self.num_groups})')
+
+        return self.codebook_dim // self.num_groups
+
+    @property
+    def input_types(self):
+        return {
+            "inputs": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
+            "input_len": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
+            "indices": NeuralType(('D', 'B', 'T'), Index()),
+            "commit_loss": NeuralType((), LossType()),
+        }
+
+    @typecheck()
+    def forward(self, inputs, input_len):
+        """Quantize each group separately, then concatenate the results.
+        """
+        inputs_grouped = inputs.chunk(self.num_groups, dim=1)
+
+        dequantized, indices = [], []
+        commit_loss = 0
+
+        for in_group, rvq_group in zip(inputs_grouped, self.rvqs):
+            dequantized_group, indices_group, commit_loss_group = rvq_group(inputs=in_group, input_len=input_len)
+            dequantized.append(dequantized_group)
+            indices.append(indices_group)
+            commit_loss += commit_loss_group
+
+        # concatenate along the feature dimension
+        dequantized = torch.cat(dequantized, dim=1)
+
+        # concatente along the codebook dimension
+        indices = torch.cat(indices, dim=0)
+
+        return dequantized, indices, commit_loss
+
+    @typecheck(
+        input_types={
+            "inputs": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
+            "input_len": NeuralType(tuple('B'), LengthsType()),
+        },
+        output_types={"indices": NeuralType(('D', 'B', 'T'), Index())},
+    )
+    def encode(self, inputs: Tensor, input_len: Tensor) -> Tensor:
+        """Input is split into groups, each group is encoded separately, then the results are concatenated.
+        """
+        inputs_grouped = inputs.chunk(self.num_groups, dim=1)
+        indices = []
+
+        for in_group, rvq_group in zip(inputs_grouped, self.rvqs):
+            indices_group = rvq_group.encode(inputs=in_group, input_len=input_len)
+            indices.append(indices_group)
+
+        # concatenate along the codebook dimension
+        indices = torch.cat(indices, dim=0)
+
+        return indices
+
+    @typecheck(
+        input_types={
+            "indices": NeuralType(('D', 'B', 'T'), Index()),
+            "input_len": NeuralType(tuple('B'), LengthsType()),
+        },
+        output_types={"dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),},
+    )
+    def decode(self, indices: Tensor, input_len: Tensor) -> Tensor:
+        """Input indices are split into groups, each group is decoded separately, then the results are concatenated.
+        """
+        indices_grouped = indices.chunk(self.num_groups, dim=0)
+        dequantized = []
+
+        for indices_group, rvq_group in zip(indices_grouped, self.rvqs):
+            dequantized_group = rvq_group.decode(indices=indices_group, input_len=input_len)
+            dequantized.append(dequantized_group)
+
+        # concatenate along the feature dimension
+        dequantized = torch.cat(dequantized, dim=1)
+
         return dequantized

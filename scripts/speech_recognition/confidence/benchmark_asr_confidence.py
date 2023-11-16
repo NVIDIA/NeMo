@@ -14,7 +14,7 @@
 
 import json
 import os
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -32,7 +32,7 @@ from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import (
 )
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig
 from nemo.core.config import hydra_runner
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 """
 Get confidence metrics and curve plots for a given model, dataset, and confidence parameters.
@@ -83,11 +83,11 @@ def get_experiment_params(cfg):
     """
     blank = "no_blank" if cfg.exclude_blank else "blank"
     aggregation = cfg.aggregation
-    method_name = cfg.measure_cfg.name
-    alpha = cfg.measure_cfg.alpha
+    method_name = cfg.method_cfg.name
+    alpha = cfg.method_cfg.alpha
     if method_name == "entropy":
-        entropy_type = cfg.measure_cfg.entropy_type
-        entropy_norm = cfg.measure_cfg.entropy_norm
+        entropy_type = cfg.method_cfg.entropy_type
+        entropy_norm = cfg.method_cfg.entropy_norm
         experiment_param_list = [
             aggregation,
             str(cfg.exclude_blank),
@@ -124,7 +124,9 @@ class ConfidenceBenchmarkingConfig:
 
     # Confidence configs
     target_level: str = "auto"  # Choices: "word", "token", "auto" (for both word- and token-level confidence)
-    confidence_cfg: ConfidenceConfig = ConfidenceConfig(preserve_word_confidence=True, preserve_token_confidence=True)
+    confidence_cfg: ConfidenceConfig = field(
+        default_factory=lambda: ConfidenceConfig(preserve_word_confidence=True, preserve_token_confidence=True)
+    )
     grid_params: Optional[str] = None  # a dictionary with lists of parameters to iteratively benchmark on
 
 

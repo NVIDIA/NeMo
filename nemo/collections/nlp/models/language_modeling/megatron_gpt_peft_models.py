@@ -35,6 +35,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
+from nemo.utils.decorators import deprecated
 
 try:
     from megatron.core import parallel_state
@@ -46,6 +47,10 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
+@deprecated(
+    explanation="Please use MegatronGPTSFTModel.add_adapter() for PEFT features."
+    "See the updated `megatron_gpt_peft_tuning.py` for an example."
+)
 class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     """
     base class for all mixin based adapter models
@@ -70,7 +75,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         return False
 
     def init_peft_modules(self):
-        """ 
+        """
         Randomly initialize the peft params and add them to the appropriate modules.
         """
         assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
@@ -110,6 +115,9 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                                 base_model_cfg=self.cfg,
                                 model_parallel_config=self.model_parallel_config,
                             )
+                if self.megatron_amp_O2:
+                    for adapter_name in getattr(module, 'adapter_layer', []):
+                        module.adapter_layer[adapter_name] = module.adapter_layer[adapter_name].to(self.autocast_dtype)
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
 
@@ -118,7 +126,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         self.setup_complete = True
 
     def get_all_keys(self,):
-        """ 
+        """
         Returns all the keys in the model
         """
         k = [n for n, p in self.named_parameters()]
@@ -127,7 +135,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         return set(k + b)
 
     def get_peft_state_dict(self,):
-        """ 
+        """
         Gets the keys associated with the adapters only.
         """
         state_dict = self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
@@ -163,7 +171,11 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
             # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
             # safety in strict=True anymore.
-            assert set(state_dict.keys()) == self.adapter_keys
+            if self.megatron_amp_O2:
+                adapter_keys = set(key.replace("model.", "model.module.", 1) for key in self.adapter_keys)
+            else:
+                adapter_keys = self.adapter_keys
+            assert set(state_dict.keys()) == adapter_keys
             super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)
@@ -205,13 +217,13 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        ModelPT override. Optimizer will get self._optimizer_param_groups.
         Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
+        and one for the prompt-table/prompt-encoder params. The learning
         rate for the frozen model's params will always be zero effectively
         freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        to be passed around in pipeline parallel models. The prompt-encoder
+        and/or prompt table will use the learning rate set by the user.
         """
         self.freeze()  # Freeze the entire model
         opt_params = []
@@ -231,7 +243,7 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
         super().__init__(cfg, trainer)
 
     def init_peft_modules(self):
-        """ 
+        """
         Randomly initialize the peft params and add them to the appropriate modules.
         """
         assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
@@ -294,8 +306,8 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
     Two adapter's are inserted into each Transformer layer in the base GPT Model.
 
     It is assumed that these set of adapters will then be trained for a specific task.
-    Once trained, the adapter weights will be saved and can be re-loaded 
-    and infused into the same GPT Model for inference. 
+    Once trained, the adapter weights will be saved and can be re-loaded
+    and infused into the same GPT Model for inference.
     """
 
     def __init__(
@@ -331,7 +343,7 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
 
 class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
-    TODO 
+    TODO
     """
 
     def __init__(
@@ -411,8 +423,8 @@ class MegatronGPTIA3Model(MegatronGPTLayerwisePEFTModel):
     Three adapter's are inserted into each Transformer layer in the base GPT Model. Each adapter is basically a vector that simply scales the key, value or ffn hidden representations.
 
     It is assumed that these set of adapters will then be trained for a specific task.
-    Once trained, the adapter weights will be saved and can be re-loaded 
-    and infused into the same GPT Model for inference. 
+    Once trained, the adapter weights will be saved and can be re-loaded
+    and infused into the same GPT Model for inference.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -434,12 +446,17 @@ class MegatronGPTIA3Model(MegatronGPTLayerwisePEFTModel):
                 self.name_key_to_cfg[k] = infused_adapter_cfg
             else:
                 raise ValueError(f"PEFT Key {k} is unknown.")
+
+        self.layer_selection = cfg.peft.ia3_tuning.get("layer_selection", None)
+        if self.layer_selection is None:
+            self.layer_selection = list(range(1, cfg.num_layers + 1))
+
         super().__init__(cfg, trainer)
 
 
 class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
     """
-    MegatronGPTPTuningModel is a model that combines a base model (GPTSFTModel) with a p-tuning prefix in the 
+    MegatronGPTPTuningModel is a model that combines a base model (GPTSFTModel) with a p-tuning prefix in the
     input word embedding representations using a prompt-encoder as descripted in Liu et al. https://arxiv.org/pdf/2103.10385.pdf
 
     The mixin framework adds the output of prompt-encoder (i.e. the virtual embeddings) inside
@@ -462,7 +479,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
 
     def init_peft_modules(self,):
-        """ 
+        """
         Initialize the p-tuning prompt encoder in the mixin.
         This should only happen in the first stage of the pipeline unlike other PEFT methods like Lora or Adapters
         because p-tuning only adds params at input to the encoder layer.
@@ -474,7 +491,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         return True
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        """ 
+        """
         Reimplement state_dict for ptuning because we also need to check the stage of the pipeline.
         The check is required to make pp>1 to work.
         """
@@ -488,7 +505,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             return self.model.state_dict(prefix="model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
-        """ 
+        """
         Reimplement load_state_dict for ptuning because we also need to check the stage of the pipeline.
         The check is required to make pp>1 to work.
         """
@@ -624,7 +641,7 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
 
 class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
-    TODO 
+    TODO
     """
 
     def __init__(

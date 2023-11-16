@@ -78,7 +78,7 @@ class MegatronBaseModel(NLPModel):
       with O2 level optimizations and/or model parallelism.
     - Perform gradient clipping: `grad_clip_pl_default` triggers
       the PyTorch Lightning default implementation, `with_distributed_adam` triggers
-      the distributed optimizer's implementation, `megatron_amp_o2` triggers gradient clipping on the main grads,
+      the distributed optimizer's implementation, `megatron_amp_O2` triggers gradient clipping on the main grads,
       and otherwise gradient clipping is performed on the model grads.
 
     """
@@ -122,6 +122,7 @@ class MegatronBaseModel(NLPModel):
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
+        self.with_megatron_fused_adam = cfg.optim.get('name') == 'megatron_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
@@ -198,6 +199,8 @@ class MegatronBaseModel(NLPModel):
         }
 
         self.gc_interval = cfg.get('gc_interval', 0)
+        # Do manual garbage collection during validation routine when gc_interval > 0
+        self.gc_in_validation = bool(int(os.getenv("NEMO_MANUAL_GC_IN_VALIDATION", 1)))
         assert self.gc_interval >= 0, "gc_interval should be an integer value larger than or equal to 0."
         # If gc_interval > 0, memory garbage collection is manually controlled.
         # The automatic garbage collector sould be disabled before training starts.
@@ -211,8 +214,8 @@ class MegatronBaseModel(NLPModel):
         """
         # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
         self.trainer.limit_val_batches *= get_num_microbatches()
-        # Override num sanity steps equal to num of microbatches and perform one val_step
-        self.trainer.num_sanity_val_steps = get_num_microbatches()
+        # Override num sanity steps to be a multiple of num of microbatches
+        self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -274,7 +277,7 @@ class MegatronBaseModel(NLPModel):
 
         if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
             tokens_list = omegaconf.OmegaConf.to_object(self._cfg.tokenizer.additional_special_tokens)
-            self.tokenizer.add_special_tokens({'additional_special_tokens': tokens_list})
+            self.tokenizer.add_special_tokens(tokens_list)
 
     def on_train_start(self) -> None:
         super().on_train_start()
@@ -282,12 +285,12 @@ class MegatronBaseModel(NLPModel):
 
     def on_validation_start(self) -> None:
         super().on_validation_start()
-        if self.gc_interval > 0:
+        if self.gc_interval > 0 and self.gc_in_validation:
             gc.collect()
 
     def on_validation_end(self) -> None:
         super().on_validation_end()
-        if self.gc_interval > 0:
+        if self.gc_interval > 0 and self.gc_in_validation:
             gc.collect()
 
     def _build_vocab(self):
@@ -339,6 +342,10 @@ class MegatronBaseModel(NLPModel):
         if clip_val <= 0:
             return
 
+        if self.with_megatron_fused_adam:
+            # Gradient clipping is done in optimizer step
+            return
+
         if self.grad_clip_pl_default:
             # use the default behavior
             return super().configure_gradient_clipping(*args, **kwargs)
@@ -346,7 +353,7 @@ class MegatronBaseModel(NLPModel):
         if self.with_distributed_adam:
             grad_norm = clip_grad_norm_distributed_optimizer(self._optimizer, clip_val)
         else:
-            if self.megatron_amp_o2:
+            if self.megatron_amp_O2:
                 # grep fp32 master parameters for gradient clipping
                 parameters = self._optimizer.get_parameters_with_grad()
             else:
@@ -441,7 +448,7 @@ class MegatronBaseModel(NLPModel):
     def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
         super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
-        if self.gc_interval > 0:
+        if self.gc_interval > 0 and self.gc_in_validation:
             if self.validation_global_step % self.gc_interval == 0:
                 gc.collect()
             self.validation_global_step += 1
@@ -466,7 +473,7 @@ class MegatronBaseModel(NLPModel):
 
             # Match param allgather with model dtype
             model_dtype = torch.float32
-            if self.megatron_amp_o2 and hasattr(self, 'autocast_dtype'):
+            if self.megatron_amp_O2 and hasattr(self, 'autocast_dtype'):
                 model_dtype = self.autocast_dtype
             optim_kwargs['param_sync_dtype'] = model_dtype
 
@@ -485,7 +492,7 @@ class MegatronBaseModel(NLPModel):
         self.setup_optimization()
 
         # Wrap the baseline optimizer with the optimizer class with master parameters
-        if self.megatron_amp_o2 and not self.with_distributed_adam and self._optimizer is not None:
+        if self.megatron_amp_O2 and not self.with_distributed_adam and self._optimizer is not None:
             if self.torch_dtype == torch.bfloat16:
                 fp32_grad_accum = True
                 contiguous_grad_bucket = True
@@ -499,8 +506,12 @@ class MegatronBaseModel(NLPModel):
 
             # if using tensor parallel only, we automatically use async grad all-reduce
             # if using pipeline parallel or sequence parallel or gradient accumulation fusion, then we disable it
-            if self.cfg.get('pipeline_model_parallel_size', 1) == 1 and not (
-                self.cfg.get('sequence_parallel', False) or self.cfg.get('gradient_accumulation_fusion', False)
+            if (
+                self.cfg.get('pipeline_model_parallel_size', 1) == 1
+                and not (
+                    self.cfg.get('sequence_parallel', False) or self.cfg.get('gradient_accumulation_fusion', False)
+                )
+                and self.cfg.get('async_grad_allreduce', True)
             ):
                 async_grad_allreduce = True
             else:

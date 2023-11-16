@@ -12,8 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.normalize import Normalizer
-from nemo_text_processing.text_normalization.token_parser import TokenParser
+try:
+    from nemo_text_processing.text_normalization.normalize import Normalizer
+    from nemo_text_processing.text_normalization.token_parser import TokenParser
+except (ImportError, ModuleNotFoundError):
+    raise ModuleNotFoundError(
+        "The package `nemo_text_processing` was not installed in this environment. Please refer to"
+        " https://github.com/NVIDIA/NeMo-text-processing and install this package before using "
+        "this script"
+    )
 
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 
@@ -21,7 +28,7 @@ from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 class ElectronicNormalizer(Normalizer):
     """
     Normalizer for ELECTRONIC.
-    
+
     Args:
         input_case: accepting either "lower_cased" or "cased" input.
         lang: language
@@ -38,6 +45,7 @@ class ElectronicNormalizer(Normalizer):
         deterministic: bool = True,
         cache_dir: str = None,
         overwrite_cache: bool = False,
+        max_number_of_permutations_per_split: int = 729,
     ):
 
         from nn_wfst.en.electronic.tokenize_and_classify import ClassifyFst
@@ -51,3 +59,4 @@ class ElectronicNormalizer(Normalizer):
         self.parser = TokenParser()
         self.lang = lang
         self.processor = MosesProcessor(lang_id=lang)
+        self.max_number_of_permutations_per_split = max_number_of_permutations_per_split
