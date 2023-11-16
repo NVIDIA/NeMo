@@ -48,7 +48,7 @@ WORKDIR /workspace/
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
   git checkout e122536b7645edcb7ebf099b5c92a443f7dbf8e7 && \
-  pip install .
+  pip install -e .
 
 # Distributed Adam support for multiple dtypes
 RUN git clone https://github.com/NVIDIA/apex.git && \
