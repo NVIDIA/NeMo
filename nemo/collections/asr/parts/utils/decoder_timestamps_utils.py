@@ -23,7 +23,7 @@ from omegaconf import OmegaConf
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
-from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE, EncDecClassificationModel
+from nemo.collections.asr.models import EncDecClassificationModel, EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, FrameBatchVAD
@@ -239,18 +239,17 @@ def get_wer_feat_logit_single(
     Create a preprocessor to convert audio samples into raw features,
     Normalization will be done per buffer in frame_bufferer.
     """
-    #???? frame_mask
+    # ???? frame_mask
     hyps, tokens_list = [], []
     features = feat_buffer.unsqueeze(0)
     feat_len = torch.tensor(feat_buffer.shape[1]).unsqueeze(0)
-    hyp, tokens, log_prob  = frame_asr.transcribe_with_ts_stream(features, feat_len, tokens_per_chunk, delay)
+    hyp, tokens, log_prob = frame_asr.transcribe_with_ts_stream(features, feat_len, tokens_per_chunk, delay)
     hyps.append(hyp)
     tokens_list.append(tokens)
     return hyps, tokens_list, features.shape, log_prob
 
-def get_vad_feat_logit_single(
-    feat_buffer, frame_vad, frame_len, tokens_per_chunk, delay, model_stride_in_secs
-):
+
+def get_vad_feat_logit_single(feat_buffer, frame_vad, frame_len, tokens_per_chunk, delay, model_stride_in_secs):
     """
     Get VAD timestamp from raw features.
     """
@@ -258,8 +257,8 @@ def get_vad_feat_logit_single(
 
     feat_len = torch.tensor(feat_buffer.shape[1]).unsqueeze(0)
     chunk_len_in_feat = int(frame_len * 100)
-    # we need last chunk_len_in_feat from this buffer to update VAD result. 
-    # Adding additional frame_vad.prev_len_features for sliding during segment generating 
+    # we need last chunk_len_in_feat from this buffer to update VAD result.
+    # Adding additional frame_vad.prev_len_features for sliding during segment generating
     extract_last_features_from_buffer = frame_vad.prev_len_features + chunk_len_in_feat
     chunk_features_with_half_window = features[:, :, -extract_last_features_from_buffer:]
 
@@ -299,7 +298,7 @@ class FrameBatchASRLogits(FrameBatchASR):
     def infer_buffer_logits(self, feat_signal, feat_signal_len):
         feat_signal, feat_signal_len = feat_signal.to(self.asr_model.device), feat_signal_len.to(self.asr_model.device)
         log_probs, encoded_len, predictions = self.asr_model(
-              processed_signal=feat_signal, processed_signal_length=feat_signal_len
+            processed_signal=feat_signal, processed_signal_length=feat_signal_len
         )
         preds = torch.unbind(predictions)
         for pred in preds:
@@ -329,7 +328,7 @@ class FrameBatchASRLogits(FrameBatchASR):
             del log_probs, log_probs_tup
             del encoded_len
             del predictions
-    
+
     def transcribe_with_ts(
         self, tokens_per_chunk: int, delay: int,
     ):
@@ -354,12 +353,13 @@ class FrameBatchASRLogits(FrameBatchASR):
         self.unmerged = []
         self.part_logprobs = []
         self.unmerged = self.all_preds[0].tolist()
-        self.part_logprobs.append( self.all_logprobs[0])
+        self.part_logprobs.append(self.all_logprobs[0])
         self.unmerged_logprobs = torch.cat(self.part_logprobs, 0)
         assert (
             len(self.unmerged) == self.unmerged_logprobs.shape[0]
         ), "Unmerged decoded result and log prob lengths are different."
         return self.greedy_merge(self.unmerged), self.unmerged, self.unmerged_logprobs
+
 
 class FrameBatchASRLogitsSample(FrameBatchASRLogits):
     """
@@ -444,7 +444,9 @@ class ASRDecoderTimeStamps:
             self.model_stride_in_secs = 0.08
 
         else:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
             raise ValueError(f"Cannot find the ASR model class for: {self.ASR_model_name}")
 
         if self.ASR_model_name.endswith('.nemo'):
