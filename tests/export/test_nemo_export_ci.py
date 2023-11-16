@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from pathlib import Path
-import pytest
+import argparse
 from nemo.export import TensorRTLLM
-from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
+from tests.infer_data_path import download_nemo_checkpoint
 import torch
 import shutil
 import json
@@ -48,6 +48,7 @@ def get_args():
     parser.add_argument(
         "--checkpoint_dir",
         type=str,
+        default="/tmp/nemo_checkpoint/",
     )
     parser.add_argument(
         "--checkpoint",
@@ -69,13 +70,15 @@ def get_args():
         "--max_batch_size",
         type=int,
     )
-    parse.add_argument(
+    parser.add_argument(
         "--ptuning",
         type=str,
+        default="False",
     )
-    parse.add_argument(
+    parser.add_argument(
         "--p_tuning_checkpoint",
         type=str,
+        default="/opt/checkpoints/ptuning.nemo",
     )
     args = parser.parse_args()
 
@@ -123,6 +126,9 @@ def get_accuracy_with_lambada(model):
 def run_trt_llm_export(args):
     ptuning = args.ptuning == "True"
 
+    prompt_template=["The capital of France is", "Largest animal in the sea is"]
+    expected_keyword=["Paris", "Whale", "Cheetah"]
+
     if args.location == "HF":
         download_nemo_checkpoint(
             args.checkpoint_link, args.checkpoint_dir, args.checkpoint
@@ -134,10 +140,10 @@ def run_trt_llm_export(args):
         )
     )
     if Path(args.checkpoint).exists():
-        if args.n_gpu > torch.cuda.device_count():
+        if args.n_gpus > torch.cuda.device_count():
             print(
                 "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
-                    args.checkpoint, args.model_name, args.n_gpu, torch.cuda.device_count()
+                    args.checkpoint, args.model_name, args.n_gpus, torch.cuda.device_count()
                 )
             )
             return
@@ -146,7 +152,7 @@ def run_trt_llm_export(args):
 
         print(
             "Path: {0} and model: {1} with {2} gpus will be tested".format(
-                args.checkpoint, args.model_name, args.n_gpu
+                args.checkpoint, args.model_name, args.n_gpus
             )
         )
 
@@ -160,12 +166,12 @@ def run_trt_llm_export(args):
 
         trt_llm_exporter = TensorRTLLM(model_dir=args.trt_llm_model_dir)
         trt_llm_exporter.export(
-            nemo_checkpoint_path=args.checkpoint],
-            model_type=args.model_type],
-            n_gpus=args.n_gpu,
+            nemo_checkpoint_path=args.checkpoint,
+            model_type=args.model_type,
+            n_gpus=args.n_gpus,
             max_input_token=1024,
             max_output_token=128,
-            max_batch_size=args.max_batch_size],
+            max_batch_size=args.max_batch_size,
             prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
         )
         output = trt_llm_exporter.forward(
@@ -196,5 +202,5 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = get_args():
+    args = get_args()
     main(args)
