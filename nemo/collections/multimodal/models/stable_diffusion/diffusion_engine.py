@@ -6,6 +6,7 @@ import hydra
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+import torch._dynamo
 from einops import rearrange
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -87,7 +88,11 @@ class DiffusionEngine(nn.Module, Serialization):
         model = DiffusionEngine.from_config_dict(unet_config)
         self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(model, compile_model=compile_model)
         if cfg.get('inductor', False):
-            self.model = optimize("inductor")(self.model)
+            # torch._dynamo.config.cache_size_limit = 16
+            torch._dynamo.config.dynamic_shapes = False
+            torch._dynamo.config.automatic_dynamic_shapes = False
+            torch._dynamo.config.suppress_errors = True
+            self.model = torch.compile(self.model)
 
         self.denoiser = DiffusionEngine.from_config_dict(denoiser_config)
         self.sampler = (

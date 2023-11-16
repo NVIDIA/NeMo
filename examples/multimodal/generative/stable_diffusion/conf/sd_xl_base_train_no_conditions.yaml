@@ -4,7 +4,7 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 32
+  precision: bf16-mixed
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
@@ -54,10 +54,10 @@ model:
   scale_factor: 0.13025
   disable_first_stage_autocast: True
   is_legacy: False
-  inductor: False # Not working right now
+  inductor: True
   capture_cudagraph_iters: -1
   scale_by_std: False
-  channels_last: True
+  channels_last: False
   fsdp: True
   precache_mode: null # [text, both, null]
 
