@@ -97,6 +97,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
     # Norm parameters.
     max_norm = float(max_norm)
     norm_type = float(norm_type)
+    total_norm = 0.0
 
     # Calculate norm.
     if norm_type == inf:
@@ -107,11 +108,11 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
         torch.distributed.all_reduce(
             total_norm_cuda, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
         )
-        total_norm = total_norm_cuda[0]
+        total_norm = total_norm_cuda[0].item()
 
     else:
         if norm_type == 2.0:
-            dummy_overflow_buf = torch.zeros(1, device='cuda', dtype=torch.int32).squeeze()
+            dummy_overflow_buf = torch.cuda.IntTensor([0])
             # Use apex's multi-tensor applier for efficiency reasons.
             # Multi-tensor applier takes a function and a list of list
             # and performs the operation on that list all in one kernel.
@@ -120,28 +121,31 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
                     amp_C.multi_tensor_l2norm, dummy_overflow_buf, [grads_for_norm], False  # no per-parameter norm
                 )
             else:
-                grad_norm = torch.zeros(1, device='cuda', dtype=torch.float32).squeeze()
+                grad_norm = 0.0
             # Since we will be summing across data parallel groups,
             # we need the pow(norm-type).
             total_norm = grad_norm ** norm_type
 
         else:
-            total_norm = torch.zeros(1, device='cuda', dtype=torch.float32).squeeze()
             for grad in grads_for_norm:
                 grad_norm = torch.norm(grad, norm_type)
                 total_norm += grad_norm ** norm_type
 
         # Sum across all model-parallel GPUs.
+        total_norm_cuda = torch.cuda.FloatTensor(
+            [float(total_norm)]
+        )  # (@adithyare) total_norm can be a float at this point so we convert it to cuda.FloatTensor
         torch.distributed.all_reduce(
-            total_norm, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
+            total_norm_cuda, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
         )
+        total_norm = total_norm_cuda[0].item()
         total_norm = total_norm ** (1.0 / norm_type)
 
     # Scale.
     clip_coeff = max_norm / (total_norm + 1.0e-6)
-    clip_coeff_clamped = torch.clamp(clip_coeff, max=1.0)
-    if grads:  # (@adithyare) grads can be empty for adapter training.
-        torch._foreach_mul_(grads, clip_coeff_clamped[0])
+    if clip_coeff < 1.0 and grads:  # (@adithyare) grads can be empty for adapter training.
+        dummy_overflow_buf = torch.cuda.IntTensor([0])
+        multi_tensor_applier(amp_C.multi_tensor_scale, dummy_overflow_buf, [grads, grads], clip_coeff)
 
     return total_norm
 
