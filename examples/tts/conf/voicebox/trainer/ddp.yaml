@@ -1,0 +1,11 @@
+defaults:
+  - default
+
+strategy: ddp
+
+accelerator: gpu
+devices: 4
+num_nodes: 1
+sync_batchnorm: True
+
+use_distributed_sampler: false

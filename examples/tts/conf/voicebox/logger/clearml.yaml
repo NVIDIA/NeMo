@@ -1,0 +1,10 @@
+create_clearml_logger: True
+clearml_logger_kwargs:
+  project: null  # name of the project
+  task: null  # optional name of task
+  connect_pytorch: False
+  model_name: null  # optional name of model
+  tags: null  # Should be a list of str
+  log_model: False  # log model to clearml server
+  log_cfg: False  # log config to clearml server
+  log_metrics: False  # log metrics to clearml server

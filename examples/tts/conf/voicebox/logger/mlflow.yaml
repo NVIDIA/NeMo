@@ -1,0 +1,9 @@
+create_mlflow_logger: True
+mlflow_logger_kwargs:
+  experiment_name: ${name}
+  tags: null
+  save_dir: './mlruns'
+  prefix: ''
+  artifact_location: null
+  # provide run_id if resuming a previously started run
+  run_id: null

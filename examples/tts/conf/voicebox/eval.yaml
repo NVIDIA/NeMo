@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - data: libriheavy # choose datamodule with `test_dataloader()` for evaluation
+  - model: default
+  - logger: null
+  - trainer: default
+  - paths: default
+  - extras: default
+  - hydra: default
+
+task_name: "eval"
+
+# passing checkpoint path is necessary for evaluation
+ckpt_path: ???

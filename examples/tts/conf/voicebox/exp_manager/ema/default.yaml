@@ -1,0 +1,5 @@
+enabled: True  # False by default
+decay: 0.999  # decay rate
+cpu_offload: False  # If EMA parameters should be offloaded to CPU to save GPU memory
+every_n_steps: 1  # How often to update EMA weights
+validate_original_weights: False  # Whether to use original weights for validation calculation or EMA weights

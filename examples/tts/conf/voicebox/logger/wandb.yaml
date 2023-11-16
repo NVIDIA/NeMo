@@ -1,0 +1,5 @@
+create_wandb_logger: True
+wandb_logger_kwargs:
+  name: ${name}
+  project: ${project}
+  entity: ${entity}
