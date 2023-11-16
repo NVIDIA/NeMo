@@ -87,10 +87,10 @@ model:
   # Remove this section to disable logging.
   log_config:
     log_dir: ${log_dir}
-    log_epochs: [10, 50]
+    log_epochs: [10, 50, 100, 150, 200]
     epoch_frequency: 100
     log_tensorboard: false
-    log_wandb: false
+    log_wandb: true
 
     generators:
       - _target_: nemo.collections.tts.parts.utils.callbacks.AudioCodecArtifactGenerator
@@ -161,10 +161,17 @@ trainer:
 exp_manager:
   exp_dir: null
   name: ${name}
-  create_tensorboard_logger: true
-  create_checkpoint_callback: true
-  create_wandb_logger: false
+  create_tensorboard_logger: false
+  create_wandb_logger: true
+  wandb_logger_kwargs:
+    name: null
+    project: null
+  create_checkpoint_callback: true 
   checkpoint_callback_params:
     monitor: val_loss
+    mode: min
+    save_top_k: 5
+    save_best_model: true
+    always_save_nemo: true
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
