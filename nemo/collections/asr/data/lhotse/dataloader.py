@@ -29,9 +29,8 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
     cuts = cuts.resample(config["sample_rate"])
 
     # Duration filtering, same as native NeMo dataloaders.
-    cuts = cuts.filter(
-        lambda c: config.get("min_duration", -1) <= c.duration <= config.get("max_duration", float("inf"))
-    )
+    min_dur, max_dur = config.get("min_duration", -1), config.get("max_duration", float("inf"))
+    cuts = cuts.filter(lambda c: min_dur <= c.duration <= max_dur)
 
     # 2. Optional on-the-fly speed perturbation,
     #    mux here ensures it's uniformly distributed throughout sampling,
