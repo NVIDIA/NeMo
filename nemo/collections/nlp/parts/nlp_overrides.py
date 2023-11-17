@@ -157,9 +157,7 @@ class NLPDDPStrategy(DDPStrategy):
                 # self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
                 self._model = DistributedDataParallel(
-                    self.model,
-                    process_group=parallel_state.get_data_parallel_group(),
-                    **self._ddp_kwargs,
+                    self.model, process_group=parallel_state.get_data_parallel_group(), **self._ddp_kwargs,
                 )
 
                 if self.no_ddp_communication_hook:

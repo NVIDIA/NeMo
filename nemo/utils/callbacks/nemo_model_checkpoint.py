@@ -21,16 +21,16 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import pytorch_lightning
 import torch
-from torch import Tensor
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.utilities import rank_zero_info
+from torch import Tensor
 
 from nemo.collections.common.callbacks import EMA
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 
 class NeMoModelCheckpoint(ModelCheckpoint):
@@ -186,22 +186,24 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return output
 
     def format_checkpoint_name(
-        self, metrics: Dict[str, Tensor], filename: Optional[str] = None, ver: Optional[int] = None 
+        self, metrics: Dict[str, Tensor], filename: Optional[str] = None, ver: Optional[int] = None
     ) -> str:
         """Generate a filename according to the defined template."""
         filename = filename or self.filename
-        filename = self._format_checkpoint_name(filename, metrics, auto_insert_metric_name=self.auto_insert_metric_name)
+        filename = self._format_checkpoint_name(
+            filename, metrics, auto_insert_metric_name=self.auto_insert_metric_name
+        )
 
         if ver is not None:
             filename = self.CHECKPOINT_JOIN_CHAR.join((filename, f"v{ver}"))
 
         ckpt_name = f"{filename}{self.FILE_EXTENSION}"
-        #if self._last_checkpoint_saved and ckpt_to_dir(self._last_checkpoint_saved).is_dir():# is dist ckpt
+        # if self._last_checkpoint_saved and ckpt_to_dir(self._last_checkpoint_saved).is_dir():# is dist ckpt
         filename_wo_last = filename.replace('-last', '')
-        if 'last' in filename and Path(os.path.join(self.dirpath, filename_wo_last)).is_dir(): # if is dist ckpt
-                # update last checkpoint saved path with dist ckpt dir and return ckpt dir
-                self._last_checkpoint_saved = ckpt_to_dir(self._last_checkpoint_saved)
-                return os.path.join(self.dirpath, filename) if self.dirpath else filename
+        if 'last' in filename and Path(os.path.join(self.dirpath, filename_wo_last)).is_dir():  # if is dist ckpt
+            # update last checkpoint saved path with dist ckpt dir and return ckpt dir
+            self._last_checkpoint_saved = ckpt_to_dir(self._last_checkpoint_saved)
+            return os.path.join(self.dirpath, filename) if self.dirpath else filename
         else:
             return os.path.join(self.dirpath, ckpt_name) if self.dirpath else ckpt_name
 
