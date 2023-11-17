@@ -118,7 +118,6 @@ def get_accuracy_with_lambada(model):
 
 
 def run_trt_llm_export(args):
-    ptuning = not args.p_tuning_checkpoint
 
     prompt_template=["The capital of France is", "Largest animal in the sea is"]
     expected_keyword=["Paris", "Whale", "Cheetah"]
@@ -151,12 +150,9 @@ def run_trt_llm_export(args):
         )
 
         prompt_embeddings_checkpoint_path = None
-        if ptuning:
-            if "p_tuning_checkpoint" in model_info.keys():
-                prompt_embeddings_checkpoint_path=args.p_tuning_checkpoint
-                print("---- PTuning enabled.")
-            else:
-                print("---- PTuning could not be enabled.")
+        if args.p_tuning_checkpoint:
+            print("---- PTuning enabled.")
+            prompt_embeddings_checkpoint_path=args.p_tuning_checkpoint
 
         trt_llm_exporter = TensorRTLLM(model_dir=args.trt_llm_model_dir)
         trt_llm_exporter.export(
