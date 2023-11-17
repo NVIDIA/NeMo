@@ -18,6 +18,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
+from nemo.utils import logging
 
 import tensorrt_llm
 import torch
@@ -148,6 +149,10 @@ def _forward(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        streaming: bool = False,
         **sampling_kwargs,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
@@ -210,6 +215,18 @@ def _forward(
             decoder.setup(batch_size, max_context_length=max_length, max_new_tokens=max_output_len)
 
             if decoder.remove_input_padding:
+                if stop_words_list is not None:
+                    logging.warning("stop_words_list should be set to None with remove_input_padding=True "
+                                  "and it will be ignored.")
+
+                if bad_words_list is not None:
+                    logging.warning("bad_words_list should be set to None with remove_input_padding=True "
+                                  "and it will be ignored.")
+
+                if no_repeat_ngram_size is not None:
+                    logging.warning("no_repeat_ngram_size should be set to None with remove_input_padding=True "
+                                  "and it will be ignored.")
+
                 output_ids = decoder.decode_batch(line_encoded, sampling_config)
             else:
                 output_ids = decoder.decode(
@@ -217,6 +234,10 @@ def _forward(
                     input_lengths,
                     sampling_config,
                     *ptuning_args,
+                    stop_words_list=stop_words_list,
+                    bad_words_list=bad_words_list,
+                    no_repeat_ngram_size=no_repeat_ngram_size,
+                    streaming=streaming,
                 )
 
             torch.cuda.synchronize()
@@ -276,6 +297,10 @@ def forward(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        streaming: bool = False,
         **sampling_kwargs,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
@@ -292,12 +317,39 @@ def forward(
 
     tensor_parallel = host_context.tensor_parallel
     if tensor_parallel == 1:
-        return _forward(input_tensors, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size, **sampling_kwargs)
+        return _forward(
+            input_tensors=input_tensors,
+            max_output_len=max_output_len,
+            top_k=top_k,
+            top_p=top_p,
+            temperature=temperature,
+            prompt_table=prompt_table,
+            task_vocab_size=task_vocab_size,
+            stop_words_list=stop_words_list,
+            bad_words_list=bad_words_list,
+            no_repeat_ngram_size=no_repeat_ngram_size,
+            streaming=streaming,
+            **sampling_kwargs
+        )
     else:
         executor = host_context.executor
         futures = []
         for _ in range(tensor_parallel):
-            future = executor.submit(_forward, input_tensors, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size, **sampling_kwargs)
+            future = executor.submit(
+                _forward,
+                input_tensors=input_tensors,
+                max_output_len=max_output_len,
+                top_k=top_k,
+                top_p=top_p,
+                temperature=temperature,
+                prompt_table=prompt_table,
+                task_vocab_size=task_vocab_size,
+                stop_words_list=stop_words_list,
+                bad_words_list=bad_words_list,
+                no_repeat_ngram_size=no_repeat_ngram_size,
+                streaming=streaming,
+                **sampling_kwargs
+            )
             futures.append(future)
         for future in futures:
             result = future.result()
@@ -316,6 +368,10 @@ def generate(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        streaming: bool = False,
         **sampling_kwargs,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
@@ -326,7 +382,21 @@ def generate(
     input_tensors = [
         torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
     ]
-    output_tensor = forward(input_tensors, max_output_len, host_context, top_k, top_p, temperature, prompt_table, task_vocab_size, **sampling_kwargs)
+    output_tensor = forward(
+        input_tensors=input_tensors,
+        max_output_len=max_output_len,
+        host_context=host_context,
+        top_k=top_k,
+        top_p=top_p,
+        temperature=temperature,
+        prompt_table=prompt_table,
+        task_vocab_size=task_vocab_size,
+        stop_words_list=stop_words_list,
+        bad_words_list=bad_words_list,
+        no_repeat_ngram_size=no_repeat_ngram_size,
+        streaming=streaming,
+        **sampling_kwargs
+    )
     assert output_tensor is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]

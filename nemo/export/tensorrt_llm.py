@@ -16,7 +16,6 @@ import json
 import os
 import shutil
 from pathlib import Path
-import tempfile
 
 import numpy as np
 import tensorrt_llm
@@ -34,7 +33,6 @@ from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
 from .trt_llm.tensorrt_llm_run import generate, load
 from .utils import is_nemo_file, unpack_nemo_ckpt
 
-import transformers
 
 class TensorRTLLM(ITritonDeployable):
 
@@ -252,6 +250,9 @@ class TensorRTLLM(ITritonDeployable):
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
         **sampling_kwargs,
     ):
         """
@@ -263,6 +264,9 @@ class TensorRTLLM(ITritonDeployable):
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            stop_words_list (List(str)): list of stop words.
+            bad_words_list (List(str)): list of bad words.
+            no_repeat_ngram_size (int): no repeat ngram size.
             sampling_kwargs: Additional kwargs to set in the SamplingConfig.
         """
         if self.model is None:
@@ -279,6 +283,10 @@ class TensorRTLLM(ITritonDeployable):
                 temperature= temperature,
                 prompt_table=self.prompt_table,
                 task_vocab_size=self.task_vocab_size,
+                stop_words_list=stop_words_list,
+                bad_words_list=bad_words_list,
+                no_repeat_ngram_size=no_repeat_ngram_size,
+                streaming=False,
                 **sampling_kwargs,
             )
         
