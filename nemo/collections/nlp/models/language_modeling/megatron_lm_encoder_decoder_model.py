@@ -722,10 +722,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             step_outputs = self.validation_step_outputs
 
-        return self._test_validation_step(
-            step_outputs=step_outputs,
-            dataloader_iter=dataloader_iter,
-        )
+        return self._test_validation_step(step_outputs=step_outputs, dataloader_iter=dataloader_iter,)
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
@@ -733,10 +730,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             step_outputs = self.test_step_outputs
 
-        return self._test_validation_step(
-            step_outputs=step_outputs,
-            dataloader_iter=dataloader_iter,
-        )
+        return self._test_validation_step(step_outputs=step_outputs, dataloader_iter=dataloader_iter,)
 
     def _test_validation_epoch_end(self, step_outputs, prefix):
         """
