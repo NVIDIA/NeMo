@@ -1,6 +1,7 @@
 import random
 import secrets
 import tarfile
+from io import BytesIO
 from pathlib import Path
 from typing import Dict, List
 
@@ -8,6 +9,7 @@ import lhotse.audio
 import lhotse.lazy
 import lhotse.serialization
 import lhotse.utils
+import soundfile
 
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 
@@ -131,7 +133,22 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
             with tarfile.open(fileobj=lhotse.serialization.open_best(tar_path, mode="rb"), mode="r|*") as tar:
                 for data, tar_info in zip(shard_manifest, tar):
                     raw_audio = tar.extractfile(tar_info).read()
-                    recording = lhotse.Recording.from_bytes(raw_audio, recording_id=tar_info.path)
+                    # Note: Lhotse has a Recording.from_bytes() utility that we won't use here because
+                    #       the profiling indicated significant overhead in torchaudio ffmpeg integration
+                    #       that parses full audio instead of just reading the header for WAV files.
+                    # recording = lhotse.Recording.from_bytes(raw_audio, recording_id=tar_info.path)
+                    meta = soundfile.info(BytesIO(raw_audio))
+                    recording = lhotse.Recording(
+                        id=tar_info.path,
+                        sources=[
+                            lhotse.audio.AudioSource(
+                                type="memory", channels=list(range(meta.channels)), source=raw_audio
+                            )
+                        ],
+                        sampling_rate=int(meta.samplerate),
+                        num_samples=meta.frames,
+                        duration=meta.duration,
+                    )
                     cut = recording.to_cut()
                     cut.supervisions.append(
                         lhotse.SupervisionSegment(
