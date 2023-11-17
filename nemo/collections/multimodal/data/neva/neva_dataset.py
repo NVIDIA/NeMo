@@ -374,7 +374,7 @@ def preprocess_plain(
         source = source['conversations']
         assert len(source) == 2
         # This line is different from LLaVA repo, we inserted '\n' after <image>.
-        conversation = source[0]['value'] + ' ' + source[1]['value'] + '\n'
+        conversation = source[0]['value'] + source[1]['value'] + '\n'
         conversations.append(conversation)
     # tokenize conversations
     add_extra_token = cfg.get("add_extra_token")
