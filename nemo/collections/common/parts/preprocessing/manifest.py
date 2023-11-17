@@ -175,11 +175,11 @@ def is_tarred_dataset(audio_file: str, manifest_file: str) -> bool:
     if "/" in audio_file:
         # audio files in a tarred dataset don't have `/` in their paths
         return False
-    if "/sharded_manifests/" in manifest_file and re.match(r'^manifest_(\d+)\.json$', os.path.basename(manifest_file)):
-        # the manifest file is a sharded manifest
-        return True
     if os.path.basename(manifest_file) == "tarred_audio_manifest.json":
         # the manifest file is a tarred manifest
+        return True
+    if "/sharded_manifests/" in manifest_file and re.match(r'^manifest_(\d+)\.json$', os.path.basename(manifest_file)):
+        # the manifest file is a sharded manifest
         return True
     return False
 
