@@ -127,12 +127,12 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         
         key = new_key.replace("decoder.layers", "transformer.h")
 
-        if model.cfg.mcore_customization_config.new_decoder_architecture:
+        if model.cfg.new_decoder_architecture:
             key = key.replace("input_layernorm", "ln_attn")
             key = key.replace("pre_mlp_layernorm", "ln_mlp")
         else:
             key = key.replace("input_layernorm", "input_layernorm")
-            if not model.cfg.mcore_customization_config.parallel_attention:
+            if not model.cfg.parallel_attention:
                 key = key.replace("post_self_attn_layernorm", "post_attention_layernorm")
 
         key = key.replace("self_attention.linear_proj", "self_attention.dense")
@@ -144,10 +144,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     prefix = 'model.module.' if any(k.startswith('model.module.') for k in model.state_dict()) else 'model.'
     
     for key, value in model.state_dict().items():
-        if '_extra_state' in key:
-            continue
         orig_key = get_original_key(key)
-        print(f'Converting {key} to {orig_key}')
         checkpoint['state_dict'][orig_key] = param_to_weights(value)
         
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
