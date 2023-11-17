@@ -310,13 +310,13 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             decoder_seq_length=decoder_seq_length,
         )
 
-    def eval_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+    def eval_step(self, dataloader_iter):
         # Check if iterator is exhausted
         # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         # if done:
         #     return
         # Need to squeze dim 0 for old NMT datasets since things are pre-batched and we ask the dataloader for batch size 1.
-        batch = next(dataloader_iter)
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
         batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
         batch = self.process_global_batch_for_text_translation_datasets(batch)
 
@@ -400,12 +400,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         return results
 
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+    def validation_step(self, dataloader_iter):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        return self.eval_step(dataloader_iter, batch_idx, dataloader_idx)
+        return self.eval_step(dataloader_iter)
 
     def _setup_eval_dataloader_from_config(self, cfg: DictConfig, dataset):
         rank = parallel_state.get_data_parallel_rank()

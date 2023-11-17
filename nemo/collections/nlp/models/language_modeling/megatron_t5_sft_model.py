@@ -312,14 +312,14 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
             decoder_seq_length=decoder_seq_length,
         )
 
-    def inference_step(self, dataloader_iter, batch_idx: int, mode: str, dataloader_idx=0):
+    def inference_step(self, dataloader_iter, mode: str):
         # Check if iterator is exhausted
         # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         # if done:
         #     return
         # Regular finetuning datasets will return a list of dicts for each microbatch.
         # But T0 datasets will return a single dict for the global batch.
-        batch = next(dataloader_iter)
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
         batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
 
@@ -589,16 +589,16 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
             for i, p, l in zip(outputs['inputs'], outputs['preds'], outputs['labels']):
                 f_json.write(json.dumps({'input': i, 'pred': p, 'label': l}) + '\n')
 
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
+    def validation_step(self, dataloader_iter):
+        return self.inference_step(dataloader_iter, 'validation')
 
     def on_validation_epoch_end(self):
         _ = self.inference_epoch_end(self.validation_step_outputs, 'validation', self.cfg.data.validation_ds)
         # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
         # return super().on_validation_epoch_end()
 
-    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
+    def test_step(self, dataloader_iter):
+        return self.inference_step(dataloader_iter, 'test')
 
     def on_test_epoch_end(self):
         _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
