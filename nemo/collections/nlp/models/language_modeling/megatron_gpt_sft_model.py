@@ -400,11 +400,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         return loss_mean
 
     def validation_step(self, dataloader_iter):
-        return self.inference_step(dataloader_iter,'validation')
+        return self.inference_step(dataloader_iter, 'validation')
 
     def test_step(self, dataloader_iter):
         # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        return self.inference_step(dataloader_iter,'test')
+        return self.inference_step(dataloader_iter, 'test')
 
     def inference_step(self, dataloader_iter, mode):
         # Check if iterator is exhausted
