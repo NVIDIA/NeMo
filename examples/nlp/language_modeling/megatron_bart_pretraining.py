@@ -60,6 +60,7 @@ def main(cfg) -> None:
             plugins.append(MegatronHalfPrecisionPlugin(plugin_precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(plugin_precision, device='cuda', scaler=scaler))
+        cfg.trainer.precision = None
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())

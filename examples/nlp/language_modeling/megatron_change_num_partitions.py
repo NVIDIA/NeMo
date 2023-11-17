@@ -935,6 +935,7 @@ def main():
             plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+        precision = None
     trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
 
     if tp_size < 0 or pp_size < 0:
