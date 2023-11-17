@@ -930,8 +930,8 @@ class ParallelTransformer(MegatronModule):
         fp8_hybrid=False,
         fp8_margin=0,
         fp8_interval=1,
-        fp8_amax_history_len=1,
-        fp8_amax_compute_algo='most_recent',
+        fp8_amax_history_len=1024,
+        fp8_amax_compute_algo='max',
         reduce_amax=True,
         use_emha=False,
         ub_tp_comm_overlap=False,
@@ -1192,6 +1192,11 @@ class ParallelTransformer(MegatronModule):
             # removing bias, so we also have to check for that
             if not bias and normalization not in ['layernorm', 'layernorm1p']:
                 remove_bias_from_layernorm(self.final_layernorm)
+
+        # Hacky set up for vision encoder select layer, won't support PP
+        # It indicates the layer number of hidden states that we want to return.
+        # For example -2 means we skip the last layer in the decoder, and return at -2 layer.
+        self.return_select_layer = 0
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]
@@ -1510,6 +1515,14 @@ class ParallelTransformer(MegatronModule):
                         if self.inference_params != None:
                             self.inference_params.sequence_len_offset = self.inference_current_sequence_len
 
+                    if self.return_select_layer < 0:
+                        assert (
+                            parallel_state.get_pipeline_model_parallel_world_size() == 1
+                        ), f"##{parallel_state.get_pipeline_model_parallel_world_size}"
+                        if self.num_layers + self.return_select_layer < 0:
+                            logging.warning("Returning embeddings states only!")
+                            return hidden_states
+
                     for index in range(self.num_layers):
                         layer = self._get_layer(index)
                         past = None
@@ -1568,6 +1581,14 @@ class ParallelTransformer(MegatronModule):
                                 cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
+
+                        if self.return_select_layer < 0:
+                            assert (
+                                parallel_state.get_pipeline_model_parallel_world_size() == 1
+                            ), f"##{parallel_state.get_pipeline_model_parallel_world_size}"
+                            if index == self.num_layers + self.return_select_layer:
+                                return hidden_states
+
                     # Update current sequence length outside of the loops
                     if self.transformer_engine:
                         self.inference_current_sequence_len += hidden_states.size(0)
