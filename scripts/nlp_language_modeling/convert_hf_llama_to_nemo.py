@@ -167,6 +167,7 @@ def convert(args):
             plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+        precision = None
 
     if precision == 32:
         dtype = torch.float32

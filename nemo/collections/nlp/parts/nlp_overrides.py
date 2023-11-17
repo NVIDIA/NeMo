@@ -400,7 +400,10 @@ class NLPDDPStrategy(DDPStrategy):
             and self.lightning_module.sharded_state_dict() is not None
         ):
             if self.is_global_zero:
-                shutil.rmtree(ckpt_to_dir(filepath))
+                if Path(filepath).is_symlink():
+                    Path(filepath).unlink()
+                else:
+                    shutil.rmtree(ckpt_to_dir(filepath))
 
         # legacy checkpoint logic, does not use megatron core
         else:

@@ -66,6 +66,7 @@ def main(cfg) -> None:
         )
         # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
         plugins.append(PipelineMixedPrecisionPlugin(precision='16-mixed', device='cuda', scaler=scaler))
+        cfg.trainer.precision = None
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())

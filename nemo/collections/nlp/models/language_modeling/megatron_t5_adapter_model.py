@@ -146,12 +146,12 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             'enc_inputs': processed_inputs,
         }
 
-    def validation_step(self, dataloader_iter, batch_idx, inference=False):
+    def validation_step(self, dataloader_iter):
         # Check if iterator is exhausted
         # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         # if done:
         #     return
-        batch = next(dataloader_iter)
+        batch, batch_idx, _ = next(dataloader_iter)
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
         mode = self.training
