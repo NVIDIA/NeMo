@@ -704,20 +704,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         Shared code for validation and test step
         """
         # Check if iterator is exhausted
-        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        # if done:
-        #     return
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
+            return
 
         loss_dict = self.fwd_bwd_step(dataloader_iter, True)
         step_outputs.append(loss_dict)
 
         return loss_dict
 
-    def validation_step(self, dataloader_iter):
+    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
-        loss = self._test_validation_step(dataloader_iter=dataloader_iter)
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
             step_outputs = self.validation_step_outputs[dataloader_idx]
         else:
