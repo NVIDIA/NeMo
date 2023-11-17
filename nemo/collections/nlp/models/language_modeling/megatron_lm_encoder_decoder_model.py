@@ -338,7 +338,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return mean_loss_dict
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
@@ -353,7 +353,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_seq_length=self.max_decoder_seq_length,
         )
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -365,7 +365,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we zero grads here because we also call backward in the megatron fwd/bwd functions
         self._optimizer.zero_grad()
 
-        loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        loss_dict = self.fwd_bwd_step(dataloader_iter, False)
 
         if self.with_distributed_adam:
             # synchronize asynchronous grad reductions
@@ -699,28 +699,33 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     ##########
 
-    def _test_validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+    def _test_validation_step(self, step_outputs, dataloader_iter):
         """
         Shared code for validation and test step
         """
         # Check if iterator is exhausted
-        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        # if done:
-        #     return
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
+            return
 
-        loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        loss_dict = self.fwd_bwd_step(dataloader_iter, True)
+        step_outputs.append(loss_dict)
 
         return loss_dict
 
-    def validation_step(self, dataloader_iter):
+    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
-        loss = self._test_validation_step(dataloader_iter=dataloader_iter)
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
             step_outputs = self.validation_step_outputs[dataloader_idx]
         else:
             step_outputs = self.validation_step_outputs
+
+        return self._test_validation_step(
+            step_outputs=step_outputs,
+            dataloader_iter=dataloader_iter,
+        )
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
@@ -731,8 +736,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return self._test_validation_step(
             step_outputs=step_outputs,
             dataloader_iter=dataloader_iter,
-            batch_idx=batch_idx,
-            dataloader_idx=dataloader_idx,
         )
 
     def _test_validation_epoch_end(self, step_outputs, prefix):
