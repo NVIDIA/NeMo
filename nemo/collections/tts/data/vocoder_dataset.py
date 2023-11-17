@@ -132,7 +132,7 @@ class VocoderDataset(Dataset):
     def __init__(
         self,
         dataset_meta: Dict,
-        sample_rate: int = 24000,
+        sample_rate: int,
         n_samples: Optional[int] = None,
         weighted_sampling_steps_per_epoch: Optional[int] = None,
         feature_processors: Optional[Dict[str, FeatureProcessor]] = None,
@@ -278,7 +278,7 @@ class TarredVocoderDataset(IterableDataset):
     def __init__(
         self,
         dataset_meta: Dict,
-        sample_rate: int = 24000,
+        sample_rate: int,
         n_samples: Optional[int] = None,
         shuffle_n: int = 0,
         min_duration: float = 0.1,
@@ -343,7 +343,7 @@ class TarredVocoderDataset(IterableDataset):
         self._dataset = wd.WebDataset(audio_tar_filepaths, nodesplitter=None)
 
         if shuffle_n > 0:
-            self._dataset = self._dataset.shuffle(shuffle_n)
+            self._dataset = self._dataset.shuffle(shuffle_n, initial=shuffle_n)
         else:
             logging.info("WebDataset will not shuffle data. Consider setting shuffle_n > 0.")
 
