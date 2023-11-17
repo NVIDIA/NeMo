@@ -88,7 +88,7 @@ class DiffusionEngine(nn.Module, Serialization):
         model = DiffusionEngine.from_config_dict(unet_config)
         self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(model, compile_model=compile_model)
         if cfg.get('inductor', False):
-            # torch._dynamo.config.cache_size_limit = 16
+            torch._dynamo.config.cache_size_limit = 256
             torch._dynamo.config.dynamic_shapes = False
             torch._dynamo.config.automatic_dynamic_shapes = False
             torch._dynamo.config.suppress_errors = True

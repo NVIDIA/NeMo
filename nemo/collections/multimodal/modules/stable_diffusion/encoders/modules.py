@@ -377,7 +377,7 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
             return_tensors="pt",
         )
         tokens = batch_encoding["input_ids"].to(self.device, non_blocking=True)
-        outputs = self.transformer(input_ids=tokens)
+        outputs = self.transformer(input_ids=tokens, output_hidden_states=(self.layer == "hidden"))
 
         if self.layer == "last":
             z = outputs.last_hidden_state
