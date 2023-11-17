@@ -15,6 +15,7 @@
 import gradio as gr
 from omegaconf import OmegaConf
 from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
+import base64
 import PIL.Image
 import io
 
@@ -54,14 +55,15 @@ hparams_file: null #/pwd/nemo_multimodal/nemo_experiments/nemo_llava_finetune/ve
 """
 
 cfg = OmegaConf.create(CFG_STRING)
-cfg.neva_model_file = "/lustre/fsw/coreai_dlalgo_genai/yuya/dataset/checkpoints/llava-v1.5/llava-v1.5-7b.nemo"
-cfg.inference.images_base_path = "/lustre/fsw/coreai_dlalgo_genai/yuya/dataset/llava-bench-in-the-wild/images"
+cfg.neva_model_file = "/path/to/llava-v1.5-7b.nemo"
 model, image_processor = create_neva_model_and_processor(cfg)
 
-def predict(prompt, image=None):
+def predict(prompt, image_base64=None):
     input_data = {"prompt": prompt}
-    if image is not None:
-        image = PIL.Image.fromarray(image)
+    if image_base64 is not None:
+        image_data = base64.b64decode(image_base64)
+        # image = PIL.Image.fromarray(image)
+        image = PIL.Image.open(io.BytesIO(image_data))
         input_data["image"] = image_processor(image)
 
     length_params: LengthParam = {
@@ -92,11 +94,11 @@ def predict(prompt, image=None):
 
 iface = gr.Interface(
     fn=predict,
-    inputs=[gr.Textbox(), gr.Image()],
+    inputs=[gr.Textbox(), gr.Textbox()],
     outputs="text",
     title="Multimodal Model Inference",
     description="Enter a prompt and optionally upload an image for model inference."
 )
 
 if __name__ == "__main__":
-    iface.launch(server_port=8889, share=False)
+    iface.launch(server_port=8890, share=False)
