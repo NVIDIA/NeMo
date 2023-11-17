@@ -235,29 +235,26 @@ class TarredVocoderDataset(IterableDataset):
     In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
     is applied. We currently do not check for this, but your program may hang if the shards are uneven!
 
-    Notice that a few arguments are different from the AudioToBPEDataset; for example, shuffle (bool) has been
-    replaced by shuffle_n (int).
-
     Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest
     after filtering. An incorrect manifest length may lead to some DataLoader issues down the line.
 
-    Args:
+    Args:        
+        dataset_meta: Dict of dataset names (string) to dataset metadata.
         audio_tar_filepaths: Either a list of audio tarball filepaths, or a
             string (can be brace-expandable).
-        dataset_meta: Dict of dataset names (string) to dataset metadata.
         sample_rate: Sample rate to load audio as. If the audio is stored at a different sample rate, then it will
             be resampled.
         n_samples: Optional int, if provided then n_samples samples will be randomly sampled from the full
             audio file.
-        feature_processors: Optional, list of feature processors to run on training examples.
+        shuffle_n (int): How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+            Defaults to 0.
         min_duration: Optional float, if provided audio files in the training manifest shorter than 'min_duration'
             will be ignored.
         max_duration: Optional float, if provided audio files in the training manifest longer than 'max_duration'
             will be ignored.
         trunc_duration: Optional int, if provided audio will be truncated to at most 'trunc_duration' seconds.
-        shuffle_n (int): How many samples to look ahead and load to be shuffled.
-            See WebDataset documentation for more details.
-            Defaults to 0.
+        feature_processors: Optional, list of feature processors to run on training examples.
         shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
             -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
                 a unique set of shards, which are permanently pre-allocated and never changed at runtime.
