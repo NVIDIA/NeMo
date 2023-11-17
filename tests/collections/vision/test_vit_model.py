@@ -25,6 +25,17 @@ from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_
 from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
 
+try:
+    from megatron.core import ModelParallelConfig, parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
+
+    HAVE_MEGATRON_CORE = False
+
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
     DEVICE_CAPABILITY = torch.cuda.get_device_capability()
@@ -229,8 +240,8 @@ def vit_classification_trainer_and_model(model_cfg, trainer_cfg, precision):
 
 def build_datasets(cfg, test_data_dir):
     data_path = [
-        os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
-        os.path.join(test_data_dir, "vision/tiny_imagenet/val"),
+        os.path.join(test_data_dir, "multimodal/tiny-imagenet/train"),
+        os.path.join(test_data_dir, "multimodal/tiny-imagenet/val"),
     ]
     return build_train_valid_datasets(model_cfg=cfg, data_path=data_path, image_size=(cfg.img_h, cfg.img_w),)
 
@@ -249,8 +260,8 @@ class TestMegatronVitClassificationModel:
     def test_build_dataset(self, vit_classification_trainer_and_model, test_data_dir):
         vit_classification_model = vit_classification_trainer_and_model[1]
         data_path = [
-            os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
-            os.path.join(test_data_dir, "vision/tiny_imagenet/val"),
+            os.path.join(test_data_dir, "multimodal/tiny-imagenet/train"),
+            os.path.join(test_data_dir, "multimodal/tiny-imagenet/val"),
         ]
         train_ds, validation_ds = build_train_valid_datasets(
             model_cfg=vit_classification_model.cfg,
@@ -321,6 +332,7 @@ class TestMegatronVitClassificationModel:
             seed=model_cfg.get('seed', 1234),
             apex_transformer_log_level=model_cfg.get('apex_transformer_log_level', 30),
         )
+        model_parallel_config = ModelParallelConfig()
 
         dtype = None
         if trainer_cfg['precision'] in [32, '32', '32-true']:
@@ -334,6 +346,7 @@ class TestMegatronVitClassificationModel:
 
         vit_backbone = VitBackbone(
             model_cfg,
+            model_parallel_config=model_parallel_config,
             init_method=None,
             scaled_init_method=None,
             pre_process=True,

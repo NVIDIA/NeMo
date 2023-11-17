@@ -55,7 +55,18 @@ except (ImportError, ModuleNotFoundError):
 
 
 class ControlledUnetModel(UNetModel):
+    '''
+    Modified Unet class that combines the output of controlling copy and frozen copy during forward pass.
+    '''
+
     def forward(self, x, timesteps=None, context=None, control=None, only_mid_control=False, **kwargs):
+        '''
+        :param x: latents of diffusion process
+        :param timesteps: diffusion step
+        :param context: text embedding guiding the denoising process
+        :param control: output from controlling copy of each corresponding layer
+        :param only_mid_control: whether to add the output of controlling copy from middle block only
+        '''
         hs = []
         with torch.no_grad():
             t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)

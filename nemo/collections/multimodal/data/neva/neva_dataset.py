@@ -5,36 +5,37 @@ import os
 import pathlib
 import re
 import tarfile
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Union
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import transformers
+from PIL import Image
+from dataclasses import dataclass, field
 from einops import rearrange
 from omegaconf import DictConfig
-from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.kosmos.kosmos_dataset import tokenize_and_insert_media_tokens
+from nemo.collections.multimodal.data.neva.conversation import (
+    DEFAULT_PAD_TOKEN,
+    DEFAULT_BOS_TOKEN,
+    DEFAULT_EOS_TOKEN,
+    DEFAULT_UNK_TOKEN,
+    DEFAULT_IMAGE_TOKEN,
+    DEFAULT_SYSTEM_TOKEN,
+    DEFAULT_SEPARATOR_TOKEN,
+    DEFAULT_LABELS_TOKEN,
+    DEFAULT_IMAGE_PATCH_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IM_END_TOKEN,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
 MAX_NUM_IMAGES = 4
 IGNORE_INDEX = -1
-DEFAULT_PAD_TOKEN = "<pad>"
-DEFAULT_BOS_TOKEN = "<extra_id_6>"
-DEFAULT_EOS_TOKEN = "<extra_id_7>"
-DEFAULT_UNK_TOKEN = "<unk>"
-DEFAULT_IMAGE_TOKEN = "<image>"
-DEFAULT_SYSTEM_TOKEN = "<extra_id_0>"
-DEFAULT_SEPARATOR_TOKEN = "<extra_id_1>"
-DEFAULT_LABELS_TOKEN = "<extra_id_2>"
-DEFAULT_IMAGE_PATCH_TOKEN = "<extra_id_3>"
-DEFAULT_IM_START_TOKEN = "<extra_id_4>"
-DEFAULT_IM_END_TOKEN = "<extra_id_5>"
 
 
 class TarOrFolderImageLoader:
@@ -62,7 +63,7 @@ class TarOrFolderImageLoader:
 
 
 def tokenize(
-    texts: Union[str, List[str]], tokenizer: Any, context_length: int, add_extra_token: int,
+        texts: Union[str, List[str]], tokenizer: Any, context_length: int, add_extra_token: int,
 ) -> torch.LongTensor:
     """
     Returns the tokenized representation of given input string(s). If the list of tokens exceeds the context
@@ -105,11 +106,17 @@ def tokenize(
     return result
 
 
-def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int,) -> Dict:
+def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
     is_multimodal = multimodal_cfg['is_multimodal']
     image_token_len = cur_token_len
     if not is_multimodal:
         return sources
+
+    if multimodal_cfg['use_im_start_end']:
+        replace_token = DEFAULT_IMAGE_PATCH_TOKEN * image_token_len
+    else:
+        replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (image_token_len - 2)
+    replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
 
     for source in sources:
         conversation = source['conversations']
@@ -117,24 +124,22 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             assert DEFAULT_IMAGE_TOKEN in conversation[0]['value']
             conversation[0]['value'] = conversation[0]['value'].replace(DEFAULT_IMAGE_TOKEN, '').strip()
             conversation[0]['value'] = (
-                DEFAULT_IMAGE_TOKEN
-                + conversation_lib.default_conversation.sep
-                + conversation_lib.default_conversation.roles[0]
-                + ": "
-                + conversation[0]['value']
+                    DEFAULT_IMAGE_TOKEN
+                    + conversation_lib.default_conversation.sep
+                    + conversation_lib.default_conversation.roles[0]
+                    + ": "
+                    + conversation[0]['value']
             )
+        if use_plain:
+            assert DEFAULT_IMAGE_TOKEN in conversation[0]['value']
+            conversation[0]['value'] = DEFAULT_IMAGE_TOKEN
         for turn in conversation:
-            if multimodal_cfg['use_im_start_end']:
-                replace_token = DEFAULT_IMAGE_PATCH_TOKEN * image_token_len
-            else:
-                replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (image_token_len - 2)
-            replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
             turn["value"] = turn["value"].replace(DEFAULT_IMAGE_TOKEN, replace_token)
 
     return sources
 
 
-def preprocess_llama_2(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
+def preprocess_llama_2(sources: dict, tokenizer, cfg, ) -> Dict:
     conv = conversation_lib.conv_llava_llama_2.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
@@ -187,8 +192,8 @@ def preprocess_llama_2(sources: dict, tokenizer: transformers.PreTrainedTokenize
             round_len = len(tokenizer.text_to_ids(rou + conv.sep2))
             if i > 0:
                 round_len -= 1  # Remove extra token added by sp tokenizer
-            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 1
-            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -203,10 +208,10 @@ def preprocess_llama_2(sources: dict, tokenizer: transformers.PreTrainedTokenize
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(tokens=tokens, labels=labels, )
 
 
-def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
+def preprocess_v1(sources: dict, tokenizer, cfg, ) -> Dict:
     conv = conversation_lib.conv_vicuna_v1.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
@@ -260,7 +265,7 @@ def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cf
             if i > 0:
                 round_len -= 1  # Remove extra token added by sp tokenizer
                 instruction_len -= 1
-            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -272,10 +277,10 @@ def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cf
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(tokens=tokens, labels=labels, )
 
 
-def preprocess_nvgpt(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
+def preprocess_nvgpt(sources: dict, tokenizer, cfg, ) -> Dict:
     """
     Given a record this transform:
         1. Add signal '<>' at the beginning each sentence, with end signal '\n';
@@ -329,7 +334,7 @@ def preprocess_nvgpt(sources: dict, tokenizer: transformers.PreTrainedTokenizer,
         re_rounds = [conv.sep.join(rounds[:3])]  # system + user + gpt
 
         for conv_idx in range(3, len(rounds), 2):
-            re_rounds.append(conv.sep.join(rounds[conv_idx : conv_idx + 2]))  # user + gpt
+            re_rounds.append(conv.sep.join(rounds[conv_idx: conv_idx + 2]))  # user + gpt
 
         cur_len = 0
         for i, rou in enumerate(re_rounds):
@@ -345,7 +350,7 @@ def preprocess_nvgpt(sources: dict, tokenizer: transformers.PreTrainedTokenizer,
 
             instruction_len = len(tokenizer.text_to_ids(parts[0] + sep + labels_str))
             round_len = len(tokenizer.text_to_ids(rou + conv.sep))
-            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -357,13 +362,48 @@ def preprocess_nvgpt(sources: dict, tokenizer: transformers.PreTrainedTokenizer,
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(tokens=tokens, labels=labels, )
+
+
+def preprocess_plain(
+        sources, tokenizer, cfg,
+) -> Dict:
+    # add end signal and concatenate together
+    conversations = []
+    for source in sources:
+        source = source['conversations']
+        assert len(source) == 2
+        # This line is different from LLaVA repo, we inserted '\n' after <image>.
+        conversation = source[0]['value'] + ' ' + source[1]['value'] + '\n'
+        conversations.append(conversation)
+    # tokenize conversations
+    add_extra_token = cfg.get("add_extra_token")
+    tokens = tokenize(
+        texts=conversations,
+        tokenizer=tokenizer,
+        context_length=cfg.get("context_length"),
+        add_extra_token=add_extra_token,
+    )
+    labels = tokens.clone().detach()
+    for target, source in zip(labels, sources):
+        source = source['conversations']
+        tokenized_len = len(tokenizer.text_to_ids(source[0]['value']))
+        target[:tokenized_len] = IGNORE_INDEX
+
+    if add_extra_token:
+        tokens = tokens[:, :-1].contiguous()
+        labels = labels[:, 1:].contiguous()
+    else:
+        labels = torch.roll(labels, shifts=-1, dims=-1)
+        labels[:, -1] = IGNORE_INDEX
+
+    return dict(tokens=tokens, labels=labels, )
 
 
 class LazySupervisedDataset(Dataset):
     """Dataset for supervised fine-tuning."""
 
-    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, multimodal_cfg: dict):
+    def __init__(self, data_path: str, tokenizer, multimodal_cfg: dict):
         super(LazySupervisedDataset, self).__init__()
         logging.warning("Loading data...")
         if data_path is not None:
@@ -432,19 +472,24 @@ class LazySupervisedDataset(Dataset):
             if images:
                 images_tensors = torch.stack(images)
                 cur_token_len = (images_tensors[0].shape[1] // 14) * (
-                    images_tensors[0].shape[2] // 14
+                        images_tensors[0].shape[2] // 14
                 )  # FIXME: 14 is hardcoded patch size
-                sources = preprocess_multimodal(copy.deepcopy(sources), self.multimodal_cfg, cur_token_len)
+                sources = preprocess_multimodal(
+                    copy.deepcopy(sources), self.multimodal_cfg, cur_token_len,
+                    use_plain=(self.conv_template == "plain"),
+                )
         else:
             images_tensors = torch.tensor([])
             sources = copy.deepcopy(sources)
 
         if self.conv_template == "nvgpt":
-            data_dict = preprocess_nvgpt(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_nvgpt(sources, self.tokenizer, self.multimodal_cfg, )
         elif self.conv_template == "v1":
-            data_dict = preprocess_v1(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_v1(sources, self.tokenizer, self.multimodal_cfg, )
         elif self.conv_template == "llama_2":
-            data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg, )
+        elif self.conv_template == "plain":
+            data_dict = preprocess_plain(sources, self.tokenizer, self.multimodal_cfg, )
         else:
             raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
 
@@ -466,7 +511,7 @@ class LazySupervisedDataset(Dataset):
 class NevaDataset(LazySupervisedDataset):
     """Dataset for supervised fine-tuning."""
 
-    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, multimodal_cfg: dict):
+    def __init__(self, data_path: str, tokenizer, multimodal_cfg: dict):
 
         if data_path.endswith(".json"):
             super(NevaDataset, self).__init__(data_path, tokenizer, multimodal_cfg)

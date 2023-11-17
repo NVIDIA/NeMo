@@ -454,6 +454,7 @@ class Timestep(nn.Module):
 class UNetModel(nn.Module):
     """
     The full UNet model with attention and timestep embedding.
+
     :param in_channels: channels in the input Tensor.
     :param model_channels: base channel count for the model.
     :param out_channels: channels in the output Tensor.
@@ -520,6 +521,7 @@ class UNetModel(nn.Module):
         # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
         use_flash_attention: bool = False,
         enable_amp_o2_fp16: bool = False,
+        lora_network_alpha=None,
     ):
         super().__init__()
         from omegaconf.listconfig import ListConfig
@@ -675,6 +677,7 @@ class UNetModel(nn.Module):
                                 attn_type=spatial_transformer_attn_type,
                                 use_checkpoint=use_checkpoint,
                                 use_flash_attention=use_flash_attention,
+                                lora_network_alpha=lora_network_alpha,
                             )
                         )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -741,6 +744,7 @@ class UNetModel(nn.Module):
                 attn_type=spatial_transformer_attn_type,
                 use_checkpoint=use_checkpoint,
                 use_flash_attention=use_flash_attention,
+                lora_network_alpha=lora_network_alpha,
             ),
             ResBlock(
                 ch,
@@ -805,6 +809,7 @@ class UNetModel(nn.Module):
                                 attn_type=spatial_transformer_attn_type,
                                 use_checkpoint=use_checkpoint,
                                 use_flash_attention=use_flash_attention,
+                                lora_network_alpha=lora_network_alpha,
                             )
                         )
                 if level and i == self.num_res_blocks[level]:
@@ -1117,7 +1122,7 @@ class UNetModel(nn.Module):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
         emb = self.time_embed(t_emb)
         if self.num_classes is not None:
-            assert y.shape[0] == x.shape[0]
+            assert y.shape == (x.shape[0],)
             emb = emb + self.label_emb(y)
 
         h = x.type(emb.dtype)
@@ -1129,7 +1134,6 @@ class UNetModel(nn.Module):
             h = th.cat([h, hs.pop()], dim=1)
             h = module(h, emb, context)
         if self.predict_codebook_ids:
-            ## Not supported anymore?
             return self.id_predictor(h)
         else:
             return self.out(h)

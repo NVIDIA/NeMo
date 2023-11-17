@@ -28,7 +28,6 @@ from transformers.models.clip.modeling_clip import CLIPTextTransformer
 
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
 from nemo.collections.multimodal.models.clip.megatron_clip_models import CLIPModel
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import Timestep
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import (
     TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 )
@@ -346,14 +345,7 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
     LAYERS = ["last", "pooled", "hidden"]
 
     def __init__(
-        self,
-        version="openai/clip-vit-large-patch14",
-        device="cuda",
-        max_length=77,
-        capture_cudagraph_iters: int = -1,
-        layer="last",
-        layer_idx=None,
-        always_return_pooled=False,
+        self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77,layer="last",layer_idx=None,always_return_pooled=False,
     ):
         super().__init__()
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
@@ -368,14 +360,6 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
         if layer == "hidden":
             assert layer_idx is not None
             assert 0 <= abs(layer_idx) <= 12
-
-        # CUDA graph captured sub-modules
-        self.capture_cudagraph_iters = capture_cudagraph_iters
-        self.iterations = 0
-        self.stream = torch.cuda.Stream()
-        self.transformer_graph = torch.cuda.CUDAGraph()
-        self.static_tokens = None
-        self.static_outputs = None
 
     def freeze(self):
         self.transformer = self.transformer.eval()
@@ -392,49 +376,21 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
             padding="max_length",
             return_tensors="pt",
         )
-        if self.capture_cudagraph_iters < 0:
-            tokens = batch_encoding["input_ids"].to(self.device, non_blocking=True)
-            outputs = self.transformer(input_ids=tokens, output_hidden_states=(self.layer == "hidden"))
-            if self.layer == "last":
-                z = outputs.last_hidden_state
-            elif self.layer == "pooled":
-                z = outputs.pooler_output[:, None, :]
-            else:
-                z = outputs.hidden_states[self.layer_idx]
+        tokens = batch_encoding["input_ids"].to(self.device, non_blocking=True)
+        outputs = self.transformer(input_ids=tokens)
 
+        if self.layer == "last":
+            z = outputs.last_hidden_state
+        elif self.layer == "pooled":
+            z = outputs.pooler_output[:, None, :]
         else:
-            if self.static_tokens is None:
-                self.static_tokens = batch_encoding["input_ids"].to(device=self.device, non_blocking=True)
-            self.static_tokens.copy_(batch_encoding["input_ids"], non_blocking=True)
+            z = outputs.hidden_states[self.layer_idx]
 
-            if self.iterations == self.capture_cudagraph_iters:
-                # cuda graph capture
-                logging.info("Capturing CUDA graph for module: %s", self.transformer.__class__.__name__)
-                with torch.cuda.graph(self.transformer_graph):
-                    self.static_outputs = self.transformer(input_ids=self.static_tokens)
-
-            if 0 <= self.capture_cudagraph_iters <= self.iterations:
-                # cuda graph replay
-                self.transformer_graph.replay()
-            else:
-                # warmup
-                self.stream.wait_stream(torch.cuda.current_stream())
-                with torch.cuda.stream(self.stream):
-                    self.static_outputs = self.transformer(input_ids=self.static_tokens)
-                torch.cuda.current_stream().wait_stream(self.stream)
-            self.iterations += 1
-            if self.layer == "last":
-                z = static_outputs.last_hidden_state
-            elif self.layer == "pooled":
-                z = static_outputs.pooler_output[:, None, :]
-            else:
-                z = static_outputs.hidden_states[self.layer_idx]
-
-        # # Pad the seq length to multiple of 8
+        # Pad the seq length to multiple of 8
         seq_len = (z.shape[1] + 8 - 1) // 8 * 8
         z = torch.nn.functional.pad(z, (0, 0, 0, seq_len - z.shape[1]), value=0.0)
         if self.return_pooled:
-            return z, outputs.pooler_output if self.capture_cudagraph_iters < 0 else static_outputs.pooler_output
+            return z, outputs.pooler_output
         return z
 
     def encode(self, text):
@@ -461,11 +417,15 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
         freeze=True,
         layer="last",
         use_fp16=False,
+        cache_dir=None,
     ):
         super().__init__()
         assert layer in self.LAYERS
+        print(f"Downloading clip with", arch, version, cache_dir)
         self.device = device
-        model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'), pretrained=version)
+        model, _, _ = open_clip.create_model_and_transforms(
+            arch, device=torch.device("cpu"), pretrained=version, cache_dir=cache_dir,
+        )
         del model.visual
         self.model = model
 
@@ -486,8 +446,12 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
             param.requires_grad = False
 
     def forward(self, text):
-        tokens = open_clip.tokenize(text)
-        z = self.encode_with_transformer(tokens.to(self.device))
+        if isinstance(text, list) and isinstance(text[0], str):
+            tokens = open_clip.tokenize(text)
+        else:
+            # tokenizer has been invoked before
+            tokens = text
+        z = self.encode_with_transformer(tokens.to(self.device, non_blocking=True))
         return z
 
     def encode_with_transformer(self, text):
@@ -616,6 +580,9 @@ class FrozenMegatronCLIPEmbedder(AbstractEncoder):
         return after
 
     def forward(self, text):
+        '''
+        Get embeddings from input text
+        '''
         texts = self.text_transform(text)
         z = self.encode_with_transformer(texts.to(self.device))
         # # Pad the seq length to multiple of 8

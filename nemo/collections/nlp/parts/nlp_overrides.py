@@ -15,6 +15,7 @@
 import functools
 import itertools
 import os
+import re
 import shutil
 import tempfile
 from collections import OrderedDict, defaultdict
@@ -68,6 +69,16 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
 
+
+try:
+    import amp_C
+
+    HAVE_AMP_C = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_AMP_C = False
+
 try:
     from megatron.core import dist_checkpointing, parallel_state
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
@@ -86,7 +97,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
-
 
 def init_model_parallel(global_rank: int, world_size: int) -> None:
     """ Initializes Megatron-LM model parallel if using model parallelism.
@@ -329,6 +339,345 @@ class ModelParallelCheckpointStrategy(Strategy):
                 logging.info(f'Removing checkpoint: {filepath}')
                 self.checkpoint_io.remove_checkpoint(filepath)
 
+class NLPDDPStrategy(DDPStrategy):
+    """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
+
+    Args:
+        no_ddp_communication_hook: Disable DDP communication hook when using AMP-O2
+        with FP32 gradient accumulation.
+    """
+
+    def __init__(
+        self,
+        parallel_devices: Optional[List[torch.device]] = None,
+        cluster_environment: ClusterEnvironment = None,
+        checkpoint_io: Optional[CheckpointIO] = None,
+        no_ddp_communication_hook: bool = False,
+        **kwargs: Union[Any, Dict[str, Any]],
+    ) -> None:
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+        super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
+
+        self.no_ddp_communication_hook = no_ddp_communication_hook
+
+    def setup(self, trainer: "pl.Trainer") -> None:
+        """
+        Override setup() of DDPStrategy to avoid _sync_module_states(self.model) during eval as it can cause PP > 1 to hang
+        due to assumption in DDPStrategy class that the same model is replicated across GPUs
+        """
+        trainer_fn = trainer.state.fn
+        if trainer_fn == TrainerFn.FITTING:
+            super().setup(trainer)
+        else:
+            assert self.accelerator is not None
+            self.accelerator.setup(trainer)
+
+            # move the model to the correct device
+            self.model_to_device()
+            self.setup_precision_plugin()
+            assert self.model is not None
+
+    def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
+        # call PTL init ddp
+        super().setup_distributed()
+
+        # init model parallel if needed
+        if not parallel_state.model_parallel_is_initialized():
+            app_state = AppState()
+
+            if app_state.model_parallel_size is not None:
+                self.init_model_parallel(app_state.global_rank, app_state.world_size)
+
+    def configure_ddp(self):
+        """ Override LightningModule ddp if using model parallel.
+            Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
+        """
+
+        if (hasattr(self.model, 'megatron_amp_O2') and self.model.megatron_amp_O2) or (
+            hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
+        ):
+            # do not use DDP if using megatron amp O2 or distributed optimizer
+            self._model = _LightningModuleWrapperBase(self.model)
+        else:
+            app_state = AppState()
+
+            if app_state.model_parallel_size is not None:
+
+                logging.info(f"Configuring DDP for model parallelism.")
+
+                # With model parallelism, multiple GPUs form a large "logical GPU"
+                # this means that data parallel groups span multiple GPUs
+                # and are non-trivial
+                # TODO: for megatron-lm self.model is a list
+                # Removing self.pre_configure_ddp() as DDP's 'find_unused_parameters' now defaults
+                # to False in PTL 2.0 and hence pre_configure_ddp() is removed in ddp.py
+                # self.pre_configure_ddp()
+                # device_ids = self.determine_ddp_device_ids()
+                self._model = DistributedDataParallel(
+                    _LightningModuleWrapperBase(self.model),
+                    process_group=parallel_state.get_data_parallel_group(),
+                    **self._ddp_kwargs,
+                )
+
+                if self.no_ddp_communication_hook:
+                    # When using custom gradient accumulation and allreduce, disable
+                    # DDP communication hook that works on the gradient bucket.
+                    # Instead, use the custom gradient function and communication hook,
+                    # which is defined in the master optimizer wrapper.
+                    self._model.require_backward_grad_sync = False
+                    self._model.register_comm_hook(None, noop_hook)
+
+            else:
+                super().configure_ddp()
+
+    def init_model_parallel(self, global_rank: int, world_size: int) -> None:
+        """ Initializes Megatron-LM model parallel if using model parallelism.
+
+        Args:
+            global_rank (int): the global process index.
+            world_size (int): the total number of GPUs, num_nodes * num_devices
+            is_slurm_managing_tasks (bool, optional): is the cluster managed by SLURM.
+        """
+        app_state = AppState()
+
+        # we initialize megatron-lm model parallel and data parallel groups
+        # after initializing DDP with PTL.
+        if app_state.model_parallel_size is not None:
+            # destroy groups in case they have already been created
+            # this happens with multiple calls to trainer.test for example
+            parallel_state.destroy_model_parallel()
+            if torch.distributed.is_initialized():
+                parallel_state.initialize_model_parallel(
+                    tensor_model_parallel_size=app_state.tensor_model_parallel_size,
+                    pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+                    virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
+                    pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                    use_fp8=app_state.use_fp8,
+                )
+
+                # assert that fake tp and pp rank match after model parallel init
+                assert app_state.tensor_model_parallel_rank == parallel_state.get_tensor_model_parallel_rank()
+                assert app_state.pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
+
+                app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
+                app_state.data_parallel_group = parallel_state.get_data_parallel_group()
+                app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
+                app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
+                app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
+
+                # create MPI process group for UCX-based communication APIs
+                if app_state.init_mpi_proc_group:
+                    torch.distributed.new_group(backend='mpi')
+
+    class ModelParallelCheckpointStrategy(Strategy):
+        """ Define model-parallel checkpoint save and resume methods shared by multiple strategies. """
+
+        def optimizer_sharded_state_dict(self):
+            """
+            Sharded state dictionary for an MainParamsOptimizerWrapper.
+            Used to save and load the optimizer state when training with distributed_checkpoint.
+            Returns:
+                dict: The sharded state dictionary for the optimizer
+            Raises:
+                ValueError: If a parameter ID does not match any model sharded parameter.
+            """
+
+            optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)  # MainParamsOptimizerWrapper
+
+            model_sharded_state_dict = self.lightning_module.sharded_state_dict()
+
+            # remove _extra_state
+            model_sharded_state_dict = {
+                key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
+            }
+
+            if not isinstance(optimizer, MainParamsOptimizerWrapper):
+                return optimizer.sharded_state_dict(model_sharded_state_dict)
+
+            optimizer_state_dict = optimizer.state_dict()
+
+            id_to_sharded_param_map = get_param_id_to_sharded_param_map(
+                model_sharded_state_dict=model_sharded_state_dict,
+                optim_params_iter=itertools.chain.from_iterable(g for g in optimizer.float16_groups),
+            )
+
+            # Convert fp32_from_fp16_params
+            assert len(optimizer_state_dict['fp32_from_fp16_params']) == len(
+                optimizer_state_dict['optimizer']['param_groups']
+            )
+
+            def get_safe(param_id):
+                try:
+                    return id_to_sharded_param_map[param_id]
+                except KeyError as e:
+                    raise ValueError(f'Param id {param_id} does not match any model sharded param') from e
+
+            optimizer_state_dict['fp32_from_fp16_params'] = [
+                [
+                    make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_param')
+                    for param_id, fp32_param in zip(state_group['params'], fp32_group)
+                ]
+                for fp32_group, state_group in zip(
+                    optimizer_state_dict['fp32_from_fp16_params'], optimizer_state_dict['optimizer']['param_groups']
+                )
+            ]
+
+            # Convert state
+            optim_state_to_sharding_state(optimizer_state_dict['optimizer'], id_to_sharded_param_map)
+
+            return optimizer_state_dict
+
+        def save_checkpoint(
+                self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
+        ) -> None:
+            app_state = AppState()
+            """ PTL method which we override to accomodate distributed checkpoints and 
+                the legacy model parallel checkpoints.
+
+                When using megatron core, the distributed checkpointing library expects save functions to be
+                called on every rank and internally does the rank checking.
+            """
+            # check if using distributed checkpointing
+            if (
+                    hasattr(self.lightning_module, 'sharded_state_dict')
+                    and self.lightning_module.sharded_state_dict() is not None
+            ):
+                # converts the optimizer states to their sharded equivalents
+                checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+
+                # dist_checkpointing expects a directory so we will name the directory
+                # using the path with the file extension removed
+                checkpoint_dir = ckpt_to_dir(filepath)
+
+                fs = get_filesystem(checkpoint_dir)
+                if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
+                    logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
+                    return
+
+                if is_global_rank_zero():
+                    fs.makedirs(checkpoint_dir, exist_ok=True)
+
+                # remove device state_dict
+                checkpoint['state_dict'] = OrderedDict([])
+
+                dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
+            else:
+                # PTL override to accomodate model parallel checkpoints
+                filepath = inject_model_parallel_rank(filepath)
+                if self.is_global_zero or app_state.data_parallel_rank == 0:
+                    self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+
+        def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
+            # if using distributed checkpointing, the state dict logic is at the model level
+            if (
+                    hasattr(self.lightning_module, 'sharded_state_dict')
+                    and self.lightning_module.sharded_state_dict() is not None
+            ):
+                return
+
+            # legacy state dict logic, does not use megatron core
+            else:
+
+                # Release strict state dict matching when using Megatron AMP-O2 to skip matching
+                # half-precision module wrapper module.
+                # TODO: Refactor this to be more generic.
+                model_key = None
+                model_attr = None
+                if hasattr(self.lightning_module, 'model'):
+                    model_key = 'model'
+                    model_attr = self.lightning_module.model
+                elif hasattr(self.lightning_module, 'enc_dec_model'):
+                    model_key = 'enc_dec_model'
+                    model_attr = self.lightning_module.enc_dec_model
+                if model_key is not None:
+                    if isinstance(model_attr, Float16Module) or isinstance(model_attr, MCoreFloat16Module):
+                        new_state_dict = {}
+                        for key in checkpoint['state_dict'].keys():
+                            new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
+                            new_state_dict[new_key] = checkpoint['state_dict'][key]
+                        checkpoint['state_dict'] = new_state_dict
+
+                self.lightning_module.load_state_dict(checkpoint["state_dict"])
+
+        def _fix_tensors_device(self, ckpt: Dict) -> Dict:
+            """ Ensure checkpoint tensors are on the correct device."""
+            assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
+            cur_dev = torch.device("cuda", index=torch.cuda.current_device())
+
+            def _fix_device(t):
+                if isinstance(t, torch.Tensor) and t.is_cuda and t.device != cur_dev:
+                    t = t.to(cur_dev)
+                return t
+
+            return dict_list_map_outplace(_fix_device, ckpt)
+
+        def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
+            """ PTL method which we override to integrate distributed checkpoints for model parallel models.
+                In order to load distributed checkpoints we need to provide the sharded_state_dict to
+                the distributed load function. We get the sharded_state_dict from self.lightning_module
+                which makes it convenient to have the loading logic happen at the strategy level.
+            """
+
+            fs = get_filesystem(checkpoint_path)
+
+            # Check if using distributed checkpointing
+            if (
+                    hasattr(self.lightning_module, 'sharded_state_dict')
+                    and self.lightning_module.sharded_state_dict() is not None
+            ):
+
+                # Distributed checkpoints must be directories.
+                if not fs.isdir(checkpoint_path):
+                    raise ValueError(f'Distributed checkpoints should be a directory. Found: {checkpoint_path}.')
+
+                sharded_state_dict = self.lightning_module.sharded_state_dict()
+
+                checkpoint = {}
+
+                # after dist_checkpointing.load, sharded tensors will be replaced with tensors
+                checkpoint['state_dict'] = sharded_state_dict
+                checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+
+                checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_path)
+
+                checkpoint = self._fix_tensors_device(checkpoint)
+
+                return checkpoint
+
+            # Legacy model parallel checkpointing logic, does not use megatron core
+            else:
+                # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+                checkpoint_path = inject_model_parallel_rank(checkpoint_path)
+                if not fs.exists(checkpoint_path):
+                    raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
+                torch.cuda.empty_cache()
+                return self.checkpoint_io.load_checkpoint(checkpoint_path)
+
+        def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+            # check if filepath is a distributed checkpoint
+            if (
+                    hasattr(self.lightning_module, 'sharded_state_dict')
+                    and self.lightning_module.sharded_state_dict() is not None
+            ):
+                if self.is_global_zero:
+                    shutil.rmtree(ckpt_to_dir(filepath))
+
+            # legacy checkpoint logic, does not use megatron core
+            else:
+                app_state = AppState()
+                # PTL override to accomodate model parallel checkpoints
+                filepath = inject_model_parallel_rank(filepath)
+                if self.is_global_zero or app_state.data_parallel_rank == 0:
+                    logging.info(f'Removing checkpoint: {filepath}')
+                    self.checkpoint_io.remove_checkpoint(filepath)
 
 class NLPDDPStrategy(ModelParallelCheckpointStrategy, DDPStrategy):
     """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
@@ -789,6 +1138,73 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
 
+        new_state_dict = {}
+        for key in state_dict.keys():
+            new_key = key.replace(
+                'word_embeddings.adapter_layer.mm_linear_adapter.linear',
+                'word_embeddings.adapter_layer.mm_projector_adapter.mm_projector',
+                1,
+            )
+            new_state_dict[new_key] = state_dict[key]
+        state_dict = new_state_dict
+
+        # compatibility for inductor in inference
+        if not conf.get('inductor', False):
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('._orig_mod', '', 1)
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+
+        # Modify state key for Dreambooth inference
+        if (
+            conf.get('target')
+            == 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
+        ):
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('unet', 'model.diffusion_model')
+                new_key = new_key.replace('vae', 'first_stage_model')
+                new_key = new_key.replace('text_encoder', 'cond_stage_model')
+                new_key = new_key.replace('.noise_scheduler', '')
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+
+        loaded_keys = state_dict.keys()
+        if 'model.model.diffusion_model.input_blocks.1.0.in_layers.2.weight' in loaded_keys:
+            new_state_dict = {}
+            # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
+            def should_process(key):
+                base_str = "model.model.diffusion_model."
+                blocks = ["input_blocks", "middle_block", "output_blocks"]
+                for block in blocks:
+                    for layer_type in ["in_layers", "out_layers"]:
+                        for index in [2, 3]:  # The layers index.
+                            for param in ["weight", "bias"]:
+                                if block == 'middle_block':
+                                    for num in [0, 2]:
+                                        template = f"{base_str}{block}.{num}.{layer_type}.{index}.{param}"
+                                        if key == template:
+                                            return True
+                                else:
+                                    for num in range(12):  # 12 blocks, adjust as needed.
+                                        template = f"{base_str}{block}.{num}.0.{layer_type}.{index}.{param}"
+                                        if key == template:
+                                            return True
+                return False
+
+            for key_ in state_dict.keys():
+                if key_ == "model.cond_stage_model.transformer.text_model.embeddings.position_ids":
+                    continue
+                if should_process(key_):
+                    s = key_.split('.')
+                    idx = int(s[-2])
+                    new_key_ = ".".join(s[:-2] + [str(int(idx - 1))] + [s[-1]])
+                    new_state_dict[new_key_] = state_dict[key_]
+                else:
+                    new_state_dict[key_] = state_dict[key_]
+            state_dict = new_state_dict
+
         return state_dict
 
     def _load_state_dict_from_disk(self, model_weights, map_location=None):
@@ -1127,7 +1543,13 @@ class GradScaler(torch.cuda.amp.GradScaler):
         )
         self.optimizer_update_skipped: Optional[bool] = None
         self.hysteresis = hysteresis
-        self._hysteresis_tracker = self.hysteresis
+
+    def _lazy_init_scale_growth_tracker(self, dev):
+        super()._lazy_init_scale_growth_tracker(dev)
+        if HAVE_AMP_C:
+            self._hysteresis_tracker = torch.tensor([self.hysteresis], dtype=torch.int32, device=dev)
+        else:
+            self._hysteresis_tracker = self.hysteresis
 
     def _unscale_grads_(self, optimizer, *args):
         if getattr(optimizer, "_custom_amp_unscale_grads", False):
@@ -1137,14 +1559,17 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         retval = None
-        found_inf = torch.cuda.FloatTensor([sum(v.item() for v in optimizer_state["found_inf_per_device"].values())])
+        found_infs = tuple(optimizer_state["found_inf_per_device"].values())
+        found_inf = torch.stack(found_infs).sum(dim=0, keepdim=True)
 
         # Update across all model parallel instances.
         torch.distributed.all_reduce(
             found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
         )
 
-        if found_inf.item() == 0:
+        self._found_infs_cpu = found_inf.item()
+        self._found_infs_cuda = found_inf
+        if self._found_infs_cpu == 0:
             retval = optimizer.step(*args, **kwargs)
             self.optimizer_update_skipped = False
         else:
@@ -1200,11 +1625,38 @@ class GradScaler(torch.cuda.amp.GradScaler):
                     )
                     found_inf_combined += found_inf
 
-            if found_inf_combined > 0:
-                self._hysteresis_tracker -= 1
-                if self._hysteresis_tracker <= 0:
-                    # When hysteresis becomes zero, follow the native grad scale update rule.
-                    # Increase scale and reset growth tracker
+            if HAVE_AMP_C:
+                amp_C.update_scale_hysteresis(
+                    _scale,
+                    _growth_tracker,
+                    self._hysteresis_tracker,
+                    found_inf_combined,
+                    self._growth_factor,
+                    self._backoff_factor,
+                    self._growth_interval,
+                    self.hysteresis,
+                )
+            else:
+                if found_inf_combined > 0:
+                    self._hysteresis_tracker -= 1
+                    if self._hysteresis_tracker <= 0:
+                        # When hysteresis becomes zero, follow the native grad scale update rule.
+                        # Increase scale and reset growth tracker
+                        torch._amp_update_scale_(
+                            _scale,
+                            _growth_tracker,
+                            found_inf_combined,
+                            self._growth_factor,
+                            self._backoff_factor,
+                            self._growth_interval,
+                        )
+                    else:
+                        # Only reset the growth tracker when hysteresis is larger than zero
+                        _growth_tracker.fill_(0.0)
+                else:
+                    # When no inf found, follow the native grad scale update rule.
+                    # Increment growth_tracker, update scale when growth tracker reaches the interval, and
+                    # reset the hysteresis tracker.
                     torch._amp_update_scale_(
                         _scale,
                         _growth_tracker,
@@ -1213,22 +1665,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
                         self._backoff_factor,
                         self._growth_interval,
                     )
-                else:
-                    # Only reset the growth tracker when hysteresis is larger than zero
-                    _growth_tracker.fill_(0.0)
-            else:
-                # When no inf found, follow the native grad scale update rule.
-                # Increment growth_tracker, update scale when growth tracker reaches the interval, and
-                # reset the hysteresis tracker.
-                torch._amp_update_scale_(
-                    _scale,
-                    _growth_tracker,
-                    found_inf_combined,
-                    self._growth_factor,
-                    self._backoff_factor,
-                    self._growth_interval,
-                )
-                self._hysteresis_tracker = self.hysteresis
+                    self._hysteresis_tracker = self.hysteresis
 
         # To prepare for next iteration, clear the data collected from optimizers this iteration.
         self._per_optimizer_states = defaultdict(torch.cuda.amp.grad_scaler._refresh_per_optimizer_state)
@@ -1275,7 +1712,10 @@ class GradScaler(torch.cuda.amp.GradScaler):
         if "_hysterisis_tracker" in state_dict:
             self._hysteresis_tracker = state_dict["_hysterisis_tracker"]
         else:
-            self._hysteresis_tracker = 1
+            if HAVE_AMP_C:
+                self._hysteresis_tracker = torch.tensor([1], dtype=torch.int32, device="cuda")
+            else:
+                self._hysteresis_tracker = 1
 
 
 class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):

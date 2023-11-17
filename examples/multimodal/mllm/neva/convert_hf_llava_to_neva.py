@@ -19,6 +19,7 @@ Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
      --in-file <path_to_hf_checkpoints_folder> \
      --out-file <path_to_output_nemo_file> \
      --tokenizer-model <path_to_sp_tokenizer_model>
+     --conv-template llama_2 # nvgpt, llama_2, v1 (vicuna)
 """
 
 import os
@@ -49,6 +50,7 @@ def get_args():
         "--in-file", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--conv-template", type=str, default="llama_2", required=False, help="Conversation template: nvgpt, llama_2, v1 (vicuna)")
     parser.add_argument(
         "--tokenizer-model", type=str, default=None, required=False, help="Path to sentencepiece tokenizer model."
     )
@@ -68,7 +70,15 @@ def load_model(cls, checkpoint, strict, **kwargs):
             model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
             for name, module in model.named_parameters():
                 if name in checkpoint['state_dict']:
-                    module.data = checkpoint['state_dict'][name]
+                    if module.data.shape != checkpoint['state_dict'][name].shape:
+                        print(
+                            f"WARNING: Auto padding {name} from {checkpoint['state_dict'][name].shape} to {module.data.shape}"
+                        )
+                        module.data[
+                            : checkpoint['state_dict'][name].size(0), : checkpoint['state_dict'][name].size(1)
+                        ] = checkpoint['state_dict'][name]
+                    else:
+                        module.data = checkpoint['state_dict'][name]
                     checkpoint['state_dict'].pop(name)
                 else:
                     print(f"Unexpected key: {name} not in checkpoint but in model.")
@@ -99,7 +109,9 @@ def load_model(cls, checkpoint, strict, **kwargs):
 def load_config(args, llava_config):
     nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), 'conf/llava_config.yaml')).model
     nemo_config.mm_cfg.mm_mlp_adapter_type = llava_config.get('mm_projector_type', 'linear')
-    nemo_config.mm_cfg.vision_encoder.from_pretrained = llava_config.get('mm_vision_tower', 'openai/clip-vit-large-patch14')
+    nemo_config.mm_cfg.vision_encoder.from_pretrained = llava_config.get(
+        'mm_vision_tower', 'openai/clip-vit-large-patch14'
+    )
     if '336' in nemo_config.mm_cfg.vision_encoder.from_pretrained:
         nemo_config.data.image_token_len = 576
     nemo_config.encoder_seq_length = llava_config['max_position_embeddings']
@@ -114,6 +126,8 @@ def load_config(args, llava_config):
         nemo_config.num_query_groups = llava_config['num_key_value_heads']
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
+    nemo_config.data.conv_template = args.conv_template
+    nemo_config.mm_cfg.model_type = args.conv_template
     if args.tokenizer_model is None:
         nemo_config.tokenizer.model = llava_config['tokenizer_model']
     else:
@@ -218,9 +232,9 @@ def convert(args):
     for key in model.state_dict():
         if 'mm_projector' in key:
             mm_projection_layer_suffix = key.split('mm_projector')[1]
-            checkpoint['state_dict'][f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'] = param_to_weights(
-                model.state_dict()[key]
-            )
+            checkpoint['state_dict'][
+                f'{mm_projection_layer_base_name}{mm_projection_layer_suffix}'
+            ] = param_to_weights(model.state_dict()[key])
 
     embed_weight = model.state_dict()[f'model.embed_tokens.weight']
     if mcore_gpt:

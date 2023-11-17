@@ -52,6 +52,8 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
         Returns all the keys in the model
         """
         k = [n for n, p in self.named_parameters()]
+        if self.megatron_amp_O2:
+            k = [key.replace("model.module.", "model.", 1) for key in k]
         return set(k)
 
     def add_adapter(self, peft_cfgs: Union[PEFTConfig, List[PEFTConfig]]):
@@ -123,9 +125,7 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
         assert set(state_dict.keys()) == self.adapter_keys
 
         if self.megatron_amp_O2:
-            state_dict = {
-                k.replace("model.", "model.module.", 1): v for k, v in state_dict.items()
-            }
+            state_dict = {k.replace("model.", "model.module.", 1): v for k, v in state_dict.items()}
 
         missing_keys, unexpected_keys = NLPModel.load_state_dict(self, state_dict, strict=False)
 

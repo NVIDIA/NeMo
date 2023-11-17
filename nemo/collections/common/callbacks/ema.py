@@ -244,7 +244,10 @@ class EMAOptimizer(torch.optim.Optimizer):
             )
             self.rebuild_ema_params = False
 
-        loss = self.optimizer.step(closure=closure, grad_scaler=grad_scaler)
+        if getattr(self.optimizer, "_step_supports_amp_scaling", False) and grad_scaler is not None:
+            loss = self.optimizer.step(closure=closure, grad_scaler=grad_scaler)
+        else:
+            loss = self.optimizer.step(closure)
 
         if self._should_update_at_step():
             self.update()

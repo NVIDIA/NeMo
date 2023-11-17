@@ -94,6 +94,7 @@ def build_train_valid_datasets(
             image_key=model_cfg.first_stage_key,
             txt_key=model_cfg.cond_stage_key,
             context_dim=model_cfg.unet_config.context_dim,
+            fake_len=data_cfg.synthetic_data_length,
         )
 
     else:

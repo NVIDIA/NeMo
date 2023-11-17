@@ -69,7 +69,7 @@ model:
     llm:
       from_pretrained: null # path to nemo checkpoint
       freeze: False
-      model_type: v1 # Only support nvgpt or v1
+      model_type: llama_2 # Only support nvgpt or llama_2
     vision_encoder:
       from_pretrained: "openai/clip-vit-large-patch14" # path or name
       from_hf: True
@@ -121,7 +121,6 @@ model:
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
-  override_vocab_size: 32000
 
   ## Activation Checkpointing
   activations_checkpoint_granularity: null # 'selective' or 'full'
@@ -188,7 +187,7 @@ model:
     is_multimodal: True
     sep_image_conv_front: False
     image_token_len: 256
-    conv_template: v1 # check `nemo/collections/multimodal/data/neva/conversation.py`
+    conv_template: llama_2 # check `nemo/collections/multimodal/data/neva/conversation.py`
     image_folder: null
     image_aspect_ratio: 'square'
 
