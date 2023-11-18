@@ -204,12 +204,14 @@ for dataset, rate in DATA_BLEND.items():
 with open(OUTPUT_FILE, 'w', encoding='utf-8') as outf:
     datasets = list(DATA_BLEND.keys())
     weights = list(DATA_BLEND.values())
-    for sample_idx in range(SAMPLE_SIZE):
+    sample_idx = 0
+    while sample_idx < SAMPLE_SIZE:
         dataset_sel = random.choices(datasets, weights=weights, k=1)[0]
         sample = json.loads(dataset_handlers[dataset_sel].readline())
         # print("\n\n\n", sample.keys())
         if "text" in sample:
             entry = {'input': sample["text"][:MAX_LENGTH]}
             outf.write(json.dumps(entry) + '\n')
+            sample_idx += 1
         else:
             print("text field not found in ", dataset_sel)
