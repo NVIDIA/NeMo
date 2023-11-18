@@ -15,6 +15,8 @@ from safetensors.torch import load_file as load_safetensors
 from torch._dynamo import optimize
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from torch.optim.lr_scheduler import LambdaLR
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
+from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
 
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import build_sdxl_precached_text_train_valid_datasets, build_train_valid_precached_datasets, build_sdxl_train_valid_datasets
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.wrappers import OPENAIUNETWRAPPER
@@ -25,10 +27,12 @@ from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     instantiate_from_config,
     log_txt_as_img,
 )
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import ModelPT, Serialization
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 try:
     from apex import amp
@@ -319,7 +323,7 @@ class DiffusionEngine(nn.Module, Serialization):
 
 
 
-class MegatronDiffusionEngine(MegatronBaseModel):
+class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
     """Megatron DiffusionEngine Model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -698,3 +702,17 @@ class MegatronDiffusionEngine(MegatronBaseModel):
             return self.trainer.model.parameters()
         else:
             return self.model.parameters()
+
+    def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
+        if isinstance(module, AdapterModuleMixin):
+            if isinstance(module, LinearWrapper):
+                peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
+            else:
+                return
+            if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                module.add_adapter(
+                    name=peft_name,
+                    cfg=peft_cfg,
+                    base_model_cfg=self.cfg,
+                    model_parallel_config=self.model_parallel_config,
+                )

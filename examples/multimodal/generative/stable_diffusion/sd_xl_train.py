@@ -19,6 +19,7 @@ from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPFSDPStrategy
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 
 from nemo.collections.multimodal.models.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
 
@@ -70,10 +71,6 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    if cfg.model.get('inductor', False):
-        # SDXL has 140 CrossAttention, default cache size is 64
-        dynamo_config.cache_size_limit = 256
-
     torch.backends.cuda.matmul.allow_tf32 = True
 
     trainer = MegatronStableDiffusionTrainerBuilder(cfg).create_trainer()
@@ -81,6 +78,22 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model = MegatronDiffusionEngine(cfg.model, trainer)
+
+    if cfg.model.get('peft', None):
+
+        peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
+
+        if cfg.model.peft.restore_from_path is not None:
+            # initialize peft weights from a checkpoint instead of randomly
+            # This is not the same as resume training because optimizer states are not restored.
+            logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
+            model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+        elif peft_cfg_cls is not None:
+            logging.info("Adding adapter weights to the model for PEFT")
+            model.add_adapter(peft_cfg_cls(cfg.model))
+        else:
+            logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
+
     trainer.fit(model)
 
 
