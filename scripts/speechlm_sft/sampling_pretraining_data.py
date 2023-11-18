@@ -248,6 +248,6 @@ with open(OUTPUT_FILE, 'w', encoding='utf-8') as outf:
             outf.write(json.dumps(entry) + '\n')
             sample_idx += 1
         else:
-            #print("text field not found in ", dataset_sel)
+            # print("text field not found in ", dataset_sel)
             skipped += 1
     print("Skipped: ", skipped)
