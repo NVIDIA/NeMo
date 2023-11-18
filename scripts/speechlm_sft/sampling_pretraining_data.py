@@ -208,7 +208,7 @@ with open(OUTPUT_FILE, 'w', encoding='utf-8') as outf:
         dataset_sel = random.choices(datasets, weights=weights, k=1)[0]
         sample = json.loads(dataset_handlers[dataset_sel].readline())
         #print("\n\n\n", sample.keys())
-        if "text" not in sample:
+        if "text" in sample:
             entry = {'input': sample["text"][:MAX_LENGTH]}
             outf.write(json.dumps(entry) + '\n')
         else:
