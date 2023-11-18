@@ -1,0 +1,1 @@
+Hydra config structure from https://github.com/ashleve/lightning-hydra-template

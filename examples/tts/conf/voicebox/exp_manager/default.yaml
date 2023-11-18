@@ -1,0 +1,3 @@
+exp_dir: /path/to/my/experiments
+name: my_experiment_name
+create_checkpoint_callback: True

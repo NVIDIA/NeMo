@@ -1,0 +1,5 @@
+create_dllogger_logger: True
+dllogger_logger_kwargs:
+  verbose: False
+  stdout: False
+  json_file: "./dllogger.json"
