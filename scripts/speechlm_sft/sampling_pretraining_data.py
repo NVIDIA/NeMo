@@ -201,7 +201,7 @@ for dataset, rate in DATA_BLEND.items():
     dataset_handler = open(dataset_path, 'r')
     dataset_handlers[dataset] = dataset_handler
 
-with open(OUTPUT_FILE, 'w') as outf:
+with open(OUTPUT_FILE, 'w', encoding='utf-8') as outf:
     datasets = list(DATA_BLEND.keys())
     weights = list(DATA_BLEND.values())
     for sample_idx in range(SAMPLE_SIZE):
