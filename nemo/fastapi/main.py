@@ -28,7 +28,7 @@ async def completions_v1(
     print('frequency_penalty: ', frequency_penalty)
 
 
-    nq = NemoQuery(url="http://localhost", model_name=model)
+    nq = NemoQuery(url="http://localhost:8002", model_name=model)
     output = nq.query_llm(
         prompts=[prompt],
         max_output_token=max_tokens,
