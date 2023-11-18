@@ -1249,6 +1249,8 @@ class PseudoAlignedModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
         )
         asr_labels, asr_labels_len = self.get_speech_labels(labels, input_length, loss_mask)
 
+        num_audios = audio_batch.get("num_audios", None)
+        context_start_idx = audio_batch.get("context_start_idx", None)
         # [b, t, c]
         lm_embedding = self.model.language_model.embedding.word_embeddings
         encoded, encoded_len, aux_loss = self.perception(
@@ -1261,9 +1263,16 @@ class PseudoAlignedModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
             labels=asr_labels,
             labels_len=asr_labels_len,
         )
+        if num_audios is not None:
+            # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
+            encoded = encoded.split(num_audios.tolist())
+            encoded_len = encoded_len.split(num_audios.tolist())
         encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
-            encoded, encoded_len, input_ids, input_length
+            encoded, encoded_len, input_ids, input_length, context_start_idx
         )
+        if num_audios is not None:
+            # sum up the audio_feat_lens for each sample in the batch
+            encoded_len = torch.stack([torch.sum(lens) for lens in encoded_len])
         labels = self._shift_labels_by_emb_len(labels, input_length, encoded_len, encoder_max_length, pad_token=0)
         # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
         loss_mask = self._shift_labels_by_emb_len(
