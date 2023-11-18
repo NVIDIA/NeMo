@@ -7,7 +7,7 @@ OUTPUT_FILE = "pretraining_samples.json"
 MAX_LENGTH = 2048
 
 DATA_FOLDER = "/lustre/fsw/adlr/adlr-nlp/adlr-nlp-sharing/nvllm-3.5t/data/text/"
-#DATA_FOLDER = "/drive3/datasets/speechlm/pretrainig/"
+# DATA_FOLDER = "/drive3/datasets/speechlm/pretrainig/"
 
 AR2240 = "non-english/AR_shuf.jsonl"
 AZ2240 = "non-english/AZ_shuf.jsonl"
@@ -97,24 +97,106 @@ MC4 = "english/mc4-en_shuf.jsonl"
 SEC = "english/sec_tdd_shuf"
 
 
-DATA_BLEND = {AR2240: 0.0015, AZ2240: 0.00005, BG2240: 0.00073, BN2240: 0.00013, CA2240: 0.00036, CS2240: 0.00182, DA2240: 0.00083, DE2240: 0.02176, EL2240: 0.00166, ES2240: 0.02137, ET2240: 0.0002, FA2240: 0.00162, FI2240: 0.0008, FR2240: 0.01954, GL2240: 0.00004, HE2240: 0.00049, HI2240: 0.00047, HR2240: 0.0005, HU2240: 0.00148, HY2240: 0.00004, ID2240: 0.00322, IS2240: 0.00004, IT2240: 0.00997, KA2240: 0.00004, KK2240: 0.00004, KN2240: 0.00002, KO2240: 0.00057, LT2240: 0.00032, LV2240: 0.00014, MK2240: 0.00003, ML2240: 0.00002, MR2240: 0.00003, NE2240: 0.00003, NL2240: 0.00463, NO2240: 0.00095, PL2240: 0.0049, PT2240: 0.00689, RO2240: 0.00191, RU2240: 0.01209, SK2240: 0.00044, SL2240: 0.00023, SQ2240: 0.00007, SR2240: 0.00022, SV2240: 0.00158, TA2240: 0.0001, TE2240: 0.00002, TR2240: 0.00197, UK2240: 0.00117, UR2240: 0.00004, VI2240: 0.00415, JAMC4: 0.00827, ZHMC4: 0.0044, NMT: 0.00612,
-              B3: 0.02424, OWT2: 0.02022, SE: 0.00946, PMA: 0.00409, WIK2023: 0.007, GUT: 0.00243, BC2: 0.00148, NIH: 0.00029, ARX2023: 0.02128, PMC: 0.01987, ST: 0.00301, BIGSC: 0.03286, REDDIT: 0.02644, CCNEWS: 0.06323, PCC: 0.00982, CC201730: 0.04649, CC201830_0: 0.02882, CC201830_1: 0.02882, CC201935: 0.03937, CC202029: 0.02946, CC202050: 0.03386, CC202104: 0.01627, CC202131: 0.03872, CC202233: 0.03828, CC202240_0: 0.03391, CC202240_1: 0.03391, CC202314: 0.03777, MC4: 0.04169, SEC: 0.00689}
+DATA_BLEND = {
+    AR2240: 0.0015,
+    AZ2240: 0.00005,
+    BG2240: 0.00073,
+    BN2240: 0.00013,
+    CA2240: 0.00036,
+    CS2240: 0.00182,
+    DA2240: 0.00083,
+    DE2240: 0.02176,
+    EL2240: 0.00166,
+    ES2240: 0.02137,
+    ET2240: 0.0002,
+    FA2240: 0.00162,
+    FI2240: 0.0008,
+    FR2240: 0.01954,
+    GL2240: 0.00004,
+    HE2240: 0.00049,
+    HI2240: 0.00047,
+    HR2240: 0.0005,
+    HU2240: 0.00148,
+    HY2240: 0.00004,
+    ID2240: 0.00322,
+    IS2240: 0.00004,
+    IT2240: 0.00997,
+    KA2240: 0.00004,
+    KK2240: 0.00004,
+    KN2240: 0.00002,
+    KO2240: 0.00057,
+    LT2240: 0.00032,
+    LV2240: 0.00014,
+    MK2240: 0.00003,
+    ML2240: 0.00002,
+    MR2240: 0.00003,
+    NE2240: 0.00003,
+    NL2240: 0.00463,
+    NO2240: 0.00095,
+    PL2240: 0.0049,
+    PT2240: 0.00689,
+    RO2240: 0.00191,
+    RU2240: 0.01209,
+    SK2240: 0.00044,
+    SL2240: 0.00023,
+    SQ2240: 0.00007,
+    SR2240: 0.00022,
+    SV2240: 0.00158,
+    TA2240: 0.0001,
+    TE2240: 0.00002,
+    TR2240: 0.00197,
+    UK2240: 0.00117,
+    UR2240: 0.00004,
+    VI2240: 0.00415,
+    JAMC4: 0.00827,
+    ZHMC4: 0.0044,
+    NMT: 0.00612,
+    B3: 0.02424,
+    OWT2: 0.02022,
+    SE: 0.00946,
+    PMA: 0.00409,
+    WIK2023: 0.007,
+    GUT: 0.00243,
+    BC2: 0.00148,
+    NIH: 0.00029,
+    ARX2023: 0.02128,
+    PMC: 0.01987,
+    ST: 0.00301,
+    BIGSC: 0.03286,
+    REDDIT: 0.02644,
+    CCNEWS: 0.06323,
+    PCC: 0.00982,
+    CC201730: 0.04649,
+    CC201830_0: 0.02882,
+    CC201830_1: 0.02882,
+    CC201935: 0.03937,
+    CC202029: 0.02946,
+    CC202050: 0.03386,
+    CC202104: 0.01627,
+    CC202131: 0.03872,
+    CC202233: 0.03828,
+    CC202240_0: 0.03391,
+    CC202240_1: 0.03391,
+    CC202314: 0.03777,
+    MC4: 0.04169,
+    SEC: 0.00689,
+}
 
-#A = "NIHExporter_shuf.jsonl"
-#B = "NIHExporter_shuf2.jsonl"
+# A = "NIHExporter_shuf.jsonl"
+# B = "NIHExporter_shuf2.jsonl"
 
-#DATA_BLEND = {A: 0.0015, B: 0.00005}
+# DATA_BLEND = {A: 0.0015, B: 0.00005}
 
 dataset_handlers = {}
 
-#Normalize the rates
+# Normalize the rates
 rates_sum = 0.0
 for dataset, rate in DATA_BLEND.items():
     rates_sum += rate
 
 
 for dataset, rate in DATA_BLEND.items():
-    DATA_BLEND[dataset] = (rate/rates_sum)
+    DATA_BLEND[dataset] = rate / rates_sum
     dataset_path = os.path.join(DATA_FOLDER, dataset)
     dataset_handler = open(dataset_path, 'r')
     dataset_handlers[dataset] = dataset_handler
