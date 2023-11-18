@@ -116,7 +116,7 @@ for dataset, rate in DATA_BLEND.items():
 for dataset, rate in DATA_BLEND.items():
     DATA_BLEND[dataset] = (rate/rates_sum)
     dataset_path = os.path.join(DATA_FOLDER, dataset)
-    dataset_handler = open(dataset_path, 'r', encoding='utf-8')
+    dataset_handler = open(dataset_path, 'r')
     dataset_handlers[dataset] = dataset_handler
 
 with open(OUTPUT_FILE, 'w', encoding='utf-8') as outf:
