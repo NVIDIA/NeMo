@@ -205,6 +205,7 @@ with open(OUTPUT_FILE, 'w', encoding='utf-8') as outf:
     datasets = list(DATA_BLEND.keys())
     weights = list(DATA_BLEND.values())
     sample_idx = 0
+    skipped = 0
     while sample_idx < SAMPLE_SIZE:
         dataset_sel = random.choices(datasets, weights=weights, k=1)[0]
         sample = json.loads(dataset_handlers[dataset_sel].readline())
@@ -214,4 +215,6 @@ with open(OUTPUT_FILE, 'w', encoding='utf-8') as outf:
             outf.write(json.dumps(entry) + '\n')
             sample_idx += 1
         else:
-            print("text field not found in ", dataset_sel)
+            #print("text field not found in ", dataset_sel)
+            skipped += 1
+    print("Skipped: ", skipped)
