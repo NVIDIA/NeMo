@@ -28,6 +28,7 @@ except (ImportError, ModuleNotFoundError):
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     LoraQAdapterConfig,
+    LoraKQVAdapterConfig,
     ParallelLinearAdapterConfig,
 )
 
