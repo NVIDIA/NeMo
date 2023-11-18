@@ -98,6 +98,13 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         self._reset_sequence_parallelism_args()
         self.virtual_tokens = 0
 
+    def sharded_state_dict(self, prefix: str = ''):
+        use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
+        if not use_mcore_gpt or (self.use_peft and self.setup_complete):
+            return None
+        else:
+            return MegatronGPTModel.sharded_state_dict(self, prefix)
+
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
         if not hasattr(data_cfg, "metric"):
