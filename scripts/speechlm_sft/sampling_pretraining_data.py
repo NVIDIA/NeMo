@@ -94,7 +94,7 @@ CC202240_0 = "english/CC-MAIN-2022-40_shuf_00.jsonl"
 CC202240_1 = "english/CC-MAIN-2022-40_shuf_01.jsonl"
 CC202314 = "english/CC-MAIN-2023-14_tdd_shuf.jsonl"
 MC4 = "english/mc4-en_shuf.jsonl"
-SEC = "english/sec_tdd_shuf"
+SEC = "english/sec_tdd_shuf.jsonl"
 
 
 DATA_BLEND = {
