@@ -2,9 +2,9 @@ import json
 import os
 import random
 
-SAMPLE_SIZE = 1000
+SAMPLE_SIZE = 10000000
 OUTPUT_FILE = "pretraining_samples.json"
-MAX_LENGTH = 2048
+MAX_LENGTH = 4096
 
 DATA_FOLDER = "/lustre/fsw/adlr/adlr-nlp/adlr-nlp-sharing/nvllm-3.5t/data/text/"
 # DATA_FOLDER = "/drive3/datasets/speechlm/pretrainig/"
