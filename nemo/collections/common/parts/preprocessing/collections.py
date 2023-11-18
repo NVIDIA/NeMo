@@ -236,7 +236,9 @@ class ASRAudioText(AudioText):
 
 
 class AudioQAEntity(object):
-    def __init__(self, sid, audio_file, duration, question, tts_context, answer, offset, speaker, orig_sr, lang) -> None:
+    def __init__(
+        self, sid, audio_file, duration, question, tts_context, answer, offset, speaker, orig_sr, lang
+    ) -> None:
         self.id = sid
         self.audio_file = audio_file
         self.duration = duration
@@ -301,7 +303,16 @@ class ALMAudioText(object):
             self.mapping = {}
 
         for id_, audio_file, duration, offset, question, tts_context, answer, speaker, orig_sr, lang in zip(
-            ids, audio_files, durations, offsets, questions, tts_contexts, answers, speakers, orig_sampling_rates, langs
+            ids,
+            audio_files,
+            durations,
+            offsets,
+            questions,
+            tts_contexts,
+            answers,
+            speakers,
+            orig_sampling_rates,
+            langs,
         ):
             # Duration filters.
             if duration is not None:
@@ -324,7 +335,9 @@ class ALMAudioText(object):
                 num_filtered += 1
                 continue
 
-            data.append(AudioQAEntity(id_, audio_file, duration, question, tts_context, answer, offset, speaker, orig_sr, lang))
+            data.append(
+                AudioQAEntity(id_, audio_file, duration, question, tts_context, answer, offset, speaker, orig_sr, lang)
+            )
             if index_by_file_id and audio_file is not None:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 if file_id not in self.mapping:
