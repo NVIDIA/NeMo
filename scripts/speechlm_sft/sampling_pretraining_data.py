@@ -2,11 +2,14 @@ import json
 import os
 import random
 
+# options: "english", "nonenglish", "coding"
+SEL_BLENDS = ["english", "nonenglish"]
 SAMPLE_SIZE = 10000000
-OUTPUT_FILE = "pretraining_samples_english_nonenglish.json"
 MAX_LENGTH = 4096
 
+OUTPUT_FILE = f"pretraining_samples_{'_'.join(SEL_BLENDS)}.json"
 DATA_FOLDER = "/lustre/fsw/adlr/adlr-nlp/adlr-nlp-sharing/nvllm-3.5t/data/text/"
+
 # DATA_FOLDER = "/drive3/datasets/speechlm/pretrainig/"
 
 AR2240 = "non-english/AR_shuf.jsonl"
@@ -97,7 +100,7 @@ MC4 = "english/mc4-en_shuf.jsonl"
 SEC = "english/sec_tdd_shuf.jsonl"
 
 # english and non-english
-DATA_BLEND = {
+DATA_BLEND_NONENGLISH = {
     AR2240: 0.0015,
     AZ2240: 0.00005,
     BG2240: 0.00073,
@@ -151,6 +154,9 @@ DATA_BLEND = {
     JAMC4: 0.00827,
     ZHMC4: 0.0044,
     NMT: 0.00612,
+}
+
+DATA_BLEND_ENGLISH = {
     B3: 0.02424,
     OWT2: 0.02022,
     SE: 0.00946,
@@ -182,39 +188,20 @@ DATA_BLEND = {
     SEC: 0.00689,
 }
 
-# just english
-# DATA_BLEND = {
-#     B3: 0.02424,
-#     OWT2: 0.02022,
-#     SE: 0.00946,
-#     PMA: 0.00409,
-#     WIK2023: 0.007,
-#     GUT: 0.00243,
-#     BC2: 0.00148,
-#     NIH: 0.00029,
-#     ARX2023: 0.02128,
-#     PMC: 0.01987,
-#     ST: 0.00301,
-#     BIGSC: 0.03286,
-#     REDDIT: 0.02644,
-#     CCNEWS: 0.06323,
-#     PCC: 0.00982,
-#     CC201730: 0.04649,
-#     CC201830_0: 0.02882,
-#     CC201830_1: 0.02882,
-#     CC201935: 0.03937,
-#     CC202029: 0.02946,
-#     CC202050: 0.03386,
-#     CC202104: 0.01627,
-#     CC202131: 0.03872,
-#     CC202233: 0.03828,
-#     CC202240_0: 0.03391,
-#     CC202240_1: 0.03391,
-#     CC202314: 0.03777,
-#     MC4: 0.04169,
-#     SEC: 0.00689,
-# }
+#TODO: add coding datasets
+DATA_BLEND_CODING = {
 
+}
+
+DATA_BLEND = {}
+if "english" in SEL_BLENDS:
+    DATA_BLEND.update(DATA_BLEND_ENGLISH)
+
+if "non-english" in SEL_BLENDS:
+    DATA_BLEND.update(DATA_BLEND_NONENGLISH)
+
+if "coding" in SEL_BLENDS:
+    DATA_BLEND.update(DATA_BLEND_CODING)
 # A = "NIHExporter_shuf.jsonl"
 # B = "NIHExporter_shuf2.jsonl"
 
@@ -241,13 +228,17 @@ with open(OUTPUT_FILE, 'w', encoding='utf-8') as outf:
     skipped = 0
     while sample_idx < SAMPLE_SIZE:
         dataset_sel = random.choices(datasets, weights=weights, k=1)[0]
-        sample = json.loads(dataset_handlers[dataset_sel].readline())
-        # print("\n\n\n", sample.keys())
-        if "text" in sample:
-            entry = {'input': sample["text"][:MAX_LENGTH]}
-            outf.write(json.dumps(entry) + '\n')
-            sample_idx += 1
+        line = dataset_handlers[dataset_sel].readline()
+        if line:
+            sample = json.loads(line)
+            # print("\n\n\n", sample.keys())
+            if "text" in sample:
+                entry = {'input': sample["text"][:MAX_LENGTH]}
+                outf.write(json.dumps(entry) + '\n')
+                sample_idx += 1
+            else:
+                # print("text field not found in ", dataset_sel)
+                skipped += 1
         else:
-            # print("text field not found in ", dataset_sel)
-            skipped += 1
+            print(f"dataset {dataset_sel} is finished at sample_idx: {sample_idx}, skipped the selection.")
     print("Skipped: ", skipped)
