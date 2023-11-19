@@ -138,7 +138,7 @@ SYSV = "starcoder-repo-len-filt/systemverilog/systemverilog_repo_shuf.jsonl"
 TEXP = "starcoder-repo-len-filt/tex/tex_repo_shuf.jsonl"
 TYPE = "starcoder-repo-len-filt/typescript/typescript_repo_shuf.jsonl"
 VHDL = "starcoder-repo-len-filt/vhdl/vhdl_repo_shuf.jsonl"
-VISU = "starcoder-repo-len-filt/vidual-basic/visual-basic_repo_shuf.jsonl"
+VISU = "starcoder-repo-len-filt/visual-basic/visual-basic_repo_shuf.jsonl"
 XMLL = "starcoder-repo-len-filt/xml_shuf.jsonl"
 YAML = "starcoder-repo-len-filt/yaml/yaml_repo_shuf.jsonl"
 
