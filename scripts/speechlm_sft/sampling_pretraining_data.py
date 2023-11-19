@@ -227,6 +227,8 @@ with open(OUTPUT_FILE, 'w', encoding='utf-8') as outf:
     sample_idx = 0
     skipped = 0
     while sample_idx < SAMPLE_SIZE:
+        if sample_idx % 1000 == 0:
+            print(f"Sample_idx: {sample_idx}")
         dataset_sel = random.choices(datasets, weights=weights, k=1)[0]
         line = dataset_handlers[dataset_sel].readline()
         if line:
