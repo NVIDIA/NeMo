@@ -303,6 +303,8 @@ for dataset, rate in DATA_BLEND.items():
     dataset_handler = open(dataset_path, 'r', encoding='utf-8')
     dataset_handlers[dataset] = dataset_handler
 
+print("Blend to be used:", DATA_BLEND)
+
 with open(OUTPUT_FILE, 'w', encoding='utf-8') as outf:
     datasets = list(DATA_BLEND.keys())
     weights = list(DATA_BLEND.values())
