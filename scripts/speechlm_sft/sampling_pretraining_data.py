@@ -188,10 +188,8 @@ DATA_BLEND_ENGLISH = {
     SEC: 0.00689,
 }
 
-#TODO: add coding datasets
-DATA_BLEND_CODING = {
-
-}
+# TODO: add coding datasets
+DATA_BLEND_CODING = {}
 
 DATA_BLEND = {}
 if "english" in SEL_BLENDS:
