@@ -472,7 +472,7 @@ class ALMAudioTextCollection(ALMAudioText):
                 self.random_context = current_words
             item['question'] = question
 
-        if self.speech_prompt_in_middle:
+        if self.speech_prompt_in_middle and item['duration'] is not None:
             item['audio_file'] = [item['audio_file']]
             item['duration'] = [item['duration']]
             item['question'] = f"{item['question']}\n|audio|"
