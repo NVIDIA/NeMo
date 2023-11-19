@@ -1,3 +1,23 @@
-exp_dir: /path/to/my/experiments
-name: my_experiment_name
+exp_dir: null # defaults to ./nemo_experiments
+name: {task_name}
 create_checkpoint_callback: True
+
+# configure the PyTorch Lightning ModelCheckpoint using checkpoint_callback_params
+# any ModelCheckpoint argument can be set here
+checkpoint_callback_params:
+  # save the best checkpoints based on this metric 
+  monitor: val_loss
+
+  # choose how many total checkpoints to save
+  save_top_k: 5
+
+
+# resume training if checkpoints already exist
+resume_if_exists: True
+
+# to start training with no existing checkpoints
+resume_ignore_no_checkpoint: True
+
+# by default experiments will be versioned by datetime
+# we can set our own version with
+version: null

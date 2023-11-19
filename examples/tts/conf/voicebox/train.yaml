@@ -31,11 +31,6 @@ defaults:
 # task name, determines output directory path
 task_name: "train"
 
-# tags to help you identify your experiments
-# you can overwrite this in experiment configs
-# overwrite from command line with `python train.py tags="[first_tag, second_tag]"`
-tags: ["dev"]
-
 # set False to skip model training
 train: True
 

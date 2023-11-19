@@ -1,0 +1,29 @@
+# @package _global_
+
+# example hyperparameter optimization of some experiment with Optuna:
+# python train.py -m hparams_search=example experiment=example
+
+# Required for Hydra launch of hyperparameter search via multirun
+defaults:
+  - override /hydra/launcher: nemo_launcher
+
+# Hydra arguments necessary for hyperparameter optimization
+hydra:
+  # Helper arguments to ensure all hyper parameter runs are from the directory that launches the script.
+  sweep:
+    dir: "."
+    subdir: "."
+
+  # Define all the hyper parameters here
+  sweeper:
+    params:
+      # Place all the parameters you wish to search over here (corresponding to the rest of the config)
+      # NOTE: Make sure that there are no spaces between the commas that separate the config params !
+      model.optim.lr: 0.001,0.0001
+      model.encoder.dim: 32,64,96,128
+      model.decoder.dropout: 0.0,0.1,0.2
+
+  # Arguments to the process launcher
+  launcher:
+    num_gpus: -1  # Number of gpus to use. Each run works on a single GPU.
+    jobs_per_gpu: 1  # If each GPU has large memory, you can run multiple jobs on the same GPU for faster results (until OOM).
