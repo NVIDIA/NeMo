@@ -3,7 +3,7 @@ import os
 import random
 
 # options: "english", "nonenglish", "coding"
-SEL_BLENDS = ["english", "nonenglish"]
+SEL_BLENDS = ["english", "nonenglish", "coding"]
 SAMPLE_SIZE = 10000000
 MAX_LENGTH = 4096
 
