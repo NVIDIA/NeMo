@@ -7,6 +7,8 @@
 defaults:
   - override /hydra/launcher: nemo_launcher
 
+optimized_metric: "val/acc_best"
+
 # Hydra arguments necessary for hyperparameter optimization
 hydra:
   # Helper arguments to ensure all hyper parameter runs are from the directory that launches the script.
