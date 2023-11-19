@@ -279,7 +279,7 @@ DATA_BLEND = {}
 if "english" in SEL_BLENDS:
     DATA_BLEND.update(DATA_BLEND_ENGLISH)
 
-if "non-english" in SEL_BLENDS:
+if "nonenglish" in SEL_BLENDS:
     DATA_BLEND.update(DATA_BLEND_NONENGLISH)
 
 if "coding" in SEL_BLENDS:
