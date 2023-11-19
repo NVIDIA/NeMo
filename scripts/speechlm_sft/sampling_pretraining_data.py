@@ -11,7 +11,7 @@ OUTPUT_FILE = f"pretraining_samples_{'_'.join(SEL_BLENDS)}.json"
 DATA_FOLDER = "/lustre/fsw/adlr/adlr-nlp/adlr-nlp-sharing/nvllm-3.5t/data/text/"
 # DATA_FOLDER = "/drive3/datasets/speechlm/pretrainig/"
 
-#NON-ENGLISH DATASETS
+# NON-ENGLISH DATASETS
 AR2240 = "non-english/AR_shuf.jsonl"
 AZ2240 = "non-english/AZ_shuf.jsonl"
 BG2240 = "non-english/BG_shuf.jsonl"
@@ -68,7 +68,7 @@ ZHMC4 = "non-english/ZH_tdd_shuf.jsonl"
 
 NMT = "non-english/nmt_tdd_shuf.jsonl"
 
-#ENGLISH DATASETS
+# ENGLISH DATASETS
 B3 = "english/MTNLG/Books3_shuf.jsonl"
 OWT2 = "english/MTNLG/OpenWebText2_shuf.jsonl"
 SE = "english/MTNLG/StackExchange_shuf.jsonl"
