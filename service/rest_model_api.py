@@ -23,19 +23,34 @@ import os
 
 
 class TritonSettings(BaseSettings):
-    triton_service_port: int = 9500
-    triton_service_ip: str = "0.0.0.0"
+    _triton_service_port: int
+    _triton_service_ip: str
+    _triton_request_timeout: str
 
     def __init__(self):
-        print()
+        super(TritonSettings, self).__init__()
         try:
             with open(os.path.join(Path.cwd(), 'service/config.json')) as config:
                 config_json = json.load(config)
-                self.triton_service_port = config_json["triton_service_port"]
-                self.triton_service_ip = config_json["triton_service_ip"]
+                self._triton_service_port = config_json["triton_service_port"]
+                self._triton_service_ip = config_json["triton_service_ip"]
+                self._triton_request_timeout = config_json["triton_request_timeout"]
         except Exception as error:
             print("An exception occurred:", error)
             return
+
+    @property
+    def triton_service_port(self):
+        return self._triton_service_port
+
+    @property
+    def triton_service_ip(self):
+        return self._triton_service_ip
+
+    @property
+    def triton_request_timeout(self):
+        return self._triton_request_timeout
+
 
 app = FastAPI()
 triton_settings = TritonSettings()
@@ -54,8 +69,7 @@ class CompletionRequest(BaseModel):
 @app.post("/v1/completions/")
 def completions_v1(request: CompletionRequest):
     try:
-        url = triton_settings.triton_service_ip + str(triton_settings.triton_service_port)
-        '''
+        url = triton_settings.triton_service_ip + ":" + str(triton_settings.triton_service_port)
         nq = NemoQuery(url=url, model_name=request.model)
         output = nq.query_llm(
             prompts=[request.prompt],
@@ -63,13 +77,10 @@ def completions_v1(request: CompletionRequest):
             top_k=request.n,
             top_p=request.top_p,
             temperature=request.temperature,
+            init_timeout=triton_settings.triton_request_timeout
         )
         return {
             "output": output[0][0],
-        }
-        '''
-        return {
-            "url": url,
         }
     except Exception as error:
         print("An exception occurred:", error)
