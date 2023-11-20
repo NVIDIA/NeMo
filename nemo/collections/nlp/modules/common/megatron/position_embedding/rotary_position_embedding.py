@@ -24,7 +24,9 @@ __all__ = ['RotaryEmbedding', 'apply_rotary_pos_emb']
 
 # Inverse dim formula to find dim based on number of rotations
 def find_correction_dim(num_rotations, dim, rotary_base=10000, max_position_embeddings=2048):
-    return (dim * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))) / (2 * math.log(rotary_base))  # 21
+    return (dim * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))) / (
+        2 * math.log(rotary_base)
+    )  # 21
 
 
 # Find dim range bounds based on rotations

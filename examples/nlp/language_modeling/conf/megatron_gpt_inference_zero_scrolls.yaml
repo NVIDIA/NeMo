@@ -19,6 +19,7 @@ inference:
   use_flash_attention: true                       # will override the model's config
   apply_query_key_layer_scaling: null             # will override the model's config
   remove_newline_tab: true
+  truncation_pos: right
 
 trainer:
   devices: 1
