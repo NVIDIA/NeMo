@@ -773,7 +773,6 @@ class MegatronBaseModel(NLPModel):
         cfg = OmegaConf.to_container(self.cfg, resolve=True)
 
         # map precision related configs
-        precision = cfg.get('precision', 32)  # PTL trainer precision
         megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         # dtype used in p2p communication
