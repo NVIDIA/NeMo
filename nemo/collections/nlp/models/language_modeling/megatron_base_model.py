@@ -774,6 +774,9 @@ class MegatronBaseModel(NLPModel):
 
         # map precision related configs
         megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+        if self.torch_dtype == torch.float16 and not self.trainer.precision.startswith("16"):
+            # Make sure that trainer.precision_plugin.scaler exists for config_mapping below
+            raise ValueError("Creating a half-precision model requires setting trainer.precision to '16' or '16-mixed'")
 
         # dtype used in p2p communication
         pipeline_dtype = self.torch_dtype
