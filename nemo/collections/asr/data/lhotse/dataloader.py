@@ -1,8 +1,6 @@
 import logging
 
 import torch.utils
-from lhotse import CutSet
-from lhotse.dataset import DynamicBucketingSampler, DynamicCutSampler, IterableDatasetWrapper, make_worker_init_fn
 
 from nemo.collections.asr.data.lhotse.cutset import read_cutset_from_config
 
@@ -24,6 +22,9 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
     which is constructed from just a tokenizer and essentially loads and collates audio and tokenizes the transcript.
     """
     logging.info("We will be using a Lhotse DataLoader.")
+
+    from lhotse import CutSet
+    from lhotse.dataset import DynamicBucketingSampler, DynamicCutSampler, IterableDatasetWrapper, make_worker_init_fn
 
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, is_tarred = read_cutset_from_config(config)

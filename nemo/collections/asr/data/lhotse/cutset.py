@@ -1,14 +1,15 @@
 import logging
 import warnings
 from pathlib import Path
-from typing import Sequence, Tuple
-
-from lhotse import CutSet
+from typing import Sequence, Tuple, NewType, Any
 
 from nemo.collections.asr.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
 
 
-def read_cutset_from_config(config) -> Tuple[CutSet, bool]:
+LhotseCutSet = NewType("LhotseCutSet", Any)  # Indicate return type without importing Lhotse.
+
+
+def read_cutset_from_config(config) -> Tuple[LhotseCutSet, bool]:
     """
     Reads NeMo configuration and creates a CutSet either from Lhotse or NeMo manifests.
 
@@ -32,7 +33,9 @@ def read_cutset_from_config(config) -> Tuple[CutSet, bool]:
     return cuts, is_tarred
 
 
-def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
+def read_lhotse_manifest(config, is_tarred: bool) -> LhotseCutSet:
+    from lhotse import CutSet
+
     if is_tarred:
         # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
         # The combination of shuffle_shards, and repeat causes this to
@@ -89,7 +92,9 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
     return cuts
 
 
-def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
+def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
+    from lhotse import CutSet
+
     if is_tarred:
         if isinstance(config["manifest_filepath"], (str, Path)):
             logging.info(

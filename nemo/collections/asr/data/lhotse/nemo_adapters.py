@@ -5,16 +5,17 @@ from io import BytesIO
 from pathlib import Path
 from typing import Dict, List
 
-import lhotse.audio
-import lhotse.lazy
-import lhotse.serialization
-import lhotse.utils
+try:
+    from lhotse.lazy import ImitatesDict
+except ImportError:
+    ImitatesDict = object
+
 import soundfile
 
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 
 
-class LazyNeMoIterator(lhotse.lazy.ImitatesDict):
+class LazyNeMoIterator(ImitatesDict):
     """
     ``LazyNeMoIterator`` reads a NeMo (non-tarred) JSON manifest and converts it on the fly to an ``Iterable[Cut]``.
     It's used to create a ``lhotse.CutSet``.
@@ -33,7 +34,9 @@ class LazyNeMoIterator(lhotse.lazy.ImitatesDict):
     """
 
     def __init__(self, path: str | Path, sampling_rate: int = 16000) -> None:
-        self.source = lhotse.lazy.LazyJsonlIterator(path)
+        from lhotse.lazy import LazyJsonlIterator
+
+        self.source = LazyJsonlIterator(path)
         self.sampling_rate = sampling_rate
 
     @property
@@ -41,17 +44,21 @@ class LazyNeMoIterator(lhotse.lazy.ImitatesDict):
         return self.source.path
 
     def __iter__(self):
+        from lhotse import SupervisionSegment
+        from lhotse.audio import AudioSource, Recording
+        from lhotse.utils import compute_num_samples
+
         for data in self.source:
-            recording = lhotse.Recording(
+            recording = Recording(
                 id=Path(data["audio_filepath"]).name,
-                sources=[lhotse.audio.AudioSource(type="file", channels=[0], source=data["audio_filepath"],)],
+                sources=[AudioSource(type="file", channels=[0], source=data["audio_filepath"],)],
                 sampling_rate=self.sampling_rate,
                 duration=data["duration"],
-                num_samples=lhotse.utils.compute_num_samples(data["duration"], self.sampling_rate),
+                num_samples=compute_num_samples(data["duration"], self.sampling_rate),
             )
             cut = recording.to_cut()
             cut.supervisions.append(
-                lhotse.SupervisionSegment(
+                SupervisionSegment(
                     id=cut.id, recording_id=cut.recording_id, start=0, duration=cut.duration, text=data["text"],
                 )
             )
@@ -60,11 +67,13 @@ class LazyNeMoIterator(lhotse.lazy.ImitatesDict):
     def __len__(self) -> int:
         return len(self.source)
 
-    def __add__(self, other) -> "lhotse.lazy.LazyIteratorChain":
-        return lhotse.lazy.LazyIteratorChain(self, other)
+    def __add__(self, other):
+        from lhotse.lazy import LazyIteratorChain
+
+        return LazyIteratorChain(self, other)
 
 
-class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
+class LazyNeMoTarredIterator(ImitatesDict):
     """
     ``LazyNeMoTarredIterator`` reads a NeMo tarred JSON manifest and converts it on the fly to an ``Iterable[Cut]``.
     It's used to create a ``lhotse.CutSet``.
@@ -89,6 +98,7 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
 
     def __init__(self, manifest_path: str | Path, tar_paths: str | list, shuffle_shards: bool = False,) -> None:
         from cytoolz import groupby
+        from lhotse.lazy import LazyJsonlIterator
 
         def strip_pipe(p):
             if isinstance(p, str):
@@ -97,7 +107,7 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
                 return Path(p)
             return p
 
-        self.source = lhotse.lazy.LazyJsonlIterator(manifest_path)
+        self.source = LazyJsonlIterator(manifest_path)
         self.shard_id_to_manifest: Dict[int, str] = groupby("shard_id", self.source)
         tar_paths = expand_sharded_filepaths(tar_paths, shard_strategy="replicate", world_size=1, global_rank=0)
         self.shard_id_to_tar_path: Dict[int, Path] = {int(strip_pipe(p).stem.split("_")[1]): p for p in tar_paths}
@@ -121,6 +131,10 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
         return self.source.path
 
     def __iter__(self):
+        from lhotse.serialization import open_best
+        from lhotse.audio import AudioSource, Recording
+        from lhotse import SupervisionSegment
+
         shard_ids = self.shard_ids
 
         if self.shuffle_shards:
@@ -130,7 +144,7 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
         for sid in shard_ids:
             shard_manifest = self.shard_id_to_manifest[sid]
             tar_path = self.shard_id_to_tar_path[sid]
-            with tarfile.open(fileobj=lhotse.serialization.open_best(tar_path, mode="rb"), mode="r|*") as tar:
+            with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
                 for data, tar_info in zip(shard_manifest, tar):
                     raw_audio = tar.extractfile(tar_info).read()
                     # Note: Lhotse has a Recording.from_bytes() utility that we won't use here because
@@ -138,20 +152,16 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
                     #       that parses full audio instead of just reading the header for WAV files.
                     # recording = lhotse.Recording.from_bytes(raw_audio, recording_id=tar_info.path)
                     meta = soundfile.info(BytesIO(raw_audio))
-                    recording = lhotse.Recording(
+                    recording = Recording(
                         id=tar_info.path,
-                        sources=[
-                            lhotse.audio.AudioSource(
-                                type="memory", channels=list(range(meta.channels)), source=raw_audio
-                            )
-                        ],
+                        sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
                         sampling_rate=int(meta.samplerate),
                         num_samples=meta.frames,
                         duration=meta.duration,
                     )
                     cut = recording.to_cut()
                     cut.supervisions.append(
-                        lhotse.SupervisionSegment(
+                        SupervisionSegment(
                             id=cut.id,
                             recording_id=cut.recording_id,
                             start=0,
@@ -164,5 +174,7 @@ class LazyNeMoTarredIterator(lhotse.lazy.ImitatesDict):
     def __len__(self) -> int:
         return len(self.source)
 
-    def __add__(self, other) -> "lhotse.lazy.LazyIteratorChain":
-        return lhotse.lazy.LazyIteratorChain(self, other)
+    def __add__(self, other):
+        from lhotse.lazy import LazyIteratorChain
+
+        return LazyIteratorChain(self, other)
