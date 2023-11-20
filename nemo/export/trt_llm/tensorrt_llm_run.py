@@ -360,7 +360,7 @@ def forward(
 
 
 def generate(
-        input_texts: List[torch.IntTensor],
+        input_texts: List[str],
         max_output_len: int,
         host_context: TensorrtLLMHostContext,
         top_k: int = 1,
@@ -382,6 +382,24 @@ def generate(
     input_tensors = [
         torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
     ]
+
+    batch_size = len(input_texts)
+    stop_words_list_tensors = None
+    if stop_words_list is not None:
+        stop_words_list_tensors = [
+            torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in stop_words_list
+        ]
+        stop_words_list_tensors = stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
+            torch.cuda.current_device())
+
+    bad_words_list_tensors = None
+    if bad_words_list is not None:
+        bad_words_list_tensors = [
+            torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in bad_words_list
+        ]
+        bad_words_list_tensors = bad_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
+            torch.cuda.current_device())
+
     output_tensor = forward(
         input_tensors=input_tensors,
         max_output_len=max_output_len,
@@ -391,8 +409,8 @@ def generate(
         temperature=temperature,
         prompt_table=prompt_table,
         task_vocab_size=task_vocab_size,
-        stop_words_list=stop_words_list,
-        bad_words_list=bad_words_list,
+        stop_words_list=stop_words_list_tensors,
+        bad_words_list=bad_words_list_tensors,
         no_repeat_ngram_size=no_repeat_ngram_size,
         streaming=streaming,
         **sampling_kwargs

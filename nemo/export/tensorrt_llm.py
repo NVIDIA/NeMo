@@ -289,7 +289,6 @@ class TensorRTLLM(ITritonDeployable):
                 streaming=False,
                 **sampling_kwargs,
             )
-        
 
     def get_hidden_size(self):
         if self.config is None:
