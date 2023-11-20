@@ -15,8 +15,7 @@
 import itertools
 import json
 import os
-from functools import partial
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import sacrebleu
 import torch
@@ -25,8 +24,6 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
 from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
@@ -36,6 +33,7 @@ from nemo.collections.multimodal.speechllm.data.audio_text_qa_dataset import (
 )
 from nemo.collections.multimodal.speechllm.modules.common.audio_text_generation_utils import generate
 from nemo.collections.multimodal.speechllm.modules.speechllm_perception import AudioPerceptionModel
+from nemo.collections.multimodal.speechllm.parts.utils.data_utils import to_cuda
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -44,20 +42,15 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
     MegatronGPTLoRAModel,
     MegatronGPTPEFTModel,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
-    MegatronGPTPromptLearningModel,
-)
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import get_computeprob_response
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, PEFTSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
-from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import AppState, logging, model_utils
 
 try:
@@ -182,40 +175,90 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         self._optimizer_param_groups = param_groups
         logging.info(f"Optimizer groups set:\n{self.summarize(max_depth=2)}")
 
-    def inject_perception_input(self, encoded, encoded_len, input_ids, input_length):
-        def _concat_embs(embs1, emb1_lens, embs2, emb2_lens):
-            concat_emb = []
-            concat_len = []
-            for emb1, emb1_len, emb2, emb2_len in zip(embs1, emb1_lens, embs2, emb2_lens):
-                if self.cfg.get('ignore_dummy_audio', False) and emb1_len <= 1:  # TODO: ignore the dummy audio emb
-                    new_len = emb2_len
-                    new_emb = emb2[:emb2_len]
-                else:
-                    new_len = emb1_len + emb2_len
-                    new_emb = torch.concat([emb1[:emb1_len], emb2[:emb2_len]], axis=0)
-                padded_new_emb = torch.zeros(emb1.shape[0] + emb2.shape[0], emb1.shape[-1], device=emb1.device)
-                padded_new_emb[:new_len, ...] = new_emb
-                concat_emb.append(padded_new_emb)
-                concat_len.append(new_len)
-            concat_emb = torch.stack(concat_emb, dim=0)
-            concat_len = torch.stack(concat_len, dim=0)
-            return concat_emb, concat_len
-
-        # [b, t, c]
-        lm_embedding = self.model.language_model.embedding
-        input_embeds = lm_embedding.word_embeddings(input_ids)
-        encoder_input, encoder_length = _concat_embs(encoded, encoded_len, input_embeds, input_length)
-
-        b = encoder_input.shape[0]
+    def _create_attention_mask(self, encoder_input: torch.Tensor):
+        batch_size = encoder_input.shape[0]
         max_len = encoder_input.shape[1]
-
-        # Using causal attention mask for whole input
         # TODO(zhehuai): use prefixlm instead for the audio embeddings
-        attention_mask = torch.tril(torch.ones((b, max_len, max_len), device=encoder_input.device)).view(
-            b, 1, max_len, max_len
+        # Using causal attention mask for whole input
+        attention_mask = torch.tril(torch.ones((batch_size, max_len, max_len), device=encoder_input.device)).view(
+            batch_size, 1, max_len, max_len
         )
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
+        return attention_mask
+
+    def _concat_features(self, embs1, emb1_lens, embs2, emb2_lens):
+        concat_emb = []
+        concat_len = []
+        for emb1, emb1_len, emb2, emb2_len in zip(embs1, emb1_lens, embs2, emb2_lens):
+            if self.cfg.get('ignore_dummy_audio', False) and emb1_len <= 1:  # TODO: ignore the dummy audio emb
+                new_len = emb2_len
+                new_emb = emb2[:emb2_len]
+            else:
+                new_len = emb1_len + emb2_len
+                new_emb = torch.concat([emb1[:emb1_len], emb2[:emb2_len]], axis=0)
+            padded_new_emb = torch.zeros(emb1.shape[0] + emb2.shape[0], emb1.shape[-1], device=emb1.device)
+            padded_new_emb[:new_len, ...] = new_emb
+            concat_emb.append(padded_new_emb)
+            concat_len.append(new_len)
+        concat_emb = torch.stack(concat_emb, dim=0)
+        concat_len = torch.stack(concat_len, dim=0)
+        return concat_emb, concat_len
+
+    def _concat_multi_features(
+        self,
+        encoded: List[torch.Tensor],
+        encoded_len: List[torch.Tensor],
+        input_embeds: torch.Tensor,
+        input_length: torch.Tensor,
+        context_start_idx: List[List[int]],
+    ):
+        encoder_input_list, encoder_length_list = [], []
+        batch_size = input_embeds.size(0)
+        max_length = 0
+        for i in range(batch_size):
+            start_idx_list_i = context_start_idx[i] + [
+                input_embeds.size(1)
+            ]  # use input_embeds instead of input_length to handle tokens_to_generate in inference
+            input_len_list = [start_idx_list_i[j + 1] - start_idx_list_i[j] for j in range(len(start_idx_list_i) - 1)]
+            input_emb_list = input_embeds[i].split(input_len_list)
+            encoder_input_i = [input_emb_list[0]]
+            for j in range(1, len(input_emb_list)):
+                encoder_input_i.append(encoded[i][j - 1][: encoded_len[i][j - 1]])
+                encoder_input_i.append(input_emb_list[j])
+            encoder_input_i = torch.cat(encoder_input_i)  # T, C
+            encoder_length_i = encoded_len[i].sum() + input_length[i]  # total length of audio and text features
+            max_length = max(max_length, encoder_input_i.size(0))
+            encoder_input_list.append(encoder_input_i)
+            encoder_length_list.append(encoder_length_i)
+
+        encoder_input = torch.stack(
+            [torch.nn.functional.pad(f, (0, 0, 0, max_length - f.size(0))) for f in encoder_input_list]
+        )
+        encoder_length = torch.LongTensor(encoder_length_list).to(encoder_input.device)
+        return encoder_input, encoder_length
+
+    def inject_perception_input(
+        self,
+        encoded: Union[torch.Tensor, List[torch.Tensor]],
+        encoded_len: Union[torch.Tensor, List[torch.Tensor]],
+        input_ids: torch.Tensor,
+        input_length: torch.Tensor,
+        context_start_idx: Optional[List[List[int]]] = None,
+    ):
+        # [b, t, c]
+        lm_embedding = self.model.language_model.embedding
+        input_embeds = lm_embedding.word_embeddings(input_ids)
+        if isinstance(encoded, torch.Tensor):
+            # single audio
+            encoder_input, encoder_length = self._concat_features(encoded, encoded_len, input_embeds, input_length)
+        else:
+            # concat multiple audios with text segments
+            encoder_input, encoder_length = self._concat_multi_features(
+                encoded, encoded_len, input_embeds, input_length, context_start_idx
+            )
+
+        attention_mask = self._create_attention_mask(encoder_input)
         position_ids = build_position_ids(encoder_input[:, :, 0])
 
         # Add position embeddings
@@ -260,6 +303,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             audio_batch['loss_mask'],
         )
 
+        num_audios = audio_batch.get("num_audios", None)
+        context_start_idx = audio_batch.get("context_start_idx", None)
+
         # [b, t, c]
         encoded, encoded_len = self.perception(
             input_signal=input_signal,
@@ -267,9 +313,19 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             processed_signal=None,
             processed_signal_length=None,
         )
+
+        if num_audios is not None:
+            # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
+            encoded = encoded.split(num_audios.tolist())
+            encoded_len = encoded_len.split(num_audios.tolist())
         encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
-            encoded, encoded_len, input_ids, input_length
+            encoded, encoded_len, input_ids, input_length, context_start_idx
         )
+        if num_audios is not None:
+            # sum up the audio_feat_lens for each sample in the batch
+            encoded_len = torch.stack([torch.sum(lens) for lens in encoded_len])
+
+        # Shift labels to the right
         labels = self._shift_labels_by_emb_len(labels, input_length, encoded_len, encoder_max_length, pad_token=0)
         # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
         loss_mask = self._shift_labels_by_emb_len(
@@ -343,7 +399,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             batch = next(dataloader_iter)
-            batch = {key: val.cuda(non_blocking=True) for key, val in batch.items()}
+            batch = to_cuda(batch, non_blocking=True)
             output_tensor, loss_mask = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
@@ -351,6 +407,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
+
                 if 'audio_ratio' in batch:
                     text_loss_weight = self.cfg.get('text_loss_weight', 1.0)
                     audio_ratio = batch['audio_ratio']
@@ -521,9 +578,16 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             gpt_cfg.perception = cfg.model.perception
             gpt_cfg.perception.preprocessor = audio_cfg.preprocessor
             gpt_cfg.perception.encoder = audio_cfg.encoder
-            modality_adapter_cfg = gpt_cfg.perception.modality_adapter
-            modality_adapter_cfg.feat_in = audio_cfg.encoder.d_model
             gpt_cfg.perception.output_dim = gpt_cfg.hidden_size
+
+            modality_adapter_cfg = gpt_cfg.perception.modality_adapter
+            if 'feat_in' in modality_adapter_cfg:  # conformer encoder
+                modality_adapter_cfg.feat_in = audio_cfg.encoder.d_model
+            if 'input_dim' in modality_adapter_cfg:
+                modality_adapter_cfg.input_dim = audio_cfg.encoder.d_model
+            if 'output_dim' in modality_adapter_cfg:
+                modality_adapter_cfg.output_dim = gpt_cfg.hidden_size
+
             override_vocab_size = cfg.model.get('override_vocab_size', None)
             if override_vocab_size is not None:
                 gpt_cfg.override_vocab_size = override_vocab_size
@@ -554,7 +618,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             return_config=True,
             save_restore_connector=base_model_save_restore_connector,
         )
-        pretrained_audio_model = cfg.model.pretrained_audio_model
+        pretrained_audio_model = cfg.model.get("pretrained_audio_model", None)
         try:
             if pretrained_audio_model.endswith('.nemo'):
                 logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
@@ -590,16 +654,17 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             strict=False,
         )
         # load am
-        if cfg.model.get('load_audio_encoder', True):
-            model.perception.encoder.load_state_dict(
-                audio_model.encoder.state_dict(), strict='adapter' not in cfg.model.perception
-            )
+        if pretrained_audio_model is not None:
+            if cfg.model.perception.get("use_multi_layer_feat", False):
+                model.perception.encoder.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
+            else:
+                model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
             logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
-        else:
-            logging.info(f'Not load pretrained audio model from {pretrained_audio_model}')
+
         if cfg.model.get('use_am_tokenizer', False):
             model.tokenizer = audio_model.tokenizer
             logging.info(f'Use AM tokenizer: {audio_model.tokenizer}')
+
         if 'inference' in cfg:
             inference_cfg = OmegaConf.to_container(cfg.inference, resolve=True)
             model.set_inference_config(inference_cfg)
@@ -636,7 +701,6 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:
-            print(f"loading state_dict: {state_dict.keys()}")
             super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=False)
         else:
             if self.cfg.get('override_vocab_size', False):
@@ -734,6 +798,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+
         loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([batch]), batch_idx)
 
         # We need _inference_config to get generation params
@@ -753,13 +818,23 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             for t, l in zip(output['token_ids'], batch['context_lengths'])
         ]
 
-        preds_text = [p.replace(data_cfg.end_string, '') for p in preds_text]
-        labels_text = [p.replace(data_cfg.end_string, '') for p in labels_text]
+        if data_cfg.get("end_string", None):
+            preds_text = [p.replace(data_cfg.end_string, '') for p in preds_text]
+            labels_text = [p.replace(data_cfg.end_string, '') for p in labels_text]
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
                 logging.info(f"Input: `{inputs_text[0]}`")
                 logging.info(f"Label: `{labels_text[0]}`")
                 logging.info(f"Pred: `{preds_text[0]}`")
+
+        # if loss is nan, print the input, label and pred
+        if loss.isnan():
+            logging.info("++++++++++++++ NaN loss detected ++++++++++++++")
+            for i in range(len(inputs_text)):
+                logging.info(f"Input: `{inputs_text[i]}`")
+                logging.info(f"Label: `{labels_text[i]}`")
+                logging.info(f"Pred: `{preds_text[i]}`")
+            logging.info("++++++++++++++++++++++++++++++++++++++++++++++++")
 
         outputs = {
             'loss': loss,
@@ -801,6 +876,16 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             # for megatron_gpt_eval.py
             if isinstance(batch, list):
                 inference_config['inputs'] = batch
+            elif 'num_audios' in batch:
+                # peft_eval.py
+                inference_config['inputs'] = (
+                    batch['contexts'].cuda(),
+                    batch['context_lengths'].cuda(),
+                    batch['audio_signal'].cuda(),
+                    batch['audio_signal_length'].cuda(),
+                    batch['num_audios'].cuda(),
+                    batch['context_start_idx'],
+                )
             else:
                 # peft_eval.py
                 inference_config['inputs'] = (

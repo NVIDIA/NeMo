@@ -235,16 +235,25 @@ class ASRAudioText(AudioText):
         )
 
 
-class ALMAudioText(_Collection):
+class AudioQAEntity(object):
+    def __init__(self, sid, audio_file, duration, question, answer, offset, speaker, orig_sr, lang) -> None:
+        self.id = sid
+        self.audio_file = audio_file
+        self.duration = duration
+        self.question = question
+        self.answer = answer
+        self.offset = offset
+        self.speaker = speaker
+        self.orig_sr = orig_sr
+        self.lang = lang
+
+
+class ALMAudioText(object):
     """List of audio-transcript text correspondence with preprocessing.
     
     All of the audio, duration, question, answer are optional.
     If answer is not present, text is treated as the answer.
     """
-
-    OUTPUT_TYPE = collections.namedtuple(
-        typename='AudioQAEntity', field_names='id audio_file duration question answer offset speaker orig_sr lang',
-    )
 
     def __init__(
         self,
@@ -284,7 +293,6 @@ class ALMAudioText(_Collection):
             index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
         """
 
-        output_type = self.OUTPUT_TYPE
         data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
         if index_by_file_id:
             self.mapping = {}
@@ -294,23 +302,26 @@ class ALMAudioText(_Collection):
         ):
             # Duration filters.
             if duration is not None:
-                if min_duration is not None and duration < min_duration:
-                    duration_filtered += duration
+                curr_min_dur = min(duration) if isinstance(duration, list) else duration
+                curr_max_dur = max(duration) if isinstance(duration, list) else duration
+                curr_sum_dur = sum(duration) if isinstance(duration, list) else duration
+                if min_duration is not None and curr_min_dur < min_duration:
+                    duration_filtered += curr_sum_dur
                     num_filtered += 1
                     continue
 
-                if max_duration is not None and duration > max_duration:
-                    duration_filtered += duration
+                if max_duration is not None and curr_max_dur > max_duration:
+                    duration_filtered += curr_sum_dur
                     num_filtered += 1
                     continue
-                total_duration += duration
+                total_duration += curr_sum_dur
 
             if answer is None:
-                duration_filtered += duration
+                duration_filtered += curr_sum_dur
                 num_filtered += 1
                 continue
 
-            data.append(output_type(id_, audio_file, duration, question, answer, offset, speaker, orig_sr, lang))
+            data.append(AudioQAEntity(id_, audio_file, duration, question, answer, offset, speaker, orig_sr, lang))
             if index_by_file_id and audio_file is not None:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 if file_id not in self.mapping:
@@ -343,7 +354,15 @@ class ALMAudioText(_Collection):
         logging.info("Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600)
         logging.info("%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600)
 
-        super().__init__(data)
+        self.data = data
+
+    def __getitem__(self, idx):
+        if idx < 0 or idx > len(self.data):
+            raise ValueError(f"index out of range [0,{len(self.data)}), got {idx} instead")
+        return self.data[idx]
+
+    def __len__(self):
+        return len(self.data)
 
 
 class ALMAudioTextCollection(ALMAudioText):
@@ -355,7 +374,7 @@ class ALMAudioTextCollection(ALMAudioText):
     def __init__(
         self,
         manifests_files: Union[str, List[str]],
-        question_file: Optional[str] = None,
+        question_file: Optional[Union[List[str], str]] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
         random_context_positive_percent: Optional[float] = 0.1,
@@ -386,8 +405,15 @@ class ALMAudioTextCollection(ALMAudioText):
             [],
         )
         if question_file is not None:
-            self.random_questions = open(question_file).readlines()
-            print(f"Use random questions from {question_file} for {manifests_files}")
+            question_file_list = question_file.split(",") if isinstance(question_file, str) else question_file
+            self.random_questions = []
+            for filepath in question_file_list:
+                with open(filepath, 'r') as f:
+                    for line in f.readlines():
+                        line = line.strip()
+                        if line:
+                            self.random_questions.append(line)
+            logging.info(f"Use random questions from {question_file} for {manifests_files}")
         else:
             self.random_questions = None
         self.random_context_prob = random_context_prob
@@ -395,6 +421,7 @@ class ALMAudioTextCollection(ALMAudioText):
         self.random_context_positive_percent = random_context_positive_percent
         self.random_context = []
         self.include_voice_name = include_voice_name
+
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
@@ -466,7 +493,7 @@ class ALMAudioTextCollection(ALMAudioText):
             item['question'] = "what does this audio mean"
         else:
             question = np.random.choice(self.random_questions).strip()
-            if self.random_context_prob is not None:
+            if self.random_context_prob is not None and self.random_context_prob > 0:
                 current_words = item['answer'].strip().split()
                 if np.random.random() < self.random_context_prob and self.random_context:
                     positive_num = int(self.random_context_num * self.random_context_positive_percent)

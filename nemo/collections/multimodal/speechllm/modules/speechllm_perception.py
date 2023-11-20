@@ -13,18 +13,18 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.distributed
 import torch.nn as nn
-from omegaconf import OmegaConf, open_dict
-from omegaconf.dictconfig import DictConfig
+from omegaconf import DictConfig, open_dict
 
+from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.core import adapter_mixins
+from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.module import NeuralModule
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 
 __all__ = ["AudioPerceptionModel"]
@@ -103,16 +103,27 @@ class AudioPerceptionModel(NeuralModule, Exportable):
             adapter_metadata = adapter_mixins.get_registered_adapter(cfg.encoder._target_)
             if adapter_metadata is not None:
                 cfg.encoder._target_ = adapter_metadata.adapter_class_path
-
         # Initialize components
         self.preprocessor = self.from_config_dict(cfg.preprocessor)
-        self.encoder = self.from_config_dict(cfg.encoder)
+        encoder = self.from_config_dict(cfg.encoder)
+        if cfg.get("use_multi_layer_feat", False) and cfg.get("multi_layer_feat", None):
+            self.encoder = ConformerMultiLayerFeatureExtractor(cfg=cfg.multi_layer_feat, encoder=encoder)
+            if cfg.multi_layer_feat.aggregator.mode == "cat":
+                with open_dict(cfg.modality_adapter):
+                    cfg.modality_adapter.input_dim = cfg.modality_adapter.input_dim * len(
+                        cfg.multi_layer_feat.layer_idx_list
+                    )
+        else:
+            self.encoder = encoder
         if 'spec_augment' in cfg and cfg.spec_augment is not None:
             self.spec_augmentation = self.from_config_dict(cfg.spec_augment)
         else:
             self.spec_augmentation = None
         self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
-        self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
+        if 'output_dim' not in cfg.modality_adapter and "d_model" in cfg.modality_adapter:  # e.g., conformer encoder
+            self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
+        else:
+            self.proj = nn.Identity()
         self.setup_adapter(cfg, self.encoder)
 
     def maybe_preprocess_audio(
@@ -146,7 +157,96 @@ class AudioPerceptionModel(NeuralModule, Exportable):
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         encoded, encoded_len = self.modality_adapter(audio_signal=encoded, length=encoded_len)
-        # b, t, c
+
+        # b, c, t -> b, t, c
         encoded = self.proj(encoded.transpose(1, 2))
 
         return encoded, encoded_len
+
+
+class Aggregator(nn.Module):
+    def __init__(self, cfg: DictConfig, channel_dim: int = 1):
+        super().__init__()
+        self.mode = cfg.get("mode", "cat")
+        self.channel_dim = channel_dim
+        self.pooling = cfg.get("pooling", "avg")
+        self.rounding = cfg.get("rounding", "floor")
+
+    def _have_same_length(self, encoded_len: List[torch.Tensor]) -> bool:
+        sample_len = encoded_len[0]
+        for x in encoded_len:
+            if torch.sum(x - sample_len) != 0:
+                return False
+        return True
+
+    def forward(
+        self, encoded: List[torch.Tensor], encoded_len: List[torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if not self._have_same_length(encoded_len):
+            return self.merge_different_features(encoded, encoded_len)
+
+        if self.mode == "cat":
+            return torch.cat(encoded, dim=self.channel_dim), encoded_len[0]
+        elif self.mode == "sum":
+            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).sum(dim=-1), encoded_len[0]
+        elif self.mode == "mean":
+            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).mean(dim=-1), encoded_len[0]
+        elif self.mode == "max":
+            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).max(dim=-1), encoded_len[0]
+        elif self.mode == "min":
+            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).min(dim=-1), encoded_len[0]
+        else:
+            raise ValueError(f"Unknown mode {self.mode}")
+
+    def merge_different_features(self, encoded, encoded_len):
+        raise NotImplementedError
+
+
+class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin):
+    def __init__(self, cfg: DictConfig, encoder: ConformerEncoder):
+        super().__init__()
+        self.encoder = encoder
+        self.layer_idx_list = [int(l) for l in cfg.layer_idx_list]
+        for x in self.layer_idx_list:
+            if x < 0 or x >= len(encoder.layers):
+                raise ValueError(f"layer index {x} out of range [0, {len(encoder.layers)})")
+        access_cfg = {
+            "interctc": {"capture_layers": self.layer_idx_list,},
+            "detach": cfg.get("detach", False),
+            "convert_to_cpu": cfg.get("convert_to_cpu", False),
+        }
+        self.update_access_cfg(access_cfg)
+        self.aggregator = Aggregator(cfg.aggregator, channel_dim=1)
+
+    def forward(self, *args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
+        old_access_flag = self.is_access_enabled()
+        self.set_access_enabled(access_enabled=True)
+
+        _ = self.encoder(*args, **kwargs)
+
+        total_registry = {}
+        for module_registry in self.get_module_registry(self.encoder).values():
+            for key in module_registry:
+                if key.startswith("interctc/") and key in total_registry:
+                    raise RuntimeError(f"layer {key} has been logged multiple times!")
+            total_registry.update(module_registry)
+
+        encoded_list = []
+        encoded_len_list = []
+        for layer_idx in self.layer_idx_list:
+            try:
+                layer_outputs = total_registry[f"interctc/layer_output_{layer_idx}"]
+                layer_lengths = total_registry[f"interctc/layer_length_{layer_idx}"]
+            except KeyError:
+                raise RuntimeError(
+                    f"Intermediate layer {layer_idx} was not captured! Check the layer index and the number of ConformerEncoder layers."
+                )
+            if len(layer_outputs) > 1 or len(layer_lengths) > 1:
+                raise RuntimeError("Make sure encoder.forward is called exactly one time")
+            encoded_list.append(layer_outputs[0])  # [B, D, T]
+            encoded_len_list.append(layer_lengths[0])  # [B]
+
+        self.encoder.reset_registry()
+        self.set_access_enabled(access_enabled=old_access_flag)
+
+        return self.aggregator(encoded_list, encoded_len_list)

@@ -23,7 +23,7 @@ import braceexpand
 import numpy as np
 import torch
 import webdataset as wd
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.data.audio_to_text import (
     cache_datastore_manifests,
@@ -63,6 +63,8 @@ except (ImportError, ModuleNotFoundError):
 __all__ = [
     'AudioQuestionAnswerDataset',
     'TarredAudioQuestionAnswerDataset',
+    'get_tarred_aqa_dataset_from_config',
+    'get_aqa_dataset_from_config',
 ]
 
 
@@ -139,6 +141,7 @@ def _audio_text_collate_fn(
     max_length = (
         max([len(x) for x in input_ids] + [len(x) for x in answers] + [len(x) for x in contexts]) + tokens_to_generate
     )
+
     # increase max length to nearest multiple of 4 or 8
     if pad_to_max_length:
         max_length = max_seq_length
@@ -154,8 +157,8 @@ def _audio_text_collate_fn(
     loss_mask = torch.LongTensor(_collate_item(loss_mask, max_length=max_length, pad_id=0))
     contexts = torch.LongTensor(_collate_item(contexts, max_length=max_length, pad_id=text_pad_id))
     answers = torch.LongTensor(_collate_item(answers, max_length=max_length, pad_id=text_pad_id))
-
     audio_ratio = [item['audio_ratio'] for item in batch if 'audio_ratio' in item]
+
     batch = {
         'sample_ids': sample_ids,
         'audio_signal': audio_signal,
@@ -173,10 +176,42 @@ def _audio_text_collate_fn(
     }
     if audio_ratio != []:
         batch['audio_ratio'] = torch.FloatTensor(audio_ratio)
+
     return batch
 
 
-class TextProcessing:
+def _multi_audio_text_collate_fn(
+    batch: Dict, tokens_to_generate: int, pad_to_max_length: bool, max_seq_length: int, text_pad_id: int,
+):
+    """Collate function for multi audio case."""
+    context_start_idx = [item['context_start_idx'] for item in batch]
+
+    audio_signals = [x["audio_signal"] for x in batch]
+    audio_lengths = [x["audio_length"] for x in batch]
+    num_audios = [len(x) for x in audio_signals]
+
+    # put all audios from all samples in one batch
+    audio_signals_merged = [item for audio_list in audio_signals for item in audio_list]
+    audio_lengths_merged = [item for length_list in audio_lengths for item in length_list]
+    audio_signals_merged, audio_lengths_merged = _audio_collate_fn(audio_signals_merged, audio_lengths_merged)
+
+    for i in range(len(batch)):
+        # create dummy audio_signal and audio_length for _audio_text_collate_fn()
+        batch[i]["audio_signal"] = audio_signals[i][0]
+        batch[i]["audio_length"] = audio_lengths[i][0]
+
+    batch = _audio_text_collate_fn(batch, tokens_to_generate, pad_to_max_length, max_seq_length, text_pad_id)
+
+    # add multi audio specific fields
+    batch['context_start_idx'] = list(context_start_idx)
+    batch['num_audios'] = torch.LongTensor(num_audios)
+    batch['audio_signal'] = audio_signals_merged
+    batch['audio_signal_length'] = audio_lengths_merged
+
+    return batch
+
+
+class TextProcessing(object):
     """
     Text processing pipeline for AudioQuestionAnswerDataset and TarredAudioQuestionAnswerDataset.
     """
@@ -202,6 +237,7 @@ class TextProcessing:
         output_key: str = 'output',
         end_string: Optional[str] = None,
         sample_alpha: Optional[float] = None,
+        audio_locator: Optional[str] = None,
         input_text_mask_ratio: Optional[float] = None,
     ):
         self.input_key = input_key
@@ -222,6 +258,7 @@ class TextProcessing:
         self.add_sep = add_sep
         self.end_string = end_string
         self.sample_alpha = sample_alpha
+        self.audio_locator = audio_locator
         self.input_text_mask_ratio = input_text_mask_ratio
 
         if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
@@ -307,7 +344,20 @@ class TextProcessing:
         )
         if self.end_string:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
-        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
+
+        if self.audio_locator is None:
+            # signle audio case
+            context_ids = self.tokenizer.text_to_ids(context)
+            context_start_idx = [0]
+        else:
+            # multiple audio case
+            context_ids = []
+            context_start_idx = []
+            for context_seg in context.split(self.audio_locator):
+                context_start_idx.append(len(context_ids))
+                context_ids.extend(self.tokenizer.text_to_ids(context_seg))
+        context_ids = pre_pad + context_ids
+        context_start_idx = [x + len(pre_pad) for x in context_start_idx]
 
         # for the long context cases, collate_fn includes self.tokens_to_generate for padding
         total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
@@ -322,7 +372,7 @@ class TextProcessing:
         # If the total number of token is greater than the max, we will try to truncate the answer
         if total_ids > self.max_seq_length:
             truncation_length = total_ids - self.max_seq_length
-            # TODO(zhehuai)
+            # TODO
             answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
             context_ids = context_ids[: -min(truncation_length, len(context_ids))]
 
@@ -374,6 +424,7 @@ class TextProcessing:
             'context_ids': context_ids,
             'context_length': len(context_ids),
             'answer_ids': answer_ids,
+            'context_start_idx': context_start_idx,
         }
 
         if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
@@ -452,12 +503,13 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         input_key: str = 'input',
         output_key: str = 'output',
         end_string: Optional[str] = None,
-        question_file: Optional[str] = None,
+        question_file: Optional[Union[List[str], str]] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
         include_voice_name: Optional[bool] = False,
         random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
+        audio_locator: Optional[str] = None,
         input_text_mask_ratio: Optional[float] = None,
     ):
         super().__init__(
@@ -480,6 +532,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             output_key=output_key,
             end_string=end_string,
             sample_alpha=sample_alpha,
+            audio_locator=audio_locator,
             input_text_mask_ratio=input_text_mask_ratio,
         )
 
@@ -560,6 +613,112 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             max_seq_length=self.max_seq_length,
             text_pad_id=self.pad_id,
         )
+
+    def collate_fn(self, batch):
+        return self._collate_fn(batch)
+
+
+class MultiAudioQuestionAnswerDataset(AudioQuestionAnswerDataset):
+    """
+    Dataset for having multi audios per sample, for example in few-shot in-context learning.
+    To use this dataset, you need to specify the `audio_locator` field in the dataset config,
+    and use that to specify the locations of the audio files in your manifest. In this case, 
+    the `audio_filepath` field in the manifest is a list of audio filepaths, and the `duration`
+    field is a list of durations, one for each audio file. The `offset` field is optional, and
+    if not specified, it is assumed to be 0.0. The `offset` field is also a list of offsets if specified.
+
+    Example manifest item for audio_locator='|audio|':
+    {
+    "audio_filepath": ["1.wav","2.wav","3.wav"], 
+    "duration": [1.05,1.05,2.0],
+    "answer": "this was her dream as nearly as she could recall it", 
+    "question": "Following are examples of speech audios and their transcriptions. 
+        Example 1: audio is |audio|, transcription is 'I have a dream'. 
+        Example 2: audio is |audio|, transcription is ' I don't have a dream'. 
+        Given the following audio |audio|, transcribe the audio into words."
+    }
+    """
+
+    def __init__(
+        self, *args, **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
+    def _collate_fn(self, batch):
+        return _multi_audio_text_collate_fn(
+            batch=batch,
+            tokens_to_generate=self.tokens_to_generate,
+            pad_to_max_length=self.pad_to_max_length,
+            max_seq_length=self.max_seq_length,
+            text_pad_id=self.pad_id,
+        )
+
+    def __getitem__(self, index):
+        output = {"idx": index}
+        sample = self.collection[index]
+        offsets = sample.offset if sample.offset else 0.0
+        durations = sample.duration if sample.duration else 0.0
+        num_audios = 0
+        output["audio_signal"] = []
+        output["audio_length"] = []
+        if sample.audio_file is not None:
+            audio_list = sample.audio_file
+            if isinstance(sample.audio_file, str):
+                audio_list = [sample.audio_file]
+            if not isinstance(audio_list, list):
+                raise ValueError(
+                    f"The field `audio_file` must be either a str or a list of str, but got type {type(sample.audio_file)} instead"
+                )
+
+            num_audios = len(audio_list)
+            if isinstance(durations, list) and len(durations) != num_audios:
+                raise ValueError(
+                    f"The number of durations ({len(durations)}) must match the number of audio clips ({num_audios})"
+                )
+            if isinstance(offsets, list) and len(offsets) != num_audios:
+                raise ValueError(
+                    f"The number of offsets ({len(offsets)}) must match the number of audio clips ({num_audios})"
+                )
+
+            for i, audio_file in enumerate(audio_list):
+                duration = durations[i] if isinstance(durations, list) else 0
+                offset = offsets[i] if isinstance(offsets, list) else 0
+                features = self.featurizer.process(
+                    audio_file,
+                    offset=offset,
+                    duration=duration,
+                    trim=self.trim,
+                    orig_sr=sample.orig_sr,
+                    channel_selector=self.channel_selector,
+                )
+                f, fl = features, torch.tensor(features.shape[0]).long()
+                output["audio_signal"].append(f)
+                output["audio_length"].append(fl)
+            audio_ratio = 1
+        else:
+            # dummy features
+            output["audio_signal"] = [torch.zeros([8000])]
+            # accomodates normalize_batch
+            output["audio_length"] = [torch.tensor(8000)]
+            audio_ratio = 0
+
+        text_data = self._process_example(context=sample.question, output=sample.answer)
+
+        if isinstance(output["audio_signal"], list) and len(output["audio_signal"]) + 1 != len(
+            text_data['context_start_idx']
+        ):
+            raise ValueError(
+                f"The number of text segments ({len(text_data['context_start_idx'])}) must be one more than number of audios ({len(output['audio_signal'])})"
+            )
+
+        output.update(text_data)
+        output['metadata'] = {
+            'audio_filepath': sample.audio_file,
+            'offset': offset,
+            'duration': sample.duration,
+        }
+        output['audio_ratio'] = torch.tensor(audio_ratio)
+        return output
 
 
 class TarredAudioFilter:
@@ -744,7 +903,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         input_key: str = 'input',
         output_key: str = 'output',
         end_string: Optional[str] = None,
-        question_file: Optional[str] = None,
+        question_file: Optional[Union[List[str], str]] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
         include_voice_name: Optional[bool] = False,
@@ -774,7 +933,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             sample_alpha=sample_alpha,
             input_text_mask_ratio=input_text_mask_ratio,
         )
-
+        self.is_megatron_iterable = True
         self.shard_manifests = shard_manifests
 
         # Shard manifests if necessary and possible and then expand the paths
@@ -805,7 +964,6 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
-
         assert audio_tar_filepaths
         logging.info(f"WebDataset is created for {manifest_filepath} {audio_tar_filepaths}")
         audio_tar_filepaths = expand_sharded_filepaths(
@@ -853,6 +1011,9 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             max_seq_length=self.max_seq_length,
             text_pad_id=self.pad_id,
         )
+
+    def collate_fn(self, batch):
+        return self._collate_fn(batch)
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
@@ -1277,7 +1438,6 @@ def get_tarred_aqa_dataset_from_config(
                 f"Concat dataset requires `concat_sampling_technique` but it was not provided. Config: {config}"
             )
             return None
-
         if 'concat_sampling_technique' in config and config['concat_sampling_technique'] == 'random':
             if not 'concat_sampling_probabilities' in config:
                 logging.warning(f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}")
@@ -1339,6 +1499,7 @@ def get_aqa_dataset_from_config(
     else:
         manifest_filepath = config.manifest_filepath
 
+    data_cls = MultiAudioQuestionAnswerDataset if config.get('audio_locator', None) else AudioQuestionAnswerDataset
     datasets = []
     if is_train:
         # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
@@ -1372,7 +1533,7 @@ def get_aqa_dataset_from_config(
             question_file = question_file_set[dataset_idx]
         else:
             question_file = None
-        dataset = AudioQuestionAnswerDataset(
+        dataset = data_cls(
             manifest_filepath=file_path,
             tokenizer=tokenizer,
             sample_rate=config.sample_rate,
@@ -1410,6 +1571,7 @@ def get_aqa_dataset_from_config(
             include_voice_name=config.get('include_voice_name', False),
             random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
             question_file=question_file,
+            audio_locator=config.get('audio_locator', None),
         )
         datasets.append(dataset)
 

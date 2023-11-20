@@ -670,7 +670,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
         if stage == 'validate' or stage == 'test':
             return
-        logging.info('Building GPT SFT traing datasets.')
+        logging.info('Building GPT SFT traning datasets.')
         self._train_ds = self._build_dataset(self.cfg.data.train_ds)
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
 

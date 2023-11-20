@@ -129,6 +129,14 @@ model:
       init_std: 0.023
 
   perception:
+    use_multi_layer_feat: false
+    multi_layer_feat:
+      layer_idx_list: [0,16]
+      aggregator:
+        mode: "cat"
+        pooling: "avg"
+        rounding: "floor"
+
     modality_adapter: 
       _target_: nemo.collections.asr.modules.ConformerEncoder
       feat_in: 1024
