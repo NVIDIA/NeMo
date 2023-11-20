@@ -192,7 +192,7 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         pad_samples_to_global_batch_size: bool = False,
         seed: int = 0,
     ) -> None:
-        
+
         # Sanity checks.
         if total_samples <= 0:
             raise RuntimeError("no sample to consume: {}".format(total_samples))
@@ -206,7 +206,7 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
                     data_parallel_rank, data_parallel_size
                 )
             )
-        
+
         self.total_samples: int = total_samples
         self.consumed_samples: int = consumed_samples
         self.micro_batch_size: int = micro_batch_size
@@ -218,7 +218,7 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
 
         self.update_global_batch_size(global_batch_size)
         self.last_batch_size = self.total_samples % self._global_batch_size
-    
+
     def __len__(self) -> int:
         """Length of Random Batch Sampler.
 
