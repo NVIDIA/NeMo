@@ -1,3 +1,4 @@
+import logging
 import warnings
 from pathlib import Path
 from typing import Sequence, Tuple
@@ -51,16 +52,23 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
         if config.lhotse.get("cuts_path") is not None:
             warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
         if isinstance(config.lhotse.shar_path, (str, Path)):
-            # Single dataset in Lhotse Shar format
+            logging.info(
+                f"Initializing Lhotse Shar CutSet (tarred) from a single data source: '{config.lhotse.shar_path}'"
+            )
             cuts = CutSet.from_shar(in_dir=config.lhotse.shar_path, shuffle_shards=True, seed=shar_seed).repeat()
         else:
             # Multiple datasets in Lhotse Shar format: we will dynamically multiplex them
             # with probability approximately proportional to their size
+            logging.info(
+                "Initializing Lhotse Shar CutSet (tarred) from multiple data sources with a weighted multiplexer. "
+                "We found the following sources and weights: "
+            )
             cutsets = []
             weights = []
             for item in config.lhotse.shar_path:
                 if isinstance(item, (str, Path)):
-                    cs = CutSet.from_shar(in_dir=item, shuffle_shards=True, seed=shar_seed)
+                    path = item
+                    cs = CutSet.from_shar(in_dir=path, shuffle_shards=True, seed=shar_seed)
                     weight = len(cs)
                 else:
                     assert isinstance(item, Sequence) and len(item) == 2 and isinstance(item[1], (int, float)), (
@@ -71,6 +79,7 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
                     )
                     path, weight = item
                     cs = CutSet.from_shar(in_dir=path, shuffle_shards=True, seed=shar_seed)
+                logging.info(f"- {path=} {weight=}")
                 cutsets.append(cs.repeat())
                 weights.append(weight)
             cuts = CutSet.mux(*cutsets, weights=weights)
@@ -83,7 +92,9 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
 def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
     if is_tarred:
         if isinstance(config["manifest_filepath"], (str, Path)):
-            # Single manifest / tar file
+            logging.info(
+                f"Initializing Lhotse CutSet from a single NeMo manifest (tarred): '{config['manifest_filepath']}'"
+            )
             cuts = CutSet(
                 LazyNeMoTarredIterator(
                     config["manifest_filepath"],
@@ -98,6 +109,10 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
             #       this ensures that we distribute the data from each source uniformly throughout each epoch.
             #       Setting equal weights would exhaust the shorter data sources closer towatds the beginning
             #       of an epoch (or over-sample it in the case of infinite CutSet iteration with .repeat()).
+            logging.info(
+                f"Initializing Lhotse CutSet from multiple tarred NeMo manifest sources with a weighted multiplexer. "
+                f"We found the following sources and weights: "
+            )
             cutsets = []
             weights = []
             for (mp,), (tp,) in zip(config["manifest_filepath"], config["tarred_audio_filepaths"]):
@@ -109,7 +124,11 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                     )
                 )
                 weights.append(len(cutsets[-1]))
+                logging.info(f"- path={mp} weight={weights[-1]}")
             cuts = CutSet.mux(*cutsets, weights=weights)
     else:
+        logging.info(
+            f"Initializing Lhotse CutSet from a single NeMo manifest (non-tarred): '{config['manifest_filepath']}'"
+        )
         cuts = CutSet(LazyNeMoIterator(config["manifest_filepath"], sampling_rate=config.get("sample_rate")))
     return cuts

@@ -132,10 +132,6 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
             from nemo.collections.asr.data.lhotse.dataloader import get_lhotse_dataloader_from_config
 
-            # Note:
-            #    Lhotse Dataset only maps CutSet -> batch of tensors, but does not actually
-            #    contain any data or meta-data; it is passed to it by a Lhotse sampler for
-            #    each sampler mini-batch.
             return get_lhotse_dataloader_from_config(
                 config,
                 global_rank=self.global_rank,

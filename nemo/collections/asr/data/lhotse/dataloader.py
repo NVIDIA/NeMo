@@ -1,3 +1,5 @@
+import logging
+
 import torch.utils
 from lhotse import CutSet
 from lhotse.dataset import DynamicBucketingSampler, DynamicCutSampler, IterableDatasetWrapper, make_worker_init_fn
@@ -21,6 +23,7 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
     For example, see: :class:`nemo.collections.asr.data.audio_to_text_lhotse.LhotseSpeechToTextBpeDataset`,
     which is constructed from just a tokenizer and essentially loads and collates audio and tokenizes the transcript.
     """
+    logging.info("We will be using a Lhotse DataLoader.")
 
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, is_tarred = read_cutset_from_config(config)
@@ -45,6 +48,7 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
         #    - we can tweak the number of buckets without triggering a full data copy
         #    - batch size is dynamic and configurable via a single param: max_duration (config: batch_duration)
         #    - quadratic_duraion introduces a penalty useful to balance batch sizes for quadratic time complexity models
+        logging.info(f"Creating a Lhotse DynamicBucketingSampler (batch_duration={config.lhotse.batch_duration})")
         sampler = DynamicBucketingSampler(
             cuts,
             max_duration=config.lhotse.batch_duration,
@@ -64,6 +68,9 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
         # Non-bucketing, similar to NeMo's regular non-tarred manifests,
         # but we also use batch_duration instead of batch_size here.
         # Recommended for dev/test.
+        logging.info(
+            f"Creating a Lhotse DynamicCutSampler (bucketing is disabled, batch_duration={config.lhotse.batch_duration})"
+        )
         sampler = DynamicCutSampler(
             cuts,
             max_duration=config.lhotse.batch_duration,

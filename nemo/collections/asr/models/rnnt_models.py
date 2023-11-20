@@ -459,6 +459,28 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         # Automatically inject args from model config to dataloader config
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
+
+        if config.get("use_lhotse"):
+            from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+            from nemo.collections.asr.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+            from nemo.collections.common.parts.preprocessing.parsers import make_parser
+
+            return get_lhotse_dataloader_from_config(
+                config,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                dataset=LhotseSpeechToTextBpeDataset(
+                    tokenizer=make_parser(
+                        labels=config.get('labels', None),
+                        name=config.get('parser', 'en'),
+                        unk_id=config.get('unk_index', -1),
+                        blank_id=config.get('blank_index', -1),
+                        do_normalize=config.get('normalize_transcripts', False),
+                    ),
+                    noise_cuts=config.get("lhotse", {}).get("noise_cuts"),
+                ),
+            )
+
         dataset = audio_to_text_dataset.get_audio_to_text_char_dataset_from_config(
             config=config,
             local_rank=self.local_rank,

@@ -1,8 +1,7 @@
-import tarfile
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 import pytest
 import torch.utils.data
