@@ -1,10 +1,9 @@
 import logging
 import warnings
 from pathlib import Path
-from typing import Sequence, Tuple, NewType, Any
+from typing import Any, NewType, Sequence, Tuple
 
 from nemo.collections.asr.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
-
 
 LhotseCutSet = NewType("LhotseCutSet", Any)  # Indicate return type without importing Lhotse.
 
