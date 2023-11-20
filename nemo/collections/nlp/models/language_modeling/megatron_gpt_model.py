@@ -1515,7 +1515,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 f"The normalization type: {normalization} might not be supported in megatron core."
                 f"Supported types are LayerNorm and RMSNorm."
             )
-            
+
         ub_tp_comm_overlap = self.cfg.get('ub_tp_comm_overlap', False)
 
         if not self.cfg.get('fp8', False):
@@ -1532,7 +1532,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'normalization': normalization,
             'fp8': fp8,
-            'ub_tp_comm_overlap': ub_tp_comm_overlap
+            'ub_tp_comm_overlap': ub_tp_comm_overlap,
         }
 
         transformer_config = super().build_transformer_config(model_specific_configs)
