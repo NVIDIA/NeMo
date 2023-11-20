@@ -53,7 +53,17 @@ def modify_line_for_chat_instruction(line, task):
 
     return line
 
-def _process_line(line, task, tokenizer, max_seq_length, tokens_to_generate_extra, prompt,truncation_pos='right', remove_newline_tab=False):
+
+def _process_line(
+    line,
+    task,
+    tokenizer,
+    max_seq_length,
+    tokens_to_generate_extra,
+    prompt,
+    truncation_pos='right',
+    remove_newline_tab=False,
+):
     """
         Read line, tokenize input and truncate to max_seq_len
 
@@ -161,7 +171,17 @@ def _process_line(line, task, tokenizer, max_seq_length, tokens_to_generate_extr
     assert len(tokenizer.text_to_tokens(truncated_text)) <= max_seq_length
     return truncated_text
 
-def _process_line_longbench(line, task, tokenizer, max_seq_length, tokens_to_generate_extra, prompt,truncation_pos='right', remove_newline_tab=False):
+
+def _process_line_longbench(
+    line,
+    task,
+    tokenizer,
+    max_seq_length,
+    tokens_to_generate_extra,
+    prompt,
+    truncation_pos='right',
+    remove_newline_tab=False,
+):
     """
         Read line, tokenize input and truncate to max_seq_len
 
@@ -202,8 +222,8 @@ def _process_line_longbench(line, task, tokenizer, max_seq_length, tokens_to_gen
                     )
                 ]
             )
-        
-            truncated_text = prompt_text.format(context=truncated_context+truncation_seperator, input=input_text)
+
+            truncated_text = prompt_text.format(context=truncated_context + truncation_seperator, input=input_text)
 
         elif truncation_pos == 'left':
             truncation_seperator = "[The beginning of the transcript is omitted] ..."
