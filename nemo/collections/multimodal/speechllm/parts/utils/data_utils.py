@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional
+
 import numpy as np
 import torch
 
@@ -83,3 +85,85 @@ def shift_tokens_by_multi_audios(
         new_context_tokens.append(context_tokens_i)
     new_context_tokens = torch.stack(new_context_tokens)
     return new_context_tokens
+
+
+def get_nested_dict_value(d, key, sep="."):
+    """
+    Get the value of a nested dict given a key
+    Args:
+        d: dict
+        key: str
+    """
+    for k in key.split(sep):
+        d = d[k]
+    return d
+
+
+def align_feat_seq_list(
+    seq_list: List[torch.Tensor],
+    seq_len_list: List[torch.Tensor],
+    mode: str = "min",
+    pooling: str = 'avg',
+    target_len: Optional[int] = None,
+):
+    """
+    Align a list of feature sequences to the same length by repeating or discarding frames.
+    Args:
+        seq_list: List[torch.Tensor], list of tensors of shape [batch, hidden_size, seq_len]
+        seq_len_list: List[torch.Tensor], list of tensors of shape [batch,]
+        mode: str, "min" or "max"
+        pooling: str, "mean", "max", or "min"
+    Returns:
+        new_seq_list: List[torch.Tensor], list of tensors of shape [batch, hidden_size, new_seq_len]
+        new_seq_len_list: List[torch.Tensor], list of tensors of shape [batch,]
+    """
+    MODES = ["min", "max"]
+    if mode not in MODES:
+        raise ValueError(f"mode {mode} not supported, available modes: {MODES}")
+    POOLING = ["mean", "max", "min"]
+    if pooling not in POOLING:
+        raise ValueError(f"pooling {pooling} not supported, available modes: {POOLING}")
+
+    new_seq_len_list = []
+    new_seq_list = []
+
+    if target_len is None:
+        target_len = [x.size(-1) for x in seq_list]
+        target_len = min(target_len) if mode == "min" else max(target_len)
+
+    for seq, seq_len in zip(seq_list, seq_len_list):
+        curr_len = seq.size(-1)
+        if curr_len > target_len:
+            ratio = round(curr_len / target_len)
+            res = abs(ratio * target_len - curr_len)
+            if ratio * target_len > curr_len:  # e.g., ratio = 1.9
+                # repeat the last res frames
+                seq = torch.cat([seq, seq[:, :, -res:]], dim=-1)
+                seq_len += res * (seq_len > target_len).long()
+            elif ratio * target_len < curr_len:  # e.g., ratio = 2.1
+                # discard the last res frames
+                seq = seq[:, :, :-res]
+                seq_len -= res * (seq_len > target_len).long()
+            new_seq = seq.reshape(seq.size(0), seq.size(1), ratio, target_len)
+            if pooling == "min":
+                new_seq = new_seq.min(dim=2)
+            elif pooling == "max":
+                new_seq = new_seq.max(dim=2)
+            else:
+                new_seq = new_seq.mean(dim=2)
+            new_seq_len = torch.round(seq_len / ratio).long()
+        else:  # curr_len <= target_len
+            ratio = round(target_len / curr_len)
+            res = abs(ratio * curr_len - target_len)
+            new_seq = torch.repeat_interleave(seq, ratio, dim=-1)
+            new_seq_len = seq_len * ratio
+            if ratio * curr_len > target_len:  # e.g., ratio = 1.9
+                new_seq = new_seq[:, :, :target_len]
+                new_seq_len = (
+                    seq_len * ratio - (ratio * seq_len - target_len) * (ratio * seq_len > target_len).long()
+                )  # subtract additional frames
+            elif ratio * curr_len < target_len:  # e.g., ratio = 2.1
+                new_seq = torch.cat([new_seq, seq[:, :, -res:]], dim=-1)
+        new_seq_list.append(new_seq)
+        new_seq_len_list.append(new_seq_len)
+    return new_seq_list, new_seq_len_list
