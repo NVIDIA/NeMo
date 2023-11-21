@@ -29,6 +29,8 @@
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Union
 
+from cuda import cuda, cudart
+
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -40,6 +42,30 @@ from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
+
+
+def create_for_loop_kernel(trip_count: int):
+    saxpy = """\
+    extern "C" __global__
+    void for_loop_conditional(int *count_ptr)
+    {
+     if (*count_ptr) {
+         (*count_ptr)--;
+     }
+
+     cudaGraphSetConditional(handle, *dPtr);
+
+
+     size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+     if (tid < n) {
+       out[tid] = a * x[tid] + y[tid];
+     }
+    }
+    """
+
+    
+
+    
 
 
 def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
@@ -1042,6 +1068,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         assert not self.preserve_alignments
         assert not self.preserve_frame_confidence
 
+        assert self.max_symbols is not None
+
         with torch.inference_mode():
             # x: [B, T, D]
             # out_len: [B]
@@ -1054,7 +1082,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             ]
 
             # Initialize Hidden state matrix (shared by entire batch)
-            hidden = None
+            # TODO: Need to make an abstract method for initializing states
+            hidden = self.decoder.initialize_state(x)
 
             # Last Label buffer + Last Label without blank buffer
             # batch level equivalent of the last_label
@@ -1064,20 +1093,25 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
             blank_mask_prev = None
 
+            # We have three conditionals
+            # 1) the for loop over the encoder outputs
+            # 2) the while loop until all are blank
+            #   We would like to copy the greedy outputs from device to host. 
+            #   Can't use a cudaEvent in the body of a loop though.
+
             # Get max sequence length
             max_out_len = out_len.max()
             # This implicitly codes  blocking memory copy from GPU to CPU
             max_out_len = max_out_len.item()
+
             for time_idx in range(max_out_len):
                 torch.cuda.nvtx.range_push("time iteration")
+                # This is problematic for cuda graphs...
                 f = x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
 
                 # Prepare t timestamp batch variables
                 not_blank = True
                 symbols_added = 0
-
-                # Reset blank mask
-                blank_mask.mul_(False)
 
                 # Update blank mask with time mask
                 # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
@@ -1086,13 +1120,54 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # Could do this in a separate stream
                 blank_mask_prev = blank_mask.clone()
 
+
+                capture_status, *outputs = cu_call(cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream()))
+                if capture_status == cudart.cudaStreamCaptureStatusActive:
+                    _, graph, dependencies = outputs
+                    while_loop_conditional = cu_call(cudaGraphConditionalHandleCreate(graph))
+
+                    while_loop_kernel = TODO
+                    while_loop_args = np.array([while_loop_conditional.ctypes.data], dtype=np.uint64)
+
+                    cuda.cuLaunchKernel(
+                        while_loop_kernel,
+                        1, 1, 1,
+                        1, 1, 1,
+                        0,
+                        torch.cuda.current_stream(),
+                        while_loop_args.ctypes.data,
+                        0
+                    )
+
+                    capture_status, *outputs = cu_call(cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream()))
+                    assert capture_status == cudart.cudaStreamCaptureStatusActive
+                    _, graph, dependencies = outputs
+
+                    params = cudart.cudaGraphNodeParams()
+                    params.type = cudart.cudaGraphNodeType.cudaGraphNodeTypeConditional
+                    params.conditional.handle = while_loop_conditional
+                    params.conditional.type   = cudart.cudaGraphConditionalNodeType.cudaGraphCondTypeWhile
+                    params.conditional.size   = 1
+
+                    node = cu_call(cudart.cudaGraphAddNode(graph, dependencies, len(dependencies), params))
+                    body_graph = params.conditional.phGraph_out[0]
+                    cu_call(cudart.cudaStreamUpdateCaptureDependencies(torch.cuda.current_stream(), [node], 1, cudart.cudaStreamSetCaptureDependencies))
+                    body_stream = cu_call(cudart.cudaStreamCreate())
+                    cu_call(cudart.cudaStreamBeginCaptureToGraph(body_stream, body_graph, None, None, 0, cudart.cudaStreamCaptureModeTODO))
+                    previous_stream = torch.cuda.current_stream()
+                    torch.cuda.set_stream(body_stream)
+                    is_capturing = True
+                else:
+                    is_capturing = False
+
                 # Start inner loop
-                while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
+                while not_blank and symbols_added < self.max_symbols:
                     # Batch prediction and joint network steps
                     # If very first prediction step, submit SOS tag (blank) to pred_step.
                     # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
                     torch.cuda.nvtx.range_push("prediction")
-                    if time_idx == 0 and symbols_added == 0 and hidden is None:
+                    # Probably want to turn this into something which always runs, thereby removing the need for another conditional node...
+                    if time_idx == 0 and symbols_added == 0:
                         g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
                     else:
                         # Perform batch step prediction of decoder, getting new states and scores ("g")
@@ -1106,8 +1181,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         :, 0, 0, :
                     ]
                     torch.cuda.nvtx.range_pop()
-
-                    # print("GALVEZ:", logp.dtype)
 
                     # Why is this necessary???
                     if logp.dtype != torch.float32:
@@ -1128,47 +1201,43 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     blank_mask_prev.bitwise_or_(blank_mask)
 
-                    # If all samples predict / have predicted prior blanks, exit loop early
-                    # This is equivalent to if single sample predicted k
-                    if blank_mask.all(): # GPU -> CPU
-                        not_blank = False
-                    else:
-                        # Collect batch indices where blanks occurred now/past
-                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False) # GPU -> CPU copy
+                    all_blank_t = blank_mask.all()
 
-                        # Recover prior state for all samples which predicted blank now/past
-                        if hidden is not None:
-                            # LSTM has 2 states
-                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
+                    not_blank = not all_blank_t
+                    # There are some non-blank outputs. We need to keep going then.
+                    # Recover prior state for all samples which predicted blank now/past
+                    torch.cuda.nvtx.range_push("copy states")
+                    hidden_prime = self.decoder.batch_copy_states_mask(hidden_prime, hidden, blank_mask)
+                    torch.cuda.nvtx.range_pop()
 
-                        elif len(blank_indices) > 0 and hidden is None:
-                            # Reset state if there were some blank and other non-blank predictions in batch
-                            # Original state is filled with zeros so we just multiply
-                            # LSTM has 2 states
-                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
+                    # Recover prior predicted label for all samples which predicted blank now/past
+                    k[blank_mask] = last_label[blank_mask, 0]
 
-                        # Recover prior predicted label for all samples which predicted blank now/past
-                        k[blank_indices] = last_label[blank_indices, 0]
+                    # Update new label and hidden state for next iteration
+                    # last_label
+                    last_label = k.clone().view(-1, 1)
+                    hidden = hidden_prime
 
-                        # Update new label and hidden state for next iteration
-                        last_label = k.clone().view(-1, 1)
-                        hidden = hidden_prime
+                    # Update predicted labels, accounting for time mask
+                    # If blank was predicted even once, now or in the past,
+                    # Force the current predicted label to also be blank
+                    # This ensures that blanks propogate across all timesteps
+                    # once they have occured (normally stopping condition of sample level loop).
 
-                        # Update predicted labels, accounting for time mask
-                        # If blank was predicted even once, now or in the past,
-                        # Force the current predicted label to also be blank
-                        # This ensures that blanks propogate across all timesteps
-                        # once they have occured (normally stopping condition of sample level loop).
+                    # Some kind of CPU synchronization happening
+                    # here... Is there a better way? We could
+                    # remove this from the main loop. But how?
+                    for kidx, ki in enumerate(k):
+                        if blank_mask[kidx] == 0: # GPU -> CPU copy
+                            hypotheses[kidx].y_sequence.append(ki)
+                            hypotheses[kidx].timestep.append(time_idx)
+                            hypotheses[kidx].score += float(v[kidx])
+                    symbols_added += 1
 
-                        # Some kind of CPU synchronization happening
-                        # here... Is there a better way? We could
-                        # remove this from the main loop. But how?
-                        for kidx, ki in enumerate(k):
-                            if blank_mask[kidx] == 0: # GPU -> CPU copy
-                                hypotheses[kidx].y_sequence.append(ki)
-                                hypotheses[kidx].timestep.append(time_idx)
-                                hypotheses[kidx].score += float(v[kidx])
-                        symbols_added += 1
+                    if is_capturing:
+                        torch.cuda.set_stream(previous_stream)
+                        cu_call(cudart.cudaStreamDestroy(body_stream))
+                        break
                 torch.cuda.nvtx.range_pop()
 
         # Preserve states
