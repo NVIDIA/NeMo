@@ -545,6 +545,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        loop_labels: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -559,7 +560,14 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
         if self.decoder.blank_as_pad:
-            self._greedy_decode = self._greedy_decode_blank_as_pad
+            if self.decoder.blank_as_pad:
+                if loop_labels:
+                    # default (faster) algo: loop over labels
+                    self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
+                else:
+                    # previous algo: loop over frames
+                    self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
+
         else:
             self._greedy_decode = self._greedy_decode_masked
 
@@ -607,7 +615,140 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         return (packed_result,)
 
-    def _greedy_decode_blank_as_pad(
+    @torch.inference_mode()
+    def _greedy_decode_blank_as_pad_loop_labels(
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        device: torch.device,
+        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
+        """
+        Optimized batched greedy decoding.
+        The main idea: search for next labels for the whole batch (evaluating Joint)
+        and thus always evaluate prediction network with maximum possible batch size
+        """
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not implemented")
+
+        if self.preserve_frame_confidence:
+            # TODO: support
+            raise NotImplementedError("`preserve_frame_confidence` support is not implemented")
+        if self.preserve_alignments:
+            # TODO: support
+            raise NotImplementedError("`preserve_alignments` support is not implemented")
+
+        # x: [B, T, D]
+        # out_len: [B]
+        # device: torch.device
+
+        batch_size, time, emb_size = x.shape
+
+        # Initialize empty hypotheses and all necessary tensors
+        batched_hyps = rnnt_utils.BatchedHyps(
+            batch_size=batch_size, init_length=time, device=x.device, float_dtype=x.dtype
+        )
+        all_indices = torch.arange(batch_size, dtype=torch.long, device=device)
+        time_indices = torch.zeros([batch_size], dtype=torch.long, device=device)  # always of batch_size
+        is_active = torch.full(
+            [batch_size], fill_value=True, dtype=torch.bool, device=device
+        )  # always of batch_size, mask for active indices
+        active_indices = all_indices.clone()  # initial: all indices
+        state = None
+        labels = torch.full([batch_size], fill_value=self._blank_index, dtype=torch.long, device=device)
+
+        # loop while there are active indices
+        while (current_batch_size := active_indices.shape[0]) > 0:
+            # stage 1: get decoder output
+            if state is None:
+                decoder_output, state, *_ = self._pred_step(self._SOS, state, batch_size=current_batch_size)
+            else:
+                decoder_output, state, *_ = self._pred_step(labels.unsqueeze(1), state, batch_size=current_batch_size)
+
+            # stage 2: get joint output, iteratively seeking for non-blank labels
+            # blank label in `labels` tensor means "end of hypothesis" (for this index)
+            embeddings_selected = x[is_active, time_indices[is_active]].unsqueeze(1)
+            logits = (
+                self._joint_step(
+                    embeddings_selected,
+                    decoder_output,
+                    log_normalize=True if self.preserve_frame_confidence else None,
+                )
+                .squeeze(1)
+                .squeeze(1)
+            )
+            scores, labels = logits.max(-1)
+
+            # to avoid looping, use max_symbols:
+            # if number of last consecutive timesteps >= self.max_symbols, force blank label
+            if self.max_symbols is not None:
+                check_mask = torch.logical_and(
+                    labels != self._blank_index, batched_hyps.lengths[is_active] >= self.max_symbols
+                )
+                if check_mask.any().item():
+                    check_local_batch_indices = torch.arange(0, current_batch_size, device=device)[check_mask]
+                    check_global_batch_indices = active_indices[check_mask]
+                    check_sequence_indices = (
+                        torch.arange(0, self.max_symbols, device=device).unsqueeze(0)
+                        + batched_hyps.lengths[check_global_batch_indices, None]
+                        - self.max_symbols
+                    )
+                    force_blank_mask = (
+                        torch.gather(batched_hyps.timestep[check_global_batch_indices], 1, check_sequence_indices)
+                        == time_indices[check_global_batch_indices, None]
+                    ).all(dim=-1)
+                    labels[check_local_batch_indices[force_blank_mask]] = self._blank_index
+
+            # search for non-blank labels using joint, advancing time indices for blank labels
+            # checking max_symbols is not needed, since we already forced advancing time indices for such cases
+            blank_mask = labels == self._blank_index
+            advance_mask = torch.logical_and(blank_mask, (time_indices[is_active] + 1 < out_len[is_active]))
+            while advance_mask.any().item():
+                use_indices = active_indices[advance_mask]
+                time_indices[use_indices] += 1
+                embeddings_selected = x[use_indices, time_indices[use_indices]].unsqueeze(1)
+                logits = (
+                    self._joint_step(
+                        embeddings_selected,
+                        decoder_output[advance_mask],
+                        log_normalize=True if self.preserve_frame_confidence else None,
+                    )
+                    .squeeze(1)
+                    .squeeze(1)
+                )
+                more_scores, more_labels = logits.max(-1)
+                labels[advance_mask] = more_labels
+                scores[advance_mask] = more_scores
+                blank_mask = labels == self._blank_index
+                advance_mask = torch.logical_and(blank_mask, (time_indices[is_active] + 1 < out_len[is_active]))
+
+            non_blank_mask = ~blank_mask
+            # store hypotheses
+            batched_hyps.add_results_(
+                active_indices[non_blank_mask],
+                labels[non_blank_mask],
+                time_indices[is_active][non_blank_mask].clone(),
+                scores[non_blank_mask],
+            )
+            time_indices[is_active] += blank_mask
+            is_active = time_indices < out_len
+
+            # filter state
+            if isinstance(state, torch.Tensor):
+                state = state[is_active[active_indices]]
+            elif isinstance(state, (tuple, list)):
+                # tuple is immutable, convert temporary to list
+                state = list(state)
+                for i in range(len(state)):
+                    state[i] = state[i][:, is_active[active_indices]]
+                state = tuple(state)
+            labels = labels[is_active[active_indices]]
+            active_indices = all_indices[is_active]
+
+        # TODO: support returning hidden states?
+        return batched_hyps.to_hyps()
+
+    def _greedy_decode_blank_as_pad_loop_frames(
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
