@@ -402,6 +402,9 @@ def generate(
         bad_words_list_tensors = bad_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
             torch.cuda.current_device())
 
+    if no_repeat_ngram_size is not None:
+        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size)
+
     output_tensor = forward(
         input_tensors=input_tensors,
         max_output_len=max_output_len,
