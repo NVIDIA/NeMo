@@ -150,6 +150,7 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int = 32,
         use_inflight_batching=False,
         paged_kv_cache=False,
+        load_model: bool = True,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -166,6 +167,7 @@ class TensorRTLLM(ITritonDeployable):
             max_batch_size (int): max batch size.
             use_inflight_batching (bool): if True, enables inflight batching for TensorRT-LLM Triton backend.
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
+            load_model (bool): load TensorRT-LLM model after the export.
         """
 
         p_tuning = "no_ptuning"
@@ -243,7 +245,9 @@ class TensorRTLLM(ITritonDeployable):
         else:
             shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         tmp_dir.cleanup()
-        self.load()
+        
+        if load_model:
+            self.load()
 
     def forward(
         self,
