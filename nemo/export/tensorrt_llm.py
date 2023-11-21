@@ -54,10 +54,11 @@ class TensorRTLLM(ITritonDeployable):
 
     """
 
-    def __init__(self, model_dir: str):
+    def __init__(self, model_dir: str, load_model: bool=True):
         """
         Args:
             model_dir (str): path for storing the TensorRT-LLM model files.
+            load_model (bool): load TensorRT-LLM model if the engine files exist in the model_dir.
         """
 
         self.model_dir = model_dir
@@ -67,9 +68,10 @@ class TensorRTLLM(ITritonDeployable):
         self.task_vocab_size = None
         self.n_gpus = None
         self.config = None
-        self._load()
+        if load_model:
+            self.load()
 
-    def _load(self):
+    def load(self):
         self.model = None
         self.tokenizer = None
         self.prompt_table = None
@@ -241,7 +243,7 @@ class TensorRTLLM(ITritonDeployable):
         else:
             shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         tmp_dir.cleanup()
-        self._load()
+        self.load()
 
     def forward(
         self,
