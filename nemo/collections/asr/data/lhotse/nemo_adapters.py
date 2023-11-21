@@ -131,9 +131,9 @@ class LazyNeMoTarredIterator(ImitatesDict):
         return self.source.path
 
     def __iter__(self):
-        from lhotse.serialization import open_best
-        from lhotse.audio import AudioSource, Recording
         from lhotse import SupervisionSegment
+        from lhotse.audio import AudioSource, Recording
+        from lhotse.serialization import open_best
 
         shard_ids = self.shard_ids
 
