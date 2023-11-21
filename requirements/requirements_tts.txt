@@ -10,3 +10,5 @@ nltk
 pandas
 pypinyin
 pypinyin-dict
+lhotse
+voicebox-pytorch==0.4.2
