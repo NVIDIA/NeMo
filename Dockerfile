@@ -85,6 +85,8 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 
+# install flash attention
+RUN pip install flash-attn
 # install numba for latest containers
 RUN pip install numba>=0.57.1
 
