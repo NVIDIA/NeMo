@@ -220,3 +220,64 @@ def select_k_expansions(
             k_expansions.append([(k_best_exp_idx, k_best_exp)])
 
     return k_expansions
+
+
+class BatchedHyps:
+    """Class to store batched hypotheses for efficient RNNT decoding"""
+
+    def __init__(
+        self,
+        batch_size: int,
+        init_length: int,
+        device: Optional[torch.device] = None,
+        float_dtype: Optional[torch.dtype] = None,
+    ):
+        if init_length <= 0:
+            raise ValueError(f"init_length must be > 0, got {init_length}")
+        self.max_length = init_length
+        self.transcript = torch.zeros((batch_size, self.max_length), device=device, dtype=torch.long)
+        self.timestep = torch.zeros((batch_size, self.max_length), device=device, dtype=torch.long)
+        self.scores = torch.zeros(batch_size, device=device, dtype=float_dtype)
+        self.lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
+
+    def _allocate_more(self):
+        """
+        Allocate 2x space for tensors, similar to common C++ std::vector implementations
+        to maintain O(1) insertion time complexity
+        """
+        self.transcript = torch.cat((self.transcript, torch.zeros_like(self.transcript)), dim=-1)
+        self.timestep = torch.cat((self.timestep, torch.zeros_like(self.timestep)), dim=-1)
+        self.max_length *= 2
+
+    def add_results_(
+        self, active_indices: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
+    ):
+        """
+        Add results (inplace) from a decoding step to the batched hypotheses
+        Args:
+            active_indices: tensor with indices of active hypotheses (indices should be within the original batch_size)
+            labels: non-blank labels to add
+            time_indices: tensor of time index for each label
+            scores: label scores
+        """
+        # we assume that all tensors have the same first dimension, and labels are non-blanks
+        if active_indices.shape[0] == 0:
+            return  # nothing to add
+        if self.lengths.max().item() >= self.max_length:
+            self._allocate_more()
+        self.scores[active_indices] += scores
+        self.transcript.view(-1)[active_indices * self.max_length + self.lengths[active_indices]] = labels
+        self.timestep.view(-1)[active_indices * self.max_length + self.lengths[active_indices]] = time_indices
+        self.lengths[active_indices] += 1
+
+    def to_hyps(self) -> List[Hypothesis]:
+        hypotheses = [
+            Hypothesis(
+                score=self.scores[i].item(),
+                y_sequence=self.transcript[i, : self.lengths[i]],
+                timestep=self.timestep[i, : self.lengths[i]],
+                dec_state=None,
+            )
+            for i in range(self.scores.shape[0])
+        ]
+        return hypotheses
