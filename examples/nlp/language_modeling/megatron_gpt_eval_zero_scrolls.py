@@ -203,7 +203,7 @@ def main(cfg) -> None:
                 pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
             )
-        # checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+        checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
     else:
         raise ValueError('need at least a nemo file or checkpoint dir')
@@ -221,10 +221,16 @@ def main(cfg) -> None:
     if fp8_enabled:
         nb_paddings = 0
 
+    prompt = None
+    if cfg.sft_type == 'instruction':
+        prompt = cfg.sft_config.instruction_prompt
+    elif cfg.sft_type == 'dialog':
+        prompt = cfg.sft_config.dialog_prompt
+
     print('Processing data...')
     original_lines, truncated_input = process_data(
         model.tokenizer,
-        prompt=cfg.chatbot_config.prompt if cfg.chat else None,
+        prompt=prompt,
         task=cfg.inference.task,
         max_seq_length=cfg.inference.max_seq_length,
         truncation_pos=cfg.inference.truncation_pos,

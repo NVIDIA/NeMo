@@ -45,8 +45,9 @@ share: false                                      # whether create a public URL
 username: test                                    # user name for web client
 password: test2                                   # password for web client
 web_port: 9889                                    # the port number of the web server
-chat: false                                       # use the chat interface
-chatbot_config:
+sft_type: null                                    # Can be: [null, 'instruction', 'dialog']. null is for base models.
+sft_config:
   user: User
   assistant: Assistant
-  prompt: "<extra_id_0>System\n\n<extra_id_1>User\n{context}\n<extra_id_1>Assistant\n"
+  instruction_prompt: "User: {context}\n\nAssistant: "
+  dialog_prompt: "<extra_id_0>System\n<extra_id_1>User\n{context}\n<extra_id_1>Assistant\n"

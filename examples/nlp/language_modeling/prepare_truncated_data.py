@@ -32,7 +32,7 @@ def remove_newlines_and_tabs(text):
     """
     Removes newlines, tabs, and extra spaces from the given text.
     """
-    return text.replace('\n', ' ').replace('\t', ' ').strip().replace('  ', ' ')
+    return ' '.join(text.replace('\n', ' ').replace('\t', ' ').strip().split())
 
 
 def modify_line_for_chat_instruction(line, task):
@@ -45,7 +45,7 @@ def modify_line_for_chat_instruction(line, task):
 
         line['input'] = line['input'][:document_header_idx] + chat_instruction + line['input'][document_header_idx:]
 
-        chat_instruction_length = len(chat_instruction) + 1
+        chat_instruction_length = len(chat_instruction)
         line['query_start_index'] += chat_instruction_length
         line['query_end_index'] += chat_instruction_length
         line['document_start_index'] += chat_instruction_length
@@ -75,23 +75,23 @@ def _process_line(
         line = modify_line_for_chat_instruction(line, task)
 
     question = line['input'][line['query_start_index'] :]
-    question_len = len(tokenizer.text_to_tokens(question))
     context = line['input'][: line['query_start_index']]
-    context_tokens = tokenizer.text_to_tokens(context)
-    context_len = len(context_tokens)
-
     truncation_seperator = line['truncation_seperator']
-    truncation_seperator_tokens_len = len(tokenizer.text_to_tokens(truncation_seperator))
 
     if remove_newline_tab:
         question = remove_newlines_and_tabs(question)
-        question_len = len(tokenizer.text_to_tokens(question))
-
         context = remove_newlines_and_tabs(context)
-        context_tokens = tokenizer.text_to_tokens(context)
-        context_len = len(context_tokens)
+        truncation_seperator = f' {remove_newlines_and_tabs(truncation_seperator)} '
 
-        input_text = remove_newlines_and_tabs(line['input'])
+    if prompt is not None:
+        end = TASKS[task]['response']
+        assert question.endswith(end)
+        question = question.replace(end, '').strip()
+
+    question_len = len(tokenizer.text_to_tokens(question))
+    context_tokens = tokenizer.text_to_tokens(context)
+    context_len = len(context_tokens)
+    truncation_seperator_tokens_len = len(tokenizer.text_to_tokens(truncation_seperator))
 
     total_len = context_len + tokens_to_generate_extra + question_len
     if total_len > max_seq_length:
@@ -106,7 +106,7 @@ def _process_line(
                 + question
             )
         elif truncation_pos == 'left':
-            truncation_seperator = "[The beginning of the transcript is omitted] ..."
+            truncation_seperator = ' [The beginning of the transcript is omitted] ... '
             truncation_seperator_tokens_len = len(tokenizer.text_to_tokens(truncation_seperator))
             # Split the context into two parts at the last occurrence of the context string
             context_prefix, context_suffix = context.split(TASKS[task]['context'], maxsplit=1)
@@ -128,7 +128,7 @@ def _process_line(
                 context_prefix + TASKS[task]['context'] + truncation_seperator + truncated_suffix + question
             )
         elif truncation_pos == 'middle':
-            truncation_seperator = "... [The middle of the transcript is omitted] ..."
+            truncation_seperator = ' ... [The middle of the transcript is omitted] ... '
             truncation_seperator_tokens_len = len(tokenizer.text_to_tokens(truncation_seperator))
             # Calculate the number of tokens to truncate from each side
             num_tokens_to_truncate = total_len - (
@@ -159,15 +159,11 @@ def _process_line(
             truncated_suffix = tokenizer.tokens_to_text(suffix_tokens)
             truncated_text = truncated_prefix + truncation_seperator + truncated_suffix + question
     else:
-        truncated_text = input_text
-
-    if prompt is not None:
-        end = f'{TASKS[task]["response"]}'
-        assert truncated_text.endswith(end)
-        truncated_text = truncated_text.replace(end, '')
+        truncated_text = line['input'] if not remove_newline_tab else remove_newlines_and_tabs(line['input'])
 
     if prompt is not None:
         truncated_text = prompt.replace('{context}', truncated_text)
+
     assert len(tokenizer.text_to_tokens(truncated_text)) <= max_seq_length
     return truncated_text
 
