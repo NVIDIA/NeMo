@@ -87,7 +87,6 @@ RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-chec
 
 # install flash attention dependencies
 RUN pip install flash-attn
-# pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
 RUN pip install triton
 # install numba for latest containers
 RUN pip install numba>=0.57.1
