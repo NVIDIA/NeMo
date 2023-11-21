@@ -272,14 +272,15 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             )
 
         val_loss = self.loss_fn(logits=logits, labels=labels, loss_mask=labels_mask)
+        self.validation_step_outputs.append({'val_loss': val_loss})
         return {'val_loss': val_loss}
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
 
         # Calculate metrics and classification report
         # Note that in our task recall = accuracy, and the recall column is the per class accuracy
@@ -300,12 +301,12 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         """
         return self.validation_step(batch, batch_idx)
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self):
         """
         Called at the end of test to aggregate outputs.
         :param outputs: list of individual outputs of each test step.
         """
-        return self.validation_epoch_end(outputs)
+        return self.on_validation_epoch_end()
 
     # Functions for inference
 
