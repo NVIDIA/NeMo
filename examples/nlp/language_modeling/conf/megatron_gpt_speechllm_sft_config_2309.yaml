@@ -176,6 +176,7 @@ model:
   attn_prior_scaledown_start_step: 10000
   attn_prior_end_step: 11000
   attn_prior_starting_strength: 0.5
+  use_attention_prior: False
 
   data:
     ## Individal wav files
@@ -200,6 +201,7 @@ model:
     pin_memory: true
     speech_offset: ???
     train_task: tts
+    use_attention_prior: ${model.use_attention_prior}
 
   # Nsys profiling options
   nsys_profile:

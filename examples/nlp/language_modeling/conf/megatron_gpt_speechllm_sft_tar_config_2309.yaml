@@ -196,10 +196,11 @@ model:
     add_sentinel_to_input: True
     ul2_prompt_token: null # <extra_id_s>, <extra_id_r>, <extra_id_x>
     shuffle: true
-    num_workers: 4
+    num_workers: 0
     pin_memory: true
     speech_offset: ???
     train_task: tts
+    use_phoneme_tokenizer: False
 
   # Nsys profiling options
   nsys_profile:

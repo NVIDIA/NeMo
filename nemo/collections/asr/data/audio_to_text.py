@@ -132,7 +132,8 @@ class InstructionTuningManifestProcessor:
         max_seq_length: Optional[float] = None,
         max_utts: int = 0,
         index_by_file_id: bool = False,
-        decoder_only_model: bool = False
+        decoder_only_model: bool = False,
+        use_phoneme_tokenizer: bool = False,
     ):
 
         # ASRAudioText(
@@ -144,6 +145,7 @@ class InstructionTuningManifestProcessor:
             max_number=max_utts,
             index_by_file_id=index_by_file_id,
             decoder_only_model=decoder_only_model,
+            use_phoneme_tokenizer=use_phoneme_tokenizer,
         )
 
 
@@ -767,6 +769,7 @@ class _TarredInstructionTuningDataset(IterableDataset):
         world_size: int = 0,
         return_sample_id: bool = False,
         decoder_only_model: bool = False,
+        use_phoneme_tokenizer: bool = False,
     ):
         self.shard_manifests = shard_manifests
 
@@ -790,6 +793,7 @@ class _TarredInstructionTuningDataset(IterableDataset):
             max_utts=0,
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
             decoder_only_model=decoder_only_model,
+            use_phoneme_tokenizer=use_phoneme_tokenizer,
         )
 
         self.len = self._compute_len()
