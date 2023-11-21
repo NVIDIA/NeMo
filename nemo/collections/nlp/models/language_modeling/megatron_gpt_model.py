@@ -978,6 +978,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return fwd_output_and_loss_func
 
     def get_forward_output_only_func(self):
+        """ Used in inference / generate """
         def fwd_output_only_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             extra_arg = {}
@@ -1034,6 +1035,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
                 extra_arg['speech_mask'] = speech_mask
+                # extra_arg['return_all_selfattention_probs'] = True
             output_tensor, attention_, prior = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.
