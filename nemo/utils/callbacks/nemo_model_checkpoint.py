@@ -26,7 +26,6 @@ from pytorch_lightning.utilities import rank_zero_info
 from torch import Tensor
 
 from nemo.collections.common.callbacks import EMA
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
