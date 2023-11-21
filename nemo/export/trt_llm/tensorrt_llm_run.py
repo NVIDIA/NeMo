@@ -387,16 +387,18 @@ def generate(
     stop_words_list_tensors = None
     if stop_words_list is not None:
         stop_words_list_tensors = [
-            torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in stop_words_list
+            tokenizer.encode(t, add_special_tokens=False) for t in stop_words_list
         ]
+        stop_words_list_tensors = torch.IntTensor(stop_words_list_tensors)
         stop_words_list_tensors = stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
             torch.cuda.current_device())
 
     bad_words_list_tensors = None
     if bad_words_list is not None:
         bad_words_list_tensors = [
-            torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in bad_words_list
+            tokenizer.encode(t, add_special_tokens=False) for t in bad_words_list
         ]
+        bad_words_list_tensors = torch.IntTensor(bad_words_list_tensors)
         bad_words_list_tensors = bad_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
             torch.cuda.current_device())
 
