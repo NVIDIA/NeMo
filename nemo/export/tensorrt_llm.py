@@ -54,10 +54,11 @@ class TensorRTLLM(ITritonDeployable):
 
     """
 
-    def __init__(self, model_dir: str):
+    def __init__(self, model_dir: str, load_model: bool=True):
         """
         Args:
             model_dir (str): path for storing the TensorRT-LLM model files.
+            load_model (bool): load TensorRT-LLM model if the engine files exist in the model_dir.
         """
 
         self.model_dir = model_dir
@@ -67,9 +68,10 @@ class TensorRTLLM(ITritonDeployable):
         self.task_vocab_size = None
         self.n_gpus = None
         self.config = None
-        self._load()
+        if load_model:
+            self.load()
 
-    def _load(self):
+    def load(self):
         self.model = None
         self.tokenizer = None
         self.prompt_table = None
@@ -148,6 +150,7 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int = 32,
         use_inflight_batching=False,
         paged_kv_cache=False,
+        load_model: bool = True,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -164,6 +167,7 @@ class TensorRTLLM(ITritonDeployable):
             max_batch_size (int): max batch size.
             use_inflight_batching (bool): if True, enables inflight batching for TensorRT-LLM Triton backend.
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
+            load_model (bool): load TensorRT-LLM model after the export.
         """
 
         p_tuning = "no_ptuning"
@@ -241,7 +245,9 @@ class TensorRTLLM(ITritonDeployable):
         else:
             shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         tmp_dir.cleanup()
-        self._load()
+
+        if load_model:
+            self.load()
 
     def forward(
         self,
@@ -271,7 +277,8 @@ class TensorRTLLM(ITritonDeployable):
         """
         if self.model is None:
             raise Exception(
-                "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
+                "A nemo checkpoint should be exported to TensorRT-LLM and "
+                "then it should be loaded first to run inference."
             )
         else:
             return generate(
