@@ -353,6 +353,8 @@ class TextProcessing(object):
             # multiple audio case
             context_ids = []
             context_start_idx = []
+            if self.audio_locator not in context:
+                context = self.audio_locator + context
             for context_seg in context.split(self.audio_locator):
                 context_start_idx.append(len(context_ids))
                 context_ids.extend(self.tokenizer.text_to_ids(context_seg))
@@ -701,6 +703,7 @@ class MultiAudioQuestionAnswerDataset(AudioQuestionAnswerDataset):
             # accomodates normalize_batch
             output["audio_length"] = [torch.tensor(8000)]
             audio_ratio = 0
+            offset = 0
 
         text_data = self._process_example(context=sample.question, output=sample.answer)
 
