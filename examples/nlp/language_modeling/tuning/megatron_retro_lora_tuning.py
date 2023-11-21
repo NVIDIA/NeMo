@@ -101,7 +101,7 @@ def main(cfg) -> None:
     )
 
     frozen_model_cfg.tokenizer = cfg.model.tokenizer
-    frozen_model_cfg.data = cfg.model.data
+    frozen_model_cfg.data = cfg["model"]["data"]
     frozen_model_cfg.adapter_tuning = cfg.model.adapter_tuning
     frozen_model_cfg.optim = cfg.model.optim
     frozen_model_cfg.restore_from_path = cfg.model.restore_from_path

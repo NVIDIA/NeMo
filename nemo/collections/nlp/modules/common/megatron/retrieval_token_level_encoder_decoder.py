@@ -102,13 +102,14 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         activations_checkpoint_granularity=None,
         megatron_lm_compatible=False,
         version=1,
+        add_output_layer=False
     ):
         super(MegatronRetrievalTokenLevelEncoderDecoderModule, self).__init__()
         if megatron_lm_compatible:
             assert (
                 apply_query_key_layer_scaling
             ), "megatron lm compatible model has to set apply_query_key_layer_scaling"
-            assert add_position_embedding, "megatron lm compatible model has to set add_position_embedding"
+            # assert add_position_embedding, "megatron lm compatible model has to set add_position_embedding"
         self.parallel_output = parallel_output
         self.pre_process = pre_process
         self.post_process = post_process
@@ -172,9 +173,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=encoder_init,
                 scaled_init_method=encoder_scaled_init,
                 pre_process=pre_process,
-                post_process=False
-                if megatron_lm_compatible
-                else post_process,  # megatron lm model has no final layer_norm
+                post_process=False, # if megatron_lm_compatible else post_process,  # megatron lm model has no final layer_norm
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
                 megatron_amp_O2=megatron_amp_O2,
@@ -203,7 +202,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 chunk_size=chunk_size,
                 layer_number_offset=0,
                 normalize_attention_scores=normalize_attention_scores,
-                turn_off_rop=megatron_lm_compatible,
+                turn_off_rop=True,
                 version=version,
             )
             self._encoder_key = "encoder"
@@ -268,7 +267,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 chunk_size=chunk_size,
                 layer_number_offset=0,
                 normalize_attention_scores=normalize_attention_scores,
-                turn_off_rop=megatron_lm_compatible,
+                turn_off_rop=True,
                 version=version,
             )
 
@@ -313,7 +312,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 chunk_size=chunk_size,
                 layer_number_offset=pre_decoder_num_layers + 1,
                 normalize_attention_scores=normalize_attention_scores,
-                turn_off_rop=megatron_lm_compatible,
+                turn_off_rop=True,
                 version=version,
             )
             self._pre_decoder_key = "pre_decoder"
@@ -326,6 +325,19 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         if add_decoder and post_process:
             self.tokens_head = MuReadout(self.word_embeddings_weight().size(0), parallel_output)
             self._tokens_head_key = 'tokens_head'
+
+
+
+        if add_output_layer:
+            self.output_layer = tensor_parallel.ColumnParallelLinear(
+                hidden_size,
+                vocab_size,
+                use_cpu_initialization=use_cpu_initialization,
+                params_dtype=self.dtype,
+                bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
+                init_method=init_method_normal(init_method_std),
+            )
+            self._output_layer_key = 'output_layer'
 
     def set_input_tensor(self, input_tensor):
         """Set input tensor to be used instead of forward()'s input.

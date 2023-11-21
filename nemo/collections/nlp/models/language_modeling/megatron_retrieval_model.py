@@ -289,6 +289,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
             megatron_lm_compatible=self.cfg.get('megatron_lm_compatible', False),
             version=self.cfg.get('version', 1),
+            add_output_layer=self.cfg.get('add_output_layer', False),
         )
         return model
 
