@@ -403,7 +403,8 @@ def generate(
             torch.cuda.current_device())
 
     if no_repeat_ngram_size is not None:
-        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size)
+        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
+            torch.cuda.current_device())
 
     output_tensor = forward(
         input_tensors=input_tensors,
