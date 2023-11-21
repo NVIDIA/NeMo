@@ -245,7 +245,7 @@ class TensorRTLLM(ITritonDeployable):
         else:
             shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         tmp_dir.cleanup()
-        
+
         if load_model:
             self.load()
 
@@ -277,7 +277,8 @@ class TensorRTLLM(ITritonDeployable):
         """
         if self.model is None:
             raise Exception(
-                "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
+                "A nemo checkpoint should be exported to TensorRT-LLM and "
+                "then it should be loaded first to run inference."
             )
         else:
             return generate(
