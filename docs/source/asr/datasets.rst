@@ -561,7 +561,16 @@ Enabling Lhotse via configuration
 Start with an existing NeMo experiment YAML configuration. Typically, you'll only need to add a few options to enable Lhotse.
 These options are::
 
-    # Dataloading related arguments
+    # NeMo generic dataloading arguments
+    model.train_ds.manifest_filepath=...
+    model.train_ds.tarred_audio_filepaths=...   # for tarred datasets only
+    model.train_ds.num_workers=4
+    model.train_ds.min_duration=0.3             # optional
+    model.train_ds.max_duration=30.0            # optional
+    model.train_ds.shuffle=true                 # optional
+
+    # Lhotse dataloading related arguments
+    +model.train_ds.use_lhotse=True
     +model.train_ds.lhotse.batch_duration=1100
     +model.train_ds.lhotse.quadratic_duration=30
     +model.train_ds.lhotse.num_buckets=30
@@ -571,22 +580,24 @@ These options are::
 
     # PyTorch Lightning related arguments
     +trainer.use_distributed_sampler=false
-    trainer.val_check_interval=1000
     +trainer.limit_train_batches=1000
+    trainer.val_check_interval=1000
+    trainer.max_steps=300000
 
 .. note:: the default values above are a reasonable starting point for a hybrid RNN-T + CTC ASR model on a 32GB GPU
 with a data distribution dominated by 15s long utterances.
 
 Let's briefly go over each of the Lhotse dataloading arguments:
 
-* ``batch_duration`` is the total max duration of utterances in a mini-batch and controls the batch size; the more shorter utterances, the bigger the batch size, and vice versa.
-* ``quadratic_duration`` adds a quadratically growing penalty for long utterances; useful in bucketing and transformer type of models. The value set here means utterances this long will count as if with a doubled duration.
-* ``num_buckets`` is the number of buckets in the bucketing sampler. Bigger value means less padding but also less randomization.
-* ``num_cuts_for_bins_estimate`` is the number of utterance we will sample before the start of the training to estimate the duration bins for buckets. Larger number results in a more accurate estimatation but also a bigger lag before starting the training.
-* ``buffer_size`` is the number of utterances (data and metadata) we will hold in memory to be distributed between buckets. With bigger ``batch_duration``, this number may need to be increased for dynamic bucketing sampler to work properly (typically it will emit a warning if this is too low).
-* ``shuffle_buffer_size`` is an extra number of utterances we will hold in memory to perform approximate shuffling (via reservoir-like sampling). Bigger number means more memory usage but also better randomness.
+* ``use_lhotse`` enables Lhotse dataloading
+* ``lhotse.batch_duration`` is the total max duration of utterances in a mini-batch and controls the batch size; the more shorter utterances, the bigger the batch size, and vice versa.
+* ``lhotse.quadratic_duration`` adds a quadratically growing penalty for long utterances; useful in bucketing and transformer type of models. The value set here means utterances this long will count as if with a doubled duration.
+* ``lhotse.num_buckets`` is the number of buckets in the bucketing sampler. Bigger value means less padding but also less randomization.
+* ``lhotse.num_cuts_for_bins_estimate`` is the number of utterance we will sample before the start of the training to estimate the duration bins for buckets. Larger number results in a more accurate estimatation but also a bigger lag before starting the training.
+* ``lhotse.buffer_size`` is the number of utterances (data and metadata) we will hold in memory to be distributed between buckets. With bigger ``batch_duration``, this number may need to be increased for dynamic bucketing sampler to work properly (typically it will emit a warning if this is too low).
+* ``lhotse.shuffle_buffer_size`` is an extra number of utterances we will hold in memory to perform approximate shuffling (via reservoir-like sampling). Bigger number means more memory usage but also better randomness.
 
-The PyTorch Lightning related arguments:
+The PyTorch Lightning ``trainer`` related arguments:
 
 * ``use_distributed_sampler=false`` is required because Lhotse has its own handling of distributed sampling.
 * ``val_check_interval``/``limit_train_batches``
@@ -595,15 +606,23 @@ The PyTorch Lightning related arguments:
     we will never hang the training because the dataloader in some node has less mini-batches than the others
     in some epochs. The value provided here will be the effective length of each "pseudo-epoch" after which we'll
     trigger the validation loop.
+* ``max_steps`` is the total number of steps we expect to be training for. It is required for the same reason as ``limit_train_batches``; since we'd never go past epoch 0, the training would have never finished.
 
 Some other Lhotse related arguments we support:
 
-* ``duration_bins``
+* ``lhotse.cuts_path`` can be provided to read data from a Lhotse CutSet manifest instead of a NeMo manifest.
+    Specifying this option will result in ``manifest_filepaths`` and ``tarred_audio_filepaths`` being ignored.
+* ``lhotse.shar_path``
+    Can be provided to read data from a Lhotse Shar manifest instead of a NeMo manifest.
+    This argument can be a string (single Shar directory), a list of strings (Shar directories),
+    or a list of 2-item lists, where the first item is a Shar directory path, and the other is a sampling weight.
+    Specifying this option will result in ``manifest_filepaths`` and ``tarred_audio_filepaths`` being ignored.
+* ``lhotse.duration_bins``
     Duration bins are a list of float values (seconds) that when provided, will skip the initial bucket bin estimation
     and save some time. It has to have a length of ``num_buckets - 1``. An optimal value can be obtained by running CLI:
     ``lhotse cut estimate-bucket-bins -b $num_buckets my-cuts.jsonl.gz``
-* ``use_bucketing`` is a boolean which indicates if we want to enable/disable dynamic bucketing. By defalt it's enabled.
-* ``seed`` sets a random seed for the shuffle buffer.
+* ``lhotse.use_bucketing`` is a boolean which indicates if we want to enable/disable dynamic bucketing. By defalt it's enabled.
+* ``lhotse.seed`` sets a random seed for the shuffle buffer.
 
 Preparing Text-Only Data for Hybrid ASR-TTS Models
 --------------------------------------------------
