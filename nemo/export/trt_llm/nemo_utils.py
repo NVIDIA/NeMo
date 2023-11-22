@@ -130,10 +130,10 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
 
 
 def nemo_to_model_config(
-    in_file: str, decoder_type: str, nemo_export_dir: typing.Union[str, Path], gpus: int = 1
+    in_file: str, decoder_type: str, nemo_export_dir: typing.Union[str, Path], gpus: int = 1, dtype: str = "bfloat16",
 ) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
     """Converts the NEMO file and construct the `ModelConfig` before tensorrt_llm deployment."""
-    dtype_str = "bfloat16"
+    dtype_str = dtype
 
     weights_dict, llm_model_config, tokenizer = _nemo_decode(
         in_file=in_file,

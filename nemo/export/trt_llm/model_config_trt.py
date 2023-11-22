@@ -30,8 +30,9 @@ def model_config_to_tensorrt_llm(
     max_batch_size: int = 1,
     max_beam_width: int = 1,
     max_prompt_embedding_table_size: int = 100,
-    use_inflight_batching=False,
-    paged_kv_cache=False,
+    use_inflight_batching: bool = False,
+    paged_kv_cache: bool = False,
+    enable_context_fmha: bool = True,
 ):
     """The API to convert a torch or huggingface model represented as ModelConfig to tensorrt_llm.
 
@@ -46,6 +47,7 @@ def model_config_to_tensorrt_llm(
         max_prompt_embedding_table_size: max size of the prompt embedding table.
         use_inflight_batching (bool): if True, enables inflight batching for TensorRT-LLM Triton backend.
         paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
+        enable_context_fmha (bool): if True, use fused Context MultiHeadedAttention.
     """
     engine_dir = Path(engine_dir)
     if os.path.exists(engine_dir):
@@ -68,6 +70,7 @@ def model_config_to_tensorrt_llm(
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
             use_inflight_batching=use_inflight_batching,
             paged_kv_cache=paged_kv_cache,
+            enable_context_fmha=enable_context_fmha,
         )
         print(
             f"After Engine building rank {rank}, CPU RAM Used (GB):"
