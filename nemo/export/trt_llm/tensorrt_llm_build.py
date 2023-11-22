@@ -210,21 +210,22 @@ def _build_impl(rank, tensorrt_llm_model, args):
 def build(
     tensorrt_llm_model,
     output_dir: Path,
-    rank=0,
-    world_size=1,
-    dtype="float16",
-    timing_cache="",
-    log_level="info",
-    max_batch_size=1,
-    max_input_len=200,
-    max_output_len=200,
-    max_beam_width=1,
-    max_prompt_embedding_table_size=0,
-    parallel_build=False,
-    gpus_per_node=1,
-    quantization=None,
-    use_inflight_batching=False,
-    paged_kv_cache=False,
+    rank: int = 0,
+    world_size: int = 1,
+    dtype: str = "float16",
+    timing_cache: str = "",
+    log_level: str = "info",
+    max_batch_size: int = 1,
+    max_input_len: int = 200,
+    max_output_len: int = 200,
+    max_beam_width: int = 1,
+    max_prompt_embedding_table_size: int = 0,
+    parallel_build: int = False,
+    gpus_per_node: int = 1,
+    quantization = None,
+    use_inflight_batching: bool = False,
+    paged_kv_cache: bool = False,
+    enable_context_fmha: bool = True,
 ):
     """Builds the tensorrt_llm_model to engine."""
     args = argparse.Namespace()
@@ -243,7 +244,7 @@ def build(
     args.use_rmsnorm_plugin = dtype if "fp8" not in quantization else False
     args.use_layernorm_plugin = False
     args.parallel_build = parallel_build
-    args.enable_context_fmha = True
+    args.enable_context_fmha = enable_context_fmha
     args.enable_context_fmha_fp32_acc = False
     args.gpus_per_node = gpus_per_node
     args.builder_opt = None

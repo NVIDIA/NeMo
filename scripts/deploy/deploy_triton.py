@@ -107,8 +107,8 @@ def get_args(argv):
     parser.add_argument(
         "-dt",
         "--dtype",
-        choices=["bf16", "fp16", "fp8", "int8"],
-        default="bf16",
+        choices=["bfloat16", "float16", "fp8", "int8"],
+        default="bfloat16",
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
@@ -135,6 +135,13 @@ def get_args(argv):
         default=200,
         type=int,
         help="Max batch size of the model"
+    )
+
+    parser.add_argument(
+        "-dcf",
+        "--disable_context_fmha",
+        action="store_true",
+        help="Disable fused Context MultiHeadedAttention (required for V100 support)."
     )
 
     parser.add_argument(
@@ -185,11 +192,6 @@ def nemo_deploy(argv):
     logging.info("Logging level set to {}".format(loglevel))
     logging.info(args)
 
-    if args.dtype != "bf16":
-        logging.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
-                      "Support for the other precisions will be added in the coming releases.")
-        return
-
     if args.triton_model_repository is None:
         trt_llm_path = "/tmp/trt_llm_model_dir/"
         logging.info(
@@ -234,7 +236,9 @@ def nemo_deploy(argv):
                 n_gpus=args.num_gpus,
                 max_input_token=args.max_input_len,
                 max_output_token=args.max_output_len,
+                enable_context_fmha=not args.disable_context_fmha,
                 max_batch_size=args.max_batch_size,
+                dtype=args.dtype
             )
         except Exception as error:
             logging.error("An error has occurred during the model export. Error message: " + str(error))
