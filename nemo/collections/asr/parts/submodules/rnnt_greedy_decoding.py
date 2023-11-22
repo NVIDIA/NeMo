@@ -642,17 +642,16 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # out_len: [B]
         # device: torch.device
 
-        batch_size, time, emb_size = x.shape
+        batch_size, max_time, _ = x.shape
 
         # Initialize empty hypotheses and all necessary tensors
         batched_hyps = rnnt_utils.BatchedHyps(
-            batch_size=batch_size, init_length=time, device=x.device, float_dtype=x.dtype
+            batch_size=batch_size, init_length=max_time, device=x.device, float_dtype=x.dtype
         )
-        all_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         time_indices = torch.zeros([batch_size], dtype=torch.long, device=device)  # always of batch_size
-        active_indices = all_indices.clone()  # initial: all indices
-        state = None
+        active_indices = torch.arange(batch_size, dtype=torch.long, device=device)  # initial: all indices
         labels = torch.full([batch_size], fill_value=self._blank_index, dtype=torch.long, device=device)
+        state = None
 
         # loop while there are active indices
         while (current_batch_size := active_indices.shape[0]) > 0:
