@@ -714,18 +714,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices])
                 )
 
-            # stage 3: store hypotheses and filter state
+            # stage 3: filter labels and state, store hypotheses
             # the only case, when there are blank labels in predictions - when we found the end for some utterances
-            non_blank_mask = ~blank_mask
-            active_indices = active_indices[non_blank_mask]
-            labels = labels[non_blank_mask]
-            # store hypotheses
-            batched_hyps.add_results_(
-                active_indices, labels, time_indices[active_indices].clone(), scores[non_blank_mask],
-            )
-
-            # filter state
-            if blank_mask.sum() > 0:
+            if blank_mask.any():
+                non_blank_mask = ~blank_mask
+                active_indices = active_indices[non_blank_mask]
+                labels = labels[non_blank_mask]
+                scores = scores[non_blank_mask]
                 if isinstance(state, torch.Tensor):
                     state = state[non_blank_mask]
                 elif isinstance(state, (tuple, list)):
@@ -734,6 +729,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     for i in range(len(state)):
                         state[i] = state[i][:, non_blank_mask]
                     state = tuple(state)
+            # store hypotheses
+            batched_hyps.add_results_(
+                active_indices, labels, time_indices[active_indices].clone(), scores,
+            )
 
         # TODO: support returning hidden states?
         return batched_hyps.to_hyps()
