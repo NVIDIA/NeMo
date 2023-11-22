@@ -650,9 +650,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         )
         all_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         time_indices = torch.zeros([batch_size], dtype=torch.long, device=device)  # always of batch_size
-        is_active = torch.full(
-            [batch_size], fill_value=True, dtype=torch.bool, device=device
-        )  # always of batch_size, mask for active indices
         active_indices = all_indices.clone()  # initial: all indices
         state = None
         labels = torch.full([batch_size], fill_value=self._blank_index, dtype=torch.long, device=device)
@@ -667,10 +664,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # stage 2: get joint output, iteratively seeking for non-blank labels
             # blank label in `labels` tensor means "end of hypothesis" (for this index)
-            embeddings_selected = x[is_active, time_indices[is_active]].unsqueeze(1)
             logits = (
                 self._joint_step(
-                    embeddings_selected,
+                    x[active_indices, time_indices[active_indices]].unsqueeze(1),
                     decoder_output,
                     log_normalize=True if self.preserve_frame_confidence else None,
                 )
@@ -682,34 +678,25 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # to avoid looping, use max_symbols:
             # if number of last consecutive timesteps >= self.max_symbols, force blank label
             if self.max_symbols is not None:
-                check_mask = torch.logical_and(
-                    labels != self._blank_index, batched_hyps.lengths[is_active] >= self.max_symbols
+                force_blank_mask = torch.logical_and(
+                    torch.logical_and(
+                        labels != self._blank_index,
+                        batched_hyps.last_timestep_lasts[active_indices] >= self.max_symbols,
+                    ),
+                    batched_hyps.last_timestep[active_indices] == time_indices[active_indices],
                 )
-                if check_mask.any().item():
-                    check_local_batch_indices = torch.arange(0, current_batch_size, device=device)[check_mask]
-                    check_global_batch_indices = active_indices[check_mask]
-                    check_sequence_indices = (
-                        torch.arange(0, self.max_symbols, device=device).unsqueeze(0)
-                        + batched_hyps.lengths[check_global_batch_indices, None]
-                        - self.max_symbols
-                    )
-                    force_blank_mask = (
-                        torch.gather(batched_hyps.timestep[check_global_batch_indices], 1, check_sequence_indices)
-                        == time_indices[check_global_batch_indices, None]
-                    ).all(dim=-1)
-                    labels[check_local_batch_indices[force_blank_mask]] = self._blank_index
+                labels[force_blank_mask] = self._blank_index
 
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
             blank_mask = labels == self._blank_index
-            advance_mask = torch.logical_and(blank_mask, (time_indices[is_active] + 1 < out_len[is_active]))
-            while advance_mask.any().item():
-                use_indices = active_indices[advance_mask]
-                time_indices[use_indices] += 1
-                embeddings_selected = x[use_indices, time_indices[use_indices]].unsqueeze(1)
+            advance_mask = torch.logical_and(blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices]))
+            while advance_mask.any():  # .item()?
+                advance_indices = active_indices[advance_mask]
+                time_indices[advance_indices] += 1
                 logits = (
                     self._joint_step(
-                        embeddings_selected,
+                        x[advance_indices, time_indices[advance_indices]].unsqueeze(1),
                         decoder_output[advance_mask],
                         log_normalize=True if self.preserve_frame_confidence else None,
                     )
@@ -720,30 +707,28 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 labels[advance_mask] = more_labels
                 scores[advance_mask] = more_scores
                 blank_mask = labels == self._blank_index
-                advance_mask = torch.logical_and(blank_mask, (time_indices[is_active] + 1 < out_len[is_active]))
+                advance_mask = torch.logical_and(
+                    blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices])
+                )
 
             non_blank_mask = ~blank_mask
+            active_indices = active_indices[non_blank_mask]
             # store hypotheses
             batched_hyps.add_results_(
-                active_indices[non_blank_mask],
-                labels[non_blank_mask],
-                time_indices[is_active][non_blank_mask].clone(),
-                scores[non_blank_mask],
+                active_indices, labels[non_blank_mask], time_indices[active_indices].clone(), scores[non_blank_mask],
             )
-            time_indices[is_active] += blank_mask
-            is_active = time_indices < out_len
+            labels = labels[non_blank_mask]
 
             # filter state
-            if isinstance(state, torch.Tensor):
-                state = state[is_active[active_indices]]
-            elif isinstance(state, (tuple, list)):
-                # tuple is immutable, convert temporary to list
-                state = list(state)
-                for i in range(len(state)):
-                    state[i] = state[i][:, is_active[active_indices]]
-                state = tuple(state)
-            labels = labels[is_active[active_indices]]
-            active_indices = all_indices[is_active]
+            if blank_mask.sum() > 0:
+                if isinstance(state, torch.Tensor):
+                    state = state[non_blank_mask]
+                elif isinstance(state, (tuple, list)):
+                    # tuple is immutable, convert temporary to list
+                    state = list(state)
+                    for i in range(len(state)):
+                        state[i] = state[i][:, non_blank_mask]
+                    state = tuple(state)
 
         # TODO: support returning hidden states?
         return batched_hyps.to_hyps()
