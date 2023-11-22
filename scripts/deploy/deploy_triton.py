@@ -217,7 +217,7 @@ def nemo_deploy(argv):
         )
         return
 
-    if args.start_rest_service:
+    if args.start_rest_service == "True":
         if args.service_port == args.triton_port:
             logging.error(
                 "REST service port and Triton server port cannot use the same port."
