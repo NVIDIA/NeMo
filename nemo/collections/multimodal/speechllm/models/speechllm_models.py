@@ -224,7 +224,10 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             input_emb_list = input_embeds[i].split(input_len_list)
             encoder_input_i = [input_emb_list[0]]
             for j in range(1, len(input_emb_list)):
-                encoder_input_i.append(encoded[i][j - 1][: encoded_len[i][j - 1]])
+                if (
+                    not self.cfg.get('ignore_dummy_audio', False) or encoded_len[i][j - 1] > 1
+                ):  # TODO: ignore the dummy audio emb
+                    encoder_input_i.append(encoded[i][j - 1][: encoded_len[i][j - 1]])
                 encoder_input_i.append(input_emb_list[j])
             encoder_input_i = torch.cat(encoder_input_i)  # T, C
             encoder_length_i = encoded_len[i].sum() + input_length[i]  # total length of audio and text features
