@@ -76,6 +76,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -245,7 +246,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.megatron_amp_O2:
 
-            if not self.with_distributed_adam:
+            if not self.with_distributed_adam and not self.cfg.get("use_cpu_initialization", False):
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
                 if isinstance(self.model, list):
                     for module in self.model:
@@ -307,6 +308,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
+                transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
