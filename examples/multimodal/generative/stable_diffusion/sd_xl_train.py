@@ -92,7 +92,7 @@ def main(cfg) -> None:
             logging.info("Adding adapter weights to the model for PEFT")
             model.add_adapter(peft_cfg_cls(cfg.model))
         else:
-            logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
+            logging.info(f"Running full finetuning since no peft scheme is given.")
 
     trainer.fit(model)
 
