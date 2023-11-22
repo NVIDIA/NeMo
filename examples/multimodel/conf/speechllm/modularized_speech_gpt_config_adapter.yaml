@@ -129,7 +129,7 @@ model:
       init_std: 0.023
 
   perception:
-
+    target: nemo.collections.multimodal.speechllm.modules.speechllm_perception.AudioPerceptionModel
     adapter:
       adapter_type: "linear"
 
@@ -138,7 +138,7 @@ model:
         # Config of the adapter module itself
         _target_: nemo.collections.common.parts.adapter_modules.LinearAdapter
         in_features: 512  # User must provide the output dimension of the layers of the model, which is the input dimension of this adapter.
-        dim: 128  # The hidden dimension of the adapter, as chosen by user, but small values are preferred to reduce param count.
+        dim: 256  # The hidden dimension of the adapter, as chosen by user, but small values are preferred to reduce param count.
         activation: swish
         norm_position: 'pre'  # Can be `pre` or `post`
         dropout: 0.0  # float, dropout for the adapter

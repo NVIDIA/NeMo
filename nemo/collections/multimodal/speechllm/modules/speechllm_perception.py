@@ -18,7 +18,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 import torch.distributed
 import torch.nn as nn
-from omegaconf import DictConfig, open_dict
+from apex.transformer.enums import AttnMaskType, AttnType
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
@@ -314,7 +315,6 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
     def get_am_text_output(self, encoded, logits_len):
         with torch.no_grad():
             logits = self.asr_model.decoder(encoder_output=encoded)
-            greedy_predictions = logits.argmax(dim=-1, keepdim=False)
 
             current_hypotheses, _ = self.asr_model.decoding.ctc_decoder_predictions_tensor(
                 logits, decoder_lengths=logits_len, return_hypotheses=False,
@@ -438,3 +438,122 @@ class ConcatCascadedAudioPerceptionModel(AmQueryAudioPerceptionModel):
     def cross_attend(self, encoded, encoded_len, llm_encoded, llm_encoded_len):
         concat_encoded, concat_encoded_len = self._concat_features(encoded, encoded_len, llm_encoded, llm_encoded_len)
         return concat_encoded, concat_encoded_len, {}
+
+
+class AmAdaptQueryAudioPerceptionModel(AmQueryAudioPerceptionModel):
+    """Audio perception model with extra attention to match LM."""
+
+    def __init__(self, cfg: DictConfig, pretrained_audio_model: str, llm_tokenizer):
+        super(AudioPerceptionModel, self).__init__()
+        if 'adapter' in cfg:
+            # Update encoder adapter compatible config
+            model_cfg = ASRModel.from_pretrained(pretrained_audio_model, return_config=True)
+            adapter_metadata = adapter_mixins.get_registered_adapter(model_cfg.encoder._target_)
+            if adapter_metadata is not None:
+                model_cfg.encoder._target_ = adapter_metadata.adapter_class_path
+            override_config_path = model_cfg
+            if 'adapters' not in model_cfg:
+                model_cfg.adapters = OmegaConf.create({})
+        else:
+            override_config_path = None
+        if pretrained_audio_model.endswith('.nemo'):
+            logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+            self.asr_model = ASRModel.restore_from(
+                pretrained_audio_model, map_location='cpu', override_config_path=override_config_path
+            )
+        else:
+            logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+            self.asr_model = ASRModel.from_pretrained(
+                pretrained_audio_model, map_location='cpu', override_config_path=override_config_path
+            )
+        if 'spec_augment' in cfg and cfg.spec_augment is not None:
+            self.asr_model.spec_augmentation = self.from_config_dict(cfg.spec_augment)
+        else:
+            self.asr_model.spec_augmentation = None
+        self.preprocessor = self.asr_model.preprocessor
+        self.encoder = self.asr_model.encoder
+        self.spec_augmentation = self.asr_model.spec_augmentation
+
+        self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
+        self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
+
+        num_layers = 1
+        init_method_std = 0.02
+        num_attention_heads = 8
+        scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
+        init_method = init_method_normal(init_method_std)
+        scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
+        self.lm_attention = ParallelAttention(
+            init_method=init_method,
+            output_layer_init_method=scaled_init_method,
+            layer_number=num_layers,
+            num_attention_heads=num_attention_heads,
+            hidden_size=cfg.output_dim,
+            attention_type=AttnType.cross_attn,
+            precision=32,
+        )
+        self.llm_tokenizer = llm_tokenizer
+        self.cfg = cfg
+        if self.cfg.get('learnable_combine', False):
+            self.lm_attention_ratio = nn.Parameter(torch.tensor(0.5))
+        if self.cfg.get('consistency_loss_weight', 0.0) > 0.0:
+            self.reconstruction_layer = MLP(cfg.output_dim, cfg.output_dim, num_layers, "relu", log_softmax=False)
+        self.setup_adapter(cfg, self.encoder)
+
+
+class AmFixQueryAudioPerceptionModel(AmQueryAudioPerceptionModel):
+    """Audio perception model with extra attention to match LM."""
+
+    def __init__(self, cfg: DictConfig, pretrained_audio_model: str, llm_tokenizer):
+        super().__init__(cfg, pretrained_audio_model, llm_tokenizer)
+        self.encoder = self.from_config_dict(cfg.encoder)
+        self.asr_model.freeze()
+
+    def forward(
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
+        lm_embedding=None,
+        labels=None,
+        labels_len=None,
+        pad_id=0,
+    ):
+        processed_signal, processed_signal_length = self.maybe_preprocess_audio(
+            input_signal, input_signal_length, processed_signal, processed_signal_length
+        )
+
+        # Spec augment is not applied during evaluation/testing
+        if self.spec_augmentation is not None and self.training:
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+
+        with torch.no_grad():
+            am_encoded_original, am_encoded_len = self.asr_model.encoder(
+                audio_signal=processed_signal, length=processed_signal_length
+            )
+            am_hyps_text, log_probs = self.get_am_text_output(am_encoded_original, am_encoded_len)
+        am_encoded, am_encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        encoded, encoded_len = self.modality_adapter(audio_signal=am_encoded, length=am_encoded_len)
+        # b, t, c
+        encoded = self.proj(encoded.transpose(1, 2))
+
+        llm_encoded, llm_encoded_len = self.get_text_embed(am_hyps_text, lm_embedding, pad_id=pad_id)
+        attend_encoded, encoded_len, aux_loss = self.cross_attend(encoded, encoded_len, llm_encoded, llm_encoded_len)
+
+        asr_loss_weight = self.cfg.get('asr_loss_weight', 0.0)
+        if labels is not None and asr_loss_weight > 0.0:
+            assert labels_len is not None
+            text = self.llm_tokenizer.ids_to_text(labels.tolist())
+            text = [x[:-2] for x in text]  # remove end string
+            transcript = self.asr_model.tokenizer.text_to_ids(text)
+            transcript_len = torch.LongTensor([len(x) for x in transcript]).to(lm_embedding.weight.device)
+            max_length = max(transcript_len)
+            transcript = torch.LongTensor([x + [pad_id] * (max_length - len(x)) for x in transcript]).to(
+                lm_embedding.weight.device
+            )
+            asr_loss = self.asr_model.loss(
+                log_probs=log_probs, targets=transcript, input_lengths=am_encoded_len, target_lengths=transcript_len
+            )
+            aux_loss['asr_loss'] = asr_loss * asr_loss_weight
+        return attend_encoded, encoded_len, aux_loss

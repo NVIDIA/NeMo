@@ -127,7 +127,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         to be passed around in pipeline parallel models. The prompt-encoder 
         and/or prompt table will use the learning rate set by the user. 
         """
-        self.unfreeze()
+        # TODO(zhehuai): for AmFixQueryAudioPerceptionModel
+        # self.unfreeze()
         known_groups = []
         if self.cfg.get('freeze_llm', True):
             for param in self.model.parameters():
@@ -318,7 +319,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             input_signal_length=input_signal_length,
             processed_signal=None,
             processed_signal_length=None,
-            lm_embeddings=lm_embedding,
+            lm_embedding=lm_embedding,
         )
 
         if num_audios is not None:
@@ -670,7 +671,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             if cfg.model.perception.get("use_multi_layer_feat", False):
                 model.perception.encoder.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
             else:
-                model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
+                model.perception.encoder.load_state_dict(
+                    audio_model.encoder.state_dict(), strict='adapter' not in cfg.model.perception
+                )
             logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
 
         if cfg.model.get('use_am_tokenizer', False):
