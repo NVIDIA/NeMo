@@ -638,9 +638,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         if self.preserve_frame_confidence:
             # TODO: support
             raise NotImplementedError("`preserve_frame_confidence` support is not implemented")
-        if self.preserve_alignments:
-            # TODO: support
-            raise NotImplementedError("`preserve_alignments` support is not implemented")
 
         # x: [B, T, D]
         # out_len: [B]
@@ -649,6 +646,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         batch_size, max_time, _ = x.shape
 
         last_decoder_state = [None for _ in range(batch_size)]
+        if self.preserve_alignments:
+            alignments: List[List[List[tuple[torch.Tensor, torch.Tensor]]]] = [
+                [[] for _ in range(out_len[i].item())] for i in range(batch_size)
+            ]
 
         # Initialize empty hypotheses and all necessary tensors
         batched_hyps = rnnt_utils.BatchedHyps(
@@ -684,6 +685,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
             blank_mask = labels == self._blank_index
             advance_mask = torch.logical_and(blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices]))
+            if self.preserve_alignments:
+                for i, global_batch_idx in enumerate(active_indices.cpu().numpy()):
+                    alignments[global_batch_idx][time_indices[global_batch_idx]].append(
+                        (logits[i].cpu(), labels[i].cpu())
+                    )
             while advance_mask.any():  # .item()?
                 advance_indices = active_indices[advance_mask]
                 time_indices[advance_indices] += 1
@@ -699,6 +705,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 more_scores, more_labels = logits.max(-1)
                 labels[advance_mask] = more_labels
                 scores[advance_mask] = more_scores
+                if self.preserve_alignments:
+                    for i, global_batch_idx in enumerate(advance_indices.cpu().numpy()):
+                        alignments[global_batch_idx][time_indices[global_batch_idx]].append(
+                            (logits[i].cpu(), more_labels[i].cpu())
+                        )
                 blank_mask = labels == self._blank_index
                 advance_mask = torch.logical_and(
                     blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices])
@@ -741,13 +752,38 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     ),
                     batched_hyps.last_timestep[active_indices] == time_indices[active_indices],
                 )
+                if self.preserve_alignments and force_blank_mask.any():
+                    # we do not need output for blank in a general case, since hidden state will be the same
+                    # but for preserving alignments we need a tensor with logits
+                    force_blank_indices = active_indices[force_blank_mask]
+                    logits = (
+                        self._joint_step(
+                            x[force_blank_indices, time_indices[force_blank_indices]].unsqueeze(1),
+                            decoder_output,
+                            log_normalize=True if self.preserve_frame_confidence else None,
+                        )
+                        .squeeze(1)
+                        .squeeze(1)
+                    )
+                    for i, global_batch_idx in enumerate(force_blank_indices.cpu().numpy()):
+                        alignments[global_batch_idx][time_indices[global_batch_idx]].append(
+                            (logits[i].cpu(), torch.tensor(self._blank_index, device=device))
+                        )
                 time_indices[active_indices[force_blank_mask]] += 1
 
         hyps = batched_hyps.to_hyps()
-        # preserve last decoder state
+        # preserve last decoder state (is it necessary?)
         for i, last_state in enumerate(last_decoder_state):
             # assert last_state is not None
             hyps[i].dec_state = last_state
+        if self.preserve_alignments:
+            for i, alignment in enumerate(alignments):
+                hyps[i].alignments = alignment
+        # logging.warning(f"{hyps[0].y_sequence}")
+        # logging.warning(f"{hyps[0].timestep}")
+        # logging.warning(f"{len(hyps[0].alignments)}")
+        # for sub_list in hyps[0].alignments:
+        #     logging.warning(f"{[(x.shape, y.item()) for x, y in sub_list]}")
         return hyps
 
     def _greedy_decode_blank_as_pad_loop_frames(
@@ -947,6 +983,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         for batch_idx in range(batchsize):
             hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
 
+        # logging.warning(f"{hypotheses[0].y_sequence}")
+        # logging.warning(f"{hypotheses[0].timestep}")
+        # logging.warning(f"{len(hypotheses[0].alignments)}")
+        # for sub_list in hypotheses[0].alignments:
+        #     logging.warning(f"{[(x.shape, y.item()) for x, y in sub_list]}")
         return hypotheses
 
     def _greedy_decode_masked(
