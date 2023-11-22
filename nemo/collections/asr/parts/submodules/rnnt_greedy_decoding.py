@@ -648,6 +648,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         batch_size, max_time, _ = x.shape
 
+        last_decoder_state = [None for _ in range(batch_size)]
+
         # Initialize empty hypotheses and all necessary tensors
         batched_hyps = rnnt_utils.BatchedHyps(
             batch_size=batch_size, init_length=max_time, device=x.device, float_dtype=x.dtype
@@ -706,9 +708,17 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # the only case, when there are blank labels in predictions - when we found the end for some utterances
             if blank_mask.any():
                 non_blank_mask = ~blank_mask
-                active_indices = active_indices[non_blank_mask]
                 labels = labels[non_blank_mask]
                 scores = scores[non_blank_mask]
+
+                # select states for hyps that became inactive (is it necessary?)
+                inactive_global_indices = active_indices[blank_mask]
+                inactive_inner_indices = torch.arange(current_batch_size, device=device, dtype=torch.long)[blank_mask]
+                for idx, batch_idx in zip(inactive_global_indices.cpu().numpy(), inactive_inner_indices.cpu().numpy()):
+                    last_decoder_state[idx] = self.decoder.batch_select_state(state, batch_idx)
+
+                # update active indices and state
+                active_indices = active_indices[non_blank_mask]
                 if isinstance(state, torch.Tensor):
                     state = state[non_blank_mask]
                 elif isinstance(state, (tuple, list)):
@@ -733,8 +743,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 )
                 time_indices[active_indices[force_blank_mask]] += 1
 
-        # TODO: support returning hidden states?
-        return batched_hyps.to_hyps()
+        hyps = batched_hyps.to_hyps()
+        # preserve last decoder state
+        for i, last_state in enumerate(last_decoder_state):
+            # assert last_state is not None
+            hyps[i].dec_state = last_state
+        return hyps
 
     def _greedy_decode_blank_as_pad_loop_frames(
         self,
