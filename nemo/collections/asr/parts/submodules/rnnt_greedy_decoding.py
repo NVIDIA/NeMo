@@ -694,9 +694,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             if self.preserve_frame_confidence:
                 confidence = self._get_confidence(logits)
                 for i, global_batch_idx in enumerate(active_indices.cpu().numpy()):
-                    frame_confidence[global_batch_idx][time_indices[global_batch_idx]].append(
-                        confidence[i]
-                    )
+                    frame_confidence[global_batch_idx][time_indices[global_batch_idx]].append(confidence[i])
             while advance_mask.any():  # .item()?
                 advance_indices = active_indices[advance_mask]
                 time_indices[advance_indices] += 1
@@ -720,9 +718,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 if self.preserve_frame_confidence:
                     confidence = self._get_confidence(logits)
                     for i, global_batch_idx in enumerate(advance_indices.cpu().numpy()):
-                        frame_confidence[global_batch_idx][time_indices[global_batch_idx]].append(
-                            confidence[i]
-                        )
+                        frame_confidence[global_batch_idx][time_indices[global_batch_idx]].append(confidence[i])
                 blank_mask = labels == self._blank_index
                 advance_mask = torch.logical_and(
                     blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices])
@@ -786,9 +782,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     if self.preserve_frame_confidence:
                         confidence = self._get_confidence(logits)
                         for i, global_batch_idx in enumerate(force_blank_indices.cpu().numpy()):
-                            frame_confidence[global_batch_idx][time_indices[global_batch_idx]].append(
-                                confidence[i]
-                            )
+                            frame_confidence[global_batch_idx][time_indices[global_batch_idx]].append(confidence[i])
                 time_indices[active_indices[force_blank_mask]] += 1
 
         hyps = batched_hyps.to_hyps()
