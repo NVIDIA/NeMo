@@ -159,7 +159,7 @@ def _process_line(
             truncated_suffix = tokenizer.tokens_to_text(suffix_tokens)
             truncated_text = truncated_prefix + truncation_seperator + truncated_suffix + question
     else:
-        truncated_text = line['input'] if not remove_newline_tab else remove_newlines_and_tabs(line['input'])
+        truncated_text = context + question
 
     if prompt is not None:
         truncated_text = prompt.replace('{context}', truncated_text)
