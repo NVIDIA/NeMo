@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset, GPTSFTPackedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
@@ -263,6 +263,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
             if self.cfg.data.get("chat", False):
                 dataset_cls = GPTSFTChatDataset
+            elif data_cfg.get("packed_sequence", False):
+                dataset_cls = GPTSFTPackedDataset  #GPTSFTPacked(Dummy)Dataset
+                assert data_cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
             else:
                 dataset_cls = GPTSFTDataset
             dataset = dataset_cls(
