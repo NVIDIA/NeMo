@@ -50,7 +50,11 @@ def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Ten
         logitlen_cpu = logitlen
 
     for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.Hypothesis
-        hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)
+        hyp.y_sequence = (
+            hyp.y_sequence.to(torch.long)
+            if isinstance(hyp.y_sequence, torch.Tensor)
+            else torch.tensor(hyp.y_sequence, dtype=torch.long)
+        )
         hyp.length = logitlen_cpu[idx]
 
         if hyp.dec_state is not None:
@@ -710,13 +714,15 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices])
                 )
 
+            # stage 3: store hypotheses and filter state
+            # the only case, when there are blank labels in predictions - when we found the end for some utterances
             non_blank_mask = ~blank_mask
             active_indices = active_indices[non_blank_mask]
+            labels = labels[non_blank_mask]
             # store hypotheses
             batched_hyps.add_results_(
-                active_indices, labels[non_blank_mask], time_indices[active_indices].clone(), scores[non_blank_mask],
+                active_indices, labels, time_indices[active_indices].clone(), scores[non_blank_mask],
             )
-            labels = labels[non_blank_mask]
 
             # filter state
             if blank_mask.sum() > 0:
