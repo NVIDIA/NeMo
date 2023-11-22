@@ -155,6 +155,13 @@ model:
         output_key: d_model
         freeze: True
         pretrained_model: ssl_en_conformer_large
+        use_multi_layer_feat: True
+        multi_layer_feat:
+          layer_idx_list: [0,8,16]
+          aggregator:
+            mode: "cat"
+            pooling: "avg"
+            rounding: "floor"
   
     speaker_model:
       segment_length_in_secs: 0.4
@@ -247,7 +254,7 @@ model:
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
 
-      log_every_n_steps: 1
+      log_every_n_steps: 20
       metric:
         name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.

@@ -103,7 +103,7 @@ def align_feat_seq_list(
     seq_list: List[torch.Tensor],
     seq_len_list: List[torch.Tensor],
     mode: str = "min",
-    pooling: str = 'avg',
+    pooling: str = 'mean',
     target_len: Optional[int] = None,
 ):
     """
@@ -120,7 +120,7 @@ def align_feat_seq_list(
     MODES = ["min", "max"]
     if mode not in MODES:
         raise ValueError(f"mode {mode} not supported, available modes: {MODES}")
-    POOLING = ["mean", "max", "min"]
+    POOLING = ["mean", "max", "min", "avg"]
     if pooling not in POOLING:
         raise ValueError(f"pooling {pooling} not supported, available modes: {POOLING}")
 
