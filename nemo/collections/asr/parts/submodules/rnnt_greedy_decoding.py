@@ -678,18 +678,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             )
             scores, labels = logits.max(-1)
 
-            # to avoid looping, use max_symbols:
-            # if number of last consecutive timesteps >= self.max_symbols, force blank label
-            if self.max_symbols is not None:
-                force_blank_mask = torch.logical_and(
-                    torch.logical_and(
-                        labels != self._blank_index,
-                        batched_hyps.last_timestep_lasts[active_indices] >= self.max_symbols,
-                    ),
-                    batched_hyps.last_timestep[active_indices] == time_indices[active_indices],
-                )
-                labels[force_blank_mask] = self._blank_index
-
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
             blank_mask = labels == self._blank_index
@@ -733,6 +721,17 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             batched_hyps.add_results_(
                 active_indices, labels, time_indices[active_indices].clone(), scores,
             )
+
+            # stage 4: to avoid looping, go to next frame after max_symbols emission
+            if self.max_symbols is not None:
+                force_blank_mask = torch.logical_and(
+                    torch.logical_and(
+                        labels != self._blank_index,
+                        batched_hyps.last_timestep_lasts[active_indices] >= self.max_symbols,
+                        ),
+                    batched_hyps.last_timestep[active_indices] == time_indices[active_indices],
+                    )
+                time_indices[active_indices[force_blank_mask]] += 1
 
         # TODO: support returning hidden states?
         return batched_hyps.to_hyps()
