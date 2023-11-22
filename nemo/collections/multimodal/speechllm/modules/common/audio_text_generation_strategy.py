@@ -64,11 +64,12 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         # Move to GPU.
         micro_batch_size = context_tokens.shape[0]
 
-        audio_feats, audio_feat_lens = self.model.perception(
+        audio_feats, audio_feat_lens, _ = self.model.perception(
             input_signal=audio_signal,
             input_signal_length=audio_length,
             processed_signal=None,
             processed_signal_length=None,
+            lm_embedding=self.model.model.language_model.embedding.word_embeddings,
         )
 
         if num_audios is not None:

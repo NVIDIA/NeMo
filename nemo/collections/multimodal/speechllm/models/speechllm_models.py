@@ -93,11 +93,13 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
         if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
             self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
-
-        self.perception = AudioPerceptionModel(cfg=cfg.perception)
+        imported_cls = model_utils.import_class_by_path(cfg.perception.target)
+        self.perception = imported_cls(
+            cfg=cfg.perception, pretrained_audio_model=cfg.pretrained_audio_model, llm_tokenizer=self.tokenizer
+        )
         self.setup_optimizer_param_groups()
         self.configure_optimizers()
-        self.summarize(max_depth=2)
+        self.summarize(max_depth=3)
 
     def parameters(self):
         # override the same method in MegatronGPT model to include parameters ouside of LM
@@ -309,12 +311,14 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         num_audios = audio_batch.get("num_audios", None)
         context_start_idx = audio_batch.get("context_start_idx", None)
 
+        lm_embedding = self.model.language_model.embedding.word_embeddings
         # [b, t, c]
-        encoded, encoded_len = self.perception(
+        encoded, encoded_len, aux_loss = self.perception(
             input_signal=input_signal,
             input_signal_length=input_signal_length,
             processed_signal=None,
             processed_signal_length=None,
+            lm_embeddings=lm_embedding,
         )
 
         if num_audios is not None:
@@ -335,7 +339,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             loss_mask, input_length, encoded_len, encoder_max_length, pad_token=0
         )
 
-        return encoder_input, attention_mask, labels, loss_mask, encoder_length
+        return encoder_input, attention_mask, labels, loss_mask, encoder_length, aux_loss
 
     def forward(
         self, audio_batch, checkpoint_activations_all_layers,
@@ -349,7 +353,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             self.log(
                 'audio_ratio', audio_batch['audio_ratio'].mean(), prog_bar=True, batch_size=1, rank_zero_only=False
             )
-        encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
+        encoder_input, attention_mask, labels, loss_mask, _, aux_loss = self.prepare_llm_input(audio_batch)
         output = self.model(
             input_ids=None,
             position_ids=None,
@@ -359,7 +363,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             checkpoint_activations_all_layers=checkpoint_activations_all_layers,
         )
 
-        return output, loss_mask
+        return output, loss_mask, aux_loss
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
@@ -403,7 +407,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             batch = next(dataloader_iter)
             batch = to_cuda(batch, non_blocking=True)
-            output_tensor, loss_mask = self.forward(
+            output_tensor, loss_mask, aux_loss = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
             output_tensor = output_tensor[0]  # get loss only, ingore logits
@@ -420,6 +424,10 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                     loss_for_ub = self.loss_func(scaled_loss_mask, output_tensor)
                 else:
                     loss_for_ub = self.loss_func(loss_mask, output_tensor)
+                self.log('raw_lm_loss', loss_for_ub, prog_bar=True, rank_zero_only=True, batch_size=1)
+                for k, v in aux_loss.items():
+                    self.log(k, v, prog_bar=True, rank_zero_only=True, batch_size=1)
+                    loss_for_ub += v
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['loss_mask'].sum()
                     if loss_for_ub.isnan():
@@ -582,6 +590,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             gpt_cfg.perception.preprocessor = audio_cfg.preprocessor
             gpt_cfg.perception.encoder = audio_cfg.encoder
             gpt_cfg.perception.output_dim = gpt_cfg.hidden_size
+            gpt_cfg.pretrained_audio_model = cfg.model.get('pretrained_audio_model', None)
 
             modality_adapter_cfg = gpt_cfg.perception.modality_adapter
             if 'feat_in' in modality_adapter_cfg:  # conformer encoder

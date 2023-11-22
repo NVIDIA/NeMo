@@ -379,6 +379,7 @@ class ALMAudioTextCollection(ALMAudioText):
         random_context_num: Optional[int] = 3,
         random_context_positive_percent: Optional[float] = 0.1,
         include_voice_name: Optional[bool] = False,
+        speech_prompt_in_middle: Optional[bool] = False,
         *args,
         **kwargs,
     ):
@@ -421,6 +422,7 @@ class ALMAudioTextCollection(ALMAudioText):
         self.random_context_positive_percent = random_context_positive_percent
         self.random_context = []
         self.include_voice_name = include_voice_name
+        self.speech_prompt_in_middle = speech_prompt_in_middle
 
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
@@ -505,6 +507,11 @@ class ALMAudioTextCollection(ALMAudioText):
                     question = context + question
                 self.random_context = current_words
             item['question'] = question
+
+        if self.speech_prompt_in_middle and item['duration'] is not None:
+            item['audio_file'] = [item['audio_file']]
+            item['duration'] = [item['duration']]
+            item['question'] = f"{item['question']}\n|audio|"
 
         item = dict(
             audio_file=item['audio_file'],
