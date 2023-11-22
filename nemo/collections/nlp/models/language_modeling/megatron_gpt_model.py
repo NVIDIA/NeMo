@@ -1535,7 +1535,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'ub_tp_comm_overlap': ub_tp_comm_overlap,
         }
 
-        transformer_config = super().build_transformer_config(model_specific_configs)
+        transformer_config = super().build_transformer_config()
 
         for key, value in model_specific_configs.items():
             setattr(transformer_config, key, value)
