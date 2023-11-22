@@ -7,7 +7,7 @@ import pytest
 import torch.utils.data
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 
 lhotse = pytest.importorskip(
     "lhotse", reason="Lhotse + NeMo tests require Lhotse to be installed (pip install lhotse)."

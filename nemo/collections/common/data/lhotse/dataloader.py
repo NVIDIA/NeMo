@@ -2,7 +2,7 @@ import logging
 
 import torch.utils
 
-from nemo.collections.asr.data.lhotse.cutset import read_cutset_from_config
+from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
 
 
 def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int, dataset: torch.utils.data.Dataset):

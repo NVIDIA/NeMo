@@ -16,7 +16,7 @@ import copy
 import json
 import os
 import tempfile
-from math import ceil, isclose
+from math import ceil
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch
@@ -32,7 +32,6 @@ from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecMode
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
@@ -462,7 +461,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
 
         if config.get("use_lhotse"):
             from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
-            from nemo.collections.asr.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+            from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
             from nemo.collections.common.parts.preprocessing.parsers import make_parser
 
             return get_lhotse_dataloader_from_config(

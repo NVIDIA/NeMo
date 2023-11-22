@@ -150,7 +150,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
         if config.get("use_lhotse"):
             from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
-            from nemo.collections.asr.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+            from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
             from nemo.collections.common.parts.preprocessing.parsers import make_parser
 
             return get_lhotse_dataloader_from_config(
