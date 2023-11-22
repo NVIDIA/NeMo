@@ -728,9 +728,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     torch.logical_and(
                         labels != self._blank_index,
                         batched_hyps.last_timestep_lasts[active_indices] >= self.max_symbols,
-                        ),
+                    ),
                     batched_hyps.last_timestep[active_indices] == time_indices[active_indices],
-                    )
+                )
                 time_indices[active_indices[force_blank_mask]] += 1
 
         # TODO: support returning hidden states?
