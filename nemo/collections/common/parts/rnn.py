@@ -229,7 +229,7 @@ class LSTMDropout(torch.nn.Module):
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         x, h = self.lstm(x, h)
 
-        if self.dropout:
+        if self.dropout is not None:
             x = self.dropout(x)
 
         return x, h
