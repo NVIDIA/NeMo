@@ -734,13 +734,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # update active indices and state
                 active_indices = active_indices[non_blank_mask]
                 if isinstance(state, torch.Tensor):
+                    # GRU, pure RNN
                     state = state[non_blank_mask]
-                elif isinstance(state, (tuple, list)):
-                    # tuple is immutable, convert temporary to list
-                    state = list(state)
-                    for i in range(len(state)):
-                        state[i] = state[i][:, non_blank_mask]
-                    state = tuple(state)
+                elif isinstance(state, tuple):
+                    # LSTM
+                    state = tuple(state_part[:, non_blank_mask] for state_part in state)
             # store hypotheses
             batched_hyps.add_results_(
                 active_indices, labels, time_indices[active_indices].clone(), scores,
@@ -777,7 +775,17 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         confidence = self._get_confidence(logits)
                         for i, global_batch_idx in enumerate(force_blank_indices.cpu().numpy()):
                             frame_confidence[global_batch_idx][time_indices[global_batch_idx]].append(confidence[i])
-                time_indices[active_indices[force_blank_mask]] += 1
+                if force_blank_mask.any():
+                    time_indices[active_indices[force_blank_mask]] += 1
+                    still_active_mask = time_indices[active_indices] < out_len[active_indices]
+                    active_indices = active_indices[still_active_mask]
+                    labels = labels[still_active_mask]
+                    if isinstance(state, torch.Tensor):
+                        # GRU, pure RNN
+                        state = state[still_active_mask]
+                    elif isinstance(state, tuple):
+                        # LSTM
+                        state = tuple(state_part[:, still_active_mask] for state_part in state)
 
         hyps = batched_hyps.to_hyps()
         # preserve last decoder state (is it necessary?)
