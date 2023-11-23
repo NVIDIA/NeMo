@@ -27,7 +27,7 @@ from einops import rearrange, repeat, reduce, pack, unpack
 
 from voicebox_pytorch.voicebox_pytorch import AudioEncoderDecoder
 from voicebox_pytorch.voicebox_pytorch import MelVoco as _MelVoco
-from voicebox_pytorch.voicebox_pytorch import EncodecVoco as _EncodecVoco
+from voicebox_pytorch.voicebox_pytorch import EncodecVoco
 
 from nemo.utils import logging
 
@@ -50,7 +50,6 @@ class MelVoco(_MelVoco):
     def downsample_factor(self):
         return 1.
     
-EncodecVoco = _EncodecVoco
 
 
 class DurationPredictor(_DP):
@@ -67,6 +66,8 @@ class DurationPredictor(_DP):
             - L841: `should_align` originally refers to the L818 assertion, therefore should be removed
     """
     def __init__(self, *args, **kwargs):
+        kwargs["frac_lengths_mask"] = tuple(kwargs["frac_lengths_mask"])
+        kwargs["aligner_kwargs"] = dict(kwargs["aligner_kwargs"])
         super().__init__(*args, **kwargs)
         self.aligner = self.aligner.aligner
 

@@ -87,7 +87,10 @@ def main(cfg: DictConfig) -> Optional[float]:
         pl.seed_everything(cfg.seed, workers=True)
 
     logging.info(f"Instantiating model <{cfg.model._target_}>")
-    model: LightningModule = hydra.utils.instantiate(cfg.model)
+    # model: LightningModule = hydra.utils.instantiate(cfg.model)
+    from nemo.collections.tts.models.voicebox import VoiceboxModel
+    model = VoiceboxModel(cfg=cfg.model, trainer=None)
+    logging.info(model)
 
     logging.info("Instantiating callbacks...")
     callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))

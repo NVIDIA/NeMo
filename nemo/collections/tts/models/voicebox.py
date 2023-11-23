@@ -48,15 +48,15 @@ class VoiceboxModel(TextToWaveform):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        if cfg.nemo_tokenizer:
+        self.normalizer = None
+        self.tokenizer = None
+        if cfg.get("nemo_tokenizer"):
             # setup normalizer
-            self.normalizer = None
             self.text_normalizer_call = None
             self.text_normalizer_call_kwargs = {}
             VitsModel._setup_normalizer(self, cfg)
 
             # setup tokenizer
-            self.tokenizer = None
             VitsModel._setup_tokenizer(self, cfg)    
             assert self.tokenizer is not None
 
@@ -68,9 +68,8 @@ class VoiceboxModel(TextToWaveform):
             num_tokens = self.tokenizer.vocab_size
             self.tokenizer_pad = self.tokenizer.pad_id
 
-        with open_dict(cfg):
-            cfg.cfm_wrapper.voicebox.num_cond_tokens = num_tokens
-            cfg.cfm_wrapper.torchode_method_klass = get_class(cfg.cfm_wrapper.torchode_method_klass)
+        # with open_dict(cfg):
+        #     cfg.cfm_wrapper.torchode_method_klass = get_class(cfg.cfm_wrapper.torchode_method_klass)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -79,7 +78,6 @@ class VoiceboxModel(TextToWaveform):
             cfg.duration_predictor,
             audio_enc_dec=self.audio_enc_dec,
             tokenizer=self.tokenizer,
-            num_phoneme_tokens=num_tokens
         )
         self.voicebox: VoiceBox = instantiate(
             cfg.voicebox,
@@ -89,8 +87,10 @@ class VoiceboxModel(TextToWaveform):
         self.cfm_wrapper: ConditionalFlowMatcherWrapper = instantiate(
             cfg.cfm_wrapper,
             voicebox=self.voicebox,
-            duration_predictor=self.duration_predictor
+            duration_predictor=self.duration_predictor,
+            torchode_method_klass=get_class(cfg.cfm_wrapper.torchode_method_klass)
         )
+        logging.error(self._cfg)
 
     def prepare_data(self) -> None:
         """ Pytorch Lightning hook.
@@ -102,7 +102,7 @@ class VoiceboxModel(TextToWaveform):
         from lhotse.recipes.utils import manifests_exist
 
         os.makedirs(self._cfg.manifests_dir, exist_ok=True)
-        for subset in self.subsets:
+        for subset in self._cfg.subsets:
             if not manifests_exist(subset, self._cfg.manifests_dir, ["cuts"], "librilight"):
                 logging.info(f"Downloading {subset} subset.")
                 os.system(f"wget -P {self._cfg.manifests_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
@@ -110,7 +110,7 @@ class VoiceboxModel(TextToWaveform):
                 logging.info(f"Skipping download, {subset} subset exists.")
 
     def parse(self, str_input: str, **kwargs: Any) -> torch.tensor:
-        if self.cfg.nemo_tokenizer:
+        if self.cfg.get("nemo_tokenizer"):
             assert all([k in ['normalize',] for k in kwargs.keys()])
             return VitsModel.parse(self, text=str_input **kwargs)
         
@@ -134,7 +134,7 @@ class VoiceboxModel(TextToWaveform):
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=LhotseTextToSpeechDataset(
-                tokenizer=self.tokenizer, noise_cuts=config.get("lhotse", {}).get("noise_cuts")
+                tokenizer=self.tokenizer, corpus_dir=self.cfg.corpus_dir
             ),
         )
     

@@ -1,9 +1,11 @@
+_target_: nemo.collections.tts.models.voicebox.VoiceboxModel
+
 tokenizer:
   _target_: naturalspeech2_pytorch.utils.tokenizer.Tokenizer
 
 
 audio_enc_dec:
-  _target_: nemo.collections.tts.modules.voicebox_modules.EnCodecVoco
+  _target_: nemo.collections.tts.modules.voicebox_modules.EncodecVoco
   sampling_rate: 24000
   pretrained_vocos_path: 'charactr/vocos-encodec-24khz'
   bandwidth_id: 2
@@ -91,5 +93,5 @@ cfm_wrapper:
   ode_step_size: 0.0625
   use_torchode: False
   torchdiffeq_ode_method: 'midpoint'   # use midpoint for torchdiffeq, as in paper
-  torchode_method_klass: torchode.Tsit5      # use tsit5 for torchode, as torchode does not have midpoint (recommended by Bryan @b-chiang)
+  torchode_method_klass: 'torchode.Tsit5'      # use tsit5 for torchode, as torchode does not have midpoint (recommended by Bryan @b-chiang)
   cond_drop_prob: 0.

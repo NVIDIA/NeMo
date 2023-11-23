@@ -1,0 +1,14 @@
+# @package _global_
+
+# uses only 1% of the training data and 5% of validation/test data
+
+defaults:
+  - default
+
+trainer:
+  max_epochs: 3
+  limit_train_batches: 0.01
+  limit_val_batches: 0.05
+  limit_test_batches: 0.05
+
+  devices: 1

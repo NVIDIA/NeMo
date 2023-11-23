@@ -182,3 +182,5 @@ nemo_experiments/
 # vscode devcontainer
 .devcontainer/
 
+# additional data menifests
+data/
