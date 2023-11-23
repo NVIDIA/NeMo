@@ -103,13 +103,13 @@ model:
     answer_only_loss: True 
     answer_field: "answer"
 
-  tokenizer:
-    library: 'megatron'
-    type: 'GPT2BPETokenizer'
-    model: null
-    vocab_file: null
-    merge_file: null 
-    delimiter: null # only used for tabular tokenizer
+  # tokenizer:
+  #   library: 'megatron'
+  #   type: 'GPT2BPETokenizer'
+  #   model: null
+  #   vocab_file: null
+  #   merge_file: null 
+  #   delimiter: null # only used for tabular tokenizer
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32

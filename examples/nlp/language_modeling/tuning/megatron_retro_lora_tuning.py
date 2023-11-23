@@ -100,7 +100,7 @@ def main(cfg) -> None:
         cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
     )
 
-    frozen_model_cfg.tokenizer = cfg.model.tokenizer
+    # frozen_model_cfg.tokenizer = cfg.model.tokenizer
     frozen_model_cfg.data = cfg["model"]["data"]
     frozen_model_cfg.adapter_tuning = cfg.model.adapter_tuning
     frozen_model_cfg.optim = cfg.model.optim
