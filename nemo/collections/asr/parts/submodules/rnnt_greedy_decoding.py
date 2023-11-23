@@ -633,10 +633,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
-        # x: [B, T, D]
-        # out_len: [B]
-        # device: torch.device
-
         batch_size, max_time, _ = x.shape
 
         # Initialize empty hypotheses and all necessary tensors
