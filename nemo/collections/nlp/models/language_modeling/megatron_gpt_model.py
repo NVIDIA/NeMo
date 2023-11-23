@@ -1595,11 +1595,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'recompute_method': recompute_method,
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
-<<<<<<< HEAD
-            'ub_tp_comm_overlap': ub_tp_comm_overlap,
-=======
             'tp_comm_overlap': ub_tp_comm_overlap,
->>>>>>> 521cfb4c9359c4033f34776da4b73fabf3e94240
             'fp8': fp8,
         }
 
