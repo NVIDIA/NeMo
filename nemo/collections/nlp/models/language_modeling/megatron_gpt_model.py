@@ -559,8 +559,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             except ImportError:
                 raise RuntimeError("Tensor Parallel Communication/GEMM Overlap optimization needs 'yaml' package")
-            
-            with open(ub_cfg_file,"r") as stream:    
+
+            with open(ub_cfg_file, "r") as stream:
                 ub_cfgs = yaml.safe_load(stream)
 
         input_shape = [
