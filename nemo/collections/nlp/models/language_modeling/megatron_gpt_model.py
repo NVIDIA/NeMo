@@ -544,11 +544,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss_mean
 
     def initialize_ub_func(self):
-        ub_cfgs = self.cfg.get('ub_tp_comm_overlap_cfg', None)
-        if ub_cfgs is None:
+        ub_cfg_file = self.cfg.get('ub_tp_comm_overlap_cfg', None)
+        if ub_cfg_file is None:
             warnings.warn(
                 "Couldn't find TP config. Please check the path correctness. Initializing TP comm overlap with the default config."
             )
+            ub_cfgs = {}
+        else:
+            try:
+                import yaml
+
+            except ImportError:
+                raise RuntimeError("Tensor Parallel Communication/GEMM Overlap optimization needs 'yaml' package")
+            
+            with open(ub_cfg_file,"r") as stream:    
+                ub_cfgs = yaml.safe_load(stream)
 
         input_shape = [
             self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
