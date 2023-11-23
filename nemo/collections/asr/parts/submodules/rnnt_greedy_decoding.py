@@ -564,14 +564,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
         if self.decoder.blank_as_pad:
-            if self.decoder.blank_as_pad:
-                if loop_labels:
-                    # default (faster) algo: loop over labels
-                    self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
-                else:
-                    # previous algo: loop over frames
-                    self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
-
+            if loop_labels:
+                # default (faster) algo: loop over labels
+                self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
+            else:
+                # previous algo: loop over frames
+                self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
         else:
             self._greedy_decode = self._greedy_decode_masked
 
