@@ -2398,6 +2398,7 @@ class GreedyBatchedRNNTInferConfig:
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
+    loop_labels: bool = True
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
