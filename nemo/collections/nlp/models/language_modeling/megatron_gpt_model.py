@@ -1025,6 +1025,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
 
+        # Add extra FIM tokens to tokenizer
+        if self.cfg.data.add_fim:
+            fim_tokens = self.cfg.data.fim.extra_tokens
+            fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
+            self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
+
         train_valid_test_num_samples = [
             max_train_steps * global_batch_size,
             eval_iters * global_batch_size,

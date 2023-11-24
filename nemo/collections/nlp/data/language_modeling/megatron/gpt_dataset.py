@@ -314,6 +314,8 @@ class GPTDataset(Dataset):
         self.drop_last = drop_last
         self.seq_length = seq_length
         self.tokenizer = tokenizer
+        self.seed = seed
+        self.cfg = cfg
 
         # Checks
         assert np.min(documents) >= 0
@@ -401,26 +403,30 @@ class GPTDataset(Dataset):
                 sample, (0, self.seq_length + self.add_extra_token - len(sample)), mode='constant', constant_values=-1
             )
         
-        sample_len = sample.shape[0]
-        #eod = self.tokenizer.eod
-        eod = 50256
-        segment_breaks = np.argwhere(sample == eod)
-        self.fim_split_sample = True
-        self.fim_rate = 0.5
-        self.fragment_fim_rate=0.5
-        self.np_rng = np.random.RandomState(seed=1234)
-        self.fim_spm_rate = 0.5
-
-        self.suffix_tok_id, self.prefix_tok_id, self.middle_tok_id, self.pad_tok_id = 50255, 50255, 50255, 50255
-
-        fim_rate = 1
-        if fim_rate == 0:
+        if self.cfg.data.add_fim:
             return sample.astype(np.int64)
+        # FIM implementation
+        else:
+            # get FIM params
+            self.fim_rate = self.cfg.data.fim.rate
+            self.fim_spm_rate = self.cfg.data.fim.spm_rate
+            self.fim_split_sample = self.cfg.data.fim.split_sample
+            self.fragment_rate = self.cfg.data.fim.fragment_rate
+
+            # get extra tokens ids
+            fim_tokens = self.cfg.data.fim.extra_tokens
+            fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
+            fim_tokens_ids = self.tokenizer.tokens_to_ids(fim_tokens)
+            self.prefix_tok_id, self.middle_tok_id, self.suffix_tok_id, self.pad_tok_id, self.eod_tok_id = fim_tokens_ids
+
+            sample_len = sample.shape[0]
+            segment_breaks = np.argwhere(sample==self.eod_tok_id)
+            np_rng = np.random.RandomState(seed=self.seed)
         
         def fim_permute_sequence(sequence, rate):
             return permute(
                 sequence,
-                self.np_rng,
+                np_rng,
                 rate,
                 self.fim_spm_rate,
                 self.tokenizer,
@@ -445,7 +451,7 @@ class GPTDataset(Dataset):
             if fragment_breaks.shape == (0, 1):
                 # no split token in this sample
                 return fim_permute_sequence(sequence, self.fim_rate)
-            if not self.np_rng.binomial(1, self.fim_rate):
+            if not np_rng.binomial(1, self.fim_rate):
                 # don't do FIM preproc
                 return sequence
             # Do FIM on each fragment
@@ -469,7 +475,7 @@ class GPTDataset(Dataset):
                 if loc - curr_start_position > 0:
                     # permute {prefix, suffix, middle} or {suffix, prefix, middle}
                     permuted = fim_split_and_permute_sequence(sample[curr_start_position:loc])
-                    new_samples += [permuted, [eod]]
+                    new_samples += [permuted, [self.eod_tok_id]]
 
                 curr_start_position = loc + 1  # jump over the EOD token
             # Permute the segment after the last EOD

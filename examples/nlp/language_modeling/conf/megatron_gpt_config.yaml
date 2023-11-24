@@ -47,7 +47,7 @@ exp_manager:
 
 model:
   # use GPTModel from megatron.core
-  mcore_gpt: True
+  mcore_gpt: False
 
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
@@ -200,7 +200,7 @@ model:
     # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
-    data_prefix: [1.0, /home/data/fim_text_document]
+    data_prefix: ???
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50
@@ -216,6 +216,19 @@ model:
     pad_samples_to_global_batch_size: False # Set to True if you want to pad the last partial batch with -1's to equal global batch size
     shuffle_documents: True # Set to False to disable documents shuffling. Sample index will still be shuffled
     exchange_indices_distributed: False # Set to True to exchange indices via torch.distributed instead of filesystem
+    add_fim: False # Set to True to use FIM
+    fim:
+      # fill in the middle
+      rate: 0.5 # Probability to convert a training sample into a "Fill-in-the-Middle" format. Must be between 0 and 1
+      spm_rate: 0.5 # Probability that the a FIM sample uses the SPM format over the PSM format
+      split_sample: null # String around which to split the sample for FIM. If None (default), FIM is applied on the sample-level
+      fragment_rate: 0.5 # Rate of FIM on each fragment when fim_split_sample is not None
+      extra_tokens:
+        prefix: "<fim_prefix>"
+        middle: "<fim_middle>"
+        suffix: "<fim_suffix>"
+        pad: "<fim_pad>"
+        eod: "<|endoftext|>"
 
   # Nsys profiling options
   nsys_profile:
