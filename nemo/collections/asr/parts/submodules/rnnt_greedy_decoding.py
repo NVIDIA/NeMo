@@ -726,6 +726,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 scores = scores[non_blank_mask]
 
                 # select states for hyps that became inactive (is it necessary?)
+                # this seems to be redundant, but used in the `loop_frames` output
                 inactive_global_indices = active_indices[blank_mask]
                 inactive_inner_indices = torch.arange(current_batch_size, device=device, dtype=torch.long)[blank_mask]
                 for idx, batch_idx in zip(inactive_global_indices.cpu().numpy(), inactive_inner_indices.cpu().numpy()):
@@ -787,7 +788,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # LSTM
                         state = tuple(state_part[:, still_active_mask] for state_part in state)
 
-        hyps = batched_hyps.to_hyps()
+        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps)
         # preserve last decoder state (is it necessary?)
         for i, last_state in enumerate(last_decoder_state):
             # assert last_state is not None

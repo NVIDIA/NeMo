@@ -234,10 +234,12 @@ class BatchedHyps:
     ):
         if init_length <= 0:
             raise ValueError(f"init_length must be > 0, got {init_length}")
-        self.max_length = init_length
+        if batch_size <= 0:
+            raise ValueError(f"batch_size must be > 0, got {batch_size}")
+        self._max_length = init_length
         self.lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
-        self.transcript = torch.zeros((batch_size, self.max_length), device=device, dtype=torch.long)
-        self.timesteps = torch.zeros((batch_size, self.max_length), device=device, dtype=torch.long)
+        self.transcript = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
+        self.timesteps = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
         self.scores = torch.zeros(batch_size, device=device, dtype=float_dtype)
         # tracking last timestep of each hyp to avoid infinite looping (when max symbols per frame is restricted)
         self.last_timestep_lasts = torch.zeros(batch_size, device=device, dtype=torch.long)
@@ -250,7 +252,7 @@ class BatchedHyps:
         """
         self.transcript = torch.cat((self.transcript, torch.zeros_like(self.transcript)), dim=-1)
         self.timesteps = torch.cat((self.timesteps, torch.zeros_like(self.timesteps)), dim=-1)
-        self.max_length *= 2
+        self._max_length *= 2
 
     def add_results_(
         self, active_indices: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
@@ -266,26 +268,37 @@ class BatchedHyps:
         # we assume that all tensors have the same first dimension, and labels are non-blanks
         if active_indices.shape[0] == 0:
             return  # nothing to add
-        if self.lengths.max().item() >= self.max_length:
+        if self.lengths.max().item() >= self._max_length:
             self._allocate_more()
         self.scores[active_indices] += scores
-        self.transcript.view(-1)[active_indices * self.max_length + self.lengths[active_indices]] = labels
-        self.timesteps.view(-1)[active_indices * self.max_length + self.lengths[active_indices]] = time_indices
+        self.transcript.view(-1)[active_indices * self._max_length + self.lengths[active_indices]] = labels
+        self.timesteps.view(-1)[active_indices * self._max_length + self.lengths[active_indices]] = time_indices
         self.last_timestep_lasts[active_indices] = torch.where(
             self.last_timestep[active_indices] == time_indices, self.last_timestep_lasts[active_indices] + 1, 1
         )
         self.last_timestep[active_indices] = time_indices
         self.lengths[active_indices] += 1
 
-    def to_hyps(self) -> List[Hypothesis]:
-        hypotheses = [
-            Hypothesis(
-                score=self.scores[i].item(),
-                y_sequence=self.transcript[i, : self.lengths[i]],
-                timestep=self.timesteps[i, : self.lengths[i]],
-                alignments=None,
-                dec_state=None,
-            )
-            for i in range(self.scores.shape[0])
-        ]
-        return hypotheses
+
+def batched_hyps_to_hypotheses(batched_hyps: BatchedHyps) -> List[Hypothesis]:
+    """
+    Convert batched hypotheses to a list of Hypothesis objects.
+    Keep this funcion separate to allow for jit compilation for BatchedHyps class (see tests)
+
+    Args:
+        batched_hyps: BatchedHyps object
+
+    Returns:
+        list of Hypothesis objects
+    """
+    hypotheses = [
+        Hypothesis(
+            score=batched_hyps.scores[i].item(),
+            y_sequence=batched_hyps.transcript[i, : batched_hyps.lengths[i]],
+            timestep=batched_hyps.timesteps[i, : batched_hyps.lengths[i]],
+            alignments=None,
+            dec_state=None,
+        )
+        for i in range(batched_hyps.scores.shape[0])
+    ]
+    return hypotheses
