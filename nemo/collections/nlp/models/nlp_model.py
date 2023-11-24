@@ -145,13 +145,6 @@ class NLPModel(ModelPT, Exportable):
             # register encoder config
             self.register_bert_model()
 
-    def register_artifact(
-        self, config_path: str, src: str, verify_src_exists: bool = False,
-    ):
-        """ Overrides ModelPT register_artifact default behavior.
-        NLP models usually need artifacts that are optional."""
-        return super().register_artifact(config_path, src, verify_src_exists=verify_src_exists)
-
     @rank_zero_only
     def register_bert_model(self):
         """Adds encoder config to .nemo archive for Jarvis.
