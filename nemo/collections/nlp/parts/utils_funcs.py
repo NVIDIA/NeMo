@@ -221,9 +221,7 @@ def load_state_dict_helper(cls, cfg: DictConfig, trainer: Trainer, state_dict: D
         # Keys ending with '_extra_state' are related to Transformer Engine internals
         missing_keys_non_extra = [key for key in missing_keys if not key.endswith("_extra_state")]
         if missing_keys_non_extra:
-            logging.critical(
-                "Missing keys were detected during the load, something has gone wrong. Aborting."
-            )
+            logging.critical("Missing keys were detected during the load, something has gone wrong. Aborting.")
             raise RuntimeError(f"Missing keys: \n{missing_keys_non_extra}")
 
     if unexpected_keys:

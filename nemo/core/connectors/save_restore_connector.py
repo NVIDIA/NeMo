@@ -396,10 +396,7 @@ class SaveRestoreConnector:
 
         assert os.path.exists(return_path)
 
-        artifact_item = model_utils.ArtifactItem(
-            path=os.path.abspath(src),
-            path_type=path_type,
-        )
+        artifact_item = model_utils.ArtifactItem(path=os.path.abspath(src), path_type=path_type,)
         model.artifacts[config_path] = artifact_item
         # we were called by ModelPT
         if hasattr(model, "cfg"):
@@ -491,8 +488,7 @@ class SaveRestoreConnector:
 
                         # Update artifacts registry
                         new_artiitem = model_utils.ArtifactItem(
-                            path="nemo:" + artifact_uniq_name,
-                            path_type=model_utils.ArtifactPathType.TAR_PATH,
+                            path="nemo:" + artifact_uniq_name, path_type=model_utils.ArtifactPathType.TAR_PATH,
                         )
                         model.artifacts[conf_path] = new_artiitem
                 finally:
