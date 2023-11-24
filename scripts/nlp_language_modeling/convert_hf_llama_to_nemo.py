@@ -27,13 +27,10 @@ from collections import OrderedDict
 
 import torch
 from omegaconf import OmegaConf
-from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import LlamaForCausalLM, LlamaTokenizer
 
-
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -41,6 +38,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper
 from nemo.utils import logging
 
 
@@ -53,45 +51,6 @@ def get_args():
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
     args = parser.parse_args()
     return args
-
-
-def load_model(cls, checkpoint, strict, **kwargs):
-    try:
-        if 'cfg' in kwargs:
-            model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
-        else:
-            # model = ptl_load_state(
-            #     cls, checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
-            # )
-            model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
-            for name, module in model.named_parameters():
-                if name in checkpoint['state_dict']:
-                    module.data = checkpoint['state_dict'][name]
-                    checkpoint['state_dict'].pop(name)
-                else:
-                    print(f"Unexpected key: {name} not in checkpoint but in model.")
-
-            for name, buffer in model.named_buffers():
-                if name in checkpoint['state_dict']:
-                    buffer.data = checkpoint['state_dict'][name]
-                    checkpoint['state_dict'].pop(name)
-
-            if len(checkpoint['state_dict'].keys()) != 0:
-                raise RuntimeError(
-                    f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model."
-                )
-
-            # register the artifacts
-            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]
-            if cfg.tokenizer.model is not None:
-                model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
-            if cfg.tokenizer.vocab_file is not None:
-                model.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file)
-            if cfg.tokenizer.merge_file is not None:
-                model.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file)
-    finally:
-        cls._set_model_restore_state(is_being_restored=False)
-    return model
 
 
 def load_config(args, llama_config):
@@ -310,7 +269,7 @@ def convert(args):
         for key in keys:
             checkpoint['state_dict'][key.replace('model.', 'model.module.', 1)] = checkpoint['state_dict'].pop(key)
 
-    model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
+    model = load_state_dict_helper(MegatronGPTModel, nemo_config, trainer, checkpoint['state_dict'])
 
     model._save_restore_connector = NLPSaveRestoreConnector()
 
