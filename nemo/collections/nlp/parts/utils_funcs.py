@@ -13,6 +13,7 @@
 # limitations under the License.
 
 __all__ = [
+    'torch_dtype_from_precision',
     'list2str',
     'tensor2list',
     'plot_confusion_matrix',
