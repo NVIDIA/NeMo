@@ -37,8 +37,45 @@ from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.collections.tts.parts.utils.tts_dataset_utils import general_padding, get_base_dir
 from nemo.utils import logging
 
+from dataclasses import dataclass
+from omegaconf import DictConfig, OmegaConf, open_dict
+from hydra.utils import instantiate
+
 __all__ = ['T5SpeechLMTarredDataset']
 
+@dataclass
+class G2PConfig:
+    _target_: str = "nemo.collections.tts.g2p.models.en_us_arpabet.EnglishG2p"
+    phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
+    heteronyms: str = "scripts/tts_dataset_files/heteronyms-052722"
+    phoneme_probability: float = 0.5
+
+@dataclass
+class TextTokenizer:
+    _target_: str = "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
+    punct: bool = True
+    stresses: bool = True
+    chars: bool = True
+    apostrophe: bool = True
+    pad_with_space: bool = True
+    add_blank_at: bool = True
+    g2p: G2PConfig = G2PConfig()
+
+@dataclass
+class TextTokenizerConfig:
+    text_tokenizer: TextTokenizer = TextTokenizer()
+
+def _get_default_text_tokenizer_conf():
+    text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
+    return OmegaConf.create(OmegaConf.to_yaml(text_tokenizer))
+
+def pad_text_to_speech_dims(text_tensor, pad_id):
+    token_len = text_tensor.shape[0]
+    empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
+    return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
+
+tokenizer_config = _get_default_text_tokenizer_conf()
+phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
 
 def pad_text_to_speech_dims(text_tensor, pad_id):
     token_len = text_tensor.shape[0]
@@ -88,6 +125,8 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         world_size: int = 0,
         return_sample_id: bool = False,
         decoder_only_model: bool = False,
+        use_phoneme_tokenizer: Optional[bool] = False,
+        lm_vocab_size: Optional[int] = None,
         **kwargs,
     ):
         """
@@ -141,7 +180,9 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         self.add_bos = add_bos
         self.add_eos = add_eos
         self.for_train = for_train
+        self.use_phoneme_tokenizer = use_phoneme_tokenizer
         self.examples = []
+        self.lm_vocab_size = tokenizer.vocab_size if lm_vocab_size is None else lm_vocab_size
 
         assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
@@ -163,7 +204,8 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=return_sample_id,
-            decoder_only_model=decoder_only_model
+            decoder_only_model=decoder_only_model,
+            use_phoneme_tokenizer=use_phoneme_tokenizer,
         )
 
         self.encodec, self.ref_encodec = None, None
@@ -423,7 +465,12 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
     def _get_text_tokens(self, text):
         input_ids = self.tokenizer.text_to_ids(text)
         return input_ids
-
+    
+    def _get_phoneme_tokens(self, text):
+        input_ids = phoneme_tokenizer.encode(text)
+        input_ids_adjusted = [_id + self.lm_vocab_size for _id in input_ids]
+        return input_ids_adjusted
+    
     def _pad_wav_to_multiple(self, wav):
         if self.pad_multiple > 1:
             if wav.shape[0] % self.pad_multiple != 0:
@@ -487,7 +534,13 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         if f"{field}_type" not in doc.keys():
             field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
         elif doc[f"{field}_type"] == 'TEXT':
-            field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
+            _text = field_data.strip(" ")
+            if self.use_phoneme_tokenizer:
+                instruction_tokens = self._get_text_tokens("Phoneme TTS")
+                field_tokens = self._get_phoneme_tokens(_text.replace("Text to speech this ", ""))
+                field_tokens = instruction_tokens + field_tokens
+            else:
+                field_tokens = self._get_text_tokens(_text)  # list of ids
         elif doc[f"{field}_type"] == 'SPEECH':
             dur = -1
             if f"{field}_duration" in doc:

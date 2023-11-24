@@ -438,7 +438,8 @@ class InstructionTuningAudioText(_Collection):
             max_number: Optional[int] = None,
             do_sort_by_duration: bool = False,
             index_by_file_id: bool = False,
-            decoder_only_model: bool = False
+            decoder_only_model: bool = False,
+            use_phoneme_tokenizer: bool = False,
         ):
         """Parse lists of audio files, durations and transcripts texts.
         Args:
@@ -449,6 +450,7 @@ class InstructionTuningAudioText(_Collection):
         """
 
         output_type = self.OUTPUT_TYPE
+        self.use_phoneme_tokenizer = use_phoneme_tokenizer
         data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
         if index_by_file_id:
             self.mapping = {}
@@ -522,7 +524,11 @@ class InstructionTuningAudioText(_Collection):
         if field_type == "SPEECH":
             return duration_data * 76
         elif field_type == "TEXT":
-            return len(data.split(' ')) + 3
+            if self.use_phoneme_tokenizer:
+                # Approx len is number of characters
+                return len(data)
+            else:
+                return len(data.split(' ')) + 3
         elif field_type == "TOKENS":
             return len(data) + 3
 
