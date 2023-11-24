@@ -403,7 +403,7 @@ class GPTDataset(Dataset):
                 sample, (0, self.seq_length + self.add_extra_token - len(sample)), mode='constant', constant_values=-1
             )
 
-        if not self.cfg.data.add_fim:
+        if not self.cfg.data.get('add_fim', False):
             return sample.astype(np.int64)
         # FIM implementation
         else:

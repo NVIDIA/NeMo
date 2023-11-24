@@ -1026,7 +1026,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         test_iters = self.trainer.limit_test_batches
 
         # Add extra FIM tokens to tokenizer
-        if self.cfg.data.add_fim:
+        if self.cfg.data.get('add_fim', False):
             fim_tokens = self.cfg.data.fim.extra_tokens
             fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
             self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
