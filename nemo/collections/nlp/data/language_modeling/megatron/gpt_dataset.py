@@ -402,7 +402,7 @@ class GPTDataset(Dataset):
             sample = np.pad(
                 sample, (0, self.seq_length + self.add_extra_token - len(sample)), mode='constant', constant_values=-1
             )
-        
+
         if self.cfg.data.add_fim:
             return sample.astype(np.int64)
         # FIM implementation
@@ -417,12 +417,18 @@ class GPTDataset(Dataset):
             fim_tokens = self.cfg.data.fim.extra_tokens
             fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
             fim_tokens_ids = self.tokenizer.tokens_to_ids(fim_tokens)
-            self.prefix_tok_id, self.middle_tok_id, self.suffix_tok_id, self.pad_tok_id, self.eod_tok_id = fim_tokens_ids
+            (
+                self.prefix_tok_id,
+                self.middle_tok_id,
+                self.suffix_tok_id,
+                self.pad_tok_id,
+                self.eod_tok_id,
+            ) = fim_tokens_ids
 
             sample_len = sample.shape[0]
-            segment_breaks = np.argwhere(sample==self.eod_tok_id)
+            segment_breaks = np.argwhere(sample == self.eod_tok_id)
             np_rng = np.random.RandomState(seed=self.seed)
-        
+
         def fim_permute_sequence(sequence, rate):
             return permute(
                 sequence,
@@ -485,17 +491,16 @@ class GPTDataset(Dataset):
             sample = np.concatenate(new_samples)
         else:
             sample = fim_split_and_permute_sequence(sample)
-        
+
         diff = sample.shape[0] - sample_len
-        if diff > 0: # too long
+        if diff > 0:  # too long
             sample = sample[:sample_len]
-        elif diff < 0: # too short
+        elif diff < 0:  # too short
             sample = np.concatenate([sample, np.full((-1 * diff), self.pad_tok_id)])
 
         assert sample.shape[0] == sample_len
 
         return sample.astype(np.int64)
-            
 
     def __getitem__(self, idx):
         text = torch.from_numpy(self._get_text(idx))
@@ -919,16 +924,27 @@ def _build_shuffle_idx(num_samples, total_size, np_rng):
 
     return np.concatenate((shuffle_idx_first, shuffle_idx_last))
 
-def permute(sample, np_rng, fim_rate, fim_spm_rate, tokenizer, truncate_or_pad=True,
-            suffix_tok_id=None, prefix_tok_id=None, middle_tok_id=None, pad_tok_id=None):
+
+def permute(
+    sample,
+    np_rng,
+    fim_rate,
+    fim_spm_rate,
+    tokenizer,
+    truncate_or_pad=True,
+    suffix_tok_id=None,
+    prefix_tok_id=None,
+    middle_tok_id=None,
+    pad_tok_id=None,
+):
     """
     Take in a sample (np array w/ size (0,chunklength)) and perform a FIM transformation on it. 
     Maintain the same sample length (if transform creates a few extra tokens, drop them).
     """
-    if np_rng.binomial(1, fim_rate): # sample bernoulli dist
+    if np_rng.binomial(1, fim_rate):  # sample bernoulli dist
 
         contents = tokenizer.ids_to_tokens(sample)
-        
+
         try:
             # A boundary can be =0 (prefix will be empty)
             # a boundary can be =len(contents) (suffix will be empty)
@@ -940,9 +956,9 @@ def permute(sample, np_rng, fim_rate, fim_spm_rate, tokenizer, truncate_or_pad=T
             print(e)
             raise e
 
-        prefix = contents[:boundaries[0]]
-        middle = contents[boundaries[0]:boundaries[1]]
-        suffix = contents[boundaries[1]:]
+        prefix = contents[: boundaries[0]]
+        middle = contents[boundaries[0] : boundaries[1]]
+        suffix = contents[boundaries[1] :]
 
         prefix = np.array([*tokenizer.tokens_to_ids(prefix)], dtype=np.int64)
         middle = np.array([*tokenizer.tokens_to_ids(middle)], dtype=np.int64)
@@ -955,27 +971,22 @@ def permute(sample, np_rng, fim_rate, fim_spm_rate, tokenizer, truncate_or_pad=T
             # need to make same length as the input. Take the 3 sentinel tokens into account
             new_length = suffix.shape[0] + prefix.shape[0] + middle.shape[0] + 3
             diff = new_length - sample.shape[0]
-            if diff > 0: # too long
-                if suffix.shape[0] <= diff: # if there's no space to truncate the suffix: stop and report it. atm i should have stopped this from happening
+            if diff > 0:  # too long
+                if (
+                    suffix.shape[0] <= diff
+                ):  # if there's no space to truncate the suffix: stop and report it. atm i should have stopped this from happening
                     return sample, np_rng
-                suffix = suffix[:suffix.shape[0] - diff]
-            elif diff < 0: # too short
+                suffix = suffix[: suffix.shape[0] - diff]
+            elif diff < 0:  # too short
                 suffix = np.concatenate([suffix, np.full((-1 * diff), pad_tok_id)])
-        
+
         if np_rng.binomial(1, fim_spm_rate):
             # SPM (variant 2 from FIM paper)
-            new_sample = np.concatenate([
-                [prefix_tok_id, suffix_tok_id], suffix,
-                [middle_tok_id], prefix, middle
-            ])
+            new_sample = np.concatenate([[prefix_tok_id, suffix_tok_id], suffix, [middle_tok_id], prefix, middle])
         else:
             # PSM
-            new_sample = np.concatenate([
-                [prefix_tok_id], prefix,
-                [suffix_tok_id], suffix,
-                [middle_tok_id], middle
-            ])
-        
+            new_sample = np.concatenate([[prefix_tok_id], prefix, [suffix_tok_id], suffix, [middle_tok_id], middle])
+
     else:
         # don't do FIM preproc
         new_sample = sample
