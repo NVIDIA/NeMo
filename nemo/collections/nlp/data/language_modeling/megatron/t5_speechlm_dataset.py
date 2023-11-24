@@ -1033,6 +1033,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
             decoder_labels_list.append(decoder_labels)
 
             decoder_mask[i, :context_tokens_len+question_tokens_len] = 0  # Mask out context and question
+            # TODO: jasoli, the speech_mask looks wrong. I shouldn't be masking out the context
             speech_mask[i, :context_tokens_len+question_tokens_len] = 0  # Mask out context and question
 
             if self.spec_aug:
