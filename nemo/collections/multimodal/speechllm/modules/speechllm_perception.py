@@ -314,9 +314,16 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
 
     def get_am_text_output(self, encoded, logits_len):
         with torch.no_grad():
-            logits = self.asr_model.decoder(encoder_output=encoded)
+            decoder_instance = (
+                self.asr_model.ctc_decoder if hasattr(self.asr_model, 'ctc_decoder') else self.asr_model.decoder
+            )
+            decoding_instance = (
+                self.asr_model.ctc_decoding if hasattr(self.asr_model, 'ctc_decoding') else self.asr_model.decoding
+            )
 
-            current_hypotheses, _ = self.asr_model.decoding.ctc_decoder_predictions_tensor(
+            logits = decoder_instance(encoder_output=encoded)
+
+            current_hypotheses, _ = decoding_instance.ctc_decoder_predictions_tensor(
                 logits, decoder_lengths=logits_len, return_hypotheses=False,
             )
             # TODO: add hypotheses/logits logging
