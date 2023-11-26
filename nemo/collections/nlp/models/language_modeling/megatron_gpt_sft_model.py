@@ -264,7 +264,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             if self.cfg.data.get("chat", False):
                 dataset_cls = GPTSFTChatDataset
             elif data_cfg.get("packed_sequence", False):
-                dataset_cls = GPTSFTPackedDataset  # GPTSFTPacked(Dummy)Dataset
+                dataset_cls = GPTSFTPackedDataset
                 assert data_cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
             else:
                 dataset_cls = GPTSFTDataset

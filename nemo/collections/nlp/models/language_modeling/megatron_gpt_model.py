@@ -867,6 +867,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     forward_args['cu_seqlens_q'] = cu_seqlens
                     forward_args['cu_seqlens_kv'] = cu_seqlens
                     forward_args['qkv_format'] = 'thd'
+                    # remove -1 "paddings" added in collate_fn
+                    forward_args['input_ids'] = forward_args['input_ids'][:, :torch.argmin(forward_args['input_ids'], dim=1)]
+                    forward_args['position_ids'] = forward_args['position_ids'][:, :torch.argmin(forward_args['position_ids'], dim=1)]
+                    forward_args['labels'] = forward_args['labels'][:, :torch.argmin(forward_args['labels'], dim=1)]
+
             output_tensor = model(**forward_args)
 
             def loss_func(output_tensor):
