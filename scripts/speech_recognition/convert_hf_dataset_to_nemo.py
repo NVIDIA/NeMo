@@ -301,7 +301,7 @@ def convert_streaming_dataset_to_nemo(
 
             manifest_line.update(sample)
 
-            manifest_f.write(f"{json.dumps(sample, ensure_ascii=cfg.ensure_ascii)}\n")
+            manifest_f.write(f"{json.dumps(manifest_line, ensure_ascii=cfg.ensure_ascii)}\n")
 
 
 def process_dataset(dataset: IterableDataset, cfg: HFDatasetConversionConfig):
