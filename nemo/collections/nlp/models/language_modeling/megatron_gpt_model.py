@@ -1543,7 +1543,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             output_layer_init_method = scaled_init_method_normal(init_method_std, num_layers=num_layers)
 
         attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
-        apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
+        # only enabled when we use fp16
+        apply_query_key_layer_scaling = (
+            self.cfg.get('apply_query_key_layer_scaling', False) and model_parallel_config.fp16
+        )
         if apply_query_key_layer_scaling:
             attention_softmax_in_fp32 = True
 
@@ -1570,6 +1573,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
+            'apply_query_key_layer_scaling': apply_query_key_layer_scaling,
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'add_bias_linear': add_bias_linear,
