@@ -70,18 +70,6 @@ pipeline {
       }
     }
 
-    stage('Megatron Core version') {
-      steps {
-        sh 'python -c "from megatron.core import parallel_state"'
-      }
-    }
-
-    stage('Megatron CORE Bert version') {
-      steps {
-        sh 'python -c "from megatron.core.models.bert import BertModel as MCoreBertModel"'
-      }
-    }
-
     stage('Transformer Engine installation') {
       steps {
          sh 'git clone https://github.com/NVIDIA/TransformerEngine.git && \
