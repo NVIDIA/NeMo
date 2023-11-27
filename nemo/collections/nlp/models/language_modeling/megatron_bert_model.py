@@ -74,11 +74,13 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core.models.bert import BertModel as MCoreBertModel
     from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
+
     HAVE_MEGATRON_CORE_BERT = True
 
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE_BERT = False
+
 
 class MegatronBertModel(MegatronBaseModel):
     """
@@ -92,9 +94,7 @@ class MegatronBertModel(MegatronBaseModel):
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         if not HAVE_MEGATRON_CORE_BERT:
-            raise ImportError(
-                "megatron-core BERT MODEL WAS NOT FOUND."
-            )        
+            raise ImportError("megatron-core BERT MODEL WAS NOT FOUND.")
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
         self.cfg = cfg
 
