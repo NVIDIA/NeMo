@@ -157,7 +157,7 @@ model:
         pretrained_model: ssl_en_conformer_large
         use_multi_layer_feat: True
         multi_layer_feat:
-          layer_idx_list: [0,8,16]
+          layer_idx_list: [0,16]
           aggregator:
             mode: "cat"
             pooling: "avg"

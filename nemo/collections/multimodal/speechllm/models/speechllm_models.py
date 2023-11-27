@@ -1078,7 +1078,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                     for pred, label, input, metadata in zip(
                         batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
                     ):
-                        key = input + label
+                        key = input + label + str(metadata)
                         total_size += 1
                         if key not in inp_label_set:
                             inp_label_set.add(key)

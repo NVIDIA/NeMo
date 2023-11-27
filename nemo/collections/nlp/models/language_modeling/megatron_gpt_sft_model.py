@@ -638,14 +638,20 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-            logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
+            if isinstance(self._validation_ds, list):
+                logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
+            else:
+                logging.info(f'Length of val dataset: {len(self._validation_ds)}')
 
         if stage != 'validate':
             if hasattr(self.cfg.data, 'test_ds'):
                 logging.info('Building GPT SFT test datasets.')
                 # Wrap this in a list since the general finetuning parent class supports multi-validation.
                 self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
-                logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
+                if isinstance(self._test_ds, list):
+                    logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
+                else:
+                    logging.info(f'Length of test dataset: {len(self._test_ds)}')
 
         if stage == 'validate' or stage == 'test':
             return

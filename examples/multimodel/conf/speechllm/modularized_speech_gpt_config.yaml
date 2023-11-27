@@ -275,7 +275,7 @@ model:
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
 
-      log_every_n_steps: 1
+      log_every_n_steps: 20
       metric:
         name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
