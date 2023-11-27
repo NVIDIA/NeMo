@@ -514,7 +514,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
-            seq_length=self.cfg.encoder_seq_length,
+            seq_length=(self.cfg.encoder_seq_length // self.cfg.get('context_parallel_size', 1)),
             micro_batch_size=self.cfg.micro_batch_size,
         )
 
