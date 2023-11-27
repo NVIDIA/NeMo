@@ -1,14 +1,19 @@
 echo "****** STARTING ******" \
 ; echo "------------------" \
+; export HYDRA_FULL_ERROR=1 \
+; unset SLURM_NTASKS \
+; unset LOCAL_RANK \
 ; BASE_MODEL="/home/hshin/projects/llmservice_modelalignment_ptune/checkpoints/8B/megatron_gpt_8b_tp4_pp1.nemo" \
 ; LORA_MODEL_DIR="/home/hshin/results/sec_sft" \
 ; DATA_DIR="/home/hshin/projects/llmservice_modelalignment_ptune/datasets/sec_qna_jsonls" \
 ; cd /home/hshin/workspace/NeMo \
 ; export PYTHONPATH="/home/hshin/workspace/NeMo/.:${PYTHONPATH}" \
-; EVAL_MODEL_NAME=${EVAL_MODEL_NAME_INPUT}
+; export TRANSFORMERS_CACHE="/lustre/fsw/portfolios/llmservice/users/hshin/cache/huggingface" \
+; EVAL_MODEL_NAME=${EVAL_MODEL_NAME_INPUT} \
+; echo ${EVAL_MODEL_NAME} \
 ; python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
    model.restore_from_path=${BASE_MODEL} \
-   model.peft.restore_from_path=/results/sec_sft/${EVAL_MODEL_NAME}/checkpoints/${EVAL_MODEL_NAME}.nemo \
+   model.peft.restore_from_path=/home/hshin/results/sec_sft/${EVAL_MODEL_NAME}/checkpoints/${EVAL_MODEL_NAME}.nemo \
    trainer.devices=4 \
    trainer.num_nodes=1 \
    trainer.precision=bf16 \
@@ -20,9 +25,9 @@ echo "****** STARTING ******" \
    model.data.test_ds.tokens_to_generate=30 \
    model.data.test_ds.write_predictions_to_file=True \
    model.data.test_ds.output_file_path_prefix=${EVAL_MODEL_NAME}.predictions \
-   model.data.test_ds.label_key='output' \
-   model.data.test_ds.truncation_field='input' \
-   model.data.test_ds.prompt_template='{input} {output}' \
+   model.data.test_ds.label_key="output" \
+   model.data.test_ds.truncation_field="input" \
+   model.data.test_ds.prompt_template="\{input\} \{output\}" \
    inference.greedy=True \
    ++inference.verbose=True \
 && \
@@ -31,5 +36,6 @@ python run_scripts/parse_eval_answers_and_labels.py \
 && \
 cd /home/hshin/workspace/sec \
 ; python evaluate_answers.py \
-   --filename=${EVAL_MODEL_NAME}.predictions_test_sec_qna_2020-2022_val-test_inputs_preds_labels.jsonl-ang_only.csv > \
-   ${EVAL_MODEL_NAME}.predictions_test_sec_qna_2020-2022_val-test_inputs_preds_labels_ACCF1.txt
+				 --filename=/home/hshin/workspace/NeMo/\
+${EVAL_MODEL_NAME}.predictions_test_sec_qna_2020-2022_val-test_inputs_preds_labels.jsonl-ang_only.csv > \
+   /home/hshin/workspace/NeMo/${EVAL_MODEL_NAME}.predictions_test_sec_qna_2020-2022_val-test_inputs_preds_labels_ACCF1.txt

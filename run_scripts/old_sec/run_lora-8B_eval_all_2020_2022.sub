@@ -1,0 +1,71 @@
+#!/bin/bash
+#SBATCH -A llmservice_modelalignment_ptune
+#SBATCH -p batch_block3
+#SBATCH -N 1 # number of nodes
+#SBATCH -t 4:00:00              # wall time  (8 for batch, backfill, 2 for batch_short)
+#SBATCH -J llmservice_info_isolation:eval            # job name (<< CHANGE ! >>)
+#SBATCH --ntasks-per-node=1    # n tasks per machine (one task per gpu) <required>
+#SBATCH --gpus-per-node=4
+#SBATCH --exclusive
+
+set -x
+
+CONTAINER="/lustre/fsw/portfolios/llmservice/users/hshin/sqshs/ea-jarvis-megatron+nemo+latest.sqsh"
+
+EVAL_MODEL_NAME=$1
+
+NEMO="/lustre/fsw/portfolios/llmservice/users/hshin/workspace/NeMo:/home/workspace/NeMo"
+CHECKPOINTS="/lustre/fsw/portfolios/llmservice/projects/llmservice_modelalignment_ptune/checkpoints:/checkpoints"
+DATA="/lustre/fsw/portfolios/llmservice/projects/llmservice_modelalignment_ptune/datasets:/datasets"
+RESULTS="/lustre/fsw/portfolios/llmservice/users/hshin/results:/results"
+CACHE="/lustre/fsw/portfolios/llmservice/users/hshin/cache/huggingface:/cache/huggingface"
+MOUNTS="--container-mounts=$NEMO,$CHECKPOINTS,$DATA,$RESULTS,$CACHE"
+LOGDIR="/lustre/fsw/portfolios/llmservice/users/hshin/logs"
+
+export HYDRA_FULL_ERROR=1
+
+OUTFILE="${LOGDIR}/slurm-${SIZE}-epochs${EPOCHS}-layers${LSTM_LAYERS}-%j.out"
+ERRFILE="${LOGDIR}/error-${SIZE}-epochs${EPOCHS}-layers${LSTM_LAYERS}-%j.out"
+
+read -r -d '' cmd <<EOF
+echo "****** STARTING ******" \
+; echo "------------------" \
+; export HYDRA_FULL_ERROR=1 \
+; export TRANSFORMERS_CACHE=/cache/huggingface \
+; BASE_MODEL="/checkpoints/8B/megatron_gpt_8b_tp4_pp1.nemo" \
+; LORA_MODEL_DIR="/results/sec_sft" \
+; DATA_DIR="/datasets/sec_qna_jsonls" \
+; cd /home/workspace/NeMo \
+; export PYTHONPATH="/home/workspace/NeMo/.:${PYTHONPATH}" \
+; EVAL_MODEL_NAME=${EVAL_MODEL_NAME_INPUT} \
+; echo ${EVAL_MODEL_NAME} \
+; python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
+   model.restore_from_path=${BASE_MODEL} \
+   model.peft.restore_from_path=/results/sec_sft/${EVAL_MODEL_NAME}/checkpoints/${EVAL_MODEL_NAME}.nemo \
+   trainer.devices=4 \
+   trainer.num_nodes=1 \
+   trainer.precision=bf16 \
+   model.tensor_model_parallel_size=4 \
+   model.data.test_ds.file_names=[${DATA_DIR}/sec_qna_2020-2022_train_num-200-shuffle_val-test_inpu-t-outupt.jsonl] \
+   model.data.test_ds.names=[sec_qna_2020-2022_val-test] \
+   model.data.test_ds.global_batch_size=4 \
+   model.data.test_ds.micro_batch_size=4 \
+   model.data.test_ds.tokens_to_generate=30 \
+   model.data.test_ds.write_predictions_to_file=True \
+   model.data.test_ds.output_file_path_prefix=${EVAL_MODEL_NAME}.predictions \
+   model.data.test_ds.label_key="output" \
+   model.data.test_ds.truncation_field="input" \
+   model.data.test_ds.prompt_template="\{input\} \{output\}" \
+   inference.greedy=True \
+   ++inference.verbose=True
+EOF
+
+srun -o $OUTFILE -e $ERRFILE --container-image="$CONTAINER" $MOUNTS bash -c "${cmd}"
+set +x
+
+#; python run_scripts/parse_eval_answers_and_labels.py \
+#   --input_filename=${EVAL_MODEL_NAME}.predictions_test_sec_qna_2020-2022_val-test_inputs_preds_labels.jsonl \
+#; cd /home/workspace/sec \
+#; python evaluate_answers.py \
+#   --filename=${EVAL_MODEL_NAME}.predictions_test_sec_qna_2020-2022_val-test_inputs_preds_labels.jsonl-ang_only.csv > \
+#   ${EVAL_MODEL_NAME}.predictions_test_sec_qna_2020-2022_val-test_inputs_preds_labels_ACCF1.txt
