@@ -103,17 +103,11 @@ def run_trt_llm_export(model_name, n_gpu, ptuning=False, tp_size=None, pp_size=N
             else:
                 print("---- PTuning could not be enabled.")
 
-        trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-        
-        if tp_size is None and pp_size is None:
-            tp_size = n_gpu
-            pp_size = 1
-        else:
-            assert tp_size*pp_size == n_gpu
-            
+        trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])        
         trt_llm_exporter.export(
             nemo_checkpoint_path=model_info["checkpoint"],
             model_type=model_info["model_type"],
+            n_gpus=n_gpu,
             tensor_parallel_size=tp_size,
             pipeline_parallel_size=pp_size,
             max_input_token=1024,

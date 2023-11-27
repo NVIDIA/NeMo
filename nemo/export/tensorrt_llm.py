@@ -144,8 +144,9 @@ class TensorRTLLM(ITritonDeployable):
         prompt_embeddings_table = None,
         prompt_embeddings_checkpoint_path=None,
         delete_existing_files: bool = True,
-        tensor_parallel_size: int = 1,
-        pipeline_parallel_size: int = 1,
+        n_gpus: int = 1,
+        tensor_parallel_size = None,
+        pipeline_parallel_size = None,
         max_input_token: int = 512,
         max_output_token: int = 512,
         max_batch_size: int = 32,
@@ -174,6 +175,13 @@ class TensorRTLLM(ITritonDeployable):
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
             load_model (bool): load TensorRT-LLM model after the export.
         """
+
+        if pipeline_parallel_size is None:
+            tensor_parallel_size = n_gpus
+            pipeline_parallel_size = 1
+        elif tensor_parallel_size is None:
+            tensor_parallel_size = 1
+            pipeline_parallel_size = n_gpus
 
         p_tuning = "no_ptuning"
         if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
