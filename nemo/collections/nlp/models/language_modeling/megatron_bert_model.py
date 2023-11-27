@@ -60,8 +60,6 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.models.bert import BertModel as MCoreBertModel
-    from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -72,6 +70,15 @@ except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
 
+
+try:
+    from megatron.core.models.bert import BertModel as MCoreBertModel
+    from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
+    HAVE_MEGATRON_CORE_BERT = True
+
+except (ImportError, ModuleNotFoundError):
+    TransformerConfig = ApexGuardDefaults
+    HAVE_MEGATRON_CORE_BERT = False
 
 class MegatronBertModel(MegatronBaseModel):
     """
@@ -84,6 +91,10 @@ class MegatronBertModel(MegatronBaseModel):
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        if not HAVE_MEGATRON_CORE_BERT:
+            raise ImportError(
+                "megatron-core BERT MODEL WAS NOT FOUND."
+            )        
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
         self.cfg = cfg
 
