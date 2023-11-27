@@ -1,4 +1,6 @@
+import sys
 from typing import Dict, Optional, Tuple
+from contextlib import contextmanager
 
 import torch.utils.data
 from lhotse import CutSet
@@ -49,15 +51,34 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         cuts = cuts.sort_by_duration()
         try:
             audio, audio_lens, cuts = self.load_audio(cuts)
-            tokens = [torch.as_tensor(self.tokenizer.text_to_ids(c.supervisions[0].text)) for c in cuts]
+            texts = [c.supervisions[0].custom["texts"][1] for c in cuts]
+            with redirect_stdout_to_logger(logging):
+                tokens = [self.tokenizer.text_to_ids(text)[0] for text in texts]
+            tokens = [torch.as_tensor(token_ids) for token_ids in tokens]
             token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
             tokens = collate_vectors(tokens, padding_value=0)
             return audio, audio_lens, tokens, token_lens
         except Exception as e:
             # typically when failed to load all of the audios
+            logging.info([c.supervisions[0].custom["texts"][1] for c in cuts])
+            logging.info([self.tokenizer.text_to_ids(c.supervisions[0].custom["texts"][0]) for c in cuts])
             logging.error("Failed to load audio batch.", exc_info=e)
             raise e
 
 
-def _identity(x):
-    return x
+@contextmanager
+def redirect_stdout_to_logger(logger):
+    class StdoutRedirector:
+        def write(self, message):
+            if message != '\n':
+                logger.warning(message)
+
+        def flush(self):
+            pass
+
+    original_stdout = sys.stdout  # 保存原始的 stdout
+    sys.stdout = StdoutRedirector()  # 將 stdout 重定向到自定義的類
+    try:
+        yield
+    finally:
+        sys.stdout = original_stdout  # 恢復原始的 stdout

@@ -1,0 +1,33 @@
+# @package _global_
+
+# runs 1 train, 1 validation and 1 test step
+
+defaults:
+  - default
+
+model:
+  duration_predictor:
+    depth: 2
+    heads: 2
+
+  voicebox:
+    depth: 2
+    heads: 2
+
+trainer:
+  fast_dev_run: true
+
+  devices: 1
+
+exp_manager:
+  resume_if_exists: False
+
+# task name, determines output directory path
+task_name: "debug-fdr"
+
+# set False to skip model training
+train: True
+
+# evaluate on test set, using best model weights achieved during training
+# lightning chooses best weights based on the metric specified in checkpoint callback
+test: False

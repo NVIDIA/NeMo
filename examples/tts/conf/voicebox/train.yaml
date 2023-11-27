@@ -4,7 +4,7 @@
 # order of defaults determines the order in which configs override each other
 defaults:
   - _self_
-  - data@model: libriheavy
+  - dataset@model: libriheavy
   - model: default
   - callbacks: null
   - logger@exp_manager: # set logger here or use command line (e.g. `python train.py logger=tensorboard`)
@@ -29,7 +29,7 @@ defaults:
   - debug: default
 
 # task name, determines output directory path
-task_name: "debug"
+task_name: "train"
 
 # set False to skip model training
 train: True

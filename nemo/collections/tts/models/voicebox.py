@@ -90,7 +90,6 @@ class VoiceboxModel(TextToWaveform):
             duration_predictor=self.duration_predictor,
             torchode_method_klass=get_class(cfg.cfm_wrapper.torchode_method_klass)
         )
-        logging.error(self._cfg)
 
     def prepare_data(self) -> None:
         """ Pytorch Lightning hook.
@@ -101,9 +100,10 @@ class VoiceboxModel(TextToWaveform):
         """
         from lhotse.recipes.utils import manifests_exist
 
+        logging.info(f"mkdir -p {self._cfg.manifests_dir}")
         os.makedirs(self._cfg.manifests_dir, exist_ok=True)
         for subset in self._cfg.subsets:
-            if not manifests_exist(subset, self._cfg.manifests_dir, ["cuts"], "librilight"):
+            if not manifests_exist(subset, self._cfg.manifests_dir, ["cuts"], "libriheavy"):
                 logging.info(f"Downloading {subset} subset.")
                 os.system(f"wget -P {self._cfg.manifests_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
             else:

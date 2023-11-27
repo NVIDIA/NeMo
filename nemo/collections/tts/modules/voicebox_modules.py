@@ -2,11 +2,12 @@ import math
 from functools import partial
 
 import torch
-from torch import nn, Tensor
+from torch import nn, Tensor, einsum, IntTensor, FloatTensor, BoolTensor
 import torch.nn.functional as F
 from beartype import beartype
 from beartype.typing import Tuple, Optional, List, Union
 from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
+from naturalspeech2_pytorch.aligner import Aligner, ForwardSumLoss, BinLoss, maximum_path
 from voicebox_pytorch.voicebox_pytorch import VoiceBox as _VB
 from voicebox_pytorch.voicebox_pytorch import ConditionalFlowMatcherWrapper as _CFMWrapper
 from voicebox_pytorch.voicebox_pytorch import DurationPredictor as _DP
@@ -54,7 +55,7 @@ class MelVoco(_MelVoco):
 
 class DurationPredictor(_DP):
     """
-        1. Override `self.__init__()` to correct aligner, for fixing `self.forward_aligner()`.
+        1. Fixing `self.forward_aligner()`.
             Affecting:
                 - `self.forward()`
                     - `self.forward_with_cond_scale()`
@@ -69,7 +70,35 @@ class DurationPredictor(_DP):
         kwargs["frac_lengths_mask"] = tuple(kwargs["frac_lengths_mask"])
         kwargs["aligner_kwargs"] = dict(kwargs["aligner_kwargs"])
         super().__init__(*args, **kwargs)
-        self.aligner = self.aligner.aligner
+
+    @beartype
+    def forward_aligner(
+        self,
+        x: FloatTensor,     # (b, tx, c)
+        x_mask: IntTensor,  # (b, 1, tx)
+        y: FloatTensor,     # (b, ty, c)
+        y_mask: IntTensor   # (b, 1, ty)
+    ) -> Tuple[
+        FloatTensor,        # alignment_hard: (b, tx)
+        FloatTensor,        # alignment_soft: (b, tx, ty)
+        FloatTensor,        # alignment_logprob: (b, 1, ty, tx)
+        BoolTensor          # alignment_mas: (b, tx, ty)
+    ]:
+        attn_mask = rearrange(x_mask, 'b 1 tx -> b 1 tx 1') * rearrange(y_mask, 'b 1 ty -> b 1 1 ty')
+        alignment_soft, alignment_logprob = self.aligner.aligner(
+            rearrange(y, 'b ty c -> b c ty'), rearrange(x, 'b tx c -> b c tx'), x_mask
+        )
+
+        assert not torch.isnan(alignment_soft).any()
+
+        alignment_mas = maximum_path(
+            rearrange(alignment_soft, 'b 1 ty tx -> b tx ty').contiguous(),
+            rearrange(attn_mask, 'b 1 tx ty -> b tx ty').contiguous()
+        )
+
+        alignment_hard = torch.sum(alignment_mas, -1).float()
+        alignment_soft = rearrange(alignment_soft, 'b 1 ty tx -> b tx ty')
+        return alignment_hard, alignment_soft, alignment_logprob, alignment_mas
 
     @beartype
     def forward(
