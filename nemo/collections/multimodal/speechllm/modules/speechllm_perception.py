@@ -328,20 +328,28 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
 
     def get_am_text_output(self, encoded, logits_len):
         with torch.no_grad():
-            decoder_instance = (
-                self.asr_model.ctc_decoder if hasattr(self.asr_model, 'ctc_decoder') else self.asr_model.decoder
-            )
-            decoding_instance = (
-                self.asr_model.ctc_decoding if hasattr(self.asr_model, 'ctc_decoding') else self.asr_model.decoding
-            )
+            is_ctc = self.cfg.get('is_ctc', True)
+            if is_ctc:
+                decoder_instance = (
+                    self.asr_model.ctc_decoder if hasattr(self.asr_model, 'ctc_decoder') else self.asr_model.decoder
+                )
+                decoding_instance = (
+                    self.asr_model.ctc_decoding if hasattr(self.asr_model, 'ctc_decoding') else self.asr_model.decoding
+                )
+                logits = decoder_instance(encoder_output=encoded)
 
-            logits = decoder_instance(encoder_output=encoded)
-
-            current_hypotheses, _ = decoding_instance.ctc_decoder_predictions_tensor(
-                logits, decoder_lengths=logits_len, return_hypotheses=False,
-            )
+                current_hypotheses, _ = decoding_instance.ctc_decoder_predictions_tensor(
+                    logits, decoder_lengths=logits_len, return_hypotheses=False,
+                )
+            else:
+                decoding_instance = self.asr_model.decoding
+                current_hypotheses, _ = decoding_instance.rnnt_decoder_predictions_tensor(
+                    encoder_output=encoded, encoded_lengths=logits_len, return_hypotheses=True
+                )
+                current_hypotheses = [i.text for i in current_hypotheses]
+                logits = None
             # TODO: add hypotheses/logits logging
-            # logging.info(f"CTC hyps: {current_hypotheses[0]}")
+            # logging.info(f"CTC/RNNT hyps: {current_hypotheses[0]}")
             return current_hypotheses, logits
 
     def get_text_embed(self, inputs, lm_embedding, pad_id=0):
