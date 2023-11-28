@@ -71,10 +71,8 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-
 from megatron.core.models.bert import BertModel as MCoreBertModel
 from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
-
 
 
 class MegatronBertModel(MegatronBaseModel):
