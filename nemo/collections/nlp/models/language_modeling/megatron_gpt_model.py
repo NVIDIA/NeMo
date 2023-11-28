@@ -2064,7 +2064,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         with torch.no_grad():
             dataloader_iter = self._make_data_iterator_list(dataloader_iter)
             batch = next(dataloader_iter)
-            forward_keys = ['tokens', 'position_ids', 'attention_mask', 'labels', 'loss_mask', 'speech_mask', 'attention_prior', context_question_mask]
+            forward_keys = ['tokens', 'position_ids', 'attention_mask', 'labels', 'loss_mask', 'speech_mask', 'attention_prior', 'context_question_mask']
             for key in forward_keys:
                 if (key in batch) and (batch[key] is not None):
                     batch[key] = batch[key].cuda()
