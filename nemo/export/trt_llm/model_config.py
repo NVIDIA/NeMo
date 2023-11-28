@@ -339,6 +339,7 @@ class DecoderLayerConfig:
             max_position_embeddings=llm_config.n_positions,
             rotary_pct=llm_config.rotary_pct if hasattr(llm_config, "rotary_pct") else 0,
             num_kv_heads=(llm_config.num_kv_heads if hasattr(llm_config, "num_kv_heads") else 0),
+            rotary_base=(llm_config.rotary_base if hasattr(llm_config, "rotary_base") else 10000),
         )
         layer_config.input_layernorm = LayernormConfig()
         layer_config.input_layernorm.layernorm_type = (
@@ -436,6 +437,8 @@ class ModelConfig:
 
     # Ptuning metadata
     use_prompt_tuning: bool = False
+
+    mapping = None 
 
     def to_dict(self) -> dict:
         """Converts the instance to a python dict."""

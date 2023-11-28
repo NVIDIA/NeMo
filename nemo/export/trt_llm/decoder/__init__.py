@@ -60,11 +60,12 @@ def build_decoder_layer(
     quantization=QUANTIZATION_NONE,
     rank=0,
     tensor_parallel=1,
+    tp_group=None
 ):
     """Builds the tensorrt llm decoder layer module with the layer config as the input."""
     assert layer.decoder_type in DECODER_REGISTRY, f"{layer.decoder_type} not supported"
     builder = DECODER_REGISTRY[layer.decoder_type]
     decoder_builder = builder(
-        layer, layer_id, num_layers, dtype, quantization, rank, tensor_parallel
+        layer, layer_id, num_layers, dtype, quantization, rank, tensor_parallel, tp_group
     )
     return decoder_builder.decoder

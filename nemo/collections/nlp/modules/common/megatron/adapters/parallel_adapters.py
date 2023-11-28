@@ -27,6 +27,7 @@ from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
 from nemo.core.classes.mixins import adapter_mixin_strategies
+from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
 
 try:
@@ -53,7 +54,7 @@ except (ImportError, ModuleNotFoundError):
 
 class AdapterName(str, enum.Enum):
     """
-    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility. 
+    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility.
     """
 
     MLP_INFUSED = "mlp_infused_adapter"
@@ -65,6 +66,7 @@ class AdapterName(str, enum.Enum):
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
+    MM_LINEAR_ADAPTER = "mm_linear_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
@@ -95,14 +97,14 @@ class InfusedAdapter(nn.Module, AdapterModuleUtil):
 class MLPInfusedAdapter(InfusedAdapter):
     """
     MLPInfusedAdapter is basically a clone of InfusedAdapter. We do this to make the adapter_mixin agnostic to adapter names
-    and only check adapter class types. 
+    and only check adapter class types.
     """
 
     pass
 
 
 @dataclass
-class InfusedAdapterConfig:
+class InfusedAdapterConfig(AdapterConfig):
     in_features: int
     _target_: str = "{0}.{1}".format(InfusedAdapter.__module__, InfusedAdapter.__name__)
 
@@ -232,7 +234,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
 
 @dataclass
-class ParallelLinearAdapterConfig:
+class ParallelLinearAdapterConfig(AdapterConfig):
     in_features: int
     out_features: int
     dim: int
@@ -248,7 +250,7 @@ class ParallelLinearAdapterConfig:
 
 class LoraKQVAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -257,7 +259,7 @@ class LoraKQVAdapter(ParallelLinearAdapter):
 
 class LoraKVAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -266,7 +268,7 @@ class LoraKVAdapter(ParallelLinearAdapter):
 
 class LoraQAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -290,7 +292,7 @@ class LoraKVAdapterConfig(ParallelLinearAdapterConfig):
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
-    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
+    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning. It only have two layers.
     TODO: (@adithyare) Need to add all the functionality from the PromptEncoder class
     """
@@ -311,7 +313,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
             virtual_tokens: the  number of vitural tokens
             hidden_size: hidden dimension
             output_size:  the output dimension
-            init_std: the MLP init std value 
+            init_std: the MLP init std value
         """
         super().__init__()
         self.bottleneck_dim = bottleneck_dim
@@ -384,7 +386,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         return output_embeds
 
     def forward(self, batch_size: int, use_cached_reps: bool = False) -> torch.Tensor:
-        """ 
+        """
         Forward pass through the encoder with caching of prompt representations
         """
         if use_cached_reps:
@@ -406,7 +408,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
 
 
 @dataclass
-class PromptEncoderAdapterConfig:
+class PromptEncoderAdapterConfig(AdapterConfig):
     virtual_tokens: int
     bottleneck_dim: int
     embedding_dim: int
@@ -558,7 +560,7 @@ class ParallelLinearAdapterWeightTyingConfig:
 
 class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
     """
-    TODO 
+    TODO
     """
 
     pass
@@ -567,3 +569,20 @@ class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
 @dataclass
 class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)
+
+
+class MultiModalLinearAdapter(nn.Module, AdapterModuleUtil):
+    def __init__(self, in_features: int, out_features: int, bias: bool, **kwargs) -> None:
+        super().__init__()
+        self.linear = torch.nn.Linear(in_features, out_features, bias,)
+
+    def forward(self, x):
+        return self.linear(x)
+
+
+@dataclass
+class MultiModalLinearAdapterConfig:
+    in_features: int
+    out_features: int
+    bias: bool
+    _target_: str = "{0}.{1}".format(MultiModalLinearAdapter.__module__, MultiModalLinearAdapter.__name__)

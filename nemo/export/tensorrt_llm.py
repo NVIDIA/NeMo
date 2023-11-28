@@ -16,7 +16,6 @@ import json
 import os
 import shutil
 from pathlib import Path
-import tempfile
 
 import numpy as np
 import tensorrt_llm
@@ -34,7 +33,6 @@ from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
 from .trt_llm.tensorrt_llm_run import generate, load
 from .utils import is_nemo_file, unpack_nemo_ckpt
 
-import transformers
 
 class TensorRTLLM(ITritonDeployable):
 
@@ -56,10 +54,11 @@ class TensorRTLLM(ITritonDeployable):
 
     """
 
-    def __init__(self, model_dir: str):
+    def __init__(self, model_dir: str, load_model: bool=True):
         """
         Args:
             model_dir (str): path for storing the TensorRT-LLM model files.
+            load_model (bool): load TensorRT-LLM model if the engine files exist in the model_dir.
         """
 
         self.model_dir = model_dir
@@ -69,9 +68,10 @@ class TensorRTLLM(ITritonDeployable):
         self.task_vocab_size = None
         self.n_gpus = None
         self.config = None
-        self._load()
+        if load_model:
+            self.load()
 
-    def _load(self):
+    def load(self):
         self.model = None
         self.tokenizer = None
         self.prompt_table = None
@@ -145,11 +145,16 @@ class TensorRTLLM(ITritonDeployable):
         prompt_embeddings_checkpoint_path=None,
         delete_existing_files: bool = True,
         n_gpus: int = 1,
+        tensor_parallel_size = None,
+        pipeline_parallel_size = None,
         max_input_token: int = 512,
         max_output_token: int = 512,
         max_batch_size: int = 32,
-        use_inflight_batching=False,
-        paged_kv_cache=False,
+        use_inflight_batching: bool = False,
+        enable_context_fmha: bool = True,
+        paged_kv_cache: bool = False,
+        dtype: str = "bfloat16",
+        load_model: bool = True,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -165,8 +170,18 @@ class TensorRTLLM(ITritonDeployable):
             max_output_token (int): max output length.
             max_batch_size (int): max batch size.
             use_inflight_batching (bool): if True, enables inflight batching for TensorRT-LLM Triton backend.
+            enable_context_fmha (bool): if True, use fused Context MultiHeadedAttention.
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
+            dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
+            load_model (bool): load TensorRT-LLM model after the export.
         """
+
+        if pipeline_parallel_size is None:
+            tensor_parallel_size = n_gpus
+            pipeline_parallel_size = 1
+        elif tensor_parallel_size is None:
+            tensor_parallel_size = 1
+            pipeline_parallel_size = n_gpus
 
         p_tuning = "no_ptuning"
         if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
@@ -219,20 +234,23 @@ class TensorRTLLM(ITritonDeployable):
         model_configs, self.tokenizer = nemo_to_model_config(
             in_file=nemo_checkpoint_path,
             decoder_type=model_type,
-            gpus=n_gpus,
+            dtype=dtype,
+            tensor_parallel_size=tensor_parallel_size,
+            pipeline_parallel_size=pipeline_parallel_size,
             nemo_export_dir=nemo_export_dir,
         )
 
         model_config_to_tensorrt_llm(
             model_configs,
             self.model_dir,
-            n_gpus,
+            world_size=tensor_parallel_size*pipeline_parallel_size,
             max_input_len=max_input_token,
             max_output_len=max_output_token,
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
             use_inflight_batching=use_inflight_batching,
             paged_kv_cache=paged_kv_cache,
+            enable_context_fmha=enable_context_fmha,
         )
 
         if p_tuning != "no_ptuning":
@@ -243,7 +261,9 @@ class TensorRTLLM(ITritonDeployable):
         else:
             shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         tmp_dir.cleanup()
-        self._load()
+
+        if load_model:
+            self.load()
 
     def forward(
         self,
@@ -252,6 +272,10 @@ class TensorRTLLM(ITritonDeployable):
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        **sampling_kwargs,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -262,10 +286,15 @@ class TensorRTLLM(ITritonDeployable):
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            stop_words_list (List(str)): list of stop words.
+            bad_words_list (List(str)): list of bad words.
+            no_repeat_ngram_size (int): no repeat ngram size.
+            sampling_kwargs: Additional kwargs to set in the SamplingConfig.
         """
         if self.model is None:
             raise Exception(
-                "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
+                "A nemo checkpoint should be exported to TensorRT-LLM and "
+                "then it should be loaded first to run inference."
             )
         else:
             return generate(
@@ -277,8 +306,12 @@ class TensorRTLLM(ITritonDeployable):
                 temperature= temperature,
                 prompt_table=self.prompt_table,
                 task_vocab_size=self.task_vocab_size,
+                stop_words_list=stop_words_list,
+                bad_words_list=bad_words_list,
+                no_repeat_ngram_size=no_repeat_ngram_size,
+                streaming=False,
+                **sampling_kwargs,
             )
-        
 
     def get_hidden_size(self):
         if self.config is None:

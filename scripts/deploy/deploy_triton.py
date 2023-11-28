@@ -19,6 +19,8 @@ from pathlib import Path
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
 from nemo.utils import logging
+from service.rest_model_api import app
+import uvicorn
 
 try:
     from contextlib import nullcontext
@@ -105,8 +107,8 @@ def get_args(argv):
     parser.add_argument(
         "-dt",
         "--dtype",
-        choices=["bf16", "fp16", "fp8", "int8"],
-        default="bf16",
+        choices=["bfloat16", "float16", "fp8", "int8"],
+        default="bfloat16",
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
@@ -136,6 +138,37 @@ def get_args(argv):
     )
 
     parser.add_argument(
+        "-dcf",
+        "--disable_context_fmha",
+        action="store_true",
+        help="Disable fused Context MultiHeadedAttention (required for V100 support)."
+    )
+
+    parser.add_argument(
+        "-srs",
+        "--start_rest_service",
+        default="False",
+        type=str,
+        help="Starts the REST service for OpenAI API support"
+    )
+
+    parser.add_argument(
+        "-sha",
+        "--service_http_address",
+        default="0.0.0.0",
+        type=str,
+        help="HTTP address for the REST Service"
+    )
+
+    parser.add_argument(
+        "-sp",
+        "--service_port",
+        default=8000,
+        type=int,
+        help="Port for the Triton server to listen for requests"
+    )
+
+    parser.add_argument(
         "-dm",
         "--debug_mode",
         default="False",
@@ -158,11 +191,6 @@ def nemo_deploy(argv):
     logging.setLevel(loglevel)
     logging.info("Logging level set to {}".format(loglevel))
     logging.info(args)
-
-    if args.dtype != "bf16":
-        logging.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
-                      "Support for the other precisions will be added in the coming releases.")
-        return
 
     if args.triton_model_repository is None:
         trt_llm_path = "/tmp/trt_llm_model_dir/"
@@ -189,6 +217,13 @@ def nemo_deploy(argv):
         )
         return
 
+    if args.start_rest_service == "True":
+        if args.service_port == args.triton_port:
+            logging.error(
+                "REST service port and Triton server port cannot use the same port."
+            )
+            return
+
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
 
     if args.nemo_checkpoint is not None:
@@ -201,7 +236,9 @@ def nemo_deploy(argv):
                 n_gpus=args.num_gpus,
                 max_input_token=args.max_input_len,
                 max_output_token=args.max_output_len,
+                enable_context_fmha=not args.disable_context_fmha,
                 max_batch_size=args.max_batch_size,
+                dtype=args.dtype
             )
         except Exception as error:
             logging.error("An error has occurred during the model export. Error message: " + str(error))
@@ -225,10 +262,25 @@ def nemo_deploy(argv):
 
     try:
         logging.info("Model serving on Triton is will be started.")
-        nm.serve()
+        if args.start_rest_service == "True":
+            nm.run()
+        else:
+            nm.serve()
     except Exception as error:
         logging.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
+
+    if args.start_rest_service == "True":
+        try:
+            logging.info("REST service is will be started.")
+            uvicorn.run(
+                'service.rest_model_api:app',
+                host=args.service_http_address,
+                port=args.service_port,
+                reload=True
+            )
+        except Exception as error:
+            logging.error("Error message has occurred during REST service start. Error message: " + str(error))
 
     logging.info("Model serving will be stopped.")
     nm.stop()

@@ -24,14 +24,15 @@ from .tensorrt_llm_model import LMHeadModelBuilder
 def model_config_to_tensorrt_llm(
     model_configs: List[ModelConfig],
     engine_dir: Union[str, Path],
-    gpus: int = 1,
+    world_size: int = 1,
     max_input_len: int = 200,
     max_output_len: int = 200,
     max_batch_size: int = 1,
     max_beam_width: int = 1,
     max_prompt_embedding_table_size: int = 100,
-    use_inflight_batching=False,
-    paged_kv_cache=False,
+    use_inflight_batching: bool = False,
+    paged_kv_cache: bool = False,
+    enable_context_fmha: bool = True,
 ):
     """The API to convert a torch or huggingface model represented as ModelConfig to tensorrt_llm.
 
@@ -46,6 +47,7 @@ def model_config_to_tensorrt_llm(
         max_prompt_embedding_table_size: max size of the prompt embedding table.
         use_inflight_batching (bool): if True, enables inflight batching for TensorRT-LLM Triton backend.
         paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
+        enable_context_fmha (bool): if True, use fused Context MultiHeadedAttention.
     """
     engine_dir = Path(engine_dir)
     if os.path.exists(engine_dir):
@@ -55,7 +57,8 @@ def model_config_to_tensorrt_llm(
         "Before engine building, CPU RAM Used (GB):"
         f" {psutil.Process().memory_info().rss / 1024 / 1024 / 1024}"
     )
-    for rank in range(gpus):
+
+    for rank in range(world_size):
         model_configs[rank].use_prompt_tuning = max_prompt_embedding_table_size > 0
         builder = LMHeadModelBuilder(model_configs[rank])
         builder.build(
@@ -68,6 +71,7 @@ def model_config_to_tensorrt_llm(
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
             use_inflight_batching=use_inflight_batching,
             paged_kv_cache=paged_kv_cache,
+            enable_context_fmha=enable_context_fmha,
         )
         print(
             f"After Engine building rank {rank}, CPU RAM Used (GB):"

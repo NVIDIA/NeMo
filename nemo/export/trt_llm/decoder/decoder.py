@@ -143,6 +143,7 @@ class DecoderLayerBuilder(ABC):
         quantization: str = QUANTIZATION_NONE,
         rank: int = 0,
         tensor_parallel: int = 1,
+        tp_group = None,
     ):
         """Initializes the DecoderLayer."""
         super().__init__()
@@ -153,7 +154,11 @@ class DecoderLayerBuilder(ABC):
         self.quantization = quantization
         self.rank = rank
         self.tensor_parallel = tensor_parallel
-        self.tp_group = get_tensor_parallel_group(tensor_parallel)
+
+        if tp_group is None:
+            self.tp_group = get_tensor_parallel_group(tensor_parallel)
+        else:
+            self.tp_group = tp_group
 
         self.hidden_size = layer.hidden_size
         self.num_attention_heads = layer.num_attention_heads

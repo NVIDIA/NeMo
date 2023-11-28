@@ -25,8 +25,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dat
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
@@ -147,7 +147,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return output, encoder_input
 
     def load_frozen_model(self, cfg, trainer):
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
@@ -159,7 +159,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 t5_cfg.decoder.masked_softmax_fusion = False
             else:
                 t5_cfg.masked_softmax_fusion = False
-            t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
+            t5_cfg.megatron_amp_O2 = self.megatron_amp_O2
             # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
@@ -296,9 +296,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             else self.tokenizer.bos_id,
         )
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-        labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
-        input_text = MegatronT5FinetuneModel.ids_to_text(input_ids, self.tokenizer)
+        preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        labels_text = MegatronT5SFTModel.ids_to_text(labels, self.tokenizer)
+        input_text = MegatronT5SFTModel.ids_to_text(input_ids, self.tokenizer)
         return {
             'predicted_token_ids': preds_text,
             'labels': labels_text,
@@ -482,11 +482,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             else self.tokenizer.bos_id,
         )
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-        input_text = MegatronT5FinetuneModel.ids_to_text(input_ids, self.tokenizer)
+        preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        input_text = MegatronT5SFTModel.ids_to_text(input_ids, self.tokenizer)
 
         if labels is not None:
-            labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
+            labels_text = MegatronT5SFTModel.ids_to_text(labels, self.tokenizer)
         else:
             labels_text = [None] * len(preds_text)
 

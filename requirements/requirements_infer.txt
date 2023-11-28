@@ -1,3 +1,6 @@
 zarr==2.16.1
 tensorstore==0.1.45
 nvidia-pytriton==0.3.1
+fastapi==0.104.1
+uvicorn==0.24.0.post1
+pydantic-settings==2.1.0

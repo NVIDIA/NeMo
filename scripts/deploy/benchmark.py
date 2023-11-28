@@ -192,7 +192,7 @@ def get_args(argv):
         '-temperature',
         '--temperature',
         type=float,
-        default=0.0,
+        default=1.0,
         required=False,
         help='top p for sampling'
     )
@@ -329,9 +329,9 @@ def get_inputs_llama(out_lens):
 def get_inputs_gptnext(out_lens):
     test_input_128 = ["Who designed the Gold State Coach? Adjacent to the palace is the Royal Mews, also designed by Nash, where the royal carriages, including the Gold State Coach, are housed. This rococo gilt coach, designed by Sir William Chambers in 1760, has painted panels by G. B. Cipriani. It was first used for the State Opening of Parliament by George III in 1762 and has been used by the monarch for every coronation since George IV. It was last used for the Golden Jubilee of Elizabeth II. Also housed in the mews are the coach horses used at royal ceremonial processions."]
     base_text="Paragliding is the recreational and competitive adventure sport of flying paragliders: lightweight, free-flying, foot-launched glider aircraft with no rigid primary structure. The pilot sits in a harness or in a cocoon-like 'pod' suspended below a fabric wing. Wing shape is maintained by the suspension lines, the pressure of air entering vents in the front of the wing, and the aerodynamic forces of the air flowing over the outside. Despite not using an engine, paraglider flights can last many hours and cover many hundreds of kilometres, though flights of one to five hours and covering some tens of kilometres are more the norm. By skillful exploitation of sources of lift, the pilot may gain height, often climbing to altitudes of a few thousand metres. History In 1966, Canadian Domina Jalbert was granted a patent for a multi-cell wing type aerial device—a wing having a flexible canopy constituting an upper skin and with a plurality of longitudinally extending ribs forming in effect a wing corresponding to an airplane wing airfoil."
-    test_input_256 = " ".join([base_text]*1 + [base_text[:224]])
-    test_input_512 = " ".join([base_text]*2 + [base_text[:455]])
-    test_input_2048 = " ".join([base_text]*9 + [base_text[:777]])
+    test_input_256 = [" ".join([base_text]*1 + [base_text[:224]])]
+    test_input_512 = [" ".join([base_text]*2 + [base_text[:455]])]
+    test_input_2048 = [" ".join([base_text]*9 + [base_text[:777]])]
     inputs_avail = {
        128: test_input_128,
        256: test_input_256,

@@ -29,6 +29,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 from nemo.utils.exp_manager import exp_manager
 
 mp.set_start_method("spawn", force=True)
@@ -56,12 +57,16 @@ Usage:
 """
 
 
+@deprecated(
+    explanation=f"{__file__} is deprecated. Please use MegatronGPTSFTModel.add_adapter() for PEFT features."
+    "See updated scripts `megatron_gpt_peft_tuning.py` and `megatron_gpt_peft_eval.py` for examples."
+)
 @hydra_runner(config_path="conf", config_name="megatron_gpt_adapter_tuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
+    megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
 
     plugins = []
@@ -83,7 +88,7 @@ def main(cfg) -> None:
         else:
             plugin_precision = 'bf16-mixed'
 
-        if megatron_amp_o2 and not with_distributed_adam:
+        if megatron_amp_O2 and not with_distributed_adam:
             plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
