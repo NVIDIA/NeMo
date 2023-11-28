@@ -1543,10 +1543,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             output_layer_init_method = scaled_init_method_normal(init_method_std, num_layers=num_layers)
 
         attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
-        # only enabled when we use fp16
-        apply_query_key_layer_scaling = (
-            self.cfg.get('apply_query_key_layer_scaling', False) and model_parallel_config.fp16
-        )
+        apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
+
+        if apply_query_key_layer_scaling and not model_parallel_config.fp16:
+            logging.warning("apply_query_key_layer_scaling is only enabled when using FP16, setting it to False")
+            apply_query_key_layer_scaling = False
+
         if apply_query_key_layer_scaling:
             attention_softmax_in_fp32 = True
 
