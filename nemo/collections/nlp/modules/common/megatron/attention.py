@@ -39,6 +39,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
+
 flash_attn_with_kvcache = None
 
 try:

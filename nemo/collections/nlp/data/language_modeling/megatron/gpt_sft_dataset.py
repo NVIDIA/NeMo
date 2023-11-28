@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 import os
+import re
+from pathlib import Path
 from typing import List, Mapping, Optional
 
 import datasets
 import numpy as np
 import torch
-from jinja2 import Template, Environment, exceptions
+from jinja2 import Environment, Template, exceptions
 from jinja2.nodes import Name
-from pathlib import Path
 
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
@@ -191,8 +191,6 @@ class GPTSFTDataset(Dataset):
             prompt_template = self.load_prompt_file(self.prompt_template)
             self.prompt_template = Template(prompt_template)
             self.prompt_template_keys = self.find_template_variables(prompt_template)
-            
-
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
