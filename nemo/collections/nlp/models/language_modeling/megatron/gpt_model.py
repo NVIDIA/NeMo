@@ -239,6 +239,7 @@ class GPTModel(MegatronModule):
         attn_prior_end_step=11000,
         attn_prior_scaledown_start_step=10000,
         attn_prior_starting_strength=0.5,
+        alibi_question_context_masked=False,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -329,6 +330,7 @@ class GPTModel(MegatronModule):
             attn_prior_end_step = attn_prior_end_step,
             attn_prior_scaledown_start_step = attn_prior_scaledown_start_step,
             attn_prior_starting_strength=attn_prior_starting_strength,
+            alibi_question_context_masked=alibi_question_context_masked,
         )
 
         if self.share_embeddings_and_output_weights:
@@ -364,6 +366,7 @@ class GPTModel(MegatronModule):
         return_all_selfattention_probs=False,
         attention_prior=None,
         global_step=0,
+        context_question_mask=None
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
@@ -385,6 +388,7 @@ class GPTModel(MegatronModule):
             return_all_selfattention_probs=return_all_selfattention_probs,
             attention_prior=attention_prior,
             global_step=global_step,
+            context_question_mask=context_question_mask
         )
 
         if self.post_process:

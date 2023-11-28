@@ -1083,6 +1083,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
 
         decoder_mask = get_mask_from_lengths(decoder_input_len-1)
         speech_mask = get_mask_from_lengths(decoder_input_len-1)
+        context_question_mask = torch.ones(speech_mask.shape)
         (
             decoder_input_list,
             decoder_labels_list,
@@ -1136,7 +1137,8 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
 
             decoder_mask[i, :context_tokens_len+question_tokens_len-1] = 0  # Mask out context and question
             # TODO: jasoli, the speech_mask looks wrong. I shouldn't be masking out the context
-            speech_mask[i, :context_tokens_len+question_tokens_len] = 0  # Mask out context and question
+            speech_mask[i, context_tokens_len:context_tokens_len+question_tokens_len] = 0  # Mask out context and question
+            context_question_mask[i, :context_tokens_len+question_tokens_len] = 0
 
             if self.spec_aug:
                 # Derive time width, sometimes based percentage of input length.
@@ -1198,6 +1200,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
             "speech_mask": speech_mask,  # For TTS, can just be loss_mask since answer will always be speech
             "loss_mask": decoder_mask,  # Mask out context and question and padding
             "attention_prior": cross_attention_prior,
+            "context_question_mask": context_question_mask,
         }
 
         return data_dict

@@ -131,7 +131,8 @@ def get_language_model(
     seq_len_interpolation_factor=None,
     attn_prior_end_step=11000,
     attn_prior_scaledown_start_step=10000,
-    attn_prior_starting_strength=0.5
+    attn_prior_starting_strength=0.5,
+    alibi_question_context_masked=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -213,6 +214,7 @@ def get_language_model(
         attn_prior_end_step=attn_prior_end_step,
         attn_prior_scaledown_start_step=attn_prior_scaledown_start_step,
         attn_prior_starting_strength=attn_prior_starting_strength,
+        alibi_question_context_masked=alibi_question_context_masked,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -518,6 +520,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         attn_prior_end_step=11000,
         attn_prior_scaledown_start_step=10000,
         attn_prior_starting_strength=0.5,
+        alibi_question_context_masked=False,
     ):
         super(TransformerLanguageModel, self).__init__(
             config=config, share_token_embeddings=share_embeddings_and_output_weights
@@ -544,6 +547,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.embedding_scale = embedding_scale
+        self.alibi_question_context_masked = alibi_question_context_masked
         if output_size is None:
             output_size = vocab_size
         elif share_embeddings_and_output_weights and output_size != vocab_size:
@@ -763,6 +767,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         return_all_selfattention_probs=False,
         attention_prior=None,
         global_step=0,
+        context_question_mask=None
     ):
         if speech_mask is not None:
             speech_mask = speech_mask.T.unsqueeze(-1)
@@ -823,6 +828,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
+            if self.alibi_question_context_masked and context_question_mask is not None:
+                encoder_self_attention_relative_position_bias = encoder_self_attention_relative_position_bias.repeat(encoder_input.size(1), 1, 1, 1)
+                encoder_self_attention_relative_position_bias[:, 1::2, :, :] *= context_question_mask.unsqueeze(1).unsqueeze(1)
             # causal attention bias: [1, head, 1, k]
             # non-causal attention bias: [1, head, q, k]
         if attention_prior is not None:
@@ -856,7 +864,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 encoder_self_attention_relative_position_bias = torch.log(encoder_self_attention_relative_position_bias + 1e-8)
                 # encoder_self_attention_relative_position_bias = torch.log_softmax(encoder_self_attention_relative_position_bias, dim=-1)
 
-        # import ipdb; ipdb.set_trace()
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(

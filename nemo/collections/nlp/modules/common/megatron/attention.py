@@ -842,7 +842,6 @@ class CoreAttention(MegatronModule):
         # ==================================================
         # Update attention bias. [b, np, sq, sk]
         # ==================================================
-        # import ipdb; ipdb.set_trace()
         if relative_position_bias is not None:
             relative_position_bias = relative_position_bias[
                 :,
@@ -851,7 +850,6 @@ class CoreAttention(MegatronModule):
                 -sq:,
                 -sk:,
             ]
-        # ipdb.set_trace()
 
         # ==================================================
         # Update query_layer, key_layer, value_layer
@@ -940,15 +938,20 @@ class CoreAttention(MegatronModule):
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(b, np, sq, sk)
 
+        # # Attention Prior Setup
+        # if attention_bias is not None:
+        #     # saved = torch.log_softmax(attention_scores, dim=-1)
+        #     attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias
+        #     # # attention_bias is not None only for cross attention layers right now
+        #     # # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
+        #     # eps = 1e-8
+        #     # attention_bias_log = torch.log(attention_bias + eps)
+        #     # attention_scores = torch.log_softmax(attention_scores, dim=2) + attention_bias_log
+        #     # # attention_scores += attention_bias
+
+        # Alibi Setup
         if attention_bias is not None:
-            # saved = torch.log_softmax(attention_scores, dim=-1)
-            attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias
-            # # attention_bias is not None only for cross attention layers right now
-            # # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
-            # eps = 1e-8
-            # attention_bias_log = torch.log(attention_bias + eps)
-            # attention_scores = torch.log_softmax(attention_scores, dim=2) + attention_bias_log
-            # # attention_scores += attention_bias
+            attention_scores += attention_bias
 
         _attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
         # print(f"a: {torch.max(torch.exp(torch.logsumexp(saved, -1)))}")

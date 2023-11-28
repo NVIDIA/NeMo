@@ -286,15 +286,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._nsys_profile_end_step *= grad_accum_steps
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
-        
+
         if not self.cfg.get('use_flash_attention', False):
             print("Not using flash attention, setting get_attention_mask_from_fusion to False")
             self.get_attention_mask_from_fusion = False
-        
+
         # TODO: @pneekhara Setting get_attention_mask_from_fusion to False for now for all attention types
         # Setting this to False, uses dataset's attention mask
         self.get_attention_mask_from_fusion = False
-        
+
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
 
         self.inference_params = None
@@ -875,7 +875,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'return_logits': True,
                 'return_all_selfattention_probs': self.return_all_selfattention_probs if not validation_step else False,
                 'attention_prior': batch.get('attention_prior', None),
-                'global_step': self.global_step
+                'global_step': self.global_step,
+                'context_question_mask': batch['context_question_mask']
             }
 
             if not self.cfg.get('use_attention_prior', False):
@@ -921,7 +922,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                                     question_phoneme_tokens.append(input_tokens_example[0, _t].item() - self.tokenizer.vocab_size)
                                 elif len(question_tokens) == 0:
                                     question_start += 1
-                            
+
                             if len(question_tokens) > 0:
                                 question_text = self.tokenizer.ids_to_text(question_tokens)
                                 self.logger.experiment.add_text('train_question_text', question_text, self.trainer.global_step)
@@ -1950,6 +1951,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             attn_prior_end_step=self.cfg.get('attn_prior_end_step', 10000),
             attn_prior_scaledown_start_step=self.cfg.get('attn_prior_scaledown_start_step', 12000),
             attn_prior_starting_strength=self.cfg.get('attn_prior_starting_strength', 0.5),
+            alibi_question_context_masked=self.cfg.get('alibi_question_context_masked', False)
         )
 
         return model
@@ -1971,7 +1973,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                 for _t in range(pred_steps):
                     if (end_timestep is not None) and _t == end_timestep + 8:
                         break
-                    
+
                     if _t % 10 == 0:
                         print("Decoding timestep", _t)
 
@@ -2062,7 +2064,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         with torch.no_grad():
             dataloader_iter = self._make_data_iterator_list(dataloader_iter)
             batch = next(dataloader_iter)
-            forward_keys = ['tokens', 'position_ids', 'attention_mask', 'labels', 'loss_mask', 'speech_mask', 'attention_prior']
+            forward_keys = ['tokens', 'position_ids', 'attention_mask', 'labels', 'loss_mask', 'speech_mask', 'attention_prior', context_question_mask]
             for key in forward_keys:
                 if (key in batch) and (batch[key] is not None):
                     batch[key] = batch[key].cuda()
@@ -2077,7 +2079,8 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                 'return_logits': True,
                 'return_all_selfattention_probs': self.should_log,
                 'attention_prior': batch.get('attention_prior', None),
-                'global_step': self.global_step
+                'global_step': self.global_step,
+                'context_question_mask': batch['context_question_mask']
             }
 
             if not self.cfg.get('use_attention_prior', False):
@@ -2277,8 +2280,8 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
             for _i in range(8):
                 layer_acc = np.mean([x['layerwise_metrics'][f'layer_{_i}_acc'] for x in self.validation_step_outputs]).item()
                 layer_loss = np.mean([x['layerwise_metrics'][f'layer_{_i}_loss'] for x in self.validation_step_outputs]).item()
-                self.log(f'val_layer_{_i}_acc', layer_acc, prog_bar=True, rank_zero_only=True, batch_size=1)
-                self.log(f'val_layer_{_i}_loss', layer_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+                self.log(f'val_layer_{_i}_acc', layer_acc, prog_bar=False, rank_zero_only=True, batch_size=1)
+                self.log(f'val_layer_{_i}_loss', layer_loss, prog_bar=False, rank_zero_only=True, batch_size=1)
 
             loss_list = [x['loss'] for x in self.validation_step_outputs]
             averaged_loss = np.mean(loss_list).item()
@@ -2322,10 +2325,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                     for key in forward_keys:
                         if batch[key] is not None:
                             batch[key] = batch[key].cuda()
-                    
-                    # import ipdb; ipdb.set_trace()
-                    
-                    
+
                     # Autoregressive Inference From Generate Function
                     for sidx in range(batch['tokens'].shape[0]):
                         _step = batch_idx * batch['tokens'].shape[0] + sidx
@@ -2356,7 +2356,6 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                         gen_fn_preds_example = self.convert_tokens_to_range(gen_fn_preds[0])
                         gen_fn_preds_wav = self.additional_models['encodec'].decode([[gen_fn_preds_example[None], None]])[0, 0]
 
-                        
                         self.logger.experiment.add_audio('gen_fn_preds_wav', gen_fn_preds_wav, _step, sample_rate=24000)
 
                         context_question_tokens = batch['tokens'][sidx][:,:prompt_len]
@@ -2376,7 +2375,7 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
                                 question_tokens.append(context_question_tokens[0, _t].item())
                             elif context_question_tokens[0, _t] >= self.tokenizer.vocab_size and context_question_tokens[0, _t] < self.cfg.text_size:
                                 question_phoneme_tokens.append(context_question_tokens[0, _t].item() - self.tokenizer.vocab_size )
-                        
+
                         if len(question_tokens) > 0:
                             question_text = self.tokenizer.ids_to_text(question_tokens)
                             self.logger.experiment.add_text('question text', question_text, _step)
