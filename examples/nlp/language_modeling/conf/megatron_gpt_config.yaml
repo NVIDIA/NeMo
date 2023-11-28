@@ -166,7 +166,7 @@ model:
   sequence_parallel: False
 
   ## Transformer Engine
-  transformer_engine: True
+  transformer_engine: False
   fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3 
   fp8_hybrid: True # sets fp8_format = recipe.Format.HYBRID
@@ -185,7 +185,7 @@ model:
   # If the configuration file is not provided a default setting is used for all communicators.
 
   ## Flash Attention
-  use_flash_attention: True # Use flash attention in self-attention module, this config does nothing when transformer_engine=True
+  use_flash_attention: False # Use flash attention in self-attention module, this config does nothing when transformer_engine=True
   
   data:
    # Path to data must be specified by the user.
