@@ -22,7 +22,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
-from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
+from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import TextMemmapSequenceToSequenceDataset
 from nemo.collections.nlp.data.language_modeling.megatron.t5_sft_dataset import T5SFTDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
@@ -332,7 +332,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         predicted_token_ids, _ = self.decode(
             tokens_enc=batch['text_enc'],
             enc_mask=batch['enc_mask'],
-            num_tokens_to_generate=30,
+            num_tokens_to_generate=self.cfg.data.max_tgt_seq_length,
             bos_id=self.tokenizer.pad_id if data_cfg.get('replace_bos_with_pad', False) else self.tokenizer.bos_id,
         )
 
@@ -695,16 +695,15 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
                 data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
 
             for src, tgt in zip(data_cfg.src_file_name, data_cfg.tgt_file_name):
-                dataset = SequenceToSequenceDataset(
+                dataset = TextMemmapSequenceToSequenceDataset(
                     src_file_name=src,
                     tgt_file_name=tgt,
                     src_tokenizer=self.tokenizer,
                     tgt_tokenizer=self.tokenizer,
                     max_src_seq_length=data_cfg.max_src_seq_length,
                     max_tgt_seq_length=data_cfg.max_tgt_seq_length,
-                    add_bos_to_input=data_cfg.get('add_bos_to_input', True),
-                    add_eos_to_input=data_cfg.get('add_eos_to_input', True),
-                    replace_bos_with_pad=data_cfg.get('replace_bos_with_pad', False),
+                    add_bos_to_enc=data_cfg.get('add_bos_to_input', True),
+                    add_eos_to_enc=data_cfg.get('add_eos_to_input', True),
                 )
                 datasets.append(dataset)
         elif hasattr(data_cfg, "file_names"):
@@ -770,16 +769,15 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
                 data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
 
             for src, tgt in zip(data_cfg.src_file_name, data_cfg.tgt_file_name):
-                dataset = SequenceToSequenceDataset(
+                dataset = TextMemmapSequenceToSequenceDataset(
                     src_file_name=src,
                     tgt_file_name=tgt,
                     src_tokenizer=self.tokenizer,
                     tgt_tokenizer=self.tokenizer,
                     max_src_seq_length=data_cfg.max_src_seq_length,
                     max_tgt_seq_length=data_cfg.max_tgt_seq_length,
-                    add_bos_to_input=data_cfg.get('add_bos_to_input', True),
-                    add_eos_to_input=data_cfg.get('add_eos_to_input', True),
-                    replace_bos_with_pad=data_cfg.get('replace_bos_with_pad', False),
+                    add_bos_to_enc=data_cfg.get('add_bos_to_input', True),
+                    add_eos_to_enc=data_cfg.get('add_eos_to_input', True),
                 )
                 datasets.append(dataset)
         elif hasattr(data_cfg, "file_names"):
