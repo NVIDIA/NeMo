@@ -262,7 +262,11 @@ def load_sharded_metadata(checkpoint_dir: str, torch_tensor=True):
         key = subdir.name
         arr = zarr.open(str(subdir), 'r')
         if torch_tensor:
-            sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
+            # sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
+            if arr.dtype.name == "bfloat16":
+                sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
+            else:
+                sharded_state_dict[key] = torch.from_numpy(arr[:])
         else:
             sharded_state_dict[key] = arr[:]
 
