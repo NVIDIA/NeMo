@@ -13,11 +13,15 @@
 # limitations under the License.
 
 import re
+import os
 from typing import List, Mapping, Optional
 
 import datasets
 import numpy as np
 import torch
+from jinja2 import Template, Environment, exceptions
+from jinja2.nodes import Name
+from pathlib import Path
 
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
@@ -129,26 +133,66 @@ class GPTSFTDataset(Dataset):
         # Will be None after this call if `max_num_samples` is None
         self._build_samples_mapping()
 
+    def is_jinja_template(self):
+        # Check using regex for Jinja patterns
+        if re.search(r'\{\{.*\}\}|\{%.*%\}|\{#.*#\}', self.prompt_template):
+            return True
+
+        # Try parsing with Jinja
+        try:
+            Template(s).render()
+            return True
+        except exceptions.TemplateSyntaxError:
+            return False
+
+    def load_prompt_file(self, file_path):
+        # Check if the input is a valid file path
+        if not os.path.isfile(file_path):
+            print(f"{file_path} is not a valid file path.")
+            return None
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                return file.read()
+        except IOError as e:
+            print(f"Error reading file: {e}")
+            return None
+
+    def find_template_variables(self, template_string):
+        env = Environment()
+        ast = env.parse(template_string)
+        variable_names = {node.name for node in ast.find_all(Name)}
+        return variable_names
+
     def _maybe_validate_prompt_template(self):
-        assert (
-            self.prompt_template is not None
-        ), f'we need prompt_template to combine contexts and label {self.label_key}'
-        # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
-        self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
-        self.prompt_template_keys = re.findall(r'{(.*?)}', self.prompt_template)
+        if os.path.isfile(self.prompt_template) is False:
+            self.is_jinja = False
+            assert (
+                self.prompt_template is not None
+            ), f'we need prompt_template to combine contexts and label {self.label_key}'
+            # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
+            self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
+            self.prompt_template_keys = re.findall(r'{(.*?)}', self.prompt_template)
 
-        label_placeholder = f'{{{self.label_key}}}'
-        assert (
-            self.prompt_template[-len(label_placeholder) :] == label_placeholder
-        ), f'{label_placeholder} must be at the end of prompt_template.'
+            label_placeholder = f'{{{self.label_key}}}'
+            assert (
+                self.prompt_template[-len(label_placeholder) :] == label_placeholder
+            ), f'{label_placeholder} must be at the end of prompt_template.'
 
-        # Legacy checkpoints has self.truncation_fields = ['context'] and self.prompt_template_keys = ['input', 'output']
-        if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
-            self.truncation_fields[0] = self.prompt_template_keys[0]
+            # Legacy checkpoints has self.truncation_fields = ['context'] and self.prompt_template_keys = ['input', 'output']
+            if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
+                self.truncation_fields[0] = self.prompt_template_keys[0]
 
-        assert set(self.truncation_fields).issubset(
-            self.prompt_template_keys
-        ), f'truncation_fields {self.truncation_fields} must in {self.prompt_template_keys}'
+            assert set(self.truncation_fields).issubset(
+                self.prompt_template_keys
+            ), f'truncation_fields {self.truncation_fields} must in {self.prompt_template_keys}'
+
+        else:
+            self.is_jinja = True
+            prompt_template = self.load_prompt_file(self.prompt_template)
+            self.prompt_template = Template(prompt_template)
+            self.prompt_template_keys = self.find_template_variables(prompt_template)
+            
+
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
@@ -317,9 +361,16 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
 
-        template_strings, template_strings_keys = self._separate_template(prompt_template_values)
+        if self.is_jinja is False:
+            prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
+
+            template_strings, template_strings_keys = self._separate_template(prompt_template_values)
+
+        else:
+            template_strings = self.prompt_template.render(example)
+            template_strings_keys = self.prompt_template_keys
+
         template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
         context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
 
