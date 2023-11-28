@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+import os
 from abc import abstractmethod
 from functools import partial
 from typing import Iterable
@@ -33,6 +34,9 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
     zero_module,
 )
 
+# FP8 related import
+import transformer_engine
+from contextlib import nullcontext
 
 def convert_module_to_dtype(module, dtype):
     # Convert module parameters to dtype
@@ -48,6 +52,31 @@ def convert_module_to_fp16(module):
 
 def convert_module_to_fp32(module):
     convert_module_to_dtype(module, torch.float32)
+
+
+def convert_module_to_fp8(model):
+    def _set_module(model, submodule_key, module):
+        tokens = submodule_key.split('.')
+        sub_tokens = tokens[:-1]
+        cur_mod = model
+        for s in sub_tokens:
+            cur_mod = getattr(cur_mod, s)
+        setattr(cur_mod, tokens[-1], module)
+    import copy
+    from transformer_engine.pytorch.module import Linear as te_Linear
+
+    for n, v in model.named_modules():
+        if isinstance(v, torch.nn.Linear):
+            # if n in ['class_embed', 'bbox_embed.layers.0', 'bbox_embed.layers.1', 'bbox_embed.layers.2']: continue
+            print(f'[INFO] Replace Linear: {n}, weight: {v.weight.shape}', flush=True)
+            if v.bias is None:
+                is_bias = False
+            else:
+                is_bias = True
+            newlinear = te_Linear(v.in_features, v.out_features, bias=is_bias)
+            newlinear.weight = copy.deepcopy(v.weight)
+            if v.bias is not None: newlinear.bias = copy.deepcopy(v.bias)
+            _set_module(model, n, newlinear)
 
 
 ## go
@@ -509,6 +538,29 @@ class UNetModel(nn.Module):
         if num_head_channels == -1:
             assert num_heads != -1, 'Either num_heads or num_head_channels has to be set'
 
+        fp8_margin = int(os.getenv("FP8_MARGIN", '0'))
+        fp8_interval = int(os.getenv("FP8_INTERVAL", '1'))
+        fp8_format = os.getenv("FP8_FORMAT", "hybrid")
+        fp8_amax_history_len = int(os.getenv("FP8_HISTORY_LEN", '1024'))
+        fp8_amax_compute_algo = os.getenv("FP8_COMPUTE_ALGO", 'max')
+        fp8_wgrad = (os.getenv("FP8_WGRAD", '1') == '1')
+
+        fp8_format_dict = {
+            'hybrid': transformer_engine.common.recipe.Format.HYBRID,
+            'e4m3': transformer_engine.common.recipe.Format.E4M3,
+        }
+        fp8_format = fp8_format_dict[fp8_format]
+
+        if os.getenv("TE_FP8_LINEAR", '0') == '1':
+            self.fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
+                margin=fp8_margin,
+                interval=fp8_interval,
+                fp8_format=fp8_format,
+                amax_history_len=fp8_amax_history_len,
+                amax_compute_algo=fp8_amax_compute_algo,
+                override_linear_precision=(False, False, not fp8_wgrad),
+            )
+
         self.image_size = image_size
         self.in_channels = in_channels
         self.model_channels = model_channels
@@ -755,6 +807,8 @@ class UNetModel(nn.Module):
             self.convert_to_fp16()
         elif precision == 'fp32':
             self.convert_to_fp32()
+        if os.getenv("TE_FP8_LINEAR", '0') == '1':
+            convert_module_to_fp8(self)
 
     def _input_blocks_mapping(self, input_dict):
         res_dict = {}
@@ -982,7 +1036,7 @@ class UNetModel(nn.Module):
         """
         self.apply(convert_module_to_fp32)
 
-    def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
+    def _forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -1015,6 +1069,16 @@ class UNetModel(nn.Module):
         else:
             return self.out(h)
 
+    def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
+        if os.environ.get("TE_FP8_LINEAR", "0") == "1":
+            use_fp8 = True
+        else:
+            use_fp8 = False
+        with transformer_engine.pytorch.fp8_autocast(
+                enabled=use_fp8,
+                fp8_recipe=self.fp8_recipe,
+            ) if use_fp8 else nullcontext():
+            return self._forward(x, timesteps, context, y, **kwargs)
 
 class EncoderUNetModel(nn.Module):
     """

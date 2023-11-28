@@ -201,6 +201,15 @@ class MultimodalModel(ModelPT, Exportable):
                     new_state_dict[new_key] = checkpoint['state_dict'][key]
                 checkpoint['state_dict'] = new_state_dict
 
+
+            if os.getenv("TE_FP8_LINEAR", '0') == '0':
+                # remove _extra_state in fp8 if there is.
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    if 'extra_state' in key:
+                        continue
+                    new_state_dict[key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
             if 'cfg' in kwargs:
                 model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
             else:

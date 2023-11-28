@@ -99,9 +99,11 @@ class FeedForward(nn.Module):
         super().__init__()
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
+
+        norm = nn.LayerNorm(dim)
         project_in = nn.Sequential(nn.Linear(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
 
-        self.net = nn.Sequential(project_in, nn.Dropout(dropout), nn.Linear(inner_dim, dim_out))
+        self.net = nn.Sequential(norm, project_in, nn.Dropout(dropout), nn.Linear(inner_dim, dim_out))
 
     def forward(self, x):
         return self.net(x)
@@ -202,7 +204,9 @@ class CrossAttention(nn.Module):
         self.scale = dim_head ** -0.5
         self.heads = heads
 
+        self.norm = nn.LayerNorm(query_dim)
         self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
+        self.norm_to_q = nn.Sequential(self.norm, self.to_q)
         self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
         self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
 
@@ -218,7 +222,7 @@ class CrossAttention(nn.Module):
     def forward(self, x, context=None, mask=None):
         h = self.heads
 
-        q = self.to_q(x)
+        q = self.norm_to_q(x)
         context = default(context, x)
         k = self.to_k(context)
         v = self.to_v(context)
@@ -317,9 +321,6 @@ class BasicTransformerBlock(nn.Module):
             dropout=dropout,
             use_flash_attention=use_flash_attention,
         )  # is self-attn if context is none
-        self.norm1 = nn.LayerNorm(dim)
-        self.norm2 = nn.LayerNorm(dim)
-        self.norm3 = nn.LayerNorm(dim)
         self.use_checkpoint = use_checkpoint
 
     def forward(self, x, context=None):
@@ -329,9 +330,9 @@ class BasicTransformerBlock(nn.Module):
             return self._forward(x, context)
 
     def _forward(self, x, context=None):
-        x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None) + x
-        x = self.attn2(self.norm2(x), context=context) + x
-        x = self.ff(self.norm3(x)) + x
+        x = self.attn1(x, context=context if self.disable_self_attn else None) + x
+        x = self.attn2(x, context=context) + x
+        x = self.ff(x) + x
         return x
 
 

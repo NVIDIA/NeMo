@@ -14,6 +14,7 @@
 import os
 import pickle
 import time
+import numpy as np
 
 import torch
 from PIL import Image
@@ -23,12 +24,16 @@ from nemo.collections.multimodal.models.stable_diffusion.samplers.plms import PL
 from nemo.collections.multimodal.models.stable_diffusion.samplers.sampler_dpm import DPMSolverSampler
 
 
-def encode_prompt(cond_stage_model, prompt, unconditional_guidance_scale, batch_size):
+def encode_prompt(cond_stage_model, prompt, unconditional_guidance_scale, num_images_per_prompt):
+    if isinstance(prompt, str):
+        prompts = [prompt]
+    batch_size = len(prompt)
+
     if unconditional_guidance_scale != 1.0:
-        uc = cond_stage_model.encode(batch_size * [""])
+        uc = cond_stage_model.encode(batch_size * num_images_per_prompt * [""])
     else:
         uc = None
-    c = cond_stage_model.encode(batch_size * [prompt])
+    c = cond_stage_model.encode(list(np.repeat(prompt, num_images_per_prompt)))
     return c, uc
 
 
@@ -72,7 +77,8 @@ def torch_to_numpy(images):
 def pipeline(model, cfg, verbose=True, rng=None):
     # setup default values for inference configs
     unconditional_guidance_scale = cfg.infer.get("unconditional_guidance_scale", 7.5)
-    batch_size = cfg.infer.get('num_images_per_prompt', 1)
+    batch_size = cfg.infer.get('batch_size', 1)
+    num_images_per_prompt = cfg.infer.get('num_images_per_prompt', 1)
     prompts = cfg.infer.get('prompts', [])
     height = cfg.infer.get('height', 512)
     width = cfg.infer.get('width', 512)
@@ -109,20 +115,26 @@ def pipeline(model, cfg, verbose=True, rng=None):
             prompts = [prompts]
 
         prompt_idx = 0
-        for prompt in prompts:
-            if prompt_idx % 10 == 0:
+        infer_batch_size = batch_size * num_images_per_prompt
+        num_prompts = len(prompts)
+        # paddinhg prompts
+        padded_num_prompts = int(np.ceil(num_prompts / batch_size)) * batch_size
+        pad_size = padded_num_prompts - num_prompts
+        prompts.extend([""] * pad_size)
+        for prompt_idx in range(0, padded_num_prompts, batch_size):
+            prompt = prompts[prompt_idx:prompt_idx + batch_size]
+            if (prompt_idx / batch_size) % 10 == 0:
                 print(f'Infer: {prompt_idx} / {len(prompts)}', flush=True)
-            prompt_idx += 1
 
             tic = time.perf_counter()
             tic_total = tic
-            cond, u_cond = encode_prompt(model.cond_stage_model, prompt, unconditional_guidance_scale, batch_size)
+            cond, u_cond = encode_prompt(model.cond_stage_model, prompt, unconditional_guidance_scale, num_images_per_prompt)
             toc = time.perf_counter()
             conditioning_time = toc - tic
 
-            latent_shape = [batch_size, height // downsampling_factor, width // downsampling_factor]
+            latent_shape = [infer_batch_size, height // downsampling_factor, width // downsampling_factor]
             latents = torch.randn(
-                [batch_size, in_channels, height // downsampling_factor, width // downsampling_factor], generator=rng
+                [infer_batch_size, in_channels, height // downsampling_factor, width // downsampling_factor], generator=rng
             ).to(torch.cuda.current_device())
 
             tic = time.perf_counter()
@@ -147,7 +159,7 @@ def pipeline(model, cfg, verbose=True, rng=None):
 
             toc_total = time.perf_counter()
             total_time = toc_total - tic_total
-            output.append(images)
+            output.extend(images[idx:idx + num_images_per_prompt] for idx in range(0, images.shape[0], num_images_per_prompt))
 
             throughput.append(
                 {
@@ -159,6 +171,9 @@ def pipeline(model, cfg, verbose=True, rng=None):
                 }
             )
 
+        # remove padded images
+        if pad_size != 0:
+            output = output[:-pad_size]
         # Convert output type and save to disk
         if output_type == 'torch':
             output = torch.cat(output, dim=0)
