@@ -34,7 +34,11 @@ def get_args():
         type=str,
     )
     parser.add_argument(
-        "--n_gpus",
+        "--min_gpus",
+        type=int,
+    )
+    parser.add_argument(
+        "--max_gpus",
         type=int,
     )
     parser.add_argument(
@@ -117,10 +121,7 @@ def get_accuracy_with_lambada(model):
         return trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs
 
 
-def run_trt_llm_export(args):
-
-    prompt_template=["The capital of France is", "Largest animal in the sea is"]
-    expected_keyword=["Paris", "Whale", "Cheetah"]
+def run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus):
 
     if args.location == "HF":
         download_nemo_checkpoint(
@@ -133,10 +134,10 @@ def run_trt_llm_export(args):
         )
     )
     if Path(args.checkpoint).exists():
-        if args.n_gpus > torch.cuda.device_count():
+        if n_gpus > torch.cuda.device_count():
             print(
                 "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
-                    args.checkpoint, args.model_name, args.n_gpus, torch.cuda.device_count()
+                    args.checkpoint, args.model_name, n_gpus, torch.cuda.device_count()
                 )
             )
             return
@@ -145,7 +146,7 @@ def run_trt_llm_export(args):
 
         print(
             "Path: {0} and model: {1} with {2} gpus will be tested".format(
-                args.checkpoint, args.model_name, args.n_gpus
+                args.checkpoint, args.model_name, n_gpus
             )
         )
 
@@ -158,7 +159,7 @@ def run_trt_llm_export(args):
         trt_llm_exporter.export(
             nemo_checkpoint_path=args.checkpoint,
             model_type=args.model_type,
-            n_gpus=args.n_gpus,
+            n_gpus=n_gpus,
             max_input_token=1024,
             max_output_token=128,
             max_batch_size=args.max_batch_size,
@@ -188,7 +189,13 @@ def run_trt_llm_export(args):
 
 
 def main(args):
-    run_trt_llm_export(args)
+    prompt_template=["The capital of France is", "Largest animal in the sea is"]
+    expected_keyword=["Paris", "Whale", "Cheetah"]
+
+    n_gpus = args.min_gpus
+    while n_gpus <= args.max_gpus:
+        run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus)
+        n_gpus = n_gpus * 2
 
 
 if __name__ == '__main__':
