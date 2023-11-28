@@ -438,6 +438,8 @@ class ModelConfig:
     # Ptuning metadata
     use_prompt_tuning: bool = False
 
+    mapping = None 
+
     def to_dict(self) -> dict:
         """Converts the instance to a python dict."""
         return dataclasses.asdict(self)

@@ -25,6 +25,8 @@ from tensorrt_llm.functional import (
     expand_mask,
     gather_last_token_logits,
     shape,
+    send,
+    recv
 )
 from tensorrt_llm.layers import ColumnLinear, KeyValueCacheParams, AttentionParams
 from tensorrt_llm.models.generation_mixin import GenerationMixin
@@ -45,6 +47,15 @@ from .tensorrt_llm_utils import (
 )
 
 
+def get_transformer_layers(mapping, num_layers):
+    layers_per_pipeline_stage = num_layers // mapping.pp_size
+    layers_range = list(
+        range(mapping.pp_rank * layers_per_pipeline_stage,
+                (mapping.pp_rank + 1) * layers_per_pipeline_stage, 1))
+    return layers_range
+
+
+
 class ModelBuilder(Module):
     """A generic tensorrt_llm transformer model builder.
 
@@ -55,43 +66,48 @@ class ModelBuilder(Module):
         """Initializes the ModelBuilder from a model_config."""
         super().__init__()
         self.quantization = model_config.quantization
-        self.rank = model_config.rank
         self.max_position_embeddings = model_config.max_position_embeddings
         self.hidden_act = model_config.hidden_act
 
         self._dtype = str_dtype_to_trt(model_config.dtype)
         self._kv_dtype = self._dtype
-        self._tensor_parallel = model_config.tensor_parallel
+        self._tensor_parallel = model_config.mapping.tp_size
         self._vocab_size = model_config.vocab_size
         self._hidden_size = model_config.hidden_size
         self._num_layers = len(model_config.layers)
         self._num_heads = model_config.num_attention_heads
         self._num_kv_heads = model_config.num_kv_heads
         self._use_prompt_tuning = model_config.use_prompt_tuning
+        self._mapping = model_config.mapping
+        self.rank = model_config.mapping.rank
 
         # TODO: support use_parallel_embedding.
-        self.vocab_embedding = build_embedding_from_config(
-            model_config.vocab_embedding, self._dtype, use_prompt_tuning=self._use_prompt_tuning
-        )
-        self.positional_embedding = build_embedding_from_config(
-            model_config.positional_embedding, self._dtype, use_prompt_tuning=False
-        )
+        if self._mapping.is_first_pp_rank():
+            self.vocab_embedding = build_embedding_from_config(
+                model_config.vocab_embedding, self._dtype, use_prompt_tuning=self._use_prompt_tuning
+            )
+            self.positional_embedding = build_embedding_from_config(
+                model_config.positional_embedding, self._dtype, use_prompt_tuning=False
+            )
+
         self.layers = ModuleList(
             [
                 build_decoder_layer(
-                    layer,
+                    model_config.layers[layer_id],
                     layer_id,
                     self._num_layers,
                     dtype=self._dtype,
                     quantization=model_config.quantization,
                     rank=self.rank,
                     tensor_parallel=self._tensor_parallel,
+                    tp_group=model_config.mapping.tp_group
                 )
-                for layer_id, layer in enumerate(model_config.layers)
+                for layer_id in get_transformer_layers(self._mapping, self._num_layers)
             ]
         )
 
-        self.ln_f = build_layernorm_from_config(model_config.final_layernorm, self._dtype)
+        if self._mapping.is_last_pp_rank():
+            self.ln_f = build_layernorm_from_config(model_config.final_layernorm, self._dtype)
 
     def forward(
         self,
@@ -112,17 +128,21 @@ class ModelBuilder(Module):
         host_context_lengths=None,
         host_request_types=None,
         max_context_length=None,
+        hidden_states=None,
     ):
         """Forward function for the full model."""
         ptuning_args = []
         if self._use_prompt_tuning:
             ptuning_args = [prompt_embedding_table, prompt_tasks, prompt_vocab_size]
-        x = self.vocab_embedding(input_ids, *ptuning_args)
-        if hasattr(self, "positional_embedding") and self.positional_embedding:
-            assert position_ids
-            x = x + self.positional_embedding(position_ids)
-
-        hidden_states = x
+       
+        if self._mapping.is_first_pp_rank():
+            x = self.vocab_embedding(input_ids, *ptuning_args)
+            if hasattr(self, "positional_embedding") and self.positional_embedding:
+                assert position_ids
+                x = x + self.positional_embedding(position_ids)
+            hidden_states = x
+        else:
+            hidden_states = recv(hidden_states, self._mapping.prev_pp_rank())
 
         if past_key_value is None:
             past_key_value = tuple([None] * len(self.layers))
@@ -160,7 +180,10 @@ class ModelBuilder(Module):
                 presents.append(hidden_states[1])
                 hidden_states = hidden_states[0]
 
-        hidden_states = self.ln_f(hidden_states)
+        if self._mapping.is_last_pp_rank():
+            hidden_states = self.ln_f(hidden_states)
+        else:
+            hidden_states = send(hidden_states, self._mapping.next_pp_rank())
 
         if use_cache:
             return hidden_states, tuple(presents)
@@ -179,21 +202,23 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         share_weight = None
         if share_embedding_table:
             share_weight = self.embedding.vocab_embedding.weight
-        self.lm_head = ColumnLinear(
-            self._hidden_size,
-            model_config.vocab_size_padded,
-            bias=False,
-            dtype=self._dtype,
-            tp_group=get_tensor_parallel_group(self._tensor_parallel),
-            tp_size=self._tensor_parallel,
-            gather_output=True,
-            share_weight=share_weight,
-        )
-        self.lm_head.weight.value = model_config.lm_head.weight
-        if model_config.quantization:
-            self.lm_head = quantize_linear(
-                self.lm_head, model_config.quantization, model_config.lm_head
+
+        if self._mapping.is_last_pp_rank():
+            self.lm_head = ColumnLinear(
+                self._hidden_size,
+                model_config.vocab_size_padded,
+                bias=False,
+                dtype=self._dtype,
+                tp_group=self._mapping.tp_group,
+                tp_size=self._tensor_parallel,
+                gather_output=True,
+                share_weight=share_weight,
             )
+            self.lm_head.weight.value = model_config.lm_head.weight
+            if model_config.quantization:
+                self.lm_head = quantize_linear(
+                    self.lm_head, model_config.quantization, model_config.lm_head
+                )
 
     def forward(
         self,
@@ -215,9 +240,10 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         host_context_lengths=None,
         host_request_types=None,
         max_context_length=None,
+        hidden_states=None,
     ):
+
         """Forward function for the full LMHead model."""
-        assert last_token_ids is not None, "Expecting last token ids to be not None"
         hidden_states = super().forward(
             input_ids,
             position_ids,
@@ -236,26 +262,35 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             host_context_lengths,
             host_request_types,
             max_context_length,
+            hidden_states
         )
 
         if use_cache:
             hidden_states, presents = hidden_states
 
-        hidden_states = gather_last_token_logits(
-            hidden_states, last_token_ids, default_net().plugin_config.remove_input_padding
-        )
+        if self._mapping.is_last_pp_rank():
+            assert last_token_ids is not None, "Expecting last token ids to be not None"
+            hidden_states = gather_last_token_logits(
+                hidden_states, last_token_ids,
+                default_net().plugin_config.remove_input_padding)
 
-        # [batch_size, hidden_size] -> [batch_size, vocab_size]
-        lm_logits = self.lm_head(hidden_states)
-        lm_logits.mark_output("logits", str_dtype_to_trt("float16"))
-        # out_inter.mark_output('inter', str_dtype_to_trt('float32'))
+            # [batch_size, hidden_size] -> [batch_size, vocab_size]
+            lm_logits = self.lm_head(hidden_states)
+            lm_logits.mark_output("logits", str_dtype_to_trt("float16"))
+        else:
+            hidden_states.mark_output('hidden_states_output', self._dtype)
 
         if use_cache:
-            for i, present in enumerate(presents):
-                present.mark_output(f"present_key_value_{i}", self._kv_dtype)
-            return (lm_logits, presents)
-
-        return lm_logits
+            for i, present in zip(
+                    self.get_transformer_layers(self._mapping, self._num_layers), presents):
+                present.mark_output(f'present_key_value_{i}', self._kv_dtype)
+            if self._mapping.is_last_pp_rank():
+                return (lm_logits, presents)
+            return (hidden_states, presents)
+        else:
+            if self._mapping.is_last_pp_rank():
+                return lm_logits
+            return hidden_states
 
     def prepare_inputs(
         self,
@@ -280,7 +315,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         enable_two_optimization_profiles = True
 
         head_size = self._hidden_size // self._num_heads
-        num_heads_kv = (self._num_kv_heads + self._tensor_parallel - 1) // self._tensor_parallel
+        num_heads_kv = self._num_kv_heads   
+        # num_heads_kv = (self._num_kv_heads + self._tensor_parallel - 1) // self._tensor_parallel
         remove_input_padding = default_net().plugin_config.remove_input_padding
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
 
@@ -297,8 +333,11 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             use_gpt_attention_plugin=use_gpt_attention_plugin,
             paged_kv_cache=paged_kv_cache,
             tokens_per_block=tokens_per_block,
+            mapping=self._mapping,
+            dtype=self._dtype,
+            num_heads=self._num_heads,
         )
-    
+
         bb_range_cxt = [1, (max_batch_size + 1) // 2, max_batch_size]
         bb_range_gen = [
             1, (max_batch_size * max_beam_width + 1) // 2,
@@ -400,6 +439,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             model_inputs["host_context_lengths"],
             model_inputs["host_request_types"],
             max_input_len,
+            model_inputs["hidden_states_input"],
         )
 
 
@@ -434,14 +474,13 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
 
         if self.rank > torch.cuda.device_count():
             print(f"warning: Rank {self.rank} larger than GPUs available ({torch.cuda.device_count()})")
-        if self._tensor_parallel > torch.cuda.device_count():
-            print(f"warning: Not enough GPUs locally, requesting {self._tensor_parallel}, having ({torch.cuda.device_count()}")
+        # if self._tensor_parallel > torch.cuda.device_count():
+        #     print(f"warning: Not enough GPUs locally, requesting {self._tensor_parallel}, having ({torch.cuda.device_count()}")
 
         build(
             tensorrt_llm_model=self,
             output_dir=output_dir,
-            rank=self.rank,
-            world_size=self._tensor_parallel,
+            mapping=self._mapping,
             dtype=trt_dtype_to_str(self._dtype),
             timing_cache=timing_cache,
             log_level=log_level,

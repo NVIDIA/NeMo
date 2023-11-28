@@ -59,9 +59,9 @@ def get_accuracy_with_lambada(model):
         return trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs
 
 
-def run_trt_llm_export(model_name, n_gpu, ptuning=False):
+def run_trt_llm_export(model_name, n_gpu, ptuning=False, tp_size=None, pp_size=None):
     test_data = get_infer_test_data()
-
+    
     model_info = test_data[model_name]
     if model_info["location"] == "HF":
         download_nemo_checkpoint(
@@ -103,11 +103,13 @@ def run_trt_llm_export(model_name, n_gpu, ptuning=False):
             else:
                 print("---- PTuning could not be enabled.")
 
-        trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
+        trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])        
         trt_llm_exporter.export(
             nemo_checkpoint_path=model_info["checkpoint"],
             model_type=model_info["model_type"],
             n_gpus=n_gpu,
+            tensor_parallel_size=tp_size,
+            pipeline_parallel_size=pp_size,
             max_input_token=1024,
             max_output_token=128,
             max_batch_size=model_info["max_batch_size"],
@@ -126,7 +128,6 @@ def run_trt_llm_export(model_name, n_gpu, ptuning=False):
         print("")
         print("--- Output: ", output)
         print("")
-        
         print("Start model accuracy testing ...")
         trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(trt_llm_exporter)
         print("Model Accuracy: {0}, Relaxed Model Accuracy: {1}".format(trtllm_accuracy, trtllm_accuracy_relaxed))
@@ -472,7 +473,30 @@ def test_LLAMA2_70B_base_8gpu(n_gpus):
         pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
 
     run_trt_llm_export("LLAMA2-70B-base", n_gpus)
+    
+@pytest.mark.parametrize("n_gpus", [2])
+def test_LLAMA2_7B_base_tp1pp2(n_gpus):
+    """Here we test the trt-llm transfer and infer function"""
+    if n_gpus > torch.cuda.device_count():
+        pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
 
+    run_trt_llm_export("LLAMA2-7B-base", n_gpus, tp_size=1, pp_size=2)
+
+@pytest.mark.parametrize("n_gpus", [4])
+def test_LLAMA2_7B_base_tp2pp2(n_gpus):
+    """Here we test the trt-llm transfer and infer function"""
+    if n_gpus > torch.cuda.device_count():
+        pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
+
+    run_trt_llm_export("LLAMA2-7B-base", n_gpus, tp_size=2, pp_size=2)
+
+@pytest.mark.parametrize("n_gpus", [8])
+def test_LLAMA2_7B_base_tp1pp8(n_gpus):
+    """Here we test the trt-llm transfer and infer function"""
+    if n_gpus > torch.cuda.device_count():
+        pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
+
+    run_trt_llm_export("LLAMA2-7B-base", n_gpus, tp_size=1, pp_size=8)
 
 @pytest.mark.parametrize("n_gpus", [1])
 def test_FALCON_7B_base_1gpu(n_gpus):

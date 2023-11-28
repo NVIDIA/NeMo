@@ -30,9 +30,9 @@ from tensorrt_llm.quantization import QuantMode
 MODEL_NAME = "NeMo"
 
 
-def get_engine_name(model, dtype, tp_size, rank):
+def get_engine_name(model, dtype, tp_rank, pp_rank):
     """Returns the engine file name based on the provided info."""
-    return "{}_{}_tp{}_rank{}.engine".format(model, dtype, tp_size, rank)
+    return "{}_{}_tp{}_pp{}.engine".format(model, dtype, tp_rank, pp_rank)
 
 
 def serialize_engine(engine, path):
@@ -51,7 +51,6 @@ def build_rank_engine(
     builder: Builder,
     builder_config: tensorrt_llm.builder.BuilderConfig,
     engine_name,
-    rank,
     args,
 ):
     """@brief: Build the engine on the given rank.
@@ -120,7 +119,8 @@ def build_rank_engine(
     else:
         print("Build engine in OOTB mode, disable all plugins except nccl.")
 
-    if args.world_size > 1:
+
+    if args.mapping.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
 
     use_cache = not args.paged_kv_cache
@@ -129,7 +129,7 @@ def build_rank_engine(
         # Prepare
         network.set_named_parameters(tensorrt_llm_gpt.named_parameters())
 
-        # Forward
+        # Forward       
         inputs = tensorrt_llm_gpt.prepare_inputs(
             args.max_batch_size,
             args.max_input_len,
@@ -146,14 +146,14 @@ def build_rank_engine(
 
     # Network -> Engine
     engine = builder.build_engine(network, builder_config)
-    if rank == 0:
+    if args.mapping.rank == 0:
         config_path = args.output_dir / "config.json"
         builder.save_config(builder_config, config_path)
     return engine
 
 
-def _build_impl(rank, tensorrt_llm_model, args):
-    torch.cuda.set_device(rank % args.gpus_per_node)
+def _build_impl(tensorrt_llm_model, args):
+    torch.cuda.set_device(args.mapping.rank % args.gpus_per_node)
     tensorrt_llm.logger.set_level(args.log_level)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     timing_cache_file = args.timing_cache if args.timing_cache else args.output_dir / "model.cache"
@@ -161,13 +161,14 @@ def _build_impl(rank, tensorrt_llm_model, args):
 
     builder = Builder()
     apply_query_key_layer_scaling = False
-    cur_rank = rank
 
     builder_config = builder.create_builder_config(
         name=MODEL_NAME,
         precision=args.dtype,
         timing_cache=timing_cache,
-        tensor_parallel=args.world_size,  # TP only
+        tensor_parallel=args.mapping.tp_size,
+        pipeline_parallel=args.mapping.pp_size,
+        world_size=args.mapping.tp_size*args.mapping.pp_size,
         parallel_build=args.parallel_build,
         num_layers=tensorrt_llm_model._num_layers,
         num_heads=tensorrt_llm_model._num_heads,
@@ -188,21 +189,23 @@ def _build_impl(rank, tensorrt_llm_model, args):
         use_parallel_embedding=args.use_parallel_embedding,
         fp8="fp8" in args.quantization,
     )
-
-    engine_name = get_engine_name(MODEL_NAME, args.dtype, args.world_size, cur_rank)
+    
+    tp_rank = args.mapping.tp_rank
+    pp_rank = args.mapping.pp_rank
+    engine_name = get_engine_name(MODEL_NAME, args.dtype, tp_rank, pp_rank)
     engine = build_rank_engine(
-        tensorrt_llm_model, builder, builder_config, engine_name, cur_rank, args
+        tensorrt_llm_model, builder, builder_config, engine_name, args
     )
-    assert engine is not None, f"Failed to build engine for rank {cur_rank}"
+    assert engine is not None, f"Failed to build engine for rank tp {tp_rank} pp {pp_rank}"
 
-    if cur_rank == 0:
+    if args.mapping.rank == 0:
         # Use in-memory timing cache for multiple builder passes.
         if not args.parallel_build:
             timing_cache = builder_config.trt_builder_config.get_timing_cache()
 
     serialize_engine(engine, args.output_dir / engine_name)
 
-    if rank == 0:
+    if args.mapping.rank == 0:
         ok = builder.save_timing_cache(builder_config, timing_cache_file)
         assert ok, "Failed to save timing cache."
 
@@ -210,26 +213,25 @@ def _build_impl(rank, tensorrt_llm_model, args):
 def build(
     tensorrt_llm_model,
     output_dir: Path,
-    rank: int = 0,
-    world_size: int = 1,
-    dtype: str = "float16",
-    timing_cache: str = "",
-    log_level: str = "info",
-    max_batch_size: int = 1,
-    max_input_len: int = 200,
-    max_output_len: int = 200,
-    max_beam_width: int = 1,
-    max_prompt_embedding_table_size: int = 0,
-    parallel_build: int = False,
-    gpus_per_node: int = 1,
-    quantization = None,
-    use_inflight_batching: bool = False,
-    paged_kv_cache: bool = False,
+    mapping=None,
+    dtype="float16",
+    timing_cache="",
+    log_level="info",
+    max_batch_size=1,
+    max_input_len=200,
+    max_output_len=200,
+    max_beam_width=1,
+    max_prompt_embedding_table_size=0,
+    parallel_build=False,
+    gpus_per_node=1,
+    quantization=None,
+    use_inflight_batching=False,
+    paged_kv_cache=False,
     enable_context_fmha: bool = True,
 ):
     """Builds the tensorrt_llm_model to engine."""
     args = argparse.Namespace()
-    args.world_size = world_size
+    args.mapping = mapping
     args.dtype = dtype
     args.timing_cache = timing_cache
     args.log_level = log_level
@@ -309,8 +311,8 @@ def build(
         torch.manual_seed(args.random_seed)
 
     tik = time.time()
-    _build_impl(rank, tensorrt_llm_model, args)
+    _build_impl(tensorrt_llm_model, args)
 
     tok = time.time()
     t = time.strftime("%H:%M:%S", time.gmtime(tok - tik))
-    logger.info(f"Total time of building all {args.world_size} engines: {t}")
+    logger.info(f"Total time of building all {args.mapping.world_size} engines: {t}")

@@ -145,6 +145,8 @@ class TensorRTLLM(ITritonDeployable):
         prompt_embeddings_checkpoint_path=None,
         delete_existing_files: bool = True,
         n_gpus: int = 1,
+        tensor_parallel_size = None,
+        pipeline_parallel_size = None,
         max_input_token: int = 512,
         max_output_token: int = 512,
         max_batch_size: int = 32,
@@ -173,6 +175,13 @@ class TensorRTLLM(ITritonDeployable):
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
             load_model (bool): load TensorRT-LLM model after the export.
         """
+
+        if pipeline_parallel_size is None:
+            tensor_parallel_size = n_gpus
+            pipeline_parallel_size = 1
+        elif tensor_parallel_size is None:
+            tensor_parallel_size = 1
+            pipeline_parallel_size = n_gpus
 
         p_tuning = "no_ptuning"
         if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
@@ -226,14 +235,15 @@ class TensorRTLLM(ITritonDeployable):
             in_file=nemo_checkpoint_path,
             decoder_type=model_type,
             dtype=dtype,
-            gpus=n_gpus,
+            tensor_parallel_size=tensor_parallel_size,
+            pipeline_parallel_size=pipeline_parallel_size,
             nemo_export_dir=nemo_export_dir,
         )
 
         model_config_to_tensorrt_llm(
             model_configs,
             self.model_dir,
-            n_gpus,
+            world_size=tensor_parallel_size*pipeline_parallel_size,
             max_input_len=max_input_token,
             max_output_len=max_output_token,
             max_batch_size=max_batch_size,

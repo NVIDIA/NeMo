@@ -24,6 +24,7 @@ import typing
 from typing import Dict, List, Tuple
 
 import numpy as np
+import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
 from transformers import GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer, AutoTokenizer
 
@@ -130,7 +131,12 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
 
 
 def nemo_to_model_config(
-    in_file: str, decoder_type: str, nemo_export_dir: typing.Union[str, Path], gpus: int = 1, dtype: str = "bfloat16",
+    in_file: str, 
+    decoder_type: str, 
+    nemo_export_dir: typing.Union[str, Path], 
+    dtype: str = "bfloat16",
+    tensor_parallel_size: int = 1,
+    pipeline_parallel_size: int = 1,
 ) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
     """Converts the NEMO file and construct the `ModelConfig` before tensorrt_llm deployment."""
     dtype_str = dtype
@@ -138,24 +144,23 @@ def nemo_to_model_config(
     weights_dict, llm_model_config, tokenizer = _nemo_decode(
         in_file=in_file,
         out_dir=nemo_export_dir,
-        tensor_parallelism=gpus,
+        tensor_parallelism=tensor_parallel_size,
         processes=1,
         storage_type=dtype_str,
         load_checkpoints_on_gpu=False,
         decoder_type=decoder_type,
     )
 
+    world_size = tensor_parallel_size*pipeline_parallel_size
     model_config_template = ModelConfig()
     model_config_template.dtype = dtype_str
-
-    model_config_template.tensor_parallel = gpus
 
     str_dtype_to_trt(dtype_str)
 
     model_configs = []
-    for i in range(gpus):
+    for i in range(world_size):
+        
         model_configs.append(copy.deepcopy(model_config_template))
-        model_configs[i].rank = i
 
         model_configs[i].vocab_embedding = EmbeddingConfig(
             weight=get_tensor_from_dict(weights_dict, "wte")
@@ -168,16 +173,21 @@ def nemo_to_model_config(
         model_configs[i].final_layernorm.layernorm_type = (
             LAYERNORM_RMS if isinstance(llm_model_config, LlamaConfig) else LAYERNORM_DEFAULT
         )
+        model_configs[i].mapping = tensorrt_llm.Mapping(
+            world_size=world_size, 
+            rank=i, 
+            tp_size=tensor_parallel_size, 
+            pp_size=pipeline_parallel_size)
 
     for i in range(llm_model_config.n_layer):
-        for j in range(gpus):
+        for j in range(world_size):
             model_configs[j].layers.append(
                 DecoderLayerConfig.from_nemo(
                     weights_dict=weights_dict,
                     llm_config=llm_model_config,
                     decoder_type=decoder_type,
                     layer_id=i,
-                    rank=j,
+                    rank=model_configs[j].mapping.tp_rank,
                     is_mcore=llm_model_config.is_mcore,
                 )
             )
@@ -190,10 +200,10 @@ def nemo_to_model_config(
             lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
         )
 
-    for i in range(gpus):
+    for i in range(world_size):
         model_configs[i].lm_head = LinearConfig(linear_type=LINEAR_COLUMN)
         model_configs[i].lm_head.weight = np.ascontiguousarray(
-            split(lm_head_weight, model_configs[i].tensor_parallel, model_configs[i].rank)
+            split(lm_head_weight, model_configs[i].mapping.tp_size, model_configs[i].mapping.tp_rank)
         )
 
     return model_configs, tokenizer
