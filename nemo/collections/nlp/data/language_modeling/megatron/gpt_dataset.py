@@ -412,6 +412,7 @@ class GPTDataset(Dataset):
             self.fim_spm_rate = self.cfg.data.fim.spm_rate
             self.fim_split_sample = self.cfg.data.fim.split_sample
             self.fragment_rate = self.cfg.data.fim.fragment_rate
+            self.no_fim_prefix = self.cfg.data.fim.no_prefix
 
             # get extra tokens ids
             fim_tokens = self.cfg.data.fim.extra_tokens
@@ -441,6 +442,7 @@ class GPTDataset(Dataset):
                 prefix_tok_id=self.prefix_tok_id,
                 middle_tok_id=self.middle_tok_id,
                 pad_tok_id=self.pad_tok_id,
+                no_fim_prefix=self.no_fim_prefix,
             )
 
         def fim_split_and_permute_sequence(sequence):
@@ -936,6 +938,7 @@ def permute(
     prefix_tok_id=None,
     middle_tok_id=None,
     pad_tok_id=None,
+    no_fim_prefix=None,
 ):
     """
     Take in a sample (np array w/ size (0,chunklength)) and perform a FIM transformation on it. 
@@ -943,7 +946,11 @@ def permute(
     """
     if np_rng.binomial(1, fim_rate):  # sample bernoulli dist
 
-        contents = tokenizer.ids_to_tokens(sample)
+        contents = tokenizer.ids_to_text(sample)
+        
+        # Do not apply FIM if the sample starts with no_fim_prefix
+        if no_fim_prefix is not None and contents.startswith(no_fim_prefix):
+            return sample
 
         try:
             # A boundary can be =0 (prefix will be empty)
@@ -960,9 +967,9 @@ def permute(
         middle = contents[boundaries[0] : boundaries[1]]
         suffix = contents[boundaries[1] :]
 
-        prefix = np.array([*tokenizer.tokens_to_ids(prefix)], dtype=np.int64)
-        middle = np.array([*tokenizer.tokens_to_ids(middle)], dtype=np.int64)
-        suffix = np.array([*tokenizer.tokens_to_ids(suffix)], dtype=np.int64)
+        prefix = np.array([*tokenizer.text_to_ids(prefix)], dtype=np.int64)
+        middle = np.array([*tokenizer.text_to_ids(middle)], dtype=np.int64)
+        suffix = np.array([*tokenizer.text_to_ids(suffix)], dtype=np.int64)
 
         # here we truncate each given segment to fit the same length as it was before
         # A consequence is that we never reach the end of a file?

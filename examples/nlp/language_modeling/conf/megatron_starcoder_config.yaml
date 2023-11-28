@@ -218,6 +218,7 @@ model:
       spm_rate: 0.5 # Probability that the a FIM sample uses the SPM format over the PSM format
       split_sample: null # String around which to split the sample for FIM. If None (default), FIM is applied on the sample-level
       fragment_rate: 0.5 # Rate of FIM on each fragment when fim_split_sample is not None
+      no_prefix: null # Do not apply FIM to fragments that start with this prefix
       extra_tokens:
         prefix: "<fim_prefix>"
         middle: "<fim_middle>"
