@@ -246,7 +246,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.megatron_amp_O2:
 
-            if not self.with_distributed_adam:
+            if not self.with_distributed_adam and not self.cfg.get("use_cpu_initialization", False):
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
                 if isinstance(self.model, list):
                     for module in self.model:
@@ -1585,7 +1585,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'recompute_method': recompute_method,
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
-            'ub_tp_comm_overlap': ub_tp_comm_overlap,
+            'tp_comm_overlap': ub_tp_comm_overlap,
             'fp8': fp8,
         }
 
