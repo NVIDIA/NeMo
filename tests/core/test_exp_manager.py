@@ -757,7 +757,7 @@ class TestExpManager:
 
         # unfinished checkpoint with EMA part, both parts should be removed
         self._write_fake_checkpoint(
-            NeMoModelCheckpoint.ema_format_filepath(checkpoints_dir / "incomplete01.ckpt"),
+            checkpoints_dir / "incomplete01-EMA.ckpt",
             isdir=False,
             add_unfinished_marker=False,
         )
@@ -765,7 +765,7 @@ class TestExpManager:
 
         # just EMA part - should be removed. NOTE marker path is the same for base part and for EMA part
         self._write_fake_checkpoint(
-            NeMoModelCheckpoint.ema_format_filepath(checkpoints_dir / "incomplete02.ckpt"),
+            checkpoints_dir / "incomplete02-EMA.ckpt",
             isdir=False,
             add_unfinished_marker=False,
         )

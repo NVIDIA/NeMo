@@ -91,7 +91,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.best_model_score = None
         self.best_model_path = ""
 
-        checkpoints = list(path for path in self._saved_checkpoint_paths if not self.is_ema_filepath(path))
+        checkpoints = list(path for path in self._saved_checkpoint_paths if not self._is_ema_filepath(path))
         for checkpoint in checkpoints:
             if 'mp_rank' in str(checkpoint) or 'tp_rank' in str(checkpoint):
                 checkpoint = uninject_model_parallel_rank(checkpoint)
@@ -127,14 +127,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         logging.debug(f'Number of models to delete: {models_to_delete}')
 
         # If EMA enabled, delete the additional EMA weights
-        ema_enabled = self.has_ema_ckpts(self._saved_checkpoint_paths)
+        ema_enabled = self._has_ema_ckpts(self._saved_checkpoint_paths)
 
         for _ in range(models_to_delete):
             model = best_k_models.pop(-1)
             self.best_k_models.pop(model)
             self._del_model_without_trainer(model)
-            if ema_enabled and self._fs.exists(self.ema_format_filepath(model)):
-                self._del_model_without_trainer(self.ema_format_filepath(model))
+            if ema_enabled and self._fs.exists(self._ema_format_filepath(model)):
+                self._del_model_without_trainer(self._ema_format_filepath(model))
             logging.debug(f"Removed checkpoint: {model}")
 
         self.kth_best_model_path = best_k_models[-1]
@@ -366,22 +366,19 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
             # remove EMA copy of the state dict as well.
-            filepath = self.ema_format_filepath(filepath)
+            filepath = self._ema_format_filepath(filepath)
             super()._remove_checkpoint(trainer, filepath)
         # all ranks synchronize before removing the unfinished checkpoint marker
         self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+        
+    def _ema_format_filepath(self, filepath: str) -> str:
+        return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
 
-    @staticmethod
-    def ema_format_filepath(filepath: Union[Path, str]) -> str:
-        return str(filepath).replace(NeMoModelCheckpoint.FILE_EXTENSION, f'-EMA{NeMoModelCheckpoint.FILE_EXTENSION}')
+    def _has_ema_ckpts(self, checkpoints: Iterable[Path]) -> bool:
+        return any(self._is_ema_filepath(checkpoint_path) for checkpoint_path in checkpoints)
 
-    @staticmethod
-    def has_ema_ckpts(checkpoints: Iterable[Path]) -> bool:
-        return any(NeMoModelCheckpoint.is_ema_filepath(checkpoint_path) for checkpoint_path in checkpoints)
-
-    @staticmethod
-    def is_ema_filepath(filepath: Union[Path, str]) -> bool:
-        return str(filepath).endswith(f'-EMA{NeMoModelCheckpoint.FILE_EXTENSION}')
+    def _is_ema_filepath(self, filepath: Union[Path, str]) -> bool:
+        return str(filepath).endswith(f'-EMA{self.FILE_EXTENSION}')
 
     @property
     def _saved_checkpoint_paths(self) -> Iterable[Path]:
