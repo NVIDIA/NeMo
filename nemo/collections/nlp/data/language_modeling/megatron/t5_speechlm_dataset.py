@@ -254,7 +254,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
             if doc["context_type"] == "SPEECH":
                 assert "context_duration" in doc, f"context_duration key not in document {doc}"
-                approx_context_len = min(doc["context_duration"] * 76, 400)
+                approx_context_len = 3*76
                 if self.context_length is not None and doc["context_duration"] < self.context_length:
                     logging.debug(f"skipped as context_length of {doc['context_duration']} is less than {self.context_length}")
                     skipped += 1
@@ -919,30 +919,46 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         end_token_index = -1
         if ("Text to speech this" in question_in_manifest) and (doc["context_type"] == "SPEECH"):
             total_context_len = context_tokens[0].size()[1]
-            if self.context_length is not None:
-                start_token_index = 0
-                if total_context_len > math.ceil(self.context_length * 75):
-                    start_token_index = random.randint(0, total_context_len - math.ceil(self.context_length * 75))
-                context_tokens[0] = context_tokens[0][
-                    :, start_token_index : start_token_index + math.floor(self.context_length * 75)
-                ]
-            else:
-                reduced_len = min(
-                    400,
-                    int(total_context_len * 0.2)
-                    if total_context_len > 600
-                    else int(total_context_len * random.uniform(0.2, 0.5)),
-                )
-                start_token_index = random.randint(
-                    0, total_context_len - reduced_len
-                )  # start index can be greater than 440
-                context_tokens[0] = context_tokens[0][
-                    :, start_token_index : min(start_token_index + 440, start_token_index + reduced_len)
-                ]
-        elif "Next token prediction" in question_in_manifest:
-            total_context_len = context_tokens[0].size()[1]
-            end_token_index = int(total_context_len * random.uniform(0.01, 0.2))
-            context_tokens[0] = context_tokens[0][:, :end_token_index]
+
+            # Redo of this logic 11/29
+            # logging.debug(f"total_context_len: {total_context_len}")
+            context_3s = 3*75
+            if total_context_len > context_3s:
+                start_token_index = random.randint(0, total_context_len - context_3s)
+                # logging.debug(f"start_token_index: {start_token_index}")
+            end_token_index = start_token_index + min(context_3s, total_context_len)
+            # logging.debug(f"end_token_index: {end_token_index}")
+            context_tokens[0] = context_tokens[0][
+                :, start_token_index : end_token_index
+            ]
+            # logging.debug(f"context_tokens: {context_tokens[0].shape}")
+
+            # # Older logic pre 11/29
+            # if self.context_length is not None:
+            #     start_token_index = 0
+            #     if total_context_len > math.ceil(self.context_length * 75):
+            #         start_token_index = random.randint(0, total_context_len - math.ceil(self.context_length * 75))
+            #     context_tokens[0] = context_tokens[0][
+            #         :, start_token_index : start_token_index + math.floor(self.context_length * 75)
+            #     ]
+            # else:
+            #     reduced_len = min(
+            #         400,
+            #         int(total_context_len * 0.2)
+            #         if total_context_len > 600
+            #         else int(total_context_len * random.uniform(0.2, 0.5)),
+            #     )
+            #     start_token_index = random.randint(
+            #         0, total_context_len - reduced_len
+            #     )  # start index can be greater than 440
+            #     context_tokens[0] = context_tokens[0][
+            #         :, start_token_index : min(start_token_index + 440, start_token_index + reduced_len)
+            #     ]
+
+        # elif "Next token prediction" in question_in_manifest:
+        #     total_context_len = context_tokens[0].size()[1]
+        #     end_token_index = int(total_context_len * random.uniform(0.01, 0.2))
+        #     context_tokens[0] = context_tokens[0][:, :end_token_index]
 
         # Get virtual tokens
         virtual_tokens = self._insert_virtual_token_placeholders(input_example.split(' ')[0], virtual_token_splits)
@@ -981,13 +997,13 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
             question_tokens = pad_text_to_speech_dims(question_tokens, self.tokenizer.pad_id)
         if doc["context_type"] == "TEXT" and doc["question_type"] != "TEXT":
             context_tokens = pad_text_to_speech_dims(context_tokens, self.tokenizer.pad_id)
-        context_and_question_tokens = torch.cat([context_tokens, question_tokens], dim=1)
+        # context_and_question_tokens = torch.cat([context_tokens, question_tokens], dim=1)
 
         # get answer ids
         if answer_field in doc.keys():  # training and validation
             answer_ids = self._get_tokens(doc, answer_field, doc[answer_field])
-            if end_token_index > -1:
-                answer_ids[0] = answer_ids[0][:, end_token_index:]
+            # if end_token_index > -1:
+            #     answer_ids[0] = answer_ids[0][:, end_token_index:]
 
             # TODO(jasoli): What do I want to start with?
             # if self.decoder_starts_with_pad:
@@ -1049,6 +1065,10 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
                 input_ids = torch.stack(dec_input_new, dim=0)
                 input_ids_len = torch.tensor(input_ids.shape[1]).long()
 
+        # logging.debug(
+        #     f"Return from getitem: \ncontext_tokens:{context_tokens.shape}\ncontext_tokens_len:{context_tokens_len}\n"
+        #     f"question_tokens:{question_tokens.shape}\nquestion_tokens_len:{question_tokens_len}\ninput_ids:{input_ids.shape}\ninput_ids_len{input_ids_len}"
+        # )
         return (
             context_tokens,
             context_tokens_len,

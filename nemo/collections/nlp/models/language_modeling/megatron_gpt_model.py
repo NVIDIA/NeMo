@@ -305,6 +305,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.use_loss_mask and self.transformer_config.sequence_parallel:
             raise ValueError('Loss mask is not supported with sequence parallelism.')
 
+        self.debug_max_seq_len = -1
+
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
             return [
@@ -878,6 +880,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'global_step': self.global_step,
                 'context_question_mask': batch['context_question_mask']
             }
+            debug_input_ids_shape = batch['tokens'].shape[-1]
+            if debug_input_ids_shape > self.debug_max_seq_len:
+                self.debug_max_seq_len = debug_input_ids_shape
+                logging.error(f"Model encountered new MAX SEQ LEN: {debug_input_ids_shape}")
 
             if not self.cfg.get('use_attention_prior', False):
                 forward_args.pop('attention_prior')
