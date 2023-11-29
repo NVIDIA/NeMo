@@ -121,7 +121,7 @@ def get_accuracy_with_lambada(model):
         return trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs
 
 
-def run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus):
+def run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus, tp_size=None, pp_size=None):
 
     if args.location == "HF":
         download_nemo_checkpoint(
@@ -160,6 +160,8 @@ def run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus):
             nemo_checkpoint_path=args.checkpoint,
             model_type=args.model_type,
             n_gpus=n_gpus,
+            tensor_parallel_size=tp_size,
+            pipeline_parallel_size=pp_size,
             max_input_token=1024,
             max_output_token=128,
             max_batch_size=args.max_batch_size,
@@ -181,11 +183,11 @@ def run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus):
         
         print("Start model accuracy testing ...")
         trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(trt_llm_exporter)
-        print("Model Accuracy: {0}, Relaxed Model Accuracy: {1}".format(trtllm_accuracy, trtllm_accuracy_relaxed))
-        assert trtllm_accuracy_relaxed > 0.5, "Model accuracy is below 0.5"
 
         trt_llm_exporter = None
         shutil.rmtree(args.trt_llm_model_dir)
+
+        return trtllm_accuracy, trtllm_accuracy_relaxed
 
 
 def main(args):
@@ -193,9 +195,22 @@ def main(args):
     expected_keyword=["Paris", "Whale", "Cheetah"]
 
     n_gpus = args.min_gpus
+    result_dic = {}
     while n_gpus <= args.max_gpus:
-        run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus)
+        trtllm_accuracy, trtllm_accuracy_relaxed = run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus)
+        result_dic[n_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
         n_gpus = n_gpus * 2
+
+    test_result = "PASS"
+    print("======================================= Test Summary =======================================")
+    for i, result in result_dic:
+        print("Number of GPUS: {0}, Model Accuracy: {1}, Relaxed Model Accuracy: {2}".format(i, result[0], result[1]))
+        if result[1] > 0.5:
+            test_result = "FAIL"
+    print("=============================================================================================")
+    print ("TEST: " + test_result)
+    if test_result == "FAIL":
+        raise Exception("Model accuracy is below 0.5")
 
 
 if __name__ == '__main__':
