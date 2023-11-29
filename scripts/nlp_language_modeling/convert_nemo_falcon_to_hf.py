@@ -57,7 +57,8 @@ def get_args():
         "--hf-in-path",
         type=str,
         default=None,
-        help="A HF model path, " "e.g. a folder containing https://huggingface.co/meta-falcon/falcon-2-7b-hf/tree/main",
+        help="A HF model path, "
+        "e.g. a folder containing https://huggingface.co/meta-falcon/falcon-2-7b-hf/tree/main",
     )
     parser.add_argument(
         "--hf-out-path",
@@ -116,7 +117,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     checkpoint['state_dict'] = OrderedDict()
 
     def get_original_key(new_key):
-        new_key = new_key[len(prefix):]
+        new_key = new_key[len(prefix) :]
 
         if new_key.startswith("embedding.word_embeddings.weight"):
             return "transformer.word_embeddings.weight"
@@ -124,7 +125,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
             return new_key.replace("decoder.final_layernorm", "transformer.ln_f")
         elif new_key.startswith("output_layer"):
             return new_key.replace("output_layer", "lm_head")
-        
+
         key = new_key.replace("decoder.layers", "transformer.h")
 
         if model.cfg.mcore_customization_config.new_decoder_architecture:
@@ -140,15 +141,15 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         key = key.replace("linear_fc1", "dense_h_to_4h")
         key = key.replace("linear_fc2", "dense_4h_to_h")
         return key
-    
+
     prefix = 'model.module.' if any(k.startswith('model.module.') for k in model.state_dict()) else 'model.'
-    
+
     for key, value in model.state_dict().items():
         if '_extra_state' in key:
             continue
         orig_key = get_original_key(key)
         checkpoint['state_dict'][orig_key] = param_to_weights(value)
-        
+
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
     torch.save(checkpoint, output_hf_file)
     logging.info(f"Weights reverted and saved to {output_hf_file}")
