@@ -481,15 +481,24 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         return [item.tolist() if isinstance(item, np.ndarray) else item for item in x]
 
     def collate_fn(self, batch):
-        input_ids = [np.concatenate([
-                        item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]
-                        for i in range(len(item['seq_boundaries']) - 1)
-                    ]) for item in batch]
-        labels = [np.concatenate([
-                        item['input_ids'][item['seq_boundaries'][i] + 1 : item['seq_boundaries'][i + 1]]
-                        for i in range(len(item['seq_boundaries']) - 1)
-                    ]) for item in batch]
-
+        input_ids = [
+            np.concatenate(
+                [
+                    item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]
+                    for i in range(len(item['seq_boundaries']) - 1)
+                ]
+            )
+            for item in batch
+        ]
+        labels = [
+            np.concatenate(
+                [
+                    item['input_ids'][item['seq_boundaries'][i] + 1 : item['seq_boundaries'][i + 1]]
+                    for i in range(len(item['seq_boundaries']) - 1)
+                ]
+            )
+            for item in batch
+        ]
 
         loss_mask = [[1.0] * len(label) for label in labels]
 
