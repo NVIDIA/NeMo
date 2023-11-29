@@ -461,6 +461,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         seq_boundaries = self.indexed_dataset[idx]['seq_start_id'] + [len(input_ids)]
         return {'input_ids': input_ids, 'seq_boundaries': seq_boundaries}
 
+    def __len__(self):
+        return len(self.indexed_dataset)
+
     def _load_packed_dataset(self, file_path):
         self.indexed_dataset = np.load(file_path, allow_pickle=True)
 
@@ -474,29 +477,20 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             )
         return [1.0] * len(processed_example['input_ids'])
 
+    def _maybe_cast_to_list(self, x):
+        return [item.tolist() if isinstance(item, np.ndarray) else item for item in x]
+
     def collate_fn(self, batch):
-        input_ids = np.array(
-            [
-                np.concatenate(
-                    [
+        input_ids = [np.concatenate([
                         item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]
                         for i in range(len(item['seq_boundaries']) - 1)
-                    ]
-                )
-                for item in batch
-            ]
-        )
-        labels = np.array(
-            [
-                np.concatenate(
-                    [
+                    ]) for item in batch]
+        labels = [np.concatenate([
                         item['input_ids'][item['seq_boundaries'][i] + 1 : item['seq_boundaries'][i + 1]]
                         for i in range(len(item['seq_boundaries']) - 1)
-                    ]
-                )
-                for item in batch
-            ]
-        )
+                    ]) for item in batch]
+
+
         loss_mask = [[1.0] * len(label) for label in labels]
 
         position_ids: List[List[int]] = []
@@ -513,13 +507,13 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         assert len(input_ids[0]) == len(
             position_ids[0]
         ), "Dataset problem: input_ids and position_ids lengths don't match"
-        # add -1 paddings for collate_fn to work. removed before model forward()
-        # each seq has at least one -1 padding (max(...) + 1) so we can strip away the -1 with argmin
+        max_length = max(len(l) for l in input_ids)
+        max_length = self._ceil_to_nearest(max_length, 16)
         cu_seqlens = self._collate_item(cu_seqlens, max_length=max(len(l) for l in cu_seqlens) + 1, pad_id=-1)
-        input_ids = self._collate_item(input_ids, max_length=max(len(l) for l in input_ids) + 1, pad_id=-1)
-        labels = self._collate_item(labels, max_length=max(len(l) for l in labels) + 1, pad_id=-1)
-        loss_mask = self._collate_item(loss_mask, max_length=max(len(l) for l in loss_mask) + 1, pad_id=-1)
-        position_ids = self._collate_item(position_ids, max_length=max(len(l) for l in position_ids) + 1, pad_id=-1)
+        input_ids = self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
+        labels = self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id)
+        loss_mask = self._collate_item(loss_mask, max_length=max_length, pad_id=0)
+        position_ids = self._collate_item(position_ids, max_length=max_length, pad_id=-1)
 
         processed_batch = {
             'tokens': torch.LongTensor(input_ids),

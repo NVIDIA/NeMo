@@ -835,6 +835,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 required_keys.update(batch.keys())
             else:
                 required_keys.add('attention_mask')
+                if 'cu_seqlens' in batch:
+                    required_keys.add('cu_seqlens')
                 if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
@@ -867,14 +869,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     forward_args['cu_seqlens_q'] = cu_seqlens
                     forward_args['cu_seqlens_kv'] = cu_seqlens
                     forward_args['qkv_format'] = 'thd'
-                    # remove -1 "paddings" added in collate_fn
-                    forward_args['input_ids'] = forward_args['input_ids'][
-                        :, : torch.argmin(forward_args['input_ids'], dim=1)
-                    ]
-                    forward_args['position_ids'] = forward_args['position_ids'][
-                        :, : torch.argmin(forward_args['position_ids'], dim=1)
-                    ]
-                    forward_args['labels'] = forward_args['labels'][:, : torch.argmin(forward_args['labels'], dim=1)]
 
             output_tensor = model(**forward_args)
 
