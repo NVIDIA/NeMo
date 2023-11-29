@@ -370,7 +370,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             super()._remove_checkpoint(trainer, filepath)
         # all ranks synchronize before removing the unfinished checkpoint marker
         self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
-        
+
     def _ema_format_filepath(self, filepath: str) -> str:
         return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
 
@@ -393,8 +393,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def _remove_unfinished_checkpoints(checkpoint_dir: Union[Path, str]) -> None:
-        
-        if not is_global_rank_zero(): 
+
+        if not is_global_rank_zero():
             raise AssertionError("_remove_unfinished_checkpoints should run only on rank 0")
 
         checkpoint_dir = Path(checkpoint_dir)
