@@ -133,7 +133,7 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
+    megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name', 'fused_adam') == 'distributed_fused_adam'
     plugins = []
     strategy = NLPDDPStrategy(
@@ -152,7 +152,7 @@ def main(cfg) -> None:
             plugin_precision = '16-mixed'
         else:
             plugin_precision = 'bf16-mixed'
-        if megatron_amp_o2 and not with_distributed_adam:
+        if megatron_amp_O2 and not with_distributed_adam:
             plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
@@ -183,7 +183,7 @@ def main(cfg) -> None:
         model = load_from_nemo(MegatronGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     elif cfg.model.get("pretrained_checkpoint", None) is not None:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
-        model = load_from_checkpoint_dir(MegatronGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
+        model = load_from_checkpoint_dir(MegatronGPTModel, cfg, trainer, modify_confg_fn=_modify_config)
     else:
         print(' > WARNING: No checkpoint provided. Starting from scratch.')
         model = MegatronGPTModel(cfg.model, trainer)
