@@ -17,6 +17,7 @@ defaults:
   # experiment configs allow for version control of specific hyperparameters
   # e.g. best hyperparameters for given model and datamodule
   - exp_manager: default
+  - experiment: null
 
   # config for hyperparameter optimization
   - hparams_search: null

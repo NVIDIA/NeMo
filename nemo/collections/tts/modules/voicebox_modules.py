@@ -1,5 +1,6 @@
 import math
 from functools import partial
+from omegaconf import DictConfig
 
 import torch
 from torch import nn, Tensor, einsum, IntTensor, FloatTensor, BoolTensor
@@ -14,43 +15,64 @@ from voicebox_pytorch.voicebox_pytorch import DurationPredictor as _DP
 from voicebox_pytorch.voicebox_pytorch import (
     exists,
     coin_flip,
+    mask_from_start_end_indices,
     mask_from_frac_lengths,
     prob_mask_like,
     curtail_or_pad,
     is_probably_audio_from_shape,
     default,
     unpack_one,
-    pack_one
+    pack_one,
+    ConvPositionEmbed,
+    Transformer,
+    Rearrange
 )
+import torchaudio.transforms as T
+from torchaudio.functional import resample
 import torchode as to
 from torchdiffeq import odeint
 from einops import rearrange, repeat, reduce, pack, unpack
 
 from voicebox_pytorch.voicebox_pytorch import AudioEncoderDecoder
 from voicebox_pytorch.voicebox_pytorch import MelVoco as _MelVoco
-from voicebox_pytorch.voicebox_pytorch import EncodecVoco
+from voicebox_pytorch.voicebox_pytorch import EncodecVoco as _EncodecVoco
 
 from nemo.utils import logging
+from pytorch_lightning import LightningModule
 
 
 def get_mask_from_lengths(lengths, max_len=None):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    batch_size = lengths.shape[0]
-    if max_len is None:
-        max_len = torch.max(lengths).item()
-
-    ids = torch.arange(0, max_len).unsqueeze(0).expand(batch_size, -1).to(device)
-    mask = ids >= lengths.unsqueeze(1).expand(-1, max_len)
-
+    mask = mask_from_start_end_indices(torch.max(lengths).item(), torch.zeros_like(lengths), lengths)
+    
     return mask
 
 
-class MelVoco(_MelVoco):
+class MelVoco(_MelVoco, LightningModule):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
     @property
     def downsample_factor(self):
-        return 1.
+        return self.hop_length 
+
+    @property
+    def latent_dim(self):
+        return self.n_mels
     
+    def encode(self, audio):
+        mel = self.vocos.feature_extractor(audio)
+
+        if self.log:
+            mel = T.AmplitudeToDB()(mel)
+
+        mel = rearrange(mel, 'b d n -> b n d')
+        return mel
+
+
+class EncodecVoco(_EncodecVoco, LightningModule):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class DurationPredictor(_DP):
@@ -66,12 +88,93 @@ class DurationPredictor(_DP):
             - L828: `mask` seems to be corrected into `loss_mask`, while `loss_mask` is declared in L824, so simply remove the if statement
             - L841: `should_align` originally refers to the L818 assertion, therefore should be removed
     """
-    def __init__(self, *args, **kwargs):
-        kwargs["frac_lengths_mask"] = tuple(kwargs["frac_lengths_mask"])
-        kwargs["aligner_kwargs"] = dict(kwargs["aligner_kwargs"])
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        audio_enc_dec: Optional[AudioEncoderDecoder] = None,
+        tokenizer: Optional[Tokenizer] = None,
+        num_phoneme_tokens: Optional[int] = None,
+        dim_phoneme_emb = 512,
+        dim = 512,
+        depth = 10,
+        dim_head = 64,
+        heads = 8,
+        ff_mult = 4,
+        attn_qk_norm = True,
+        ff_dropout = 0.,
+        conv_pos_embed_kernel_size = 31,
+        conv_pos_embed_groups = None,
+        attn_dropout=0,
+        attn_flash = False,
+        p_drop_prob = 0.2, # p_drop in paper
+        frac_lengths_mask: List[float] = [0.1, 1.],
+        aligner_kwargs: dict | DictConfig = dict(dim_in = 80, attn_channels = 80)
+    ):
+        """
+        1. `cond` arg of `forward() should be ground-truth duration, therefore fix `self.proj_in` into nn.Linear(1,dim)
+        """
+        nn.Module.__init__(self)
 
-    @beartype
+        # audio encoder / decoder
+
+        self.audio_enc_dec = audio_enc_dec
+        self.audio_enc_dec.freeze()
+
+        self.proj_in = nn.Linear(1, dim)
+
+        # phoneme related
+
+        assert not (exists(tokenizer) and exists(num_phoneme_tokens)), 'if a phoneme tokenizer was passed into duration module, number of phoneme tokens does not need to be specified'
+
+        if not exists(tokenizer) and not exists(num_phoneme_tokens):
+            tokenizer = Tokenizer() # default to english phonemes with espeak
+
+        if exists(tokenizer):
+            num_phoneme_tokens = tokenizer.vocab_size
+
+        self.tokenizer = tokenizer
+
+        self.to_phoneme_emb = nn.Embedding(num_phoneme_tokens, dim_phoneme_emb)
+
+        self.p_drop_prob = p_drop_prob
+        self.frac_lengths_mask = frac_lengths_mask
+
+        self.to_embed = nn.Linear(dim + dim_phoneme_emb, dim)
+
+        self.null_cond = nn.Parameter(torch.zeros(dim), requires_grad=False)
+
+        self.conv_embed = ConvPositionEmbed(
+            dim = dim,
+            kernel_size = conv_pos_embed_kernel_size,
+            groups = conv_pos_embed_groups
+        )
+
+        self.transformer = Transformer(
+            dim = dim,
+            depth = depth,
+            dim_head = dim_head,
+            heads = heads,
+            ff_mult = ff_mult,
+            ff_dropout = ff_dropout,
+            attn_dropout=attn_dropout,
+            attn_flash = attn_flash,
+            attn_qk_norm = attn_qk_norm
+        )
+
+        self.to_pred = nn.Sequential(
+            nn.Linear(dim, 1),
+            Rearrange('... 1 -> ...')
+        )
+
+        # aligner related
+
+        # if we are using mel spec with 80 channels, we need to set attn_channels to 80
+        # dim_in assuming we have spec with 80 channels
+
+        self.aligner = Aligner(dim_in = audio_enc_dec.latent_dim, dim_hidden = dim_phoneme_emb, **aligner_kwargs)
+        self.align_loss = ForwardSumLoss()
+
+
+    # @beartype
     def forward_aligner(
         self,
         x: FloatTensor,     # (b, tx, c)
@@ -101,32 +204,104 @@ class DurationPredictor(_DP):
         return alignment_hard, alignment_soft, alignment_logprob, alignment_mas
 
     @beartype
+    def forward_aligner_from_text_mel(
+        self,
+        texts = None,
+        phoneme_ids: IntTensor = None,  # (b, tx)
+        mel: FloatTensor = None,        # (b, ty, c)
+        mel_mask: FloatTensor = None    # (b, 1, ty)
+    ) -> Tuple[
+        FloatTensor,        # alignment_hard: (b, tx)
+        FloatTensor,        # alignment_soft: (b, tx, ty)
+        FloatTensor,        # alignment_logprob: (b, 1, ty, tx)
+        BoolTensor          # alignment_mas: (b, tx, ty)
+    ]:
+        # text to phonemes, if tokenizer is given
+
+        if not exists(phoneme_ids):
+            assert exists(self.tokenizer) and exists(texts)
+            phoneme_ids = self.tokenizer.texts_to_tensor_ids(texts).to(self.device)
+
+        # phoneme id of -1 is padding
+
+        phoneme_mask = phoneme_ids != -1
+        phoneme_len = phoneme_mask.sum(-1)
+        phoneme_mask =  rearrange(phoneme_mask, 'b t -> b 1 t')
+
+        phoneme_ids = phoneme_ids.clamp(min = 0)
+
+        # get phoneme embeddings
+
+        phoneme_emb = self.to_phoneme_emb(phoneme_ids)
+
+        return self.forward_aligner(phoneme_emb, phoneme_mask, mel, mel_mask)
+
+
+    @beartype
     def forward(
         self,
         *,
         cond,
         texts: Optional[List[str]] = None,
         phoneme_ids = None,
+        phoneme_len = None,
+        phoneme_mask = None,
         cond_drop_prob = 0.,
         target = None,
         cond_mask = None,
         mel = None,
-        phoneme_len = None,
         mel_len = None,
-        phoneme_mask = None,
         mel_mask = None,
         self_attn_mask = None,
-        return_aligned_phoneme_ids = False
+        return_aligned_phoneme_ids = False,
+        calculate_cond = False
     ):
-        batch, seq_len, cond_dim = cond.shape
-
-        cond = self.proj_in(cond)
-
+        """ Allow passing `cond=None` while actually requires cond by setting `calculate_cond=True`
+        `cond` should be ground-truth duration instead of encoded audio
+        """
         # text to phonemes, if tokenizer is given
 
         if not exists(phoneme_ids):
-            assert exists(self.tokenizer)
-            phoneme_ids = self.tokenizer.texts_to_tensor_ids(texts)
+            assert exists(self.tokenizer) and exists(texts)
+            phoneme_ids = self.tokenizer.texts_to_tensor_ids(texts).to(self.device)
+
+        batch, seq_len = phoneme_ids.shape
+        
+        # phoneme id of -1 is padding
+
+        if not exists(self_attn_mask):
+            self_attn_mask = phoneme_ids != -1
+        if not exists(phoneme_len):
+            phoneme_len = self_attn_mask.sum(-1)
+        if not exists(phoneme_mask):
+            phoneme_mask =  rearrange(self_attn_mask, 'b t -> b 1 t')
+
+        phoneme_ids = phoneme_ids.clamp(min = 0)
+
+        # get phoneme embeddings
+
+        phoneme_emb = self.to_phoneme_emb(phoneme_ids)
+
+        # aligner
+        # use alignment_hard to oversample phonemes
+        # Duration Predictor should predict the duration of unmasked phonemes where target is masked alignment_hard
+
+        assert all([exists(el) for el in (phoneme_len, mel_len, phoneme_mask, mel_mask)]), 'need to pass phoneme_len, mel_len, phoneme_mask, mel_mask, to train duration predictor module'
+
+        alignment_hard, _, alignment_logprob, _ = self.forward_aligner(phoneme_emb, phoneme_mask, mel, mel_mask)
+        target = alignment_hard
+
+        # create dummy cond when not given, become purely unconditional regression model
+
+        if not exists(cond):
+            if calculate_cond:
+                cond = alignment_hard
+            else:
+                cond = torch.zeros_like(phoneme_ids)
+                cond_drop_prob = 1
+
+        cond = rearrange(cond, 'b t -> b t 1')
+        cond = self.proj_in(cond)
 
         # construct mask if not given
 
@@ -149,17 +324,6 @@ class DurationPredictor(_DP):
                 self.null_cond,
                 cond
             )
-
-        # phoneme id of -1 is padding
-
-        if not exists(self_attn_mask):
-            self_attn_mask = phoneme_ids != -1
-
-        phoneme_ids = phoneme_ids.clamp(min = 0)
-
-        # get phoneme embeddings
-
-        phoneme_emb = self.to_phoneme_emb(phoneme_ids)
 
         # force condition to be same length as input phonemes
 
@@ -185,18 +349,9 @@ class DurationPredictor(_DP):
 
             return durations, self.align_phoneme_ids_with_durations(phoneme_ids, durations)
 
-        # aligner
-        # use alignment_hard to oversample phonemes
-        # Duration Predictor should predict the duration of unmasked phonemes where target is masked alignment_hard
-
-        assert all([exists(el) for el in (phoneme_len, mel_len, phoneme_mask, mel_mask)]), 'need to pass phoneme_len, mel_len, phoneme_mask, mel_mask, to train duration predictor module'
-
-        alignment_hard, _, alignment_logprob, _ = self.forward_aligner(phoneme_emb, phoneme_mask, mel, mel_mask)
-        target = alignment_hard
-
         loss_mask = cond_mask & self_attn_mask
 
-        loss = F.l1_loss(x, target, reduction = 'none')
+        loss = F.l1_loss(durations, target, reduction = 'none')
         loss = loss.masked_fill(~loss_mask, 0.)
 
         # masked mean
@@ -211,7 +366,14 @@ class DurationPredictor(_DP):
         align_loss = self.align_loss(alignment_logprob, phoneme_len, mel_len)
         loss = loss + align_loss
 
-        return loss
+        if not return_aligned_phoneme_ids:
+            return loss
+        
+        losses = {
+            "d_pred_loss": loss,
+            "align_loss": align_loss,
+        }
+        return loss, losses, self.align_phoneme_ids_with_durations(phoneme_ids=phoneme_ids, durations=target)
 
 
 class VoiceBox(_VB):
@@ -319,6 +481,7 @@ class VoiceBox(_VB):
             frac_lengths_mask=frac_lengths_mask,
             condition_on_text=condition_on_text
         )
+        self.audio_enc_dec.freeze()
 
     def forward(self, *args, **kwargs):
         """
@@ -400,11 +563,14 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
             torchode_method_klass=torchode_method_klass,
             cond_drop_prob=cond_drop_prob
         )
+        self.duration_predictor: DurationPredictor
 
+        
     @torch.inference_mode()
     def sample(
         self,
         *_args,
+        dp_cond = None,
         cond = None,
         texts: Optional[List[str]] = None,
         text_token_ids: Optional[Tensor] = None,
@@ -420,6 +586,18 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
     ):
         """
         Handle slf_attn_mask (cond_mask)
+        
+        Args:
+            - dp_cond: duration predictor condition (duration ground truth)
+            - cond: reference audio conditioning for voicebox
+            - texts:
+            - text_token_ids:
+            - semantic_token_ids:
+            - phoneme_ids:
+
+            - cond_mask: condition masking -> context
+            - steps: ODE steps
+            - cond_scale: classifier-free guidance
         """
         # take care of condition as raw audio
 
@@ -441,51 +619,27 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         cond_token_ids = None
 
         if self.condition_on_text:
-            if exists(self.text_to_semantic) or exists(semantic_token_ids):
-                assert not exists(phoneme_ids)
+            assert not (exists(self.text_to_semantic) or exists(semantic_token_ids))
+            assert exists(self.duration_predictor)
 
-                if not exists(semantic_token_ids):
-                    self.text_to_semantic.eval()
+            self.duration_predictor.eval()
 
-                    semantic_token_ids, self_attn_mask = self.text_to_semantic.generate(
-                        source = default(text_token_ids, texts),
-                        source_type = 'text',
-                        target_type = 'speech',
-                        max_length = max_semantic_token_ids,
-                        return_target_mask = True,
-                        spec_decode = spec_decode,
-                        spec_decode_gamma = spec_decode_gamma
-                    )
+            durations, aligned_phoneme_ids = self.duration_predictor.forward_with_cond_scale(
+                cond=dp_cond,
+                texts=texts,
+                phoneme_ids=phoneme_ids,
+                cond_scale=1,
+                return_aligned_phoneme_ids=True
+            )
 
-                cond_token_ids = semantic_token_ids
-
-            elif exists(self.duration_predictor):
-                self.duration_predictor.eval()
-
-                durations, aligned_phoneme_ids = self.duration_predictor.forward_with_cond_scale(
-                    cond = cond,
-                    texts = texts,
-                    phoneme_ids = phoneme_ids,
-                    return_aligned_phoneme_ids = True
-                )
-
-                cond_token_ids = aligned_phoneme_ids
+            cond_token_ids = aligned_phoneme_ids
 
             cond_tokens_seq_len = cond_token_ids.shape[-1]
 
             if exists(cond):
-                if exists(self.text_to_semantic):
-                    # calculate the correct conditioning length for text to semantic
-                    # based on the sampling freqs of wav2vec and audio-enc-dec, as well as downsample factor
-                    # (cond_time x cond_sampling_freq / cond_downsample_factor) == (audio_time x audio_sampling_freq / audio_downsample_factor)
-                    wav2vec = self.text_to_semantic.wav2vec
-                    audio_enc_dec = self.voicebox.audio_enc_dec
-
-                    cond_target_length = (cond_tokens_seq_len * wav2vec.target_sample_hz / wav2vec.downsample_factor) / (audio_enc_dec.sampling_rate / audio_enc_dec.downsample_factor)
-                    cond_target_length = math.ceil(cond_target_length)
-
-                elif exists(self.duration_predictor):
-                    cond_target_length = cond_tokens_seq_len
+                assert not exists(self.text_to_semantic)
+                assert exists(self.duration_predictor)
+                cond_target_length = cond_tokens_seq_len
 
                 cond = curtail_or_pad(cond, cond_target_length)
                 self_attn_mask = curtail_or_pad(torch.ones_like(cond, dtype=torch.bool), cond_target_length)
@@ -560,7 +714,18 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
 
         return self.voicebox.audio_enc_dec.decode(sampled)
 
-    def forward(self, *args, **kwargs):
+    def forward(
+        self,
+        x1,
+        *,
+        mask = None,
+        phoneme_ids = None,
+        phoneme_len = None,
+        dp_cond = None,
+        cond = None,
+        cond_mask = None,
+        input_sampling_rate = None # will assume it to be the same as the audio encoder decoder sampling rate, if not given. if given, will resample
+    ):
         """TODO: Deal with phoneme duration alignment and expansion
 
         Args
@@ -571,7 +736,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
 
             - mask = None,
 
-                    voicebox self_attn_mask
+                    audio_mask (self_attn_mask)
 
             - semantic_token_ids = None,
 
@@ -595,4 +760,142 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
 
                     resample if given & != vocoder sampling rate
         """
-        return super().forward(*args, **kwargs)
+
+        batch, seq_len, dtype, σ = *x1.shape[:2], x1.dtype, self.sigma
+
+        # if raw audio is given, convert if audio encoder / decoder was passed in
+
+        input_is_raw_audio, cond_is_raw_audio = map(is_probably_audio_from_shape, (x1, cond))
+
+        if input_is_raw_audio:
+            raw_audio = x1
+
+        if any([input_is_raw_audio, cond_is_raw_audio]):
+            assert exists(self.voicebox.audio_enc_dec), 'audio_enc_dec must be set on VoiceBox to train directly on raw audio'
+
+            audio_enc_dec_sampling_rate = self.voicebox.audio_enc_dec.sampling_rate
+            input_sampling_rate = default(input_sampling_rate, audio_enc_dec_sampling_rate)
+
+            with torch.no_grad():
+                self.duration_predictor.audio_enc_dec.eval()
+                self.voicebox.audio_enc_dec.eval()
+
+                # duration_predictor input
+
+                audio_enc_dec_sampling_rate = self.duration_predictor.audio_enc_dec.sampling_rate
+
+                if input_is_raw_audio:
+
+                    mel = resample(x1, input_sampling_rate, audio_enc_dec_sampling_rate)
+                    mel = self.duration_predictor.audio_enc_dec.encode(mel)
+                    
+                    audio_len = mask.sum(-1)
+                    mel_len = audio_len // self.duration_predictor.audio_enc_dec.downsample_factor + 1
+                    mel_mask = get_mask_from_lengths(mel_len)
+                    mel_mask = rearrange(mel_mask, 'b t -> b 1 t')
+
+                # voicebox input
+
+                audio_enc_dec_sampling_rate = self.voicebox.audio_enc_dec.sampling_rate
+            
+                if input_is_raw_audio:
+                    x1 = resample(x1, input_sampling_rate, audio_enc_dec_sampling_rate)
+                    x1 = self.voicebox.audio_enc_dec.encode(x1)
+
+                if exists(cond) and cond_is_raw_audio:
+                    cond = resample(cond, input_sampling_rate, audio_enc_dec_sampling_rate)
+                    cond = self.voicebox.audio_enc_dec.encode(cond)
+
+        # setup text conditioning, either coming from duration model (as phoneme ids)
+        # or from text-to-semantic module, semantic ids encoded with wav2vec (hubert usually)
+
+        assert self.condition_on_text or not exists(phoneme_ids), 'phoneme ids should not be passed in if not conditioning on text'
+
+
+
+        # NOTE: work in progress
+
+        assert exists(phoneme_ids)
+
+        self_attn_mask = None
+        cond_token_ids = None
+
+        # handle downsample audio_mask
+
+        if self.condition_on_text:
+            assert not exists(self.text_to_semantic)
+            assert exists(self.duration_predictor)
+
+            with torch.no_grad():
+                phoneme_mask = phoneme_ids != -1
+                if not exists(phoneme_len):
+                    phoneme_len = phoneme_mask.sum(-1)
+            
+            self.duration_predictor.train()
+
+            dp_loss, dp_losses, aligned_phoneme_ids = self.duration_predictor.forward(
+                cond=dp_cond,               # might be None
+                texts=None,                 # converted to phoneme_ids by dataset
+                phoneme_ids=phoneme_ids,
+                phoneme_len=phoneme_len,
+                phoneme_mask=None,          # would be calculated within
+                cond_drop_prob=0.2,
+                target=None,                # unused
+                cond_mask=None,             # would be generated within
+                mel=mel,                     # TODO: not assuming DP using same audio_enc_dec with VB
+                mel_len=mel_len,
+                mel_mask=mel_mask,
+                self_attn_mask=None,        # would be calculated within
+                return_aligned_phoneme_ids=True,
+                calculate_cond=True
+            )
+
+            cond_token_ids = aligned_phoneme_ids
+
+        else:
+            assert not exists(phoneme_ids), 'no conditioning inputs should be given if not conditioning on text'
+
+        # NOTE: end of WIP
+
+
+        # main conditional flow logic is below
+
+        # x0 is gaussian noise
+
+        x0 = torch.randn_like(x1)
+
+        # random times
+
+        times = torch.rand((batch,), dtype = dtype, device = self.device)
+        t = rearrange(times, 'b -> b 1 1')
+
+        # sample xt (w in the paper)
+
+        w = (1 - (1 - σ) * t) * x0 + t * x1
+
+        flow = x1 - (1 - σ) * x0
+
+        # predict
+
+        self.voicebox.train()
+
+        loss = self.voicebox(
+            w,
+            cond = cond,
+            cond_mask = cond_mask,
+            times = times,
+            target = flow,
+            self_attn_mask = self_attn_mask,
+            cond_token_ids = cond_token_ids,
+            cond_drop_prob = self.cond_drop_prob
+        )
+
+        losses = {}
+        if self.condition_on_text:
+            losses.update(dp_losses)
+        losses['vb_loss'] = loss
+        loss = loss + dp_loss
+
+        return loss, losses
+
+        # return super().forward(x1=x1, mask=mask, semantic_token_ids=semantic_token_ids,phoneme_ids=phoneme_ids, cond=cond, cond_mask=cond_mask, input_sampling_rate=input_sampling_rate)

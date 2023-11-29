@@ -1,0 +1,34 @@
+_target_: nemo.collections.tts.modules.voicebox_modules.DurationPredictor
+
+
+# Input related args
+audio_enc_dec: null
+# tokenizer: Optional[Tokenizer] = None
+# num_phoneme_tokens: Optional[int]: null
+
+# Dims
+dim_phoneme_emb: 512
+dim: 512
+
+# Transformer args
+depth: 10
+dim_head: 64
+heads: 8
+ff_mult: 4
+attn_qk_norm: True
+ff_dropout: 0.
+attn_dropout: 0
+attn_flash: False
+
+# ConvPositionEmbed args
+conv_pos_embed_kernel_size: 31
+conv_pos_embed_groups: null
+
+# Conditional training args
+p_drop_prob: 0.2 # p_drop in paper
+frac_lengths_mask: [0.1, 1.]
+
+# Aligner args
+aligner_kwargs:
+  # dim_in: 80
+  attn_channels: 80

@@ -73,15 +73,17 @@ class VoiceboxModel(TextToWaveform):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.audio_enc_dec = instantiate(cfg.audio_enc_dec)
+        # self.audio_enc_dec = instantiate(cfg.audio_enc_dec)
+        # self.audio_enc_dec.freeze()
+
         self.duration_predictor = instantiate(
             cfg.duration_predictor,
-            audio_enc_dec=self.audio_enc_dec,
+            # audio_enc_dec=self.audio_enc_dec,
             tokenizer=self.tokenizer,
         )
         self.voicebox: VoiceBox = instantiate(
             cfg.voicebox,
-            audio_enc_dec=self.audio_enc_dec,
+            # audio_enc_dec=self.audio_enc_dec,
             num_cond_tokens=num_tokens
         )
         self.cfm_wrapper: ConditionalFlowMatcherWrapper = instantiate(
@@ -205,29 +207,44 @@ class VoiceboxModel(TextToWaveform):
     def training_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT:
         audio, audio_lens, tokens, token_lens = batch
         audio_mask = get_mask_from_lengths(audio_lens)
-        loss = self.cfm_wrapper.forward(
+        _, losses = self.cfm_wrapper.forward(
             x1=audio,
             mask=audio_mask,
-            semantic_token_ids=None,
+            # semantic_token_ids=None,
             phoneme_ids=tokens,
+            phoneme_len=token_lens,
             cond=None,
             cond_mask=None,
             input_sampling_rate=None
         )
+        # self.log("loss", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+        self.log_dict(losses, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+        dp_loss, align_loss, vb_loss = losses['d_pred_loss'], losses['align_loss'], losses['vb_loss']
+
+        if self.current_epoch < 10:
+            align_loss = align_loss * 1e3
+        if self.current_epoch < 10:
+            dp_loss = dp_loss * 0
+        if self.current_epoch < 10:
+            vb_loss = vb_loss * 0
+
+        loss = align_loss + dp_loss + vb_loss
         return loss
     
     def validation_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT | None:
         audio, audio_lens, tokens, token_lens = batch
         audio_mask = get_mask_from_lengths(audio_lens)
-        loss = self.cfm_wrapper.forward(
+        loss, losses = self.cfm_wrapper.forward(
             x1=audio,
             mask=audio_mask,
-            semantic_token_ids=None,
+            # semantic_token_ids=None,
             phoneme_ids=tokens,
+            phoneme_len=token_lens,
             cond=None,
             cond_mask=None,
             input_sampling_rate=None
         )
+        self.log_dict(losses, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         return loss
 
     @classmethod

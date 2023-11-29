@@ -1,5 +1,5 @@
 exp_dir: null # defaults to ./nemo_experiments
-name: ${task_name}-${now:%Y-%m-%d}_${now:%H-%M-%S}
+name: ${task_name}
 create_checkpoint_callback: True
 
 # configure the PyTorch Lightning ModelCheckpoint using checkpoint_callback_params
