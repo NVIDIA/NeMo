@@ -513,7 +513,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         input_ids = self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
         labels = self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id)
         loss_mask = self._collate_item(loss_mask, max_length=max_length, pad_id=0)
-        position_ids = self._collate_item(position_ids, max_length=max_length, pad_id=-1)
+        position_ids = self._collate_item(position_ids, max_length=max_length, pad_id=0)
 
         processed_batch = {
             'tokens': torch.LongTensor(input_ids),
