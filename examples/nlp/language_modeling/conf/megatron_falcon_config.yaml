@@ -84,8 +84,6 @@ model:
   overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   num_query_groups: 1 # Number of query groups for group query attention. If None, normal attention is used. | 7b: 1 | 40b: 8 | 180b: 8
-  new_decoder_architecture: false
-  parallel_attention: true
   
   tokenizer:
     library: 'huggingface'
@@ -215,3 +213,10 @@ model:
       warmup_steps: 500
       constant_steps: 50000
       min_lr: 2e-5
+gc_interval: 0
+precision: bf16
+mcore_customization_config:
+  new_decoder_architecture: false
+  parallel_attention: true
+target: nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel
+nemo_version: 1.21.0rc0
