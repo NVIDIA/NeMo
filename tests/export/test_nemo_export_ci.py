@@ -160,8 +160,6 @@ def run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus, tp_size=
             nemo_checkpoint_path=args.checkpoint,
             model_type=args.model_type,
             n_gpus=n_gpus,
-            tensor_parallel_size=tp_size,
-            pipeline_parallel_size=pp_size,
             max_input_token=1024,
             max_output_token=128,
             max_batch_size=args.max_batch_size,
@@ -203,9 +201,9 @@ def main(args):
 
     test_result = "PASS"
     print("======================================= Test Summary =======================================")
-    for i, result in result_dic:
-        print("Number of GPUS: {0}, Model Accuracy: {1}, Relaxed Model Accuracy: {2}".format(i, result[0], result[1]))
-        if result[1] > 0.5:
+    for i, results in result_dic.items():
+        print("Number of GPUS: {0}, Model Accuracy: {1}, Relaxed Model Accuracy: {2}".format(i, results[0], results[1]))
+        if results[1] < 0.5:
             test_result = "FAIL"
     print("=============================================================================================")
     print ("TEST: " + test_result)
