@@ -95,8 +95,8 @@ model:
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
 
   tokenizer:
-    library: 'megatron'
-    type: 'GPT2BPETokenizer'
+    library: 'huggingface'
+    type: 'bigcode/starcoder2-tokenizer'
     model: null
     vocab_file: null
     merge_file: null 

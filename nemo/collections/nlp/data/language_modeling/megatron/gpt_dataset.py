@@ -410,8 +410,8 @@ class GPTDataset(Dataset):
             # get FIM params
             self.fim_rate = self.cfg.data.fim.rate
             self.fim_spm_rate = self.cfg.data.fim.spm_rate
-            self.fim_split_sample = self.cfg.data.fim.split_sample
-            self.fragment_rate = self.cfg.data.fim.fragment_rate
+            self.fim_split_sample = self.tokenizer.tokens_to_ids(self.cfg.data.fim.split_sample)
+            self.fragment_fim_rate = self.cfg.data.fim.fragment_rate
             self.no_fim_prefix = self.cfg.data.fim.no_prefix
 
             # get extra tokens ids
