@@ -226,9 +226,10 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
             When `rampup_batch_size` is enabled, the return value can be not exactly precise.
 
         """
-        num_available_samples = self.total_samples
+        active_total_samples = self.total_samples - self.last_batch_size
+        num_available_samples = (active_total_samples * (1 + (self.consumed_samples // active_total_samples))) - self.consumed_samples
         if self.drop_last:
-            return (num_available_samples - self.last_batch_size) // self.global_batch_size
+            return num_available_samples // self.global_batch_size
         else:
             return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
 
