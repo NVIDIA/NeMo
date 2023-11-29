@@ -205,10 +205,10 @@ class VoiceboxModel(TextToWaveform):
     def training_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT:
         audio, audio_lens, tokens, token_lens = batch
         audio_mask = get_mask_from_lengths(audio_lens)
-        loss, losses = self.cfm_wrapper.forward(
+        _, losses = self.cfm_wrapper.forward(
             x1=audio,
             mask=audio_mask,
-            semantic_token_ids=None,
+            # semantic_token_ids=None,
             phoneme_ids=tokens,
             phoneme_len=token_lens,
             cond=None,
@@ -217,6 +217,12 @@ class VoiceboxModel(TextToWaveform):
         )
         # self.log("loss", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         self.log_dict(losses, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+        dp_loss, align_loss, vb_loss = losses['d_pred_loss'], losses['align_loss'], losses['vb_loss']
+        loss = align_loss
+        if self.current_epoch > 3:
+            loss = loss + dp_loss
+        if self.current_epoch > 10:
+            loss = loss + vb_loss
         return loss
     
     def validation_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT | None:
@@ -225,7 +231,7 @@ class VoiceboxModel(TextToWaveform):
         loss, losses = self.cfm_wrapper.forward(
             x1=audio,
             mask=audio_mask,
-            semantic_token_ids=None,
+            # semantic_token_ids=None,
             phoneme_ids=tokens,
             phoneme_len=token_lens,
             cond=None,

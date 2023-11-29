@@ -4,7 +4,7 @@
 # python train.py experiment=example
 
 defaults:
-  - override /dataset@model: libriheavy
+  - override /model: small
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
@@ -12,19 +12,13 @@ defaults:
 seed: 12345
 
 model:
-  duration_predictor:
-    depth: 2
-    heads: 2
-
-  voicebox:
-    depth: 2
-    heads: 2
-
   train_ds:
     manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_small.jsonl.gz
 
 trainer:
   devices: 1
+  # gradient_clip_val: .1
+  # gradient_clip_algorithm: value
 
 exp_manager:
   resume_if_exists: False

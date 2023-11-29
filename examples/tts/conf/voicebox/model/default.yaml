@@ -43,7 +43,7 @@ duration_predictor:
 
   # Aligner args
   aligner_kwargs:
-    dim_in: 80
+    # dim_in: 80
     attn_channels: 80
 
 
