@@ -331,11 +331,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-<<<<<<< HEAD
-                transformer_layer_spec=get_specs(self.spec_name),
-=======
                 transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(),
->>>>>>> main
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
