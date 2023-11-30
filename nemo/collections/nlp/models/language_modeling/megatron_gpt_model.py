@@ -864,6 +864,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     required_keys.update(('labels', 'loss_mask'))
             # if self.get_attention_mask_from_fusion:
             #     required_keys.remove('attention_mask')
+            if not self.cfg.get('use_attention_prior', False):
+                required_keys.remove('attention_prior')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch_cpu.items()}
 
             # Model forward pass
@@ -2070,7 +2072,9 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         with torch.no_grad():
             dataloader_iter = self._make_data_iterator_list(dataloader_iter)
             batch = next(dataloader_iter)
-            forward_keys = ['tokens', 'position_ids', 'attention_mask', 'labels', 'loss_mask', 'speech_mask', 'attention_prior', 'context_question_mask']
+            forward_keys = ['tokens', 'position_ids', 'attention_mask', 'labels', 'loss_mask', 'speech_mask', 'context_question_mask']
+            if not self.cfg.get('use_attention_prior', False):
+                forward_keys.append('attention_prior')
             for key in forward_keys:
                 if (key in batch) and (batch[key] is not None):
                     batch[key] = batch[key].cuda()

@@ -917,7 +917,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         # predicted by the decoder.
         start_token_index = 0
         end_token_index = -1
-        if ("Text to speech this" in question_in_manifest) and (doc["context_type"] == "SPEECH"):
+        if ("Text to speech this" in question_in_manifest or "Phoneme TTS" in question_in_manifest) and (doc["context_type"] == "SPEECH"):
             total_context_len = context_tokens[0].size()[1]
 
             # Redo of this logic 11/29
@@ -1114,8 +1114,8 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         # inverse_prior_strength = 1 - self.attention_prior_strength
         # cross_attention_prior = torch.zeros(len(batch), max_decoder_input_len_1, max_decoder_input_len_1) + self.cross_attention_epsilon + inverse_prior_strength
         cross_attention_prior = torch.zeros(len(batch), max_decoder_input_len_1, max_decoder_input_len_1)
-        start_of_question_offset = 5 # For "<pad>Text to Speech this"
-        end_of_question_offset = 3 #"<extra_id_0><pad>"
+        start_of_question_offset = 5 # For "<pad>Text to Speech this" - Only used in attention prior computation
+        end_of_question_offset = 3 #"<extra_id_0><pad>" - Only used in attention prior computation
         for i, sample_tuple in enumerate(batch):
             (
                 context_tokens,
