@@ -44,7 +44,7 @@ class BlendableDataset(torch.utils.data.Dataset):
         # Dataset index is a 16-bit integer to alow at least 2^15 datasets.
         # PyTorch isn't happy casting numpy uint16 to a Torch Tensor,
         # so we use int16 although a dataset_index can never be negative.
-        dataset_index = np.zeros(self.size, dtype=np.int16)
+        self.dataset_index = np.zeros(self.size, dtype=np.int16)
         self.dataset_sample_index = np.zeros(self.size, dtype=np.int64)
         app_state = AppState()
         try:
