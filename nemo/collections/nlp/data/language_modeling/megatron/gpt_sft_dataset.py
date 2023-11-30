@@ -459,7 +459,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
     def __getitem__(self, idx):
         input_ids = self.indexed_dataset[idx]['input_ids']
         seq_boundaries = self.indexed_dataset[idx]['seq_start_id'] + [len(input_ids)]
-        return {'input_ids': input_ids, 'seq_boundaries': seq_boundaries}
+        loss_mask = self.indexed_dataset[idx]['loss_mask']
+        return {'input_ids': input_ids, 'seq_boundaries': seq_boundaries, 'loss_mask': loss_mask}
 
     def __len__(self):
         return len(self.indexed_dataset)
@@ -469,11 +470,12 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
     def _build_loss_mask(self, processed_example):
         if self.answer_only_loss:
-            # @chcui we will support answer_only_loss for packed sequences later since mcore models also don't support answer_only_loss
-            logging.warning(
-                "`answer_only_loss` with sequence packing is currently not supported. "
-                "Proceeding without `answer_only_loss`. "
-                "Set model.answer_only_loss=False to disable this warning"
+            seq_boundaries = processed_example['seq_boundaries']
+            return np.concatenate(
+                [
+                    processed_example['loss_mask'][seq_boundaries[i] + 1: seq_boundaries[i + 1]]
+                    for i in range(len(seq_boundaries) - 1)
+                ]
             )
         return [1.0] * len(processed_example['input_ids'])
 
@@ -500,7 +502,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             for item in batch
         ]
 
-        loss_mask = [[1.0] * len(label) for label in labels]
+        loss_mask = [self._build_loss_mask(item) for item in batch]
 
         position_ids: List[List[int]] = []
         cu_seqlens: List[List[int]] = []
