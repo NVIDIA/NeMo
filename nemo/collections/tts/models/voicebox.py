@@ -221,10 +221,10 @@ class VoiceboxModel(TextToWaveform):
         self.log_dict(losses, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         dp_loss, align_loss, vb_loss = losses['d_pred_loss'], losses['align_loss'], losses['vb_loss']
 
-        if self.current_epoch < 5:
+        if self.current_epoch < 10:
             align_loss = align_loss * 1e3
-        if self.current_epoch < 3:
-            dp_loss = dp_loss * 1e-6
+        if self.current_epoch < 10:
+            dp_loss = dp_loss * 0
         if self.current_epoch < 10:
             vb_loss = vb_loss * 0
 

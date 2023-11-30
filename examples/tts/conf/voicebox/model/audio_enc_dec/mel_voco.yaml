@@ -3,7 +3,7 @@ log: true
 n_mels: 100
 sampling_rate: 24000
 f_max: null
-n_fft: 1024
-win_length: ${model.mel_voco.n_fft}
+n_fft: &nfft 1024
+win_length: *nfft
 hop_length: 256
 pretrained_vocos_path: 'charactr/vocos-mel-24khz'
