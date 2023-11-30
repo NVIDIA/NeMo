@@ -473,7 +473,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             seq_boundaries = processed_example['seq_boundaries']
             return np.concatenate(
                 [
-                    processed_example['loss_mask'][seq_boundaries[i] + 1: seq_boundaries[i + 1]]
+                    processed_example['loss_mask'][seq_boundaries[i] + 1 : seq_boundaries[i + 1]]
                     for i in range(len(seq_boundaries) - 1)
                 ]
             )
