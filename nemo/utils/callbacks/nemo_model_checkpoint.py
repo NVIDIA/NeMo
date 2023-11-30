@@ -298,30 +298,56 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return ema_callback
 
     @staticmethod
-    def format_checkpoint_unfinished_marker_path(checkpoint_filepath: Union[Path, str]) -> Path:
-        """
-        Get the path to the unfinished checkpoint marker file.
-        If the file exists, corresponding checkpoint is considered unfinished/incomplete.
+    def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
+        """ Format the path to the unfinished checkpoint marker file.
+        
+        If the marker file exists, corresponding checkpoint is considered unfinished/incomplete.
         NOTE: Marker path for the EMA checkpoint part is the same as for the original checkpoint.
+        
+        Args:
+            checkpoint_path: Path to the checkpoint file or dir.
+              Does not need to exist.
+            
+        Returns:
+            Path to the unfinished checkpoint marker file.
         """
-        marker_filepath = str(uninject_model_parallel_rank(checkpoint_filepath))
+        marker_filepath = str(uninject_model_parallel_rank(checkpoint_path))
         marker_filepath = marker_filepath.removesuffix(".nemo")
         marker_filepath = marker_filepath.removesuffix(".ckpt")
         marker_filepath = marker_filepath.removesuffix("-EMA")
         return Path(marker_filepath + NeMoModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX)
 
     @staticmethod
-    def is_checkpoint_unfinished(checkpoint_filepath: Union[Path, str]) -> bool:
-        return NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_filepath).exists()
+    def is_checkpoint_unfinished(checkpoint_path: Union[Path, str]) -> bool:
+        """ Check if the checkpoint is unfinished.
+
+        Args:
+            checkpoint_path: Path to the checkpoint file or dir.
+              Does not need to exist.
+
+        Returns:
+            True if the checkpoint is unfinished, False otherwise.
+        """
+        return NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path).exists()
 
     @staticmethod
     def set_checkpoint_unfinished_marker(
-        checkpoint_filepath: Union[Path, str], barrier_before=False, barrier_after=False
+        checkpoint_path: Union[Path, str], barrier_before=False, barrier_after=False
     ) -> None:
+        """ Marks given checkpoint as unfinished.
+
+        Args:
+            checkpoint_filepath: Path to the checkpoint file or dir.
+              Does not need to exist.
+            barrier_before: Synchronize ranks before writing the marker file.
+              Defaults to False.
+            barrier_after: Synchronize ranks after writing the marker file.
+              Defaults to False.
+        """
         if barrier_before and torch.distributed.is_initialized():
             torch.distributed.barrier()
         if is_global_rank_zero():
-            marker_path = NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_filepath)
+            marker_path = NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
             marker_path.parent.mkdir(parents=True, exist_ok=True)
             marker_path.touch()
         if barrier_after and torch.distributed.is_initialized():
@@ -329,20 +355,31 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def remove_checkpoint_unfinished_marker(
-        checkpoint_filepath: Union[Path, str], barrier_before=False, barrier_after=False
+        checkpoint_path: Union[Path, str], barrier_before=False, barrier_after=False
     ) -> None:
+        """Clear unfinished marker for given checkpoint.
+
+        Args:
+            checkpoint_path: Path to the checkpoint file or dir.
+              Does not need to exist.
+            barrier_before: Synchronize ranks before removing the marker file.
+              Defaults to False.
+            barrier_after: Synchronize ranks after removing the marker file.
+              Defaults to False.
+        """
         if barrier_before and torch.distributed.is_initialized():
             torch.distributed.barrier()
         if is_global_rank_zero():
-            marker_path = NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_filepath)
+            marker_path = NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
             if marker_path.exists():
                 marker_path.unlink()
         if barrier_after and torch.distributed.is_initialized():
             torch.distributed.barrier()
 
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
+        # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
+        # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
-        # all ranks continue with the unfinished checkpoint marker in place
         ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
             with ema_callback.save_original_optimizer_state(trainer):
@@ -356,19 +393,22 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 super()._save_checkpoint(trainer, filepath)
         else:
             super()._save_checkpoint(trainer, filepath)
-        # all ranks synchronize before removing the unfinished checkpoint marker
+        # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
+        # we don't want to remove the marker until all checkpointing is done.
         self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
     def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str) -> None:
+        # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
+        # if anything goes wrong during removal, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
-        # all ranks continue with the unfinished checkpoint marker in place
         super()._remove_checkpoint(trainer, filepath)
         ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
             # remove EMA copy of the state dict as well.
             filepath = self._ema_format_filepath(filepath)
             super()._remove_checkpoint(trainer, filepath)
-        # all ranks synchronize before removing the unfinished checkpoint marker
+        # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
+        # we don't want to remove the marker until the checkpoint is actually removed.
         self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
     def _ema_format_filepath(self, filepath: str) -> str:
@@ -393,6 +433,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def _remove_unfinished_checkpoints(checkpoint_dir: Union[Path, str]) -> None:
+        
+        # Delete unfinished checkpoints from the filesystems.
+        # "Unfinished marker" files are removed as well.
 
         if not is_global_rank_zero():
             raise AssertionError("_remove_unfinished_checkpoints should run only on rank 0")
