@@ -1,92 +1,41 @@
 _target_: nemo.collections.tts.models.voicebox.VoiceboxModel
 
+
+defaults:
+  - duration_predictor: default
+  - audio_enc_dec@duration_predictor.audio_enc_dec: mel_voco
+  - voicebox: default
+  - audio_enc_dec@voicebox.audio_enc_dec: encodec_voco
+
+optim:
+  name: adamw
+
+  lr: 1e-4
+  weight_decay: 1e-2
+  betas: [0.9, 0.99]
+  eps: 1e-8
+
+  # sched:
+  #   name: CosineAnnealing
+  #   min_lr: 5e-5
+  #   warmup_ratio: 0.35
+
+# optim_param_groups:
+#   duration_predictor:
+#     lr: 1e-3
+
+
 tokenizer:
   _target_: naturalspeech2_pytorch.utils.tokenizer.Tokenizer
-
-
-audio_enc_dec:
-  _target_: nemo.collections.tts.modules.voicebox_modules.EncodecVoco
-  sampling_rate: 24000
-  pretrained_vocos_path: 'charactr/vocos-encodec-24khz'
-  bandwidth_id: 2
-
-
-duration_predictor:
-  _target_: nemo.collections.tts.modules.voicebox_modules.DurationPredictor
-
-  # Input related args
-  # audio_enc_dec: Optional[AudioEncoderDecoder] = None
-  # tokenizer: Optional[Tokenizer] = None
-  # num_phoneme_tokens: Optional[int]: null
-
-  # Dims
-  dim_phoneme_emb: 512
-  dim: 512
-
-  # Transformer args
-  depth: 10
-  dim_head: 64
-  heads: 8
-  ff_mult: 4
-  attn_qk_norm: True
-  ff_dropout: 0.
-  attn_dropout: 0
-  attn_flash: False
-
-  # ConvPositionEmbed args
-  conv_pos_embed_kernel_size: 31
-  conv_pos_embed_groups: null
-
-  # Conditional training args
-  p_drop_prob: 0.2 # p_drop in paper
-  frac_lengths_mask: [0.1, 1.]
-
-  # Aligner args
-  aligner_kwargs:
-    # dim_in: 80
-    attn_channels: 80
-
-
-voicebox:
-  _target_: nemo.collections.tts.modules.voicebox_modules.VoiceBox
-  
-  # audio_enc_dec: Optional[AudioEncoderDecoder] = None,
-
-  # Dims
-  dim_cond_emb: 1024
-  dim: 1024
-  dim_in: null
-  time_hidden_dim: null
-
-  # ConvPositionEmbed args
-  conv_pos_embed_kernel_size: 31
-  conv_pos_embed_groups: null
-
-  # Transformer args
-  depth: 24
-  dim_head: 64
-  heads: 16
-  ff_mult: 4
-  ff_dropout: 0.
-  attn_dropout: 0
-  attn_flash: False
-  attn_qk_norm: True
-  num_register_tokens: 16
-  
-  # Conditional training args
-  num_cond_tokens: null
-  condition_on_text: True
-  p_drop_prob: 0.3  # p_drop in paper
-  frac_lengths_mask: [0.7, 1.]
 
 
 cfm_wrapper:
   _target_: nemo.collections.tts.modules.voicebox_modules.ConditionalFlowMatcherWrapper
 
-  # voicebox: Voicebox = None
+  # override in VoiceboxModel.__init__
+  voicebox: null
+  duration_predictor: null
 
-  duration_predictor:
-    _target_: nemo.collections.tts.modules.voicebox_modules.DurationPredictor
   sigma: 0.
   ode_atol: 1e-5
   ode_rtol: 1e-5

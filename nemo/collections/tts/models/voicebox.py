@@ -73,15 +73,17 @@ class VoiceboxModel(TextToWaveform):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.audio_enc_dec = instantiate(cfg.audio_enc_dec)
+        # self.audio_enc_dec = instantiate(cfg.audio_enc_dec)
+        # self.audio_enc_dec.freeze()
+
         self.duration_predictor = instantiate(
             cfg.duration_predictor,
-            audio_enc_dec=self.audio_enc_dec,
+            # audio_enc_dec=self.audio_enc_dec,
             tokenizer=self.tokenizer,
         )
         self.voicebox: VoiceBox = instantiate(
             cfg.voicebox,
-            audio_enc_dec=self.audio_enc_dec,
+            # audio_enc_dec=self.audio_enc_dec,
             num_cond_tokens=num_tokens
         )
         self.cfm_wrapper: ConditionalFlowMatcherWrapper = instantiate(
@@ -218,11 +220,15 @@ class VoiceboxModel(TextToWaveform):
         # self.log("loss", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         self.log_dict(losses, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         dp_loss, align_loss, vb_loss = losses['d_pred_loss'], losses['align_loss'], losses['vb_loss']
-        loss = align_loss
-        if self.current_epoch > 3:
-            loss = loss + dp_loss
-        if self.current_epoch > 10:
-            loss = loss + vb_loss
+
+        if self.current_epoch < 5:
+            align_loss = align_loss * 1e3
+        if self.current_epoch < 3:
+            dp_loss = dp_loss * 1e-6
+        if self.current_epoch < 10:
+            vb_loss = vb_loss * 0
+
+        loss = align_loss + dp_loss + vb_loss
         return loss
     
     def validation_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT | None:

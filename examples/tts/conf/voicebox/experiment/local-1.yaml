@@ -14,11 +14,14 @@ seed: 12345
 model:
   train_ds:
     manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_small.jsonl.gz
+    lhotse:
+      batch_duration: 300
 
 trainer:
   devices: 1
   # gradient_clip_val: .1
   # gradient_clip_algorithm: value
+  max_epochs: 100
 
 exp_manager:
   resume_if_exists: False
