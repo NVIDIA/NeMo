@@ -433,7 +433,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def _remove_unfinished_checkpoints(checkpoint_dir: Union[Path, str]) -> None:
-        
+
         # Delete unfinished checkpoints from the filesystems.
         # "Unfinished marker" files are removed as well.
 
