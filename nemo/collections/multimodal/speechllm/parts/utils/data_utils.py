@@ -12,10 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from typing import List, Optional
 
 import numpy as np
 import torch
+
+
+def normalize_text(text):
+    return re.sub(r"[\(\);.,?\-!\"':]", '', text.lower())
 
 
 def maybe_cast_to_list(x):

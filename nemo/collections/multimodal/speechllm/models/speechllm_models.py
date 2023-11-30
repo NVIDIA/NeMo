@@ -37,7 +37,7 @@ from nemo.collections.multimodal.speechllm.modules.speechllm_perception import (
     AudioPerceptionModel,
     MultiAudioPerceptionModel,
 )
-from nemo.collections.multimodal.speechllm.parts.utils.data_utils import to_cuda
+from nemo.collections.multimodal.speechllm.parts.utils.data_utils import normalize_text, to_cuda
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -920,8 +920,27 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         ]
 
         if data_cfg.get("end_string", None):
-            preds_text = [p.replace(data_cfg.end_string, '') for p in preds_text]
-            labels_text = [p.replace(data_cfg.end_string, '') for p in labels_text]
+            # sometimes data_cfg.end_string != self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
+            # for example when data_cfg.end_string = "<end>", the end_string_re will start with " ?? "
+            end_string_re = self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
+            preds_text_cleaned = []
+            labels_text_cleaned = []
+            for p, l in zip(preds_text, labels_text):
+                # remove end_string from the end of the string
+                for es in [end_string_re, data_cfg.end_string]:
+                    if p.endswith(es):
+                        p = p[: -len(es)].strip()
+                    if l.endswith(es):
+                        l = l[: -len(es)].strip()
+                preds_text_cleaned.append(p)
+                labels_text_cleaned.append(l)
+            preds_text = preds_text_cleaned
+            labels_text = labels_text_cleaned
+
+        if data_cfg.get("normalize_text", False):
+            preds_text = [normalize_text(p) for p in preds_text]
+            labels_text = [normalize_text(l) for l in labels_text]
+
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
                 logging.info(f"Input: `{inputs_text[0]}`")
@@ -1135,8 +1154,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                         f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                     )
                 filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+                output_dir = data_cfg.get("output_dir", "./")
                 self.write_predictions_to_file(
-                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}", output_dir
                 )
 
             torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
@@ -1196,8 +1216,10 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         return averaged_loss
 
     # consistent with speech models
-    def write_predictions_to_file(self, outputs, output_file_path_prefix):
+    def write_predictions_to_file(self, outputs, output_file_path_prefix, output_dir):
+        os.makedirs(output_dir, exist_ok=True)
         output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
+        output_file_path = os.path.join(output_dir, output_file_path)
         with open(output_file_path, "w") as f_json:
             assert (
                 len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['metadata'])
