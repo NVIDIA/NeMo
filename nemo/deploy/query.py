@@ -14,14 +14,31 @@
 
 import logging
 import typing
+from abc import ABC, abstractmethod
 
 import numpy as np
 from pytriton.client import ModelClient
-
+from .tensorrt_llm_backend.client import HttpTritonClient
 from .utils import str_list2numpy
 
 
-class NemoQuery:
+class NemoQueryBase(ABC):
+    def __init__(self, url, model_name):
+        self.url = url
+        self.model_name = model_name
+
+    def query_llm(
+            self,
+            prompts,
+            max_output_token=512,
+            top_k=1,
+            top_p=0.0,
+            temperature=1.0,
+            init_timeout=600.0,
+    ):
+        pass
+
+class NemoQuery(NemoQueryBase):
     """
     Sends a query to Triton for LLM inference
 
@@ -42,8 +59,10 @@ class NemoQuery:
     """
 
     def __init__(self, url, model_name):
-        self.url = url
-        self.model_name = model_name
+        super().__init__(
+            url=url,
+            model_name=model_name,
+        )
 
     def query_llm(
             self,
@@ -87,3 +106,38 @@ class NemoQuery:
             return sentences
         else:
             return result_dict["outputs"]
+
+
+
+class NemoQueryTensorRTLLM(NemoQueryBase):
+
+    def __init__(self, url, model_name):
+        super().__init__(
+            url=url,
+            model_name=model_name,
+        )
+
+    def query_llm(
+            self,
+            prompt,
+            max_output_token=512,
+            top_k=1,
+            top_p=0.0,
+            temperature=1.0,
+            init_timeout=600.0,
+    ):
+
+        pload = {
+            'prompt':[[prompt]], 
+            'tokens':100,
+            'temperature':1.0,
+            'top_k':1,
+            'top_p':0,
+            'beam_width':1,
+            'repetition_penalty':1.0,
+            'length_penalty':1.0
+        }
+
+        client = HttpTritonClient(self.url) 
+        result = client.request(self.model_name, **pload)
+        return result
