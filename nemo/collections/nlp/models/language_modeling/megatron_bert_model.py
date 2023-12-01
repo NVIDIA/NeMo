@@ -70,6 +70,7 @@ except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
 
+
 class MegatronBertModel(MegatronBaseModel):
     """
     Megatron Bert pretraining.
@@ -174,7 +175,8 @@ class MegatronBertModel(MegatronBaseModel):
 
         if self.mcore_bert:
             from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
-            from megatron.core.models.bert.bert_model import BertModel as MCoreBertModel 
+            from megatron.core.models.bert.bert_model import BertModel as MCoreBertModel
+
             model = MCoreBertModel(
                 config=self.transformer_config,
                 transformer_layer_spec=bert_layer_with_transformer_engine_spec,
