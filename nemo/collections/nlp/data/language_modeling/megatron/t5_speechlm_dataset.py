@@ -37,9 +37,46 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     get_base_dir,
 )
 from nemo.utils import logging
+from dataclasses import dataclass
+from omegaconf import DictConfig, OmegaConf, open_dict
+from hydra.utils import instantiate
+
 
 __all__ = ['T5SpeechLMDataset']
 
+@dataclass
+class G2PConfig:
+    _target_: str = "nemo.collections.tts.g2p.models.en_us_arpabet.EnglishG2p"
+    phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
+    heteronyms: str = "scripts/tts_dataset_files/heteronyms-052722"
+    phoneme_probability: float = 0.5
+
+@dataclass
+class TextTokenizer:
+    _target_: str = "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
+    punct: bool = True
+    stresses: bool = True
+    chars: bool = True
+    apostrophe: bool = True
+    pad_with_space: bool = True
+    add_blank_at: bool = True
+    g2p: G2PConfig = G2PConfig()
+
+@dataclass
+class TextTokenizerConfig:
+    text_tokenizer: TextTokenizer = TextTokenizer()
+
+def _get_default_text_tokenizer_conf():
+    text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
+    return OmegaConf.create(OmegaConf.to_yaml(text_tokenizer))
+
+def pad_text_to_speech_dims(text_tensor, pad_id):
+    token_len = text_tensor.shape[0]
+    empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
+    return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
+
+tokenizer_config = _get_default_text_tokenizer_conf()
+phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
 
 def pad_text_to_speech_dims(text_tensor, pad_id):
     token_len = text_tensor.shape[0]
@@ -85,6 +122,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         use_attention_prior: Optional[bool] = False,
         attention_prior_scaling_factor: Optional[float] = 1.0,
         cross_attention_epsilon: Optional[float] = 0.0,
+        lm_vocab_size: Optional[int] = 30000,
         **kwargs,
     ):
         """
@@ -99,6 +137,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         pitch_augment: bool = False, - speech parameter
         sup_data_path: Optional[Union[Path, str]] = None, - Supplementary folder path where codecs are stored.
         speech_offset: Optional[int] = None, - if speech tokens then add this offset to the token indices to distinguish between text and speech tokens.
+        lm_vocab_size: Optional[int] = 30000, - vocab size of the original language model (phoneme tokens start from this index)
         **kwargs,
         """
         # These two variables need to be set before calling super().__init__() because the parent class calls `load_data()` which requires these attributes.
@@ -126,6 +165,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         self.attention_prior_scaling_factor = attention_prior_scaling_factor
         self.cross_attention_epsilon = cross_attention_epsilon  # value of prior for context tokens (b/w 0 and 1)
         assert self.cross_attention_epsilon >= 0.0 and self.cross_attention_epsilon <= 1.0
+        self.lm_vocab_size = lm_vocab_size
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
@@ -220,7 +260,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 approx_context_len = doc["answer_duration"] * 76
             elif "Extract Speaker Audio" in question_in_manifest:
                 approx_context_len = doc["answer_duration"] * 76 + 400  # 400 is the max ref speaker audio
-            elif "Text to speech this" in question_in_manifest:
+            elif ("Text to speech this" in question_in_manifest) or ('Phoneme TTS' in question_in_manifest):
                 approx_context_len = 400  # Max length of Ref TTS audio
             elif "Edit Speech" in question_in_manifest:
                 approx_context_len = doc["answer_duration"] * 76
@@ -228,6 +268,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 raise NotImplementedError(f"Unknown context type {doc['context_type']}")
 
             approx_question_len = len(doc["question"].split(' ')) + 3
+            if 'Phoneme TTS' in question_in_manifest:
+                # approx len is equal to num of characters
+                approx_question_len = len(question_in_manifest)
 
             if doc["answer_type"] in ["SPEECH", "AUDIOCODEC"]:
                 assert "answer_duration" in doc, f"answer_duration key not in document {doc}"
@@ -490,6 +533,11 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
     def _get_text_tokens(self, text):
         input_ids = self.tokenizer.text_to_ids(text)
         return input_ids
+    
+    def _get_phoneme_tokens(self, text):
+        input_ids = phoneme_tokenizer.encode(text)
+        input_ids_adjusted = [_id + self.lm_vocab_size for _id in input_ids]
+        return input_ids_adjusted
 
     def _pad_wav_to_multiple(self, wav):
         if self.pad_multiple > 1:
@@ -606,11 +654,17 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         return codec_codes
 
     def _get_tokens(self, doc, field, field_data):
-        rng = random.Random()  # Custom random generator (since random uses fixed seeds)
+        rng = random.Random() # Custom random generator (since random uses fixed seeds)
         if f"{field}_type" not in doc.keys():
             field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
         elif doc[f"{field}_type"] == 'TEXT':
-            field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
+            _text = field_data.strip(" ")
+            if _text.startswith("Phoneme TTS"):
+                instruction_tokens = self._get_text_tokens("Phoneme TTS")
+                field_tokens = self._get_phoneme_tokens(_text.replace("Phoneme TTS ", ""))
+                field_tokens = instruction_tokens + field_tokens
+            else:
+                field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
         elif doc[f"{field}_type"] == 'SPEECH':
             dur = -1
             if f"{field}_duration" in doc:
@@ -648,10 +702,10 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         elif doc[f"{field}_type"] == 'EDITINGCODECS':
             reference_audio_path = field_data
             reference_codec = torch.load(reference_audio_path).long()
-            assert reference_codec.shape[1] > 80  # ensure reference audio is atleast 1 second
-            mask_len = rng.randint(40, 320)  # ~0.5 second to 4 seconds
-            mask_len = min(mask_len, reference_codec.shape[1] - 80)
-            mask_start = rng.randint(0, reference_codec.shape[1] - mask_len)
+            assert reference_codec.shape[1] > 80 # ensure reference audio is atleast 1 second
+            mask_len = rng.randint(40, 320) # ~0.5 second to 4 seconds
+            mask_len = min(mask_len, reference_codec.shape[1]-80)
+            mask_start = rng.randint(0, reference_codec.shape[1]-mask_len)
             mask_end = mask_start + mask_len
             mask_tokens = (torch.ones(8, 8) * 1023).long()
             seg1 = reference_codec[:, :mask_start]
@@ -663,7 +717,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         else:
             raise Exception(f"{field}_type not recognized")
         return field_tokens
-
+    
     def _insert_data_in_template(self, input_example, prompt_template_fields, doc, answer_field):
         """ Format the input example according to the template """
         out_dict = {}

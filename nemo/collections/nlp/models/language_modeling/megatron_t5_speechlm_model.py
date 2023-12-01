@@ -28,7 +28,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset, phoneme_tokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_tarred_dataset import T5SpeechLMTarredDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
@@ -107,6 +107,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         attn_prior_end_step = cfg.get('attn_prior_end_step', 11000)
         return_all_crossattention_probs = cfg.get('return_all_crossattention_probs', False)
         num_cross_attention_heads = cfg.get('num_cross_attention_heads', 12)
+        self.lm_vocab_size = cfg.get('lm_vocab_size', 30000)
 
         self.speech_offset = speech_offset
         self.speech_codebook_size = speech_codebook_size
@@ -201,6 +202,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
+            # import ipdb; ipdb.set_trace()
             input_embeds = self.get_embeddings_and_combine(
                 [virtual_tokens, context_and_question_tokens], taskname_ids, inference
             )
@@ -418,7 +420,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                 for i in range(context_and_question_tokens.shape[2])
                             ]
                             input_token_list = [
-                                (ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < 30000
+                                (ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < self.speech_offset
                             ]
                             context_end_step = input_token_list[0][0]
                             _context_tokens = context_and_question_tokens[0][:, :context_end_step].clone()
@@ -433,8 +435,13 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                 input_token_list[0][0] + virtual_tokens.shape[1] + 4
                             )  # 4 to offset "Text to Speech this"
                             question_ei = input_token_list[-1][0] + virtual_tokens.shape[1]
-                            input_text = self.frozen_model.tokenizer.ids_to_text([v[1] for v in input_token_list])
+                            input_text = self.frozen_model.tokenizer.ids_to_text([v[1] for v in input_token_list if v[1] < self.lm_vocab_size])
                             self.logger.experiment.add_text("Input Text", input_text, self.global_step)
+
+                            input_phoneme_tokens = [v[1] - self.lm_vocab_size for v in input_token_list if v[1] >= self.lm_vocab_size]
+                            if len(input_phoneme_tokens) > 0:
+                                phoneme_text = phoneme_tokenizer.decode(input_phoneme_tokens)
+                                self.logger.experiment.add_text("Input Phoneme Text", phoneme_text, self.global_step)
 
                             token_logits = out_logits[0]
                             speech_logits_list = out_logits[1]
@@ -473,7 +480,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             speech_logits = torch.stack(speech_logits_list, dim=-1)  # (t, b, 1024, 7)
                             token_logits_example = token_logits[:, 0, :] * 1
                             speech_logits_example = speech_logits[:, 0, :, :] * 1
-                            first_layer_tokens = token_logits_example.argmax(dim=1) - 30000
+                            first_layer_tokens = token_logits_example.argmax(dim=1) - self.speech_offset
                             other_layer_tokens = []
                             for _i in range(speech_logits_example.shape[2]):
                                 other_layer_tokens.append(speech_logits_example[:, :, _i].argmax(dim=1))
@@ -1149,7 +1156,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         context_and_question_tokens[i, 0, j].item()
                         for j in range(context_and_question_tokens.shape[2])
                     ]
-                    input_token_list = [(ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < 30000]
+                    input_token_list = [(ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < self.speech_offset]
                     context_end_step = input_token_list[0][0]
                     _context_tokens = context_and_question_tokens[i][:, :context_end_step].clone()
                     _context_tokens[0] = _context_tokens[0] - self.speech_offset
@@ -1157,9 +1164,14 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     _context_wav = self.additional_models['encodec'].decode([[_context_tokens[None], None]])[0, 0]
                     self.logger.experiment.add_audio("Context Wav", _context_wav, step, 24000)
 
-                    tast_question = self.frozen_model.tokenizer.ids_to_text([v[1] for v in input_token_list])
-                    self.logger.experiment.add_text("Task Question", tast_question, step)
+                    task_question = self.frozen_model.tokenizer.ids_to_text([v[1] for v in input_token_list if v[1] < self.lm_vocab_size])
+                    self.logger.experiment.add_text("Task Question", task_question, step)
 
+                    task_question_phoneme_tokens = [v[1] - self.lm_vocab_size for v in input_token_list if v[1] >= self.lm_vocab_size]
+                    if len(task_question_phoneme_tokens) > 0:
+                        phoneme_text = phoneme_tokenizer.decode(task_question_phoneme_tokens)
+                        self.logger.experiment.add_text("Task Question Phoneme Text", phoneme_text, step)
+                    
                     # store predicted_tokens for each layer to compute token error rate
                     for layer_idx in range(8):
                         ter_dict[layer_idx]['hypothesis'].append(predicted_tokens[layer_idx].cpu().numpy().tolist())
