@@ -15,6 +15,7 @@
 import copy
 import json
 import random
+from dataclasses import dataclass
 from itertools import filterfalse
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
@@ -22,6 +23,8 @@ from typing import Callable, Dict, List, Optional, Union
 import numpy as np
 import torch
 from encodec import EncodecModel
+from hydra.utils import instantiate
+from omegaconf import DictConfig, OmegaConf, open_dict
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -37,12 +40,9 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     get_base_dir,
 )
 from nemo.utils import logging
-from dataclasses import dataclass
-from omegaconf import DictConfig, OmegaConf, open_dict
-from hydra.utils import instantiate
-
 
 __all__ = ['T5SpeechLMDataset']
+
 
 @dataclass
 class G2PConfig:
@@ -50,6 +50,7 @@ class G2PConfig:
     phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
     heteronyms: str = "scripts/tts_dataset_files/heteronyms-052722"
     phoneme_probability: float = 0.5
+
 
 @dataclass
 class TextTokenizer:
@@ -62,21 +63,26 @@ class TextTokenizer:
     add_blank_at: bool = True
     g2p: G2PConfig = G2PConfig()
 
+
 @dataclass
 class TextTokenizerConfig:
     text_tokenizer: TextTokenizer = TextTokenizer()
 
+
 def _get_default_text_tokenizer_conf():
     text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
     return OmegaConf.create(OmegaConf.to_yaml(text_tokenizer))
+
 
 def pad_text_to_speech_dims(text_tensor, pad_id):
     token_len = text_tensor.shape[0]
     empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
     return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
+
 tokenizer_config = _get_default_text_tokenizer_conf()
 phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
+
 
 def pad_text_to_speech_dims(text_tensor, pad_id):
     token_len = text_tensor.shape[0]
@@ -533,7 +539,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
     def _get_text_tokens(self, text):
         input_ids = self.tokenizer.text_to_ids(text)
         return input_ids
-    
+
     def _get_phoneme_tokens(self, text):
         input_ids = phoneme_tokenizer.encode(text)
         input_ids_adjusted = [_id + self.lm_vocab_size for _id in input_ids]
@@ -654,7 +660,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         return codec_codes
 
     def _get_tokens(self, doc, field, field_data):
-        rng = random.Random() # Custom random generator (since random uses fixed seeds)
+        rng = random.Random()  # Custom random generator (since random uses fixed seeds)
         if f"{field}_type" not in doc.keys():
             field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
         elif doc[f"{field}_type"] == 'TEXT':
@@ -702,10 +708,10 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         elif doc[f"{field}_type"] == 'EDITINGCODECS':
             reference_audio_path = field_data
             reference_codec = torch.load(reference_audio_path).long()
-            assert reference_codec.shape[1] > 80 # ensure reference audio is atleast 1 second
-            mask_len = rng.randint(40, 320) # ~0.5 second to 4 seconds
-            mask_len = min(mask_len, reference_codec.shape[1]-80)
-            mask_start = rng.randint(0, reference_codec.shape[1]-mask_len)
+            assert reference_codec.shape[1] > 80  # ensure reference audio is atleast 1 second
+            mask_len = rng.randint(40, 320)  # ~0.5 second to 4 seconds
+            mask_len = min(mask_len, reference_codec.shape[1] - 80)
+            mask_start = rng.randint(0, reference_codec.shape[1] - mask_len)
             mask_end = mask_start + mask_len
             mask_tokens = (torch.ones(8, 8) * 1023).long()
             seg1 = reference_codec[:, :mask_start]
@@ -717,7 +723,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         else:
             raise Exception(f"{field}_type not recognized")
         return field_tokens
-    
+
     def _insert_data_in_template(self, input_example, prompt_template_fields, doc, answer_field):
         """ Format the input example according to the template """
         out_dict = {}
