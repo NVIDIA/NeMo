@@ -19,11 +19,12 @@ from omegaconf import DictConfig
 try:
     from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
         MCoreGPTEmbeddingMixin,
+        MCoreMLPMixin,
         MCoreSelfAttentionMixin,
         MCoreTransformerLayerMixin,
     )
 except (ImportError, ModuleNotFoundError):
-    MCoreGPTEmbeddingMixin = MCoreSelfAttentionMixin = MCoreTransformerLayerMixin = None
+    MCoreGPTEmbeddingMixin = MCoreSelfAttentionMixin = MCoreTransformerLayerMixin = MCoreMLPMixin = None
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -124,6 +125,11 @@ class IA3PEFTConfig(PEFTConfig):
             AdapterName.KEY_INFUSED: infused_adapter_cfg,
             AdapterName.VALUE_INFUSED: infused_adapter_cfg,
             AdapterName.MLP_INFUSED: mlp_infused_adapter_cfg,
+        }
+        self.name_key_to_mcore_mixins = {
+            AdapterName.KEY_INFUSED: [("self_attention", MCoreSelfAttentionMixin)],
+            AdapterName.VALUE_INFUSED: [("self_attention", MCoreSelfAttentionMixin)],
+            AdapterName.MLP_INFUSED: [("mlp", MCoreMLPMixin)],
         }
 
         super().__init__(cfg.peft.ia3_tuning, name_key_to_cfg)
