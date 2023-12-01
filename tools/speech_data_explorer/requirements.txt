@@ -8,3 +8,5 @@ numpy
 plotly
 SoundFile
 tqdm
+pandas
+-c https://pypi.nvidia.com/simple cudf-cu11
