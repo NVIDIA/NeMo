@@ -504,6 +504,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         loss_mask = [self._build_loss_mask(item) for item in batch]
 
+        max_length = max(len(l) for l in input_ids)
+        max_length = self._ceil_to_nearest(max_length, 16)
+
         position_ids: List[List[int]] = []
         cu_seqlens: List[List[int]] = []
         for item in batch:
@@ -514,12 +517,13 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                 # length minus 1 because input_ids is truncated by 1 for labels
                 position_ids[-1].extend(list(range(l - 1)))
                 cu_seqlens[-1].append(cu_seqlens[-1][-1] + l - 1)
+            # set last seq to the max seq len because rope and attn kernels expect no padding
+            cu_seqlens[-1][-1] = max_length
 
         assert len(input_ids[0]) == len(
             position_ids[0]
         ), "Dataset problem: input_ids and position_ids lengths don't match"
-        max_length = max(len(l) for l in input_ids)
-        max_length = self._ceil_to_nearest(max_length, 16)
+
         cu_seqlens = self._collate_item(cu_seqlens, max_length=max(len(l) for l in cu_seqlens) + 1, pad_id=-1)
         input_ids = self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
         labels = self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id)
