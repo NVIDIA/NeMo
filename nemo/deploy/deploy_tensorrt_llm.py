@@ -15,10 +15,10 @@
 
 from pytriton.model_config import ModelConfig, Tensor
 from pytriton.triton import Triton, TritonConfig
-from .deploy_base import DeployBase
+from nemo.deploy.deploy_base import DeployBase
+from nemo.deploy.tensorrt_llm_backend.server import ModelServer
 
-
-class DeployPyTriton(DeployBase):
+class DeployTensorRTLLM(DeployBase):
 
     """
     Deploys any models to Triton Inference Server that implements ITritonDeployable interface in nemo.deploy.
@@ -34,7 +34,7 @@ class DeployPyTriton(DeployBase):
             n_gpus=1,
         )
 
-        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name="model_name", port=8000)
+        nm = DeployTensorRTLLM(model=trt_llm_exporter, triton_model_name="model_name", port=8000)
         nm.deploy()
         nm.run()
         nq = NemoQuery(url="localhost", model_name="model_name")
@@ -77,6 +77,7 @@ class DeployPyTriton(DeployBase):
             max_batch_size (int): max batch size
             port (int) : port for the Triton server
             http_address (str): http address for Triton server to bind.
+
         """
 
         super().__init__(
@@ -95,20 +96,11 @@ class DeployPyTriton(DeployBase):
         Deploys any models to Triton Inference Server.
         """
 
-        breakpoint()
-        self._init_nemo_model()
+
+        ## create config here
 
         try:
-            triton_config = TritonConfig(http_address=self.http_address, http_port=self.port)
-            self.triton = Triton(config=triton_config)
-            self.triton.bind(
-                model_name=self.triton_model_name,
-                model_version=self.triton_model_version,
-                infer_func=self.model.triton_infer_fn,
-                inputs=self.model.get_triton_input,
-                outputs=self.model.get_triton_output,
-                config=ModelConfig(max_batch_size=self.max_batch_size),
-            )
+            self.triton=ModelServer(self.model, http=True)
         except Exception as e:
             self.triton = None
             print(e)
@@ -119,14 +111,7 @@ class DeployPyTriton(DeployBase):
         Starts serving the model and waits for the requests
         """
 
-        if self.triton is None:
-            raise Exception("deploy should be called first.")
-
-        try:
-            self.triton.serve()
-        except Exception as e:
-            self.triton = None
-            print(e)
+        raise NotImplementedError("Not implemented")
 
     def run(self):
 
@@ -143,8 +128,4 @@ class DeployPyTriton(DeployBase):
         """
         Stops serving the model.
         """
-
-        if self.triton is None:
-            raise Exception("deploy should be called first.")
-
         self.triton.stop()

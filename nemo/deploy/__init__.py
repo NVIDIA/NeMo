@@ -14,5 +14,6 @@
 
 from .deploy_base import DeployBase
 from .deploy_pytriton import DeployPyTriton
-from .query import NemoQuery
+from .deploy_tensorrt_llm import DeployTensorRTLLM
+from .query import NemoQuery, NemoQueryTensorRTLLM
 from .triton_deployable import ITritonDeployable
