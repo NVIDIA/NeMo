@@ -77,15 +77,15 @@ Once you have :ref:`installed NeMo <installation>`, then you can run the code be
     import soundfile as sf
     sf.write("output_audio.wav", audio.to('cpu').detach().numpy()[0], 22050)
 
-You can learn more by about specific tasks you are interested in by checking out the NeMo :doc:`tutorials <./tutorials>`, or documentation (e.g. read :doc:`here <../asr/intro>` to learn more about ASR).
+As you can see, you can do simple inference with NeMo models in a few lines of Python. For cases when you wish to run inference on a lot of files, and do not wish to write the Python code for it yourself, we have a lot of inference scripts available which in the `examples directory <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ of the NeMo repository.
 
-You can also learn more about NeMo in the `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`_ tutorial, which introduces NeMo, PyTorch Lightning, and OmegaConf, and shows how to use, modify, save, and restore NeMo models. Additionally, the `NeMo Models <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`__ tutorial explains the fundamentals of how NeMo models are created. These concepts are also explained in detail in the :doc:`NeMo Core <../core/core>` documentation.
+Learn more
+----------
 
-
-Introductory videos
--------------------
-
-See the two introductory videos below for a high level overview of NeMo.
+* read the :doc:`NeMo Fundamentals <./fundamentals>` tutorial to better understand NeMo. 
+* dive into the notebook :doc:`tutorials <./tutorials>` for specific tasks.
+* explore the documentation for the domain you are interested in (e.g. read :doc:`here <../asr/intro>` to learn more about ASR).
+* watch the two introductory videos below for a high level overview of NeMo.
 
 **Developing State-Of-The-Art Conversational AI Models in Three Lines of Code**
 

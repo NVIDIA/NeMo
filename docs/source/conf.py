@@ -115,6 +115,7 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_copybutton",
     "sphinxext.opengraph",
+    "sphinx_toolbox.collapse",
 ]
 
 bibtex_bibfiles = [
@@ -129,7 +130,7 @@ bibtex_bibfiles = [
 
 intersphinx_mapping = {
     'pytorch': ('https://pytorch.org/docs/stable', None),
-    'pytorch-lightning': ('https://pytorch-lightning.readthedocs.io/en/latest/', None),
+    'pytorch-lightning': ('https://lightning.ai/docs/pytorch/stable/', None),
 }
 
 # Set default flags for all classes.

@@ -7,7 +7,7 @@ NVIDIA NeMo User Guide
    :name: starthere
 
    starthere/intro
-   starthere/basics
+   starthere/fundamentals
    starthere/tutorials
    starthere/best-practices
    starthere/migration-guide

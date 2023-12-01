@@ -594,6 +594,8 @@ as shown below we can update this config prior to restoring the model.
     # OR
     model = model_class.from_pretrained('name_of_the_model', override_config_path=config)
 
+.. _core-register-artifacts:
+
 Register Artifacts
 ------------------
 
