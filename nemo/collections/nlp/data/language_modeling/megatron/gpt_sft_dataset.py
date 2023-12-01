@@ -477,7 +477,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                     for i in range(len(seq_boundaries) - 1)
                 ]
             )
-        return [1.0] * len(processed_example['input_ids'])
+        return [1.0] * (len(processed_example['input_ids']) - len(processed_example['seq_boundaries']))
 
     def _maybe_cast_to_list(self, x):
         return [item.tolist() if isinstance(item, np.ndarray) else item for item in x]
