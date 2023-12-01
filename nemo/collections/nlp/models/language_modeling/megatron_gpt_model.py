@@ -1550,7 +1550,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if fp16_enabled:
                 os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "1"
             else:
-                logging.warning("apply_query_key_layer_scaling is only enabled when using FP16, setting it to False")
+                logging.warning(
+                    "apply_query_key_layer_scaling is only enabled when using FP16, setting it to False "
+                    "and setting NVTE_APPLY_QK_LAYER_SCALING=0"
+                )
+                os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "0"
                 apply_query_key_layer_scaling = False
 
         if apply_query_key_layer_scaling:
