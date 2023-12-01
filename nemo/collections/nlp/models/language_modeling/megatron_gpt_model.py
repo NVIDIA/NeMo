@@ -16,7 +16,7 @@ import itertools
 import os
 import queue
 import warnings
-from dataclasses import dataclass, fields
+from dataclasses import fields
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
 

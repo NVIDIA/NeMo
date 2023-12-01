@@ -84,6 +84,11 @@ model:
   overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   num_query_groups: 1 # Number of query groups for group query attention. If None, normal attention is used. | 7b: 1 | 40b: 8 | 180b: 8
+  gc_interval: 0
+  precision: bf16
+  mcore_customization_config:
+    new_decoder_architecture: false
+    parallel_attention: true
   
   tokenizer:
     library: 'huggingface'
@@ -153,7 +158,6 @@ model:
   sequence_parallel: False
 
   ## Transformer Engine
-  transformer_engine: True
   fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3 
   fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
@@ -202,7 +206,7 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
   
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
     lr: 2e-4
     weight_decay: 0.01 
     betas: 
@@ -213,10 +217,3 @@ model:
       warmup_steps: 500
       constant_steps: 50000
       min_lr: 2e-5
-gc_interval: 0
-precision: bf16
-mcore_customization_config:
-  new_decoder_architecture: false
-  parallel_attention: true
-target: nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel
-nemo_version: 1.21.0rc0

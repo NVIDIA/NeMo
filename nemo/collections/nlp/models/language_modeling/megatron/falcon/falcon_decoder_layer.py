@@ -89,7 +89,6 @@ class FalconTransformerLayer(BaseLayer):
             self.parallel_attention = None
 
         ## [Module 1: Input Layernorm] Optional Layernorm on the input data
-        # TODO: add pytorch only layernorm
         self.input_layernorm = build_module(
             submodules.input_layernorm,
             config=self.config,
@@ -123,8 +122,8 @@ class FalconTransformerLayer(BaseLayer):
             )
 
         ## [Module 5: pre mlp layernorm] Optional Layernorm before MLP, used in Falcon's new decoder architecture
-        self.pre_mlp_layernorm = (
-            build_module(
+        if self.new_decoder_architecture:
+            self.pre_mlp_layernorm = build_module(
                 submodules.pre_mlp_layernorm,
                 config=self.config,
                 hidden_size=self.config.hidden_size,
@@ -134,9 +133,8 @@ class FalconTransformerLayer(BaseLayer):
                 zero_centered_gamma=self.config.layernorm_zero_centered_gamma,
                 normalization=self.config.normalization,
             )
-            if self.new_decoder_architecture
-            else None
-        )
+        else:
+            self.pre_mlp_layernorm = None
 
         ## [Module 6: MLP block]
         self.mlp = build_module(submodules.mlp, config=self.config)
@@ -144,12 +142,6 @@ class FalconTransformerLayer(BaseLayer):
         ## [Module 7: BiasDropoutFusion] Optional
         self.mlp_bda = build_module(submodules.mlp_bda)
 
-        # @jcasper how should we handle nvfuser?
-        # Set bias+dropout+add fusion grad_enable execution handler.
-        # TORCH_MAJOR = int(torch.__version__.split('.')[0])
-        # TORCH_MINOR = int(torch.__version__.split('.')[1])
-        # use_nvfuser = TORCH_MAJOR > 1 or (TORCH_MAJOR == 1 and TORCH_MINOR >= 10)
-        # self.bias_dropout_add_exec_handler = nullcontext if use_nvfuser else torch.enable_grad
         self.bias_dropout_add_exec_handler = torch.enable_grad
 
     def forward(
@@ -182,8 +174,6 @@ class FalconTransformerLayer(BaseLayer):
             rotary_pos_emb=rotary_pos_emb,
         )
 
-        # TODO: could we move `bias_dropout_add_exec_handler` itself
-        # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
             hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
                 attention_output_with_bias, residual, self.config.hidden_dropout
@@ -208,26 +198,17 @@ class FalconTransformerLayer(BaseLayer):
             mlp_output_without_bias = mlp_output + attn_output
             mlp_output_with_bias = (mlp_output_without_bias, None)
 
-        # TODO: could we move `bias_dropout_add_exec_handler` itself
-        # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
             hidden_states = self.mlp_bda(self.training, self.config.bias_dropout_fusion)(
                 mlp_output_with_bias, residual, self.config.hidden_dropout
             )
 
-        # Jit compiled function creates 'view' tensor. This tensor
-        # potentially gets saved in the MPU checkpoint function context,
-        # which rejects view tensors. While making a viewless tensor here
-        # won't result in memory savings (like the data loader, or
-        # p2p_communication), it serves to document the origin of this
-        # 'view' tensor.
         output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
 
         return output, context
 
     def sharded_state_dict(self, prefix=''):
 
-        # state_dict = self.state_dict(prefix=prefix, keep_vars=True)
         state_dict = self.state_dict(keep_vars=True)
 
         tensor_parallel_layers_axis_map = {
