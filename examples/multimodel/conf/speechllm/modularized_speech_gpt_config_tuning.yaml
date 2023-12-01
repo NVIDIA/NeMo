@@ -92,7 +92,7 @@ model:
       init_std: 0.023
 
   data:
-    end_string: "~"
+    end_string: "[end_string]"
     audio_locator: "|audio|"
     train_ds:
       # Example of how to specify paths to multiple datasets
