@@ -60,8 +60,6 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
-    from megatron.core.models.bert.bert_model import BertModel as MCoreBertModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -71,7 +69,6 @@ try:
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
-
 
 class MegatronBertModel(MegatronBaseModel):
     """
@@ -176,7 +173,8 @@ class MegatronBertModel(MegatronBaseModel):
         num_tokentypes = 2 if cfg.bert_binary_head else 0
 
         if self.mcore_bert:
-            # TODO : Change transformer_layer_spec layer spec
+            from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
+            from megatron.core.models.bert.bert_model import BertModel as MCoreBertModel 
             model = MCoreBertModel(
                 config=self.transformer_config,
                 transformer_layer_spec=bert_layer_with_transformer_engine_spec,
