@@ -93,10 +93,15 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
         if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
             self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
-        imported_cls = model_utils.import_class_by_path(cfg.perception.target)
-        self.perception = imported_cls(
-            cfg=cfg.perception, pretrained_audio_model=cfg.pretrained_audio_model, llm_tokenizer=self.tokenizer
-        )
+        if 'target' in cfg.perception:
+            imported_cls = model_utils.import_class_by_path(cfg.perception.target)
+            self.perception = imported_cls(
+                cfg=cfg.perception, pretrained_audio_model=cfg.pretrained_audio_model, llm_tokenizer=self.tokenizer
+            )
+        else:
+            imported_cls = AudioPerceptionModel
+            self.perception = imported_cls(cfg=cfg.perception)
+
         self.setup_optimizer_param_groups()
         self.configure_optimizers()
         self.summarize(max_depth=3)

@@ -380,6 +380,7 @@ class ALMAudioTextCollection(ALMAudioText):
         random_context_positive_percent: Optional[float] = 0.1,
         include_voice_name: Optional[bool] = False,
         speech_prompt_in_middle: Optional[bool] = False,
+        overwrite_question: Optional[bool] = False,
         *args,
         **kwargs,
     ):
@@ -423,6 +424,7 @@ class ALMAudioTextCollection(ALMAudioText):
         self.random_context = []
         self.include_voice_name = include_voice_name
         self.speech_prompt_in_middle = speech_prompt_in_middle
+        self.overwrite_question = overwrite_question
 
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
@@ -484,7 +486,7 @@ class ALMAudioTextCollection(ALMAudioText):
             item['answer'] = " ".join([i['str'] for i in item['answer']])
 
         # Question.
-        if 'question' in item:
+        if 'question' in item and not self.overwrite_question:
             pass
         elif 'question_filepath' in item:
             with open(item.pop('text_filepath'), 'r') as f:

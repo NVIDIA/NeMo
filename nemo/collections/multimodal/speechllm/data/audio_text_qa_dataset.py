@@ -511,6 +511,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         include_voice_name: Optional[bool] = False,
         random_context_positive_percent: Optional[float] = 0.1,
         speech_prompt_in_middle: Optional[bool] = False,
+        overwrite_question: Optional[bool] = False,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
         input_text_mask_ratio: Optional[float] = None,
@@ -557,6 +558,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             include_voice_name=include_voice_name,
             random_context_positive_percent=random_context_positive_percent,
             speech_prompt_in_middle=speech_prompt_in_middle,
+            overwrite_question=overwrite_question,
             random_context_prob=random_context_prob,
         )
 
@@ -914,6 +916,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         include_voice_name: Optional[bool] = False,
         random_context_positive_percent: Optional[float] = 0.1,
         speech_prompt_in_middle: Optional[bool] = False,
+        overwrite_question: Optional[bool] = False,
         sample_alpha: Optional[float] = None,
         input_text_mask_ratio: Optional[float] = None,
     ):
@@ -965,6 +968,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             include_voice_name=include_voice_name,
             random_context_positive_percent=random_context_positive_percent,
             speech_prompt_in_middle=speech_prompt_in_middle,
+            overwrite_question=overwrite_question,
         )
 
         self.len = self._compute_len()
@@ -1163,6 +1167,7 @@ class IterableTextDataset(TextProcessing, IterableDataset):
         include_voice_name: Optional[bool] = False,
         random_context_positive_percent: Optional[float] = 0.1,
         speech_prompt_in_middle: Optional[bool] = False,
+        overwrite_question: Optional[bool] = False,
         sample_alpha: Optional[float] = None,
         input_text_mask_ratio: Optional[float] = None,
         max_iter_num: Optional[int] = 1e9,
@@ -1216,6 +1221,7 @@ class IterableTextDataset(TextProcessing, IterableDataset):
             include_voice_name=include_voice_name,
             random_context_positive_percent=random_context_positive_percent,
             speech_prompt_in_middle=speech_prompt_in_middle,
+            overwrite_question=overwrite_question,
         )
 
         self.len = self._compute_len()
@@ -1324,6 +1330,7 @@ def get_tarred_aqa_dataset(
                 include_voice_name=config.get('include_voice_name', False),
                 random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
                 speech_prompt_in_middle=config.get('speech_prompt_in_middle', False),
+                overwrite_question=config.get('overwrite_question', False),
                 random_context_prob=config.get('random_context_prob', None),
                 max_iter_num=config.get('max_iter_num', 1e9),
             )
@@ -1370,6 +1377,7 @@ def get_tarred_aqa_dataset(
                 include_voice_name=config.get('include_voice_name', False),
                 random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
                 speech_prompt_in_middle=config.get('speech_prompt_in_middle', False),
+                overwrite_question=config.get('overwrite_question', False),
                 random_context_prob=config.get('random_context_prob', None),
             )
 
@@ -1582,6 +1590,7 @@ def get_aqa_dataset_from_config(
             include_voice_name=config.get('include_voice_name', False),
             random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
             speech_prompt_in_middle=config.get('speech_prompt_in_middle', False),
+            overwrite_question=config.get('overwrite_question', False),
             question_file=question_file,
             audio_locator=config.get('audio_locator', None),
         )
