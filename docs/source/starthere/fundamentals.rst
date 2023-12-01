@@ -119,11 +119,11 @@ Specifically, ``cfg`` (the config that is passed into our :ref:`Python training 
 
 .. collapse:: What exactly is an OmegaConf DictConfig object?
 
-	.. note:: OmegaConf DictConfig objects provide extra functionality beyond plain dictionaries such as ..., which are helpful for NeMo...
+	.. note:: OmegaConf DictConfig objects provide extra functionality beyond plain dictionaries such as [TODO] , which are helpful for NeMo ...[TODO]
 
 		Due to their similarity, it is easy to `convert <https://omegaconf.readthedocs.io/en/2.3_branch/usage.html#omegaconf-to-container>`_ from a DictConfig object to a dictionary, (and `vice versa <https://omegaconf.readthedocs.io/en/2.3_branch/usage.html#from-a-dictionary>`_).
 
-		(maybe handle fact that omegaconf docs are not explicit about how an 'omegaconf object' can be either a dictconfig or listconfig, or structuredconfig)
+		[TODO: maybe handle fact that omegaconf docs are not explicit about how an 'omegaconf object' can be either a dictconfig or listconfig, or structuredconfig]
 
 
  In the case of training scripts, all configs are expected to contain the entries ``model``, ``trainer`` and ``exp_manager``:
@@ -299,7 +299,16 @@ You have a few options:
 
 * dive in to `examples <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ or :doc:`tutorials <./tutorials>`
 * read docs of the collection (:doc:`ASR <../asr/intro>`, :doc:`NLP <../nlp/nemo_megatron/intro>`, :doc:`TTS <../tts/intro>`) you want to work with
-* learn more about the :doc:`fundamentals <../core/core>` of NeMo
+* learn more about the inner workings of NeMo:
 
-You can also learn more about NeMo in the `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`_ tutorial, which introduces NeMo, PyTorch Lightning, and OmegaConf, and shows how to use, modify, save, and restore NeMo models. Additionally, the `NeMo Models <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`__ tutorial explains the fundamentals of how NeMo models are created. These concepts are also explained in detail in the :doc:`NeMo Core <../core/core>` documentation.
+  * `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`_ notebook tutorial
+
+    * hands-on intro to NeMo, PyTorch Lightning, and OmegaConf
+    * shows how to use, modify, save, and restore NeMo models
+
+  * `NeMo Models <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`__ notebook tutorial 
+
+    * explains the fundamentals of how NeMo models are created
+
+  * :doc:`NeMo Core <../core/core>` documentation
 
