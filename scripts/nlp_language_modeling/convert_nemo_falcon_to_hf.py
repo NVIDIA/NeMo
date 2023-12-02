@@ -107,7 +107,6 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     try:
         dtype = torch_dtype_from_precision(precision)
     except ValueError as e:
-        # warning that {precision} is not supported, fallback to float32
         logging.warning(str(e) + f", precision string '{precision}' is not recognized, falling back to fp32")
         dtype = torch.float32  # fallback
 
