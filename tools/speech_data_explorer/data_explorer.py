@@ -46,7 +46,7 @@ from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 
 from sde.dataloader.dataset import Dataset
-from sde.dataloader.engines.cudf_engine import cuDF
+from sde.dataloader.engines.cudf_engine import CuDFEngine
 from sde.pages.statistics.plot import gpu_plot_histogram, gpu_plot_word_accuracy
 
 # number of items in a table per page
@@ -580,7 +580,7 @@ if args.gpu:
     if args.disable_caching_metrics:
         enable_pkl = False
 
-    cu_df = cuDF()
+    cu_df = CuDFEngine()
 
     dataset = Dataset(
         manifest_filepath=args.manifest,
