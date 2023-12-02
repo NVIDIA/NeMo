@@ -94,8 +94,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         else:
             base_module = self.model
 
+        # Set the profile start and end steps in the unit of global batach
+        if hasattr(self, '_nsys_profile_enabled'):
+            self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
+            self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
+
         self._reset_activation_checkpointing_args()
-        self._reset_sequence_parallelism_args()
         self.virtual_tokens = 0
 
     def setup_metric(self, data_cfg):
@@ -587,7 +591,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
         self._restore_activation_checkpointing_args()
-        self._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -810,7 +813,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def on_validation_epoch_start(self):
         self._reset_activation_checkpointing_args()
-        self._reset_sequence_parallelism_args()
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -823,7 +825,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def on_test_epoch_start(self):
         self._reset_activation_checkpointing_args()
-        self._reset_sequence_parallelism_args()
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
