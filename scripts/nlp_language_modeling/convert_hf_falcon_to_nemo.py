@@ -123,9 +123,7 @@ if __name__ == "__main__":
         required=True,
         help="Path to Falcon variants checkpoint from HuggingFace hub or local dir",
     )
-    parser.add_argument(
-        "--output", type=str, required=True, help="Path to dir where to store output .nemo file"
-    )
+    parser.add_argument("--output", type=str, required=True, help="Path to dir where to store output .nemo file")
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
