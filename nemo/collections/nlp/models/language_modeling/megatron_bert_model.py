@@ -458,7 +458,7 @@ class MegatronBertModel(MegatronBaseModel):
                     module.shared_embedding_or_output_weight() if self.mcore_bert else module.word_embeddings_weight()
                 )
 
-                if self.megatron_amp_o2:
+                if self.megatron_amp_O2:
                     # O2 recipe stores a "main" copy of weights and grads
                     grad = word_embeddings_weight.main_grad
                 else:
