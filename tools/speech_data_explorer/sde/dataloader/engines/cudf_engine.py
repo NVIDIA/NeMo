@@ -4,7 +4,7 @@ cudf.pandas.install()
 import pandas as pd
 
 
-class cuDF:
+class CuDFEngine:
     """
     A class representing a data engine utilizing cuDF for processing and analysis.
 
