@@ -21,6 +21,7 @@ from pytorch_lightning import Trainer
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 
@@ -50,9 +51,9 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file", type=str, default=None, required=True, help="Path to .nemo file",
+        "--in-file", type=str, required=True, help="Path to .nemo file",
     )
-    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to HF .bin file")
+    parser.add_argument("--out-file", type=str, required=True, help="Path to HF .bin file")
     parser.add_argument(
         "--hf-in-path",
         type=str,
@@ -92,6 +93,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         map_location = torch.device('cpu')
         model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
         model_config.use_cpu_initialization = True
+        model_config.tensor_model_parallel_size = 1
     else:
         map_location, model_config = None, None
 
@@ -102,19 +104,15 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     )
     if precision is None:
         precision = model.cfg.precision
-    if precision in [32, "32"]:
-        dtype = torch.float32
-    elif precision in [16, "16", "16-mixed"]:
-        dtype = torch.float16
-    elif precision in ["bf16", "bf16-mixed"]:
-        dtype = torch.bfloat16
-    else:
-        logging.warning(f"Precision string {precision} is not recognized, falling back to fp32")
+    try:
+        dtype = torch_dtype_from_precision(precision)
+    except ValueError as e:
+        # warning that {precision} is not supported, fallback to float32
+        logging.warning(str(e) + f", precision string '{precision}' is not recognized, falling back to fp32")
         dtype = torch.float32  # fallback
 
     param_to_weights = lambda param: param.to(dtype)
     checkpoint = OrderedDict()
-    checkpoint['state_dict'] = OrderedDict()
 
     def get_original_key(new_key):
         new_key = new_key[len(prefix) :]
@@ -148,7 +146,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         if '_extra_state' in key:
             continue
         orig_key = get_original_key(key)
-        checkpoint['state_dict'][orig_key] = param_to_weights(value)
+        checkpoint[orig_key] = param_to_weights(value)
 
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
     torch.save(checkpoint, output_hf_file)
@@ -159,7 +157,7 @@ def replace_hf_weights(weights_file, input_hf_path, output_hf_path):
     model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True)
     nemo_exported = torch.load(weights_file)
 
-    model.load_state_dict(nemo_exported['state_dict'])
+    model.load_state_dict(nemo_exported)
     model.save_pretrained(output_hf_path)
     logging.info(f"Full HF model saved to {output_hf_path}")
 

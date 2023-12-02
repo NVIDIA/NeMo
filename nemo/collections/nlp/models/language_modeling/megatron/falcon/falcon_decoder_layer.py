@@ -94,10 +94,6 @@ class FalconTransformerLayer(BaseLayer):
             config=self.config,
             hidden_size=self.config.hidden_size,
             eps=self.config.layernorm_epsilon,
-            persist_layer_norm=self.config.persist_layer_norm,
-            sequence_parallel=self.config.sequence_parallel,
-            zero_centered_gamma=self.config.layernorm_zero_centered_gamma,
-            normalization=self.config.normalization,
         )
 
         ## [Module 2: SelfAttention]
@@ -115,10 +111,6 @@ class FalconTransformerLayer(BaseLayer):
                 config=self.config,
                 hidden_size=self.config.hidden_size,
                 eps=self.config.layernorm_epsilon,
-                persist_layer_norm=self.config.persist_layer_norm,
-                sequence_parallel=self.config.sequence_parallel,
-                zero_centered_gamma=self.config.layernorm_zero_centered_gamma,
-                normalization=self.config.normalization,
             )
 
         ## [Module 5: pre mlp layernorm] Optional Layernorm before MLP, used in Falcon's new decoder architecture
@@ -128,10 +120,6 @@ class FalconTransformerLayer(BaseLayer):
                 config=self.config,
                 hidden_size=self.config.hidden_size,
                 eps=self.config.layernorm_epsilon,
-                persist_layer_norm=self.config.persist_layer_norm,
-                sequence_parallel=self.config.sequence_parallel,
-                zero_centered_gamma=self.config.layernorm_zero_centered_gamma,
-                normalization=self.config.normalization,
             )
         else:
             self.pre_mlp_layernorm = None
