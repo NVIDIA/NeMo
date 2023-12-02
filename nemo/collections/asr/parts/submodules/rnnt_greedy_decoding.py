@@ -38,35 +38,11 @@ from omegaconf import DictConfig, OmegaConf
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
+from nemo.collections.asr.parts.submodules.fast_rnnt_greedy_decoding import RNNTGreedyDecodeFast
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
-
-
-def create_for_loop_kernel(trip_count: int):
-    saxpy = """\
-    extern "C" __global__
-    void for_loop_conditional(int *count_ptr)
-    {
-     if (*count_ptr) {
-         (*count_ptr)--;
-     }
-
-     cudaGraphSetConditional(handle, *dPtr);
-
-
-     size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-     if (tid < n) {
-       out[tid] = a * x[tid] + y[tid];
-     }
-    }
-    """
-
-    
-
-    
-
 
 def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
 
@@ -571,6 +547,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        go_very_fast=False
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -582,13 +559,17 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             confidence_method_cfg=confidence_method_cfg,
         )
 
+        print("GALVEZ:go_very_fast", go_very_fast, self.decoder.blank_as_pad)
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
-        self._greedy_decode = self._greedy_decode_fast
-        # if self.decoder.blank_as_pad:
-        #     self._greedy_decode = self._greedy_decode_blank_as_pad
-        # else:
-        #     self._greedy_decode = self._greedy_decode_masked
+        if self.decoder.blank_as_pad and go_very_fast:
+            self._greedy_decode = RNNTGreedyDecodeFast(max_symbols_per_step, torch.device("cuda"))
+        elif self.decoder.blank_as_pad:
+            self._greedy_decode = self._greedy_decode_blank_as_pad
+        else:
+            self._greedy_decode = self._greedy_decode_masked
+
+        print("GALVEZ:", self._greedy_decode)
 
     @typecheck()
     def forward(
@@ -622,9 +603,16 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
-                hypotheses = self._greedy_decode(
-                    inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
-                )
+                # inseq = inseq[:, :5, :]
+                # logitlen.fill_(5)
+                if isinstance(self._greedy_decode, RNNTGreedyDecodeFast):
+                    hypotheses = self._greedy_decode(
+                        self, inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
+                    )
+                else:
+                    hypotheses = self._greedy_decode(
+                        inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
+                    )
 
             # Pack the hypotheses results
             packed_result = pack_hypotheses(hypotheses, logitlen)
@@ -724,14 +712,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Get index k, of max prob for batch
                     v, k = logp.max(1)
-                    del g
 
                     # Update blank mask with current predicted blanks
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
                     k_is_blank = k == self._blank_index
                     blank_mask.bitwise_or_(k_is_blank)
-
-                    del k_is_blank
 
                     # If preserving alignments, check if sequence length of sample has been reached
                     # before adding alignment
@@ -756,12 +741,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         for batch_idx, is_blank in enumerate(blank_mask):
                             if time_idx < out_len[batch_idx] and (not blank_mask_prev[batch_idx] or not is_blank):
                                 hypotheses[batch_idx].frame_confidence[-1].append(confidence[batch_idx])
-                    del logp
 
                     blank_mask_prev.bitwise_or_(blank_mask)
 
                     # If all samples predict / have predicted prior blanks, exit loop early
                     # This is equivalent to if single sample predicted k
+                    # If they're all blank, don't update hidden? Why not?
+                    # We are basically setting hidden to be 0
                     if blank_mask.all(): # GPU -> CPU
                         not_blank = False
                     else:
@@ -840,6 +826,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # Preserve states
         for batch_idx in range(batchsize):
             hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
+
+        print("ORIGINAL:", hypotheses)
+
+        # import ipdb; ipdb.set_trace()
 
         return hypotheses
 
@@ -1149,7 +1139,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     params.conditional.type   = cudart.cudaGraphConditionalNodeType.cudaGraphCondTypeWhile
                     params.conditional.size   = 1
 
-                    node = cu_call(cudart.cudaGraphAddNode(graph, dependencies, len(dependencies), params))
+                    node, = cu_call(cudart.cudaGraphAddNode(graph, dependencies, len(dependencies), params))
                     body_graph = params.conditional.phGraph_out[0]
                     cu_call(cudart.cudaStreamUpdateCaptureDependencies(torch.cuda.current_stream(), [node], 1, cudart.cudaStreamSetCaptureDependencies))
                     body_stream = cu_call(cudart.cudaStreamCreate())
@@ -2420,6 +2410,7 @@ class GreedyRNNTInferConfig:
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
+    go_very_fast: bool = False
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed

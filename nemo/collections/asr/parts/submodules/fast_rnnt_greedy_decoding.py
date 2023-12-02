@@ -1,8 +1,11 @@
+import contextlib
+import ctypes
 from dataclasses import dataclass, field
+from itertools import product
+import time
 from typing import List, Optional, Tuple, Union
 
-import nvrtc
-from cuda import cuda, cudart
+from cuda import cuda, cudart, nvrtc
 
 import numpy as np
 import torch
@@ -28,31 +31,25 @@ def ASSERT_DRV(err):
 
 def cu_call(f_call_out):
     error, *others = f_call_out
-    if error != cudart.cudaSuccess:
+    if error != cudart.cudaError_t.cudaSuccess:
+        # import ipdb; ipdb.set_trace()
         raise Exception(f"CUDA failure! {error}")
     else:
-        return *others
+        # print("GALVEZ:", others)
+        return tuple(others)
 
-def create_while_loop_kernel():
-    kernel_string = """\
-    extern "C" __global__
-    void while_loop_conditional(cudaGraphConditionalHandle handle, const bool *not_blank, const long *symbols_added, const long *max_symbols)
-    {
-     if (*not_blank && *symbols_added < *max_symbols) {
-         cudaGraphSetConditional(handle, true);
-     } else {
-         cudaGraphSetConditional(handle, false);
-     }
-    }
-    """
-
+def run_nvrtc(kernel_string, kernel_name):
     err, prog = nvrtc.nvrtcCreateProgram(str.encode(kernel_string), b"while_loop_conditional.cu", 0, [], [])
 
     ASSERT_DRV(err)
 
     # Compile program
-    opts = [b"--gpu-architecture=compute_80"]
-    err, = nvrtc.nvrtcCompileProgram(prog, 2, opts)
+    opts = [b"--gpu-architecture=compute_80", b"--include-path=/home/dgalvez/scratch/cuda/cuda-12.3/include/"]
+    err, = nvrtc.nvrtcCompileProgram(prog, len(opts), opts)
+    err, size = nvrtc.nvrtcGetProgramLogSize(prog)
+    buf = b" " * size
+    err, = nvrtc.nvrtcGetProgramLog(prog, buf)
+    print(buf.decode("utf-8"))
     ASSERT_DRV(err)
 
     # Get PTX from compilation
@@ -62,13 +59,123 @@ def create_while_loop_kernel():
     err, = nvrtc.nvrtcGetPTX(prog, ptx)
     ASSERT_DRV(err)
 
+    # print("GALVEZ:PTX=")
+    # print(ptx.decode("utf-8"))
     ptx = np.char.array(ptx)
     err, module = cuda.cuModuleLoadData(ptx.ctypes.data)
     ASSERT_DRV(err)
-    err, kernel = cuda.cuModuleGetFunction(module, b"while_loop_conditional")
+    err, kernel = cuda.cuModuleGetFunction(module, kernel_name)
     ASSERT_DRV(err)
 
     return kernel
+    
+
+def create_outer_for_loop_kernel():
+    kernel_string = """\
+    #include "/home/dgalvez/scratch/cuda/cuda-12.3/include/cuda_device_runtime_api.h"
+    #include "/home/dgalvez/scratch/cuda/cuda-12.3/include/driver_types.h"
+
+    // TODO: Figure out why the includes don't work.
+    typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
+
+    extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
+
+    extern "C" __global__
+    void for_loop_conditional(cudaGraphConditionalHandle handle, const long *time_idx, const long *trip_count)
+    {
+     // printf("Time idx: %ld, trip count: %ld\\n", *time_idx, *trip_count);
+     // we have problems ending only when this is set to true...
+     cudaGraphSetConditional(handle, *time_idx < *trip_count);
+     // static int i = 0;
+     // cudaGraphSetConditional(handle, ++i < 10); // *time_idx < *trip_count);
+    }
+    """
+    return run_nvrtc(kernel_string, b"for_loop_conditional")
+
+# Observations: If cudaGraphSetConditional is true once, the kernel never completes...
+# The GPU is doing *something*. I'm just not sure what...
+# No way to query that at runtime...
+
+def create_while_loop_kernel():
+    kernel_string = """\
+    // TODO: Figure out why the includes don't work.
+    typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
+
+    extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
+
+    extern "C" __global__
+    void while_loop_conditional(cudaGraphConditionalHandle handle, const bool *not_blank, const long *symbols_added, const long *max_symbols)
+    {
+     // printf("symbols_added: %ld, not_blank: %d, max_symbols:%ld\\n", *symbols_added, *not_blank, *max_symbols);
+     cudaGraphSetConditional(handle, *not_blank && *symbols_added < *max_symbols);
+    }
+    """
+    return run_nvrtc(kernel_string, b"while_loop_conditional")
+
+
+@contextlib.contextmanager
+def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditional_handle):
+    capture_status, _, graph, _, _ = cu_call(cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream().cuda_stream))
+    assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
+
+    cuda.cuLaunchKernel(
+        while_loop_kernel,
+        1, 1, 1,
+        1, 1, 1,
+        0,
+        torch.cuda.current_stream().cuda_stream,
+        while_loop_args.ctypes.data,
+        0
+    )
+
+    capture_status, _, graph, dependencies, _  = cu_call(cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream().cuda_stream))
+    assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
+
+    # import ipdb; ipdb.set_trace()
+    params = cudart.cudaGraphNodeParams()
+    params.type = cudart.cudaGraphNodeType.cudaGraphNodeTypeConditional
+    params.conditional.handle = while_loop_conditional_handle
+    params.conditional.type   = cudart.cudaGraphConditionalNodeType.cudaGraphCondTypeWhile
+    params.conditional.size   = 1
+    # params.conditional.phGraph_out  =  [None]
+    # import ipdb; ipdb.set_trace()
+
+    driver_params = cuda.CUgraphNodeParams()
+    driver_params.type = cuda.CUgraphNodeType.CU_GRAPH_NODE_TYPE_CONDITIONAL
+    driver_params.conditional.handle = while_loop_conditional_handle
+    driver_params.conditional.type   = cuda.CUgraphConditionalNodeType.CU_GRAPH_COND_TYPE_WHILE
+    driver_params.conditional.size   = 1
+    # Work around until https://github.com/NVIDIA/cuda-python/issues/55 is fixed
+    driver_params.conditional.phGraph_out  = [None]
+    ctx, = cu_call(cuda.cuCtxGetCurrent())
+    driver_params.conditional.ctx    = ctx
+
+    # Use driver API here because of bug in cuda-python runtime API: https://github.com/NVIDIA/cuda-python/issues/55
+    # node, = cu_call(cudart.cudaGraphAddNode(graph, dependencies, len(dependencies), driver_params))
+    node, = cu_call(cuda.cuGraphAddNode(graph, dependencies, len(dependencies), driver_params))
+    body_graph = driver_params.conditional.phGraph_out[0]
+
+    cu_call(cudart.cudaStreamUpdateCaptureDependencies(torch.cuda.current_stream().cuda_stream, [node], 1, cudart.cudaStreamUpdateCaptureDependenciesFlags.cudaStreamSetCaptureDependencies))
+    body_stream = torch.cuda.Stream()
+    previous_stream = torch.cuda.current_stream()
+    cu_call(cudart.cudaStreamBeginCaptureToGraph(body_stream.cuda_stream, body_graph, None, None, 0, cudart.cudaStreamCaptureMode.cudaStreamCaptureModeThreadLocal))
+    torch.cuda.set_stream(body_stream)
+
+    yield body_stream, body_graph
+
+    cuda.cuLaunchKernel(
+        while_loop_kernel,
+        1, 1, 1,
+        1, 1, 1,
+        0,
+        body_stream.cuda_stream,
+        while_loop_args.ctypes.data,
+        0
+    )
+
+    cudart.cudaStreamEndCapture(body_stream.cuda_stream)
+
+    torch.cuda.set_stream(previous_stream)
 
 
 class RNNTGreedyDecodeFast:
@@ -77,7 +184,16 @@ class RNNTGreedyDecodeFast:
 
         self.symbols_added_t = torch.tensor(0, dtype=torch.int64, device=cuda_device)
         self.max_symbols_t = torch.tensor(max_symbols, dtype=torch.int64, device=cuda_device)
+        self.max_symbols = max_symbols
         self.not_blank_t = torch.tensor(True, dtype=torch.bool, device=cuda_device)
+
+        self.cuda_device = cuda_device
+
+        self.time_idx_t = torch.tensor(0, dtype=torch.int64, device=self.cuda_device)
+        self.max_out_len = torch.tensor(0, dtype=torch.int64, device=self.cuda_device)
+        # TODO: infer dtype correctly
+        # self.f = torch.zeros((batch_size, TODO), dtype=torch.float32, device=self.cuda_device)
+
 
     def __call__(
         self,
@@ -87,22 +203,33 @@ class RNNTGreedyDecodeFast:
         device: torch.device,
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
+
+        print("GALVEZ:", type(self), type(caller))
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not supported")
 
         assert not caller.preserve_alignments
         assert not caller.preserve_frame_confidence
 
-        with torch.inference_mode():
+        batch_size = x.shape[0]
+        max_time = x.shape[1]
+        
+        self.scores_cpu = torch.zeros((max_time * self.max_symbols, batch_size), dtype=x.dtype, device="cpu", pin_memory=True)
+        self.labels_cpu = torch.zeros((max_time * self.max_symbols, batch_size), dtype=torch.int64, device="cpu", pin_memory=True)
+        self.symbols_per_time_step_cpu = torch.zeros(max_time, dtype=torch.int64, device="cpu", pin_memory=True)
+
+        with torch.cuda.stream(torch.cuda.Stream()), torch.inference_mode():
+            cu_call(cudart.cudaStreamBeginCapture(torch.cuda.current_stream().cuda_stream, cudart.cudaStreamCaptureMode.cudaStreamCaptureModeThreadLocal))
             # x: [B, T, D]
             # out_len: [B]
             # device: torch.device
 
             # Initialize list of Hypothesis
-            batchsize = x.shape[0]
             hypotheses = [
-                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
+                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batch_size)
             ]
+
+            vocab_size = caller.num_tokens
 
             # Initialize Hidden state matrix (shared by entire batch)
             # TODO: Need to make an abstract method for initializing states
@@ -110,11 +237,18 @@ class RNNTGreedyDecodeFast:
 
             # Last Label buffer + Last Label without blank buffer
             # batch level equivalent of the last_label
-            self.last_label = torch.full([batchsize, 1], fill_value=caller._SOS, dtype=torch.long, device=device)
+            self.last_label = torch.full([batch_size], fill_value=caller._SOS, dtype=torch.long, device=device)
 
             # Mask buffers
-            blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
-            blank_mask_prev = None
+            self.blank_mask = torch.full([batch_size], fill_value=0, dtype=torch.bool, device=device)
+
+            self.seq_idx_t = torch.zeros([1], dtype=torch.int64, device=device)
+
+            self.f = torch.zeros((batch_size, 1, x.shape[-1]), dtype=x.dtype, device=device)
+
+            self.scores = torch.zeros((max_time * self.max_symbols, batch_size), dtype=x.dtype, device=device)
+            self.labels = torch.zeros((max_time * self.max_symbols, batch_size), dtype=torch.int64, device=device)
+            self.symbols_per_time_step = torch.zeros(max_time, dtype=torch.int64, device=device)
 
             # We have three conditionals
             # 1) the for loop over the encoder outputs
@@ -123,129 +257,128 @@ class RNNTGreedyDecodeFast:
             #   Can't use a cudaEvent in the body of a loop though.
 
             # Get max sequence length
-            max_out_len = out_len.max()
-            # This implicitly codes  blocking memory copy from GPU to CPU
-            max_out_len = max_out_len.item()
+            self.max_out_len = out_len.max()
 
-            self.time_idx_t = torch.tensor(0, dtype=torch.int64, device=cuda_device)
+            capture_status, _, graph, _, _ = cu_call(cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream().cuda_stream))
+            assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
-            for time_idx in range(max_out_len):
-                # This is problematic for cuda graphs...
-                self.f.copy_(x.narrow_copy(dim=1, start=time_idx, length=1))  # [B, 1, D]
+            for_loop_conditional_handle, = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
+            for_loop_kernel = create_outer_for_loop_kernel()
+            time_idx_ptr = np.array([self.time_idx_t.data_ptr()], dtype=np.uint64)
+            max_out_len_ptr = np.array([self.max_out_len.data_ptr()], dtype=np.uint64)
+            for_loop_args = np.array([for_loop_conditional_handle.getPtr(), time_idx_ptr.ctypes.data, max_out_len_ptr.ctypes.data], dtype=np.uint64)
 
+            self.time_idx_t.fill_(0)
 
-                if time_idx == 0:
-                    self.capture_inner_loop(self.f, time_idx, caller)
+            with with_conditional_node(for_loop_kernel, for_loop_args, for_loop_conditional_handle):
+                torch.index_select(x, 1, self.time_idx_t.unsqueeze(0), out=self.f)
 
-                cudart.cudaGraphLaunch(self.graph_exec, torch.cuda.current_stream())
+                self.not_blank_t.fill_(True)
+                self.symbols_added_t.fill_(0)
 
-                self.last_label.fill_(caller._SOS)
+                self.blank_mask.copy_(self.time_idx_t >= out_len)
+                
+                while_loop_kernel = create_while_loop_kernel()
+                while_loop_conditional_handle, = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
+                not_blank_ptr = np.array([self.not_blank_t.data_ptr()], dtype=np.uint64)
+                symbols_added_ptr = np.array([self.symbols_added_t.data_ptr()], dtype=np.uint64)
+                max_symbols_ptr = np.array([self.max_symbols_t.data_ptr()], dtype=np.uint64)
+                while_loop_args = np.array([while_loop_conditional_handle.getPtr(),
+                                            not_blank_ptr.ctypes.data,
+                                            symbols_added_ptr.ctypes.data,
+                                            max_symbols_ptr.ctypes.data],
+                                           dtype=np.uint64)
+                with with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditional_handle):
+                    g, hidden_prime = caller._pred_step(self.last_label.unsqueeze(1), hidden, batch_size=batch_size)
+                    logp = caller._joint_step(self.f, g, log_normalize=None)[
+                        :, 0, 0, :
+                    ]
 
+                    # torch.max(logp, 1, out=(self.scores[self.seq_idx_t, :], self.labels[self.seq_idx_t, :]))
+                    # v = self.scores[self.seq_idx_t, :]
+                    # k = self.labels[self.seq_idx_t, :]
+                    v, k = logp.max(1)
 
-    def capture_inner_loop(self, f, time_idx, caller):
-        cudart.cudaStreamBeginCapture(
-            torch.cuda.current_stream(),
-            cudart.cudaStreamCaptureMode.cudaStreamCaptureModeThreadLocal)
+                    self.scores.index_copy_(0, self.seq_idx_t, v.unsqueeze(0))
+                    self.labels.index_copy_(0, self.seq_idx_t, k.unsqueeze(0))
+                    # Causes D2H copy. See pytorch issue #105641
+                    # self.scores[self.seq_idx_t, :] = v
+                    # self.labels[self.seq_idx_t, :] = k
 
-        # Prepare t timestamp batch variables
-        # This should not do a sync!
-        self.not_blank_t.fill_(True)
-        self.symbols_added_t.fill_(0)
+                    self.blank_mask.bitwise_or_(k == caller._blank_index)
 
-        # Update blank mask with time mask
-        # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
-        # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
-        blank_mask = time_idx >= out_len  # out_len is [B, ]
-        # Could do this in a separate stream
-        blank_mask_prev = blank_mask.clone()
+                    # You want to recover the prior state for anything
+                    # that has predicted blank. Why? Oh, to retain it
+                    # for the next outer loop iteration.
+                    hidden_prime = caller.decoder.batch_copy_states_mask(hidden_prime, hidden, self.blank_mask)
 
-        g, hidden_prime = caller._pred_step(caller._SOS, hidden, batch_size=batchsize)
+                    # This seems wrong. Do I need to negate this?
+                    k.masked_scatter_(self.blank_mask, self.last_label)
+                    self.last_label.copy_(k)
 
-        capture_status, *outputs = cu_call(cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream()))
-        assert capture_status == cudart.cudaStreamCaptureStatusActive
-        _, graph, dependencies = outputs
-        while_loop_conditional = cu_call(cudart.cudaGraphConditionalHandleCreate(graph))
+                    # It seems that I am unconditionally copying. That is wrong... I should do a masked copy
+                    hidden[0].copy_(hidden_prime[0])
+                    hidden[1].copy_(hidden_prime[1])
 
-        while_loop_kernel = create_while_loop_kernel()
-        while_loop_args = np.array([while_loop_conditional.ctypes.data, self.not_blank_t.data(), self.symbols_added_t.data(), self.max_symbols_t.data()], dtype=np.uint64)
+                    self.not_blank_t = ~self.blank_mask.all()
+                    self.symbols_added_t += 1
+                    self.seq_idx_t += 1
 
-        cuda.cuLaunchKernel(
-            while_loop_kernel,
-            1, 1, 1,
-            1, 1, 1,
-            0,
-            torch.cuda.current_stream(),
-            while_loop_args.ctypes.data,
-            0
-        )
+                self.symbols_per_time_step.index_copy_(0, self.time_idx_t, self.symbols_added_t)
+                # self.symbols_per_time_step[self.time_idx_t] = self.symbols_added_t
+                self.time_idx_t += 1
 
-        capture_status, *outputs = cu_call(cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream()))
-        assert capture_status == cudart.cudaStreamCaptureStatusActive
-        _, graph, dependencies = outputs
+            self.scores_cpu.copy_(self.scores, non_blocking=True)
+            self.labels_cpu.copy_(self.labels, non_blocking=True)
+            self.symbols_per_time_step_cpu.copy_(self.symbols_per_time_step, non_blocking=True)
 
-        params = cudart.cudaGraphNodeParams()
-        params.type = cudart.cudaGraphNodeType.cudaGraphNodeTypeConditional
-        params.conditional.handle = while_loop_conditional
-        params.conditional.type   = cudart.cudaGraphConditionalNodeType.cudaGraphCondTypeWhile
-        params.conditional.size   = 1
+            self.last_label.fill_(caller._SOS)
+            self.time_idx_t.fill_(0)
 
-        node = cu_call(cudart.cudaGraphAddNode(graph, dependencies, len(dependencies), params))
-        body_graph = params.conditional.phGraph_out[0]
-        cu_call(cudart.cudaStreamUpdateCaptureDependencies(torch.cuda.current_stream(), [node], 1, cudart.cudaStreamSetCaptureDependencies))
-        body_stream = cu_call(cudart.cudaStreamCreate())
-        cu_call(cudart.cudaStreamBeginCaptureToGraph(body_stream, body_graph, None, None, 0, cudart.cudaStreamCaptureModeTODO))
-        previous_stream = torch.cuda.current_stream()
-        torch.cuda.set_stream(body_stream)
+            self.graph, = cu_call(cudart.cudaStreamEndCapture(torch.cuda.current_stream().cuda_stream))
+        # Could unindent here, but we want to keep torch.inference_mode,bleh
+        self.graph_exec, = cu_call(cudart.cudaGraphInstantiate(self.graph, 0))
+        cudart.cudaGraphDebugDotPrint(self.graph, b"graph2.dot", cudart.cudaGraphDebugDotFlags.cudaGraphDebugDotFlagsVerbose)
 
-        # Need to reset last_label to _SOS at every outer iteration
-        g, hidden_prime = caller._pred_step(self.last_label, hidden, batch_size=batchsize)
+        with torch.inference_mode():
+            start = time.time()
+            torch.cuda.cudart().cudaProfilerStart()
+            cu_call(cudart.cudaGraphLaunch(self.graph_exec, torch.cuda.current_stream().cuda_stream))
+            cu_call(cudart.cudaStreamSynchronize(torch.cuda.current_stream().cuda_stream))
+            torch.cuda.cudart().cudaProfilerStop()
+            end = time.time()
+            print("total time:", end - start)
 
-        logp = caller._joint_step(f, g, log_normalize=None)[
-            :, 0, 0, :
-        ]
+            print("GALVEZ:", self.symbols_per_time_step_cpu)
 
-        # Get index k, of max prob for batch
-        v, k = logp.max(1)
+            j = 0
+            for t in range(max_time):
+                max_non_blank_symbols = self.symbols_per_time_step_cpu[t]
+                for _ in range(max_non_blank_symbols):
+                    for i in range(batch_size):
+                        if self.labels_cpu[j, i] == caller._blank_index:
+                            continue
+                        hypotheses[i].y_sequence.append(self.labels_cpu[j, i])
+                        hypotheses[i].timestep.append(t)
+                        hypotheses[i].score += self.scores_cpu[j, i]
+                    j += 1
+                # for i in range(batch_size):
+                #         j = 
+                #         hypotheses[i].y_sequence.append(self.labels_cpu[, i])
 
-        # Update blank mask with current predicted blanks
-        # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
-        blank_mask.bitwise_or_(k == caller._blank_index)
-        blank_mask_prev.bitwise_or_(blank_mask)
+            print("NEW:", hypotheses)
 
-        all_blank_t = blank_mask.all()
-
-        self.not_blank_t = not all_blank_t
-        # There are some non-blank outputs. We need to keep going then.
-        # Recover prior state for all samples which predicted blank now/past
-        hidden_prime = caller.decoder.batch_copy_states_mask(
-            hidden_prime, hidden, blank_mask)
-
-        # Recover prior predicted label for all samples which predicted blank now/past
-        # Basically, set k to blank if blank was predicted before?
-        k[blank_mask] = self.last_label[blank_mask, 0]
-
-        # Update new label and hidden state for next iteration
-        # last_label
-        self.last_label.copy_(k.view(-1, 1))
-        # TODO: Make this swap happy for cuda graphs.
-        hidden = hidden_prime
-
-        for kidx, ki in enumerate(k):
-            if blank_mask[kidx] == 0: # GPU -> CPU copy
-                hypotheses[kidx].y_sequence.append(ki)
-                hypotheses[kidx].timestep.append(time_idx)
-                hypotheses[kidx].score += float(v[kidx])
-
-        self.symbols_added += 1
-
-        torch.cuda.set_stream(previous_stream)
-        cu_call(cudart.cudaStreamDestroy(body_stream))
-
-        self.time_idx_t += 1
-
-        # Preserve states
-        for batch_idx in range(batchsize):
-            hypotheses[batch_idx].dec_state = caller.decoder.batch_select_state(hidden, batch_idx)
-
-        return hypotheses
-        
+            # import ipdb; ipdb.set_trace()
+                
+            # out_len_cpu = out_len.to("cpu")
+            # for i, t in product(range(batch_size), range(out_len_cpu[i])):
+            #     # Need best_label at each seq_idx_t
+            #     # Need time_idx_t as well, can derive via dividing by max_symbols_per_step? No, that is not true.
+            #     # Need score, which comes from v
+            #     j = 0
+            #     while j < self.labels_cpu.shape[2] and self.labels_cpu[i, t, j] != caller._blank_index:
+            #         hypotheses[i].y_sequence.append(self.labels_cpu[i, t, j])
+            #         hypotheses[i].timestep.append(t)
+            #         hypotheses[i].score += self.scores_cpu[i, t, j]
+            #         j += 1
+            return hypotheses

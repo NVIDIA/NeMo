@@ -321,6 +321,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
+                        go_very_fast=self.cfg.greedy.get('go_very_fast', False),
                     )
                 else:
                     self.decoding = greedy_decode.GreedyBatchedTDTInfer(
