@@ -17,6 +17,8 @@ import torch
 from einops import rearrange
 from torch import einsum, nn
 from nemo.utils import logging
+from typing import Dict, Any
+import random
 
 __all__ = ['RotaryEmbedding', 'apply_rotary_pos_emb']
 
@@ -32,11 +34,11 @@ class RotaryEmbedding(nn.Module):
         seq_len_interpolation_factor: int = None,
         base_len: int = None,
         enforce_fp32_pos_idx: bool = False,
-        augment_seq: bool = False,
+        augment_seq: Dict[Any,Any] = None,
     ):
         """
         Args:
-
+            
             dim (int): rotary embedding dimension
             seq_len_interpolation_factor (int): if not None, discrete positions will be interpolated
             by this factor via the trick in https://arxiv.org/abs/2306.15595.
@@ -52,22 +54,54 @@ class RotaryEmbedding(nn.Module):
 
         logging.info(f'base_len: {base_len}, seq_len_interpolation_factor: {seq_len_interpolation_factor}, enforce_fp32_pos_idx: {enforce_fp32_pos_idx}, augment_seq: {augment_seq}')
 
+    """
+        Augments the seq and adjusts its range to base_len
+        Args:
+            seq (tensor): tensor of positions
+            max_seq_len (int): length of this samplw
+            Applies stretch and shift augmentations and returns the augmented seq
+        """
+    def augment(self, seq, max_seq_len):
+        current_range = max_seq_len / self.seq_len_interpolation_factor
+        if self.augment_seq['stretch']:
+            max_stretch_factor = self.base_len / current_range
+            stretch_factor = random.random() * max_stretch_factor
+            seq *= stretch_factor
+            current_range *= stretch_factor
+        
+        num_shifts = int(self.augment_seq['shift_fraction'] * max_seq_len)
+        total_shift = self.base_len - current_range
+        shifts = torch.rand(num_shifts)
+        shifts = shifts / shifts.sum() * total_shift
+        indices2shift = (torch.rand(num_shifts) * max_seq_len).to(torch.int)
+        for idx, i in enumerate(indices2shift):
+            seq[i:] += shifts[idx]
+
+        return seq
+        
+
     def forward(self, max_seq_len, offset=0, maybe_interpolate=True):
         if self.enforce_fp32_pos_idx:
             seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32) + offset
         else:
             seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype) + offset
 
-        if self.augment_seq:
+        if self.augment_seq and self.augment_seq['add_noise']:
             seq += torch.rand_like(seq) 
+
+        if not maybe_interpolate:
+            logging.warning(f'maybe_interpolate set to {maybe_interpolate}')
 
         if self.base_len is not None and self.seq_len_interpolation_factor is not None and maybe_interpolate:
             if max_seq_len > self.base_len * self.seq_len_interpolation_factor:
                 # dynamic linear scaling (length > position we have learned)
+                logging.warning(f'dynamic interpolation triggered: max_seq_len: {max_seq_len}, base_len: {self.base_len}, seq_len_interpolation_factor: {self.seq_len_interpolation_factor}')
                 seq *= 1 / (max_seq_len / self.base_len)
             else:
                 # fixed linear scaling
                 seq *= 1 / self.seq_len_interpolation_factor
+                if self.augment_seq and max_seq_len / self.seq_len_interpolation_factor < self.base_len:
+                    seq = self.augment(seq, max_seq_len)
 
         freqs = einsum('i , j -> i j', seq, self.inv_freq)
         # first part even vector components, second part odd vector components,

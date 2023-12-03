@@ -131,7 +131,7 @@ def get_language_model(
     window_size=None,
     limited_context_decoding=None,
     enforce_fp32_pos_idx=False,
-    rotary_augment_seq=False,
+    rotary_augment_seq=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -520,7 +520,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         window_size=None,
         limited_context_decoding=None,
         enforce_fp32_pos_idx=False,
-        rotary_augment_seq=False,
+        rotary_augment_seq=None,
     ):
         super(TransformerLanguageModel, self).__init__(
             config=config, share_token_embeddings=share_embeddings_and_output_weights

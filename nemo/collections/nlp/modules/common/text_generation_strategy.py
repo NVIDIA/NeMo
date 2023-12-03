@@ -17,7 +17,7 @@ import warnings
 from typing import List, Set, Tuple
 
 import torch
-
+from nemo.utils import logging
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
@@ -465,12 +465,14 @@ def model_inference_strategy_dispatcher(model, **args):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel):
         if hasattr(model.model, 'limited_context_decoding') and model.model.limited_context_decoding:
+            logging.info(f'Using LimitedContextGPTModelTextGenerationStrategy as limited_context_decoding is set to {model.model.limited_context_decoding}')
             return LimitedContextGPTModelTextGenerationStrategy(model)
         if (
             hasattr(model.model, 'module')
             and hasattr(model.model.module, 'language_model')
             and model.model.module.language_model.limited_context_decoding
         ):
+            logging.info(f'Using LimitedContextGPTModelTextGenerationStrategy as limited_context_decoding is set to {model.model.module.limited_context_decoding}')
             return LimitedContextGPTModelTextGenerationStrategy(model)
         return GPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):

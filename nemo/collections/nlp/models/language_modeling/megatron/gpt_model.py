@@ -172,7 +172,7 @@ class GPTModel(MegatronModule):
         window_size=None,
         limited_context_decoding=None,
         enforce_fp32_pos_idx=False,
-        rotary_augment_seq=False,
+        rotary_augment_seq=None,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
