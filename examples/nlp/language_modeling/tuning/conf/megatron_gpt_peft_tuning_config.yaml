@@ -144,14 +144,8 @@ model:
       add_bos: False
       truncation_field: "input" # # Can be multiple keys separated with ',' Options: keys in prompt_template
       index_mapping_dir: null # Path to a directory to write index mapping files.
-      # prompt_template: "{input} {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      # prompt_template: |
-      #   {% if input %}
-      #   Input: {{ input }}
-      #   {% endif %}
-      #   Output: {{ output }}
-      #   Additional Info: {{ additional_info | default('N/A') }}
-      prompt_template: /home/aficek/software/playground/prompt_template
+      prompt_template: "{input} {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      # prompt_template: /home/aficek/software/playground/prompt_template.txt
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
     validation_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.

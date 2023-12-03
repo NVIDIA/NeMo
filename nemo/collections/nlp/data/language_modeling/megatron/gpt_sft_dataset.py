@@ -366,8 +366,15 @@ class GPTSFTDataset(Dataset):
             template_strings, template_strings_keys = self._separate_template(prompt_template_values)
 
         else:
-            template_strings = self.prompt_template.render(example)
+
+            remade_example = {}
+            remade_example["saved_output"] = example.pop("output")
+            for k,v in example.items():
+                remade_example[k] = v
+            remade_example["output"] = ""
+            template_strings = [self.prompt_template.render(example), remade_example["saved_output"]]
             template_strings_keys = self.prompt_template_keys
+            template_strings_keys.add("saved_output")
 
         template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
         context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
