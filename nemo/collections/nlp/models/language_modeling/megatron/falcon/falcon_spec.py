@@ -32,7 +32,7 @@ from megatron.core.transformer.transformer_layer import TransformerLayerSubmodul
 from .falcon_decoder_layer import FalconTransformerLayer
 
 # Use this spec for an implementation using modules in TE
-def get_gpt_layer_with_transformer_engine_spec() -> ModuleSpec:
+def get_falcon_layer_spec() -> ModuleSpec:
     return ModuleSpec(
         module=FalconTransformerLayer,
         submodules=TransformerLayerSubmodules(

@@ -58,6 +58,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
+from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
@@ -104,25 +105,14 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 
-def get_specs(
-    spec_name, spec_func='get_gpt_layer_with_transformer_engine_spec'
-):  # Assumes the default spec function name
-    import importlib.util
-
+def get_specs(spec_name):
     name_spec_dict = {
-        "": "megatron.core.models.gpt.gpt_layer_specs",  # default GPT
-        "megatron_falcon_gpt": "nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec",  # Other customized model spec locations
+        "":get_gpt_layer_with_transformer_engine_spec(),
+        "megatron_falcon_gpt":get_falcon_layer_spec()
     }
-    module_path = name_spec_dict.get(spec_name)
-    if not module_path:
-        raise ImportError(f"Failed to import {spec_name}, please ensure {spec_name} is supported.")
-
-    module = importlib.import_module(module_path)
-    try:
-        spec = getattr(module, spec_func)()
-    except AttributeError:
-        raise ImportError(f"Module {module_path} does not have {spec_func}")
-    return spec
+    if spec_name not in name_spec_dict:
+        raise ValueError(f"Spec name '{spec_name}' is not recognized.")
+    return name_spec_dict[spec_name]
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):

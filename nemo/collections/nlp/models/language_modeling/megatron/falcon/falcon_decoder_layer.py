@@ -94,7 +94,6 @@ class FalconTransformerLayer(TransformerLayer):
         if self.new_decoder_architecture:
             mlp_ln_output = self.pre_mlp_layernorm(hidden_states)
 
-        # Optional Input Layer norm
         input_layernorm_output = self.input_layernorm(hidden_states)
 
         input_mlp_ln = input_layernorm_output
