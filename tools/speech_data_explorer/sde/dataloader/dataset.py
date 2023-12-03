@@ -79,7 +79,7 @@ class Dataset:
 
         if self.hypothesis_fields is None:
             self.hypothesis_fields = ["pred_text"]
-            
+
         if self.hypothesis_labels is None:
             if len(self.hypothesis_fields) == 1:
                 self.hypothesis_labels = [""]
