@@ -28,13 +28,14 @@ from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 
-from .falcon_decoder_layer import FalconTransformerLayer, FalconTransformerLayerSubmodules
+from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
+from .falcon_decoder_layer import FalconTransformerLayer
 
 # Use this spec for an implementation using modules in TE
 def get_gpt_layer_with_transformer_engine_spec() -> ModuleSpec:
     return ModuleSpec(
         module=FalconTransformerLayer,
-        submodules=FalconTransformerLayerSubmodules(
+        submodules=TransformerLayerSubmodules(
             input_layernorm=TENorm,
             self_attention=ModuleSpec(
                 module=SelfAttention,
@@ -46,7 +47,6 @@ def get_gpt_layer_with_transformer_engine_spec() -> ModuleSpec:
                 ),
             ),
             self_attn_bda=get_bias_dropout_add,
-            post_self_attn_layernorm=TENorm,
             pre_mlp_layernorm=TENorm,
             mlp=ModuleSpec(
                 module=MLP,
