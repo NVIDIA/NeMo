@@ -42,6 +42,7 @@ class Sample:
 
     def __init__(self):
         self.reference_text = None
+        self.audio_filepath = None
         self.num_chars = None
         self.charset = set()
         self.words = None
@@ -82,6 +83,7 @@ class Sample:
         self.sample_dict = json.loads(manifest_line)
         self.reference_text = self.sample_dict.get(reference_field, None)
         self.duration = self.sample_dict.get("duration", None)
+        self.audio_filepath = self.sample_dict.get("audio_filepath", None)
 
         if hypothesis_labels is None:
             hypothesis_labels = list(range(1, len(hypothesis_fields) + 1))
@@ -90,6 +92,28 @@ class Sample:
             hypothesis = Hypothesis(hypothesis_text=self.sample_dict[field], hypothesis_label=label)
             self.hypotheses[field] = hypothesis
 
+    def _eval_signal_frequency_bandwidth(self, threshold=-50) -> float:
+        time_stride = 0.01
+        hop_length = int(self.sampling_rate * time_stride)
+        n_fft = 512
+        spectrogram = np.mean(
+            np.abs(librosa.stft(y=self.signal, n_fft=n_fft, hop_length=hop_length, window='blackmanharris')) ** 2,
+            axis=1,
+        )
+        power_spectrum = librosa.power_to_db(S=spectrogram, ref=np.max, top_db=100)
+        frequency_bandwidth = 0
+        for idx in range(len(power_spectrum) - 1, -1, -1):
+            if power_spectrum[idx] > threshold:
+                frequency_bandwidth = idx / n_fft * self.sampling_rate
+                break
+
+        self.frequency_bandwidth = frequency_bandwidth
+    
+    def _estimate_audio_metrics(self):
+        self.signal, self.sampling_rate = librosa.load(path=self.audio_filepath, sr=None)
+        self._eval_signal_frequency_bandwidth(threshold=-50)
+        self.level_db = 20 * np.log10(np.max(np.abs(self.signal)))
+        
     def compute(self, estimate_audio_metrics: bool = False):
         """
         Computes metrics for the sample, including word frequencies and audio metrics if specified.
@@ -118,29 +142,7 @@ class Sample:
                 )
 
         if estimate_audio_metrics and self.audio_filepath is not None:
-
-            def eval_signal_frequency_bandwidth(self, signal, sampling_rate, threshold=-50) -> float:
-                time_stride = 0.01
-                hop_length = int(sampling_rate * time_stride)
-                n_fft = 512
-                spectrogram = np.mean(
-                    np.abs(librosa.stft(y=signal, n_fft=n_fft, hop_length=hop_length, window='blackmanharris')) ** 2,
-                    axis=1,
-                )
-                power_spectrum = librosa.power_to_db(S=spectrogram, ref=np.max, top_db=100)
-                frequency_bandwidth = 0
-                for idx in range(len(power_spectrum) - 1, -1, -1):
-                    if power_spectrum[idx] > threshold:
-                        frequency_bandwidth = idx / n_fft * sampling_rate
-                        break
-
-                return frequency_bandwidth
-
-            self.signal, self.sampling_rate = librosa.load(path=self.audio_filepath, sr=None)
-            self.frequency_bandwidth = eval_signal_frequency_bandwidth(
-                signal=self.signal, sampling_rate=self.sampling_rate
-            )
-            self.level_db = 20 * np.log10(np.max(np.abs(self.signal)))
+            self._estimate_audio_metrics()
 
         self.add_table_metrics_to_dict()
 
