@@ -35,6 +35,7 @@ class RotaryEmbedding(nn.Module):
         base_len: int = None,
         enforce_fp32_pos_idx: bool = False,
         augment_seq: Dict[Any,Any] = None,
+        logging_freq: int = 0.01,
     ):
         """
         Args:
@@ -51,6 +52,7 @@ class RotaryEmbedding(nn.Module):
         self.base_len = base_len
         self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
         self.augment_seq = augment_seq
+        self.logging_freq = logging_freq
 
         logging.info(f'base_len: {base_len}, seq_len_interpolation_factor: {seq_len_interpolation_factor}, enforce_fp32_pos_idx: {enforce_fp32_pos_idx}, augment_seq: {augment_seq}')
 
@@ -81,6 +83,9 @@ class RotaryEmbedding(nn.Module):
         
 
     def forward(self, max_seq_len, offset=0, maybe_interpolate=True):
+        if random.random() < self.logging_freq:
+            logging.info(f'max_seq_len: {max_seq_len}, maybe_interpolate: {maybe_interpolate}')
+
         if self.enforce_fp32_pos_idx:
             seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32) + offset
         else:
@@ -95,7 +100,7 @@ class RotaryEmbedding(nn.Module):
         if self.base_len is not None and self.seq_len_interpolation_factor is not None and maybe_interpolate:
             if max_seq_len > self.base_len * self.seq_len_interpolation_factor:
                 # dynamic linear scaling (length > position we have learned)
-                logging.warning(f'dynamic interpolation triggered: max_seq_len: {max_seq_len}, base_len: {self.base_len}, seq_len_interpolation_factor: {self.seq_len_interpolation_factor}')
+                logging.info(f'dynamic interpolation triggered: max_seq_len: {max_seq_len}, base_len: {self.base_len}, seq_len_interpolation_factor: {self.seq_len_interpolation_factor}')
                 seq *= 1 / (max_seq_len / self.base_len)
             else:
                 # fixed linear scaling
