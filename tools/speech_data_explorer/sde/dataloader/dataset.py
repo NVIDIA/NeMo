@@ -76,10 +76,10 @@ class Dataset:
         Parameters:
         - manifest_line (str): A line from the manifest file.
         """
-                
+
         if self.hypothesis_fields is None:
-             self.hypothesis_fields = ["pred_text"]
-        else: 
+            self.hypothesis_fields = ["pred_text"]
+        else:
             if self.hypothesis_labels is None:
                 if len(self.hypothesis_fields) == 1:
                     self.hypothesis_labels = [""]
@@ -91,26 +91,23 @@ class Dataset:
                         f"Amount of hypothesis_labels ({len(self.hypothesis_labels)}) is not equal to amount of hypothesis_fields ({len(self.hypothesis_fields)})."
                     )
                     raise
-        
+
         sample_to_check = json.loads(manifest_line)
-        
+
         checked_fields = []
         assigned_labels = []
-        
+
         for field, label in zip(self.hypothesis_fields, self.hypothesis_labels):
             if field not in sample_to_check:
                 logging.warning(f"Field '{field}' not found in sample.")
             else:
-                logging.info(
-                    f"Field '{field}' was found (labeled as '{label}')."
-                )
+                logging.info(f"Field '{field}' was found (labeled as '{label}').")
                 checked_fields.append(field)
                 assigned_labels.append(label)
                 self.hypotheses[field] = HypothesisMetrics(hypothesis_label=label)
-        
+
         self.hypothesis_fields = checked_fields
         self.hypothesis_labels = assigned_labels
-        
 
     def _read_manifest(self):
         """
