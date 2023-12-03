@@ -79,18 +79,18 @@ class Dataset:
 
         if self.hypothesis_fields is None:
             self.hypothesis_fields = ["pred_text"]
-        else:
-            if self.hypothesis_labels is None:
-                if len(self.hypothesis_fields) == 1:
-                    self.hypothesis_labels = [""]
-                else:
-                    self.hypothesis_labels = list(range(1, len(self.hypothesis_fields) + 1))
+            
+        if self.hypothesis_labels is None:
+            if len(self.hypothesis_fields) == 1:
+                self.hypothesis_labels = [""]
             else:
-                if len(hypothesis_labels) != len(self.hypothesis_fields):
-                    logging.error(
-                        f"Amount of hypothesis_labels ({len(self.hypothesis_labels)}) is not equal to amount of hypothesis_fields ({len(self.hypothesis_fields)})."
-                    )
-                    raise
+                self.hypothesis_labels = list(range(1, len(self.hypothesis_fields) + 1))
+        else:
+            if len(hypothesis_labels) != len(self.hypothesis_fields):
+                logging.error(
+                    f"Amount of hypothesis_labels ({len(self.hypothesis_labels)}) is not equal to amount of hypothesis_fields ({len(self.hypothesis_fields)})."
+                )
+                raise
 
         sample_to_check = json.loads(manifest_line)
 
