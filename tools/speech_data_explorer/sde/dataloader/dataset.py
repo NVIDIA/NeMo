@@ -36,7 +36,7 @@ class Dataset:
         data_engine: object = None,
         n_jobs: int = -1,
         reference_field="text",
-        hypothesis_fields: list[str] = ["pred_text"],
+        hypothesis_fields: list[str] = None,
         hypothesis_labels: list[str] = None,
         estimate_audio_metrics: bool = False,
         enable_pkl: bool = True,
@@ -70,44 +70,47 @@ class Dataset:
         self.vocabulary_data = []
 
     def _check_hypotheses(self, manifest_line: str):
-
         """
         Internal method to check and validate hypothesis fields and labels based on the manifest file.
 
         Parameters:
         - manifest_line (str): A line from the manifest file.
         """
-
-        if self.hypothesis_fields is not None:
+                
+        if self.hypothesis_fields is None:
+             self.hypothesis_fields = ["pred_text"]
+        else: 
             if self.hypothesis_labels is None:
                 if len(self.hypothesis_fields) == 1:
                     self.hypothesis_labels = [""]
                 else:
                     self.hypothesis_labels = list(range(1, len(self.hypothesis_fields) + 1))
-
-            if len(self.hypothesis_labels) != len(self.hypothesis_fields):
-                logging.error(
-                    f"Amount of hypothesis_labels ({len(self.hypothesis_labels)}) is not equal to amount of hypothesis_fields ({len(self.hypothesis_fields)})."
-                )
-                raise
             else:
-                sample_to_check = json.loads(manifest_line)
-
-                i = 0
-                while i < len(self.hypothesis_fields):
-                    hypothesis_field = self.hypothesis_fields[i]
-                    if hypothesis_field not in sample_to_check:
-                        logging.warning(f"Field '{hypothesis_field}' not found in sample.")
-                        self.hypothesis_fields.pop(i)
-                        self.hypothesis_labels.pop(i)
-                    else:
-                        logging.info(
-                            f"Field '{hypothesis_field}' was found (labeled as '{self.hypothesis_labels[i]}')."
-                        )
-                        self.hypotheses[hypothesis_field] = HypothesisMetrics(
-                            hypothesis_label=self.hypothesis_labels[i]
-                        )
-                        i += 1
+                if len(hypothesis_labels) != len(self.hypothesis_fields):
+                    logging.error(
+                        f"Amount of hypothesis_labels ({len(self.hypothesis_labels)}) is not equal to amount of hypothesis_fields ({len(self.hypothesis_fields)})."
+                    )
+                    raise
+        
+        sample_to_check = json.loads(manifest_line)
+        
+        checked_fields = []
+        assigned_labels = []
+        
+        for field, label in zip(self.hypothesis_fields, self.hypothesis_labels):
+            if field not in sample_to_check:
+                logging.warning(f"Field '{field}' not found in sample.")
+            else:
+                logging.info(
+                    f"Field '{field}' was found (labeled as '{label}')."
+                )
+                checked_fields.append(field)
+                assigned_labels.append(label)
+                self.hypotheses[field] = HypothesisMetrics(hypothesis_label=label)
+        
+        self.hypothesis_fields = checked_fields
+        self.hypothesis_labels = assigned_labels
+        
 
     def _read_manifest(self):
         """
