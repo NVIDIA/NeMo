@@ -108,12 +108,12 @@ class Sample:
                 break
 
         self.frequency_bandwidth = frequency_bandwidth
-    
+
     def _estimate_audio_metrics(self):
         self.signal, self.sampling_rate = librosa.load(path=self.audio_filepath, sr=None)
         self._eval_signal_frequency_bandwidth(threshold=-50)
         self.level_db = 20 * np.log10(np.max(np.abs(self.signal)))
-        
+
     def compute(self, estimate_audio_metrics: bool = False):
         """
         Computes metrics for the sample, including word frequencies and audio metrics if specified.
