@@ -369,7 +369,7 @@ class GPTSFTDataset(Dataset):
 
             remade_example = {}
             remade_example["saved_output"] = example.pop("output")
-            for k,v in example.items():
+            for k, v in example.items():
                 remade_example[k] = v
             remade_example["output"] = ""
             template_strings = [self.prompt_template.render(example), remade_example["saved_output"]]
