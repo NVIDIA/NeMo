@@ -8,7 +8,6 @@ from tqdm import tqdm
 
 from nemo.utils import logging
 
-from .engines.cudf_engine import cuDF
 from .sample import Sample
 
 
