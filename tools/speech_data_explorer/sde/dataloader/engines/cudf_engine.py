@@ -70,20 +70,22 @@ class CuDFEngine:
             postfix = ""
             if label != "":
                 postfix = f"_{label}"
-            
+
             match_words_frequencies = hypothesis_metrics_obj.match_words_frequencies
             match_words_frequencies_df = pd.DataFrame(
                 match_words_frequencies.items(), columns=["Word", f"Match_{postfix}"]
             ).set_index("Word")
-            
-            vocabulary_datatable = pd.concat([vocabulary_datatable, match_words_frequencies_df], axis = 1, join="outer").fillna(0)
+
+            vocabulary_datatable = pd.concat(
+                [vocabulary_datatable, match_words_frequencies_df], axis=1, join="outer"
+            ).fillna(0)
             vocabulary_datatable[f"Accuracy{postfix}"] = (
                 vocabulary_datatable[f"Match_{label}"] / vocabulary_datatable["Amount"] * 100
             ).round(2)
             vocabulary_datatable = vocabulary_datatable.drop(f"Match_{label}", axis=1)
-            
+
             hypothesis_metrics_obj.mwa = round(vocabulary_datatable[f"Accuracy{postfix}"].mean(), 2)
 
         vocabulary_datatable = vocabulary_datatable.reset_index()
-        
+
         return vocabulary_datatable
