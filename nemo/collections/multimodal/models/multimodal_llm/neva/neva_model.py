@@ -124,6 +124,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
+    """Frozen version of CLIPVisionTransformer"""
     def __init__(self, model_cfg, model_parallel_config, pre_process=True, post_process=True):
         super().__init__(
             model_cfg, model_parallel_config, pre_process=pre_process, post_process=post_process, skip_head=True,
@@ -152,6 +153,13 @@ class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
 
 
 class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
+    """
+    A mixin class for integrating vision-based embeddings into language models.
+
+    This class extends the functionality of a language model to include vision-based embeddings
+    by integrating a vision encoder. It allows the language model to process media inputs
+    alongside text inputs.
+    """
     def init_vision(
         self,
         vision_encoder,
@@ -264,6 +272,12 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
 
 class NevaBaseModel:
+    """
+    Base class for a multimedia model integrating vision and language models.
+
+    This class initializes and manages components for a multimodal model that combines vision and language models.
+    It handles the integration of these models, loading weights, and freezing components based on configuration.
+    """
     def __init__(
         self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
     ):
@@ -435,6 +449,12 @@ class NevaBaseModel:
 
 
 class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
+    """
+    A specialized version of NevaBaseModel integrated with MCoreGPTModel (Megatron Core Version GPTModel).
+
+    This class combines the functionalities of MCoreGPTModel and NevaBaseModel,
+    providing capabilities specific to the MCore GPT architecture within the multimodal framework.
+    """
     def __init__(
         self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
     ):
@@ -457,6 +477,12 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
 
 
 class NevaModel(GPTModel, NevaBaseModel):
+    """
+    A specialized version of NevaBaseModel integrated with the NeMo GPTModel.
+
+    This class merges the functionalities of GPTModel with NevaBaseModel, catering to the standard GPT architecture
+    within the multimodal framework.
+    """
     def __init__(
         self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
     ):

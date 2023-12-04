@@ -11,43 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""AutoAugment data augmentation policy for ImageNet.
-
--- Begin license text.
-
-MIT License
-
-Copyright (c) 2018 Philip Popien
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
--- End license text.
-
-Code adapted from https://github.com/DeepVoltaire/AutoAugment.
-
-This module implements the fixed AutoAugment data augmentation policy for ImageNet provided in
-Appendix A, Table 9 of reference [1]. It does not include any of the search code for augmentation
-policies.
-
-Reference:
-[1] https://arxiv.org/abs/1805.09501
-"""
+# https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/data/autoaugment.py
 
 import random
 

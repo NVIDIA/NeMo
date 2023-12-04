@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # code taken from
-# https://github.com/pytorch/vision/blob/main/torchvision/datasets/folder.py
-# added support for classes_fraction and data_per_class_fraction
+# https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/data/image_folder.py
 
 import os
 import os.path
