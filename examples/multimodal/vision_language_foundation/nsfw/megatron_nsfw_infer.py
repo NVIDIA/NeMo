@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 import torch
-from omegaconf.omegaconf import OmegaConf
 from PIL import Image
+from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.models.vision_language_foundation.megatron_nsfw_clip_models import (

@@ -15,24 +15,21 @@ import copy
 import json
 import logging
 import os
-import pathlib
 import re
 import tarfile
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Union
+from dataclasses import dataclass
+from typing import Any, Dict, List, Sequence, Union
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import transformers
+from PIL import Image
 from einops import rearrange
 from omegaconf import DictConfig
-from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor
 
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
-from nemo.collections.multimodal.data.kosmos.kosmos_dataset import tokenize_and_insert_media_tokens
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
 MAX_NUM_IMAGES = 4

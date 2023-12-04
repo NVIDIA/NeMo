@@ -42,7 +42,6 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip import M
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
-from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from megatron.core import parallel_state

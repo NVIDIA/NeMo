@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Tuple
 
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.utils import AppState, logging
-from nemo.utils.distributed import initialize_distributed
+from nemo.utils import logging
 
 try:
     from megatron.core import parallel_state

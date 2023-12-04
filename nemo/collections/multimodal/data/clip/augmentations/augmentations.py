@@ -16,7 +16,7 @@ This code is adapted from public repo
 https://github.com/mlfoundations/open_clip/blob/28c994406e39a5babc749c76871d92f33e9c558d/src/open_clip/transform.py
 by @yaoyu-33
 """
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn

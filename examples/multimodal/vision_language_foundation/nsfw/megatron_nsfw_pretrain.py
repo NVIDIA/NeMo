@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from omegaconf.omegaconf import OmegaConf, open_dict
+from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.multimodal.models.vision_language_foundation.megatron_nsfw_clip_models import (
     MegatronContentFilteringModel,

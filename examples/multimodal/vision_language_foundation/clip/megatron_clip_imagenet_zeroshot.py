@@ -12,27 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 import torch
 import torch.nn.functional as F
 from omegaconf.omegaconf import OmegaConf, open_dict
-from PIL import Image
-from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from tqdm import tqdm
 
 from nemo.collections.multimodal.data.clip.clip_dataset import (
-    ImagenetClassnameDataset,
     build_imagenet_validation_dataloader,
-    get_preprocess_fns,
-    tokenize,
 )
-from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import imagenet_classnames, openai_imagenet_template
 from nemo.collections.multimodal.models.vision_language_foundation.clip import MegatronCLIPModel
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

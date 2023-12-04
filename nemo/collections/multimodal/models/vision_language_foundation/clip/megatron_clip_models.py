@@ -14,7 +14,7 @@
 
 import itertools
 from functools import partial
-from typing import Any, List, Optional, Union
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -27,7 +27,6 @@ from tqdm import tqdm
 from nemo.collections.multimodal.data.clip.clip_dataset import (
     build_imagenet_validation_dataloader,
     build_train_valid_datasets,
-    tokenize,
 )
 from nemo.collections.multimodal.losses.clip_loss import ClipLoss
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -35,17 +34,14 @@ from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
-    get_linear_layer,
     get_params_for_weight_decay_optimization,
     init_method_normal,
-    parallel_lm_logits,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank, is_last_rank, torch_dtype_from_precision
-from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank, torch_dtype_from_precision
+from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
