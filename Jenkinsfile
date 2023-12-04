@@ -78,7 +78,6 @@ pipeline {
       }
     }
 
-
     stage('PyTorch Lightning version') {
       steps {
         sh 'python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"'
