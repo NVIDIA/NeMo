@@ -61,8 +61,7 @@ def get_args():
         "--hf-in-path",
         type=str,
         default=None,
-        help="A HF model path, "
-             "e.g. a folder containing hhttps://huggingface.co/bigcode/starcoder/tree/main",
+        help="A HF model path, " "e.g. a folder containing hhttps://huggingface.co/bigcode/starcoder/tree/main",
     )
     parser.add_argument(
         "--hf-out-path",
@@ -75,13 +74,13 @@ def get_args():
         type=str,
         default=None,
         help="Precision of output weights."
-             "Defaults to precision of the input nemo weights (model.cfg.trainer.precision)",
+        "Defaults to precision of the input nemo weights (model.cfg.trainer.precision)",
     )
     parser.add_argument(
         "--cpu-only",
         action="store_true",
         help="Load model in cpu only. Useful if the model cannot fit in GPU memory, "
-             "but this option makes the conversion script significantly slower.",
+        "but this option makes the conversion script significantly slower.",
     )
     args = parser.parse_args()
     return args
@@ -117,7 +116,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     checkpoint = OrderedDict()
 
     def get_original_key(new_key):
-        new_key = new_key[len(prefix):]
+        new_key = new_key[len(prefix) :]
 
         if new_key.startswith("embedding.word_embeddings.weight"):
             return "transformer.wte.weight"
