@@ -67,6 +67,15 @@ class FalconTransformerLayer(TransformerLayer):
         else:
             self.parallel_attention = None
 
+        if self.new_decoder_architecture or self.parallel_attention:
+            self.post_self_attn_layernorm = None
+        else:
+            self.post_self_attn_layernorm = build_module(
+                submodules.post_self_attn_layernorm,
+                config=self.config,
+                hidden_size=self.config.hidden_size,
+                eps=self.config.layernorm_epsilon,
+            )
         if self.new_decoder_architecture:
             self.pre_mlp_layernorm = build_module(
                 submodules.pre_mlp_layernorm,

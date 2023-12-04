@@ -33,9 +33,7 @@ from .falcon_decoder_layer import FalconTransformerLayer
 
 # Use this spec for an implementation using modules in TE
 def get_falcon_layer_spec() -> ModuleSpec:
-    return ModuleSpec(
-        module=FalconTransformerLayer,
-        submodules=TransformerLayerSubmodules(
+    falcon_submodules = TransformerLayerSubmodules(
             input_layernorm=TENorm,
             self_attention=ModuleSpec(
                 module=SelfAttention,
@@ -53,5 +51,10 @@ def get_falcon_layer_spec() -> ModuleSpec:
                 submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
             ),
             mlp_bda=get_bias_dropout_add,
-        ),
+        )
+    #Old falcon(prior to 7b/40b/180b) uses post_self_attn_layernorm that is not included in TransformerLayerModules.
+    falcon_submodules.post_self_attn_layernorm = TENorm
+    return ModuleSpec(
+        module=FalconTransformerLayer,
+        submodules=falcon_submodules
     )
