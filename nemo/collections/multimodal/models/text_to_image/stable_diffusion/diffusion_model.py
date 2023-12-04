@@ -17,7 +17,6 @@ from typing import Any, Optional
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.core.classes import ModelPT
 from nemo.utils import logging
 

@@ -1,7 +1,6 @@
 import collections
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import build_from_cfg
-
 from ..builder import PIPELINES
 
 

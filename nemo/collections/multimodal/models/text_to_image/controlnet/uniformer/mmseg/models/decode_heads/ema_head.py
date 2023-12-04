@@ -4,10 +4,10 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
 
-from ..builder import HEADS
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
 from .decode_head import BaseDecodeHead
+from ..builder import HEADS
 
 
 def reduce_mean(tensor):

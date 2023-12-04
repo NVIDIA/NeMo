@@ -7,9 +7,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv as mmcv
-
-from ..builder import LOSSES
 from .utils import get_class_weight, weight_reduce_loss
+from ..builder import LOSSES
 
 
 def lovasz_grad(gt_sorted):

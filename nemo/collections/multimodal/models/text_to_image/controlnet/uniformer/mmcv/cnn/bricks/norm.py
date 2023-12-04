@@ -9,7 +9,6 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     _BatchNorm,
     _InstanceNorm,
 )
-
 from .registry import NORM_LAYERS
 
 NORM_LAYERS.register_module('BN', module=nn.BatchNorm2d)

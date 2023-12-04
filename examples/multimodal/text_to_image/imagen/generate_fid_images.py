@@ -1,8 +1,6 @@
 import os
-import time
 
 import torch
-from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.multimodal.models.text_to_image.imagen.imagen_pipeline import ImagenPipeline

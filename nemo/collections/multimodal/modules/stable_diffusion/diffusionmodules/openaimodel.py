@@ -13,8 +13,6 @@
 # limitations under the License.
 import math
 from abc import abstractmethod
-from functools import partial
-from typing import Iterable
 
 import numpy as np
 import torch
@@ -837,7 +835,6 @@ class UNetModel(nn.Module):
         return res_dict
 
     def _state_key_mapping(self, state_dict: dict):
-        import re
 
         res_dict = {}
         input_dict = {}

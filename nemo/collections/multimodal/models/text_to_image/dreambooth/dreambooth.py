@@ -11,40 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-from abc import ABC
 from functools import partial
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional
 
-import numpy as np
-import pytorch_lightning as pl
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.utilities import GradClipAlgorithmType
 from torch._inductor import config as inductor_config
-from torch.optim.lr_scheduler import LambdaLR
 
 from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
-    extract_into_tensor,
-    make_beta_schedule,
-    noise_like,
-)
 from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import (
     DiagonalGaussianDistribution,
 )
-from nemo.collections.multimodal.parts.stable_diffusion.utils import default, exists
 from nemo.collections.multimodal.parts.utils import randn_like
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank, is_last_rank
-from nemo.core.classes import ModelPT
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization
-from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
 
 try:
     from apex import amp

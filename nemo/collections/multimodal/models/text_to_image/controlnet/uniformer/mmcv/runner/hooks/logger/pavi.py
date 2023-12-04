@@ -7,10 +7,10 @@ import torch
 import yaml
 
 import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv as mmcv
-from ....parallel.utils import is_module_wrapper
-from ...dist_utils import master_only
-from ..hook import HOOKS
 from .base import LoggerHook
+from ..hook import HOOKS
+from ...dist_utils import master_only
+from ....parallel.utils import is_module_wrapper
 
 
 @HOOKS.register_module()

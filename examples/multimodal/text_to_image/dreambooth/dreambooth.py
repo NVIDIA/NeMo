@@ -12,26 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import pytorch_lightning as pl
-import torch
 
-from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
+import torch
+from omegaconf import OmegaConf
 
 from nemo.collections.multimodal.models.text_to_image.dreambooth import MegatronDreamBooth
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
 from nemo.collections.multimodal.parts.stable_diffusion.pipeline import pipeline
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    PipelineMixedPrecisionPlugin,
-)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

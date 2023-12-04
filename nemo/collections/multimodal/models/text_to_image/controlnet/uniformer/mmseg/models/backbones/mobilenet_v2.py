@@ -9,7 +9,6 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     kaiming_init,
 )
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.runner import load_checkpoint
-
 from ..builder import BACKBONES
 from ..utils import InvertedResidual, make_divisible
 

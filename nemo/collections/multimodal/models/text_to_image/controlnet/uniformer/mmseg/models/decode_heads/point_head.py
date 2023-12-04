@@ -2,13 +2,13 @@
 
 import torch
 import torch.nn as nn
+
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule, normal_init
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.ops import point_sample
-
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.models.builder import HEADS
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
-from ..losses import accuracy
 from .cascade_decode_head import BaseCascadeDecodeHead
+from ..losses import accuracy
 
 
 def calculate_uncertainty(seg_logits):

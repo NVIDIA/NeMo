@@ -4,9 +4,9 @@ import torch.nn.functional as F
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.core import add_prefix
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
+from .base import BaseSegmentor
 from .. import builder
 from ..builder import SEGMENTORS
-from .base import BaseSegmentor
 
 
 @SEGMENTORS.register_module()

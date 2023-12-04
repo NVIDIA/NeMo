@@ -1,5 +1,4 @@
 import pytorch_lightning as pl
-from hydra.utils import instantiate
 from omegaconf.omegaconf import DictConfig
 from torch.utils.data import DataLoader
 

@@ -14,20 +14,11 @@
 import pytorch_lightning as pl
 import torch
 from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
 from torch._dynamo import disable
 from torch._inductor import config as inductor_config
 
 from nemo.collections.multimodal.models.text_to_image.imagen import MegatronImagen
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    PipelineMixedPrecisionPlugin,
-)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

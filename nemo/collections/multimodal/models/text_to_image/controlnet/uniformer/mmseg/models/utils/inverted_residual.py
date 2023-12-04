@@ -2,7 +2,6 @@ from torch import nn
 from torch.utils import checkpoint as cp
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
-
 from .se_layer import SELayer
 
 

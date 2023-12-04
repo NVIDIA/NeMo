@@ -4,7 +4,6 @@ import torch
 from torch import nn as nn
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.runner import force_fp32
-
 from .furthest_point_sample import furthest_point_sample, furthest_point_sample_with_dist
 
 

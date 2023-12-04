@@ -5,10 +5,9 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     TORCH_VERSION,
     digit_version,
 )
-
-from ...dist_utils import master_only
-from ..hook import HOOKS
 from .base import LoggerHook
+from ..hook import HOOKS
+from ...dist_utils import master_only
 
 
 @HOOKS.register_module()

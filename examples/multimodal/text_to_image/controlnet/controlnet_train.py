@@ -1,28 +1,12 @@
-from datetime import timedelta
-
-import pytorch_lightning as pl
-import torch
 from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.strategies.ddp import DDPStrategy
 
-from nemo.collections.multimodal.data.common.webdataset import WebDatasetCommon
-from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentations import (
-    construct_image_augmentations,
-    identical_transform,
-)
+from pytorch_lightning import Trainer
+
 from nemo.collections.multimodal.models.text_to_image.controlnet import ImageLogger
 from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import MegatronControlNet
-from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    PipelineMixedPrecisionPlugin,
-)
 from nemo.core.config import hydra_runner
-from nemo.utils.exp_manager import StatelessTimer, exp_manager
+from nemo.utils.exp_manager import exp_manager
 
 
 class MegatronControlNetTrainerBuilder(MegatronTrainerBuilder):

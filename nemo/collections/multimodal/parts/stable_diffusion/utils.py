@@ -14,15 +14,13 @@
 import importlib
 import multiprocessing as mp
 from collections import abc
-from functools import partial
 from inspect import isfunction
 from queue import Queue
 from threading import Thread
 
 import numpy as np
 import torch
-from einops import rearrange
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 
 class DataParallelWrapper(torch.nn.DataParallel):

@@ -5,7 +5,6 @@ import torch
 
 import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv as mmcv
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.parallel import DataContainer as DC
-
 from ..builder import PIPELINES
 
 

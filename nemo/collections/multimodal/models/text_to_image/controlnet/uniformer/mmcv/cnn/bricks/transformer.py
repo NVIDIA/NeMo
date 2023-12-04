@@ -20,7 +20,6 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     Sequential,
 )
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import build_from_cfg
-
 from .drop import build_dropout
 from .registry import (
     ATTENTION,

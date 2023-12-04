@@ -5,11 +5,9 @@
 # Written by Kunchang Li
 # --------------------------------------------------------
 
-import math
 from collections import OrderedDict
 from functools import partial
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,7 +16,6 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv_custom import load_checkpoint
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.utils import get_root_logger
-
 from ..builder import BACKBONES
 
 

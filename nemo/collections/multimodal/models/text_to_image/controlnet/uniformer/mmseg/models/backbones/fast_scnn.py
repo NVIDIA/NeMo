@@ -12,7 +12,6 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg
     PPM,
 )
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
-
 from ..builder import BACKBONES
 from ..utils.inverted_residual import InvertedResidual
 

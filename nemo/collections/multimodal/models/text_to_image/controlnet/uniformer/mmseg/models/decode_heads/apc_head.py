@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
 
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
-from ..builder import HEADS
 from .decode_head import BaseDecodeHead
+from ..builder import HEADS
 
 
 class ACM(nn.Module):

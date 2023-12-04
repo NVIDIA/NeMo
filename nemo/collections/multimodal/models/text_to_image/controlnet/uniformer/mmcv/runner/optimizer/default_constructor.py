@@ -11,7 +11,6 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     is_list_of,
 )
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils.ext_loader import check_ops_exist
-
 from .builder import OPTIMIZER_BUILDERS, OPTIMIZERS
 
 

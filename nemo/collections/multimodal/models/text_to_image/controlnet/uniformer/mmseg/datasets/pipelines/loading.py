@@ -3,7 +3,6 @@ import os.path as osp
 import numpy as np
 
 import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv as mmcv
-
 from ..builder import PIPELINES
 
 

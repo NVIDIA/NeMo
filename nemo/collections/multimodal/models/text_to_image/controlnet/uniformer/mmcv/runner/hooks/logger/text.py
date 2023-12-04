@@ -10,8 +10,8 @@ import torch.distributed as dist
 import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv as mmcv
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.fileio.file_client import FileClient
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import is_tuple_of, scandir
-from ..hook import HOOKS
 from .base import LoggerHook
+from ..hook import HOOKS
 
 
 @HOOKS.register_module()

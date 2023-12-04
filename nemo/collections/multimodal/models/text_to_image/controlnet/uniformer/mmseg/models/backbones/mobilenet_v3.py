@@ -11,7 +11,6 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
 )
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn.bricks import Conv2dAdaptivePadding
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.runner import load_checkpoint
-
 from ..builder import BACKBONES
 from ..utils import InvertedResidualV3 as InvertedResidual
 

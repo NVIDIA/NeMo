@@ -18,7 +18,7 @@ from inspect import isfunction
 
 import torch
 import torch.nn.functional as F
-from einops import rearrange, reduce, repeat
+from einops import rearrange, repeat
 from torch import einsum, nn
 
 # constants

@@ -6,7 +6,6 @@ from PIL import Image
 
 import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv as mmcv
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import print_log
-
 from .builder import DATASETS
 from .custom import CustomDataset
 

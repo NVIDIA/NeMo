@@ -22,17 +22,17 @@ from typing import Callable, List, Union
 
 import boto3
 import torch.distributed as dist
-import webdataset as wds
-from botocore.config import Config
 from PIL import Image
-from webdataset import WebDataset
+from botocore.config import Config
 from webdataset.filters import _shuffle
 from webdataset.utils import pytorch_worker_info
 
+import webdataset as wds
 from nemo.collections.multimodal.data.common.data_samplers import SharedEpoch, WDSUrlsRandomSampler
 from nemo.collections.multimodal.data.common.webdataset_s3 import WebDataset as WebDatasetS3
 from nemo.core.classes import IterableDataset as NeMoIterableDataset
 from nemo.utils import logging
+from webdataset import WebDataset
 
 try:
     from megatron.core import parallel_state

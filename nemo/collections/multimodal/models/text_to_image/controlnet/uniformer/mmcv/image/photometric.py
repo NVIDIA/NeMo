@@ -2,8 +2,8 @@
 import cv2
 import numpy as np
 
-from ..utils import is_tuple_of
 from .colorspace import bgr2gray, gray2bgr
+from ..utils import is_tuple_of
 
 
 def imnormalize(img, mean, std, to_rgb=True):

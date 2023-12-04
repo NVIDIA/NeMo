@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
-import math
 from typing import Optional
 
 import torch
+from nemo.collections.multimodal.modules.renderer.base_renderer import BaseRenderer
 from nerfacc.estimators.occ_grid import OccGridEstimator
 from nerfacc.grid import ray_aabb_intersect, traverse_grids
 from nerfacc.volrend import accumulate_along_rays_, render_weight_from_density, rendering
-
-from nemo.collections.multimodal.modules.renderer.base_renderer import BaseRenderer
 
 Rays = collections.namedtuple("Rays", ("origins", "viewdirs"))
 

@@ -9,11 +9,10 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     build_conv_layer,
     build_norm_layer,
 )
-
-from ..builder import BACKBONES
-from ..utils import ResLayer
 from .resnet import Bottleneck as _Bottleneck
 from .resnet import ResNetV1d
+from ..builder import BACKBONES
+from ..utils import ResLayer
 
 
 class RSoftmax(nn.Module):

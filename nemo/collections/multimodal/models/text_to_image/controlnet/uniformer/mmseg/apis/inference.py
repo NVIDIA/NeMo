@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import torch
 
 import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv as mmcv

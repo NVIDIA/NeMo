@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from enum import Enum
-from typing import Callable, Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import mcubes
 import numpy as np

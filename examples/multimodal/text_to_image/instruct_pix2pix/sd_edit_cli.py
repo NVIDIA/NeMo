@@ -16,19 +16,14 @@ from __future__ import annotations
 import math
 import os
 import random
-import sys
-from argparse import ArgumentParser
 
 import einops
 import numpy as np
 import torch
 import torch.nn as nn
+from PIL import Image, ImageOps
 from einops import rearrange, repeat
 from omegaconf import OmegaConf, open_dict
-from PIL import Image, ImageOps
-from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from torch import autocast
 
 from nemo.collections.multimodal.models.text_to_image.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.k_diffusion import (
@@ -36,7 +31,6 @@ from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.
     sample_euler_ancestral,
 )
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

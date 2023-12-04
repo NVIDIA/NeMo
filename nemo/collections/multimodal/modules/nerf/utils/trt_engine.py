@@ -11,15 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
-import os
 from collections import OrderedDict
 from copy import copy
 
 import numpy as np
 import tensorrt as trt
 import torch
-from einops import repeat
 from polygraphy import cuda
 from polygraphy.backend.common import bytes_from_path
 from polygraphy.backend.trt import engine_from_bytes

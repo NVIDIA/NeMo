@@ -4,11 +4,10 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     build_conv_layer,
     build_norm_layer,
 )
-
-from ..builder import BACKBONES
-from ..utils import ResLayer
 from .resnet import Bottleneck as _Bottleneck
 from .resnet import ResNet
+from ..builder import BACKBONES
+from ..utils import ResLayer
 
 
 class Bottleneck(_Bottleneck):

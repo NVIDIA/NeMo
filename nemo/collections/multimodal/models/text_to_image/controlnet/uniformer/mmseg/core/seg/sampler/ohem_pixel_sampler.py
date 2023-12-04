@@ -1,8 +1,8 @@
 import torch
 import torch.nn.functional as F
 
-from ..builder import PIXEL_SAMPLERS
 from .base_pixel_sampler import BasePixelSampler
+from ..builder import PIXEL_SAMPLERS
 
 
 @PIXEL_SAMPLERS.register_module()

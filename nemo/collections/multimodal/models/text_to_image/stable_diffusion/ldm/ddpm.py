@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-from contextlib import contextmanager
 from functools import partial
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional
 
 import numpy as np
 import pytorch_lightning as pl
@@ -22,16 +21,13 @@ import torch
 import torch.nn as nn
 from einops import rearrange, repeat
 from lightning_fabric.utilities.cloud_io import _load as pl_load
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.utilities.migration import pl_legacy_patch
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
-from torch._dynamo import optimize
 from torch._inductor import config as inductor_config
-from torch.optim.lr_scheduler import LambdaLR
 from torchvision.utils import make_grid
 from tqdm import tqdm
 
@@ -39,7 +35,6 @@ from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset 
     build_train_valid_datasets,
     build_train_valid_precached_datasets,
 )
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_model import DiffusionModel
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder import (
     AutoencoderKL,
     IdentityFirstStage,
@@ -66,7 +61,6 @@ from nemo.collections.multimodal.parts.stable_diffusion.utils import (
 )
 from nemo.collections.multimodal.parts.utils import randn_like
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization

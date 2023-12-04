@@ -15,15 +15,12 @@ import os
 import tempfile
 from functools import partial
 
-import kornia
 import open_clip
 import torch
 import torch.nn as nn
-from einops import rearrange, repeat
 from omegaconf import OmegaConf
 from torch.utils.checkpoint import checkpoint
-from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
-from transformers.models.clip.modeling_clip import CLIPTextTransformer
+from transformers import CLIPTextModel, CLIPTokenizer
 
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
 from nemo.collections.multimodal.models.vision_language_foundation.clip import CLIPModel
@@ -31,7 +28,6 @@ from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer
     TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 )
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import logging

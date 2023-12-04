@@ -16,13 +16,9 @@ from datetime import datetime
 from functools import partial
 from typing import Any
 
-import numpy as np
 import torch
-import torch.nn.functional as F
-from einops import rearrange
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
-from tqdm import tqdm
 
 from nemo.collections.multimodal.data.imagen.imagen_dataset import build_train_valid_datasets
 from nemo.collections.multimodal.models.text_to_image.imagen.precond import ContinousDDPMPrecond, EDMPrecond

@@ -5,9 +5,9 @@ import torch
 from torch import nn as nn
 from torch.autograd import Function
 
-from ..utils import ext_loader
 from .ball_query import ball_query
 from .knn import knn
+from ..utils import ext_loader
 
 ext_module = ext_loader.load_ext('_ext', ['group_points_forward', 'group_points_backward'])
 

@@ -4,9 +4,9 @@ from abc import ABCMeta
 import torch
 import torch.nn as nn
 
-from ..utils import constant_init, normal_init
 from .conv_module import ConvModule
 from .registry import PLUGIN_LAYERS
+from ..utils import constant_init, normal_init
 
 
 class _NonLocalNd(nn.Module, metaclass=ABCMeta):

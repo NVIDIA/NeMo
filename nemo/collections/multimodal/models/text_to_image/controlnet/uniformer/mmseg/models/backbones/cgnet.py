@@ -12,7 +12,6 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.runner import load_checkpoint
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils.parrots_wrapper import _BatchNorm
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.utils import get_root_logger
-
 from ..builder import BACKBONES
 
 

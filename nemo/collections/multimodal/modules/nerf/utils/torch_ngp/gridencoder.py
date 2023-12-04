@@ -18,7 +18,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Function
-from torch.autograd.function import once_differentiable
 from torch.cuda.amp import custom_bwd, custom_fwd
 
 _gridtype_to_id = {

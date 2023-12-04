@@ -21,11 +21,9 @@ from typing import Any
 import numpy as np
 import torch
 import torchvision
-from einops import rearrange
 from PIL import Image
+from einops import rearrange
 from torch.utils.data import Dataset
-
-from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentations import construct_image_augmentations
 
 
 class EditDataset(Dataset):

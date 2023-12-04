@@ -12,7 +12,6 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     TORCH_VERSION,
     digit_version,
 )
-
 from .dist_utils import allreduce_grads as _allreduce_grads
 
 try:

@@ -11,7 +11,6 @@ import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmc
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import print_log
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.core import eval_metrics
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.utils import get_root_logger
-
 from .builder import DATASETS
 from .pipelines import Compose
 

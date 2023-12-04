@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
 
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
+from .cascade_decode_head import BaseCascadeDecodeHead
 from ..builder import HEADS
 from ..utils import SelfAttentionBlock as _SelfAttentionBlock
-from .cascade_decode_head import BaseCascadeDecodeHead
 
 
 class SpatialGatherModule(nn.Module):

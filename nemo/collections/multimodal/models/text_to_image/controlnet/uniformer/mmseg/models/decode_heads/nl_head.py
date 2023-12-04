@@ -1,8 +1,8 @@
 import torch
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import NonLocal2d
 
-from ..builder import HEADS
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import NonLocal2d
 from .fcn_head import FCNHead
+from ..builder import HEADS
 
 
 @HEADS.register_module()

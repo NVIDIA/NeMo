@@ -2,8 +2,8 @@
 import torch
 from torch import nn
 
-from ..utils import constant_init, kaiming_init
 from .registry import PLUGIN_LAYERS
+from ..utils import constant_init, kaiming_init
 
 
 def last_zero_init(m):

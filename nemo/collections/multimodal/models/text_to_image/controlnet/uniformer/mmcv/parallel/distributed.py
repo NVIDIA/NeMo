@@ -7,7 +7,6 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     TORCH_VERSION,
     digit_version,
 )
-
 from .scatter_gather import scatter_kwargs
 
 

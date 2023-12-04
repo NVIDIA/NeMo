@@ -12,24 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
-import math
 import os
-import random
 import tempfile
 from functools import partial
-from typing import Any, List, Optional, Union
+from typing import Optional
 
-import numpy as np
 import pandas as pd
 import torch
 from einops import rearrange, repeat
 from omegaconf.dictconfig import DictConfig
-from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning.accelerators import CPUAccelerator
+from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.multimodal.data.kosmos.kosmos_dataset import MAX_NUM_IMAGES, MergedKosmosDataLoader
+from nemo.collections.multimodal.data.kosmos.kosmos_dataset import MergedKosmosDataLoader
 from nemo.collections.multimodal.data.kosmos.kosmos_dataset import (
     build_train_valid_datasets as build_media_train_valid_datasets,
 )
@@ -42,37 +37,17 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import (
     build_train_valid_test_datasets as build_text_train_valid_test_datasets,
 )
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel, post_language_model_processing
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import post_language_model_processing
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
-    get_all_params_for_weight_decay_optimization,
-    get_params_for_weight_decay_optimization,
     init_method_normal,
-    parallel_lm_logits,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.modules.common.text_generation_utils import (
-    generate,
-    get_computeprob_response,
-    get_default_length_params,
-    get_default_sampling_params,
-    megatron_gpt_generate,
-)
-from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    LengthParam,
-    OutputType,
-    SamplingParam,
-    TextGeneration,
-)
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 

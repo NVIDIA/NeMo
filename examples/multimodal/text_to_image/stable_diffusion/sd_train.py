@@ -13,11 +13,9 @@
 # limitations under the License.
 
 import os
-from datetime import timedelta
 
 import torch
-from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
+from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder

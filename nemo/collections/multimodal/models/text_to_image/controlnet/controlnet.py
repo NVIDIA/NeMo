@@ -1,13 +1,12 @@
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 import einops
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
-from torch._dynamo import optimize
 from torch._inductor import config as inductor_config
 from torchvision.utils import make_grid
 
@@ -31,7 +30,6 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
 from nemo.collections.multimodal.parts.stable_diffusion.utils import exists, log_txt_as_img
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
 
 try:

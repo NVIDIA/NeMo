@@ -6,7 +6,6 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     deprecated_api_warning,
     is_tuple_of,
 )
-
 from ..builder import PIPELINES
 
 

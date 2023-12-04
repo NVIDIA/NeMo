@@ -17,7 +17,7 @@ from inspect import isfunction
 import torch
 import torch.nn.functional as F
 from apex.contrib.group_norm import GroupNorm
-from einops import rearrange, repeat
+from einops import rearrange
 from torch import einsum, nn
 from torch._dynamo import disable
 

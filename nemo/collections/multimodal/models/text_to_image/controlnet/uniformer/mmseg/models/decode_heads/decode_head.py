@@ -2,9 +2,9 @@ from abc import ABCMeta, abstractmethod
 
 import torch
 import torch.nn as nn
+
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import normal_init
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.runner import auto_fp16, force_fp32
-
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.core import build_pixel_sampler
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
 from ..builder import build_loss

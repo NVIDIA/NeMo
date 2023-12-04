@@ -6,7 +6,7 @@ from .parrots_wrapper import TORCH_VERSION
 parrots_jit_option = os.getenv('PARROTS_JIT_OPTION')
 
 if TORCH_VERSION == 'parrots' and parrots_jit_option == 'ON':
-    from parrots.jit import pat as jit
+    pass
 else:
 
     def jit(func=None, check_input=None, full_shape=True, derivate=False, coderize=False, optimize=False):
@@ -23,7 +23,7 @@ else:
 
 
 if TORCH_VERSION == 'parrots':
-    from parrots.utils.tester import skip_no_elena
+    pass
 else:
 
     def skip_no_elena(func):

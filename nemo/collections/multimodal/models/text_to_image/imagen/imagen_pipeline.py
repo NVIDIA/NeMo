@@ -14,7 +14,7 @@
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Literal, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import torch
 from omegaconf.omegaconf import OmegaConf

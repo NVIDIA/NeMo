@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
 
+from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
 from ..builder import NECKS
 
 

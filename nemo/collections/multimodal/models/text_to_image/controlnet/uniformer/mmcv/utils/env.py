@@ -10,7 +10,6 @@ import cv2
 import torch
 
 import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv as mmcv
-
 from .parrots_wrapper import get_build_config
 
 

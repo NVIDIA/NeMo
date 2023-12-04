@@ -15,17 +15,8 @@
 https://github.com/timothybrooks/instruct-pix2pix/blob/2afcb7e45bd350765f21a58a0c135871e9dc5a78/stable_diffusion/ldm/models/diffusion/ddpm_edit.py
 """
 
-from contextlib import contextmanager
-from functools import partial
-
-import numpy as np
-import pytorch_lightning as pl
 import torch
-import torch.nn as nn
-from einops import rearrange, repeat
-from torch.optim.lr_scheduler import LambdaLR
-from torchvision.utils import make_grid
-from tqdm import tqdm
+from einops import rearrange
 
 from nemo.collections.multimodal.data.instruct_pix2pix.edit_dataset import EditDataset
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import (

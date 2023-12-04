@@ -1,7 +1,6 @@
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import DepthwiseSeparableConvModule
-
-from ..builder import HEADS
 from .fcn_head import FCNHead
+from ..builder import HEADS
 
 
 @HEADS.register_module()

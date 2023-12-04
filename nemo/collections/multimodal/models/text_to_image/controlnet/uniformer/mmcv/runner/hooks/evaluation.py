@@ -9,7 +9,6 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.fileio import FileClient
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils import is_seq_of
-
 from .hook import Hook
 from .logger import LoggerHook
 

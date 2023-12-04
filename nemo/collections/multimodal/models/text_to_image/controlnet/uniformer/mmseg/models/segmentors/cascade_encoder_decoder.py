@@ -2,9 +2,9 @@ from torch import nn
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.core import add_prefix
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
+from .encoder_decoder import EncoderDecoder
 from .. import builder
 from ..builder import SEGMENTORS
-from .encoder_decoder import EncoderDecoder
 
 
 @SEGMENTORS.register_module()

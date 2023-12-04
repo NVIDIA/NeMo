@@ -15,8 +15,8 @@ import os
 from typing import Any, Callable, Tuple
 
 import torch
-from omegaconf import DictConfig, open_dict
 from PIL import Image
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
