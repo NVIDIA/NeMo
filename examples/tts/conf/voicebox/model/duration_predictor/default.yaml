@@ -3,7 +3,7 @@ _target_: nemo.collections.tts.modules.voicebox_modules.DurationPredictor
 
 # Input related args
 audio_enc_dec: null
-# tokenizer: Optional[Tokenizer] = None
+tokenizer: null
 # num_phoneme_tokens: Optional[int]: null
 
 # Dims
