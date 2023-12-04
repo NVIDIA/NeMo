@@ -4,9 +4,10 @@ from torch import nn
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule, Scale
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.core import add_prefix
-from .decode_head import BaseDecodeHead
+
 from ..builder import HEADS
 from ..utils import SelfAttentionBlock as _SelfAttentionBlock
+from .decode_head import BaseDecodeHead
 
 
 class PAM(_SelfAttentionBlock):

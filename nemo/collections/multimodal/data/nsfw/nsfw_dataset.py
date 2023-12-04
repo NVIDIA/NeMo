@@ -15,8 +15,8 @@ import pathlib
 from typing import Callable, List, Optional, Tuple
 
 import torch
-from PIL import Image
 from omegaconf.dictconfig import DictConfig
+from PIL import Image
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 

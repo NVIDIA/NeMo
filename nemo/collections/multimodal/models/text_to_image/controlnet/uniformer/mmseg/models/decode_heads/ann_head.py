@@ -2,9 +2,10 @@ import torch
 import torch.nn as nn
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
-from .decode_head import BaseDecodeHead
+
 from ..builder import HEADS
 from ..utils import SelfAttentionBlock as _SelfAttentionBlock
+from .decode_head import BaseDecodeHead
 
 
 class PPMConcat(nn.ModuleList):

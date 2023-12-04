@@ -1,8 +1,9 @@
 import torch
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ContextBlock
-from .fcn_head import FCNHead
+
 from ..builder import HEADS
+from .fcn_head import FCNHead
 
 
 @HEADS.register_module()

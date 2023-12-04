@@ -1,6 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from ..hooks.hook import HOOKS, Hook
 from ...parallel import is_module_wrapper
+from ..hooks.hook import HOOKS, Hook
 
 
 @HOOKS.register_module()

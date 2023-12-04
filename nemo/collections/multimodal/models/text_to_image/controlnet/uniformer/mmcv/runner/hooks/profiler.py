@@ -4,8 +4,8 @@ from typing import Callable, List, Optional, Union
 
 import torch
 
-from .hook import HOOKS, Hook
 from ..dist_utils import master_only
+from .hook import HOOKS, Hook
 
 
 @HOOKS.register_module()

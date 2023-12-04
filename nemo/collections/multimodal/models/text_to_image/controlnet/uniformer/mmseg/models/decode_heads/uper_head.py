@@ -3,9 +3,10 @@ import torch.nn as nn
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
+
+from ..builder import HEADS
 from .decode_head import BaseDecodeHead
 from .psp_head import PPM
-from ..builder import HEADS
 
 
 @HEADS.register_module()

@@ -1,8 +1,9 @@
 import warnings
 
 import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv as mmcv
-from .compose import Compose
+
 from ..builder import PIPELINES
+from .compose import Compose
 
 
 @PIPELINES.register_module()

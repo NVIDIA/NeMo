@@ -10,9 +10,10 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     _BatchNorm,
     digit_version,
 )
-from .hook import HOOKS, Hook
+
 from ..dist_utils import allreduce_grads
 from ..fp16_utils import LossScaler, wrap_fp16_model
+from .hook import HOOKS, Hook
 
 try:
     # If PyTorch version >= 1.6.0, torch.cuda.amp.GradScaler would be imported

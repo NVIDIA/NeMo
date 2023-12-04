@@ -2,8 +2,9 @@ import torch
 from torch import nn
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import NonLocal2d
-from .fcn_head import FCNHead
+
 from ..builder import HEADS
+from .fcn_head import FCNHead
 
 
 class DisentangledNonLocal2d(NonLocal2d):

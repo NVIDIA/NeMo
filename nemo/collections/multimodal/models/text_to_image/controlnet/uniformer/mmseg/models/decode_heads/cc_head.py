@@ -1,7 +1,7 @@
 import torch
 
-from .fcn_head import FCNHead
 from ..builder import HEADS
+from .fcn_head import FCNHead
 
 try:
     from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.ops import CrissCrossAttention

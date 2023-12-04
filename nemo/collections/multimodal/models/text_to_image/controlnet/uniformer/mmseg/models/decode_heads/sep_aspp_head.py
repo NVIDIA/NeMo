@@ -6,8 +6,9 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     DepthwiseSeparableConvModule,
 )
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
-from .aspp_head import ASPPHead, ASPPModule
+
 from ..builder import HEADS
+from .aspp_head import ASPPHead, ASPPModule
 
 
 class DepthwiseSeparableASPPModule(ASPPModule):

@@ -21,8 +21,8 @@ from typing import Any
 import numpy as np
 import torch
 import torchvision
-from PIL import Image
 from einops import rearrange
+from PIL import Image
 from torch.utils.data import Dataset
 
 

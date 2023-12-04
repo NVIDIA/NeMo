@@ -9,13 +9,14 @@ import torch
 from torch.optim import Optimizer
 
 import nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv as mmcv
+
+from ..parallel import is_module_wrapper
 from .checkpoint import load_checkpoint
 from .dist_utils import get_dist_info
 from .hooks import HOOKS, Hook
 from .log_buffer import LogBuffer
 from .priority import Priority, get_priority
 from .utils import get_time_str
-from ..parallel import is_module_wrapper
 
 
 class BaseRunner(metaclass=ABCMeta):

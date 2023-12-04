@@ -1,7 +1,5 @@
 from pytorch_lightning import Trainer
 
-from pytorch_lightning import Trainer
-
 from nemo.collections.multimodal.models.text_to_image.controlnet import ImageLogger
 from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import MegatronControlNet
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder

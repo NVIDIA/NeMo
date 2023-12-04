@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .utils import get_class_weight, weighted_loss
 from ..builder import LOSSES
+from .utils import get_class_weight, weighted_loss
 
 
 @weighted_loss

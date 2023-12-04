@@ -7,8 +7,9 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
     build_activation_layer,
     build_norm_layer,
 )
-from .decode_head import BaseDecodeHead
+
 from ..builder import HEADS
+from .decode_head import BaseDecodeHead
 
 
 class DCM(nn.Module):

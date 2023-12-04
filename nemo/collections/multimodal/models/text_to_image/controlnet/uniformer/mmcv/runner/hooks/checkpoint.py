@@ -3,8 +3,9 @@ import os.path as osp
 import warnings
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.fileio import FileClient
-from .hook import HOOKS, Hook
+
 from ..dist_utils import allreduce_params, master_only
+from .hook import HOOKS, Hook
 
 
 @HOOKS.register_module()

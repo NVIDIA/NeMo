@@ -10,8 +10,9 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.utils.parrots_wrapper import _BatchNorm
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import Upsample, resize
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.utils import get_root_logger
-from .resnet import BasicBlock, Bottleneck
+
 from ..builder import BACKBONES
+from .resnet import BasicBlock, Bottleneck
 
 
 class HRModule(nn.Module):

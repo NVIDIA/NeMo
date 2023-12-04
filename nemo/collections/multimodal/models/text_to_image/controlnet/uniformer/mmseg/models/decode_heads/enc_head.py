@@ -4,8 +4,9 @@ import torch.nn.functional as F
 
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.cnn import ConvModule, build_norm_layer
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import Encoding, resize
-from .decode_head import BaseDecodeHead
+
 from ..builder import HEADS, build_loss
+from .decode_head import BaseDecodeHead
 
 
 class EncModule(nn.Module):

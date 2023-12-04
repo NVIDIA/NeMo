@@ -6,8 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .registry import PLUGIN_LAYERS
 from ..utils import kaiming_init
+from .registry import PLUGIN_LAYERS
 
 
 @PLUGIN_LAYERS.register_module()

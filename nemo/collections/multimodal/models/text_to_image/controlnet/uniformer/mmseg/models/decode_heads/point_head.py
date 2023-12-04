@@ -7,8 +7,9 @@ from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmcv.ops import point_sample
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.models.builder import HEADS
 from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer.mmseg.ops import resize
-from .cascade_decode_head import BaseCascadeDecodeHead
+
 from ..losses import accuracy
+from .cascade_decode_head import BaseCascadeDecodeHead
 
 
 def calculate_uncertainty(seg_logits):

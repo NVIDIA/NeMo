@@ -4,8 +4,8 @@ import numbers
 import cv2
 import numpy as np
 
-from .io import imread_backend
 from ..utils import to_2tuple
+from .io import imread_backend
 
 try:
     from PIL import Image
