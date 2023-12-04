@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import torch
-from PIL import Image
 from omegaconf.omegaconf import OmegaConf
+from PIL import Image
 
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
 from nemo.collections.multimodal.models.vision_language_foundation.clip import MegatronCLIPModel

@@ -15,8 +15,8 @@ import pathlib
 from typing import Callable, List, Optional, Tuple
 
 import torch
-from PIL import Image
 from omegaconf.dictconfig import DictConfig
+from PIL import Image
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 
@@ -26,6 +26,7 @@ class DirectoryBasedDataset(torch.utils.data.Dataset):
     A custom dataset class for loading images from a directory structure.
     This class inherits from torch.utils.data.Dataset.
     """
+
     def __init__(self, path: str, transform: Optional[Callable] = None):
         super(DirectoryBasedDataset, self).__init__()
 

@@ -23,9 +23,9 @@ from typing import Any, Dict, List, Sequence, Union
 import torch
 import torch.nn.functional as F
 import transformers
-from PIL import Image
 from einops import rearrange
 from omegaconf import DictConfig
+from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor
 
@@ -67,6 +67,7 @@ class TarOrFolderImageLoader:
         open_image(self, file_name): Opens and returns an image by its file name. The image
                                      is returned as an RGB PIL Image object.
     """
+
     def __init__(self, image_folder):
         self.image_folder = image_folder
         self.tar_index = {}

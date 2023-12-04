@@ -107,6 +107,7 @@ class ClipLoss(nn.Module):
                             gathering features across processes, computing logits, and
                             calculating the final cross-entropy loss.
     """
+
     def __init__(
         self, local_loss=False, gather_with_grad=False, cache_labels=False,
     ):

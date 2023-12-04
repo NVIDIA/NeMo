@@ -17,9 +17,7 @@ import torch.nn.functional as F
 from omegaconf.omegaconf import OmegaConf, open_dict
 from tqdm import tqdm
 
-from nemo.collections.multimodal.data.clip.clip_dataset import (
-    build_imagenet_validation_dataloader,
-)
+from nemo.collections.multimodal.data.clip.clip_dataset import build_imagenet_validation_dataloader
 from nemo.collections.multimodal.models.vision_language_foundation.clip import MegatronCLIPModel
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
