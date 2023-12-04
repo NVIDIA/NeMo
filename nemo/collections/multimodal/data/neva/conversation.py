@@ -22,7 +22,6 @@ class SeparatorStyle(Enum):
 
     SINGLE = auto()
     TWO = auto()
-    MPT = auto()
     PLAIN = auto()
     LLAMA_2 = auto()
     NVGPT = auto()
@@ -331,17 +330,6 @@ conv_llava_llama_2 = Conversation(
     sep2="<extra_id_7>",
 )
 
-conv_mpt = Conversation(
-    system="""<|im_start|>system
-A conversation between a user and an LLM-based AI assistant. The assistant gives helpful and honest answers.""",
-    roles=("<|im_start|>user\n", "<|im_start|>assistant\n"),
-    version="mpt",
-    messages=(),
-    offset=0,
-    sep_style=SeparatorStyle.MPT,
-    sep="<|im_end|>",
-)
-
 conv_llava_plain = Conversation(
     system="", roles=("", ""), messages=(), offset=0, sep_style=SeparatorStyle.PLAIN, sep="\n",
 )
@@ -407,7 +395,6 @@ conv_templates = {
     "llava_v1": conv_llava_v1,
     "v1_mmtag": conv_llava_v1_mmtag,
     "llava_llama_2": conv_llava_llama_2,
-    "mpt": conv_mpt,
     "nvgpt": conv_nvgpt,
 }
 

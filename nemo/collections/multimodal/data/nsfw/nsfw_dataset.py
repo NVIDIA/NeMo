@@ -22,6 +22,10 @@ from nemo.collections.multimodal.data.clip.augmentations.augmentations import im
 
 
 class DirectoryBasedDataset(torch.utils.data.Dataset):
+    """
+    A custom dataset class for loading images from a directory structure.
+    This class inherits from torch.utils.data.Dataset.
+    """
     def __init__(self, path: str, transform: Optional[Callable] = None):
         super(DirectoryBasedDataset, self).__init__()
 
@@ -50,6 +54,9 @@ class DirectoryBasedDataset(torch.utils.data.Dataset):
 
 
 def build_dataset(model_cfg: DictConfig, consumed_samples: int, is_train: bool):
+    """
+    Builds and returns a DirectoryBasedDataset instance.
+    """
     img_fn = image_transform(
         (model_cfg.vision.img_h, model_cfg.vision.img_w),
         is_train=False,

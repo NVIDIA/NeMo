@@ -875,11 +875,7 @@ class MegatronCLIPModel(MegatronBaseModel):
             if isinstance(self.model, list):
                 for i, module in enumerate(self.model):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    # module.sync_initial_word_embeddings()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-            else:
-                # self.model.sync_initial_word_embeddings()
-                pass
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds') and self._train_ds is not None:

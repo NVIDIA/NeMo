@@ -51,6 +51,25 @@ DEFAULT_IM_END_TOKEN = "<extra_id_5>"
 
 
 class TarOrFolderImageLoader:
+    """
+    A class for loading images from a tar archive or a regular folder.
+
+    This class provides functionality to open and read images from either a tar archive
+    (.tar file) or a standard directory with image files. It builds an index of images
+    if the source is a tar archive for efficient access.
+
+    Attributes:
+        image_folder (str): The path to the tar archive or image folder.
+        tar_index (dict): A dictionary that maps file names to their tarfile member
+                          objects if the image source is a tar archive.
+
+    Methods:
+        __init__(self, image_folder): Initializes the loader with the specified image folder.
+        build_index(self): Builds an index of image file names and their corresponding
+                           tarfile member objects for a tar archive.
+        open_image(self, file_name): Opens and returns an image by its file name. The image
+                                     is returned as an RGB PIL Image object.
+    """
     def __init__(self, image_folder):
         self.image_folder = image_folder
         self.tar_index = {}
@@ -119,6 +138,28 @@ def tokenize(
 
 
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int,) -> Dict:
+    """
+    Preprocesses a given multimodal input based on specified configurations.
+
+    This function modifies the 'sources' dictionary, primarily focusing on conversations. It checks if the input
+    is multimodal based on 'multimodal_cfg'. If not, it returns the 'sources' unmodified. For multimodal inputs,
+    it processes each conversation in 'sources'. If 'sep_image_conv_front' is set in 'multimodal_cfg', the function
+    asserts the presence of 'DEFAULT_IMAGE_TOKEN' at the beginning of each conversation, removes it, and restructures
+    the conversation's first turn with this token and other formatting details. Furthermore, the function replaces
+    'DEFAULT_IMAGE_TOKEN' with a series of 'DEFAULT_IMAGE_PATCH_TOKEN' tokens, the count of which depends on
+    'image_token_len' and 'use_im_start_end' configuration.
+
+    Parameters:
+    - sources (dict): A dictionary containing the source data to be processed. Each source is expected to have
+      'conversations' as one of its keys.
+    - multimodal_cfg (dict): A configuration dictionary specifying how the multimodal data should be processed.
+      Key configurations include 'is_multimodal', 'sep_image_conv_front', and 'use_im_start_end'.
+    - cur_token_len (int): The current length of image tokens, used to determine the number of patch tokens
+      to replace the 'DEFAULT_IMAGE_TOKEN'.
+
+    Returns:
+    - dict: The modified 'sources' dictionary after applying the multimodal preprocessing.
+    """
     is_multimodal = multimodal_cfg['is_multimodal']
     image_token_len = cur_token_len
     if not is_multimodal:
@@ -147,7 +188,27 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     return sources
 
 
-def preprocess_llama_2(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
+def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
+    """
+    Preprocess a given set of conversational sources using llama_2 chat conversation template
+
+    This function processes conversations by first ensuring the conversation starts with a 'human' role, then tokenizes the conversations, applies specific token replacements, and finally masks labels for training purposes.
+
+    Parameters:
+    - sources: A dictionary containing conversational data. Expected format is a dict of conversations, where each conversation is a list of messages, and each message is a dict with 'from' (role) and 'value' (message text).
+    - tokenizer: A tokenizer from the Hugging Face Transformers library used for tokenizing the conversations.
+    - cfg: Configuration settings which include 'add_extra_token' (bool) to determine if an extra token should be added to the tokenized output, and 'context_length' for specifying the tokenization context length.
+
+    Returns:
+    - Dict: A dictionary containing two keys:
+        - 'tokens': A tensor of tokenized conversation data.
+        - 'labels': A tensor of labels for the conversation data, used for training models. Labels are masked based on the conversation structure.
+
+    Note:
+    - The function includes specific token replacements (e.g., DEFAULT_IMAGE_PATCH_TOKEN, <s>, </s>) and masking techniques for labels.
+    - It is designed to work with conversational data where messages alternate between a 'human' and a 'gpt' role.
+    - The function asserts that each message in a conversation alternates between the defined roles and skips messages not starting with the 'human' role.
+    """
     conv = conversation_lib.conv_llava_llama_2.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
@@ -219,7 +280,27 @@ def preprocess_llama_2(sources: dict, tokenizer: transformers.PreTrainedTokenize
     return dict(tokens=tokens, labels=labels,)
 
 
-def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
+def preprocess_v1(sources: dict, tokenizer, cfg,) -> Dict:
+    """
+    Preprocess a given set of conversational sources using vicuna v1 conversation template
+
+    This function processes conversations by first ensuring the conversation starts with a 'human' role, then tokenizes the conversations, applies specific token replacements, and finally masks labels for training purposes.
+
+    Parameters:
+    - sources: A dictionary containing conversational data. Expected format is a dict of conversations, where each conversation is a list of messages, and each message is a dict with 'from' (role) and 'value' (message text).
+    - tokenizer: A tokenizer from the Hugging Face Transformers library used for tokenizing the conversations.
+    - cfg: Configuration settings which include 'add_extra_token' (bool) to determine if an extra token should be added to the tokenized output, and 'context_length' for specifying the tokenization context length.
+
+    Returns:
+    - Dict: A dictionary containing two keys:
+        - 'tokens': A tensor of tokenized conversation data.
+        - 'labels': A tensor of labels for the conversation data, used for training models. Labels are masked based on the conversation structure.
+
+    Note:
+    - The function includes specific token replacements (e.g., DEFAULT_IMAGE_PATCH_TOKEN, <s>, </s>) and masking techniques for labels.
+    - It is designed to work with conversational data where messages alternate between a 'human' and a 'gpt' role.
+    - The function asserts that each message in a conversation alternates between the defined roles and skips messages not starting with the 'human' role.
+    """
     conv = conversation_lib.conv_vicuna_v1.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
@@ -288,13 +369,26 @@ def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cf
     return dict(tokens=tokens, labels=labels,)
 
 
-def preprocess_nvgpt(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
+def preprocess_nvgpt(sources: dict, tokenizer, cfg,) -> Dict:
     """
-    Given a record this transform:
-        1. Add signal '<>' at the beginning each sentence, with end signal '\n';
-        2. Concatenate conversations together;
-        3. Tokenize the concatenated conversation;
-        4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
+    Preprocess a given set of conversational sources using nvgpt conversation template
+
+    This function processes conversations by first ensuring the conversation starts with a 'human' role, then tokenizes the conversations, applies specific token replacements, and finally masks labels for training purposes.
+
+    Parameters:
+    - sources: A dictionary containing conversational data. Expected format is a dict of conversations, where each conversation is a list of messages, and each message is a dict with 'from' (role) and 'value' (message text).
+    - tokenizer: A tokenizer from the Hugging Face Transformers library used for tokenizing the conversations.
+    - cfg: Configuration settings which include 'add_extra_token' (bool) to determine if an extra token should be added to the tokenized output, and 'context_length' for specifying the tokenization context length.
+
+    Returns:
+    - Dict: A dictionary containing two keys:
+        - 'tokens': A tensor of tokenized conversation data.
+        - 'labels': A tensor of labels for the conversation data, used for training models. Labels are masked based on the conversation structure.
+
+    Note:
+    - The function includes specific token replacements (e.g., DEFAULT_IMAGE_PATCH_TOKEN, <s>, </s>) and masking techniques for labels.
+    - It is designed to work with conversational data where messages alternate between a 'human' and a 'gpt' role.
+    - The function asserts that each message in a conversation alternates between the defined roles and skips messages not starting with the 'human' role.
     """
 
     conv = conversation_lib.conv_nvgpt.copy()
@@ -376,7 +470,7 @@ def preprocess_nvgpt(sources: dict, tokenizer: transformers.PreTrainedTokenizer,
 class LazySupervisedDataset(Dataset):
     """Dataset for supervised fine-tuning."""
 
-    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, multimodal_cfg: dict):
+    def __init__(self, data_path: str, tokenizer, multimodal_cfg: dict):
         super(LazySupervisedDataset, self).__init__()
         logging.warning("Loading data...")
         if data_path is not None:
@@ -480,7 +574,7 @@ class LazySupervisedDataset(Dataset):
 class NevaDataset(LazySupervisedDataset):
     """Dataset for supervised fine-tuning."""
 
-    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, multimodal_cfg: dict):
+    def __init__(self, data_path: str, tokenizer, multimodal_cfg: dict):
 
         if data_path.endswith(".json"):
             super(NevaDataset, self).__init__(data_path, tokenizer, multimodal_cfg)
