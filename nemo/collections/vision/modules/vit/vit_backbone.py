@@ -14,11 +14,12 @@
 
 """Vision Transformer(VIT) model."""
 
-import einops
 import math
+from functools import partial
+
+import einops
 import torch
 import torch.nn.functional as F
-from functools import partial
 
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -62,7 +63,7 @@ class DropPatch(MegatronModule):
         if self.exclude_cls_tokens:
             cls_tokens, x = x[:, :class_token_length], x[:, class_token_length:]
 
-        batch, num_tokens, _  = x.shape
+        batch, num_tokens, _ = x.shape
         device = x.device
 
         batch_indices = torch.arange(batch, device=device)

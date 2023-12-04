@@ -16,9 +16,8 @@ import os
 import tempfile
 from functools import partial
 from itertools import chain
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
-import pandas as pd
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
@@ -39,16 +38,13 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     MultimodalProjectorAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
     get_computeprob_response,
@@ -56,11 +52,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_neva_generate,
 )
-from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    LengthParam,
-    OutputType,
-    SamplingParam,
-)
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
 from nemo.collections.nlp.parts.mixins.multimodal_adapter_mixins import MultimodalAdapterModelMixin
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -101,6 +93,7 @@ except (ImportError, ModuleNotFoundError):
 
 class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
     """Frozen version of CLIPVisionTransformer"""
+
     def __init__(self, model_cfg, model_parallel_config, pre_process=True, post_process=True):
         super().__init__(
             model_cfg, model_parallel_config, pre_process=pre_process, post_process=post_process, skip_head=True,
@@ -136,6 +129,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
     by integrating a vision encoder. It allows the language model to process media inputs
     alongside text inputs.
     """
+
     def init_vision(
         self,
         vision_encoder,
@@ -254,6 +248,7 @@ class NevaBaseModel:
     This class initializes and manages components for a multimodal model that combines vision and language models.
     It handles the integration of these models, loading weights, and freezing components based on configuration.
     """
+
     def __init__(
         self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
     ):
@@ -431,6 +426,7 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
     This class combines the functionalities of MCoreGPTModel and NevaBaseModel,
     providing capabilities specific to the MCore GPT architecture within the multimodal framework.
     """
+
     def __init__(
         self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
     ):
@@ -459,6 +455,7 @@ class NevaModel(GPTModel, NevaBaseModel):
     This class merges the functionalities of GPTModel with NevaBaseModel, catering to the standard GPT architecture
     within the multimodal framework.
     """
+
     def __init__(
         self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
     ):
