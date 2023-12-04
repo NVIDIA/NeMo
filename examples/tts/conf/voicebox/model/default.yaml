@@ -4,6 +4,7 @@ _target_: nemo.collections.tts.models.voicebox.VoiceboxModel
 defaults:
   - duration_predictor: default
   - audio_enc_dec@duration_predictor.audio_enc_dec: mel_voco
+
   - voicebox: default
   - audio_enc_dec@voicebox.audio_enc_dec: encodec_voco
 
@@ -31,6 +32,11 @@ tokenizer:
     _target_: naturalspeech2_pytorch.utils.phonemizers.espeak_wrapper.ESpeak
     language: en-us
     keep_puncs: False
+
+
+nemo_aligner:
+  _target_: nemo.collections.tts.models.AlignerModel
+  from_pretrained: "tts_en_radtts_aligner_ipa"
 
 
 cfm_wrapper:

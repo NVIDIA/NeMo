@@ -35,9 +35,8 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.models.vits import VitsModel
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
+from nemo.collections.tts.models.aligner import AlignerModel
 from nemo.collections.tts.modules.voicebox_modules import ConditionalFlowMatcherWrapper, VoiceBox, DurationPredictor, MelVoco, EncodecVoco, get_mask_from_lengths
-
-from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
 
 
 @experimental
@@ -50,26 +49,34 @@ class VoiceboxModel(TextToWaveform):
 
         self.normalizer = None
         self.tokenizer = None
-        if cfg.get("nemo_tokenizer"):
+        if cfg.get("nemo_aligner") and cfg.nemo_aligner.get("from_pretrained"):
+            self.aligner: AlignerModel = get_class(cfg.nemo_aligner._target_).from_pretrained(cfg.nemo_aligner.from_pretrained)
+            self.aligner.freeze()
+
+            self.tokenizer = self.aligner.tokenizer
+            self.normalizer = self.aligner.normalizer
+            self.text_normalizer_call_kwargs = self.aligner.text_normalizer_call_kwargs
+
+        elif cfg.get("nemo_tokenizer"):
             # setup normalizer
             self.text_normalizer_call = None
             self.text_normalizer_call_kwargs = {}
-            VitsModel._setup_normalizer(self, cfg)
+            AlignerModel._setup_normalizer(self, cfg)
 
             # setup tokenizer
-            VitsModel._setup_tokenizer(self, cfg)    
+            AlignerModel._setup_tokenizer(self, cfg)    
             assert self.tokenizer is not None
 
             num_tokens = len(self.tokenizer.tokens)
             self.tokenizer_pad = self.tokenizer.pad
 
-        else:
-            self.tokenizer = instantiate(cfg.tokenizer)
+        elif cfg.get("tokenizer"):
+            from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
+
+            self.tokenizer: Tokenizer = instantiate(cfg.tokenizer)
             num_tokens = self.tokenizer.vocab_size
             self.tokenizer_pad = self.tokenizer.pad_id
 
-        # with open_dict(cfg):
-        #     cfg.cfm_wrapper.torchode_method_klass = get_class(cfg.cfm_wrapper.torchode_method_klass)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -92,6 +99,9 @@ class VoiceboxModel(TextToWaveform):
             duration_predictor=self.duration_predictor,
             torchode_method_klass=get_class(cfg.cfm_wrapper.torchode_method_klass)
         )
+        
+        if hasattr(self, 'aligner'):
+            self.duration_predictor.aligner = self.aligner
 
     def prepare_data(self) -> None:
         """ Pytorch Lightning hook.
@@ -131,12 +141,17 @@ class VoiceboxModel(TextToWaveform):
         #    Lhotse Dataset only maps CutSet -> batch of tensors, but does not actually
         #    contain any data or meta-data; it is passed to it by a Lhotse sampler for
         #    each sampler mini-batch.
+        ds_kwargs = {}
+        for kw in ["normalizer", "text_normalizer_call_kwargs", "tokenizer"]:
+            if hasattr(self, kw):
+                ds_kwargs[kw] = getattr(self, kw)
         return get_lhotse_dataloader_from_config(
             config,
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=LhotseTextToSpeechDataset(
-                tokenizer=self.tokenizer, corpus_dir=self.cfg.corpus_dir
+                corpus_dir=self.cfg.corpus_dir,
+                **ds_kwargs
             ),
         )
     

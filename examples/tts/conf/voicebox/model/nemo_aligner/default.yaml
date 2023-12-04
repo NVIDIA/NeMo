@@ -1,0 +1,36 @@
+# most copied from examples/tts/conf/aligner.yaml
+
+# Default values for dataset with sample_rate=24000
+sample_rate: 24000
+n_mel_channels: 80
+n_window_size: 1024
+n_window_stride: 256
+n_fft: 1024
+lowfreq: 0
+highfreq: 8000
+window: hann
+
+phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
+
+text_normalizer:
+  _target_: nemo_text_processing.text_normalization.normalize.Normalizer
+  lang: en
+  input_case: cased
+
+text_normalizer_call_kwargs:
+  verbose: false
+  punct_pre_process: true
+  punct_post_process: true
+
+text_tokenizer:
+  _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer
+  punct: true
+  stresses: true
+  chars: true
+  apostrophe: true
+  pad_with_space: true
+  g2p:
+    _target_: nemo.collections.tts.g2p.models.en_us_arpabet.EnglishG2p
+    phoneme_dict: ${...phoneme_dict_path}
+    heteronyms: ${...heteronyms_path}
