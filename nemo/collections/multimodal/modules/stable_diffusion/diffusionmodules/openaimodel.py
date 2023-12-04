@@ -737,9 +737,23 @@ class UNetModel(nn.Module):
             )
 
         if from_pretrained is not None:
-            state_dict = torch.load(from_pretrained, map_location='cpu')
+            if from_pretrained.endswith('safetensors'):
+                from safetensors.torch import load_file as load_safetensors
+                state_dict = load_safetensors(from_pretrained)
+            else:
+                state_dict = torch.load(from_pretrained, map_location='cpu')
+
             if 'state_dict' in state_dict.keys():
                 state_dict = state_dict['state_dict']
+            new_state_dict = {}
+            for key, value in state_dict.items():
+                if "model" in key:
+                    new_key = key.replace("model.diffusion_model.", "")
+                else:
+                    new_key = key
+                new_state_dict[new_key] = value
+
+            state_dict = new_state_dict
             missing_key, unexpected_keys, _, _ = self._load_pretrained_model(state_dict, from_NeMo=from_NeMo)
             if len(missing_key) > 0:
                 print(

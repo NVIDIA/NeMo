@@ -36,6 +36,12 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import logging
 
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    ParallelLinearAdapterConfig,
+)
+from nemo.core import adapter_mixins
+
 try:
     from megatron.core import ModelParallelConfig, parallel_state
 
@@ -49,11 +55,35 @@ except (ImportError, ModuleNotFoundError):
 
 
 class AbstractEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, enable_lora_finetune=False, target_block=[], target_module=[]):
         super().__init__()
+        self.TARGET_BLOCK = target_block 
+        self.TARGET_MODULE = target_module
+        if enable_lora_finetune:
+            self.lora_layers = []
 
     def encode(self, *args, **kwargs):
         raise NotImplementedError
+    
+    def _enable_lora(self, lora_model):
+        for module_name, module in lora_model.named_modules():
+            if module.__class__.__name__ in self.TARGET_BLOCK:
+                tmp = {} 
+                for sub_name, sub_module in module.named_modules():
+                    if sub_module.__class__.__name__ in self.TARGET_MODULE:
+                        if hasattr(sub_module, "input_size") and hasattr(sub_module, "output_size"): # for megatron ParallelLinear
+                            lora = LoraWrapper(sub_module, sub_module.input_size, sub_module.output_size)
+                        else: # for nn.Linear
+                            lora = LoraWrapper(sub_module, sub_module.in_features, sub_module.out_features)
+                        self.lora_layers.append(lora)
+                        if sub_name not in tmp.keys():
+                            tmp.update({sub_name: lora})
+                        else:
+                            print(f"Duplicate subnames are found in module {module_name}")
+                for sub_name, lora_layer in tmp.items():
+                    lora_name = f'{sub_name}_lora'
+                    module.add_module(lora_name, lora_layer)
+
 
 
 class ClassEmbedder(nn.Module):
@@ -188,19 +218,61 @@ class SpatialRescaler(nn.Module):
     def encode(self, x):
         return self(x)
 
+class LoraWrapper(nn.Module, adapter_mixins.AdapterModuleMixin):
+    def __init__(self, target_module, in_features, out_features, lora_network_alpha=None):
+        super().__init__()
+        self.target_module = target_module
+        self.set_accepted_adapter_types([ParallelLinearAdapterConfig._target_])
+        self.lora_network_alpha = lora_network_alpha
+        self.in_features = in_features
+        self.out_features = out_features
+
+    def forward(self, x):
+        org_results = self.target_forward(x)
+        if self.is_adapter_available():
+            lora_linear_adapter = self.get_adapter_module(AdapterName.PARALLEL_LINEAR_ADAPTER)
+            lora_mixed_x = lora_linear_adapter(x)
+            # This value has the same meaning as the `--network_alpha` option in the kohya-ss trainer script.
+            # See https://github.com/darkstorm2150/sd-scripts/blob/main/docs/train_network_README-en.md#execute-learning
+            mixed_x = org_results[0] if isinstance(org_results, tuple) else org_results
+
+            if self.lora_network_alpha:
+                mixed_x = mixed_x + lora_mixed_x * (self.lora_network_alpha / lora_linear_adapter.dim)
+            else:
+                mixed_x = mixed_x + lora_mixed_x
+
+            if isinstance(org_results, tuple):
+                org_results = (mixed_x, *org_results[1:])
+            else:
+                org_results = mixed_x
+
+        return org_results 
+
+    def add_adapter(self, name, cfg, **kwargs):
+        self.lora_network_alpha = cfg.network_alpha
+        kwargs = {}
+        adapter_mixins.AdapterModuleMixin.add_adapter(self, name, cfg, **kwargs)
+        self.target_forward = self.target_module.forward
+        self.target_module.forward = self.forward
+        del self.target_module
 
 class FrozenCLIPEmbedder(AbstractEncoder):
     """Uses the CLIP transformer encoder for text (from Hugging Face)"""
 
     def __init__(
-        self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77,
+        self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77, enable_lora_finetune=False
     ):
-        super().__init__()
+        super().__init__(enable_lora_finetune,
+                         target_block=["CLIPAttention", "CLIPMLP"], 
+                         target_module=["Linear"])
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
         self.transformer = CLIPTextModel.from_pretrained(version)
         self.device = device
         self.max_length = max_length
         self.freeze()
+        if enable_lora_finetune:
+            self._enable_lora(self.transformer)
+            print(f"CLIP transformer encoder add {len(self.lora_layers)} lora layers.")
 
     def freeze(self):
         self.transformer = self.transformer.eval()
@@ -229,7 +301,7 @@ class FrozenCLIPEmbedder(AbstractEncoder):
 
     def encode(self, text):
         return self(text)
-
+    
 
 class FrozenOpenCLIPEmbedder(AbstractEncoder):
     """
@@ -312,8 +384,11 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
 
 
 class FrozenMegatronCLIPEmbedder(AbstractEncoder):
-    def __init__(self, restore_from_path, device="cuda", layer="last", freeze=True, cfg=None, use_fp16=False):
-        super().__init__()
+
+    def __init__(self, restore_from_path, device="cuda", layer="last", freeze=True, cfg=None, use_fp16=False, enable_lora_finetune=False):
+        super().__init__(enable_lora_finetune=enable_lora_finetune,
+                        target_block=["ParallelAttention", "ParallelMLP"],
+                        target_module=["ColumnParallelLinear", "RowParallelLinear"])
         if restore_from_path is not None:
             cfg, state_dict = self.load_config_and_state_from_nemo(restore_from_path)
         elif cfg is not None:
@@ -335,6 +410,10 @@ class FrozenMegatronCLIPEmbedder(AbstractEncoder):
             self.layer_idx = 1
         else:
             raise NotImplementedError()
+
+        if enable_lora_finetune:
+            self._enable_lora(self.model.language_model)
+            print(f"Megatron CLIP encoder add {len(self.lora_layers)} lora layers.")
 
     def freeze(self):
         self.model = self.model.eval()

@@ -196,6 +196,7 @@ class SDLoraPEFTConfig(PEFTConfig):
             "row_init_method": lora_cfg.get("row_init_method", "zero"),
             "gather_output": False,
             "dropout": lora_cfg.adapter_dropout,
+            "network_alpha": lora_cfg.network_alpha
         }
 
         name_key_to_cfg = {

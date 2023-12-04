@@ -338,7 +338,14 @@ class AutoencoderKL(pl.LightningModule):
 
         if from_pretrained is not None:
             state_dict = torch.load(from_pretrained)
-            self._load_pretrained_model(state_dict)
+            missed_key, unexpected_key, missmatched_key, err_msg =self._load_pretrained_model(state_dict)
+
+            if len(missed_key) > 0:
+                print(
+                    f'{self.__class__.__name__}: Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
+                )
+                print("missed key: ",missed_key)
+                print("unexpected key: ", unexpected_key)
 
     def _state_key_mapping(self, state_dict: dict):
         import re

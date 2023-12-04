@@ -27,6 +27,7 @@ from torch.optim.lr_scheduler import LambdaLR
 
 from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import LoraWrapper
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     extract_into_tensor,
     make_beta_schedule,
@@ -142,8 +143,9 @@ class DreamBooth(torch.nn.Module, Serialization):
         model = DreamBooth.from_config_dict(cfg)
         if self.train_text_encoder:
             self.text_encoder = model.train()
-            for param in self.text_encoder.parameters():
-                param.requires_grad = True
+            if (not hasattr(model, 'lora_layers')) or len(model.lora_layers) == 0: # if no lora, train all the parameters
+                for param in self.text_encoder.parameters():
+                    param.requires_grad = True
         else:
             self.text_encoder = model.eval()
             self.text_encoder.train = disabled_train
@@ -660,6 +662,8 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
     def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
         if isinstance(module, AdapterModuleMixin):
             if isinstance(module, LinearWrapper):
+                peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
+            elif isinstance(module, LoraWrapper):
                 peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
             else:
                 return

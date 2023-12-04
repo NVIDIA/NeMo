@@ -248,6 +248,7 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     row_init_method: str = 'zero'
     gather_output: bool = True
     dropout: float = 0.0
+    network_alpha: int | None = None
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
 
 

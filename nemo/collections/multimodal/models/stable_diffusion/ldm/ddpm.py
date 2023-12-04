@@ -49,6 +49,7 @@ from nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder import 
 )
 from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import LoraWrapper
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     extract_into_tensor,
     make_beta_schedule,
@@ -2207,6 +2208,8 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
     def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
         if isinstance(module, AdapterModuleMixin):
             if isinstance(module, LinearWrapper):
+                peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
+            elif isinstance(module, LoraWrapper):
                 peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
             else:
                 return

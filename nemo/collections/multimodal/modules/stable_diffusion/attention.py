@@ -99,9 +99,9 @@ class FeedForward(nn.Module):
         super().__init__()
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
-        project_in = nn.Sequential(nn.Linear(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
+        project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
 
-        self.net = nn.Sequential(project_in, nn.Dropout(dropout), nn.Linear(inner_dim, dim_out))
+        self.net = nn.Sequential(project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out))
 
     def forward(self, x):
         return self.net(x)
@@ -209,6 +209,7 @@ class LinearWrapper(nn.Linear, adapter_mixins.AdapterModuleMixin):
         return mixed_x
 
     def add_adapter(self, name, cfg, **kwargs):
+        self.lora_network_alpha = cfg.network_alpha
         kwargs = {}
         adapter_mixins.AdapterModuleMixin.add_adapter(self, name, cfg, **kwargs)
 
