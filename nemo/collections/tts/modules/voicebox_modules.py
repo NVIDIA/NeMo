@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from beartype import beartype
 from beartype.typing import Tuple, Optional, List, Union
 from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
-from naturalspeech2_pytorch.aligner import Aligner, ForwardSumLoss, BinLoss, maximum_path
+from naturalspeech2_pytorch.aligner import Aligner, ForwardSumLoss, maximum_path
 from voicebox_pytorch.voicebox_pytorch import VoiceBox as _VB
 from voicebox_pytorch.voicebox_pytorch import ConditionalFlowMatcherWrapper as _CFMWrapper
 from voicebox_pytorch.voicebox_pytorch import DurationPredictor as _DP
@@ -173,6 +173,13 @@ class DurationPredictor(_DP):
         self.aligner = Aligner(dim_in = audio_enc_dec.latent_dim, dim_hidden = dim_phoneme_emb, **aligner_kwargs)
         self.align_loss = ForwardSumLoss()
 
+        for layer in self.aligner.modules():
+            if isinstance(layer, nn.ReLU):
+                layer.inplace = False
+
+        # from naturalspeech2_pytorch.aligner import BinLoss
+        from nemo.collections.tts.losses.aligner_loss import BinLoss
+        self.bin_loss = BinLoss()
 
     # @beartype
     def forward_aligner(
@@ -288,7 +295,7 @@ class DurationPredictor(_DP):
 
         assert all([exists(el) for el in (phoneme_len, mel_len, phoneme_mask, mel_mask)]), 'need to pass phoneme_len, mel_len, phoneme_mask, mel_mask, to train duration predictor module'
 
-        alignment_hard, _, alignment_logprob, _ = self.forward_aligner(phoneme_emb, phoneme_mask, mel, mel_mask)
+        alignment_hard, alignment_soft, alignment_logprob, alignment_mas = self.forward_aligner(phoneme_emb, phoneme_mask, mel, mel_mask)
         target = alignment_hard
 
         # create dummy cond when not given, become purely unconditional regression model
@@ -366,12 +373,19 @@ class DurationPredictor(_DP):
         align_loss = self.align_loss(alignment_logprob, phoneme_len, mel_len)
         loss = loss + align_loss
 
+        # bin_loss = self.bin_loss(alignment_mas, alignment_logprob, phoneme_len)
+        alignment_soft = rearrange(alignment_soft, 'b tx ty -> b 1 ty tx')
+        alignment_mas = rearrange(alignment_mas, 'b tx ty -> b 1 ty tx')
+        bin_loss = self.bin_loss(hard_attention=alignment_mas, soft_attention=alignment_soft)
+        loss = loss + bin_loss
+
         if not return_aligned_phoneme_ids:
             return loss
         
         losses = {
             "d_pred_loss": loss,
             "align_loss": align_loss,
+            "bin_loss": bin_loss
         }
         return loss, losses, self.align_phoneme_ids_with_durations(phoneme_ids=phoneme_ids, durations=target)
 
