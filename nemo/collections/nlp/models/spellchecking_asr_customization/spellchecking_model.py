@@ -288,7 +288,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         split = "test" if self.trainer.testing else "val"
         if split == 'val':
             avg_loss = torch.stack([x[f'{split}_loss'] for x in self.validation_step_outputs]).mean()
-        elif split == 'test':
+        else:
             avg_loss = torch.stack([x[f'{split}_loss'] for x in self.test_step_outputs]).mean()
 
         # Calculate metrics and classification report
