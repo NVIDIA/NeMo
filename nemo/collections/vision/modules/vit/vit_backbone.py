@@ -14,12 +14,11 @@
 
 """Vision Transformer(VIT) model."""
 
-import math
-from functools import partial
-
 import einops
+import math
 import torch
 import torch.nn.functional as F
+from functools import partial
 
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -63,7 +62,8 @@ class DropPatch(MegatronModule):
         if self.exclude_cls_tokens:
             cls_tokens, x = x[:, :class_token_length], x[:, class_token_length:]
 
-        batch, num_tokens, _, device = *x.shape, x.device
+        batch, num_tokens, _  = x.shape
+        device = x.device
 
         batch_indices = torch.arange(batch, device=device)
         batch_indices = batch_indices[..., None]
@@ -330,6 +330,8 @@ class VitBackbone(MegatronModule):
                 )
             elif self.position_embedding_type == "learned_parameters":
                 token_embeddings = concatenated_tokens + self.position_embeddings
+            else:
+                raise ValueError(f"Unrecognized position embedding type: {self.position_embedding_type}.")
 
             # a patch_dropout of 0. would mean it is disabled and this function would do nothing but return what was passed in
             token_embeddings = self.drop_patch(token_embeddings)
