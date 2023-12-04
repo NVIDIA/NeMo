@@ -16,9 +16,8 @@ import os
 import tempfile
 from functools import partial
 from itertools import chain
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
-import pandas as pd
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
@@ -39,7 +38,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (

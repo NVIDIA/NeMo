@@ -23,9 +23,9 @@ from typing import Any, Dict, List, Sequence, Union
 import torch
 import torch.nn.functional as F
 import transformers
+from PIL import Image
 from einops import rearrange
 from omegaconf import DictConfig
-from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor
 
