@@ -11,23 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
-from torch.autograd import Function
-from torch.cuda.amp import custom_bwd, custom_fwd
 
+from nemo.collections.multimodal.speech_cv import data, models, modules
+from nemo.package_info import __version__
 
-class _trunc_exp(Function):
-    @staticmethod
-    @custom_fwd(cast_inputs=torch.float)
-    def forward(ctx, x):
-        ctx.save_for_backward(x)
-        return torch.exp(x)
+# Set collection version equal to NeMo version.
+__version = __version__
 
-    @staticmethod
-    @custom_bwd
-    def backward(ctx, g):
-        x = ctx.saved_tensors[0]
-        return g * torch.exp(x.clamp(max=15))
+# Authorship.
+__author__ = "NVIDIA Corporation"
 
-
-trunc_exp = _trunc_exp.apply
+# Set collection name.
+__description__ = "Speech Computer Vision collection"
