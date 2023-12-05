@@ -37,9 +37,11 @@ from torch.optim.lr_scheduler import LambdaLR
 from torchvision.utils import make_grid
 from tqdm import tqdm
 
+from nemo.collections.multimodal.data.common.utils import get_collate_fn
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
     build_train_valid_datasets,
     build_train_valid_precached_datasets,
+    build_train_valid_precached_clip_datasets,
 )
 from nemo.collections.multimodal.models.stable_diffusion.diffusion_model import DiffusionModel
 from nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder import (
@@ -1991,14 +1993,21 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         self.setup_complete = True
 
     def build_train_valid_test_datasets(self):
-        logging.info('Building datasets for Stable Diffusion...')
+        logging.info("Building datasets for Stable Diffusion...")
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
 
         if self.cfg.first_stage_key.endswith("encoded") or self.cfg.first_stage_key.endswith("moments"):
-            self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
-                model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
-            )
+            if self.cfg.cond_stage_key.endswith("precached_clip"):
+                self._train_ds, self._validation_ds = build_train_valid_precached_clip_datasets(
+                    model_cfg=self.cfg,
+                    consumed_samples=self.compute_consumed_samples(0),
+                )
+            else:
+                self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
+                    model_cfg=self.cfg,
+                    consumed_samples=self.compute_consumed_samples(0),
+                )
         else:
             self._train_ds, self._validation_ds = build_train_valid_datasets(
                 model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0)
@@ -2020,6 +2029,14 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
+            if self.cfg.cond_stage_key.endswith("precached_clip"):
+                collate_fn = get_collate_fn(
+                    first_stage_key=self.cfg.first_stage_key,
+                    cond_stage_key=self.cfg.cond_stage_key,
+                )
+            else:
+                collate_fn = None
+
             self._train_dl = torch.utils.data.DataLoader(
                 self._train_ds,
                 batch_size=self._micro_batch_size,
@@ -2027,6 +2044,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 pin_memory=True,
                 drop_last=True,
                 persistent_workers=True,
+                collate_fn=collate_fn,
             )
 
     def setup_validation_data(self, cfg):
