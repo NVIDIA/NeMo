@@ -8,7 +8,6 @@
 # Based on the reference implementation with minimal changes for compatibility with NeMo
 # See:
 # https://github.com/HazyResearch/safari/blob/main/src/models/sequence/hyena.py
-#
 
 import math
 
@@ -20,20 +19,24 @@ from functools import partial
 
 from einops import rearrange, repeat
 
-try:
-    from src.ops.fftconv import fftconv_ref, fftconv_func
-except ImportError:
-    fftconv_func = None
+# try:
+#     from src.ops.fftconv import fftconv_ref, fftconv_func
+# except ImportError:
+#     fftconv_func = None
 
 try:
     from flash_attn.ops.fused_dense import FusedDense
 except ImportError:
     FusedDense = None
 
-import src.utils.registry as registry
-from src.utils.train import OptimModule
-from src.utils.config import instantiate, auto_assign_attrs
-from src.models.nn import Activation
+from nemo.collections.common.parts.utils import activation_registry
+from megatron.core.transformer import MegatronModule
+from megatron.core.transformer.transformer_config import TransformerConfig
+
+
+def auto_assign_attrs(cls, **kwargs):
+    for k, v in kwargs.items():
+        setattr(cls, k, v)
 
 
 # reference convolution with residual connection
@@ -64,6 +67,13 @@ def mul_sum(q, y):
     return (q * y).sum(dim=1)
 
 
+def register(module: nn.Module, name: str, tensor: torch.Tensor, learnable: bool):
+    if learnable:
+        module.register_parameter(name, nn.Parameter(tensor))
+    else:
+        module.register_buffer(name, tensor)
+
+
 class Sin(nn.Module):
     def __init__(self, dim, w=10, train_freq=True):
         super().__init__()
@@ -73,8 +83,14 @@ class Sin(nn.Module):
         return torch.sin(self.freq * x)
 
 
-class PositionalEmbedding(OptimModule):
-    def __init__(self, emb_dim: int, seq_len: int, lr_pos_emb: float = 1e-5, **kwargs):
+class PositionalEmbedding(nn.Module):
+    def __init__(
+            self,
+            emb_dim: int,
+            seq_len: int,
+            # lr_pos_emb: float = 1e-5,  # TODO: Configure this via optim_param_groups in the config
+            learn_z: bool = True,
+            **kwargs):
         """Complex exponential positional embeddings for Hyena filters."""
         super().__init__()
 
@@ -91,21 +107,22 @@ class PositionalEmbedding(OptimModule):
         f = torch.linspace(1e-4, bands - 1, bands)[None, None]
         z = torch.exp(-1j * f * w)
         z = torch.cat([t, z.real, z.imag], dim=-1)
-        self.register("z", z, lr=lr_pos_emb)
-        self.register("t", t, lr=0.0)
+        register(self, "z", z, learnable=learn_z)
+        register(self, "t", t, learnable=False)
 
     def forward(self, L):
         return self.z[:, :L], self.t[:, :L]
 
 
-class ExponentialModulation(OptimModule):
+class ExponentialModulation(nn.Module):
     def __init__(
             self,
             d_model,
             fast_decay_pct=0.3,
             slow_decay_pct=1.5,
             target=1e-2,
-            modulation_lr=0.0,
+            # modulation_lr=0.0,  # TODO: Configure this via optim_param_groups in the config
+            learn_modulation: bool = False,
             modulate: bool = True,
             shift: float = 0.0,
             **kwargs
@@ -116,7 +133,7 @@ class ExponentialModulation(OptimModule):
         max_decay = math.log(target) / fast_decay_pct
         min_decay = math.log(target) / slow_decay_pct
         deltas = torch.linspace(min_decay, max_decay, d_model)[None, None]
-        self.register("deltas", deltas, lr=modulation_lr)
+        register(self, "deltas", deltas, learnable=learn_modulation)
 
     def forward(self, t, x):
         if self.modulate:
@@ -125,7 +142,7 @@ class ExponentialModulation(OptimModule):
         return x
 
 
-class HyenaFilter(OptimModule):
+class HyenaFilter(nn.Module):
     def __init__(
             self,
             d_model,
@@ -133,11 +150,12 @@ class HyenaFilter(OptimModule):
             order=16,  # width of the implicit MLP
             fused_fft_conv=False,
             seq_len=1024,
-            lr=1e-3,
-            lr_pos_emb=1e-5,
+            # lr=1e-3,
+            # lr_pos_emb=1e-5,
+            learn_pos_emb_z=True,
             dropout=0.0,
             w=1,  # frequency of periodic activations
-            wd=0,  # weight decay of kernel parameters
+            # wd=0,  # weight decay of kernel parameters
             bias=True,
             num_inner_mlps=2,
             normalized=False,
@@ -167,7 +185,7 @@ class HyenaFilter(OptimModule):
         assert emb_dim % 2 != 0 and emb_dim >= 3, "emb_dim must be odd and greater or equal to 3 (time, sine and cosine)"
         self.seq_len = seq_len
 
-        self.pos_emb = PositionalEmbedding(emb_dim, seq_len, lr_pos_emb)
+        self.pos_emb = PositionalEmbedding(emb_dim, seq_len, learn_pos_emb_z)
 
         # uses a variable number of inner linear layers
         self.implicit_filter = nn.Sequential(
@@ -183,10 +201,11 @@ class HyenaFilter(OptimModule):
         self.modulation = ExponentialModulation(d_model, **kwargs)
 
         self.normalized = normalized
-        for c in self.implicit_filter.children():
-            for name, v in c.state_dict().items():
-                optim = {"weight_decay": wd, "lr": lr}
-                setattr(getattr(c, name), "_optim", optim)
+        # TODO: Configure this via optim_param_groups in the config
+        # for c in self.implicit_filter.children():
+        #     for name, v in c.state_dict().items():
+        #         optim = {"weight_decay": wd, "lr": lr}
+        #         setattr(getattr(c, name), "_optim", optim)
 
     def filter(self, L, *args, **kwargs):
         z, t = self.pos_emb(L)
@@ -206,14 +225,15 @@ class HyenaFilter(OptimModule):
         if bias is None: bias = self.bias
         bias = bias if self.use_bias else 0 * bias
 
-        if self.fused_fft_conv:
-            bias = bias.to(dtype=torch.float32)
-            y = fftconv_func(
-                x, k, bias, dropout_mask=None, gelu=False,
-                force_fp16_output=torch.is_autocast_enabled()
-            )
-        else:
-            y = fftconv_ref(x, k, bias, dropout_mask=None, gelu=False)
+        # if self.fused_fft_conv:
+        #     bias = bias.to(dtype=torch.float32)
+        #     y = fftconv_func(
+        #         x, k, bias, dropout_mask=None, gelu=False,
+        #         force_fp16_output=torch.is_autocast_enabled()
+        #     )
+        # else:
+        #     y = fftconv_ref(x, k, bias, dropout_mask=None, gelu=False)
+        y = fftconv_ref(x, k, bias, dropout_mask=None, gelu=False)
 
         return y
 
@@ -232,12 +252,11 @@ class HyenaOperator(nn.Module):
             outer_mixing=False,
             dropout=0.0,
             filter_dropout=0.0,
-            filter_cls='hyena-filter',
+            # filter_cls='hyena-filter',
             post_order_ffn=False,
             jit_filter=False,
             short_filter_order=3,
-            activation="id",
-            return_state=False,
+            activation="identity",
             **filter_args,
     ):
         r"""
@@ -258,7 +277,6 @@ class HyenaOperator(nn.Module):
             jit_filter: (bool): Whether JIT the implicit filter function. Defaults to False
             short_filter_order: (int): Length of the explicit input convolutional filter. Defaults to 3
             activation: (str): type of act between kernel output and FF (default identity)
-            return_state: (bool): whether to return a state
         """
         super().__init__()
         assert d_model % num_heads == 0, f'Model dimension {d_model} must be divisible by num heads {num_heads}'
@@ -270,12 +288,13 @@ class HyenaOperator(nn.Module):
             self, d_model=d_model, order=order, l_max=l_max, num_heads=num_heads, inner_factor=inner_factor,
             block_dim=block_dim, head_dim=head_dim, filter_order=filter_order, post_order_ffn=post_order_ffn,
             short_filter_order=short_filter_order, num_blocks=num_blocks, filter_dropout=filter_dropout,
-            jit_filter=jit_filter, outer_mixing=outer_mixing, activation=activation, return_state=return_state,
+            jit_filter=jit_filter, outer_mixing=outer_mixing, activation=activation,
         )
-        self.activation = Activation(activation)
+        self.activation = activation_registry[activation]()
         self.dropout = nn.Dropout(dropout)
         self.setup_projections(fused_bias_fc, inner_factor)
-        self.setup_filters(filter_cls, filter_args)
+        # self.setup_filters(filter_cls, filter_args)
+        self.setup_filters(filter_args)
 
     def setup_projections(self, fused_bias_fc, inner_factor):
         "Initializes input and output projections (over the width dimension)"
@@ -288,7 +307,7 @@ class HyenaOperator(nn.Module):
             self.ord_proj_w = nn.Parameter(
                 torch.randn(self.order, self.num_heads, self.num_heads) / math.sqrt(self.head_dim))
 
-    def setup_filters(self, filter_cls, filter_args):
+    def setup_filters(self, filter_args):
         "Initializes the explicit and implicit filters"
         assert self.order >= 2, f'Order must be at least 2, (got {self.order})'
         total_width = self.d_model * self.inner_factor * (self.order + 1)
@@ -301,9 +320,7 @@ class HyenaOperator(nn.Module):
             padding=self.short_filter_order - 1
         )
 
-        filter_cls = instantiate(registry.layer, filter_cls, partial=True)
-
-        self.filter_fn = filter_cls(
+        self.filter_fn = HyenaFilter(
             self.head_dim * self.inner_factor * (self.order - 1),
             order=self.filter_order,
             seq_len=self.l_max,
@@ -361,10 +378,25 @@ class HyenaOperator(nn.Module):
         y = self.activation(rearrange(v * x[0], 'b h v z l -> b (z l) (h v)', z=self.num_blocks, h=self.num_heads))
         y = self.out_proj(y)
 
-        if self.return_state:
-            return y, None
-        return y
+        # MCore TransformerLayer expects tuple where 2nd element represents the bias, it can be None
+        return y, None
 
     @property
     def d_output(self):
         return self.d_model
+
+    # Match megatron.core.transformer.attention.SelfAttention API
+    def sharded_state_dict(self, prefix='', sharded_key_prefix=None, sharded_offsets=()):
+        from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
+        sharded_key_prefix = prefix if sharded_key_prefix is None else sharded_key_prefix
+
+        # We're not sharding anything for now
+        tensor_parallel_layers_axis_map = {}
+
+        state_dict = self.state_dict(prefix='', keep_vars=True)
+
+        sharded_state_dict = make_sharded_tensors_for_checkpoint(
+            state_dict, prefix, sharded_key_prefix, tensor_parallel_layers_axis_map, sharded_offsets
+        )
+
+        return sharded_state_dict
