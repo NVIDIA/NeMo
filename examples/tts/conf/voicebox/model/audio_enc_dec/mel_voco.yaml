@@ -4,6 +4,6 @@ n_mels: 100
 sampling_rate: 24000
 f_max: null
 n_fft: 1024
-win_length: ${.nfft}
+win_length: ${.n_fft}
 hop_length: 256
 pretrained_vocos_path: 'charactr/vocos-mel-24khz'

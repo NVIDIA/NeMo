@@ -20,7 +20,7 @@ train_ds:
   sample_rate: ${model.sample_rate}
   batch_size: 16 # you may increase batch_size if your memory allows
   shuffle: true
-  num_workers: 8
+  num_workers: 16
   pin_memory: true
   max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
   min_duration: 0.1
@@ -38,7 +38,7 @@ train_ds:
   use_lhotse: true
   lhotse:
     cuts_path: ${model.train_ds.manifest_filepath}
-    use_bucketing: False
+    use_bucketing: true
     batch_duration: 100.0  # seconds
 
 validation_ds:

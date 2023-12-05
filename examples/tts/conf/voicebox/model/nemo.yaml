@@ -4,9 +4,8 @@ _target_: nemo.collections.tts.models.voicebox.VoiceboxModel
 defaults:
   - default
   # - duration_predictor: default
-  - duration_predictor: nemo
-  - audio_enc_dec@duration_predictor.audio_enc_dec: encodec_voco
-
+  - override duration_predictor: nemo
+  - override audio_enc_dec@duration_predictor.audio_enc_dec: encodec_voco
 
 
 nemo_aligner:
@@ -14,3 +13,4 @@ nemo_aligner:
   # from_pretrained: "tts_en_radtts_aligner"
   from_pretrained: "tts_en_radtts_aligner_ipa"
 
+tokenizer: null

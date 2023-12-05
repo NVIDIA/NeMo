@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Tuple, Union, Optional, Any
 from pytorch_lightning.utilities.types import STEP_OUTPUT
+from tqdm import tqdm
 
 import torch
 from torch import nn, Tensor
@@ -47,8 +48,16 @@ from nemo.collections.tts.modules.voicebox_modules import (
 )
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
-from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
 from nemo_text_processing.text_normalization.normalize import Normalizer
+from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
+
+from nemo.collections.tts.parts.utils.helpers import (
+    log_audio_to_tb,
+    tacotron2_log_to_tb_func,
+    plot_alignment_to_numpy,
+    plot_spectrogram_to_numpy,
+    waveglow_log_to_tb_func,
+)
 
 
 @experimental
@@ -63,6 +72,7 @@ class VoiceboxModel(TextToWaveform):
         self.normalizer: Normalizer = None
 
         aligner = None
+        dp_kwargs = {}
         # self.aligner: AlignerModel = None
         if cfg.get("nemo_aligner") and cfg.nemo_aligner.get("from_pretrained"):
             logging.info(cfg.nemo_aligner._target_)
@@ -77,6 +87,11 @@ class VoiceboxModel(TextToWaveform):
             self.text_normalizer_call_kwargs = aligner.text_normalizer_call_kwargs
             num_tokens = len(aligner.tokenizer.tokens)
 
+            dp_kwargs.update({
+                "tokenizer": self.tokenizer,
+                "aligner": aligner
+            })
+
         elif cfg.get("nemo_tokenizer"):
             # setup normalizer
             self.text_normalizer_call = None
@@ -89,12 +104,27 @@ class VoiceboxModel(TextToWaveform):
 
             num_tokens = len(self.tokenizer.tokens)
             self.tokenizer_pad = self.tokenizer.pad
+            dp_kwargs.update({
+                "tokenizer": self.tokenizer,
+            })
+
+        elif cfg.get("mfa_tokenizer"):
+            self.normalizer = None
+            self.tokenizer = instantiate(cfg.mfa_tokenizer)
+            num_tokens = self.tokenizer.vocab_size
+            self.tokenizer_pad = self.tokenizer.pad_id
+            dp_kwargs.update({
+                "tokenizer": self.tokenizer,
+            })
 
         elif cfg.get("tokenizer"):
             self.normalizer = None
             self.tokenizer = instantiate(cfg.tokenizer)
             num_tokens = self.tokenizer.vocab_size
             self.tokenizer_pad = self.tokenizer.pad_id
+            dp_kwargs.update({
+                "tokenizer": self.tokenizer,
+            })
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -103,8 +133,7 @@ class VoiceboxModel(TextToWaveform):
 
         self.duration_predictor = instantiate(
             cfg.duration_predictor,
-            tokenizer=self.tokenizer,
-            aligner=aligner,
+            **dp_kwargs,
         )
         self.aligner = aligner
 
@@ -146,6 +175,35 @@ class VoiceboxModel(TextToWaveform):
             new_path = old_path.replace(old_prefix, self._cfg.corpus_dir)
             cut.recording.sources[0].source = new_path
             return cut
+        
+        def textgrid_exist(cut):
+            cut_id = cut.id
+            subset, spk = cut_id.split('/')[:2]
+            f_id = f"{self.tokenizer.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
+            return os.path.exists(f_id)
+
+        def parse_cut_mfa_textgrid(seg):
+            from textgrid import TextGrid, IntervalTier
+            from lhotse.supervision import AlignmentItem, SupervisionSet
+            seg_id = seg.id
+            subset, spk = seg_id.split('/')[:2]
+            f_id = f"{self.tokenizer.textgrid_dir}/{subset}/{spk}/{','.join(seg_id.split('/'))}.TextGrid"
+            tg = TextGrid()
+            tg.read(f_id)
+            phn_dur = []
+            for tier in tg.tiers:
+                if tier.name != "phones":
+                    continue
+                for interval in tier.intervals:
+                    minTime = interval.minTime
+                    maxTime = interval.maxTime
+                    phoneme = interval.mark
+                    if phoneme == "":
+                        phoneme = "sil"
+                    phn_dur.append(AlignmentItem(symbol=phoneme, start=minTime, duration=round(maxTime - minTime, 2)))
+            assert len(phn_dur)
+            new_sup_seg = seg.with_alignment("phone", phn_dur)
+            return new_sup_seg
 
         logging.info(f"mkdir -p {self._cfg.manifests_dir}")
         os.makedirs(self._cfg.manifests_dir, exist_ok=True)
@@ -158,10 +216,18 @@ class VoiceboxModel(TextToWaveform):
                 cuts = load_manifest_lazy_or_eager("raw_" + manifest_path, CutSet)
                 logging.info(f"Filtering {subset} subset.")
                 cuts = cuts.filter(lambda c: ',' not in c.id)
-                # logging.info(f"Fixing {subset} subset prefix.")
-                # cuts = cuts.map(change_prefix)
+                cuts = cuts.filter(textgrid_exist)
+                cuts = cuts.map_supervisions(parse_cut_mfa_textgrid)
                 logging.info(f"Writing {subset} subset.")
-                cuts.to_file(manifest_path)
+                with CutSet.open_writer(
+                    manifest_path, overwrite=False
+                ) as cut_writer, tqdm(desc=f"Write {subset} subset") as progress:
+                    for cut in cuts:
+                        if cut_writer.contains(cut.id):
+                            continue
+                        cut_writer.write(cut)
+                        progress.update()
+                # cuts.to_file(manifest_path)
                 del cuts
             else:
                 logging.info(f"Skipping fix, {subset} subset exists.")
@@ -267,14 +333,20 @@ class VoiceboxModel(TextToWaveform):
 
     
     def training_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT:
+        # voicebox's sampling rate
         audio = batch["audio_24k"]
         audio_lens = batch["audio_lens_24k"]
         tokens = batch["tokens"]
         token_lens = batch["token_lens"]
-        # aligner input
+
+        # nemo aligner input
         audio_22050 = batch["audio_22050"]
         audio_lens_22050 = batch["audio_lens_22050"]
         tgt_len = audio.shape[1]
+
+        # mfa tgt
+        durations = batch.get("durations", None)
+
 
         audio_mask = get_mask_from_lengths(audio_lens)
         _, losses = self.cfm_wrapper.forward(
@@ -283,6 +355,8 @@ class VoiceboxModel(TextToWaveform):
             # semantic_token_ids=None,
             phoneme_ids=tokens,
             phoneme_len=token_lens,
+            dp_cond=None,
+            durations=durations,
             cond=None,
             cond_mask=None,
             input_sampling_rate=None

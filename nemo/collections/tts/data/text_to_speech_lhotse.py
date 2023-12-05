@@ -18,6 +18,8 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
 
 from naturalspeech2_pytorch.utils.cleaner import TextProcessor
 
+from nemo.collections.tts.modules.voicebox_modules import MFAEnglishPhonemeTokenizer
+
 class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
     """
     This dataset is based on `nemo.collections.asr.data.audio_to_text_lhotse.py`.
@@ -38,7 +40,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None, old_prefix="download/librilight"):
+    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None):
         super().__init__()
         self.tokenizer = tokenizer
 
@@ -60,25 +62,60 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                     else:
                         self.text_normalizer_call_kwargs = {}
 
+            elif isinstance(self.tokenizer, MFAEnglishPhonemeTokenizer):
+                self.normalizer_call = None
+                self.text_normalizer_call_kwargs = {}
+                self.textgrid_dir = self.tokenizer.textgrid_dir
+
         self.corpus_dir = corpus_dir
         if corpus_dir is not None:
-            self.old_prefix = old_prefix
+            self.old_prefix = "download/librilight"
+
         self.load_audio = AudioSamples(fault_tolerant=True)
 
-    def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
+    def change_prefix(self, cut):
         # Some corpus, e.g., LibriHeavy, whose manifest includes given path prefix, which might not match our folder structure.
         # the following lines fix the path prefix
         if self.corpus_dir is not None:
-            for c in cuts:
-                old_path = c.recording.sources[0].source
-                new_path = old_path.replace(self.old_prefix, self.corpus_dir)
-                c.recording.sources[0].source = new_path
+            old_path = cut.recording.sources[0].source
+            new_path = old_path.replace(self.old_prefix, self.corpus_dir)
+            cut.recording.sources[0].source = new_path
+        return cut
 
+    def parse_cut_mfa_textgrid(self, cut):
+        from textgrid import TextGrid, IntervalTier
+        cut_id = cut.id
+        subset, spk = cut_id.split('/')[:2]
+        f_id = f"{self.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
+        tg = TextGrid()
+        tg.read(f_id)
+        phn_dur = []
+        for tier in tg.tiers:
+            if tier.name != "phones":
+                continue
+            for interval in tier.intervals:
+                minTime = interval.minTime
+                maxTime = interval.maxTime
+                phoneme = interval.mark
+                if phoneme == "":
+                    phoneme = "sil"
+                phn_dur.append((phoneme, round(maxTime - minTime, 2)))
+        assert len(phn_dur)
+        return phn_dur
+
+    def get_cut_alignment(self, cut):
+        phn_dur = []
+        for ali in cut.supervisions[0].alignment["phone"]:
+            phn_dur.append((ali.symbol, ali.duration))
+        return phn_dur
+
+    def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
         batch = {}
 
         cuts = cuts.sort_by_duration()
-        audio, audio_lens, cuts = self.load_audio(cuts)
-        texts = [c.supervisions[0].custom["texts"][0] for c in cuts]
+        cuts = cuts.map(self.change_prefix)
+        audio, audio_lens, _cuts = self.load_audio(cuts)
+        texts = [c.supervisions[0].custom["texts"][0] for c in _cuts]
 
         audio_22050, audio_lens_22050, _ = self.load_audio(cuts.resample(22050))
         audio_24k, audio_lens_24k, _ = self.load_audio(cuts.resample(24000))
@@ -96,13 +133,27 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             if isinstance(self.tokenizer, TextProcessor):
                 with redirect_stdout_to_logger(logging):
                     tokens = [self.tokenizer.text_to_ids(text)[0] for text in texts]
+                padding_value = 0
             elif isinstance(self.tokenizer, BaseTokenizer):
-                texts = [self.normalizer_call(text, **self.text_normalizer_call_kwargs) for text in texts]
+                _texts = [c.supervisions[0].custom["texts"][1] for c in cuts]
+                texts = [self.normalizer_call(text, **self.text_normalizer_call_kwargs) for text in _texts]
                 tokens = [self.tokenizer(text) for text in texts]
+                padding_value = self.tokenizer.pad
+            elif isinstance(self.tokenizer, MFAEnglishPhonemeTokenizer):
+                phn_durs = [self.get_cut_alignment(cut) for cut in cuts]
+                durs = [[dur for _, dur in phn_dur] for phn_dur in phn_durs]
+                durs = [torch.as_tensor(ds) for ds in durs]
+                durs = collate_vectors(durs, padding_value=0)
+                batch["durations"] = durs
+
+                phns = [[phn for phn, _ in phn_dur] for phn_dur in phn_durs]
+                tokens = [self.tokenizer.text_to_ids(phn)[0] for phn in phns]
+                padding_value = self.tokenizer.pad_id
 
             tokens = [torch.as_tensor(token_ids).long() for token_ids in tokens]
             token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
-            tokens = collate_vectors(tokens, padding_value=0)
+            # tokens = collate_vectors(tokens, padding_value=0)
+            tokens = collate_vectors(tokens, padding_value=padding_value)
             batch.update({
                 "texts": texts,
                 "tokens": tokens,
