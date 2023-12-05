@@ -745,15 +745,6 @@ class UNetModel(nn.Module):
 
             if 'state_dict' in state_dict.keys():
                 state_dict = state_dict['state_dict']
-            new_state_dict = {}
-            for key, value in state_dict.items():
-                if "model" in key:
-                    new_key = key.replace("model.diffusion_model.", "")
-                else:
-                    new_key = key
-                new_state_dict[new_key] = value
-
-            state_dict = new_state_dict
             missing_key, unexpected_keys, _, _ = self._load_pretrained_model(state_dict, from_NeMo=from_NeMo)
             if len(missing_key) > 0:
                 print(
@@ -891,10 +882,10 @@ class UNetModel(nn.Module):
         return res_dict
 
     def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
-        if from_NeMo:
-            state_dict = self._strip_unet_key_prefix(state_dict)
-        else:
+        state_dict = self._strip_unet_key_prefix(state_dict)
+        if not from_NeMo:
             state_dict = self._state_key_mapping(state_dict)
+
         model_state_dict = self.state_dict()
         loaded_keys = [k for k in state_dict.keys()]
         expected_keys = list(model_state_dict.keys())
