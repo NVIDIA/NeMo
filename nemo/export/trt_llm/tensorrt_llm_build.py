@@ -30,10 +30,12 @@ from tensorrt_llm.quantization import QuantMode
 MODEL_NAME = "NeMo"
 
 
-def get_engine_name(model, dtype, tp_rank, pp_rank):
+def get_engine_name(model, dtype, tp_size, pp_size, rank):
     """Returns the engine file name based on the provided info."""
-    return "{}_{}_tp{}_pp{}.engine".format(model, dtype, tp_rank, pp_rank)
-
+    if pp_size == 1:
+        return '{}_{}_tp{}_rank{}.engine'.format(model, dtype, tp_size, rank)
+    return '{}_{}_tp{}_pp{}_rank{}.engine'.format(model, dtype, tp_size,
+                                                  pp_size, rank)
 
 def serialize_engine(engine, path):
     """Serializes the engine to path."""
@@ -190,9 +192,10 @@ def _build_impl(tensorrt_llm_model, args):
         fp8="fp8" in args.quantization,
     )
     
-    tp_rank = args.mapping.tp_rank
-    pp_rank = args.mapping.pp_rank
-    engine_name = get_engine_name(MODEL_NAME, args.dtype, tp_rank, pp_rank)
+    tp_size = args.mapping.tp_size
+    pp_size = args.mapping.pp_size
+    rank = args.mapping.rank
+    engine_name = get_engine_name(MODEL_NAME, args.dtype, tp_size, pp_size, rank)
     engine = build_rank_engine(
         tensorrt_llm_model, builder, builder_config, engine_name, args
     )
