@@ -192,18 +192,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            if self.cfg.get('share_embeddings_and_output_weights', True):
-                for index, module in enumerate(self.get_gpt_module_list()):
-                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                        parallel_state.set_virtual_pipeline_model_parallel_rank(index)
-                    sync_embeddings = (
-                        module.initialize_last_stage_with_word_embeddings
-                        if self.mcore_gpt
-                        else module.sync_initial_word_embeddings
-                    )
-                    sync_embeddings()
-                if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+            self.initialize_last_rank_embeddings()
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
