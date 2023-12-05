@@ -74,9 +74,23 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                 new_path = old_path.replace(self.old_prefix, self.corpus_dir)
                 c.recording.sources[0].source = new_path
 
+        batch = {}
+
         cuts = cuts.sort_by_duration()
         audio, audio_lens, cuts = self.load_audio(cuts)
         texts = [c.supervisions[0].custom["texts"][0] for c in cuts]
+
+        audio_22050, audio_lens_22050, _ = self.load_audio(cuts.resample(22050))
+        audio_24k, audio_lens_24k, _ = self.load_audio(cuts.resample(24000))
+        batch.update({
+            "audio": audio,
+            "audio_lens": audio_lens,
+            "audio_22050": audio_22050,
+            "audio_lens_22050": audio_lens_22050,
+            "audio_24k": audio_24k,
+            "audio_lens_24k": audio_lens_24k,
+            "texts": texts,
+        })
 
         if self.tokenizer is not None:
             if isinstance(self.tokenizer, TextProcessor):
@@ -84,29 +98,36 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                     tokens = [self.tokenizer.text_to_ids(text)[0] for text in texts]
             elif isinstance(self.tokenizer, BaseTokenizer):
                 texts = [self.normalizer_call(text, **self.text_normalizer_call_kwargs) for text in texts]
-                tokens = [self.tokenizer(text)[0] for text in texts]
-
+                tokens = [self.tokenizer(text) for text in texts]
 
             tokens = [torch.as_tensor(token_ids).long() for token_ids in tokens]
             token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
             tokens = collate_vectors(tokens, padding_value=0)
-            return audio, audio_lens, tokens, token_lens
+            batch.update({
+                "texts": texts,
+                "tokens": tokens,
+                "token_lens": token_lens
+            })
 
-        return audio, audio_lens, texts
+        return batch
+
+
+class StdoutRedirector:
+    def __init__(self, logger):
+        self.logger = logger
+
+    def write(self, message):
+        if message != '\n':
+            self.logger.warning(message)
+
+    def flush(self):
+        pass
 
 
 @contextmanager
 def redirect_stdout_to_logger(logger):
-    class StdoutRedirector:
-        def write(self, message):
-            if message != '\n':
-                logger.warning(message)
-
-        def flush(self):
-            pass
-
     original_stdout = sys.stdout  # 保存原始的 stdout
-    sys.stdout = StdoutRedirector()  # 將 stdout 重定向到自定義的類
+    sys.stdout = StdoutRedirector(logger)  # 將 stdout 重定向到自定義的類
     try:
         yield
     finally:

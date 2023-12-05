@@ -183,4 +183,5 @@ nemo_experiments/
 .devcontainer/
 
 # additional data menifests
+raw_data/*/*.jsonl.gz
 data/*/*.jsonl.gz

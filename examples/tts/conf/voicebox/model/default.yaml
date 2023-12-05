@@ -34,10 +34,6 @@ tokenizer:
     keep_puncs: False
 
 
-nemo_aligner:
-  _target_: nemo.collections.tts.models.AlignerModel
-  from_pretrained: "tts_en_radtts_aligner_ipa"
-
 
 cfm_wrapper:
   _target_: nemo.collections.tts.modules.voicebox_modules.ConditionalFlowMatcherWrapper

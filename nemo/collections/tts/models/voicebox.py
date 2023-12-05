@@ -36,7 +36,19 @@ from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.models.vits import VitsModel
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.tts.models.aligner import AlignerModel
-from nemo.collections.tts.modules.voicebox_modules import ConditionalFlowMatcherWrapper, VoiceBox, DurationPredictor, MelVoco, EncodecVoco, get_mask_from_lengths
+from nemo.collections.tts.modules.voicebox_modules import (
+    ConditionalFlowMatcherWrapper,
+    VoiceBox,
+    DurationPredictor,
+    MelVoco,
+    EncodecVoco,
+    get_mask_from_lengths,
+    interpolate_1d
+)
+
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
+from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
+from nemo_text_processing.text_normalization.normalize import Normalizer
 
 
 @experimental
@@ -47,15 +59,23 @@ class VoiceboxModel(TextToWaveform):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        self.normalizer = None
-        self.tokenizer = None
-        if cfg.get("nemo_aligner") and cfg.nemo_aligner.get("from_pretrained"):
-            self.aligner: AlignerModel = get_class(cfg.nemo_aligner._target_).from_pretrained(cfg.nemo_aligner.from_pretrained)
-            self.aligner.freeze()
+        self.tokenizer: BaseTokenizer | Tokenizer = None
+        self.normalizer: Normalizer = None
 
-            self.tokenizer = self.aligner.tokenizer
-            self.normalizer = self.aligner.normalizer
-            self.text_normalizer_call_kwargs = self.aligner.text_normalizer_call_kwargs
+        aligner = None
+        # self.aligner: AlignerModel = None
+        if cfg.get("nemo_aligner") and cfg.nemo_aligner.get("from_pretrained"):
+            logging.info(cfg.nemo_aligner._target_)
+            logging.info(get_class(cfg.nemo_aligner._target_))
+            logging.info(cfg.nemo_aligner.from_pretrained)
+            # aligner = AlignerModel.from_pretrained("tts_en_radtts_aligner")
+            aligner = get_class(cfg.nemo_aligner._target_).from_pretrained(cfg.nemo_aligner.from_pretrained)
+            aligner.freeze()
+
+            self.tokenizer = aligner.tokenizer
+            self.normalizer = aligner.normalizer
+            self.text_normalizer_call_kwargs = aligner.text_normalizer_call_kwargs
+            num_tokens = len(aligner.tokenizer.tokens)
 
         elif cfg.get("nemo_tokenizer"):
             # setup normalizer
@@ -71,12 +91,10 @@ class VoiceboxModel(TextToWaveform):
             self.tokenizer_pad = self.tokenizer.pad
 
         elif cfg.get("tokenizer"):
-            from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
-
-            self.tokenizer: Tokenizer = instantiate(cfg.tokenizer)
+            self.normalizer = None
+            self.tokenizer = instantiate(cfg.tokenizer)
             num_tokens = self.tokenizer.vocab_size
             self.tokenizer_pad = self.tokenizer.pad_id
-
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -85,12 +103,13 @@ class VoiceboxModel(TextToWaveform):
 
         self.duration_predictor = instantiate(
             cfg.duration_predictor,
-            # audio_enc_dec=self.audio_enc_dec,
             tokenizer=self.tokenizer,
+            aligner=aligner,
         )
+        self.aligner = aligner
+
         self.voicebox: VoiceBox = instantiate(
             cfg.voicebox,
-            # audio_enc_dec=self.audio_enc_dec,
             num_cond_tokens=num_tokens
         )
         self.cfm_wrapper: ConditionalFlowMatcherWrapper = instantiate(
@@ -100,9 +119,6 @@ class VoiceboxModel(TextToWaveform):
             torchode_method_klass=get_class(cfg.cfm_wrapper.torchode_method_klass)
         )
         
-        if hasattr(self, 'aligner'):
-            self.duration_predictor.aligner = self.aligner
-
     def prepare_data(self) -> None:
         """ Pytorch Lightning hook.
 
@@ -110,16 +126,45 @@ class VoiceboxModel(TextToWaveform):
 
         The following code is basically for transcribed LibriLight.
         """
+        from lhotse import CutSet
+        from lhotse.serialization import load_manifest_lazy_or_eager
         from lhotse.recipes.utils import manifests_exist
+
+        logging.info(f"mkdir -p raw_{self._cfg.manifests_dir}")
+        os.makedirs("raw_" + self._cfg.manifests_dir, exist_ok=True)
+        for subset in self._cfg.subsets:
+            if not manifests_exist(subset, "raw_" + self._cfg.manifests_dir, ["cuts"], "libriheavy"):
+                logging.info(f"Downloading {subset} subset.")
+                os.system(f"wget -P raw_{self._cfg.manifests_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
+            else:
+                logging.info(f"Skipping download, {subset} subset exists.")
+
+        # fix audio path prefix
+        old_prefix="download/librilight"
+        def change_prefix(cut):
+            old_path = cut.recording.sources[0].source
+            new_path = old_path.replace(old_prefix, self._cfg.corpus_dir)
+            cut.recording.sources[0].source = new_path
+            return cut
 
         logging.info(f"mkdir -p {self._cfg.manifests_dir}")
         os.makedirs(self._cfg.manifests_dir, exist_ok=True)
         for subset in self._cfg.subsets:
-            if not manifests_exist(subset, self._cfg.manifests_dir, ["cuts"], "libriheavy"):
-                logging.info(f"Downloading {subset} subset.")
-                os.system(f"wget -P {self._cfg.manifests_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
+            manifest_path = os.path.join(self._cfg.manifests_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
+            if manifest_path not in [self._cfg.train_ds.manifest_filepath, self._cfg.validation_ds.manifest_filepath, self._cfg.test_ds.manifest_filepath]:
+                continue
+            if not os.path.exists(manifest_path):
+                logging.info(f"Loading {subset} subset.")
+                cuts = load_manifest_lazy_or_eager("raw_" + manifest_path, CutSet)
+                logging.info(f"Filtering {subset} subset.")
+                cuts = cuts.filter(lambda c: ',' not in c.id)
+                # logging.info(f"Fixing {subset} subset prefix.")
+                # cuts = cuts.map(change_prefix)
+                logging.info(f"Writing {subset} subset.")
+                cuts.to_file(manifest_path)
+                del cuts
             else:
-                logging.info(f"Skipping download, {subset} subset exists.")
+                logging.info(f"Skipping fix, {subset} subset exists.")
 
     def parse(self, str_input: str, **kwargs: Any) -> torch.tensor:
         if self.cfg.get("nemo_tokenizer"):
@@ -145,6 +190,7 @@ class VoiceboxModel(TextToWaveform):
         for kw in ["normalizer", "text_normalizer_call_kwargs", "tokenizer"]:
             if hasattr(self, kw):
                 ds_kwargs[kw] = getattr(self, kw)
+
         return get_lhotse_dataloader_from_config(
             config,
             global_rank=self.global_rank,
@@ -218,9 +264,18 @@ class VoiceboxModel(TextToWaveform):
             decode_to_audio=decode_to_audio
         )
         return audio
+
     
     def training_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT:
-        audio, audio_lens, tokens, token_lens = batch
+        audio = batch["audio_24k"]
+        audio_lens = batch["audio_lens_24k"]
+        tokens = batch["tokens"]
+        token_lens = batch["token_lens"]
+        # aligner input
+        audio_22050 = batch["audio_22050"]
+        audio_lens_22050 = batch["audio_lens_22050"]
+        tgt_len = audio.shape[1]
+
         audio_mask = get_mask_from_lengths(audio_lens)
         _, losses = self.cfm_wrapper.forward(
             x1=audio,
@@ -235,23 +290,27 @@ class VoiceboxModel(TextToWaveform):
         # self.log("loss", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         self.log_dict(losses, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         dp_loss = losses['d_pred_loss']
-        align_loss = losses['align_loss']
+        align_loss = losses.get('align_loss', 0)
         bin_loss = losses.get('bin_loss', 0)
         vb_loss = losses['vb_loss']
 
-        if self.current_epoch < 10:
-            align_loss = align_loss * 1e3
-            bin_loss = bin_loss * 1e3
-        if self.current_epoch < 10:
-            dp_loss = dp_loss * 0
-        if self.current_epoch < 10:
-            vb_loss = vb_loss * 0
+        # if self.current_epoch < 10:
+        #     align_loss = align_loss * 1e3
+        #     bin_loss = bin_loss * 1e3
+        # if self.current_epoch < 10:
+        #     dp_loss = dp_loss * 0
+        # if self.current_epoch < 10:
+        #     vb_loss = vb_loss * 0
 
-        loss = align_loss + dp_loss + vb_loss
+        loss = align_loss + bin_loss + dp_loss + vb_loss
         return loss
     
     def validation_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT | None:
-        audio, audio_lens, tokens, token_lens = batch
+        audio = batch["audio"]
+        audio_lens = batch["audio_lens"]
+        tokens = batch["tokens"]
+        token_lens = batch["token_lens"]
+
         audio_mask = get_mask_from_lengths(audio_lens)
         loss, losses = self.cfm_wrapper.forward(
             x1=audio,
