@@ -194,7 +194,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             self.initialize_last_rank_embeddings()
 
-        if self.cfg.get('transformer_engine', False):
+        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.setup_transformer_engine_tp_groups()
         self.setup_complete = True
 
