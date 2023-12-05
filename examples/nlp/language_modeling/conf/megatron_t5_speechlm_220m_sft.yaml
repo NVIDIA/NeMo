@@ -14,7 +14,7 @@ trainer:
   val_check_interval: null
   check_val_every_n_epoch: 1
   gradient_clip_val: 1.0
-  resume_from_checkpoint: null 
+  resume_from_checkpoint: null
 
 exp_manager:
   explicit_log_dir: null
@@ -60,6 +60,10 @@ model:
   seq_pattern: "delay_parallel" # parallel, delay_parallel, flatten
   speech_head_type: "linear" # token_level, linear
   cross_entropy_type: "vocab_parallel" # regular, vocab_parallel
+  attn_prior_scaledown_start_step: 10000
+  attn_prior_end_step: 11000
+  return_all_crossattention_probs: True
+  num_cross_attention_heads: 12 # 12 for 220m, 16 for 3b.
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
@@ -84,8 +88,6 @@ model:
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
-    # train_ds: ["/data/speech/train_clean_300_speechlm_alltasks.json"]
-    # validation_ds: ["/data/speech/val_clean_300_speechlm_alltasks.json"]
   data:
     train_ds: ["/data/speech/val_clean_300_speechlm_alltasks.json"]
     validation_ds: ["/data/speech/val_clean_300_speechlm_alltasks.json"]    
@@ -93,6 +95,9 @@ model:
     sample_rate: 24000
     add_eos: true
     add_bos: false
+    use_attention_prior: false
+    attention_prior_scaling_factor: 0.05
+    cross_attention_epsilon: 0.0
     decoder_starts_with_pad: False
     add_eos_to_decoder_output: True
     add_sentinel_to_input: True
@@ -106,15 +111,15 @@ model:
 
   optim:
     name: fused_adam
-    lr: 1e-3
+    lr: 5e-5
     weight_decay: 0.01 
     betas: 
     - 0.9
     - 0.98
-    sched:
-      name: CosineAnnealing
-      warmup_steps: 50
-      constant_steps: 0
-      min_lr: 0.0
-      monitor: val_loss
-      reduce_on_plateau: false
+    # sched:
+    #   name: CosineAnnealing
+    #   warmup_steps: 50
+    #   constant_steps: 0
+    #   min_lr: 0.0
+    #   monitor: val_loss
+    #   reduce_on_plateau: false

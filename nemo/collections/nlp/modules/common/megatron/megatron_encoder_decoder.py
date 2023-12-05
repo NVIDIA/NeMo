@@ -115,6 +115,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_get_key_value=False,
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
+        return_all_crossattention_probs=False,
     ):
         if self.decoder is None:
             raise ValueError(f"Cannot call .decode(...) when self.decoder is None.")
@@ -128,6 +129,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             enc_attn_mask=enc_attn_mask,
             dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
+            return_all_crossattention_probs=return_all_crossattention_probs,
         )
 
         return dec_output
@@ -148,6 +150,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_self_attention_relative_position_bias=None,
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
+        return_all_crossattention_probs=False,
     ):
         # encoder
         if enc_output is None:
@@ -183,6 +186,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_get_key_value=dec_get_key_value,
             dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
+            return_all_crossattention_probs=return_all_crossattention_probs,
         )
 
         return dec_output, enc_output

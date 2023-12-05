@@ -13,14 +13,14 @@ trainer:
   max_steps: -1
   log_every_n_steps: 10
   val_check_interval: null
-  check_val_every_n_epoch: 3
+  check_val_every_n_epoch: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
   limit_val_batches: 25
 
 exp_manager:
   explicit_log_dir: null
-  exp_dir: "/Data/Experiments/InferenceDelayParallel"
+  exp_dir: null
   name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
@@ -51,20 +51,21 @@ model:
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
-  global_batch_size: 16 
-  micro_batch_size: 16 # micro batch size should equal global batch size when pipeline parallel = 1
+  global_batch_size: 2 
+  micro_batch_size: 2 # micro batch size should equal global batch size when pipeline parallel = 1
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
   validation_drop_last: False
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
-  seq_pattern: "parallel" # parallel, delay_parallel, flatten
+  seq_pattern: "delay_parallel" # parallel, delay_parallel, flatten
   speech_head_type: "linear" # token_level, linear
-  temperature: 0.7 # Temperature to be used for inference
+  cross_entropy_type: "vocab_parallel" # regular, vocab_parallel
+  temperature: 0.9 # Temperature to be used for inference
   top_k: 80 # Top k to be used for inference
-  max_inference_timesteps: 1000 # Maximum number of timesteps to run inference for
-  
+  max_inference_timesteps: 1500 # Maximum number of timesteps to run inference for
+
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
@@ -90,9 +91,12 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: null
-    validation_ds: null
-    test_ds: ["/Data/LibriTTS/inference_unseen.json"]
+    train_manifest: ["/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/MLS_val_seen_200.json"]
+    train_audio_path: "/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
+    validation_manifest: ["/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/MLS_val_seen_200.json"]
+    validation_audio_path: "/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
+    test_manifest: ["/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/MLS_val_seen_200.json"]
+    test_audio_path: "/Data/MLSData/MLS/audio_24khz_val_seen_tar_3/audio__OP_0..3_CL_.tar"
     max_seq_length: 1536
     sample_rate: 24000
     add_eos: true
@@ -102,11 +106,10 @@ model:
     add_sentinel_to_input: True
     ul2_prompt_token: null # <extra_id_s>, <extra_id_r>, <extra_id_x>
     shuffle: true
-    num_workers: 4
+    num_workers: 1
     pin_memory: true
     speech_offset: 30000
     train_task: asr
-    sup_data_path: ???
 
   optim:
     name: fused_adam
