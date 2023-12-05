@@ -117,7 +117,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
 
         torch.cuda.set_device(runtime_rank % runtime_mapping.gpus_per_node)
         engine_name = get_engine_name(
-            MODEL_NAME, dtype, runtime_mapping.tp_rank, runtime_mapping.pp_rank)
+            MODEL_NAME, dtype, tp_size, pp_size, runtime_rank)
         serialize_path = os.path.join(engine_dir, engine_name)
         logger.info(f"Reading from serialize path {serialize_path}")
 
