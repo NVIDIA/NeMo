@@ -67,7 +67,7 @@ class NLPAdapterModelMixin:
         self.use_ptuning_only = False
         super().__init__(*args, **kwargs)
         if hasattr(self, "enc_dec_model"):
-            self.model_prefix = "enc_dec_model.module." if self.cfg.megatron_amp_O2 else "enc_dec_model." # for T5
+            self.model_prefix = "enc_dec_model.module." if self.cfg.megatron_amp_O2 else "enc_dec_model."  # for T5
         else:
             self.model_prefix = "model.module." if self.cfg.megatron_amp_O2 else "model."
 
