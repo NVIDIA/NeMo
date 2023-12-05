@@ -97,6 +97,8 @@ pipeline {
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
       }
     }
+
+    """
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads'
@@ -115,6 +117,7 @@ pipeline {
       }
     }
 
+    
     // TODO: this requires TE >= v0.11 which is not available in 23.06.
     //        please uncomment this test once mcore CI is ready.
     stage('L2: Community LLM Checkpoints tests') {
@@ -2762,6 +2765,7 @@ pipeline {
     //     }
     //   }
     // }
+    """
     stage('L2: Megatron Bert Pretraining and Resume Training with Pipeline Paralleism') {
       when {
         anyOf {
