@@ -8,7 +8,8 @@ import torch.nn.functional as F
 from beartype import beartype
 from beartype.typing import Tuple, Optional, List, Union
 from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
-from naturalspeech2_pytorch.aligner import Aligner, ForwardSumLoss, maximum_path
+from naturalspeech2_pytorch.aligner import Aligner as _Aligner
+from naturalspeech2_pytorch.aligner import ForwardSumLoss, maximum_path
 from voicebox_pytorch.voicebox_pytorch import VoiceBox as _VB
 from voicebox_pytorch.voicebox_pytorch import ConditionalFlowMatcherWrapper as _CFMWrapper
 from voicebox_pytorch.voicebox_pytorch import DurationPredictor as _DP
@@ -59,27 +60,26 @@ class MelVoco(_MelVoco, LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    @property
-    def downsample_factor(self):
-        return self.hop_length 
-
-    @property
-    def latent_dim(self):
-        return self.n_mels
-    
-    def encode(self, audio):
-        mel = self.vocos.feature_extractor(audio)
-
-        if self.log:
-            mel = T.AmplitudeToDB()(mel)
-
-        mel = rearrange(mel, 'b d n -> b n d')
-        return mel
-
 
 class EncodecVoco(_EncodecVoco, LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+
+class Aligner(_Aligner):
+    def forward(self, x, x_mask, y, y_mask):
+        alignment_soft, alignment_logprob = self.aligner(rearrange(y, 'b ty d -> b d ty'), rearrange(x, 'b tx d -> b d tx'), x_mask)
+
+        x_mask = rearrange(x_mask, '... tx -> ... tx 1')
+        y_mask = rearrange(y_mask, '... ty -> ... 1 ty')
+        attn_mask = x_mask * y_mask
+        attn_mask = rearrange(attn_mask, 'b 1 tx ty -> b tx ty')
+
+        alignment_soft = rearrange(alignment_soft, 'b 1 ty tx -> b tx ty')
+        alignment_mask = maximum_path(alignment_soft, attn_mask)
+
+        alignment_hard = torch.sum(alignment_mask, -1).int()
+        return alignment_hard, alignment_soft, alignment_logprob, alignment_mask
 
 
 class DurationPredictor(_DP):
@@ -97,88 +97,18 @@ class DurationPredictor(_DP):
     """
     def __init__(
         self,
-        audio_enc_dec: Optional[AudioEncoderDecoder | AudioPreprocessor] = None,
-        tokenizer: Optional[Tokenizer | TextProcessor] = None,
-        num_phoneme_tokens: Optional[int] = None,
-        dim_phoneme_emb = 512,
-        dim = 512,
-        depth = 10,
-        dim_head = 64,
-        heads = 8,
-        ff_mult = 4,
-        attn_qk_norm = True,
-        ff_dropout = 0.,
-        conv_pos_embed_kernel_size = 31,
-        conv_pos_embed_groups = None,
-        attn_dropout=0,
-        attn_flash = False,
-        p_drop_prob = 0.2, # p_drop in paper
-        frac_lengths_mask: List[float] = [0.1, 1.],
-        aligner_kwargs: dict | DictConfig = dict(dim_in = 80, attn_channels = 80)
+        *args,
+        aligner_kwargs: dict | DictConfig = dict(dim_in = 80, attn_channels = 80),
+        **kwargs,
     ):
-        """
-        1. `cond` arg of `forward() should be ground-truth duration, therefore fix `self.proj_in` into nn.Linear(1,dim)
-        """
-        nn.Module.__init__(self)
-
-        # audio encoder / decoder
-
-        self.audio_enc_dec = audio_enc_dec
-        self.audio_enc_dec.freeze()
-
-        self.proj_in = nn.Linear(1, dim)
-
-        # phoneme related
-
-        assert not (exists(tokenizer) and exists(num_phoneme_tokens)), 'if a phoneme tokenizer was passed into duration module, number of phoneme tokens does not need to be specified'
-
-        if not exists(tokenizer) and not exists(num_phoneme_tokens):
-            tokenizer = Tokenizer() # default to english phonemes with espeak
-
-        if exists(tokenizer):
-            num_phoneme_tokens = tokenizer.vocab_size
-
-        self.tokenizer = tokenizer
-
-        self.to_phoneme_emb = nn.Embedding(num_phoneme_tokens, dim_phoneme_emb)
-
-        self.p_drop_prob = p_drop_prob
-        self.frac_lengths_mask = frac_lengths_mask
-
-        self.to_embed = nn.Linear(dim + dim_phoneme_emb, dim)
-
-        self.null_cond = nn.Parameter(torch.zeros(dim), requires_grad=False)
-
-        self.conv_embed = ConvPositionEmbed(
-            dim = dim,
-            kernel_size = conv_pos_embed_kernel_size,
-            groups = conv_pos_embed_groups
-        )
-
-        self.transformer = Transformer(
-            dim = dim,
-            depth = depth,
-            dim_head = dim_head,
-            heads = heads,
-            ff_mult = ff_mult,
-            ff_dropout = ff_dropout,
-            attn_dropout=attn_dropout,
-            attn_flash = attn_flash,
-            attn_qk_norm = attn_qk_norm
-        )
-
-        self.to_pred = nn.Sequential(
-            nn.Linear(dim, 1),
-            Rearrange('... 1 -> ...')
-        )
-
-        # aligner related
+        kwargs["aligner_kwargs"] = None
+        super().__init__(*args, **kwargs)
 
         if aligner_kwargs:
             # if we are using mel spec with 80 channels, we need to set attn_channels to 80
             # dim_in assuming we have spec with 80 channels
 
-            self.aligner = Aligner(dim_in = audio_enc_dec.latent_dim, dim_hidden = dim_phoneme_emb, **aligner_kwargs)
+            self.aligner = Aligner(dim_in = self.audio_enc_dec.latent_dim, dim_hidden = self.dim_phoneme_emb, **aligner_kwargs)
             self.align_loss = ForwardSumLoss()
 
             for layer in self.aligner.modules():
@@ -207,21 +137,7 @@ class DurationPredictor(_DP):
             x: phone
             y: mel
         """
-        attn_mask = rearrange(x_mask, 'b 1 tx -> b 1 tx 1') * rearrange(y_mask, 'b 1 ty -> b 1 1 ty')
-        alignment_soft, alignment_logprob = self.aligner.aligner(
-            rearrange(y, 'b ty c -> b c ty'), rearrange(x, 'b tx c -> b c tx'), x_mask
-        )
-
-        assert not torch.isnan(alignment_soft).any()
-
-        alignment_mas = maximum_path(
-            rearrange(alignment_soft, 'b 1 ty tx -> b tx ty').contiguous(),
-            rearrange(attn_mask, 'b 1 tx ty -> b tx ty').contiguous()
-        )
-
-        alignment_hard = torch.sum(alignment_mas, -1).float()
-        alignment_soft = rearrange(alignment_soft, 'b 1 ty tx -> b tx ty')
-        return alignment_hard, alignment_soft, alignment_logprob, alignment_mas
+        return self.aligner(x, x_mask, y, y_mask)
 
     @beartype
     def forward(
