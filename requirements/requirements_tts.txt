@@ -11,4 +11,4 @@ pandas
 pypinyin
 pypinyin-dict
 lhotse
-voicebox-pytorch==0.4.0
+voicebox-pytorch @ git+https://github.com/SungFeng-Huang/voicebox-pytorch.git@nemo
