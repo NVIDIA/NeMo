@@ -318,6 +318,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+                rotary_base=self.cfg.get('rotary_base', 10000),
             )
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
@@ -1544,6 +1545,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
         apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
+
+        fp16_enabled = self.trainer.precision in [16, '16', '16-mixed']
+        if apply_query_key_layer_scaling:
+            if fp16_enabled:
+                os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "1"
+            else:
+                logging.warning(
+                    "apply_query_key_layer_scaling is only enabled when using FP16, setting it to False "
+                    "and setting NVTE_APPLY_QK_LAYER_SCALING=0"
+                )
+                os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "0"
+                apply_query_key_layer_scaling = False
+
         if apply_query_key_layer_scaling:
             attention_softmax_in_fp32 = True
 
@@ -1570,6 +1584,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
+            'apply_query_key_layer_scaling': apply_query_key_layer_scaling,
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'add_bias_linear': add_bias_linear,
