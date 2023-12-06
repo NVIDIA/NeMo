@@ -647,6 +647,11 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 instruction_tokens = self._get_text_tokens("Phoneme TTS")
                 field_tokens = self._get_phoneme_tokens(_text.replace("Phoneme TTS ", ""))
                 field_tokens = instruction_tokens + field_tokens
+            elif _text.startswith("Edit Speech"):
+                # Always use phoneme tokenizer for edit speech
+                instruction_tokens = self._get_text_tokens("Edit Speech")
+                field_tokens = self._get_phoneme_tokens(_text.replace("Edit Speech ", ""))
+                field_tokens = instruction_tokens + field_tokens
             else:
                 field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
         elif doc[f"{field}_type"] == 'SPEECH':
