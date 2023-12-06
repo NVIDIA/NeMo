@@ -9,9 +9,6 @@ pipeline {
     timeout(time: 8, unit: 'HOURS')
     disableConcurrentBuilds(abortPrevious: true)
   }
-  environment {
-    NVTE_APPLY_QK_LAYER_SCALING = 1
-  }
 
   stages {
 
@@ -75,8 +72,8 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
              cd Megatron-LM && \
-             git checkout e122536b7645edcb7ebf099b5c92a443f7dbf8e7 && \
-             pip install -e .'
+             git checkout 973330e9c3681604703bf1eb6b5a265d1b9b9b38 && \
+             pip install .'
       }
     }
 
