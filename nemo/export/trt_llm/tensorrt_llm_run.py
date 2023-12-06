@@ -73,7 +73,7 @@ def _read_config(config_path: Path):
     num_layers = config["builder_config"]["num_layers"]
     paged_kv_cache = config["plugin_config"]["paged_kv_cache"]
     tokens_per_block = config["builder_config"]["tokens_per_block"]
-    use_prompt_tuning = config["builder_config"]["use_prompt_tuning"]
+    max_prompt_embedding_table_size = config["builder_config"]["max_prompt_embedding_table_size"]
 
     num_heads = num_heads // tensor_parallel_size
     num_kv_heads = (num_kv_heads + tensor_parallel_size - 1) // tensor_parallel_size
@@ -88,7 +88,7 @@ def _read_config(config_path: Path):
         remove_input_padding=remove_input_padding,
         paged_kv_cache=paged_kv_cache,
         tokens_per_block=tokens_per_block,
-        use_prompt_tuning=use_prompt_tuning,
+        max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         dtype="bfloat16" if paged_kv_cache else ""
     )
 

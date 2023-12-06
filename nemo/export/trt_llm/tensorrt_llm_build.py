@@ -187,7 +187,7 @@ def _build_impl(tensorrt_llm_model, args):
         opt_level=args.builder_opt,
         paged_kv_cache=args.paged_kv_cache,
         tokens_per_block=args.tokens_per_block,
-        use_prompt_tuning=args.max_prompt_embedding_table_size > 0,
+        max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
         use_parallel_embedding=args.use_parallel_embedding,
         fp8="fp8" in args.quantization,
     )

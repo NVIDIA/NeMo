@@ -113,21 +113,14 @@ class ModelBuilder(Module):
         self,
         input_ids,
         position_ids,
-        past_key_value=None,
-        sequence_length=None,
-        host_past_key_value_lengths=None,
         use_cache=False,
         attention_mask=None,
-        cache_indirection=None,
-        kv_cache_block_pointers=None,
+        kv_cache_params=None,
+        attention_params=None,
         prompt_embedding_table=None,
         prompt_tasks=None,
         prompt_vocab_size=None,
         inflight_batching_args=None,
-        context_lengths=None,
-        host_context_lengths=None,
-        host_request_types=None,
-        max_context_length=None,
         hidden_states=None,
     ):
         """Forward function for the full model."""
@@ -144,8 +137,7 @@ class ModelBuilder(Module):
         else:
             hidden_states = recv(hidden_states, self._mapping.prev_pp_rank())
 
-        if past_key_value is None:
-            past_key_value = tuple([None] * len(self.layers))
+        kv_cache_params.fill_none_tensor_list(len(self.layers))
 
         if use_cache:
             presents = []
@@ -154,26 +146,23 @@ class ModelBuilder(Module):
             attention_mask = expand_mask(attention_mask, shape(input_ids, -1))
 
 
-        for idx, (layer, past, pointers) in enumerate(
-            zip(self.layers, past_key_value, kv_cache_block_pointers)
-        ):
+        for idx, (layer, past, pointers,
+                  max_kv_cache_length) in enumerate(
+                    zip(self.layers, kv_cache_params.past_key_value,
+                        kv_cache_params.kv_cache_block_pointers,
+                        kv_cache_params.host_max_kv_cache_lengths)):
             hidden_states = layer(
                 hidden_states,
                 attention_mask=attention_mask,
                 use_cache=use_cache,
                 kv_cache_params=KeyValueCacheParams(
                     past_key_value=[past],
-                    host_past_key_value_lengths=host_past_key_value_lengths,
+                    host_past_key_value_lengths=kv_cache_params.host_past_key_value_lengths,
                     kv_cache_block_pointers=[pointers],
-                    cache_indirection=cache_indirection
+                    host_max_kv_cache_lengths=max_kv_cache_length,
+                    cache_indirection=kv_cache_params.cache_indirection
                 ),
-                attention_params=AttentionParams(
-                    sequence_length=sequence_length,
-                    context_lengths=context_lengths,
-                    host_context_lengths=host_context_lengths,
-                    max_context_length=max_context_length,
-                    host_request_types=host_request_types,
-                ),
+                attention_params=attention_params,
             )
 
             if use_cache:
@@ -224,22 +213,15 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         self,
         input_ids,
         position_ids,
-        past_key_value=None,
-        sequence_length=None,
-        host_past_key_value_lengths=None,
         use_cache=False,
         last_token_ids=None,
         attention_mask=None,
-        cache_indirection=None,
-        kv_cache_block_pointers=None,
+        kv_cache_params=None,
+        attention_params=None,
         prompt_embedding_table=None,
         prompt_tasks=None,
         prompt_vocab_size=None,
         inflight_batching_args=None,
-        context_lengths=None,
-        host_context_lengths=None,
-        host_request_types=None,
-        max_context_length=None,
         hidden_states=None,
     ):
 
@@ -247,21 +229,14 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         hidden_states = super().forward(
             input_ids,
             position_ids,
-            past_key_value,
-            sequence_length,
-            host_past_key_value_lengths,
             use_cache,
             attention_mask,
-            cache_indirection,
-            kv_cache_block_pointers,
+            kv_cache_params,
+            attention_params,
             prompt_embedding_table,
             prompt_tasks,
             prompt_vocab_size,
             inflight_batching_args,
-            context_lengths,
-            host_context_lengths,
-            host_request_types,
-            max_context_length,
             hidden_states
         )
 
@@ -423,22 +398,29 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         return (
             model_inputs["input_ids"],
             model_inputs["position_ids"],
-            model_inputs["past_key_value"],
-            model_inputs["sequence_length"],
-            model_inputs["host_past_key_value_lengths"],
             use_cache,
             model_inputs["last_token_ids"],
             model_inputs["attention_mask"],
-            model_inputs["cache_indirection"],
-            model_inputs["kv_cache_block_pointers_list"],
+            KeyValueCacheParams(
+                past_key_value=model_inputs['past_key_value'],
+                host_past_key_value_lengths=model_inputs[
+                    'host_past_key_value_lengths'],
+                host_max_kv_cache_lengths=model_inputs[
+                    'host_max_kv_cache_lengths'],
+                kv_cache_block_pointers=model_inputs[
+                    'kv_cache_block_pointers_list'],
+                cache_indirection=model_inputs['cache_indirection'],
+            ),
+            AttentionParams(
+                sequence_length=model_inputs['sequence_length'],
+                context_lengths=model_inputs['context_lengths'],
+                host_context_lengths=model_inputs['host_context_lengths'],
+                max_context_length=max_input_len,
+                host_request_types=model_inputs['host_request_types']),
             prompt_embedding_table,
             tasks,
             prompt_vocab_size,
             inflight_batching_args,
-            model_inputs["context_lengths"],
-            model_inputs["host_context_lengths"],
-            model_inputs["host_request_types"],
-            max_input_len,
             model_inputs["hidden_states_input"],
         )
 
