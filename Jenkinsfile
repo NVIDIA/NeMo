@@ -9,9 +9,6 @@ pipeline {
     timeout(time: 8, unit: 'HOURS')
     disableConcurrentBuilds(abortPrevious: true)
   }
-  environment {
-    NVTE_APPLY_QK_LAYER_SCALING = 1
-  }
 
   stages {
 
@@ -64,7 +61,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/TransformerEngine.git && \
              cd TransformerEngine && \
-             git fetch origin 8eae4ce2b8fdfbbe525fc8bfecb0df5498cc9687 && \
+             git fetch origin e6676c53f26f6ef072943c909d136cf2a39c1d90 && \
              git checkout FETCH_HEAD && \
              git submodule init && git submodule update && \
              NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .'
@@ -75,8 +72,8 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
              cd Megatron-LM && \
-             git checkout 4c7a0251ae7c234a4ca3f02327330235d8d35028 && \
-             pip install -e .'
+             git checkout 973330e9c3681604703bf1eb6b5a265d1b9b9b38 && \
+             pip install .'
       }
     }
 
