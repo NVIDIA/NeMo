@@ -14,3 +14,5 @@ target_lang: null
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0
+block_ngram_repetition: False
+ngram: 2

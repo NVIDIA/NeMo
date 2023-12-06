@@ -1038,6 +1038,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output=None,
         enc_output_attn_mask=None,
         ignore_ids=[],
+        block_ngram_repetition=False,
+        ngram: int = 2,
     ):
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
@@ -1095,6 +1097,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if enc_output_attn_mask is None:
             enc_output_attn_mask = enc_mask
 
+        # Avoid repetition
+        batch_size = predicted_tokens_dec.size(0)
+        forbidden_tokens = [{} for _ in range(batch_size)]
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
@@ -1136,11 +1141,42 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf')
                     )
 
+
+                # Get tokens to ignore to avoid repetition
+                if block_ngram_repetition and predicted_tokens_dec.size(1) >= ngram - 1:
+                    for data_id in range(batch_size):
+                        current_ngram = tuple(predicted_tokens_dec[data_id, -(ngram - 1):].tolist())
+                        fts = forbidden_tokens[data_id].get(current_ngram, None)
+                        if fts:
+                            valid_fts = []
+                            valid_sid = []
+                            for nxt, sid in zip(fts[0], fts[1]):
+                                if nxt not in valid_fts and sid + ngram >= i - 1:
+                                    valid_fts.append(nxt)
+                                    valid_sid.append(sid)
+                            if not valid_fts and not valid_sid:
+                                del forbidden_tokens[data_id][current_ngram]
+                            else:
+                                forbidden_tokens[data_id][current_ngram] = tuple([valid_fts, valid_sid])
+                            if valid_fts:
+                                output_tensor[data_id, -1, valid_fts] = -float('Inf')
+
                 # TODO: do log_softmax in fp32?
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
                 predicted_tokens_dec = torch.cat(
                     [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
                 )
+
+                # Update forbidden tokens 
+                if block_ngram_repetition and predicted_tokens_dec.size(1) >= ngram:
+                    for data_id in range(batch_size):
+                        current_ngram = tuple(predicted_tokens_dec[data_id, -ngram:].tolist())
+                        prefix = current_ngram[:-1]
+                        surfix = current_ngram[-1]
+                        if prefix not in forbidden_tokens[data_id]:
+                            forbidden_tokens[data_id][prefix] = tuple([[], []])
+                        forbidden_tokens[data_id][prefix][0].append(surfix)
+                        forbidden_tokens[data_id][prefix][1].append(i + 2 - ngram)
             else:
                 log_probs = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=self.autocast_dtype
