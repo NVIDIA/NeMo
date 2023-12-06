@@ -504,13 +504,6 @@ def synced_generate(
             end_strings=end_strings,
             extra=extra,
             image_list=image_list,
-            extra={
-                "top_p": top_p,
-                "top_k": top_k,
-                "greedy": greedy,
-                "repetition_penalty": repetition_penalty,
-                "min_tokens_to_generate": min_tokens_to_generate,
-            },
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
