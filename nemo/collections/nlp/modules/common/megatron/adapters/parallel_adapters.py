@@ -67,6 +67,7 @@ class AdapterName(str, enum.Enum):
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
     MM_LINEAR_ADAPTER = "mm_linear_adapter"
+    LORA_DENSE_ATTENTION_ADAPTER = "lora_dense_attention_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
@@ -126,6 +127,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
+        input_is_parallel: bool = False, # NOTE: (tugrulkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
@@ -145,14 +147,25 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if model_parallel_config is None:
             model_parallel_config = ModelParallelConfig()
 
-        self.linear_in = ColumnParallelLinear(
-            in_features,
-            dim,
-            config=model_parallel_config,
-            bias=False,
-            gather_output=True,
-            init_method=self._get_init_fn(column_init_method),
-        )
+        if input_is_parallel:
+            self.linear_in = RowParallelLinear(
+                in_features,
+                dim,
+                config=model_parallel_config,
+                input_is_parallel=True,
+                skip_bias_add=True,
+                bias=False,
+                init_method=self._get_init_fn(column_init_method),
+            )
+        else:
+            self.linear_in = ColumnParallelLinear(
+                in_features,
+                dim,
+                config=model_parallel_config,
+                bias=False,
+                gather_output=True,
+                init_method=self._get_init_fn(column_init_method),
+            )
         if gather_output:
             self.linear_out = RowParallelLinear(
                 dim,
@@ -169,7 +182,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 out_features,
                 config=model_parallel_config,
                 bias=False,
-                gather_output=False,
+                gather_output=True if input_is_parallel else False,
                 init_method=self._get_init_fn(row_init_method),
             )
 
@@ -244,6 +257,7 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     column_init_method: str = 'xavier'
     row_init_method: str = 'zero'
     gather_output: bool = True
+    input_is_parallel: bool = False
     dropout: float = 0.0
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
 
@@ -274,11 +288,22 @@ class LoraQAdapter(ParallelLinearAdapter):
 
     pass
 
+class LoraDenseAttentionAdapter(ParallelLinearAdapter):
+    """
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    and they do not use an bottleneck activation function
+    """
+
+    pass
 
 @dataclass
 class LoraKQVAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapter.__module__, LoraKQVAdapter.__name__)
 
+@dataclass
+class LoraDenseAttentionAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(LoraDenseAttentionAdapter.__module__, LoraDenseAttentionAdapter.__name__)
+    input_is_parallel: bool = True
 
 @dataclass
 class LoraQAdapterConfig(ParallelLinearAdapterConfig):

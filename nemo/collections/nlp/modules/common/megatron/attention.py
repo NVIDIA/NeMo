@@ -23,8 +23,10 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     InfusedAdapterConfig,
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
+    LoraDenseAttentionAdapterConfig,
     LoraKVAdapterConfig,
     LoraQAdapterConfig,
+    
 )
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -175,6 +177,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 LoraQAdapterConfig._target_,
                 LoraKVAdapterConfig._target_,
                 LoraKQVAdapterWeightTyingConfig._target_,
+                LoraDenseAttentionAdapterConfig._target_,
             ]
         )
 
@@ -573,6 +576,11 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # =================
 
         output, bias = self.dense(context_layer)
+        if self.is_adapter_available():
+            lora_dense_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
+            if lora_dense_adapter:
+                lora_dense_output = lora_dense_adapter(context_layer)
+                output = output + lora_dense_output        
 
         if get_key_value:
             output = [output, present]

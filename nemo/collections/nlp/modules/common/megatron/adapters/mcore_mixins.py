@@ -21,11 +21,13 @@ from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
+from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
     LoraKQVAdapterConfig,
+    LoraDenseAttentionAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     PromptEncoderAdapterConfig,
@@ -55,7 +57,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         """
         Setup NeMo LoRA or IA3 adapter to this MCore layer.
         """
-        self.set_accepted_adapter_types([LoraKQVAdapterConfig._target_, InfusedAdapterConfig._target_])
+        self.set_accepted_adapter_types([LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_])
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
@@ -113,6 +115,74 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
 
         return query, key, value
 
+    def forward(
+        self,
+        hidden_states,
+        attention_mask,
+        key_value_states=None,
+        inference_params=None,
+        rotary_pos_emb=None,
+    ):
+        # hidden_states: [sq, b, h]
+
+        # For self attention we just duplicate the rotary_pos_emb if it isn't already
+        if rotary_pos_emb is not None and not isinstance(rotary_pos_emb, tuple):
+            rotary_pos_emb = (rotary_pos_emb,) * 2
+
+        # =====================
+        # Query, Key, and Value
+        # =====================
+        # Get the query, key and value tensors based on the type of attention -
+        # self or cross attn.
+        query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
+
+        # ===================================================
+        # Adjust key, value, and rotary_pos_emb for inference
+        # ===================================================
+        key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
+            inference_params, key, value, rotary_pos_emb
+        )
+
+        # ================================================
+        # relative positional embedding (rotary embedding)
+        # ================================================
+        if rotary_pos_emb is not None:
+            q_pos_emb, k_pos_emb = rotary_pos_emb
+            query = apply_rotary_pos_emb(query, q_pos_emb)
+            key = apply_rotary_pos_emb(key, k_pos_emb)
+            # TODO, can apply positional embedding to value_layer so it has
+            # absolute positional embedding.
+            # otherwise, only relative positional embedding takes effect
+            # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
+
+        # ==================================
+        # core attention computation
+        # ==================================
+
+        if self.checkpoint_core_attention:
+            core_attn_out = self._checkpointed_attention_forward(
+                query, key, value, attention_mask, attn_mask_type=attn_mask_type
+            )
+        else:
+            core_attn_out = self.core_attention(
+                query, key, value, attention_mask, attn_mask_type=attn_mask_type
+            )
+
+        # =================
+        # Output. [sq, b, h]
+        # =================
+
+        output, bias = self.linear_proj(core_attn_out)
+        # LoRA logic
+        if self.is_adapter_available():
+            lora_linear_proj_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
+            if lora_linear_proj_adapter:
+                lora_output = lora_linear_proj_adapter(core_attn_out)
+                output = output + lora_output        
+
+        return output, bias
+
+            
 
 class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):

@@ -31,11 +31,19 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     InfusedAdapterConfig,
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
+    LoraDenseAttentionAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
 )
+
+PEFT_MODULE_MAP = {
+    "qkv_module": "qkv",
+    "dense_module": "dense",
+    'none': None,
+    None: None,
+}
 
 
 class PEFTConfig:
@@ -53,6 +61,33 @@ class PEFTConfig:
 class LoraPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
         lora_cfg = cfg.peft.lora_tuning
+        kv_channels = self._calculate_kv_channels(cfg)
+        projection_size = kv_channels * cfg.num_attention_heads
+        num_query_groups = cfg.get("num_query_groups", cfg.num_attention_heads)
+
+        qkv_projection_size = projection_size + (2 * kv_channels * num_query_groups)
+        dense_projection_size = projection_size
+
+        target_modules = lora_cfg.get("target_modules", ["qkv"])
+        name_key_to_cfg = {}
+        name_key_to_mcore_mixins = {}
+        mcore_mixin_tuple = ("self_attention", MCoreSelfAttentionMixin)
+
+        for module in target_modules:
+            if module == PEFT_MODULE_MAP["qkv_module"]:
+                adapter_cfg = self._create_lora_config(cfg, lora_cfg, qkv_projection_size, LoraKQVAdapterConfig)
+                name_key_to_cfg[AdapterName.LORA_KQV_ADAPTER] = adapter_cfg
+                name_key_to_mcore_mixins[AdapterName.LORA_KQV_ADAPTER] = [mcore_mixin_tuple]
+
+            elif module == PEFT_MODULE_MAP["dense_module"]:
+                adapter_cfg = self._create_lora_config(cfg, lora_cfg, dense_projection_size, LoraDenseAttentionAdapterConfig)
+                name_key_to_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER] = adapter_cfg
+                name_key_to_mcore_mixins[AdapterName.LORA_DENSE_ATTENTION_ADAPTER] = [mcore_mixin_tuple]
+
+        self.name_key_to_mcore_mixins = name_key_to_mcore_mixins
+        super().__init__(lora_cfg, name_key_to_cfg)
+
+    def _calculate_kv_channels(self, cfg):
         if cfg.get("kv_channels", None) is None:
             assert (
                 cfg.hidden_size % cfg.num_attention_heads == 0
@@ -60,15 +95,12 @@ class LoraPEFTConfig(PEFTConfig):
             kv_channels = cfg.hidden_size // cfg.num_attention_heads
         else:
             kv_channels = cfg.kv_channels
-        projection_size = kv_channels * cfg.num_attention_heads
-        num_query_groups = cfg.get("num_query_groups", None)
-        if num_query_groups is None:
-            num_query_groups = cfg.num_attention_heads
-        qkv_projection_size = projection_size + (2 * kv_channels * num_query_groups)
+        return kv_channels        
 
+    def _create_lora_config(self, cfg, lora_cfg, projection_size, adapter_cfg_cls):
         config_args = {
             "in_features": cfg.hidden_size,
-            "out_features": qkv_projection_size,
+            "out_features": projection_size,
             "dim": lora_cfg.adapter_dim,
             "norm_position": None,
             "norm_type": None,
@@ -102,17 +134,11 @@ class LoraPEFTConfig(PEFTConfig):
                     "position_embedding_strategy": position_embedding_strategy,
                 }
             )
-            adapter_cfg = LoraKQVAdapterWeightTyingConfig(**config_args)
-        else:
-            adapter_cfg = LoraKQVAdapterConfig(**config_args)
 
-        name_key_to_cfg = {
-            AdapterName.LORA_KQV_ADAPTER: adapter_cfg,
-        }
-        self.name_key_to_mcore_mixins = {AdapterName.LORA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionMixin)]}
+        adapter_cfg = adapter_cfg_cls(**config_args)
+        
 
-        super().__init__(lora_cfg, name_key_to_cfg)
-
+        return adapter_cfg           
 
 class IA3PEFTConfig(PEFTConfig):
     def __init__(self, cfg):
