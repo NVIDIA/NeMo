@@ -948,8 +948,8 @@ class ParallelTransformer(MegatronModule):
         fp8_hybrid=False,
         fp8_margin=0,
         fp8_interval=1,
-        fp8_amax_history_len=1,
-        fp8_amax_compute_algo='most_recent',
+        fp8_amax_history_len=1024,
+        fp8_amax_compute_algo='max',
         reduce_amax=True,
         use_emha=False,
         ub_tp_comm_overlap=False,
@@ -1051,7 +1051,10 @@ class ParallelTransformer(MegatronModule):
                 reduce_amax=reduce_amax,
             )
 
-        self.is_first_microbatch = True
+        self.is_first_train_microbatch = (
+            True  # Is the current micro-batch the first micro-batch in a global-batch in training
+        )
+        self.is_prev_microbatch_training = True  # Is the previous micro-batch in training mode
         self.microbatch_count = 0  # transformer engine forward needs to know if it is working on the first microbatch
         self.checkpoint_core_attention = (
             activations_checkpoint_granularity == 'selective'
@@ -1208,6 +1211,11 @@ class ParallelTransformer(MegatronModule):
             if not bias and normalization not in ['layernorm', 'layernorm1p']:
                 remove_bias_from_layernorm(self.final_layernorm)
 
+        # Hacky set up for vision encoder select layer, won't support PP
+        # It indicates the layer number of hidden states that we want to return.
+        # For example -2 means we skip the last layer in the decoder, and return at -2 layer.
+        self.return_select_layer = 0
+
     def _get_layer(self, layer_number):
         return self.layers[layer_number]
 
@@ -1262,6 +1270,12 @@ class ParallelTransformer(MegatronModule):
                     attention_mask = inputs[1]
                     encoder_output = inputs[2]
                     enc_dec_attn_mask = inputs[3]
+                    # Cache FP8 weight and transpose at (1) the first micro-batch in each global-batch
+                    # in training, (2) the first micro-batch in each validation and test routine.
+                    # The caching happens in TransformerEngine when passing `is_first_microbatch=True`.
+                    is_first_microbatch = (self.is_first_train_microbatch and self.training) or (
+                        self.is_prev_microbatch_training and not self.training
+                    )
                     for index in range(start, end):
                         layer = self._get_layer(index)
                         hidden_states = layer(
@@ -1270,7 +1284,7 @@ class ParallelTransformer(MegatronModule):
                             encoder_output=encoder_output,
                             enc_dec_attn_mask=enc_dec_attn_mask,
                             inference_params=None,
-                            is_first_microbatch=self.is_first_microbatch,
+                            is_first_microbatch=is_first_microbatch,
                             checkpoint_core_attention=False,
                         )
 
@@ -1524,6 +1538,14 @@ class ParallelTransformer(MegatronModule):
                             self.inference_params.sequence_len_offset = self.inference_current_sequence_len
 
                     attention_probs_list = []
+                    if self.return_select_layer < 0:
+                        assert (
+                            parallel_state.get_pipeline_model_parallel_world_size() == 1
+                        ), f"##{parallel_state.get_pipeline_model_parallel_world_size}"
+                        if self.num_layers + self.return_select_layer < 0:
+                            logging.warning("Returning embeddings states only!")
+                            return hidden_states
+
                     for index in range(self.num_layers):
                         layer = self._get_layer(index)
                         past = None
@@ -1551,6 +1573,12 @@ class ParallelTransformer(MegatronModule):
                         else:
                             checkpoint_core_attention = False
 
+                        # Cache FP8 weight and transpose at (1) the first micro-batch in each global-batch
+                        # in training, (2) the first micro-batch in each validation and test routine.
+                        # The caching happens in TransformerEngine when passing `is_first_microbatch=True`.
+                        is_first_microbatch = (self.is_first_train_microbatch and self.training) or (
+                            self.is_prev_microbatch_training and not self.training
+                        )
                         if self.transformer_engine:
                             hidden_states = layer(
                                 hidden_states,
@@ -1558,7 +1586,7 @@ class ParallelTransformer(MegatronModule):
                                 encoder_output=encoder_output,
                                 enc_dec_attn_mask=enc_dec_attn_mask,
                                 inference_params=self.inference_params,
-                                is_first_microbatch=self.is_first_microbatch,
+                                is_first_microbatch=is_first_microbatch,
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
                         else:
@@ -1611,6 +1639,14 @@ class ParallelTransformer(MegatronModule):
                                     cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                                     checkpoint_core_attention=checkpoint_core_attention,
                                 )
+
+                        if self.return_select_layer < 0:
+                            assert (
+                                parallel_state.get_pipeline_model_parallel_world_size() == 1
+                            ), f"##{parallel_state.get_pipeline_model_parallel_world_size}"
+                            if index == self.num_layers + self.return_select_layer:
+                                return hidden_states
+
                     # Update current sequence length outside of the loops
                     if self.transformer_engine:
                         self.inference_current_sequence_len += hidden_states.size(0)
@@ -1620,9 +1656,10 @@ class ParallelTransformer(MegatronModule):
             self.microbatch_count += 1
             if self.microbatch_count % num_micro_batches == 0:
                 self.microbatch_count = 0
-                self.is_first_microbatch = True
+                self.is_first_train_microbatch = True
             else:
-                self.is_first_microbatch = False
+                self.is_first_train_microbatch = False
+        self.is_prev_microbatch_training = self.training
 
         output = hidden_states
 

@@ -13,10 +13,14 @@
 # limitations under the License.
 
 import re
-from typing import List, Optional
+from typing import List, Mapping, Optional
 
+import datasets
 import numpy as np
 import torch
+
+# hack to avoid the "not enough disk space" error in some slurm cluster
+datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
 from datasets import load_dataset
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -54,6 +58,7 @@ class GPTSFTDataset(Dataset):
         memmap_workers: Optional[int] = None,
         hf_dataset: bool = False,
         truncation_method: str = 'right',
+        special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
     ):
         """
         DOES NOT SUPPORT ON THE FLY GENERATION OF SPEECH CODES
@@ -78,6 +83,7 @@ class GPTSFTDataset(Dataset):
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
         hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
         truncation_method: Truncation from which position. Options: ['left', 'right']
+        special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -115,6 +121,16 @@ class GPTSFTDataset(Dataset):
             dataset_paths=[file_path], tokenizer=None, header_lines=0, index_mapping_dir=index_mapping_dir
         )
         self.truncation_method = truncation_method
+        if special_tokens is None:
+            self.special_tokens = {
+                "system_turn_start": "<extra_id_0>",
+                "turn_start": "<extra_id_1>",
+                "label_start": "<extra_id_2>",
+                "end_of_turn": "\n",
+                "end_of_name": "\n",
+            }
+        else:
+            self.special_tokens = special_tokens
 
         if hf_dataset:
             self.indexed_dataset = load_dataset(
@@ -555,9 +571,8 @@ class GPTSFTDataset(Dataset):
         if self.pad_to_max_length:
             max_length = self.max_seq_length + 1
         else:
-            max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
-        max_length += 1  # Since we remove 1 from tokens and labels, add 1 here
-        assert max_length <= self.max_seq_length + 1
+            max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
+        assert max_length <= self.max_seq_length
 
         (tokens, labels, loss_mask, contexts, context_lengths, speech_mask_list) = ([], [], [], [], [], [])
         attention_mask = [self._create_attention_mask(max_length) for _ in batch]

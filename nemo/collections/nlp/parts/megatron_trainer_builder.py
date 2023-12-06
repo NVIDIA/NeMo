@@ -53,6 +53,7 @@ class MegatronTrainerBuilder:
             no_ddp_communication_hook=True,
             gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
             find_unused_parameters=False,
+            nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
         )
 
     def _grad_scaler(self) -> GradScaler:
@@ -70,7 +71,7 @@ class MegatronTrainerBuilder:
         Returns:
             plugins: list of plugins passed to Trainer.plugins including precision plugins.
         """
-        megatron_amp_o2 = self.cfg.model.get('megatron_amp_O2', False)
+        megatron_amp_O2 = self.cfg.model.get('megatron_amp_O2', False)
         with_distributed_adam = (
             self.cfg.model.optim.get('name') == 'distributed_fused_adam' if self.cfg.model.get('optim') else False
         )
@@ -84,7 +85,7 @@ class MegatronTrainerBuilder:
             else:
                 plugin_precision = 'bf16-mixed'
 
-            if megatron_amp_o2 and not with_distributed_adam:
+            if megatron_amp_O2 and not with_distributed_adam:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:
                 plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))

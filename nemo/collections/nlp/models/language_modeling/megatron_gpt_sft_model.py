@@ -33,13 +33,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.collections.nlp.modules.common.speech_residual_networks import SimplestModule
-from nemo.collections.nlp.modules.common.text_generation_utils import (
-    LengthParam,
-    SamplingParam,
-    generate,
-    get_computeprob_response,
-    megatron_gpt_generate,
-)
+from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
@@ -328,9 +322,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 truncation_method=data_cfg.get(
                     'truncation_method', 'right'
                 ),  # used to choose truncation method. Options: ['random', 'left', 'right']
+                special_tokens=self.cfg.data.get(
+                    'chat_prompt_tokens', None
+                ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
             )
             datasets.append(dataset)
-
         if is_train:
             dataset = BlendableDataset(
                 datasets=datasets, weights=data_cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
@@ -365,7 +361,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         grad_sync_func = None
         param_sync_func = None
         if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_o2,)
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 

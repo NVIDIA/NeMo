@@ -25,12 +25,12 @@
 # Config Help
 
 To discover all arguments of the script, please run :
-python eval_beamsearch_ngram.py --help
-python eval_beamsearch_ngram.py --cfg job
+python eval_beamsearch_ngram_ctc.py --help
+python eval_beamsearch_ngram_ctc.py --cfg job
 
 # USAGE
 
-python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
+python eval_beamsearch_ngram_ctc.py nemo_model_file=<path to the .nemo file of the model> \
            input_manifest=<path to the evaluation JSON manifest file> \
            kenlm_model_file=<path to the binary KenLM model> \
            beam_width=[<list of the beam widths, separated with commas>] \
@@ -112,14 +112,14 @@ class EvalBeamSearchNGramConfig:
     beam_beta: List[float] = field(default_factory=lambda: [0.0])  # The beta parameter or list of the betas for the beam search decoding
 
     decoding_strategy: str = "beam"
-    decoding: ctc_beam_decoding.BeamCTCInferConfig = ctc_beam_decoding.BeamCTCInferConfig(beam_size=128)
+    decoding: ctc_beam_decoding.BeamCTCInferConfig = field(default_factory=lambda: ctc_beam_decoding.BeamCTCInferConfig(beam_size=128))
     
-    text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
+    text_processing: Optional[TextProcessingConfig] = field(default_factory=lambda: TextProcessingConfig(
         punctuation_marks = ".,?",
         separate_punctuation = False,
         do_lowercase = False,
         rm_punctuation = False,
-    )
+    ))
 # fmt: on
 
 
@@ -140,7 +140,10 @@ def beam_search_eval(
     level = logging.getEffectiveLevel()
     logging.setLevel(logging.CRITICAL)
     # Reset config
-    model.change_decoding_strategy(None)
+    if isinstance(model, EncDecHybridRNNTCTCModel):
+        model.change_decoding_strategy(decoding_cfg=None, decoder_type="ctc")
+    else:
+        model.change_decoding_strategy(None)
 
     # Override the beam search config with current search candidate configuration
     cfg.decoding.beam_size = beam_width
@@ -257,7 +260,6 @@ def beam_search_eval(
 
 @hydra_runner(config_path=None, config_name='EvalBeamSearchNGramConfig', schema=EvalBeamSearchNGramConfig)
 def main(cfg: EvalBeamSearchNGramConfig):
-    logging.warning("This file will be renamed to eval_beamsearch_ngram_ctc.py in the future NeMo (1.21) release.")
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)  # type: EvalBeamSearchNGramConfig
 
@@ -333,6 +335,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
         all_probs = all_logits
         if cfg.probs_cache_file:
+            os.makedirs(os.path.split(cfg.probs_cache_file)[0], exist_ok=True)
             logging.info(f"Writing pickle files of probabilities at '{cfg.probs_cache_file}'...")
             with open(cfg.probs_cache_file, 'wb') as f_dump:
                 pickle.dump(all_probs, f_dump)

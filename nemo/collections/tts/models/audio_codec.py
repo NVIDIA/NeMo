@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+from math import ceil
 from pathlib import Path
 from typing import List, Tuple
 
@@ -20,12 +21,14 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.tts.losses.audio_codec_loss import (
     MultiResolutionMelLoss,
+    MultiResolutionSTFTLoss,
     RelativeFeatureMatchingLoss,
+    SISDRLoss,
     TimeDomainLoss,
 )
 from nemo.collections.tts.modules.common import GaussianDropout
@@ -46,6 +49,9 @@ class AudioCodecModel(ModelPT):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.num_nodes * trainer.num_devices
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -75,6 +81,16 @@ class AudioCodecModel(ModelPT):
 
         if "vector_quantizer" in cfg:
             self.vector_quantizer = instantiate(cfg.vector_quantizer)
+
+            vq_output_types = list(self.vector_quantizer.output_types.keys())
+
+            if len(vq_output_types) == 3 and vq_output_types[-1] == 'commit_loss':
+                self.vector_quantizer_has_commit_loss = True
+                logging.info('Vector quantizer supports commit loss.')
+            else:
+                self.vector_quantizer_has_commit_loss = False
+                logging.info('Vector quantizer does not support commit loss.')
+
         else:
             logging.warning('Vector quantizer will not be used.')
             self.vector_quantizer = None
@@ -85,25 +101,45 @@ class AudioCodecModel(ModelPT):
         # Discriminator setup
         self.discriminator = instantiate(cfg.discriminator)
 
-        # Loss setup
-        mel_loss_dim = cfg.get("mel_loss_dim", 64)
-        mel_loss_resolutions = cfg.mel_loss_resolutions
-        self.time_domain_loss_scale = cfg.get("time_domain_loss_scale", 1.0)
-        self.mel_loss_scale = cfg.get("mel_loss_scale", 1.0)
-        mel_loss_l1_scale = cfg.get("mel_loss_l1_scale", 1.0)
-        self.gen_loss_scale = cfg.get("gen_loss_scale", 1.0)
-        self.feature_loss_scale = cfg.get("feature_loss_scale", 1.0)
-
-        self.time_domain_loss_fn = TimeDomainLoss()
+        # Mel loss setup
+        loss_resolutions = cfg.loss_resolutions
+        mel_loss_dims = cfg.get("mel_loss_dims")
+        mel_loss_log_guard = cfg.get("mel_loss_log_guard", 1.0)
+        self.mel_loss_l1_scale = cfg.get("mel_loss_l1_scale", 1.0)
+        self.mel_loss_l2_scale = cfg.get("mel_loss_l2_scale", 1.0)
         self.mel_loss_fn = MultiResolutionMelLoss(
             sample_rate=self.sample_rate,
-            mel_dim=mel_loss_dim,
-            resolutions=mel_loss_resolutions,
-            l1_scale=mel_loss_l1_scale,
+            mel_dims=mel_loss_dims,
+            resolutions=loss_resolutions,
+            log_guard=mel_loss_log_guard,
         )
+
+        # STFT loss setup
+        stft_loss_log_guard = cfg.get("stft_loss_log_guard", 1.0)
+        self.stft_loss_scale = cfg.get("stft_loss_scale", 0.0)
+        self.stft_loss_fn = MultiResolutionSTFTLoss(resolutions=loss_resolutions, log_guard=stft_loss_log_guard,)
+
+        # Time domain loss setup
+        self.time_domain_loss_scale = cfg.get("time_domain_loss_scale", 1.0)
+        self.si_sdr_loss_scale = cfg.get("si_sdr_loss_scale", 0.0)
+        self.time_domain_loss_fn = TimeDomainLoss()
+        self.si_sdr_loss_fn = SISDRLoss()
+
+        # Discriminator loss setup
+        self.gen_loss_scale = cfg.get("gen_loss_scale", 1.0)
+        self.feature_loss_scale = cfg.get("feature_loss_scale", 1.0)
         self.gen_loss_fn = instantiate(cfg.generator_loss)
         self.disc_loss_fn = instantiate(cfg.discriminator_loss)
         self.feature_loss_fn = RelativeFeatureMatchingLoss()
+
+        # Codebook loss setup
+        if self.vector_quantizer:
+            self.commit_loss_scale = cfg.get("commit_loss_scale", 1.0)
+        else:
+            self.commit_loss_scale = 0.0
+
+        if self.commit_loss_scale > 0 and not self.vector_quantizer_has_commit_loss:
+            raise ValueError('Commit loss is enabled but the quantizer does not support it.')
 
         # Log setup
         self.log_config = cfg.get("log_config", None)
@@ -334,12 +370,16 @@ class AudioCodecModel(ModelPT):
             encoded = self.encoder_noise(encoded)
 
         if self.vector_quantizer:
-            encoded, _, commit_loss = self.vector_quantizer(inputs=encoded, input_len=encoded_len)
+            if self.vector_quantizer_has_commit_loss:
+                encoded, _, commit_loss = self.vector_quantizer(inputs=encoded, input_len=encoded_len)
+            else:
+                encoded, _ = self.vector_quantizer(inputs=encoded, input_len=encoded_len)
+                commit_loss = 0.0
         else:
-            commit_loss = None
+            commit_loss = 0.0
 
         # [B, T]
-        audio_gen, audio_gen_len = self.audio_decoder(inputs=encoded, input_len=encoded_len)
+        audio_gen, _ = self.audio_decoder(inputs=encoded, input_len=encoded_len)
 
         return audio, audio_len, audio_gen, commit_loss
 
@@ -361,37 +401,65 @@ class AudioCodecModel(ModelPT):
 
         audio, audio_len, audio_gen, commit_loss = self._process_batch(batch)
 
+        metrics = {
+            "global_step": self.global_step,
+            "lr": optim_gen.param_groups[0]['lr'],
+        }
+
         if self.should_update_disc(batch_idx):
             # Train discriminator
             disc_scores_real, disc_scores_gen, _, _ = self.discriminator(
                 audio_real=audio, audio_gen=audio_gen.detach()
             )
             loss_disc = self.disc_loss_fn(disc_scores_real=disc_scores_real, disc_scores_gen=disc_scores_gen)
-            train_disc_loss = loss_disc
+            metrics["d_loss"] = loss_disc
 
             optim_disc.zero_grad()
-            self.manual_backward(train_disc_loss)
+            self.manual_backward(loss_disc)
             optim_disc.step()
-        else:
-            loss_disc = None
 
-        loss_time_domain = self.time_domain_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
-        train_loss_time_domain = self.time_domain_loss_scale * loss_time_domain
+        generator_losses = []
 
-        loss_mel = self.mel_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
-        train_loss_mel = self.mel_loss_scale * loss_mel
+        loss_mel_l1, loss_mel_l2 = self.mel_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+        if self.mel_loss_l1_scale:
+            metrics["g_loss_mel_l1"] = loss_mel_l1
+            generator_losses.append(self.mel_loss_l1_scale * loss_mel_l1)
+        if self.mel_loss_l2_scale:
+            metrics["g_loss_mel_l2"] = loss_mel_l2
+            generator_losses.append(self.mel_loss_l2_scale * loss_mel_l2)
+
+        if self.stft_loss_scale:
+            loss_stft = self.stft_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+            metrics["g_loss_stft"] = loss_stft
+            generator_losses.append(self.stft_loss_scale * loss_stft)
+
+        if self.time_domain_loss_scale:
+            loss_time_domain = self.time_domain_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+            metrics["g_loss_time_domain"] = loss_time_domain
+            generator_losses.append(self.time_domain_loss_scale * loss_time_domain)
+
+        if self.si_sdr_loss_scale:
+            loss_si_sdr = self.si_sdr_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+            metrics["g_loss_si_sdr"] = loss_si_sdr
+            generator_losses.append(self.si_sdr_loss_scale * loss_si_sdr)
 
         _, disc_scores_gen, fmaps_real, fmaps_gen = self.discriminator(audio_real=audio, audio_gen=audio_gen)
 
-        loss_gen = self.gen_loss_fn(disc_scores_gen=disc_scores_gen)
-        train_loss_gen = self.gen_loss_scale * loss_gen
+        if self.gen_loss_scale:
+            loss_gen = self.gen_loss_fn(disc_scores_gen=disc_scores_gen)
+            metrics["g_loss_gen"] = loss_gen
+            generator_losses.append(self.gen_loss_scale * loss_gen)
 
-        loss_feature = self.feature_loss_fn(fmaps_real=fmaps_real, fmaps_gen=fmaps_gen)
-        train_loss_feature = self.feature_loss_scale * loss_feature
+        if self.feature_loss_scale:
+            loss_feature = self.feature_loss_fn(fmaps_real=fmaps_real, fmaps_gen=fmaps_gen)
+            metrics["g_loss_feature"] = loss_feature
+            generator_losses.append(self.feature_loss_scale * loss_feature)
 
-        loss_gen_all = train_loss_time_domain + train_loss_mel + train_loss_gen + train_loss_feature
-        if commit_loss is not None:
-            loss_gen_all += commit_loss
+        if self.commit_loss_scale:
+            metrics["g_loss_commit"] = commit_loss
+            generator_losses.append(self.commit_loss_scale * commit_loss)
+
+        loss_gen_all = sum(generator_losses)
 
         optim_gen.zero_grad()
         self.manual_backward(loss_gen_all)
@@ -399,56 +467,84 @@ class AudioCodecModel(ModelPT):
 
         self.update_lr()
 
-        metrics = {
-            "g_loss_time_domain": loss_time_domain,
-            "g_loss_mel": loss_mel,
-            "g_loss_gen": loss_gen,
-            "g_loss_feature": loss_feature,
-            "g_loss": loss_gen_all,
-            "global_step": self.global_step,
-            "lr": optim_gen.param_groups[0]['lr'],
-        }
-
-        if loss_disc is not None:
-            metrics["d_loss"] = loss_disc
-
-        if commit_loss is not None:
-            metrics["g_loss_commit"] = commit_loss
-
         self.log_dict(metrics, on_step=True, sync_dist=True)
-        self.log("t_loss", train_loss_mel, prog_bar=True, logger=False, sync_dist=True)
+        self.log("t_loss", loss_mel_l1, prog_bar=True, logger=False, sync_dist=True)
 
     def on_train_epoch_end(self):
         self.update_lr("epoch")
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, audio_gen, _ = self._process_batch(batch)
+
+        loss_mel_l1, loss_mel_l2 = self.mel_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+        loss_stft = self.stft_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
         loss_time_domain = self.time_domain_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
-        loss_mel = self.mel_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+        loss_si_sdr = self.si_sdr_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+
+        # Use only main reconstruction losses for val_loss
+        val_loss = loss_mel_l1 + loss_stft + loss_time_domain
+
         metrics = {
-            "val_loss": loss_time_domain + loss_mel,
+            "val_loss": val_loss,
+            "val_loss_mel_l1": loss_mel_l1,
+            "val_loss_mel_l2": loss_mel_l2,
+            "val_loss_stft": loss_stft,
             "val_loss_time_domain": loss_time_domain,
-            "val_loss_mel": loss_mel,
+            "val_loss_si_sdr": loss_si_sdr,
         }
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
 
-    @staticmethod
-    def _setup_train_dataloader(cfg):
+    def get_dataset(self, cfg):
+        with open_dict(cfg):
+            is_sharded = cfg.dataset.pop('is_sharded', False)
+
+        if is_sharded:
+            with open_dict(cfg):
+                cfg.dataset.global_rank = self.global_rank
+                cfg.dataset.world_size = self.world_size
+                cfg.dataset._target_ = 'nemo.collections.tts.data.vocoder_dataset.TarredVocoderDataset'
+
         dataset = instantiate(cfg.dataset)
+
         sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
+        return dataset, sampler
+
+    def _setup_train_dataloader(self, cfg):
+        dataset, sampler = self.get_dataset(cfg)
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
         )
         return data_loader
 
-    @staticmethod
-    def _setup_test_dataloader(cfg):
+    def _setup_test_dataloader(self, cfg):
         dataset = instantiate(cfg.dataset)
         data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
         return data_loader
 
     def setup_training_data(self, cfg):
         self._train_dl = self._setup_train_dataloader(cfg)
+        batch_size = cfg['dataloader_params']['batch_size']
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if (
+            self._train_dl is not None
+            and hasattr(self._train_dl, 'dataset')
+            and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
+        ):
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches
+                    * ceil((len(self._train_dl.dataset) / self.world_size) / batch_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
 
     def setup_validation_data(self, cfg):
         self._validation_dl = self._setup_test_dataloader(cfg)
@@ -466,7 +562,6 @@ class AudioCodecModel(ModelPT):
 
         if "steps_per_epoch" in self._cfg:
             return self._cfg.max_epochs * self._cfg.steps_per_epoch
-
         return compute_max_steps(
             max_epochs=self._cfg.max_epochs,
             accumulate_grad_batches=self.trainer.accumulate_grad_batches,

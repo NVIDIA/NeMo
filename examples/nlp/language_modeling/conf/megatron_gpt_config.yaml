@@ -1,4 +1,5 @@
 defaults:
+  - _self_
   - optional tp_overlap@model.ub_tp_comm_overlap_cfg:
 
 name: megatron_gpt
@@ -129,6 +130,7 @@ model:
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   sync_batch_comm: False # Enable stream synchronization after each p2p communication between pipeline stages
+  nccl_communicator_config_path: null # Path to the yaml file with NCCL communicator options (min_ctas, max_ctas, and cga_cluster_size)
 
   ## Activation Checkpointing
   # NeMo Megatron supports 'selective' activation checkpointing where only the memory intensive part of attention is checkpointed.
@@ -167,11 +169,11 @@ model:
   transformer_engine: False
   fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
-  fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
+  fp8_hybrid: True # sets fp8_format = recipe.Format.HYBRID
   fp8_margin: 0 # scaling margin
   fp8_interval: 1 # scaling update interval
-  fp8_amax_history_len: 1 # Number of steps for which amax history is recorded per tensor
-  fp8_amax_compute_algo: most_recent # 'most_recent' or 'max'. Algorithm for computing amax from history
+  fp8_amax_history_len: 1024 # Number of steps for which amax history is recorded per tensor
+  fp8_amax_compute_algo: max # 'most_recent' or 'max'. Algorithm for computing amax from history
   reduce_amax: True # Perform reduction to sync amax tensors across GPUs after every iteration
   use_emha: False # Use fused multi-head attention for large sequence-length. Note this is not yet supported. Please set to False.
   ub_tp_comm_overlap: False

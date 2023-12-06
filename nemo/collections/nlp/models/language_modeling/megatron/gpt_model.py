@@ -224,8 +224,8 @@ class GPTModel(MegatronModule):
         fp8_hybrid=False,
         fp8_margin=0,
         fp8_interval=1,
-        fp8_amax_history_len=1,
-        fp8_amax_compute_algo='most_recent',
+        fp8_amax_history_len=1024,
+        fp8_amax_compute_algo='max',
         reduce_amax=True,
         use_emha=False,
         ub_tp_comm_overlap=False,
@@ -240,6 +240,7 @@ class GPTModel(MegatronModule):
         attn_prior_scaledown_start_step=10000,
         attn_prior_starting_strength=0.5,
         alibi_question_context_masked=False,
+        rotary_base=10000,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -331,6 +332,7 @@ class GPTModel(MegatronModule):
             attn_prior_scaledown_start_step = attn_prior_scaledown_start_step,
             attn_prior_starting_strength=attn_prior_starting_strength,
             alibi_question_context_masked=alibi_question_context_masked,
+            rotary_base=rotary_base,
         )
 
         if self.share_embeddings_and_output_weights:
