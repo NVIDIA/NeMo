@@ -603,8 +603,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
-                # inseq = inseq[:, :5, :]
-                # logitlen.fill_(5)
+                # inseq = inseq[:, :1, :]
+                # logitlen.fill_(1)
                 if isinstance(self._greedy_decode, RNNTGreedyDecodeFast):
                     hypotheses = self._greedy_decode(
                         self, inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses

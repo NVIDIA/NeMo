@@ -159,7 +159,7 @@ def main():
 
     # Evaluate Pytorch Model (CPU/GPU)
     torch.cuda.cudart().cudaProfilerStart()
-    with torch.inference_mode(): # , torch.autocast("cuda"):
+    with torch.inference_mode(), torch.autocast("cuda"):
         actual_transcripts = nemo_model.transcribe(audio_filepath, batch_size=args.batch_size)[0]
     print("GALVEZ:")
     for at in actual_transcripts:

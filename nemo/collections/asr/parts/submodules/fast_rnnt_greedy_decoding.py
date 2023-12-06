@@ -314,6 +314,8 @@ class RNNTGreedyDecodeFast:
 
                     # This seems wrong. Do I need to negate this?
                     k.masked_scatter_(self.blank_mask, self.last_label)
+                    # This doesn't seem right. Why is my last label blank? It should be SOS, right?
+                    # I should not copy k if last_label is SOS, right?
                     self.last_label.copy_(k)
 
                     # It seems that I am unconditionally copying. That is wrong... I should do a masked copy
@@ -345,40 +347,36 @@ class RNNTGreedyDecodeFast:
             torch.cuda.cudart().cudaProfilerStart()
             cu_call(cudart.cudaGraphLaunch(self.graph_exec, torch.cuda.current_stream().cuda_stream))
             cu_call(cudart.cudaStreamSynchronize(torch.cuda.current_stream().cuda_stream))
-            torch.cuda.cudart().cudaProfilerStop()
             end = time.time()
             print("total time:", end - start)
 
+            torch.set_printoptions(threshold=100_000)
             print("GALVEZ:", self.symbols_per_time_step_cpu)
+            print("GALVEZ:scores=", self.scores_cpu)
+            print("GALVEZ:labels=", self.labels_cpu)
+            print("GALVEZ:symbols_per_time_step=", self.symbols_per_time_step_cpu)
 
+
+            torch.cuda.nvtx.range_push("Copy data out")
+            # js = torch.zeros(batch_size, dtype=torch.int64, device="cpu")
             j = 0
             for t in range(max_time):
                 max_non_blank_symbols = self.symbols_per_time_step_cpu[t]
+                print("GALVEZ:", t, max_non_blank_symbols)
                 for _ in range(max_non_blank_symbols):
                     for i in range(batch_size):
                         if self.labels_cpu[j, i] == caller._blank_index:
+                            # Ooops! This is not correct!!!!! It's continue... It's fine...
                             continue
                         hypotheses[i].y_sequence.append(self.labels_cpu[j, i])
                         hypotheses[i].timestep.append(t)
                         hypotheses[i].score += self.scores_cpu[j, i]
                     j += 1
-                # for i in range(batch_size):
-                #         j = 
-                #         hypotheses[i].y_sequence.append(self.labels_cpu[, i])
+            torch.cuda.nvtx.range_pop()
+            torch.cuda.cudart().cudaProfilerStop()
 
             print("NEW:", hypotheses)
 
-            # import ipdb; ipdb.set_trace()
-                
-            # out_len_cpu = out_len.to("cpu")
-            # for i, t in product(range(batch_size), range(out_len_cpu[i])):
-            #     # Need best_label at each seq_idx_t
-            #     # Need time_idx_t as well, can derive via dividing by max_symbols_per_step? No, that is not true.
-            #     # Need score, which comes from v
-            #     j = 0
-            #     while j < self.labels_cpu.shape[2] and self.labels_cpu[i, t, j] != caller._blank_index:
-            #         hypotheses[i].y_sequence.append(self.labels_cpu[i, t, j])
-            #         hypotheses[i].timestep.append(t)
-            #         hypotheses[i].score += self.scores_cpu[i, t, j]
-            #         j += 1
+            import ipdb; ipdb.set_trace()
+
             return hypotheses
