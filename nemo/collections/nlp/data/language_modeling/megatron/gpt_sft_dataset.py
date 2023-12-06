@@ -542,7 +542,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         # Pre-generate `cu_seqlens_argmin` and `max_seqlen` as CPU tensor to avoid device-to-host copies.
         cu_seqlens = torch.IntTensor(cu_seqlens)
         cu_seqlens_argmin = torch.argmin(cu_seqlens, dim=1, keepdim=True)
-        seqlens = cu_seqlens[:,1:] - cu_seqlens[:,:-1]
+        seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
         max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
 
         processed_batch = {
