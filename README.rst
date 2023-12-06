@@ -43,7 +43,7 @@ Latest News
 
 - 2023/12/06 `New NVIDIA NeMo Framework Features and NVIDIA H200 <https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/>`_
 
-.. |H200-NeMo-performance| image:: https://developer-blogs.nvidia.com/wp-content/uploads/2023/12/H200-NeMo-performance.png
+.. image:: https://developer-blogs.nvidia.com/wp-content/uploads/2023/12/H200-NeMo-performance.png
   :target: https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility
   :alt: H200-NeMo-performance
 
