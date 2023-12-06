@@ -38,6 +38,19 @@
 **NVIDIA NeMo**
 ===============
 
+Latest News
+-----------
+
+- 2023/12/06 [New NVIDIA NeMo Framework Features and NVIDIA H200](https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/)
+
+![H200-NeMo-performance](https://developer-blogs.nvidia.com/wp-content/uploads/2023/12/H200-NeMo-performance.png)
+
+The NeMo framework has been updated with state-of-the-art features, 
+such as FSDP, Mixture-of-Experts, and RLHF with TensorRT-LLM to provide speedups up to 4.2x for Llama-2 pre-training on H200. 
+**All of these features will be available in an upcoming release.**
+
+
+
 Introduction
 ------------
 
