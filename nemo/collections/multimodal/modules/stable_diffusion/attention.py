@@ -28,6 +28,7 @@ else:
     from apex.contrib.group_norm import GroupNorm
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
+from transformer_engine.pytorch.module import LayerNormMLP, LayerNormLinear
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     ParallelLinearAdapterConfig,
@@ -106,12 +107,21 @@ class FeedForward(nn.Module):
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
 
-        norm = nn.LayerNorm(dim)
-        project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
+        if os.environ.get("TE_FP8_LayerNormMLP", "0") == "1":
+            activation = 'gelu' if not glu else 'geglu'
+            # TODO: more parameters to be confirmed, dropout, seq_length
+            self.net = LayerNormMLP(
+                hidden_size=dim,
+                ffn_hidden_size=inner_dim,
+                activation=activation,
+            )
+        else:
+            norm = nn.LayerNorm(dim)
+            project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
+            self.net = nn.Sequential(norm, project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out))
 
-        self.net = nn.Sequential(norm, project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out))
 
-    def forward(self, x):
+def forward(self, x):
         return self.net(x)
 
 
@@ -245,11 +255,15 @@ class CrossAttention(nn.Module):
         self.scale = dim_head ** -0.5
         self.heads = heads
 
-        self.norm = nn.LayerNorm(query_dim)
-        self.to_q = LinearWrapper(query_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
         self.to_k = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
         self.to_v = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
-        self.norm_to_q = nn.Sequential(self.norm, self.to_q)
+
+        if os.environ.get("TE_FP8_LayerNormLINEAR", "0") == "1":
+            self.norm_to_q = LayerNormLinear(query_dim, inner_dim, bias=False)
+        else:
+            norm = nn.LayerNorm(query_dim)
+            to_q = LinearWrapper(query_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
+            self.norm_to_q = nn.Sequential(norm, to_q)
 
         self.to_out = nn.Sequential(
             LinearWrapper(self.inner_dim, query_dim, lora_network_alpha=lora_network_alpha), nn.Dropout(dropout)
