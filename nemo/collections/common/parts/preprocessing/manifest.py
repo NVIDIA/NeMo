@@ -171,8 +171,8 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     return item
 
 
-def is_tarred_dataset(audio_file: str, manifest_file: str) -> bool:
-    if "/" in audio_file:
+def is_tarred_dataset(audio_file: str, manifest_file: Optional[str] = None) -> bool:
+    if "/" in audio_file or manifest_file is None:
         # audio files in a tarred dataset don't have `/` in their paths
         return False
     if os.path.basename(manifest_file) == "tarred_audio_manifest.json":
