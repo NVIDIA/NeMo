@@ -530,6 +530,20 @@ class ConcatAmQueryAudioPerceptionModel(AmQueryAudioPerceptionModel):
         return concat_encoded, concat_encoded_len, aux_los
 
 
+class ConcatLmQueryAudioPerceptionModel(LmQueryAudioPerceptionModel):
+    """Audio perception model with extra attention to match LM."""
+
+    def cross_attend(self, encoded, encoded_len, llm_encoded, llm_encoded_len):
+
+        attended_encoded, encoded_len, aux_los = super().cross_attend(
+            encoded, encoded_len, llm_encoded, llm_encoded_len
+        )
+        concat_encoded, concat_encoded_len = self._concat_features(
+            attended_encoded, encoded_len, llm_encoded, llm_encoded_len
+        )
+        return concat_encoded, concat_encoded_len, aux_los
+
+
 class AmFixQueryAudioPerceptionModel(AmQueryAudioPerceptionModel):
     """Audio perception model with extra attention to match LM."""
 
