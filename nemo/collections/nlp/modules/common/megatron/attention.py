@@ -991,7 +991,12 @@ class CoreAttention(MegatronModule):
 
         # Alibi Setup
         if attention_bias is not None:
-            attention_scores += attention_bias
+            # attention_bias is not None only for cross attention layers right now
+            # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
+            eps = 1e-8
+            attention_bias_log = torch.log(attention_bias + eps)
+            attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias_log
+            # attention_scores += attention_bias
 
         _attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
         # print(f"a: {torch.max(torch.exp(torch.logsumexp(saved, -1)))}")

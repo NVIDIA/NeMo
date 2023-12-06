@@ -60,8 +60,9 @@ model:
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
   seq_pattern: "parallel" # parallel, delay_parallel, flatten
-  speech_head_type: "token_level" # token_level, linear
+  speech_head_type: "linear" # token_level, linear
   temperature: 0.7 # Temperature to be used for inference
+  top_k: 80 # Top k to be used for inference
   max_inference_timesteps: 1000 # Maximum number of timesteps to run inference for
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
@@ -92,7 +93,7 @@ model:
     train_ds: null
     validation_ds: null
     test_ds: ["/Data/LibriTTS/inference_unseen.json"]
-    max_seq_length: 512
+    max_seq_length: 1536
     sample_rate: 24000
     add_eos: true
     add_bos: false

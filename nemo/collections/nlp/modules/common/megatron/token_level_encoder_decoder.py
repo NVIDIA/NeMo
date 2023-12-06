@@ -150,10 +150,16 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
         self.tokens_head_bias = tokens_head_bias
+
+        # Overridden in MegatronT5SpeechLMModel constructor
         self.cross_entropy_type = "vocab_parallel"
         self.seq_pattern = "parallel"
         self.speech_head_type = "token_level"
         self.hiddens_cfg = hiddens_cfg
+        self.attn_prior_scaledown_start_step = 10000
+        self.attn_prior_end_step = 11000
+        self.return_all_crossattention_probs = False
+        self.num_cross_attention_heads = 12  # 12 for 220m T5, 16 for 11b T5
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
@@ -544,6 +550,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
         enc_input=None,  # Result of running encoder embedding only
         output_enc_hidden_only=False,
         speech_mask=None,
+        cross_attention_prior=None,
+        global_step=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -645,6 +653,36 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 else:
                     decoder_cross_attention_relative_position_bias = None
 
+            if cross_attention_prior is not None:
+                # cross_attention_prior shape [B, dec_len, enc_len]
+                # Repeat it to make it [B, 12, dec_len, enc_len]
+                attn_prior_end_step = self.attn_prior_end_step
+                attn_prior_scaledown_start_step = self.attn_prior_scaledown_start_step
+                num_attention_heads = self.num_cross_attention_heads
+                assert attn_prior_scaledown_start_step < attn_prior_end_step
+                print("attn_prior_scaledown_start_step", attn_prior_scaledown_start_step)
+                print("attn_prior_scaledown_start_step", attn_prior_end_step)
+                if global_step >= attn_prior_end_step:
+                    decoder_cross_attention_relative_position_bias = None
+                elif global_step > attn_prior_scaledown_start_step and global_step < attn_prior_end_step:
+                    total_annealing_steps = attn_prior_end_step - attn_prior_scaledown_start_step
+                    curr_annealing_step = global_step - attn_prior_scaledown_start_step
+                    curr_cross_attention_prior = cross_attention_prior + (
+                        (1.0 - cross_attention_prior) * curr_annealing_step / total_annealing_steps
+                    )
+                    decoder_cross_attention_relative_position_bias = curr_cross_attention_prior.unsqueeze(1).repeat(
+                        1, num_attention_heads, 1, 1
+                    )
+                else:
+                    print("global_step", global_step, "prior_scaling_factor", 1)
+                    decoder_cross_attention_relative_position_bias = cross_attention_prior.unsqueeze(1).repeat(
+                        1, num_attention_heads, 1, 1
+                    )
+                    print(
+                        "decoder_cross_attention_relative_position_bias",
+                        decoder_cross_attention_relative_position_bias.shape,
+                    )
+
             output = self.enc_dec_model(
                 enc_input=enc_input,
                 enc_attn_mask=enc_attn_mask,
@@ -659,11 +697,17 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
                 dec_self_attention_relative_position_bias=decoder_self_attention_relative_position_bias,
                 dec_cross_attention_relative_position_bias=decoder_cross_attention_relative_position_bias,
+                return_all_crossattention_probs=self.return_all_crossattention_probs,
                 batch_data=batch_data,
             )
 
             if self.post_process and self.add_decoder:
-                dec_output, enc_output = output  # [s, b, h], enc_output might be a dict if hiddens_module is used
+                dec_output, enc_output = output  # [s, b, h]
+                if self.return_all_crossattention_probs:
+                    dec_output, attention_probs = dec_output
+                else:
+                    attention_probs = None
+                # output_type = self.predict_output_type(enc_output)
                 # project decoder output to vocabulary-size dimensions
                 if self.share_decoder_tokens_head_embeddings:
                     # @jasoli: Will have to check that this is indexed properly
@@ -686,7 +730,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
 
                     # speech_logits_list will be used in loss calculation (parallel output)
                     speech_logits_list = []
-                    if self.seq_pattern in ["parallel", "delay_parallel"]:
+                    if self.seq_pattern in ["parallel", "delay_parallel"] and torch.count_nonzero(speech_mask) > 0:
                         for i in range(speech_layers):
                             if self.speech_head_type == "token_level":
                                 speech_residual_model = self.speech_residual_model_2
@@ -734,7 +778,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                             )
                             logging.debug(f"token_loss: {tokens_loss}")
                             logging.debug(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
-                            if self.seq_pattern in ["parallel", "delay_parallel"]:
+                            if (
+                                self.seq_pattern in ["parallel", "delay_parallel"]
+                                and torch.count_nonzero(speech_mask) > 0
+                            ):
                                 for i in range(speech_layers):
                                     # What is labels[:7, :, :] if this is text? (It is all zeros)
                                     curr_codebook_loss = (
@@ -752,6 +799,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
 
                     # check if hiddens is used
                     if self.hiddens_cfg is not None:
+                        raise NotImplementedError("Not currently implemented for speechllm")
                         loss_dict = self.enc_dec_model.hiddens_module.apply_loss_transforms(
                             outputs=enc_output, batch_data=batch_data,
                         )
@@ -760,7 +808,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                         loss_dict["output"] = tokens_loss
                         return loss_dict
                     else:
-                        return tokens_loss, [token_logits, speech_logits_list]
+                        return tokens_loss, [token_logits, speech_logits_list, attention_probs]
                 else:
                     # else return token logits (and hiddens if needed)
                     # [s, b, h] -> [b, s, h]
@@ -788,6 +836,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     )  # (b, s, 1024, 8)
 
                     if self.hiddens_cfg is not None:  #TODO: What is hiddens_cfg
+                        raise NotImplementedError("Not currently implemented for speechllm")
                         # return all hiddens and token logits
                         hiddens_dict = enc_output
                         hiddens_dict["token_logits"] = token_logits
@@ -795,7 +844,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                         hiddens_dict["output"] = token_logits
                         return hiddens_dict
                     else:
-                        return all_speech_logits, [token_logits, speech_logits]
+                        return all_speech_logits, [token_logits, speech_logits, attention_probs]
 
             elif self.add_decoder and not self.add_encoder:
                 decoder_output, _ = output
