@@ -212,7 +212,7 @@ class TestPreprocessingUtils:
     def test_get_full_path_invalid_type(self):
         """Make sure exceptions are raised when audio_file is not a string or a list of strings.
         """
-        
+
         with pytest.raises(ValueError, match="Unexpected audio_file type"):
             get_full_path(1)
 
