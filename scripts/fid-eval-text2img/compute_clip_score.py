@@ -78,6 +78,7 @@ if __name__ == '__main__':
     parser.add_argument('--captions_path', default='/coco2014/coco2014_val_sampled_30k/captions/', type=str)
     parser.add_argument('--fid_images_path', default=None, type=str)
     parser.add_argument('--output_path', default='./clip_scores.csv', type=str)
+    parser.add_argument('--clip_version', default='ViT-L-14', type=str)
     args = parser.parse_args()
 
     # Initialize distributed training
@@ -86,7 +87,7 @@ if __name__ == '__main__':
 
     captions_path = args.captions_path
     print('Init CLIP Encoder..')
-    encoder = CLIPEncoder(clip_version='ViT-L-14')
+    encoder = CLIPEncoder(clip_version=args.clip_version)
 
     # Create output CSV file
     with open(args.output_path, 'w', newline='') as csvfile:
