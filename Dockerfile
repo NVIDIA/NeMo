@@ -47,7 +47,7 @@ WORKDIR /workspace/
 # We leave it here in case we need to work off of a specific commit in main
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout 4c7a0251ae7c234a4ca3f02327330235d8d35028 && \
+  git checkout e122536b7645edcb7ebf099b5c92a443f7dbf8e7 && \
   pip install .
 
 # Distributed Adam support for multiple dtypes
@@ -85,10 +85,8 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 
-# install flash attention dependencies
+# install flash attention
 RUN pip install flash-attn
-# pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
-RUN pip install triton==2.0.0.dev20221202
 # install numba for latest containers
 RUN pip install numba>=0.57.1
 
