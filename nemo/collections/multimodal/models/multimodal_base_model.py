@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import collections
 import hashlib
 import json
 import os
@@ -71,6 +72,14 @@ __all__ = ['MultimodalModel', 'MegatronMultimodalModel']
 NEMO_MULTIMODAL_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_multimodal_tmp")
 
 os.makedirs(NEMO_MULTIMODAL_TMP, exist_ok=True)
+
+def deep_update(dst_cfg, new_cfg):
+    for k, v in new_cfg.items():
+        if isinstance(v, collections.abc.Mapping):
+            dst_cfg[k] = deep_update(dst_cfg.get(k, {}), v)
+        else:
+            dst_cfg[k] = v
+    return dst_cfg
 
 
 class MultimodalModel(ModelPT, Exportable):
@@ -147,7 +156,7 @@ class MultimodalModel(ModelPT, Exportable):
             config_kwargs = kwargs.copy()
             if 'trainer' in config_kwargs:
                 config_kwargs.pop('trainer')
-            cfg.update(config_kwargs)
+            cfg = deep_update(cfg, config_kwargs)
 
             # Disable individual unet/vae weights loading otherwise the model will look for these partial ckpts and raise error
             if cfg:
@@ -201,40 +210,29 @@ class MultimodalModel(ModelPT, Exportable):
                     new_state_dict[new_key] = checkpoint['state_dict'][key]
                 checkpoint['state_dict'] = new_state_dict
 
-
-            if os.getenv("TE_FP8_LINEAR", '0') == '0':
+            if cfg.get('unet_config') and cfg.get('unet_config').get('precision') != 'fp8':
                 # remove _extra_state in fp8 if there is.
                 new_state_dict = {}
                 for key in checkpoint['state_dict'].keys():
                     if 'extra_state' in key:
                         continue
-                    new_state_dict[key] = checkpoint['state_dict'][key]
-                checkpoint['state_dict'] = new_state_dict
-            if os.getenv("TE_FP8_LayerNormLINEAR", '0') == '0':
-                # map LayerNormLinear weight if needed.
-                new_state_dict = {}
-                for key in checkpoint['state_dict'].keys():
+
                     ### LayerNormLinear
                     # norm_to_q.layer_norm_{weight|bias} -> norm_to_q.0.{weight|bias}
                     # norm_to_q.weight -> norm_to_q.1.weight
                     new_key = key.replace('norm_to_q.layer_norm_', 'norm_to_q.0.')
                     new_key = new_key.replace('norm_to_q.weight', 'norm_to_q.1.weight')
-                    new_state_dict[new_key] = checkpoint['state_dict'][key]
-                checkpoint['state_dict'] = new_state_dict
 
-            if os.getenv("TE_FP8_LayerNormMLP", '0') == '0':
-                new_state_dict = {}
-                for key in checkpoint['state_dict'].keys():
                     ### LayerNormMLP
                     # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
                     # ff.net.fc1_{weight|bias} -> ff.net.1.proj.{weight|bias}
                     # ff.net.fc2_{weight|bias} -> ff.net.3.{weight|bias}
-                    new_key = key.replace('ff.net.layer_norm_', 'ff.net.0.')
+                    new_key = new_key.replace('ff.net.layer_norm_', 'ff.net.0.')
                     new_key = new_key.replace('ff.net.fc1_', 'ff.net.1.proj.')
                     new_key = new_key.replace('ff.net.fc2_', 'ff.net.3.')
+
                     new_state_dict[new_key] = checkpoint['state_dict'][key]
                 checkpoint['state_dict'] = new_state_dict
-
 
             if 'cfg' in kwargs:
                 model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)

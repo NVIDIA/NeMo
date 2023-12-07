@@ -95,12 +95,12 @@ class GEGLU(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.0):
+    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.0, use_te=False):
         super().__init__()
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
 
-        if os.environ.get("TE_FP8_LayerNormMLP", "0") == "1":
+        if use_te:
             activation = 'gelu' if not glu else 'geglu'
             # TODO: more parameters to be confirmed, dropout, seq_length
             self.net = LayerNormMLP(
@@ -200,7 +200,7 @@ def rearrange_heads_inner(t: torch.Tensor, h: int) -> torch.Tensor:
 
 
 class CrossAttention(nn.Module):
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0, use_flash_attention=False):
+    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0, use_flash_attention=False, use_te=False):
         super().__init__()
         inner_dim = dim_head * heads
         context_dim = default(context_dim, query_dim)
@@ -212,7 +212,7 @@ class CrossAttention(nn.Module):
         self.scale = dim_head ** -0.5
         self.heads = heads
 
-        if os.environ.get("TE_FP8_LayerNormLINEAR", "0") == "1":
+        if use_te:
             self.norm_to_q = LayerNormLinear(query_dim, inner_dim, bias=False)
         else:
             norm = nn.LayerNorm(query_dim)
@@ -313,6 +313,7 @@ class BasicTransformerBlock(nn.Module):
         use_checkpoint=False,
         use_flash_attention=False,
         disable_self_attn=False,
+        use_te=False,
     ):
         super().__init__()
         self.disable_self_attn = disable_self_attn
@@ -323,8 +324,9 @@ class BasicTransformerBlock(nn.Module):
             dropout=dropout,
             use_flash_attention=use_flash_attention,
             context_dim=context_dim if self.disable_self_attn else None,
+            use_te=use_te,
         )  # is a self-attention
-        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
+        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff, use_te=use_te)
         self.attn2 = CrossAttention(
             query_dim=dim,
             context_dim=context_dim,
@@ -332,6 +334,7 @@ class BasicTransformerBlock(nn.Module):
             dim_head=d_head,
             dropout=dropout,
             use_flash_attention=use_flash_attention,
+            use_te=use_te,
         )  # is self-attn if context is none
         self.use_checkpoint = use_checkpoint
 
@@ -369,6 +372,7 @@ class SpatialTransformer(nn.Module):
         use_linear=False,
         use_checkpoint=False,
         use_flash_attention=False,
+        use_te=False,
     ):
         super().__init__()
         if exists(context_dim) and not isinstance(context_dim, list):
@@ -393,6 +397,7 @@ class SpatialTransformer(nn.Module):
                     use_checkpoint=use_checkpoint,
                     use_flash_attention=use_flash_attention,
                     disable_self_attn=disable_self_attn,
+                    use_te=use_te,
                 )
                 for d in range(depth)
             ]

@@ -538,29 +538,6 @@ class UNetModel(nn.Module):
         if num_head_channels == -1:
             assert num_heads != -1, 'Either num_heads or num_head_channels has to be set'
 
-        fp8_margin = int(os.getenv("FP8_MARGIN", '0'))
-        fp8_interval = int(os.getenv("FP8_INTERVAL", '1'))
-        fp8_format = os.getenv("FP8_FORMAT", "hybrid")
-        fp8_amax_history_len = int(os.getenv("FP8_HISTORY_LEN", '1024'))
-        fp8_amax_compute_algo = os.getenv("FP8_COMPUTE_ALGO", 'max')
-        fp8_wgrad = (os.getenv("FP8_WGRAD", '1') == '1')
-
-        fp8_format_dict = {
-            'hybrid': transformer_engine.common.recipe.Format.HYBRID,
-            'e4m3': transformer_engine.common.recipe.Format.E4M3,
-        }
-        fp8_format = fp8_format_dict[fp8_format]
-
-        if os.getenv("TE_FP8_LINEAR", '0') == '1':
-            self.fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
-                margin=fp8_margin,
-                interval=fp8_interval,
-                fp8_format=fp8_format,
-                amax_history_len=fp8_amax_history_len,
-                amax_compute_algo=fp8_amax_compute_algo,
-                override_linear_precision=(False, False, not fp8_wgrad),
-            )
-
         self.image_size = image_size
         self.in_channels = in_channels
         self.model_channels = model_channels
@@ -591,6 +568,7 @@ class UNetModel(nn.Module):
         input_block_chans = [model_channels]
         ch = model_channels
         ds = 1
+        use_te = True if precision == 'fp8' else False
         for level, mult in enumerate(channel_mult):
             for _ in range(num_res_blocks):
                 layers = [
@@ -633,6 +611,7 @@ class UNetModel(nn.Module):
                             use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
+                            use_te=use_te,
                         )
                     )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -697,6 +676,7 @@ class UNetModel(nn.Module):
                 use_linear=use_linear_in_transformer,
                 use_checkpoint=use_checkpoint,
                 use_flash_attention=use_flash_attention,
+                use_te=use_te,
             ),
             ResBlock(
                 ch,
@@ -754,6 +734,7 @@ class UNetModel(nn.Module):
                             use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
+                            use_te=use_te,
                         )
                     )
                 if level and i == num_res_blocks:
@@ -803,12 +784,36 @@ class UNetModel(nn.Module):
                     'Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
                 )
 
+        self.use_fp8 = False
         if precision == 'fp16':
             self.convert_to_fp16()
         elif precision == 'fp32':
             self.convert_to_fp32()
-        if os.getenv("TE_FP8_LINEAR", '0') == '1':
+        elif precision == 'fp8':
             convert_module_to_fp8(self)
+
+            fp8_margin = int(os.getenv("FP8_MARGIN", '0'))
+            fp8_interval = int(os.getenv("FP8_INTERVAL", '1'))
+            fp8_format = os.getenv("FP8_FORMAT", "hybrid")
+            fp8_amax_history_len = int(os.getenv("FP8_HISTORY_LEN", '1024'))
+            fp8_amax_compute_algo = os.getenv("FP8_COMPUTE_ALGO", 'max')
+            fp8_wgrad = (os.getenv("FP8_WGRAD", '1') == '1')
+
+            fp8_format_dict = {
+                'hybrid': transformer_engine.common.recipe.Format.HYBRID,
+                'e4m3': transformer_engine.common.recipe.Format.E4M3,
+            }
+            fp8_format = fp8_format_dict[fp8_format]
+
+            self.use_fp8 = True
+            self.fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
+                margin=fp8_margin,
+                interval=fp8_interval,
+                fp8_format=fp8_format,
+                amax_history_len=fp8_amax_history_len,
+                amax_compute_algo=fp8_amax_compute_algo,
+                override_linear_precision=(False, False, not fp8_wgrad),
+            )
 
     def _input_blocks_mapping(self, input_dict):
         res_dict = {}
@@ -1070,15 +1075,12 @@ class UNetModel(nn.Module):
             return self.out(h)
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
-        if os.environ.get("TE_FP8_LINEAR", "0") == "1":
-            use_fp8 = True
-        else:
-            use_fp8 = False
         with transformer_engine.pytorch.fp8_autocast(
-                enabled=use_fp8,
+                enabled=self.use_fp8,
                 fp8_recipe=self.fp8_recipe,
-            ) if use_fp8 else nullcontext():
-            return self._forward(x, timesteps, context, y, **kwargs)
+            ) if self.use_fp8 else nullcontext():
+            out = self._forward(x, timesteps, context, y, **kwargs)
+        return out
 
 class EncoderUNetModel(nn.Module):
     """
