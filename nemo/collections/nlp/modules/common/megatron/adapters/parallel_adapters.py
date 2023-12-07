@@ -68,7 +68,8 @@ class AdapterName(str, enum.Enum):
     LORA_Q_ADAPTER = "lora_q_adapter"
     MM_LINEAR_ADAPTER = "mm_linear_adapter"
     LORA_DENSE_ATTENTION_ADAPTER = "lora_dense_attention_adapter"
-
+    LORA_Hto4H_ADAPTER = "lora_hto4h_adapter"
+    LORA_4HtoH_ADAPTER = "lora_4htoh_adapter"
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
@@ -127,7 +128,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
-        input_is_parallel: bool = False, # NOTE: (tugrulkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
+        input_is_parallel: bool = False, # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
@@ -296,14 +297,25 @@ class LoraDenseAttentionAdapter(ParallelLinearAdapter):
 
     pass
 
+class LoraHto4HAdapter(ParallelLinearAdapter):
+    """
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    and they do not use an bottleneck activation function
+    """
+
+    pass
+
+class Lora4HtoHAdapter(ParallelLinearAdapter):
+    """
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    and they do not use an bottleneck activation function
+    """
+
+    pass
+
 @dataclass
 class LoraKQVAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapter.__module__, LoraKQVAdapter.__name__)
-
-@dataclass
-class LoraDenseAttentionAdapterConfig(ParallelLinearAdapterConfig):
-    _target_: str = "{0}.{1}".format(LoraDenseAttentionAdapter.__module__, LoraDenseAttentionAdapter.__name__)
-    input_is_parallel: bool = True
 
 @dataclass
 class LoraQAdapterConfig(ParallelLinearAdapterConfig):
@@ -314,6 +326,19 @@ class LoraQAdapterConfig(ParallelLinearAdapterConfig):
 class LoraKVAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraKVAdapter.__module__, LoraKVAdapter.__name__)
 
+@dataclass
+class LoraDenseAttentionAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(LoraDenseAttentionAdapter.__module__, LoraDenseAttentionAdapter.__name__)
+    input_is_parallel: bool = True
+
+@dataclass
+class LoraHto4HAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(LoraHto4HAdapter.__module__, LoraHto4HAdapter.__name__)
+
+@dataclass
+class Lora4HtoHAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(Lora4HtoHAdapter.__module__, Lora4HtoHAdapter.__name__)
+    input_is_parallel: bool = True
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
