@@ -45,10 +45,6 @@ def max_symbols_setup():
             add_sos: bool = False,
             batch_size: Optional[int] = None,
         ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
-            if batch_size is None:
-                batch_size = 1
-            if y is not None:
-                y = y + torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat(y.size())
             if y is not None and state is not None:
                 return (y + state) / 2, y * state
             elif state is not None:
@@ -56,8 +52,8 @@ def max_symbols_setup():
             elif y is not None:
                 return y, torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat(y.size())
             return (
-                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat([1, batch_size, 1]),
-                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat([1, batch_size, 1]),
+                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat([1, 1, 1]),
+                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat([1, 1, 1]),
             )
 
         def initialize_state(self, y: torch.Tensor) -> List[torch.Tensor]:
@@ -70,11 +66,8 @@ def max_symbols_setup():
 
         def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
             if batch_states is not None:
-                try:
-                    states = batch_states[0][idx]
-                    states = states.long()
-                except Exception as e:
-                    raise Exception(batch_states, idx)
+                states = batch_states[0][idx]
+                states = states.long()
                 return [states]
             else:
                 return None
@@ -99,12 +92,8 @@ def max_symbols_setup():
     setup["decoder"] = DummyRNNTDecoder(vocab_size=2, blank_idx=2, blank_as_pad=True)
     setup["decoder_masked"] = DummyRNNTDecoder(vocab_size=2, blank_idx=2, blank_as_pad=False)
     setup["joint"] = DummyRNNTJoint()
-    # expected timesteps for max_symbols_per_step=5 are [[0, 0, 0, 0, 0, 1, 1], [1, 1, 1, 1, 1]],
-    # so we have both looped and regular iteration on the second frame
-    setup["encoder_output"] = torch.tensor(
-        [[[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 0, 1], [2, 0, 0], [0, 0, 0]]], dtype=torch.float32
-    ).transpose(1, 2)
-    setup["encoded_lengths"] = torch.tensor([3, 2])
+    setup["encoder_output"] = torch.tensor([[[1, 0, 0], [0, 1, 0], [0, 0, 1]]], dtype=torch.float32).transpose(1, 2)
+    setup["encoded_lengths"] = torch.tensor([3])
     return setup
 
 
@@ -705,7 +694,6 @@ class TestEncDecRNNTModel:
                         assert torch.is_tensor(logp)
                         assert torch.is_tensor(label)
 
-    @pytest.mark.pleasefixme
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
@@ -739,6 +727,7 @@ class TestEncDecRNNTModel:
                 decoder,
                 joint_net,
                 blank_index=len(token_list),
+                preserve_alignments=True,
                 preserve_frame_confidence=True,
                 max_symbols_per_step=max_symbols_per_step,
             )
