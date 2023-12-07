@@ -16,8 +16,8 @@ import glob
 import os
 
 import torch
-from omegaconf.omegaconf import OmegaConf, open_dict
 from PIL import Image
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch.utils.data import DataLoader, Dataset
