@@ -102,12 +102,12 @@ class GEGLU(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.0):
+    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.0, use_te=False):
         super().__init__()
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
 
-        if os.environ.get("TE_FP8_LayerNormMLP", "0") == "1":
+        if use_te:
             activation = 'gelu' if not glu else 'geglu'
             # TODO: more parameters to be confirmed, dropout, seq_length
             self.net = LayerNormMLP(
@@ -121,7 +121,7 @@ class FeedForward(nn.Module):
             self.net = nn.Sequential(norm, project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out))
 
 
-def forward(self, x):
+    def forward(self, x):
         return self.net(x)
 
 
@@ -242,6 +242,7 @@ class CrossAttention(nn.Module):
         dropout=0.0,
         use_flash_attention=False,
         lora_network_alpha=None,
+        use_te=False,
     ):
         super().__init__()
 
@@ -258,8 +259,8 @@ class CrossAttention(nn.Module):
         self.to_k = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
         self.to_v = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
 
-        if os.environ.get("TE_FP8_LayerNormLINEAR", "0") == "1":
-            self.norm_to_q = LayerNormLinear(query_dim, inner_dim, bias=False)
+        if use_te:
+            self.norm_to_q = LayerNormLinear(query_dim, self.inner_dim, bias=False)
         else:
             norm = nn.LayerNorm(query_dim)
             to_q = LinearWrapper(query_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
@@ -359,6 +360,7 @@ class BasicTransformerBlock(nn.Module):
         use_flash_attention=False,
         disable_self_attn=False,
         lora_network_alpha=None,
+        use_te=False,
     ):
         super().__init__()
         self.disable_self_attn = disable_self_attn
@@ -370,8 +372,9 @@ class BasicTransformerBlock(nn.Module):
             use_flash_attention=use_flash_attention,
             context_dim=context_dim if self.disable_self_attn else None,
             lora_network_alpha=lora_network_alpha,
+            use_te=use_te,
         )  # is a self-attention
-        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
+        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff, use_te=use_te)
         self.attn2 = CrossAttention(
             query_dim=dim,
             context_dim=context_dim,
@@ -380,6 +383,7 @@ class BasicTransformerBlock(nn.Module):
             dropout=dropout,
             use_flash_attention=use_flash_attention,
             lora_network_alpha=lora_network_alpha,
+            use_te=use_te,
         )  # is self-attn if context is none
         self.use_checkpoint = use_checkpoint
 
@@ -418,6 +422,7 @@ class SpatialTransformer(nn.Module):
         use_checkpoint=False,
         use_flash_attention=False,
         lora_network_alpha=None,
+        use_te=False,
     ):
         super().__init__()
         if exists(context_dim) and not isinstance(context_dim, list):
@@ -443,6 +448,7 @@ class SpatialTransformer(nn.Module):
                     use_flash_attention=use_flash_attention,
                     disable_self_attn=disable_self_attn,
                     lora_network_alpha=lora_network_alpha,
+                    use_te=use_te,
                 )
                 for d in range(depth)
             ]
