@@ -12,15 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import re
-from collections import OrderedDict
-from typing import Any, Optional
+from typing import Any
 
 import torch
 from omegaconf.dictconfig import DictConfig
-from omegaconf.omegaconf import open_dict
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
@@ -35,7 +31,7 @@ from nemo.collections.nlp.modules.common import (
     VirtualPromptStyle,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.utils import AppState, logging
 
 try:
@@ -61,27 +57,28 @@ __all__ = ['MegatronBaseSpeechLM']
 
 class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
     """
-    Model class for prompt-tuning or p-tuning a pretrained Megatron model. 
+    Model class for prompt-tuning or p-tuning a pretrained Megatron model.
 
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
     certain token embeddings from the the pretrained model's vocabulary
-    and directly tunes these embedding weights. The token embeddings used in 
-    initalization are specified by the user in the config file. The model can 
-    be prompt-tuned for multiple tasks at once. virtual prompts are stored in a 
-    prompt table and can be added or deleted without disrupting virtual prompts 
-    for other tasks. 
+    and directly tunes these embedding weights. The token embeddings used in
+    initalization are specified by the user in the config file. The model can
+    be prompt-tuned for multiple tasks at once. virtual prompts are stored in a
+    prompt table and can be added or deleted without disrupting virtual prompts
+    for other tasks.
 
     P-tuning initializes an LSTM encoder model that generates virtual prompt
     embeddings for every task. Each task shares the same encoder. After ptuning
     is compelete, the learned virtual prompts can be saved to the prompt table
-    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
-    new virtual prompt via p-tuning, they do not need to retrain on all previous 
+    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a
+    new virtual prompt via p-tuning, they do not need to retrain on all previous
     tasks. This gives p-tuning the same task flexiblity as prompt-tuning.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
         self.init_model(cfg, trainer)
+        self.config = self.model_parallel_config
 
     def init_model(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
@@ -107,7 +104,6 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
             VirtualPromptStyle.P_TUNING,
         ]:
-
             # TODO: Handle this when moving GPT prompt learning to the base class.
             self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
 
@@ -133,22 +129,13 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
-        if self.trainer.precision == 'bf16':
-            self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
-            self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+        self.autocast_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)  # Mixed precision datatype
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
         self.prompt_encoder = None
 
-        self.enable_autocast = (
-            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
-        )
+        self.enable_autocast = not self.megatron_amp_O2 and self.autocast_dtype in [torch.float16, torch.bfloat16]
 
         # define validation metric
         if self.cfg.get('report_validation_metric', False):
@@ -162,10 +149,10 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
 
     def load_task_templates(self, task_templates):
         """
-        Takes in the task template portion of the config and turns  
-        it into a table where each task's prompt template and 
-        the number of virtual tokens to insert in a given part of 
-        the prompt template are specified. 
+        Takes in the task template portion of the config and turns
+        it into a table where each task's prompt template and
+        the number of virtual tokens to insert in a given part of
+        the prompt template are specified.
         """
         self.task_templates = {}
         self.task_id_num_to_name = {}
@@ -209,6 +196,7 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
 
         encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
         self.prompt_encoder = PromptEncoder(
+            config=self.model_parallel_config,
             encoder_type=encoder_type,
             total_virtual_tokens=total_virtual_tokens,
             token_dim=self.hidden_size,
@@ -273,8 +261,8 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
 
     def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
         """
-        Replaces the virtual tokens in the input_ids with embeddings 
-        calculated from either the 'prompt_table' or 'prompt_encoder'. 
+        Replaces the virtual tokens in the input_ids with embeddings
+        calculated from either the 'prompt_table' or 'prompt_encoder'.
         The virtual token placeholders have token_ids listed in
         `self.pseudo_token_ids`.
 
@@ -456,7 +444,7 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
 def get_pseudo_tokens(num_virtual_tokens):
     """
     Takes in an integer and returns a list of strings where each string
-    is a numbered virtual token placeholder. If 
+    is a numbered virtual token placeholder. If
     num_virtual_tokens = 3, then this function returns:
 
     ["<prompt_0>", "<prompt_1>", "<prompt_2>"]
@@ -464,7 +452,7 @@ def get_pseudo_tokens(num_virtual_tokens):
     Args:
         num_virtual_tokens: (int) Number of virtual token strings you want to make
 
-    returns a list of string. 
+    returns a list of string.
 
     """
     pseudo_tokens = [

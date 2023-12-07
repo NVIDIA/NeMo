@@ -5,16 +5,15 @@ trainer:
   accelerator: gpu
   num_nodes: 1
   precision: 32
-  logger: False 
+  logger: False
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: -1
   max_steps: 1000000
   log_every_n_steps: 10
   val_check_interval: null
   check_val_every_n_epoch: 1
   gradient_clip_val: 1.0
-  resume_from_checkpoint: null
 
 exp_manager:
   explicit_log_dir: null
@@ -48,8 +47,8 @@ model:
   nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1 
-  global_batch_size: 2 
+  pipeline_model_parallel_size: 1
+  global_batch_size: 2
   micro_batch_size: 2 # micro batch size should equal global batch size when pipeline parallel = 1
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
@@ -66,16 +65,16 @@ model:
   num_cross_attention_heads: 12 # 12 for 220m, 16 for 3b.
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
-  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
+  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   existing_tasks: []
-  new_tasks: ["squad"] 
+  new_tasks: ["squad"]
 
 
-  task_templates: 
-  - taskname: "squad" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}" 
+  task_templates:
+  - taskname: "squad"
+    prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}"
     total_virtual_tokens: 3
-    virtual_token_splits: [3] 
+    virtual_token_splits: [3]
     truncate_field: context
     answer_field: answer
 
@@ -90,7 +89,7 @@ model:
 
   data:
     train_ds: ["/data/speech/val_clean_300_speechlm_alltasks.json"]
-    validation_ds: ["/data/speech/val_clean_300_speechlm_alltasks.json"]    
+    validation_ds: ["/data/speech/val_clean_300_speechlm_alltasks.json"]
     max_seq_length: 512
     sample_rate: 24000
     add_eos: true
@@ -112,8 +111,8 @@ model:
   optim:
     name: fused_adam
     lr: 5e-5
-    weight_decay: 0.01 
-    betas: 
+    weight_decay: 0.01
+    betas:
     - 0.9
     - 0.98
     # sched:

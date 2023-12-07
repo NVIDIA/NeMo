@@ -37,7 +37,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning
     MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_speechlm_prompt_model import MegatronBaseSpeechLM
-from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -135,8 +135,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         list_of_speech_heads = []
         list_of_speech_tokens_embeddings = []
         for _ in range(7):
+            # init is NOT used since we overwrite the weight below anywas
             _speech_head_embedding = tensor_parallel.VocabParallelEmbedding(
-                speech_codebook_size, embedding_dim=self.word_embeddings.embedding_dim
+                speech_codebook_size,
+                embedding_dim=self.word_embeddings.embedding_dim,
+                init_method=lambda x: x.data.fill_(0),
+                config=self.model_parallel_config,
             )
             _speech_head_embedding.weight.data.fill_(0)
             _speech_head_embedding.shared = True
@@ -154,8 +158,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     bias=True,
                     gather_output=not self.frozen_model.enc_dec_model.parallel_output,
                     init_method=init_method_normal(init_method_std),
-                    use_cpu_initialization=False,
-                    params_dtype=self.frozen_model.enc_dec_model.dtype,
+                    config=self.model_parallel_config,
+                    # use_cpu_initialization=False,
+                    # params_dtype=self.frozen_model.enc_dec_model.dtype,
                 )
                 list_of_speech_heads.append(_speech_head)
 
@@ -261,7 +266,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         return output, encoder_input, out_logits
 
     def load_frozen_model(self, cfg, trainer):
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+        self.megatron_amp_O2 = cfg.get('megatron_amp_o2', None)
+        if self.megatron_amp_O2 == None:
+            self.megatron_amp_O2 = cfg.get('megatron_amp_O2', None)
+        if self.megatron_amp_O2 == None:
+            self.megatron_amp_O2 = False
 
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
@@ -273,7 +282,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 t5_cfg.decoder.masked_softmax_fusion = False
             else:
                 t5_cfg.masked_softmax_fusion = False
-            t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
+            t5_cfg.megatron_amp_O2 = self.megatron_amp_O2
             # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
@@ -302,7 +311,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             _, _, dec_seq_length = batch[4].shape
         else:
             _, dec_seq_length = batch[4].shape
-        tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
         fwd_bwd_function = get_forward_backward_func()
@@ -313,19 +321,16 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             model=[self],
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
-            tensor_shape=tensor_shape,
+            seq_length=seq_length,
+            micro_batch_size=get_micro_batch_size(),
             decoder_seq_length=dec_seq_length,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
         )
 
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
             loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.cat(loss_tensors_list)
+            loss_tensor = torch.concat(loss_tensors_list)
             loss_mean = loss_tensor.mean()
         else:
             # we're not on the last pipeline stage so no losses
@@ -579,9 +584,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             else self.tokenizer.bos_id,
         )
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-        labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
-        input_text = MegatronT5FinetuneModel.ids_to_text(input_ids, self.tokenizer)
+        preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        labels_text = MegatronT5SFTModel.ids_to_text(labels, self.tokenizer)
+        input_text = MegatronT5SFTModel.ids_to_text(input_ids, self.tokenizer)
         return {
             'predicted_token_ids': preds_text,
             'labels': labels_text,
@@ -713,7 +718,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.frozen_model.train()
         return metrics
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
+        outputs = self.validation_step_outputs
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss
@@ -833,11 +839,16 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
+        self.validation_step_outputs.clear()
 
     def test_step(self, batch, batch_idx):
         return self.predict_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
+        """
+        This might still be broken for lightning 2.0. to fix: see
+        https://github.com/NVIDIA/NeMo/blob/9bdf4d12276ee8f95a340cf2f7f340e9b5b74a7e/docs/source/starthere/migration-guide.rst
+        """
         average_metrics = {}
         for output in outputs:
             for key in output:
@@ -1257,11 +1268,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             else self.tokenizer.bos_id,
         )
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-        input_text = MegatronT5FinetuneModel.ids_to_text(input_ids, self.tokenizer)
+        preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        input_text = MegatronT5SFTModel.ids_to_text(input_ids, self.tokenizer)
 
         if labels is not None:
-            labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
+            labels_text = MegatronT5SFTModel.ids_to_text(labels, self.tokenizer)
         else:
             labels_text = [None] * len(preds_text)
 

@@ -25,6 +25,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -46,32 +47,12 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
-    with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
+    # MegatronTrainerBuilder compat checks
+    if "gradient_as_bucket_view" not in cfg.model:
+        with open_dict(cfg):
+            cfg.model.gradient_as_bucket_view=False
 
-    plugins = []
-    strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-        gradient_as_bucket_view=False,
-        find_unused_parameters=False,
-    )
-    if cfg.trainer.precision in [16, 'bf16']:
-        scaler = None
-        if cfg.trainer.precision == 16:
-            scaler = GradScaler(
-                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 8),
-                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-                hysteresis=cfg.model.get('hysteresis', 2),
-            )
-        if megatron_amp_o2 and not with_distributed_adam:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
-        else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
-
-    if cfg.get('cluster_type', None) == 'BCP':
-        plugins.append(TorchElasticEnvironment())
-
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
