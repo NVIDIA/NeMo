@@ -16,3 +16,9 @@ pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0
 block_ngram_repetition: False
 ngram: 2
+# setting tgt_language during inference. It can be set as a list:
+# tgt_language:
+#   - en
+#   - de
+tgt_language: null 
+
