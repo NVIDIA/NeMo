@@ -204,6 +204,7 @@ def _forward(
                 le_size = line_encoded.size(0)
             tasks = torch.zeros(le_size).cuda()
 
+            prompt_table = prompt_table.cuda()
             ptuning_args = [prompt_table, tasks, task_vocab_size]
 
         with torch.no_grad():
