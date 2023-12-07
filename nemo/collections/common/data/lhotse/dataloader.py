@@ -119,6 +119,8 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
 def create_id_randomizer(seed: int = 0) -> Callable[[str], str]:
     rng = random.Random(seed)
     max_sfx = 2 ** 20 - 1
+
     def add_random_suffix(cut_id: str) -> str:
         return f"{cut_id}-rnd{rng.randint(0, max_sfx):07d}"
+
     return add_random_suffix
