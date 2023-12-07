@@ -18,9 +18,8 @@ import torch.nn.functional as F
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     Lora4HtoHAdapterConfig,
-    LoraHto4HAdapterConfig,    
+    LoraHto4HAdapterConfig,
     MLPInfusedAdapterConfig,
-
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
@@ -97,11 +96,8 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.dropout = dropout
         self.dtype = dtype
         self.set_accepted_adapter_types(
-            [
-                LoraHto4HAdapterConfig._target_,
-                Lora4HtoHAdapterConfig._target_,
-                MLPInfusedAdapterConfig._target_
-            ])
+            [LoraHto4HAdapterConfig._target_, Lora4HtoHAdapterConfig._target_, MLPInfusedAdapterConfig._target_]
+        )
 
         supported_activations = [
             'gelu',
@@ -276,7 +272,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             lora_dense_4h_to_h_adapter = self.get_adapter_module(AdapterName.LORA_4HtoH_ADAPTER)
             if lora_dense_4h_to_h_adapter:
                 lora_output = lora_dense_4h_to_h_adapter(intermediate_parallel)
-                output = output + lora_output        
+                output = output + lora_output
         return output, output_bias
 
 

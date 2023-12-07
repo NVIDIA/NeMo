@@ -17,19 +17,19 @@ import torch.nn.functional as F
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
+from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
-from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
-    LoraKQVAdapterConfig,
+    Lora4HtoHAdapterConfig,
     LoraDenseAttentionAdapterConfig,
     LoraHto4HAdapterConfig,
-    Lora4HtoHAdapterConfig,
+    LoraKQVAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     PromptEncoderAdapterConfig,
@@ -59,7 +59,9 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         """
         Setup NeMo LoRA or IA3 adapter to this MCore layer.
         """
-        self.set_accepted_adapter_types([LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_])
+        self.set_accepted_adapter_types(
+            [LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_]
+        )
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
@@ -118,12 +120,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         return query, key, value
 
     def forward(
-        self,
-        hidden_states,
-        attention_mask,
-        key_value_states=None,
-        inference_params=None,
-        rotary_pos_emb=None,
+        self, hidden_states, attention_mask, key_value_states=None, inference_params=None, rotary_pos_emb=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -166,9 +163,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
                 query, key, value, attention_mask, attn_mask_type=attn_mask_type
             )
         else:
-            core_attn_out = self.core_attention(
-                query, key, value, attention_mask, attn_mask_type=attn_mask_type
-            )
+            core_attn_out = self.core_attention(query, key, value, attention_mask, attn_mask_type=attn_mask_type)
 
         # =================
         # Output. [sq, b, h]
@@ -180,7 +175,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             lora_linear_proj_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
             if lora_linear_proj_adapter:
                 lora_output = lora_linear_proj_adapter(core_attn_out)
-                output = output + lora_output        
+                output = output + lora_output
 
         return output, bias
 
@@ -190,7 +185,9 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         """
         Setup NeMo IA3 adapter to this MCore layer.
         """
-        self.set_accepted_adapter_types([LoraHto4HAdapterConfig._target_, Lora4HtoHAdapterConfig._target_, MLPInfusedAdapterConfig._target_])  # only self attn (packed qkv) for now
+        self.set_accepted_adapter_types(
+            [LoraHto4HAdapterConfig._target_, Lora4HtoHAdapterConfig._target_, MLPInfusedAdapterConfig._target_]
+        )  # only self attn (packed qkv) for now
 
     def forward(self, hidden_states):
         # [s, b, 4 * h/p]
@@ -200,7 +197,7 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
             lora_linear_fc1_adapter = self.get_adapter_module(AdapterName.LORA_Hto4H_ADAPTER)
             if lora_linear_fc1_adapter:
                 lora_output = lora_linear_fc1_adapter(hidden_states)
-                intermediate_parallel = intermediate_parallel + lora_output         
+                intermediate_parallel = intermediate_parallel + lora_output
 
         if self.config.bias_gelu_fusion:
             assert self.config.add_bias_linear is True
@@ -222,7 +219,7 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
             lora_linear_fc2_adapter = self.get_adapter_module(AdapterName.LORA_4HtoH_ADAPTER)
             if lora_linear_fc2_adapter:
                 lora_output = lora_linear_fc2_adapter(intermediate_parallel)
-                output = output + lora_output        
+                output = output + lora_output
         return output, output_bias
 
 

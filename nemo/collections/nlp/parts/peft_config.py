@@ -21,7 +21,6 @@ try:
         MCoreGPTEmbeddingMixin,
         MCoreMLPMixin,
         MCoreSelfAttentionMixin,
-        MCoreMLPMixin,
         MCoreTransformerLayerMixin,
     )
 except (ImportError, ModuleNotFoundError):
@@ -30,11 +29,11 @@ except (ImportError, ModuleNotFoundError):
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
-    LoraKQVAdapterConfig,
-    LoraKQVAdapterWeightTyingConfig,
+    Lora4HtoHAdapterConfig,
     LoraDenseAttentionAdapterConfig,
     LoraHto4HAdapterConfig,
-    Lora4HtoHAdapterConfig,
+    LoraKQVAdapterConfig,
+    LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
@@ -48,36 +47,31 @@ PEFT_MODULE_MAP = {
     "4htoh_module": "mlp_fc2",
     "attention": "attention",
     "mlp": "mlp",
-    "all":"all"
+    "all": "all",
 }
 
-def get_target_modules(lora_cfg):   
+
+def get_target_modules(lora_cfg):
     target_modules = lora_cfg.get("target_modules", ["attention_qkv"])
     if PEFT_MODULE_MAP["attention"] in target_modules:
-        target_modules.extend(
-            [
-                PEFT_MODULE_MAP['qkv_module'], 
-                PEFT_MODULE_MAP['dense_module']
-            ])
+        target_modules.extend([PEFT_MODULE_MAP['qkv_module'], PEFT_MODULE_MAP['dense_module']])
         target_modules.remove(PEFT_MODULE_MAP["attention"])
     if PEFT_MODULE_MAP["mlp"] in target_modules:
-        target_modules.extend(
-            [
-                PEFT_MODULE_MAP['hto4h_module'], 
-                PEFT_MODULE_MAP['4htoh_module']
-            ])
+        target_modules.extend([PEFT_MODULE_MAP['hto4h_module'], PEFT_MODULE_MAP['4htoh_module']])
         target_modules.remove(PEFT_MODULE_MAP["mlp"])
     if PEFT_MODULE_MAP["all"] in target_modules:
         target_modules.extend(
             [
-                PEFT_MODULE_MAP['qkv_module'], 
-                PEFT_MODULE_MAP['dense_module'], 
-                PEFT_MODULE_MAP['hto4h_module'], 
-                PEFT_MODULE_MAP['4htoh_module']
-            ])
+                PEFT_MODULE_MAP['qkv_module'],
+                PEFT_MODULE_MAP['dense_module'],
+                PEFT_MODULE_MAP['hto4h_module'],
+                PEFT_MODULE_MAP['4htoh_module'],
+            ]
+        )
         target_modules.remove(PEFT_MODULE_MAP["all"])
 
-    return list(set(target_modules)) # only return unique modules/elements
+    return list(set(target_modules))  # only return unique modules/elements
+
 
 class PEFTConfig:
     # superclass for adapter name and config
@@ -108,22 +102,32 @@ class LoraPEFTConfig(PEFTConfig):
 
         for module in target_modules:
             if module == PEFT_MODULE_MAP["qkv_module"]:
-                adapter_cfg = self._create_lora_config(cfg, lora_cfg, cfg.hidden_size, qkv_projection_size, LoraKQVAdapterConfig)
+                adapter_cfg = self._create_lora_config(
+                    cfg, lora_cfg, cfg.hidden_size, qkv_projection_size, LoraKQVAdapterConfig
+                )
                 name_key_to_cfg[AdapterName.LORA_KQV_ADAPTER] = adapter_cfg
                 name_key_to_mcore_mixins[AdapterName.LORA_KQV_ADAPTER] = [("self_attention", MCoreSelfAttentionMixin)]
 
             elif module == PEFT_MODULE_MAP["dense_module"]:
-                adapter_cfg = self._create_lora_config(cfg, lora_cfg, cfg.hidden_size, cfg.hidden_size, LoraDenseAttentionAdapterConfig)
+                adapter_cfg = self._create_lora_config(
+                    cfg, lora_cfg, cfg.hidden_size, cfg.hidden_size, LoraDenseAttentionAdapterConfig
+                )
                 name_key_to_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER] = adapter_cfg
-                name_key_to_mcore_mixins[AdapterName.LORA_DENSE_ATTENTION_ADAPTER] = [("self_attention", MCoreSelfAttentionMixin)]
+                name_key_to_mcore_mixins[AdapterName.LORA_DENSE_ATTENTION_ADAPTER] = [
+                    ("self_attention", MCoreSelfAttentionMixin)
+                ]
 
             elif module == PEFT_MODULE_MAP["hto4h_module"]:
                 hto4h_projection_size = cfg.ffn_hidden_size * 2 if fast_glu_activation else cfg.ffn_hidden_size
-                adapter_cfg = self._create_lora_config(cfg, lora_cfg, cfg.hidden_size, hto4h_projection_size, LoraHto4HAdapterConfig)
+                adapter_cfg = self._create_lora_config(
+                    cfg, lora_cfg, cfg.hidden_size, hto4h_projection_size, LoraHto4HAdapterConfig
+                )
                 name_key_to_cfg[AdapterName.LORA_Hto4H_ADAPTER] = adapter_cfg
                 name_key_to_mcore_mixins[AdapterName.LORA_Hto4H_ADAPTER] = [("mlp", MCoreMLPMixin)]
             elif module == PEFT_MODULE_MAP["4htoh_module"]:
-                adapter_cfg = self._create_lora_config(cfg, lora_cfg, cfg.ffn_hidden_size, cfg.hidden_size, Lora4HtoHAdapterConfig)
+                adapter_cfg = self._create_lora_config(
+                    cfg, lora_cfg, cfg.ffn_hidden_size, cfg.hidden_size, Lora4HtoHAdapterConfig
+                )
                 name_key_to_cfg[AdapterName.LORA_4HtoH_ADAPTER] = adapter_cfg
                 name_key_to_mcore_mixins[AdapterName.LORA_4HtoH_ADAPTER] = [("mlp", MCoreMLPMixin)]
 
@@ -138,7 +142,7 @@ class LoraPEFTConfig(PEFTConfig):
             kv_channels = cfg.hidden_size // cfg.num_attention_heads
         else:
             kv_channels = cfg.kv_channels
-        return kv_channels        
+        return kv_channels
 
     def _create_lora_config(self, cfg, lora_cfg, in_features, out_features, adapter_cfg_cls):
         config_args = {
@@ -179,9 +183,9 @@ class LoraPEFTConfig(PEFTConfig):
             )
 
         adapter_cfg = adapter_cfg_cls(**config_args)
-        
 
-        return adapter_cfg           
+        return adapter_cfg
+
 
 class IA3PEFTConfig(PEFTConfig):
     def __init__(self, cfg):
