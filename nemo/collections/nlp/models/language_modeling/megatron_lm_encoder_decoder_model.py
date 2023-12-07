@@ -1141,11 +1141,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf')
                     )
 
-
                 # Get tokens to ignore to avoid repetition
                 if block_ngram_repetition and predicted_tokens_dec.size(1) >= ngram - 1:
                     for data_id in range(batch_size):
-                        current_ngram = tuple(predicted_tokens_dec[data_id, -(ngram - 1):].tolist())
+                        current_ngram = tuple(predicted_tokens_dec[data_id, -(ngram - 1) :].tolist())
                         fts = forbidden_tokens[data_id].get(current_ngram, None)
                         if fts:
                             valid_fts = []
@@ -1167,7 +1166,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
                 )
 
-                # Update forbidden tokens 
+                # Update forbidden tokens
                 if block_ngram_repetition and predicted_tokens_dec.size(1) >= ngram:
                     for data_id in range(batch_size):
                         current_ngram = tuple(predicted_tokens_dec[data_id, -ngram:].tolist())
