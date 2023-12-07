@@ -21,6 +21,7 @@ from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
+from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear, TEColumnParallelLinear
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -65,19 +66,28 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
         linear_qkv_output, _ = self.linear_qkv(hidden_states)
         layernorm_output = None
-        if isinstance(linear_qkv_output, tuple):  # if LN and linear fused, both will be returned
+
+        # In megatron/core/models/gpt/gpt_layer_specs.py TELayerNormColumnParallelLinear is used for linear_qkv.
+        # TELayerNormColumnParallelLinear fused LN and linear, both will be returned.
+        # In nemo/collections/nlp/models/language_modeling/megatron/falcon/falcon_spec.py TEColumnParallelLinear is used for linear_qkv,
+        # which only returns linear.
+        if isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):  
             mixed_qkv, layernorm_output = linear_qkv_output
-        else:  # otherwise only mixed_qkv
+        elif isinstance(self.linear_qkv, TEColumnParallelLinear):  # only mixed_qkv
             mixed_qkv = linear_qkv_output
+        else:
+            raise ValueError(f"Unrecognized module type '{type(self.linear_qkv)}' when getting query, key, value tensors for mcore mixins. ")
 
         # LoRA logic
         if self.is_adapter_available():
             lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
             if lora_kqv_adapter:
-                if layernorm_output:
+                if isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
                     lora_mixed_qkv = lora_kqv_adapter(layernorm_output)
-                else:
+                elif isinstance(self.linear_qkv, TEColumnParallelLinear):
                     lora_mixed_qkv = lora_kqv_adapter(hidden_states)
+                else:
+                    raise ValueError(f"Unrecognized module type '{type(self.linear_qkv)}' when applying lora.")
                 mixed_qkv = mixed_qkv + lora_mixed_qkv
 
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
