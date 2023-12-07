@@ -1,4 +1,6 @@
 import logging
+import random
+from typing import Callable
 
 import torch.utils
 
@@ -35,6 +37,10 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
     # Duration filtering, same as native NeMo dataloaders.
     min_dur, max_dur = config.get("min_duration", -1), config.get("max_duration", float("inf"))
     cuts = cuts.filter(lambda c: min_dur <= c.duration <= max_dur)
+
+    # Safeguard against utterances with identical IDs across different datasets
+    # that would make Lhotse complain otherwise.
+    cuts = cuts.modify_ids(create_id_randomizer(config.get("seed", 0)))
 
     # 2. Optional on-the-fly speed perturbation,
     #    mux here ensures it's uniformly distributed throughout sampling,
@@ -108,3 +114,11 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
     )
 
     return dloader
+
+
+def create_id_randomizer(seed: int = 0) -> Callable[[str], str]:
+    rng = random.Random(seed)
+    max_sfx = 2 ** 20 - 1
+    def add_random_suffix(cut_id: str) -> str:
+        return f"{cut_id}-rnd{rng.randint(0, max_sfx):07d}"
+    return add_random_suffix
