@@ -1005,6 +1005,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
             def dummy():
                 return
+
             if self.trainer.strategy.launcher is not None:
                 self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
             self.trainer.strategy.setup_environment()
