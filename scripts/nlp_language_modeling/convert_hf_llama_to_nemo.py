@@ -17,8 +17,7 @@ Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
   Example to run this conversion script:
     python convert_hf_llama_to_nemo.py \
      --in-file <path_to_hf_checkpoints_folder> \
-     --out-file <path_to_output_nemo_file> \
-     [--fast-swiglu\
+     --out-file <path_to_output_nemo_file>
 """
 
 import os
@@ -41,6 +40,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
 
@@ -50,7 +50,7 @@ def get_args():
         "--in-file", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
-    parser.add_argument("--precision", type=str, default="32", help="Model precision")
+    parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
     return args
 
@@ -94,7 +94,7 @@ def load_model(cls, checkpoint, strict, **kwargs):
     return model
 
 
-def load_config(args, llama_config):
+def load_config(llama_config):
     nemo_config = OmegaConf.load(
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
@@ -116,6 +116,8 @@ def load_config(args, llama_config):
             nemo_config['seq_len_interpolation_factor'] = llama_config['rope_scaling']['factor']
         else:
             raise ValueError("Only linear rope scaling type is supported now")
+    if llama_config['rope_theta'] is not None:
+        nemo_config['rotary_base'] = llama_config['rope_theta']
 
     base = 128
     while llama_config['vocab_size'] % base != 0:
@@ -136,7 +138,7 @@ def convert(args):
     for name, param in model.named_parameters():
         print(f"- {name}")
 
-    nemo_config = load_config(args, hf_config)
+    nemo_config = load_config(hf_config)
 
     if args.precision in ["32", "16"]:
         precision = int(float(args.precision))
@@ -167,15 +169,6 @@ def convert(args):
             plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-
-    if precision == 32:
-        dtype = torch.float32
-    elif precision in [16, "16", "16-mixed"]:
-        dtype = torch.float16
-    elif precision in ["bf16", "bf16-mixed"]:
-        dtype = torch.bfloat16
-    else:
-        dtype = torch.float32  # fallback
 
     nemo_config.precision = precision
     print(f"nemo_config: {nemo_config}")
@@ -313,6 +306,7 @@ def convert(args):
     model._save_restore_connector = NLPSaveRestoreConnector()
 
     # cast to target precision and disable cpu init
+    dtype = torch_dtype_from_precision(precision)
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
 
