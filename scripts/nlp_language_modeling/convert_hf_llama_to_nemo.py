@@ -100,7 +100,7 @@ def load_config(args, llama_config):
     ).model
 
     if llama_config.get('rope_theta', None):
-        nemo_config['rotary_base'] = llama_config['rope_theta']    
+        nemo_config['rotary_base'] = llama_config['rope_theta']
     nemo_config.encoder_seq_length = llama_config['max_position_embeddings']
     nemo_config.num_layers = int(llama_config['num_hidden_layers'])
     nemo_config.hidden_size = llama_config['hidden_size']
