@@ -660,10 +660,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 attn_prior_scaledown_start_step = self.attn_prior_scaledown_start_step
                 num_attention_heads = self.num_cross_attention_heads
                 assert attn_prior_scaledown_start_step < attn_prior_end_step
-                print("attn_prior_scaledown_start_step", attn_prior_scaledown_start_step)
-                print("attn_prior_scaledown_start_step", attn_prior_end_step)
+                logging.debug(f"attn_prior_scaledown_start_step: {attn_prior_scaledown_start_step}")
+                logging.debug(f"attn_prior_scaledown_start_step: {attn_prior_end_step}")
                 if global_step >= attn_prior_end_step:
                     decoder_cross_attention_relative_position_bias = None
+                    self.return_all_crossattention_probs = False
                 elif global_step > attn_prior_scaledown_start_step and global_step < attn_prior_end_step:
                     total_annealing_steps = attn_prior_end_step - attn_prior_scaledown_start_step
                     curr_annealing_step = global_step - attn_prior_scaledown_start_step
@@ -674,13 +675,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                         1, num_attention_heads, 1, 1
                     )
                 else:
-                    print("global_step", global_step, "prior_scaling_factor", 1)
+                    logging.debug(f"global_step: {global_step}. prior_scaling_factor: 1")
                     decoder_cross_attention_relative_position_bias = cross_attention_prior.unsqueeze(1).repeat(
                         1, num_attention_heads, 1, 1
                     )
-                    print(
-                        "decoder_cross_attention_relative_position_bias",
-                        decoder_cross_attention_relative_position_bias.shape,
+                    logging.debug(
+                        f"decoder_cross_attention_relative_position_bias: {decoder_cross_attention_relative_position_bias.shape}",
                     )
 
             output = self.enc_dec_model(

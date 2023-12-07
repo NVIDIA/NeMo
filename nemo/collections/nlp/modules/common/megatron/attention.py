@@ -920,7 +920,7 @@ class CoreAttention(MegatronModule):
         # context_layer = self.attn_fn(
         #     query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
         # )
-        if return_scores:
+        if return_scores and relative_position_bias is not None:
             context_layer = self.torch_attention(
                 query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
             )
@@ -978,7 +978,15 @@ class CoreAttention(MegatronModule):
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(b, np, sq, sk)
 
-        # # Attention Prior Setup
+        if attention_bias is not None:
+            # attention_bias is not None only for cross attention layers right now
+            # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
+            eps = 1e-8
+            attention_bias_log = torch.log(attention_bias + eps)
+            attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias_log
+            # attention_scores += attention_bias
+
+        # # Attention Prior Setup - GPT
         # if attention_bias is not None:
         #     # saved = torch.log_softmax(attention_scores, dim=-1)
         #     attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias
@@ -989,14 +997,14 @@ class CoreAttention(MegatronModule):
         #     # attention_scores = torch.log_softmax(attention_scores, dim=2) + attention_bias_log
         #     # # attention_scores += attention_bias
 
-        # Alibi Setup
-        if attention_bias is not None:
-            # attention_bias is not None only for cross attention layers right now
-            # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
-            eps = 1e-8
-            attention_bias_log = torch.log(attention_bias + eps)
-            attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias_log
-            # attention_scores += attention_bias
+        # # Alibi Setup - GPT
+        # if attention_bias is not None:
+        #     # attention_bias is not None only for cross attention layers right now
+        #     # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
+        #     eps = 1e-8
+        #     attention_bias_log = torch.log(attention_bias + eps)
+        #     attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias_log
+        #     # attention_scores += attention_bias
 
         _attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
         # print(f"a: {torch.max(torch.exp(torch.logsumexp(saved, -1)))}")

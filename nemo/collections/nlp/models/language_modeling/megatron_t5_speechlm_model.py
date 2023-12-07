@@ -183,6 +183,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         encodec_model.eval()
 
         self.additional_models = {'encodec': encodec_model}
+        self.train_check_interval  = self.cfg.get('train_check_interval', 500)
+        self.plot_alignments_sliced  = self.cfg.get('plot_alignments_sliced', True)
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -297,7 +299,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             override_config_path=t5_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
-        print(f"self.frozen_model {self.frozen_model}")
+        logging.info(f"self.frozen_model {self.frozen_model}")
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
@@ -374,6 +376,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 cross_attention_prior,
             ) = batch
 
+            if self.trainer.global_step % self.train_check_interval == 0:
+                saved_return_all_crossattention_probs = self.frozen_model.enc_dec_model.return_all_crossattention_probs
+                self.frozen_model.enc_dec_model.return_all_crossattention_probs = True
             output_tensor, encoder_input, out_logits = model(
                 virtual_tokens,
                 context_and_question_tokens,
@@ -389,7 +394,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             )
             output_tensor = output_tensor.contiguous()
 
-            if self.trainer.global_step % 100 == 0:
+            if self.trainer.global_step % self.train_check_interval == 0:
+                self.frozen_model.enc_dec_model.return_all_crossattention_probs = saved_return_all_crossattention_probs
                 with torch.no_grad():
                     with torch.cuda.amp.autocast(enabled=False):
                         # Encodec does not work with fp16, so we disable autocast for logging audio
@@ -410,7 +416,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                 h = h.tolist()
                                 score += editdistance.eval(r, h)
                             score /= text_labels.size()[0]
-                            print(f"wer score : {score}")
+                            logging.info(f"wer score : {score}")
                             self.logger.experiment.add_scalar('WER', score, self.global_step)
                         else:
                             audio_len = (labels[0][0] != 0).sum().item()
@@ -458,30 +464,52 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             token_logits = out_logits[0]
                             speech_logits_list = out_logits[1]
 
-                            if self.trainer.global_step % 500 == 0:
-                                attention_probs_list = out_logits[2]  # list of (BS, 12, out_length, in_length)
-                                if attention_probs_list is not None:
-                                    for lidx in range(len(attention_probs_list)):
-                                        attention_probs = attention_probs_list[lidx]
-                                        for _i in range(attention_probs.shape[1]):
-                                            # alignment_image = plot_alignment_to_numpy(attention_probs[0, _i, :, :].cpu().float().numpy().T)
-                                            # self.logger.experiment.add_image(
-                                            #     f"Attention Probs Layer {lidx} Head {_i}", alignment_image, self.global_step, dataformats="HWC",
-                                            # )
-
-                                            attention_probs_sliced = attention_probs[
+                            # if self.trainer.global_step % 500 == 0:
+                            attention_probs_list = out_logits[2]  # list of (BS, 12, out_length, in_length)
+                            if attention_probs_list is not None:
+                                attention_sliced_list = []
+                                for lidx in range(len(attention_probs_list)):
+                                    attention_probs = attention_probs_list[lidx]
+                                    for _i in range(attention_probs.shape[1]):
+                                        # alignment_image = plot_alignment_to_numpy(attention_probs[0, _i, :, :].cpu().float().numpy().T)
+                                        # self.logger.experiment.add_image(
+                                        #     f"Attention Probs Layer {lidx} Head {_i}", alignment_image, self.global_step, dataformats="HWC",
+                                        # )
+                                        name = f"Attention Probs Layer {lidx} Head {_i}"
+                                        attention_to_plot = attention_probs[0, _i, :, :]
+                                        if self.plot_alignments_sliced:
+                                            attention_to_plot = attention_probs[
                                                 0, _i, 0 : audio_len + 1, question_si : question_ei + 1
                                             ]
-                                            alignment_image_sliced = plot_alignment_to_numpy(
-                                                attention_probs_sliced.cpu().float().numpy().T
-                                            )
-                                            self.logger.experiment.add_image(
-                                                f"Attention Probs Layer {lidx} Head {_i} Sliced",
-                                                alignment_image_sliced,
-                                                self.global_step,
-                                                dataformats="HWC",
-                                            )
-
+                                            name += " Sliced"
+                                        alignment_image = plot_alignment_to_numpy(
+                                            attention_to_plot.cpu().float().numpy().T
+                                        )
+                                        self.logger.experiment.add_image(
+                                            name,
+                                            alignment_image,
+                                            self.global_step,
+                                            dataformats="HWC",
+                                        )
+                                        attention_sliced_list.append(attention_probs[
+                                            0, _i, 0 : audio_len + 1, question_si : question_ei + 1
+                                        ])
+                                attention_sliced = torch.stack(attention_sliced_list)
+                                attention_sliced = torch.mean(attention_sliced, 0)
+                                text = None
+                                if len(input_text) > 0:
+                                    text = self.frozen_model.tokenizer.ids_to_tokens([v[1] for v in input_token_list if v[1] < 30000]) + ['extra']
+                                elif len(phoneme_text) > 0:
+                                    text = phoneme_text.split("|")
+                                alignment_image_sliced = plot_alignment_to_numpy(
+                                    attention_sliced.cpu().float().numpy().T, phoneme_seq=text, phoneme_ver=2, vmin=0., phone_offset=4, h_offset=False
+                                )
+                                self.logger.experiment.add_image(
+                                    f"Attention Probs Average Sliced",
+                                    alignment_image_sliced,
+                                    self.global_step,
+                                    dataformats="HWC",
+                                )
                             if self.frozen_model.enc_dec_model.parallel_output:
                                 # Gather from tensor parallel region
                                 token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
@@ -569,7 +597,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
-        print(f'global_step {self.trainer.global_step}')
+        # logging.info(f'global_step {self.trainer.global_step}')
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
         return loss_mean
 
@@ -642,7 +670,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         loss_mean = self.fwd_bwd_step(
             itertools.chain([batch]), batch_idx, forward_only=True
         )  # comment this out and add custom forward function to calculate WER
-        # print (f'loss_mean {loss_mean}')
+        # logging.info (f'loss_mean {loss_mean}')
 
         labels_original = labels.clone()  # (b, 8, t)
         output_loss, encoder_input, output_logits = self.forward(
@@ -924,7 +952,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             if num_workers > 0
             else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
-        print('build success', len(dataloader), dataset_paths)
+        logging.info(f'build success: {len(dataloader)} {dataset_paths}')
         return dataset, dataloader
 
     def build_virtual_prompt_tarred_dataset(
@@ -980,7 +1008,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             if num_workers > 0
             else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
-        print('build success', len(dataloader), dataset_paths)
+        logging.info(f'build success: {len(dataloader)} {dataset_paths}')
 
         return dataset, dataloader
 
@@ -1015,7 +1043,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
             for t in range(dec_input.shape[2] - 1):
                 if t % 10 == 0:
-                    print("Timestep {}".format(t))
+                    logging.info("Timestep {}".format(t))
 
                 output_logits, _, token_and_speech_logits = self.forward(
                     virtual_tokens,
@@ -1033,7 +1061,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 token_logits = token_and_speech_logits[0]  # (B, T, V)
                 token_logits_currtimestep = token_logits[:, t, :]  # (B, V)
                 token_preds = token_logits_currtimestep.argmax(dim=1)  # (B,)
-                # print("Token preds", token_preds)
+                # logging.info(f"Token preds {token_preds}")
 
                 if torch.count_nonzero(speech_mask) > 0:
                     # output_logits (B, T, V, 8)
@@ -1071,7 +1099,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 for _b in range(token_preds.shape[0]):
                     if t > 10 and token_preds[_b] == self.tokenizer.eos_id:
                         if _b not in end_indices:
-                            print("End detected for item {}".format(_b) + " at timestep {}".format(t))
+                            logging.info("End detected for item {}".format(_b) + " at timestep {}".format(t))
                             end_indices[_b] = t
 
                 output_token_list.append(output_tokens_curr_timestep)
@@ -1129,7 +1157,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                     predicted_tokens = output_tokens_combined[i]
                     if i in end_indices:
-                        print("Clipping until end index for audio", i)
+                        logging.info(f"Clipping until end index for audio {i}")
                         predicted_tokens = predicted_tokens[:, 0 : end_indices[i] + 1]  # trim to audio length
 
                     pred_img = predicted_tokens.data.cpu().float().numpy()
@@ -1210,12 +1238,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     h = h.tolist()
                     cur_wer_score = editdistance.eval(r, h)
                     self.logger.experiment.add_scalar('WER', cur_wer_score, step)
-                    print(f"current wer score : {cur_wer_score}")
+                    logging.info(f"current wer score : {cur_wer_score}")
                     wer_score += cur_wer_score
             if wer_score > 0:
                 wer_score /= batch_size
                 self.logger.experiment.add_scalar('AVG WER', wer_score, step)
-                print(f"average wer score : {wer_score}")
+                logging.info(f"average wer score : {wer_score}")
 
             # compute token error rate for each layer
             for layer_idx in range(8):

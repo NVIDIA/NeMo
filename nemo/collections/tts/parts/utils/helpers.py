@@ -412,7 +412,17 @@ def tacotron2_log_to_wandb_func(
             swriter.log({"audios": audios})
 
 
-def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vmin=None, vmax=None, phoneme_ver=0):
+def plot_alignment_to_numpy(
+        alignment,
+        title='',
+        info=None,
+        phoneme_seq=None,
+        vmin=None,
+        vmax=None,
+        phoneme_ver=0,
+        phone_offset=2,
+        h_offset=True,
+    ):
     # if phoneme_seq is not None:
     #     fig, ax = plt.subplots(figsize=(15, 10))
     # else:
@@ -449,16 +459,17 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
             # for tick in yticks:
             #     new_yticks.append(f"{tick+phoneme_seq[0]:.0f}")
             # ax.set_yticklabels(new_yticks)
-            phones = phoneme_seq[2:]
+            phones = phoneme_seq[phone_offset:]
             ax.set_yticks(np.arange(len(phones)))
             ax.set_yticklabels(phones)
             ax.hlines(np.arange(0.5, len(phones)-0.5, 1.), xmin=0., xmax=alignment.shape[1]-0.5, colors="black")
 
-            xticks = ax.get_xticks()
-            new_xticks = []
-            for tick in xticks:
-                new_xticks.append(f"{tick+phoneme_seq[1]:.0f}")
-            ax.set_xticklabels(new_xticks)
+            if h_offset:
+                xticks = ax.get_xticks()
+                new_xticks = []
+                for tick in xticks:
+                    new_xticks.append(f"{tick+phoneme_seq[1]:.0f}")
+                ax.set_xticklabels(new_xticks)
 
     fig.canvas.draw()
     data = save_figure_to_numpy(fig)
