@@ -94,7 +94,7 @@ def read_lhotse_manifest(config, is_tarred: bool) -> LhotseCutSet:
 def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
     from lhotse import CutSet
 
-    text_field = config.get("text_field", "text")
+    text_field = config.lhotse.get("text_field", "text")
     shuffle = config.get("shuffle", False)
 
     if is_tarred:
