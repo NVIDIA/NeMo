@@ -256,10 +256,11 @@ class TensorRTLLM(ITritonDeployable):
         if p_tuning != "no_ptuning":
             np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings_table)
 
-        if model_type in ["falcon"]:
-            self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
+        tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
+        if os.path.exists(tokenizer_path):
+            shutil.copy(tokenizer_path, self.model_dir)
         else:
-            shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
+            self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
         tmp_dir.cleanup()
 
         if load_model:
