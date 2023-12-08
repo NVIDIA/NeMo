@@ -52,8 +52,9 @@ def get_args(argv):
         "--model_type",
         type=str,
         required=True,
-        choices=["gptnext", "llama"],
-        help="Type of the model. gpt or llama are only supported."
+        choices=["gptnext", "gpt", "llama", "falcon", "starcoder"],
+        help="Type of the model. gptnext, gpt, llama, falcon, and starcoder are only supported."
+             " gptnext and gpt are the same and keeping it for backward compatibility"
     )
 
     parser.add_argument(
@@ -85,7 +86,7 @@ def get_args(argv):
     parser.add_argument(
         "-mil",
         "--max_input_len",
-        default=200,
+        default=256,
         type=int,
         help="Max input length of the model"
     )
@@ -93,7 +94,7 @@ def get_args(argv):
     parser.add_argument(
         "-mol",
         "--max_output_len",
-        default=200,
+        default=256,
         type=int,
         help="Max output length of the model"
     )
@@ -101,7 +102,7 @@ def get_args(argv):
     parser.add_argument(
         "-mbs",
         "--max_batch_size",
-        default=200,
+        default=8,
         type=int,
         help="Max batch size of the model"
     )

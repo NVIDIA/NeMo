@@ -51,9 +51,10 @@ def get_args(argv):
         "-mt",
         "--model_type",
         type=str,
-        required=True,
-        choices=["gptnext", "llama"],
-        help="Type of the model. gpt or llama are only supported."
+        required=False,
+        choices=["gptnext", "gpt", "llama", "falcon", "starcoder"],
+        help="Type of the model. gptnext, gpt, llama, falcon, and starcoder are only supported."
+             " gptnext and gpt are the same and keeping it for backward compatibility"
     )
 
     parser.add_argument(
@@ -116,7 +117,7 @@ def get_args(argv):
     parser.add_argument(
         "-mil",
         "--max_input_len",
-        default=200,
+        default=256,
         type=int,
         help="Max input length of the model"
     )
@@ -124,7 +125,7 @@ def get_args(argv):
     parser.add_argument(
         "-mol",
         "--max_output_len",
-        default=200,
+        default=256,
         type=int,
         help="Max output length of the model"
     )
@@ -132,7 +133,7 @@ def get_args(argv):
     parser.add_argument(
         "-mbs",
         "--max_batch_size",
-        default=200,
+        default=8,
         type=int,
         help="Max batch size of the model"
     )
@@ -183,14 +184,17 @@ def get_args(argv):
 def nemo_deploy(argv):
     args = get_args(argv)
 
+    '''
     if args.debug_mode == "True":
         loglevel = logging.DEBUG
     else:
         loglevel = logging.INFO
+    
 
     logging.setLevel(loglevel)
     logging.info("Logging level set to {}".format(loglevel))
     logging.info(args)
+    '''
 
     if args.triton_model_repository is None:
         trt_llm_path = "/tmp/trt_llm_model_dir/"
@@ -214,6 +218,12 @@ def nemo_deploy(argv):
         logging.error(
             "The provided model repository is not a valid TensorRT-LLM model "
             "directory. Please provide a --nemo_checkpoint."
+        )
+        return
+
+    if args.nemo_checkpoint is not None and args.model_type is None:
+        logging.error(
+            "Model type is required to be defined if a nemo checkpoint is provided."
         )
         return
 
