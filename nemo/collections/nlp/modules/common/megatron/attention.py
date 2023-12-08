@@ -66,10 +66,22 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
+    # Flash Attention Triton
+    import pkg_resources
+    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
+
+    # pinned triton version for flash-attention triton https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
+    assert pkg_resources.get_distribution("triton").version == '2.0.0.dev20221202'
+
+except (ImportError, ModuleNotFoundError, AssertionError):
+
+    flash_attn_func_triton = None
+
+
+try:
     # Flash Attention 1.X
     from flash_attn.bert_padding import pad_input, unpad_input
     from flash_attn.flash_attn_interface import flash_attn_unpadded_func
-    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
 
     HAVE_FLASH_ATTENTION = True
     flash_attn_func = None
@@ -85,8 +97,7 @@ except (ImportError, ModuleNotFoundError):
     except (ImportError, ModuleNotFoundError):
 
         HAVE_FLASH_ATTENTION = False
-
-        flash_attn_unpadded_func, flash_attn_func_triton, flash_attn_func = None, None, None
+        flash_attn_unpadded_func, flash_attn_func = None, None
         unpad_input, pad_input = None, None
 
 try:
@@ -154,6 +165,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.normalize_attention_scores = normalize_attention_scores
         self.position_embedding_type = position_embedding_type
         self.multi_query_attention = multi_query_attention
+        self.use_flash_attention = use_flash_attention
 
         self.megatron_legacy = megatron_legacy
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
@@ -513,7 +525,27 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if get_key_value:
             present = (key_layer, value_layer)
 
-        if checkpoint_core_attention:
+        if (
+            flash_attn_with_kvcache is not None
+            and self.use_flash_attention
+            and rotary_pos_emb is not None
+            and inference_max_sequence_len
+            and not set_inference_key_value_memory
+        ):
+            # Mainly used for decoding with sq=1
+            q = _cast_if_autocast_enabled(
+                rearrange(apply_rotary_pos_emb(query_layer, rotary_pos_emb[0]), 'sq b np hn -> b sq np hn')
+            )
+            k = _cast_if_autocast_enabled(
+                rearrange(apply_rotary_pos_emb(key_layer, rotary_pos_emb[1]), 'sk b np hn -> b sk np hn')
+            )
+            v = _cast_if_autocast_enabled(rearrange(value_layer, 'sk b np hn -> b sk np hn'))
+            context_layer = flash_attn_with_kvcache(
+                q=q, k_cache=k, v_cache=v, causal=self.attn_mask_type == AttnMaskType.causal,
+            )
+            context_layer = rearrange(context_layer, 'b sq np hn -> sq b (np hn)')
+
+        elif checkpoint_core_attention:
             context_layer = self._checkpointed_attention_forward(
                 query_layer,
                 key_layer,

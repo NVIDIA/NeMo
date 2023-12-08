@@ -38,6 +38,22 @@
 **NVIDIA NeMo**
 ===============
 
+Latest News
+-----------
+
+- 2023/12/06 `New NVIDIA NeMo Framework Features and NVIDIA H200 <https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/>`_
+
+.. image:: https://github.com/sbhavani/TransformerEngine/blob/main/docs/examples/H200-NeMo-performance.png
+  :target: https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility
+  :alt: H200-NeMo-performance
+  :width: 600
+
+NeMo Framework has been updated with state-of-the-art features, 
+such as FSDP, Mixture-of-Experts, and RLHF with TensorRT-LLM to provide speedups up to 4.2x for Llama-2 pre-training on H200. 
+**All of these features will be available in an upcoming release.**
+
+
+
 Introduction
 ------------
 
@@ -280,7 +296,7 @@ To install Apex, run
     git clone https://github.com/NVIDIA/apex.git
     cd apex
     git checkout 52e18c894223800cb611682dce27d88050edf1de
-    pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+    pip install install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Apex or any other dependencies.
 
@@ -319,7 +335,7 @@ Transformer Engine requires PyTorch to be built with CUDA 11.8.
 
 Flash Attention
 ~~~~~~~~~~~~~~~~~~~~
-Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models or use with attention bias (introduced from position encoding, e.g. Alibi), please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_.
+Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models, please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_. If you want to use Flash Attention with attention bias (introduced from position encoding, e.g. Alibi), please also install triton pinned version following the `implementation <https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3>`_. 
 
 .. code-block:: bash
 
@@ -340,13 +356,13 @@ NeMo Text Processing, specifically (Inverse) Text Normalization, is now a separa
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
-We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.20.0`` comes with container ``nemo:23.06``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
+We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.21.0`` comes with container ``nemo:23.08``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
 
 To use built container, please run
 
 .. code-block:: bash
 
-    docker pull nvcr.io/nvidia/nemo:23.06
+    docker pull nvcr.io/nvidia/nemo:23.08
 
 To build a nemo container with Dockerfile from a branch, please run
 
@@ -355,13 +371,13 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you choose to work with the main branch, we recommend using NVIDIA's PyTorch container version 23.06-py3 and then installing from GitHub.
+If you choose to work with the main branch, we recommend using NVIDIA's PyTorch container version 23.08-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.06-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.08-py3
 
 Examples
 --------
