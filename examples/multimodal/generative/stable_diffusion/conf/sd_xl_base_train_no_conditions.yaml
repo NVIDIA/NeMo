@@ -47,8 +47,8 @@ model:
   precision: ${trainer.precision}
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
-  micro_batch_size: 56 # limited by GPU memory
-  global_batch_size: 56 # will use more micro batches to reach global batch size
+  micro_batch_size: 1 # limited by GPU memory
+  global_batch_size: 2 # will use more micro batches to reach global batch size
 
 
   scale_factor: 0.13025
@@ -134,28 +134,29 @@ model:
         input_key: captions
         ucg_rate: 0.1
         emb_model:
-          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder
-          layer: hidden
-          layer_idx: 11
+          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
+          restore_from_path: /ckpts/openai.nemo
+          device: cuda
+          freeze: True
+          layer: "penultimate"
       # crossattn and vector cond
       - is_trainable: False
         ucg_rate: 0.1
         input_key: captions
         emb_model:
-          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenOpenCLIPEmbedder2
-          arch: ViT-bigG-14
-          version: laion2b_s39b_b160k
+          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
+          restore_from_path: /ckpts/open_clip_bigG.nemo
+          device: cuda
           freeze: True
-          layer: penultimate
+          layer: "penultimate"
           always_return_pooled: True
-          legacy: False
 
 
   data:
     num_workers: 16
     train:
       dataset_path:
-        - /datasets/coyo/wdinfo/coyo-700m/wdinfo-selene.pkl
+        - /datasets/coyo/test.pkl
       augmentations:
         resize_smallest_side: 256
         center_crop_h_w: 256, 256

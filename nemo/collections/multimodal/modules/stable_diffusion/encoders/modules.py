@@ -477,8 +477,8 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
         return self(text)
 
 
-class FrozenMegatronCLIPEmbedder(AbstractEncoder):
-    def __init__(self, restore_from_path, device="cuda", layer="last", freeze=True, cfg=None, use_fp16=False):
+class FrozenMegatronCLIPEmbedder(AbstractEmbModel):
+    def __init__(self, restore_from_path, device="cuda", layer="last", freeze=True, cfg=None, always_return_pooled=False,):
         super().__init__()
         if restore_from_path is not None:
             cfg, state_dict = self.load_config_and_state_from_nemo(restore_from_path)
@@ -490,6 +490,7 @@ class FrozenMegatronCLIPEmbedder(AbstractEncoder):
         self.cfg = cfg
         self.build_tokenizer(cfg)
         self.load_model(cfg, state_dict)
+        self.return_pooled = always_return_pooled
 
         self.device = device
         if freeze:
@@ -584,11 +585,14 @@ class FrozenMegatronCLIPEmbedder(AbstractEncoder):
         Get embeddings from input text
         '''
         texts = self.text_transform(text)
-        z = self.encode_with_transformer(texts.to(self.device))
+        z, z_pooled = self.encode_with_transformer(texts.to(self.device))
         # # Pad the seq length to multiple of 8
         seq_len = (z.shape[1] + 8 - 1) // 8 * 8
         z = torch.nn.functional.pad(z, (0, 0, 0, seq_len - z.shape[1]), value=0.0)
+        if self.return_pooled:
+            return z, z_pooled
         return z
+
 
     def encode_with_transformer(self, text):
         x = self.model.language_model.embedding.word_embeddings(text)
@@ -597,6 +601,14 @@ class FrozenMegatronCLIPEmbedder(AbstractEncoder):
         x = self.text_transformer_forward(x, attn_mask=self.model.attn_mask)
         x = self.model.language_model.encoder.final_layernorm(x)
         x = x.permute(1, 0, 2)  # LND -> NLD
+        if self.return_pooled:
+            pooled = self.pool(x, text)
+            return x, pooled
+        return x, None
+
+    def pool(self, x, text):
+        # take features from the eot embedding (eot_token is the highest number in each sequence)
+        x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ (self.model.head.weight.T)
         return x
 
     def text_transformer_forward(self, x: torch.Tensor, attn_mask=None):
