@@ -28,6 +28,8 @@ py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_NV_GPT_8B_Chat_4k_RL
 py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_7B_base_1gpu
 py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_7B_base_ptuning_1gpu
 py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_7B_base_2gpu
+py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_7B_code_1gpu
+py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_7B_code_2gpu
 py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_7B_base_tp1pp2
 py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_7B_base_tp2pp2
 py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_7B_base_tp1pp8
