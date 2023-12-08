@@ -687,7 +687,9 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             if not self.cfg.data.get('validation_drop_last', True):
                 logging.info(f'Drop last in validation dataset is set to False')
                 drop_last = False
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples, drop_last=drop_last)
+            self._validation_dl = self.build_pretraining_data_loader(
+                self._validation_ds, consumed_samples, drop_last=drop_last
+            )
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds') and self._test_ds is not None:
