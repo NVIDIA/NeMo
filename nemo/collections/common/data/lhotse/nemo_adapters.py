@@ -23,7 +23,7 @@ class LazyNeMoIterator(ImitatesDict):
     Currently, it requires (and exclusively supports) the following keys in NeMo manifests:
     - "audio_filepath"
     - "duration"
-    - "text"
+    - "text" (overridable with text_field argument)
 
     .. caution:: We assume every audio file has the same sampling rate, and it has to be explicitly provided
         in ``LazyNeMoIterator`` constructor.
@@ -86,7 +86,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
     Currently, it requires (and exclusively supports) the following keys in NeMo manifests:
     - "audio_filepath"
     - "duration"
-    - "text"
+    - "text" (overridable with text_field argument)
     - "shard_id"
 
     Args ``manifest_path`` and ``tar_paths`` can be either a path/string to a single file, or a string in NeMo format
