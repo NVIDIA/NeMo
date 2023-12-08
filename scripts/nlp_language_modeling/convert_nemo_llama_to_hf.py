@@ -19,6 +19,7 @@ from collections import OrderedDict
 import torch
 from pytorch_lightning import Trainer
 from transformers import AutoModelForCausalLM, LlamaTokenizer
+from omegaconf import open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -178,9 +179,6 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     param_to_weights = lambda param: param.to(dtype)
     checkpoint = OrderedDict()
 
-    # Account for megatron_amp_O2
-    model_str = 'model.module' if model.cfg.get('megatron_amp_O2', False) else 'model'
-
     hidden_size = model.cfg.hidden_size
     head_num = model.cfg.num_attention_heads
     num_layers = model.cfg.num_layers
@@ -192,14 +190,14 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     qkv_total_dim = head_num + 2 * num_query_groups
 
     # Embedding
-    embed_weight = model.state_dict()[f'{model_str}.embedding.word_embeddings.weight']
-    embed_weights_base_name = f'{model_str}.embed_tokens.weight'
+    embed_weight = model.state_dict()[f'model.embedding.word_embeddings.weight']
+    embed_weights_base_name = f'model.embed_tokens.weight'
     checkpoint[embed_weights_base_name] = param_to_weights(embed_weight)
 
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
 
-        qkv_weights = model.state_dict()[f'{model_str}.decoder.layers.{l}.self_attention.linear_qkv.weight']
+        qkv_weights = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.weight']
         qkv_weights = qkv_weights.reshape([qkv_total_dim, head_size, hidden_size])
 
         q_slice = torch.cat(
@@ -220,76 +218,80 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         ## k_slice = [8, 18, 28, ... 68, 78]
         ## v_slice = [9, 19, 29, ... 69, 79]
 
-        q_weights_base_name = f'{model_str}.layers.{l}.self_attn.q_proj.weight'
-        k_weights_base_name = f'{model_str}.layers.{l}.self_attn.k_proj.weight'
-        v_weights_base_name = f'{model_str}.layers.{l}.self_attn.v_proj.weight'
+        q_weights_base_name = f'model.layers.{l}.self_attn.q_proj.weight'
+        k_weights_base_name = f'model.layers.{l}.self_attn.k_proj.weight'
+        v_weights_base_name = f'model.layers.{l}.self_attn.v_proj.weight'
 
         checkpoint[q_weights_base_name] = param_to_weights(qkv_weights[q_slice].reshape(-1, hidden_size))
         checkpoint[k_weights_base_name] = param_to_weights(qkv_weights[k_slice].reshape(-1, hidden_size))
         checkpoint[v_weights_base_name] = param_to_weights(qkv_weights[v_slice].reshape(-1, hidden_size))
 
         # attention dense
-        o_weight = model.state_dict()[f'{model_str}.decoder.layers.{l}.self_attention.linear_proj.weight']
-        o_weight_base_name = f'{model_str}.layers.{l}.self_attn.o_proj.weight'
+        o_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_proj.weight']
+        o_weight_base_name = f'model.layers.{l}.self_attn.o_proj.weight'
         checkpoint[o_weight_base_name] = param_to_weights(o_weight)
 
         # mlp
-        mlp_weights = model.state_dict()[f'{model_str}.decoder.layers.{l}.mlp.linear_fc1.weight']
+        mlp_weights = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1.weight']
         mlp_down_proj_weight = mlp_weights[:ffn_hidden_size, :]
         mlp_gate_proj_weight = mlp_weights[ffn_hidden_size:, :]
 
-        mlp_down_proj_base_name = f'{model_str}.layers.{l}.mlp.gate_proj.weight'
-        mlp_gate_proj_base_name = f'{model_str}.layers.{l}.mlp.up_proj.weight'
+        mlp_down_proj_base_name = f'model.layers.{l}.mlp.gate_proj.weight'
+        mlp_gate_proj_base_name = f'model.layers.{l}.mlp.up_proj.weight'
 
         checkpoint[mlp_down_proj_base_name] = param_to_weights(mlp_down_proj_weight)
         checkpoint[mlp_gate_proj_base_name] = param_to_weights(mlp_gate_proj_weight)
 
-        mlp_up_proj_weight = model.state_dict()[f'{model_str}.decoder.layers.{l}.mlp.linear_fc2.weight']
-        mlp_up_proj_base_name = f'{model_str}.layers.{l}.mlp.down_proj.weight'
+        mlp_up_proj_weight = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc2.weight']
+        mlp_up_proj_base_name = f'model.layers.{l}.mlp.down_proj.weight'
         checkpoint[mlp_up_proj_base_name] = param_to_weights(mlp_up_proj_weight)
 
         # layernorm
-        input_ln_weight = model.state_dict()[f'{model_str}.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight']
-        input_ln_base_name = f'{model_str}.layers.{l}.input_layernorm.weight'
+        input_ln_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight']
+        input_ln_base_name = f'model.layers.{l}.input_layernorm.weight'
         checkpoint[input_ln_base_name] = param_to_weights(input_ln_weight)
 
-        post_attn_ln_weight = model.state_dict()[f'{model_str}.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight']
-        post_attn_ln_base_name = f'{model_str}.layers.{l}.post_attention_layernorm.weight'
+        post_attn_ln_weight = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight']
+        post_attn_ln_base_name = f'model.layers.{l}.post_attention_layernorm.weight'
         checkpoint[post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
 
         print(f"done layer {l}")
 
-    final_ln_weight = model.state_dict()[f'{model_str}.decoder.final_layernorm.weight']
-    final_ln_base_name = f'{model_str}.norm.weight'
+    final_ln_weight = model.state_dict()[f'model.decoder.final_layernorm.weight']
+    final_ln_base_name = f'model.norm.weight'
     checkpoint[final_ln_base_name] = param_to_weights(final_ln_weight)
 
-    output_layer_weight = model.state_dict()[f'{model_str}.output_layer.weight']
+    output_layer_weight = model.state_dict()[f'model.output_layer.weight']
     output_layer_base_name = f'lm_head.weight'
     checkpoint[output_layer_base_name] = param_to_weights(output_layer_weight)
-
-    # Account for megatron_amp_O2
-    if model_str == 'model.module':
-        for key in checkpoint.keys():
-            checkpoint[key.replace('model.module', 'model')] = checkpoint.pop(key)
 
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
     torch.save(checkpoint, output_hf_file)
     logging.info(f"Weights saved to {output_hf_file}")
 
 
-def replace_hf_weights(weights_file, input_hf_path, output_hf_path):
+def replace_hf_weights_and_tokenizer(
+    weights_file,
+    input_hf_path,
+    output_hf_path,
+    tokenizer_path,
+    output_hf_tokenizer,
+):
     model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True)
     nemo_exported = torch.load(weights_file)
+
+    if tokenizer_path:
+        tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
+        tokenizer_length = len(tokenizer)
+        model.resize_token_embeddings(tokenizer_length)
 
     model.load_state_dict(nemo_exported)
     model.save_pretrained(output_hf_path)
     logging.info(f"Full HF model saved to {output_hf_path}")
 
-
-def replace_hf_tokenizer(tokenizer_path, output_hf_tokenizer):
-    tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
-    tokenizer.save_pretrained(output_hf_tokenizer)
-    logging.info(f"Tokenizer saved to {output_hf_tokenizer}")
+    if tokenizer_path:
+        tokenizer.save_pretrained(output_hf_tokenizer)
+        logging.info(f"Tokenizer saved to {output_hf_tokenizer}")
 
 
 if __name__ == '__main__':
@@ -298,8 +300,13 @@ if __name__ == '__main__':
         args.hf_out_tokenizer = args.hf_out_path
     convert(args.in_file, args.out_file, precision=args.precision, cpu_only=args.cpu_only)
     if args.hf_in_path and args.hf_out_path:
-        replace_hf_weights(args.out_file, args.hf_in_path, args.hf_out_path)
-        replace_hf_tokenizer(args.in_tokenizer, args.hf_out_tokenizer)
+        replace_hf_weights_and_tokenizer(
+            args.out_file,
+            args.hf_in_path,
+            args.hf_out_path,
+            args.in_tokenizer,
+            args.hf_out_tokenizer,
+        )
     else:
         logging.info("`hf-in-path` and/or `hf-out-path` not provided, not generating full HF model.")
         logging.info(f".bin file is saved to {args.out_file}")
