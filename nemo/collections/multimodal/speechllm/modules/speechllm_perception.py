@@ -299,6 +299,15 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
 
         self.preprocessor = self.asr_model.preprocessor
         self.encoder = self.asr_model.encoder
+        if cfg.get("use_multi_layer_feat", False) and cfg.get("multi_layer_feat", None):
+            self.encoder = ConformerMultiLayerFeatureExtractor(cfg=cfg.multi_layer_feat, encoder=self.encoder)
+            if cfg.multi_layer_feat.aggregator.mode == "cat":
+                with open_dict(cfg.modality_adapter):
+                    cfg.modality_adapter.feat_in = cfg.modality_adapter.feat_in * len(
+                        cfg.multi_layer_feat.layer_idx_list
+                    )
+        else:
+            self.encoder = self.encoder
         self.spec_augmentation = self.asr_model.spec_augmentation
 
         self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
@@ -411,7 +420,13 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
         # b, t, c
         encoded = self.proj(encoded.transpose(1, 2))
 
-        am_hyps_text, log_probs = self.get_am_text_output(am_encoded, am_encoded_len)
+        if self.cfg.get("use_multi_layer_feat", False) and self.cfg.get("multi_layer_feat", None):
+            am_encoded_asr, am_encoded_len = self.asr_model.encoder(
+                audio_signal=processed_signal, length=processed_signal_length
+            )
+        else:
+            am_encoded_asr = am_encoded
+        am_hyps_text, log_probs = self.get_am_text_output(am_encoded_asr, am_encoded_len)
         llm_encoded, llm_encoded_len = self.get_text_embed(am_hyps_text, lm_embedding, pad_id=pad_id)
         attend_encoded, encoded_len, aux_loss = self.cross_attend(encoded, encoded_len, llm_encoded, llm_encoded_len)
 
