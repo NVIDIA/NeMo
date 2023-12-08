@@ -940,14 +940,16 @@ class UNetModel(nn.Module):
         for key_, value_ in state_dict.items():
             if key_.startswith('model.diffusion_model'):
                 re_state_dict[key_.replace('model.diffusion_model.', '')] = value_
-            if key_.startswith('model.model.diffusion_model'):
+            elif key_.startswith('model.model.diffusion_model'):
                 re_state_dict[key_.replace('model.model.diffusion_model.', '')] = value_
-            if key_.startswith('model._orig_mod.diffusion_model.'):
+            elif key_.startswith('model._orig_mod.diffusion_model.'):
                 re_state_dict[key_.replace('model._orig_mod.diffusion_model.', '')] = value_
-            if key_.startswith('model.model._orig_mod.diffusion_model.'):
+            elif key_.startswith('model.model._orig_mod.diffusion_model.'):
                 re_state_dict[key_.replace('model.model._orig_mod.diffusion_model.', '')] = value_
-            if key_.startswith('model.model.diffusion_model._orig_mod.'):
+            elif key_.startswith('model.model.diffusion_model._orig_mod.'):
                 re_state_dict[key_.replace('model.model.diffusion_model._orig_mod.', '')] = value_
+            else:
+                re_state_dict[key_] = value_
         return re_state_dict
 
     def _load_state_dict_into_model(self, state_dict):
