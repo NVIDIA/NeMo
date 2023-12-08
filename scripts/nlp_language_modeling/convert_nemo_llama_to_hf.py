@@ -18,7 +18,7 @@ from collections import OrderedDict
 
 import torch
 from pytorch_lightning import Trainer
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, LlamaTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -40,7 +40,9 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
     --in-file /path/to/file.nemo or /path/to/extracted_folder \
     --out-file /path/to/pytorch_model.bin \
     --hf-in-file /path/to/input_hf_folder \
-    --hf-out-file /path/to/output_hf_folder
+    --hf-out-file /path/to/output_hf_folder \
+    --in-tokenizer /path/to/tokenizer \
+    --hf-out-tokenizer /path/to/output_tokenizer \
 
     Use the --cpu-only flag if the model cannot fit in the GPU (e.g. Llama2 70b). 
     However this option makes the conversion script significantly slower.
@@ -50,7 +52,7 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file", type=str, default=None, required=True, help="Path to .nemo file",
+        "--in-file", type=str, default=None, required=True, help="Path to .nemo file or extracted folder",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to HF .bin file")
     parser.add_argument(
@@ -64,6 +66,18 @@ def get_args():
         type=str,
         default=None,
         help="Output HF model path, " "with the same format as above but user's own weights",
+    )
+    parser.add_argument(
+        "--in-tokenizer",
+        type=str,
+        default=None,
+        help="Path to tokenizer used for the input nemo model. (need to extract the .nemo file first)",
+    )
+    parser.add_argument(
+        "--hf-out-tokenizer",
+        type=str,
+        default=None,
+        help="Path to save the tokenizer used for the output HF model.",
     )
     parser.add_argument(
         "--precision",
@@ -115,7 +129,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     param_to_weights = lambda param: param.to(dtype)
     checkpoint = OrderedDict()
 
-    model_str = 'model.module' if nemo_cfg.get('megatron_amp_O2', False) else 'model'
+    model_str = 'model.module' if model.cfg.get('megatron_amp_O2', False) else 'model'
 
     hidden_size = model.cfg.hidden_size
     head_num = model.cfg.num_attention_heads
@@ -203,6 +217,10 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     output_layer_base_name = f'lm_head.weight'
     checkpoint[output_layer_base_name] = param_to_weights(output_layer_weight)
 
+    if model_str == 'model.module':
+        for key in checkpoint.keys():
+            checkpoint[key.replace('model.module', 'model')] = checkpoint.pop(key)
+
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
     torch.save(checkpoint, output_hf_file)
     logging.info(f"Weights saved to {output_hf_file}")
@@ -217,11 +235,20 @@ def replace_hf_weights(weights_file, input_hf_path, output_hf_path):
     logging.info(f"Full HF model saved to {output_hf_path}")
 
 
+def replace_hf_tokenizer(tokenizer_path, output_hf_tokenizer):
+    tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
+    tokenizer.save_pretrained(output_hf_tokenizer)
+    logging.info(f"Tokenizer saved to {output_hf_tokenizer}")
+
+
 if __name__ == '__main__':
     args = get_args()
+    if not args.hf_out_tokenizer and args.hf_out_path:
+        args.hf_out_tokenizer = args.hf_out_path
     convert(args.in_file, args.out_file, precision=args.precision, cpu_only=args.cpu_only)
     if args.hf_in_path and args.hf_out_path:
         replace_hf_weights(args.out_file, args.hf_in_path, args.hf_out_path)
+        replace_hf_tokenizer(args.in_tokenizer, args.hf_out_tokenizer)
     else:
         logging.info("`hf-in-path` and/or `hf-out-path` not provided, not generating full HF model.")
         logging.info(f".bin file is saved to {args.out_file}")
