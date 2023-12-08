@@ -20,9 +20,8 @@ from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.transformer.attention import SelfAttentionSubmodules
-from megatron.core.transformer.base_layer import BaseLayer, LayerSubmodules
 from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
+from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import make_viewless_tensor
@@ -42,21 +41,7 @@ from megatron.core.utils import make_viewless_tensor
         hyperparameters: transformer hyperparameters
 """
 
-
-@dataclass
-class FalconTransformerLayerSubmodules(LayerSubmodules):
-    input_layernorm: Union[ModuleSpec, type] = IdentityOp
-    self_attention: Union[ModuleSpec, type] = IdentityOp
-    self_attn_bda: Union[ModuleSpec, type] = IdentityFuncOp
-
-    post_self_attn_layernorm: Union[ModuleSpec, type] = IdentityOp
-
-    pre_mlp_layernorm: Union[ModuleSpec, type] = IdentityOp
-    mlp: Union[ModuleSpec, type] = IdentityOp
-    mlp_bda: Union[ModuleSpec, type] = IdentityFuncOp
-
-
-class FalconTransformerLayer(BaseLayer):
+class FalconTransformerLayer(TransformerLayer):
     """A single transformer layer.
 
     Transformer layer takes input with size [s, b, h] and returns an
@@ -67,42 +52,21 @@ class FalconTransformerLayer(BaseLayer):
     def __init__(
         self,
         config: TransformerConfig,  # should come from FalconTransformerConfig class
-        submodules: FalconTransformerLayerSubmodules,
+        submodules: TransformerLayerSubmodules,
         layer_number: int = 1,
         self_attn_mask_type=AttnMaskType.padding,
     ):
-        super().__init__(config=config, submodules=submodules)
-        self.config: TransformerConfig = config
-
-        self.layer_number = layer_number + self._get_layer_offset()
-
-        self.self_attn_mask_type = self_attn_mask_type
+        super().__init__(config=config, submodules=submodules, layer_number=layer_number)
 
         if hasattr(self.config, 'new_decoder_architecture'):
             self.new_decoder_architecture = self.config.new_decoder_architecture
         else:
             self.new_decoder_architecture = None
-
         if hasattr(self.config, 'parallel_attention'):
             self.parallel_attention = self.config.parallel_attention
         else:
             self.parallel_attention = None
 
-        ## [Module 1: Input Layernorm] Optional Layernorm on the input data
-        self.input_layernorm = build_module(
-            submodules.input_layernorm,
-            config=self.config,
-            hidden_size=self.config.hidden_size,
-            eps=self.config.layernorm_epsilon,
-        )
-
-        ## [Module 2: SelfAttention]
-        self.self_attention = build_module(submodules.self_attention, config=self.config, layer_number=layer_number,)
-
-        ## [Module 3: BiasDropoutFusion] Optional
-        self.self_attn_bda = build_module(submodules.self_attn_bda)
-
-        ## [Module 4: Post SelfAttention] Optional Layernorm after self-attn
         if self.new_decoder_architecture or self.parallel_attention:
             self.post_self_attn_layernorm = None
         else:
@@ -112,8 +76,6 @@ class FalconTransformerLayer(BaseLayer):
                 hidden_size=self.config.hidden_size,
                 eps=self.config.layernorm_epsilon,
             )
-
-        ## [Module 5: pre mlp layernorm] Optional Layernorm before MLP, used in Falcon's new decoder architecture
         if self.new_decoder_architecture:
             self.pre_mlp_layernorm = build_module(
                 submodules.pre_mlp_layernorm,
@@ -123,14 +85,6 @@ class FalconTransformerLayer(BaseLayer):
             )
         else:
             self.pre_mlp_layernorm = None
-
-        ## [Module 6: MLP block]
-        self.mlp = build_module(submodules.mlp, config=self.config)
-
-        ## [Module 7: BiasDropoutFusion] Optional
-        self.mlp_bda = build_module(submodules.mlp_bda)
-
-        self.bias_dropout_add_exec_handler = torch.enable_grad
 
     def forward(
         self,
@@ -149,7 +103,6 @@ class FalconTransformerLayer(BaseLayer):
         if self.new_decoder_architecture:
             mlp_ln_output = self.pre_mlp_layernorm(hidden_states)
 
-        # Optional Input Layer norm
         input_layernorm_output = self.input_layernorm(hidden_states)
 
         input_mlp_ln = input_layernorm_output
