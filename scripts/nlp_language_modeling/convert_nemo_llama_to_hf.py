@@ -48,6 +48,49 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
     However this option makes the conversion script significantly slower.
 """
 
+#################
+### Utilities ###
+#################
+
+
+def force_cpu_model(cfg):
+    with open_dict(cfg):
+        # temporarily set to cpu
+        original_cpu_init = cfg.get('use_cpu_initialization', False)
+        if 'megatron_amp_O2' in cfg:
+            key = 'megatron_amp_O2'
+            original_amp_o2 = cfg.megatron_amp_O2
+        elif 'megatron_amp_02' in cfg:
+            key = 'megatron_amp_02'
+            original_amp_o2 = cfg.megatron_amp_02
+        else:
+            key, original_amp_o2 = None, None
+
+        # Set new values
+        cfg.use_cpu_initialization = True
+        if key is not None:
+            cfg[key] = False
+
+    # Setup restore dict
+    restore_dict = {'use_cpu_initialization': original_cpu_init}  # 'megatron_amp_O2': original_amp_o2
+    if key is not None:
+        restore_dict[key] = original_amp_o2
+
+    return cfg, restore_dict
+
+
+def restore_model_config(cfg, original_dict):
+    with open_dict(cfg):
+        for key, val in original_dict.items():
+            logging.info(f"Restoring model config key ({key}) from {cfg[key]} to original value of {val}")
+            cfg[key] = val
+    return cfg
+
+
+#################
+### Utilities ###
+#################
+
 
 def get_args():
     parser = ArgumentParser()
@@ -104,16 +147,22 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     if cpu_only:
         map_location = torch.device('cpu')
         model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
-        model_config.use_cpu_initialization = True
         model_config.tensor_model_parallel_size = 1
+        # Force model onto CPU
+        model_config, restore_dict = force_cpu_model(model_config)
     else:
         map_location, model_config = None, None
+        model_config, restore_dict = None, {}
 
     if cpu_only:
         logging.info("******** Loading model on CPU. This will take a significant amount of time.")
     model = MegatronGPTModel.restore_from(
         input_nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
     )
+
+    # Restore model config
+    restore_model_config(model.cfg, restore_dict)
+
     if precision is None:
         precision = model.cfg.precision
     if precision in [32, "32"]:
@@ -129,6 +178,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     param_to_weights = lambda param: param.to(dtype)
     checkpoint = OrderedDict()
 
+    # Account for megatron_amp_O2
     model_str = 'model.module' if model.cfg.get('megatron_amp_O2', False) else 'model'
 
     hidden_size = model.cfg.hidden_size
@@ -217,6 +267,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     output_layer_base_name = f'lm_head.weight'
     checkpoint[output_layer_base_name] = param_to_weights(output_layer_weight)
 
+    # Account for megatron_amp_O2
     if model_str == 'model.module':
         for key in checkpoint.keys():
             checkpoint[key.replace('model.module', 'model')] = checkpoint.pop(key)
