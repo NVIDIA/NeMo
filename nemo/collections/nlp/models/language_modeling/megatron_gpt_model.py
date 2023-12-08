@@ -1172,11 +1172,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss
 
     def build_train_valid_test_datasets(self):
-        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
-        self._reconfigure_val_batches()
-        logging.info('Building GPT datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
+        logging.info('Building GPT datasets.')
         global_batch_size = self.cfg.global_batch_size
         max_train_steps = self.trainer.max_steps
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
@@ -1240,6 +1238,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building GPT datasets.')
+        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+        self._reconfigure_val_batches()
 
         return self._train_ds, self._validation_ds, self._test_ds
 
