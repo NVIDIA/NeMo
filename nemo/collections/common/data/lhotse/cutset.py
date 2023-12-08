@@ -94,6 +94,9 @@ def read_lhotse_manifest(config, is_tarred: bool) -> LhotseCutSet:
 def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
     from lhotse import CutSet
 
+    text_field = config.get("text_field", "text")
+    shuffle = config.get("shuffle", False)
+
     if is_tarred:
         if isinstance(config["manifest_filepath"], (str, Path)):
             logging.info(
@@ -103,7 +106,8 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                 LazyNeMoTarredIterator(
                     config["manifest_filepath"],
                     tar_paths=config["tarred_audio_filepaths"],
-                    shuffle_shards=config.get("shuffle", False),
+                    shuffle_shards=shuffle,
+                    text_field=text_field,
                 )
             )
         else:
@@ -123,7 +127,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                 cutsets.append(
                     CutSet(
                         LazyNeMoTarredIterator(
-                            manifest_path=mp, tar_paths=tp, shuffle_shards=config.get("shuffle", False),
+                            manifest_path=mp, tar_paths=tp, shuffle_shards=shuffle, text_field=text_field
                         )
                     )
                 )
@@ -134,5 +138,9 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
         logging.info(
             f"Initializing Lhotse CutSet from a single NeMo manifest (non-tarred): '{config['manifest_filepath']}'"
         )
-        cuts = CutSet(LazyNeMoIterator(config["manifest_filepath"], sampling_rate=config.get("sample_rate")))
+        cuts = CutSet(
+            LazyNeMoIterator(
+                config["manifest_filepath"], sampling_rate=config.get("sample_rate"), text_field=text_field
+            )
+        )
     return cuts

@@ -1,7 +1,7 @@
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 
 import pytest
 import torch.utils.data
@@ -65,7 +65,14 @@ def nemo_manifest_path(cutset_path: Path):
 
     nemo = []
     for c in CutSet.from_file(cutset_path):
-        nemo.append({"audio_filepath": c.recording.sources[0].source, "text": "irrelevant", "duration": c.duration})
+        nemo.append(
+            {
+                "audio_filepath": c.recording.sources[0].source,
+                "text": "irrelevant",
+                "text-other": "not relevant",
+                "duration": c.duration,
+            }
+        )
     p = cutset_path.parent / "nemo_manifest.json"
     save_to_jsonl(nemo, p)
     return p
@@ -384,3 +391,25 @@ def test_dataloader_from_lhotse_shar_cuts_combine_datasets_weighted(
     b = batches[3]
     assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
     assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 0  # dataset 2
+
+
+class TextDataset(torch.utils.data.Dataset):
+    def __getitem__(self, cuts: lhotse.CutSet) -> List[str]:
+        return [c.supervisions[0].text for c in cuts]
+
+
+def test_dataloader_from_nemo_manifest_with_text_field(nemo_manifest_path: Path):
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": nemo_manifest_path,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "lhotse": {"text_field": "text-other", "use_bucketing": False, "max_cuts": 2,},
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=TextDataset())
+    b = next(iter(dl))
+    assert b == ["not relevant", "not relevant"]  # comes from manifest["text-other"] rather than ["text"]

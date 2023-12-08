@@ -33,11 +33,12 @@ class LazyNeMoIterator(ImitatesDict):
         >>> cuts = lhotse.CutSet(LazyNeMoIterator("nemo_manifests/train.json", sampling_rate=16000))
     """
 
-    def __init__(self, path: str | Path, sampling_rate: int = 16000) -> None:
+    def __init__(self, path: str | Path, sampling_rate: int = 16000, text_field: str = "text") -> None:
         from lhotse.lazy import LazyJsonlIterator
 
         self.source = LazyJsonlIterator(path)
         self.sampling_rate = sampling_rate
+        self.text_field = text_field
 
     @property
     def path(self) -> str | Path:
@@ -59,7 +60,11 @@ class LazyNeMoIterator(ImitatesDict):
             cut = recording.to_cut()
             cut.supervisions.append(
                 SupervisionSegment(
-                    id=cut.id, recording_id=cut.recording_id, start=0, duration=cut.duration, text=data["text"],
+                    id=cut.id,
+                    recording_id=cut.recording_id,
+                    start=0,
+                    duration=cut.duration,
+                    text=data[self.text_field],
                 )
             )
             yield cut
@@ -96,7 +101,9 @@ class LazyNeMoTarredIterator(ImitatesDict):
         ... ))
     """
 
-    def __init__(self, manifest_path: str | Path, tar_paths: str | list, shuffle_shards: bool = False,) -> None:
+    def __init__(
+        self, manifest_path: str | Path, tar_paths: str | list, shuffle_shards: bool = False, text_field: str = "text"
+    ) -> None:
         from cytoolz import groupby
         from lhotse.lazy import LazyJsonlIterator
 
@@ -112,6 +119,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
         tar_paths = expand_sharded_filepaths(tar_paths, shard_strategy="replicate", world_size=1, global_rank=0)
         self.shard_id_to_tar_path: Dict[int, Path] = {int(strip_pipe(p).stem.split("_")[1]): p for p in tar_paths}
         self.shuffle_shards = shuffle_shards
+        self.text_field = text_field
         self._validate()
 
     def _validate(self) -> None:
@@ -166,7 +174,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
                             recording_id=cut.recording_id,
                             start=0,
                             duration=cut.duration,
-                            text=data["text"],
+                            text=data[self.text_field],
                         )
                     )
                     yield cut

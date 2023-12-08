@@ -58,7 +58,8 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
         logging.info(f"Creating a Lhotse DynamicBucketingSampler (batch_duration={config.lhotse.batch_duration})")
         sampler = DynamicBucketingSampler(
             cuts,
-            max_duration=config.lhotse.batch_duration,
+            max_duration=config.lhotse.get("batch_duration", None),
+            max_cuts=config.lhotse.get("max_cuts", None),
             num_buckets=config.lhotse.get("num_buckets", 10),
             shuffle=config.get("shuffle", False),
             drop_last=config.lhotse.get("drop_last", True),
@@ -80,7 +81,8 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
         )
         sampler = DynamicCutSampler(
             cuts,
-            max_duration=config.lhotse.batch_duration,
+            max_duration=config.lhotse.get("batch_duration", None),
+            max_cuts=config.lhotse.get("max_cuts", None),
             shuffle=config.get("shuffle", False),
             drop_last=config.lhotse.get("drop_last", True),
             shuffle_buffer_size=config.lhotse.get("shuffle_buffer_size", 10000),

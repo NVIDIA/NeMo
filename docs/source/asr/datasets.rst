@@ -622,6 +622,10 @@ Some other Lhotse related arguments we support:
     and save some time. It has to have a length of ``num_buckets - 1``. An optimal value can be obtained by running CLI:
     ``lhotse cut estimate-bucket-bins -b $num_buckets my-cuts.jsonl.gz``
 * ``lhotse.use_bucketing`` is a boolean which indicates if we want to enable/disable dynamic bucketing. By defalt it's enabled.
+* ``lhotse.text_field`` is the name of the key in the JSON (NeMo) manifest from which we should be reading text (default="text").
+* ``lhotse.max_cuts``
+    Limits the number of examples in a mini-batch to this number, when combined with ``batch_duration``.
+    When ``batch_duration`` is not set, it acts as a static batch size.
 * ``lhotse.seed`` sets a random seed for the shuffle buffer.
 
 Preparing Text-Only Data for Hybrid ASR-TTS Models
