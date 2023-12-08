@@ -21,9 +21,9 @@ from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTenso
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.transformer.attention import SelfAttentionSubmodules
 from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
 
 """ We use the following notation throughout this file:
@@ -40,6 +40,7 @@ from megatron.core.utils import make_viewless_tensor
     tensor of the same size. We use the following arguments:
         hyperparameters: transformer hyperparameters
 """
+
 
 class FalconTransformerLayer(TransformerLayer):
     """A single transformer layer.

@@ -18,10 +18,13 @@ from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.transformer.attention import SelfAttention
+from megatron.core.transformer.custom_layers.transformer_engine import (
+    TEColumnParallelLinear,
+    TELayerNormColumnParallelLinear,
+)
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
-from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear, TEColumnParallelLinear
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -71,12 +74,14 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         # TELayerNormColumnParallelLinear fused LN and linear, both will be returned.
         # In nemo/collections/nlp/models/language_modeling/megatron/falcon/falcon_spec.py TEColumnParallelLinear is used for linear_qkv,
         # which only returns linear.
-        if isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):  
+        if isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
             mixed_qkv, layernorm_output = linear_qkv_output
         elif isinstance(self.linear_qkv, TEColumnParallelLinear):  # only mixed_qkv
             mixed_qkv = linear_qkv_output
         else:
-            raise ValueError(f"Unrecognized module type '{type(self.linear_qkv)}' when getting query, key, value tensors for mcore mixins. ")
+            raise ValueError(
+                f"Unrecognized module type '{type(self.linear_qkv)}' when getting query, key, value tensors for mcore mixins. "
+            )
 
         # LoRA logic
         if self.is_adapter_available():
