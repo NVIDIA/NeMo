@@ -18,7 +18,12 @@ from collections import OrderedDict
 
 import torch
 from pytorch_lightning import Trainer
-from transformers import AutoModelForCausalLM, LlamaTokenizerFast
+from transformers import (
+    AutoModelForCausalLM,
+    LlamaTokenizer,
+    LlamaTokenizerFast,
+    convert_slow_tokenizer,
+)
 from omegaconf import open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -40,8 +45,8 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
     python convert_nemo_llama_to_hf.py \
     --in-file /path/to/file.nemo or /path/to/extracted_folder \
     --out-file /path/to/pytorch_model.bin \
-    --hf-in-file /path/to/input_hf_folder \
-    --hf-out-file /path/to/output_hf_folder \
+    --hf-in-path /path/to/input_hf_folder \
+    --hf-out-path /path/to/output_hf_folder \
     --in-tokenizer /path/to/tokenizer \
     --hf-out-tokenizer /path/to/output_tokenizer \
 
@@ -289,11 +294,14 @@ def replace_hf_weights_and_tokenizer(
     nemo_exported = torch.load(weights_file)
 
     if tokenizer_path:
-        tokenizer = LlamaTokenizerFast.from_pretrained(
+        tokenizer = LlamaTokenizer.from_pretrained(
             tokenizer_path,
-            local_files_only=True
+            local_files_only=True,
+            legacy=False,
         )
-        tokenizer_length = len(tokenizer)
+        tmp_tokenizer = convert_slow_tokenizer.convert_slow_tokenizer(tokenizer)
+        fast_tokenizer = LlamaTokenizerFast(tokenizer_object=tmp_tokenizer)
+        tokenizer_length = len(fast_tokenizer)
         model.resize_token_embeddings(tokenizer_length)
 
     model.load_state_dict(nemo_exported)
@@ -301,6 +309,7 @@ def replace_hf_weights_and_tokenizer(
     logging.info(f"Full HF model saved to {output_hf_path}")
 
     if tokenizer_path:
+        fast_tokenizer.save_pretrained(output_hf_tokenizer)
         tokenizer.save_pretrained(output_hf_tokenizer)
         logging.info(f"Tokenizer saved to {output_hf_tokenizer}")
 
