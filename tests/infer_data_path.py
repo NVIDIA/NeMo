@@ -150,6 +150,17 @@ def get_infer_test_data():
     test_data["LLAMA2-70B-base"]["max_output_token"] = 128
     test_data["LLAMA2-70B-base"]["max_batch_size"] = 10
 
+    test_data["LLAMA2-7B-code"] = {}
+    test_data["LLAMA2-7B-code"]["model_type"] = "llama"
+    test_data["LLAMA2-7B-code"]["total_gpus"] = [1, 2, 4, 8]
+    test_data["LLAMA2-7B-code"]["location"] = "Local"
+    test_data["LLAMA2-7B-code"]["trt_llm_model_dir"] = "/tmp/LLAMA2-7B-code/trt_llm_model-1/"
+    test_data["LLAMA2-7B-code"]["checkpoint"] = "/opt/checkpoints/LLAMA2-7B-code/LLAMA2-7B-code-1.nemo"
+    test_data["LLAMA2-7B-code"]["prompt_template"] = ["You are an expert programmer that writes simple, concise code and explanations. Write a python function to generate the nth fibonacci number."]
+    test_data["LLAMA2-7B-code"]["expected_keyword"] = ["Here"]
+    test_data["LLAMA2-7B-code"]["max_output_token"] = 128
+    test_data["LLAMA2-7B-code"]["max_batch_size"] = 10
+
     test_data["FALCON-7B-base"] = {}
     test_data["FALCON-7B-base"]["model_type"] = "falcon"
     test_data["FALCON-7B-base"]["total_gpus"] = [1, 2, 4, 8]
