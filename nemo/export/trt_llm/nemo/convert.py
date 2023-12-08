@@ -193,16 +193,22 @@ def split_and_save_weight(
         or "pre_mlp_layernorm.weight" in key
         or "pre_mlp_layernorm.bias" in key
         or "attention.dense.bias" in key
+        or "attention.linear_proj.bias" in key
         or "post_attention_layernorm.weight" in key
         or "post_attention_layernorm.bias" in key
         or "post_self_attn_layernorm.weight" in key
         or "mlp.dense_4h_to_h.bias" in key
+        or "mlp.linear_fc2.bias" in key
         or "final_layernorm.weight" in key
         or "final_layernorm.bias" in key
     ):
         # shared weights, only need to convert the weights of rank 0
         if "post_self_attn_layernorm.weight" in key:
             key = key.replace("post_self_attn_layernorm.weight", "post_attention_layernorm.weight")
+        elif "mlp.linear_fc2.bias" in key:
+            key =  key.replace("mlp.linear_fc2.bias", "mlp.dense_4h_to_h.bias")
+        elif "attention.linear_proj.bias" in key:
+            key = key.replace("attention.linear_proj.bias", "attention.dense.bias")
         if tp_rank == 0:
             save_val(vals[0], saved_dir, key)
 
@@ -229,6 +235,7 @@ def split_and_save_weight(
         "mlp.dense_h_to_4h.weight" in key
         or "mlp.dense_h_to_4h.bias" in key
         or "mlp.linear_fc1.weight" in key
+        or "mlp.linear_fc1.bias" in key
     ):
         if split_gated_activation:
             splits = [np.split(val, 2, axis=-1) for val in vals]
@@ -237,8 +244,8 @@ def split_and_save_weight(
         val = np.concatenate(vals, axis=cat_dim)
         split_vals = np.split(val, split_factor, axis=cat_dim)
 
-        if "mlp.linear_fc1.weight" in key:
-            key = key.replace("mlp.linear_fc1.weight", "mlp.dense_h_to_4h.weight")
+        if "mlp.linear_fc1" in key:
+            key = key.replace("mlp.linear_fc1", "mlp.dense_h_to_4h")
         save_split(split_vals, saved_dir, key, tp_rank, split_factor)
         if act_range is not None and int8_outputs == "all":
             base_key = key.replace(".weight", "")
@@ -265,14 +272,13 @@ def split_and_save_weight(
             vals_i8 = generate_int8(val, act_range, multi_query_mode=multi_query_mode)
             write_int8(vals_i8, saved_dir, base_key, cat_dim, tp_rank, split_factor)
 
-    elif "attention.query_key_value.bias" in key:
-        assert (
-            num_attention_heads == num_kv_heads or multi_query_mode
-        ), "QKV bias is not supported for group query attention"
+    elif "attention.query_key_value.bias" in key or "attention.linear_qkv.bias" in key:
+        if "attention.linear_qkv.bias" in key:
+            key = key.replace("attention.linear_qkv.bias", "attention.query_key_value.bias")
         if local_dim is None:
             local_dim = vals[0].shape[-1] // 3
 
-        if multi_query_mode:
+        if num_attention_heads != num_kv_heads:
             val = vals[0]
             # out_feature = local_dim + 2 * head_size; assumes local_dim equals to hidden_dim
             b_q, b_kv = np.split(val, [local_dim], axis=-1)
