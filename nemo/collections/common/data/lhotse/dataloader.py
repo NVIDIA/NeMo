@@ -50,16 +50,20 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
         cuts = CutSet.mux(cuts, cuts.perturb_speed(0.9), cuts.perturb_speed(1.1),)
 
     # 3. The sampler.
+    batch_duration = config.lhotse.get("batch_duration", None)
+    max_cuts = config.lhotse.get("max_cuts", None)
     if config.lhotse.get("use_bucketing", True):
         # Bucketing. Some differences from NeMo's native bucketing:
         #    - we can tweak the number of buckets without triggering a full data copy
         #    - batch size is dynamic and configurable via a single param: max_duration (config: batch_duration)
         #    - quadratic_duraion introduces a penalty useful to balance batch sizes for quadratic time complexity models
-        logging.info(f"Creating a Lhotse DynamicBucketingSampler (batch_duration={config.lhotse.batch_duration})")
+        logging.info(
+            f"Creating a Lhotse DynamicBucketingSampler (batch_duration={batch_duration} max_cuts={max_cuts})"
+        )
         sampler = DynamicBucketingSampler(
             cuts,
-            max_duration=config.lhotse.get("batch_duration", None),
-            max_cuts=config.lhotse.get("max_cuts", None),
+            max_duration=batch_duration,
+            max_cuts=max_cuts,
             num_buckets=config.lhotse.get("num_buckets", 10),
             shuffle=config.get("shuffle", False),
             drop_last=config.lhotse.get("drop_last", True),
@@ -77,12 +81,13 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
         # but we also use batch_duration instead of batch_size here.
         # Recommended for dev/test.
         logging.info(
-            f"Creating a Lhotse DynamicCutSampler (bucketing is disabled, batch_duration={config.lhotse.batch_duration})"
+            f"Creating a Lhotse DynamicCutSampler (bucketing is disabled, "
+            f"batch_duration={batch_duration} max_cuts={max_cuts})"
         )
         sampler = DynamicCutSampler(
             cuts,
-            max_duration=config.lhotse.get("batch_duration", None),
-            max_cuts=config.lhotse.get("max_cuts", None),
+            max_duration=batch_duration,
+            max_cuts=max_cuts,
             shuffle=config.get("shuffle", False),
             drop_last=config.lhotse.get("drop_last", True),
             shuffle_buffer_size=config.lhotse.get("shuffle_buffer_size", 10000),
