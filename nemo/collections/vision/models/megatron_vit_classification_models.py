@@ -41,7 +41,6 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
@@ -530,7 +529,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
     def on_validation_epoch_end(self):
         # TODO (yuya): need fix later, check with Sean
         if not self.validation_step_outputs:
-            return
+            return None
 
         if parallel_state.is_pipeline_last_stage():
             loss_outputs = [output[0] for output in self.validation_step_outputs]
@@ -688,7 +687,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             if not self.cfg.data.get('validation_drop_last', True):
                 logging.info(f'Drop last in validation dataset is set to False')
                 drop_last = False
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples,)
+            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples, drop_last=drop_last)
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds') and self._test_ds is not None:

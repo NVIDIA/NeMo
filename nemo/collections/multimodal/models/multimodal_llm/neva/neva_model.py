@@ -1026,6 +1026,6 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         # Supports only one prompt at a time
         result = megatron_neva_generate(self.cuda(), input_prompts, length_params, sampling_params, inference_config)
         end = time.time()
-        # print(f'Time taken {end - start}')
+        print(f'Time taken {end - start}')
 
         return result
