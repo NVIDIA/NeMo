@@ -147,9 +147,9 @@ class TensorRTLLM(ITritonDeployable):
         n_gpus: int = 1,
         tensor_parallel_size = None,
         pipeline_parallel_size = None,
-        max_input_token: int = 512,
-        max_output_token: int = 512,
-        max_batch_size: int = 32,
+        max_input_token: int = 256,
+        max_output_token: int = 256,
+        max_batch_size: int = 8,
         use_inflight_batching: bool = False,
         enable_context_fmha: bool = True,
         paged_kv_cache: bool = False,
@@ -161,11 +161,13 @@ class TensorRTLLM(ITritonDeployable):
 
         Args:
             nemo_checkpoint_path (str): path for the nemo checkpoint.
-            model_type (str): type of the model. Currently supports "llama" and "gptnext".
+            model_type (str): type of the model. Currently, "llama", "gptnext", "falcon", and "starcoder" are supported.
             prompt_embeddings_table: prompt embeddings table.
             prompt_embeddings_checkpoint_path (str): path for the nemo checkpoint for the prompt embedding table.
             delete_existing_files (bool): if Truen, deletes all the files in model_dir.
             n_gpus (int): number of GPUs to use for inference.
+            tensor_parallel_size (int): tensor parallelism.
+            pipeline_parallel_size (int): pipeline parallelism.
             max_input_token (int): max input length.
             max_output_token (int): max output length.
             max_batch_size (int): max batch size.
@@ -175,6 +177,15 @@ class TensorRTLLM(ITritonDeployable):
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
             load_model (bool): load TensorRT-LLM model after the export.
         """
+
+        if not model_type in self.get_supported_models_list:
+            raise Exception("Model {0} is not currently a supported model type. "
+                            "Supported model types are llama, gptnext, falcon, and starcoder".format(model_type))
+
+        if model_type == "gpt" or "starcoder":
+            # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
+            # gpt and starcoder use the similar model architecture. So, gpt can be used for starcoder.
+            model_type = "gptnext"
 
         if pipeline_parallel_size is None:
             tensor_parallel_size = n_gpus
@@ -313,6 +324,11 @@ class TensorRTLLM(ITritonDeployable):
                 streaming=False,
                 **sampling_kwargs,
             )
+
+    @property
+    def get_supported_models_list(self):
+        # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
+        return ["gpt", "gptnext", "llama", "falcon", "starcoder"]
 
     def get_hidden_size(self):
         if self.config is None:
