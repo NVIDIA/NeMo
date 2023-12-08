@@ -18,7 +18,7 @@ from collections import OrderedDict
 
 import torch
 from pytorch_lightning import Trainer
-from transformers import AutoModelForCausalLM, LlamaTokenizer
+from transformers import AutoModelForCausalLM, LlamaTokenizerFast
 from omegaconf import open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -175,6 +175,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     else:
         logging.warning(f"Precision string {precision} is not recognized, falling back to fp32")
         dtype = torch.float32  # fallback
+    logger.info(f"Using precision {dtype}")
 
     param_to_weights = lambda param: param.to(dtype)
     checkpoint = OrderedDict()
@@ -269,19 +270,29 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     torch.save(checkpoint, output_hf_file)
     logging.info(f"Weights saved to {output_hf_file}")
 
+    return dtype
+
 
 def replace_hf_weights_and_tokenizer(
     weights_file,
+    dtype,
     input_hf_path,
     output_hf_path,
     tokenizer_path,
     output_hf_tokenizer,
 ):
-    model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        input_hf_path,
+        local_files_only=True,
+        torch_dtype=dtype,
+    )
     nemo_exported = torch.load(weights_file)
 
     if tokenizer_path:
-        tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
+        tokenizer = LlamaTokenizerFast.from_pretrained(
+            tokenizer_path,
+            local_files_only=True
+        )
         tokenizer_length = len(tokenizer)
         model.resize_token_embeddings(tokenizer_length)
 
@@ -298,10 +309,18 @@ if __name__ == '__main__':
     args = get_args()
     if not args.hf_out_tokenizer and args.hf_out_path:
         args.hf_out_tokenizer = args.hf_out_path
-    convert(args.in_file, args.out_file, precision=args.precision, cpu_only=args.cpu_only)
+
+    dtype = convert(
+        args.in_file,
+        args.out_file,
+        precision=args.precision,
+        cpu_only=args.cpu_only
+    )
+
     if args.hf_in_path and args.hf_out_path:
         replace_hf_weights_and_tokenizer(
             args.out_file,
+            dtype,
             args.hf_in_path,
             args.hf_out_path,
             args.in_tokenizer,
