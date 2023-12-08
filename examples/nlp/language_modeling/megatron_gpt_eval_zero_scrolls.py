@@ -221,12 +221,19 @@ def main(cfg) -> None:
     if fp8_enabled:
         nb_paddings = 0
 
+    prompt = None
+    if cfg.sft_type == 'instruction':
+        prompt = cfg.sft_config.instruction_prompt
+    elif cfg.sft_type == 'dialog':
+        prompt = cfg.sft_config.dialog_prompt
+
     print('Processing data...')
     original_lines, truncated_input = process_data(
         model.tokenizer,
-        prompt=cfg.chatbot_config.prompt if cfg.chat else None,
+        prompt=prompt,
         task=cfg.inference.task,
         max_seq_length=cfg.inference.max_seq_length,
+        truncation_pos=cfg.inference.truncation_pos,
         data_dir=cfg.inference.data_dir,
         n_jobs=cfg.inference.n_jobs,
         remove_newline_tab=cfg.inference.remove_newline_tab,
