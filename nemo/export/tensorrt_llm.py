@@ -185,7 +185,7 @@ class TensorRTLLM(ITritonDeployable):
             raise Exception("Model {0} is not currently a supported model type. "
                             "Supported model types are llama, gptnext, falcon, and starcoder".format(model_type))
 
-        if model_type == "gpt" or "starcoder":
+        if model_type == "gpt" or model_type == "starcoder":
             # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
             # gpt and starcoder use the similar model architecture. So, gpt can be used for starcoder.
             model_type = "gptnext"
