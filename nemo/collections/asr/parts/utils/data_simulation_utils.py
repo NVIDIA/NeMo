@@ -774,7 +774,7 @@ class DataAnnotator(object):
                 prev_align = 0 if i == 0 else alignments[i - 1]
                 align1 = round(float(prev_align + start), self._params.data_simulator.outputs.output_precision)
                 align2 = round(float(alignments[i] - prev_align), self._params.data_simulator.outputs.output_precision)
-                text = f"{session_name} {speaker_id} {align1} {align2} {word} 0\n"
+                text = f"{session_name} 0 {align1} {align2} {word} <NA> <NA> <NA> {speaker_id}\n"
                 arr.append((align1, text))
         return arr
 
