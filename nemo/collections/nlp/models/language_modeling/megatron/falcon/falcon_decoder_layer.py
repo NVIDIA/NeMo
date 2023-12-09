@@ -18,8 +18,6 @@ from typing import Union
 import torch
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.transformer.attention import SelfAttentionSubmodules
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -101,6 +99,7 @@ class FalconTransformerLayer(TransformerLayer):
         # Residual connection.
         residual = hidden_states
 
+        mlp_ln_output = None
         if self.new_decoder_architecture:
             mlp_ln_output = self.pre_mlp_layernorm(hidden_states)
 
