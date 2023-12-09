@@ -93,7 +93,7 @@ except (ImportError, ModuleNotFoundError):
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
-def init_model_parallel(sharp, nccl_communicator_config_path: str = None) -> None:
+def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) -> None:
     """ Initializes Megatron-LM model parallel if using model parallelism.
 
     Args:
@@ -114,8 +114,8 @@ def init_model_parallel(sharp, nccl_communicator_config_path: str = None) -> Non
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
-                use_sharp=sharp,
                 nccl_communicator_config_path=nccl_communicator_config_path,
+                use_sharp=sharp,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -140,7 +140,7 @@ class NLPDDPStrategy(DDPStrategy):
         no_ddp_communication_hook: Disable DDP communication hook when using AMP-O2
         with FP32 gradient accumulation.
         nccl_communicator_config_path: Path to the yaml file with NCCL communicator options
-        sharp: Apply SHARP to data-parallel proc groups.
+        sharp: Apply SHARP to NCCL data-parallel communication.
     """
 
     def __init__(
