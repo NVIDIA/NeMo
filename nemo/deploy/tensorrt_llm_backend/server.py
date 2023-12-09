@@ -9,7 +9,6 @@ from jinja2 import Environment, FileSystemLoader
 _ENSEMBLE_MODEL_DIR = "/opt/NeMo/nemo/deploy/tensorrt_llm_backend/configs/ensemble_models/llama"
 _TRITON_BIN = "/opt/tritonserver/bin/tritonserver"
 _MPIRUN_BIN = "/usr/local/mpi/bin/mpirun"
-logging.basicConfig(level=logging.DEBUG)
 _LOGGER = logging.getLogger(__name__)
 
 
