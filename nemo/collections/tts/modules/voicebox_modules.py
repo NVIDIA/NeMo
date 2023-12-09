@@ -57,7 +57,6 @@ class MFAEnglishPhonemeTokenizer:
     def __init__(
         self,
         vocab = MFA_arpa_phone_set,
-        phonemizer: Optional[Callable] = None,
         add_blank: bool = False,
         use_eos_bos = False,
         pad_id = 0
@@ -72,7 +71,7 @@ class MFAEnglishPhonemeTokenizer:
         self.phn_to_id = {phn: idx for idx, phn in enumerate(self.vocab)}
         self.id_to_phn = {idx: phn for idx, phn in enumerate(self.vocab)}
 
-        self.not_found_characters = []
+        self.not_found_phonemes = []
 
     def encode(self, text: List[str]) -> List[int]:
         """Encodes a string of text as a sequence of IDs."""
@@ -84,8 +83,8 @@ class MFAEnglishPhonemeTokenizer:
                 idx = self.phn_to_id[phn]
                 token_ids.append(idx)
             except KeyError:
-                # discard but store not found characters
-                if phn not in self.not_found_characters:
+                # discard but store not found phonemes
+                if phn not in self.not_found_phonemes:
                     self.not_found_phonemes.append(phn)
                     print(text)
                     print(f" [!] Character {phn} not found in the vocabulary. Discarding it.")
