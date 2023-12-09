@@ -22,7 +22,7 @@ from transformers import GPT2Config, LlamaConfig, FalconConfig
 
 from .convert import cpu_map_location, gpu_map_location
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger("NeMo")
 
 
 def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_type):

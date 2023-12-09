@@ -25,7 +25,6 @@ except Exception as e:
     )
     raise (e)
 
-from .huggingface_utils import *  # noqa
 from .model_config_trt import *  # noqa
 from .model_config_utils import *  # noqa
 from .nemo_utils import *  # noqa
