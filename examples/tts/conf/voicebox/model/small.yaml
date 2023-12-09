@@ -1,5 +1,5 @@
 defaults:
-  - default
+  - nemo
 
 
 duration_predictor:

@@ -5,11 +5,13 @@ from omegaconf import DictConfig
 import torch
 from torch import nn, Tensor, einsum, IntTensor, FloatTensor, BoolTensor
 import torch.nn.functional as F
+from torch.nn.utils.rnn import pad_sequence
 from beartype import beartype
-from beartype.typing import Tuple, Optional, List, Union
-from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
+from beartype.typing import Callable, Tuple, Optional, List, Union
+from naturalspeech2_pytorch.utils.tokenizer import Tokenizer, _phonemes
 from naturalspeech2_pytorch.aligner import Aligner as _Aligner
-from naturalspeech2_pytorch.aligner import ForwardSumLoss, maximum_path
+from naturalspeech2_pytorch.aligner import maximum_path
+from naturalspeech2_pytorch.utils.cleaner import TextProcessor
 from voicebox_pytorch.voicebox_pytorch import VoiceBox as _VB
 from voicebox_pytorch.voicebox_pytorch import ConditionalFlowMatcherWrapper as _CFMWrapper
 from voicebox_pytorch.voicebox_pytorch import DurationPredictor as _DP
@@ -39,21 +41,79 @@ from voicebox_pytorch.voicebox_pytorch import AudioEncoderDecoder
 from voicebox_pytorch.voicebox_pytorch import MelVoco as _MelVoco
 from voicebox_pytorch.voicebox_pytorch import EncodecVoco as _EncodecVoco
 
-from nemo.utils import logging
 from pytorch_lightning import LightningModule
+from nemo.utils import logging
 from nemo.collections.tts.models.aligner import AlignerModel
 from nemo.collections.asr.modules.audio_preprocessing import AudioPreprocessor
-from naturalspeech2_pytorch.utils.cleaner import TextProcessor
 # from nemo.collections.tts.parts.utils.helpers import binarize_attention
 from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel as binarize_attention
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer, EnglishPhonemesTokenizer
 
 
-# def get_mask_from_lengths(lengths, max_len=None):
+class MFAEnglishPhonemeTokenizer:
+    MFA_arpa_phone_set = ["PAD", "sil", "spn", "AA", "AA0", "AA1", "AA2", "AE", "AE0", "AE1", "AE2", "AH", "AH0", "AH1", "AH2", "AO", "AO0", "AO1", "AO2", "AW", "AW0", "AW1", "AW2", "AY", "AY0", "AY1", "AY2", "B", "CH", "D", "DH", "EH", "EH0", "EH1", "EH2", "ER", "ER0", "ER1", "ER2", "EY", "EY0", "EY1", "EY2", "F", "G", "HH", "IH", "IH0", "IH1", "IH2", "IY", "IY0", "IY1", "IY2", "JH", "K", "L", "M", "N", "NG", "OW", "OW0", "OW1", "OW2", "OY", "OY0", "OY1", "OY2", "P", "R", "S", "SH", "T", "TH", "UH", "UH0", "UH1", "UH2", "UW", "UW0", "UW1", "UW2", "V", "W", "Y", "Z", "ZH"]
 
-#     mask = mask_from_start_end_indices(torch.max(lengths).item(), torch.zeros_like(lengths), lengths)
+    def __init__(
+        self,
+        vocab = MFA_arpa_phone_set,
+        phonemizer: Optional[Callable] = None,
+        add_blank: bool = False,
+        use_eos_bos = False,
+        pad_id = 0
+    ):
+        self.add_blank = add_blank
+        self.use_eos_bos = use_eos_bos
+        self.pad_id = pad_id
+
+        self.vocab = vocab
+        self.vocab_size = len(vocab)
+
+        self.phn_to_id = {phn: idx for idx, phn in enumerate(self.vocab)}
+        self.id_to_phn = {idx: phn for idx, phn in enumerate(self.vocab)}
+
+        self.not_found_characters = []
+
+    def encode(self, text: List[str]) -> List[int]:
+        """Encodes a string of text as a sequence of IDs."""
+        token_ids = []
+        for phn in text:
+            if phn == "":
+                phn = "sil"
+            try:
+                idx = self.phn_to_id[phn]
+                token_ids.append(idx)
+            except KeyError:
+                # discard but store not found characters
+                if phn not in self.not_found_characters:
+                    self.not_found_phonemes.append(phn)
+                    print(text)
+                    print(f" [!] Character {phn} not found in the vocabulary. Discarding it.")
+        return token_ids
     
-#     return mask
+    def decode(self, token_ids: List[int]) -> str:
+        """Decodes a sequence of IDs to a string of text."""
+        tokens = []
+        for token_id in token_ids:
+            tokens.append(self.id_to_phn[token_id])
+        text = ' '.join(tokens)
+        return text
+
+    def text_to_ids(
+        self,
+        text: List[str],
+        language: str = None
+    ) -> Tuple[List[int],]:
+        return self.encode(text),
+
+    def texts_to_tensor_ids(self, texts: List[str], language: str = None) -> Tensor:
+        all_ids = []
+
+        for text in texts:
+            ids, *_ = self.text_to_ids(text, language = language)
+            all_ids.append(torch.tensor(ids))
+
+        return pad_sequence(all_ids, batch_first = True, padding_value = self.pad_id)
 
 
 class MelVoco(_MelVoco, LightningModule):
@@ -98,10 +158,11 @@ class DurationPredictor(_DP):
     def __init__(
         self,
         *args,
-        aligner_kwargs: dict | DictConfig = dict(dim_in = 80, attn_channels = 80),
+        aligner_kwargs: dict | DictConfig | None = dict(dim_in = 80, attn_channels = 80),
         **kwargs,
     ):
-        kwargs["aligner_kwargs"] = None
+        kwargs["frac_lengths_mask"] = tuple(kwargs["frac_lengths_mask"])
+        kwargs["aligner_kwargs"] = {}
         super().__init__(*args, **kwargs)
 
         if aligner_kwargs:
@@ -109,17 +170,15 @@ class DurationPredictor(_DP):
             # dim_in assuming we have spec with 80 channels
 
             self.aligner = Aligner(dim_in = self.audio_enc_dec.latent_dim, dim_hidden = self.dim_phoneme_emb, **aligner_kwargs)
-            self.align_loss = ForwardSumLoss()
 
             for layer in self.aligner.modules():
                 if isinstance(layer, nn.ReLU):
                     layer.inplace = False
 
-            # from naturalspeech2_pytorch.aligner import BinLoss
-            from nemo.collections.tts.losses.aligner_loss import BinLoss
+            from naturalspeech2_pytorch.aligner import ForwardSumLoss, BinLoss
+            self.align_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
 
-    # @beartype
     def forward_aligner(
         self,
         x: FloatTensor,     # (b, tx, c)
@@ -161,24 +220,16 @@ class DurationPredictor(_DP):
         """ Allow passing `cond=None` while actually requires cond by setting `calculate_cond=True`
         `cond` should be ground-truth duration instead of encoded audio
         """
-        # text to phonemes, if tokenizer is given
-
-        if not exists(phoneme_ids):
-            assert exists(self.tokenizer) and exists(texts)
-            phoneme_ids = self.tokenizer.texts_to_tensor_ids(texts).to(self.device)
-
+        assert exists(phoneme_ids)
         batch, seq_len = phoneme_ids.shape
         
         # phoneme id of -1 is padding
+        assert exists(self_attn_mask) and exists(phoneme_len) and exists(phoneme_mask)
 
-        if not exists(self_attn_mask):
-            self_attn_mask = phoneme_ids != -1
-        if not exists(phoneme_len):
-            phoneme_len = self_attn_mask.sum(-1)
-        if not exists(phoneme_mask):
+        if phoneme_mask.ndims == 2:
             phoneme_mask =  rearrange(self_attn_mask, 'b t -> b 1 t')
 
-        phoneme_ids = phoneme_ids.clamp(min = 0)
+        # phoneme_ids = phoneme_ids.clamp(min = 0)
 
         # get phoneme embeddings
 
@@ -339,6 +390,7 @@ class NeMoDurationPredictor(DurationPredictor):
         # self.to_phoneme_emb = self.aligner.embed
 
         # aligner related
+        from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss, BinLoss
 
 
     @torch.no_grad()
@@ -647,11 +699,11 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         sigma = 0.,
         ode_atol = 1e-5,
         ode_rtol = 1e-5,
-        ode_step_size = 0.0625,
         use_torchode = False,
         torchdiffeq_ode_method = 'midpoint',   # use midpoint for torchdiffeq, as in paper
         torchode_method_klass = to.Tsit5,      # use tsit5 for torchode, as torchode does not have midpoint (recommended by Bryan @b-chiang)
-        cond_drop_prob = 0.
+        cond_drop_prob = 0.,
+        **kwargs
     ):
         """
         Basic Args
@@ -668,8 +720,6 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
             - ode_atol = 1e-5,
 
             - ode_rtol = 1e-5,
-
-            - ode_step_size = 0.0625,
 
             - use_torchode = False,
 
@@ -694,7 +744,6 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
             sigma=sigma,
             ode_atol=ode_atol,
             ode_rtol=ode_rtol,
-            ode_step_size=ode_step_size,
             use_torchode=use_torchode,
             torchdiffeq_ode_method=torchdiffeq_ode_method,
             torchode_method_klass=torchode_method_klass,
@@ -954,11 +1003,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         assert self.condition_on_text or not exists(phoneme_ids), 'phoneme ids should not be passed in if not conditioning on text'
 
 
-
         # NOTE: work in progress
-
-        assert exists(phoneme_ids) and exists(phoneme_len)
-
         self_attn_mask = None
         cond_token_ids = None
 
@@ -966,6 +1011,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
 
         if self.condition_on_text:
             assert not exists(self.text_to_semantic) and exists(self.duration_predictor)
+            assert exists(phoneme_ids) and exists(phoneme_len)
 
             with torch.no_grad():
                 phoneme_mask = get_mask_from_lengths(phoneme_len)

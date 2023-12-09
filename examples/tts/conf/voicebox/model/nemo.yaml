@@ -4,10 +4,19 @@ _target_: nemo.collections.tts.models.voicebox.VoiceboxModel
 defaults:
   - default
   # - duration_predictor: default
-  - duration_predictor: nemo
-  - audio_enc_dec@duration_predictor.audio_enc_dec: encodec_voco
+  - override duration_predictor: nemo
+  - override audio_enc_dec@duration_predictor.audio_enc_dec: encodec_voco
 
 
+optim:
+  # name: adam
+  lr: 1e-3
+  weight_decay: 1e-6
+
+  # sched:
+  #   name: CosineAnnealing
+  #   min_lr: 5e-5
+  #   warmup_ratio: 0.35
 
 nemo_aligner:
   _target_: nemo.collections.tts.models.aligner.AlignerModel
