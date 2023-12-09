@@ -26,12 +26,15 @@ import tempfile
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
-from nemo.utils import logging
+import logging
 
 from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
 from .trt_llm.tensorrt_llm_run import generate, load
 from .utils import is_nemo_file, unpack_nemo_ckpt
+
+
+LOGGER = logging.getLogger("NeMo")
 
 
 class TensorRTLLM(ITritonDeployable):
@@ -196,7 +199,7 @@ class TensorRTLLM(ITritonDeployable):
 
         p_tuning = "no_ptuning"
         if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
-            logging.warning("prompt_embeddings_table will be used and "
+            LOGGER.warning("prompt_embeddings_table will be used and "
                             "prompt_embeddings_checkpoint_path will be "
                             "ignored for ptuning.")
             p_tuning = "use_table"

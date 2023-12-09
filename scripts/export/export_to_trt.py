@@ -18,13 +18,16 @@ from pathlib import Path
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
-from nemo.utils import logging
+import logging
 
 try:
     from contextlib import nullcontext
 except ImportError:
     # handle python < 3.7
     from contextlib import suppress as nullcontext
+
+
+LOGGER = logging.getLogger("NeMo")
 
 
 def get_args(argv):
@@ -135,9 +138,9 @@ def nemo_export(argv):
     else:
         loglevel = logging.INFO
 
-    logging.setLevel(loglevel)
-    logging.info("Logging level set to {}".format(loglevel))
-    logging.info(args)
+    LOGGER.setLevel(loglevel)
+    LOGGER.info("Logging level set to {}".format(loglevel))
+    LOGGER.info(args)
 
     if args.use_inflight_batching == "True":
         args.use_inflight_batching = True
@@ -145,14 +148,14 @@ def nemo_export(argv):
         args.use_inflight_batching = False
 
     if args.dtype != "bf16":
-        logging.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
+        LOGGER.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
                       "Support for the other precisions will be added in the coming releases.")
         return
 
     try:
         trt_llm_exporter = TensorRTLLM(model_dir=args.model_repository)
 
-        logging.info("Export to TensorRT-LLM function is called.")
+        LOGGER.info("Export to TensorRT-LLM function is called.")
         trt_llm_exporter.export(
             nemo_checkpoint_path=args.nemo_checkpoint,
             model_type=args.model_type,
@@ -164,9 +167,9 @@ def nemo_export(argv):
             use_inflight_batching=args.use_inflight_batching,
         )
 
-        logging.info("Export is successful.")
+        LOGGER.info("Export is successful.")
     except Exception as error:
-        logging.error("Error message: " + str(error))
+        LOGGER.error("Error message: " + str(error))
 
 
 if __name__ == '__main__':

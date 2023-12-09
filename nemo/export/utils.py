@@ -28,7 +28,7 @@ import yaml
 
 log_format = "%(asctime)s %(name)s [%(levelname)s] %(message)s"
 logging.basicConfig(format=log_format)
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger("NeMo")
 
 # numpy doesn't know bfloat16, define abstract binary type instead
 np_bfloat16 = np.dtype('V2', metadata={"dtype": "bfloat16"})

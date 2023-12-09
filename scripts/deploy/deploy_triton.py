@@ -18,7 +18,7 @@ from pathlib import Path
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
-from nemo.utils import logging
+import logging
 from service.rest_model_api import app
 import uvicorn
 
@@ -27,6 +27,9 @@ try:
 except ImportError:
     # handle python < 3.7
     from contextlib import suppress as nullcontext
+
+
+LOGGER = logging.getLogger("NeMo")
 
 
 def get_args(argv):
@@ -184,21 +187,18 @@ def get_args(argv):
 def nemo_deploy(argv):
     args = get_args(argv)
 
-    '''
     if args.debug_mode == "True":
         loglevel = logging.DEBUG
     else:
         loglevel = logging.INFO
-    
 
-    logging.setLevel(loglevel)
-    logging.info("Logging level set to {}".format(loglevel))
-    logging.info(args)
-    '''
+    LOGGER.setLevel(loglevel)
+    LOGGER.info("Logging level set to {}".format(loglevel))
+    LOGGER.info(args)
 
     if args.triton_model_repository is None:
         trt_llm_path = "/tmp/trt_llm_model_dir/"
-        logging.info(
+        LOGGER.info(
             "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
             "Please set this parameter if you'd like to use a path that has already "
             "included the TensorRT LLM model files."
@@ -208,28 +208,28 @@ def nemo_deploy(argv):
         trt_llm_path = args.triton_model_repository
 
     if args.nemo_checkpoint is None and args.triton_model_repository is None:
-        logging.error(
+        LOGGER.error(
             "The provided model repository is not a valid TensorRT-LLM model "
             "directory. Please provide a --nemo_checkpoint."
         )
         return
 
     if args.nemo_checkpoint is None and not os.path.isdir(args.triton_model_repository):
-        logging.error(
+        LOGGER.error(
             "The provided model repository is not a valid TensorRT-LLM model "
             "directory. Please provide a --nemo_checkpoint."
         )
         return
 
     if args.nemo_checkpoint is not None and args.model_type is None:
-        logging.error(
+        LOGGER.error(
             "Model type is required to be defined if a nemo checkpoint is provided."
         )
         return
 
     if args.start_rest_service == "True":
         if args.service_port == args.triton_port:
-            logging.error(
+            LOGGER.error(
                 "REST service port and Triton server port cannot use the same port."
             )
             return
@@ -238,7 +238,7 @@ def nemo_deploy(argv):
 
     if args.nemo_checkpoint is not None:
         try:
-            logging.info("Export operation will be started to export the nemo checkpoint to TensorRT-LLM.")
+            LOGGER.info("Export operation will be started to export the nemo checkpoint to TensorRT-LLM.")
             trt_llm_exporter.export(
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
@@ -251,7 +251,7 @@ def nemo_deploy(argv):
                 dtype=args.dtype
             )
         except Exception as error:
-            logging.error("An error has occurred during the model export. Error message: " + str(error))
+            LOGGER.error("An error has occurred during the model export. Error message: " + str(error))
             return
 
     try:
@@ -264,25 +264,25 @@ def nemo_deploy(argv):
             http_address=args.triton_http_address,
         )
 
-        logging.info("Triton deploy function will be called.")
+        LOGGER.info("Triton deploy function will be called.")
         nm.deploy()
     except Exception as error:
-        logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+        LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
 
     try:
-        logging.info("Model serving on Triton is will be started.")
+        LOGGER.info("Model serving on Triton is will be started.")
         if args.start_rest_service == "True":
             nm.run()
         else:
             nm.serve()
     except Exception as error:
-        logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+        LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
 
     if args.start_rest_service == "True":
         try:
-            logging.info("REST service is will be started.")
+            LOGGER.info("REST service is will be started.")
             uvicorn.run(
                 'service.rest_model_api:app',
                 host=args.service_http_address,
@@ -290,9 +290,9 @@ def nemo_deploy(argv):
                 reload=True
             )
         except Exception as error:
-            logging.error("Error message has occurred during REST service start. Error message: " + str(error))
+            LOGGER.error("Error message has occurred during REST service start. Error message: " + str(error))
 
-    logging.info("Model serving will be stopped.")
+    LOGGER.info("Model serving will be stopped.")
     nm.stop()
 
 

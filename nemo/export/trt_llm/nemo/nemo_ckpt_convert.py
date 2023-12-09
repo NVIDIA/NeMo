@@ -35,7 +35,7 @@ from .convert import (
 )
 from .nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger("NeMo")
 
 base_layer_names = {
     "position_embedding": "model.language_model.embedding.position_embeddings.weight",

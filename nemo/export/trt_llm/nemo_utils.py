@@ -42,7 +42,7 @@ from .nemo.nemo import UnpackedNemoCheckpointDir, unpack_nemo_ckpt
 from .nemo.nemo_ckpt_convert import build_tokenizer, convert_checkpoint, convert_dist_checkpoint
 from .tensor_utils import get_tensor_from_dict, split
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger("NeMo")
 
 
 def _nemo_decode(
