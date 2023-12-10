@@ -856,16 +856,11 @@ class MegatronBaseModel(NLPModel):
     def configure_sharded_model(self):
         if self.use_fsdp:
             """ Top-evel FSDP model sharding """
-            # Cast the full model to initialization precision to match the precision among parameters.
-            params_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision, None)
-            self.model = self.model.to(params_dtype)
-            # Shard the top-level model with FSDP. We shard the strategy-unwrapped model not
+            # Shard the top-level model hierarchically. We shard the strategy-unwrapped model not
             # to lose the structure of non-FSDP wrapped parameters (e.g, embedding)
+            # TODO: Currently the main parameter data type is kept in fp32 (when O2=False). This needs to be
+            # extended to support lower precision main parameters.
             self.model = self.trainer.strategy._setup_model(self.model)
-            # Keep the master parameters in fp32.
-            # The prameters can be initialized in half-precision to save memory before sharding
-            self.model = self.model.float()
-            # Move model from CPU to GPU, which is to avoid out-of-memory carash before sharding.
-            # FSDP with `use_cpu_initialization` has the model initialized on CPU then move GPU after sharding.
-            # In case of GPU-initialized model, this is no-op.
+            # Move the CPU-initialized model (with `use_cpu_initialization=True`) to GPU, which is to avoid
+            # out-of-memory carash before sharding. In case of GPU-initialized model, this is no-op.
             self.model = self.model.cuda(torch.cuda.current_device())

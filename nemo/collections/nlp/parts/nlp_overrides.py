@@ -561,16 +561,17 @@ class NLPFSDPStrategy(FSDPStrategy):
     def _set_mixed_precision_recipe(
         self, precision: Union[int, str], grad_reduce_dtype: Union[int, str]
     ) -> MixedPrecision:
-        # Set FSDP mixed precision recipe.
-        if precision == "16-mixed":
-            buffer_dtype = torch.float32
-            param_dtype = reduce_dtype = torch.float16
-        elif precision == "bf16-mixed":
-            buffer_dtype = torch.float32
-            param_dtype = reduce_dtype = torch.bfloat16
-        elif precision in ["16-true", 16]:
+        """
+        Set FSDP mixed precision recipe.
+        `param_dtype` sets the data type for computation in forward and backpropagation, and the parameter
+        data type for optimizer execution is maintained in the full precision.
+        `buffer_dtype` is only valid when a module has buffers by `register_buffer` method, which is not
+        shared by FSDP.
+        `reduce_dtype` sets gradient reduction data type.
+        """
+        if precision in ["16-true", "16-mixed", 16]:
             param_dtype = reduce_dtype = buffer_dtype = torch.float16
-        elif precision in ["bf16-true", "bf16"]:
+        elif precision in ["bf16-true", "bf16-mixed", "bf16"]:
             param_dtype = reduce_dtype = buffer_dtype = torch.bfloat16
         elif precision == 32:
             param_dtype = reduce_dtype = buffer_dtype = torch.float
