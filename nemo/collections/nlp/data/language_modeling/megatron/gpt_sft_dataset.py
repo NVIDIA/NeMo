@@ -293,7 +293,7 @@ class GPTSFTDataset(Dataset):
             for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
                 if key in self.truncation_fields:
                     truncation_length = truncation_length_list.pop()
-                    
+
                     # set the offset for truncation method
                     if self.truncation_method == 'left':
                         window_offset = max([len(ids) - truncation_length, 0])
