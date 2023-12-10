@@ -123,6 +123,7 @@ class SemiSortBatchSampler(DistributedSampler):
         min_duration: float = np.min(self.durations)
         bound: float = (max_duration - min_duration) * self.randomization_factor / 2
 
+        # generate pseudo noise
         noise: np.array = np.random.uniform(low=-bound, high=bound, size=len(self.durations))
 
         # sort indices accroding to pseudo noise
