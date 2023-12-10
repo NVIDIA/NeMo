@@ -64,17 +64,19 @@ class RotaryEmbedding(nn.Module):
             Applies stretch and shift augmentations and returns the augmented seq
         """
     def augment(self, seq, max_seq_len):
-        current_range = max_seq_len / self.seq_len_interpolation_factor
+        # current_range = max_seq_len / self.seq_len_interpolation_factor
+        current_range = max_seq_len
         if self.augment_seq['stretch']:
-            max_stretch_factor = self.base_len / current_range
-            stretch_factor = random.random() * max_stretch_factor
+            # max_stretch_factor = self.base_len / current_range
+            max_stretch_factor  = self.base_len * self.seq_len_interpolation_factor / current_range
+            stretch_factor = int(random.random() * max_stretch_factor)
             seq *= stretch_factor
             current_range *= stretch_factor
         
         num_shifts = int(self.augment_seq['shift_fraction'] * max_seq_len)
         total_shift = self.base_len - current_range
         shifts = torch.rand(num_shifts)
-        shifts = shifts / shifts.sum() * total_shift
+        shifts = (shifts / shifts.sum() * total_shift).to(torch.int)
         indices2shift = (torch.rand(num_shifts) * max_seq_len).to(torch.int)
         for idx, i in enumerate(indices2shift):
             seq[i:] += shifts[idx]
@@ -82,16 +84,16 @@ class RotaryEmbedding(nn.Module):
         return seq
         
 
-    def forward(self, max_seq_len, offset=0, maybe_interpolate=True):
+    def forward(self, max_seq_len, offset=0, maybe_interpolate=True, maybe_augment=True):
         if random.random() < self.logging_freq:
-            logging.info(f'max_seq_len: {max_seq_len}, maybe_interpolate: {maybe_interpolate}')
+            logging.info(f'max_seq_len: {max_seq_len}, maybe_interpolate: {maybe_interpolate}, maybe_augment: {maybe_augment}')
 
         if self.enforce_fp32_pos_idx:
             seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=torch.float32) + offset
         else:
             seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype) + offset
 
-        if self.augment_seq and self.augment_seq['add_noise']:
+        if maybe_augment and self.augment_seq and self.augment_seq['add_noise']:
             seq += torch.rand_like(seq) 
 
         if not maybe_interpolate:
@@ -104,9 +106,11 @@ class RotaryEmbedding(nn.Module):
                 seq *= 1 / (max_seq_len / self.base_len)
             else:
                 # fixed linear scaling
-                seq *= 1 / self.seq_len_interpolation_factor
-                if self.augment_seq and max_seq_len / self.seq_len_interpolation_factor < self.base_len:
+                if maybe_augment and self.augment_seq:
                     seq = self.augment(seq, max_seq_len)
+
+                seq *= 1 / self.seq_len_interpolation_factor
+                
 
         freqs = einsum('i , j -> i j', seq, self.inv_freq)
         # first part even vector components, second part odd vector components,

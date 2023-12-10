@@ -853,6 +853,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'attention_mask': batch.get('attention_mask', None),
                 'labels': batch['labels'],
                 'loss_mask': batch['loss_mask'],
+                'training_step': not validation_step,
             }
 
             if not self.mcore_gpt:
@@ -925,6 +926,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+                    extra_arg['training_step'] = False
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.

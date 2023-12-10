@@ -464,16 +464,17 @@ def model_inference_strategy_dispatcher(model, **args):
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel):
-        if hasattr(model.model, 'limited_context_decoding') and model.model.limited_context_decoding:
-            logging.info(f'Using LimitedContextGPTModelTextGenerationStrategy as limited_context_decoding is set to {model.model.limited_context_decoding}')
-            return LimitedContextGPTModelTextGenerationStrategy(model)
-        if (
-            hasattr(model.model, 'module')
-            and hasattr(model.model.module, 'language_model')
-            and model.model.module.language_model.limited_context_decoding
-        ):
-            logging.info(f'Using LimitedContextGPTModelTextGenerationStrategy as limited_context_decoding is set to {model.model.module.limited_context_decoding}')
-            return LimitedContextGPTModelTextGenerationStrategy(model)
+ # D.R. -- commenting out to ensure that the decoding setting doesn't affect the context pass
+ #       if hasattr(model.model, 'limited_context_decoding') and model.model.limited_context_decoding:
+ #           logging.info(f'Using LimitedContextGPTModelTextGenerationStrategy as limited_context_decoding is set to {model.model.limited_context_decoding}')
+ #           return LimitedContextGPTModelTextGenerationStrategy(model)
+ #       if (
+ #           hasattr(model.model, 'module')
+ #           and hasattr(model.model.module, 'language_model')
+ #           and model.model.module.language_model.limited_context_decoding
+ #       ):
+ #           logging.info(f'Using LimitedContextGPTModelTextGenerationStrategy as limited_context_decoding is set to {model.model.module.language_model.limited_context_decoding}')
+ #           return LimitedContextGPTModelTextGenerationStrategy(model)
         return GPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):
         strategy_name = args['strategy']
