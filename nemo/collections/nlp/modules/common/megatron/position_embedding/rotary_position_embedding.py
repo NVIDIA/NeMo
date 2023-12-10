@@ -64,19 +64,21 @@ class RotaryEmbedding(nn.Module):
             Applies stretch and shift augmentations and returns the augmented seq
         """
     def augment(self, seq, max_seq_len):
-        # current_range = max_seq_len / self.seq_len_interpolation_factor
         current_range = max_seq_len
         if self.augment_seq['stretch']:
-            # max_stretch_factor = self.base_len / current_range
             max_stretch_factor  = self.base_len * self.seq_len_interpolation_factor / current_range
-            stretch_factor = int(random.random() * max_stretch_factor)
+            stretch_factor = random.random() * max_stretch_factor
+            if self.augment_seq['discrete'] is not None:
+                stretch_factor = int(stretch_factor)
             seq *= stretch_factor
             current_range *= stretch_factor
         
         num_shifts = int(self.augment_seq['shift_fraction'] * max_seq_len)
         total_shift = self.base_len - current_range
         shifts = torch.rand(num_shifts)
-        shifts = (shifts / shifts.sum() * total_shift).to(torch.int)
+        shifts = shifts / shifts.sum() * total_shift
+        if self.augment_seq['discrete'] is not None:
+            shifts = shifts.to(torch.int)
         indices2shift = (torch.rand(num_shifts) * max_seq_len).to(torch.int)
         for idx, i in enumerate(indices2shift):
             seq[i:] += shifts[idx]
