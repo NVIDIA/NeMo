@@ -3,4 +3,4 @@
 # runs 1 train, 1 validation and 1 test step
 
 defaults:
-  - override /model: small
+  - _self_

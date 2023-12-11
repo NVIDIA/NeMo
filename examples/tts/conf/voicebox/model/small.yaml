@@ -1,8 +1,0 @@
-
-duration_predictor:
-  depth: 2
-  heads: 2
-
-voicebox:
-  depth: 2
-  heads: 2

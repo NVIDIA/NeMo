@@ -4,7 +4,8 @@
 # python train.py experiment=example
 
 defaults:
-  - override /model: small
+  - override /model: mfa
+
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
@@ -16,6 +17,14 @@ model:
     manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
       batch_duration: 300
+  
+  duration_predictor:
+    depth: 2
+    heads: 2
+
+  voicebox:
+    depth: 2
+    heads: 2
 
 trainer:
   devices: 1
