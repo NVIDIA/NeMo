@@ -85,13 +85,48 @@ This is the script to run GPT text generation.
         Similarly for other senarios, just add virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE if you're using a 
         p-tuned/prompt-tuned model. 
 """
-
+import re
+from collections import defaultdict
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_lora_inference")
 def main(cfg) -> None:
     if not torch.cuda.is_available():
         raise EnvironmentError("GPU is needed for the inference")
 
+    # model = torch.load("/home/aficek/software/playground/model_weights.ckpt")
+
+    # def parse_state_dict(state_dict):
+    #     # Mapping for (layer, adapter type) to tensors
+    #     layer_adapter_mapping = defaultdict(list)
+
+    #     # Regular expression to extract layer number and adapter type
+    #     pattern = re.compile(r"layers\.(\d+)\.self_attention\.adapter_layer\.(.+?)\.linear_(in|out)\.weight")
+
+    #     for key, tensor in state_dict.items():
+    #         match = pattern.search(key)
+    #         if match:
+    #             layer, adapter_type, _ = match.groups()
+    #             layer_adapter_mapping[(int(layer), adapter_type)].append(tensor)
+
+    #     # Number of layers and adapter types
+    #     num_layers = max(k[0] for k in layer_adapter_mapping.keys()) + 1  # +1 because layers are 0-indexed
+    #     adapter_types = ['lora_kqv_adapter', 'k_adapter', 'q_adapter', 'v_adapter']
+
+    #     # Construct the final tensor
+    #     final_dim_size = sum(t.numel() for t in next(iter(layer_adapter_mapping.values())))
+    #     final_tensor = torch.empty((4, num_layers, final_dim_size))
+
+    #     for i, adapter in enumerate(adapter_types):
+    #         for layer in range(num_layers):
+    #             in_tensor, out_tensor = layer_adapter_mapping.get((layer, adapter), (torch.zeros_like(next(iter(state_dict.values()))),) * 2)
+    #             concatenated_tensor = torch.cat([in_tensor.flatten(), out_tensor.flatten()])
+    #             final_tensor[i, layer] = concatenated_tensor
+
+    #     return final_tensor
+
+    # parse_state_dict(model)
+    # for key, value in model.items():
+    #     print("Test")
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     assert (
