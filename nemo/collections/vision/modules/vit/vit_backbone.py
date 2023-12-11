@@ -224,8 +224,8 @@ class VitBackbone(MegatronModule):
         self.num_patches_per_dim_h = self.img_h // self.patch_dim
         self.num_patches_per_dim_w = self.img_w // self.patch_dim
         self.num_patches = self.num_patches_per_dim_h * self.num_patches_per_dim_w
-        class_token_length = model_cfg.get("class_token_length", 8)
-        self.seq_length = self.num_patches + (class_token_length if self.class_token else 0)
+        self.class_token_length = model_cfg.get("class_token_length", 8) if self.class_token else 0
+        self.seq_length = self.num_patches + self.class_token_length
         self.flatten_dim = self.patch_dim * self.patch_dim * model_cfg.num_channels
         self.input_tensor = None
         self.position_ids = None
@@ -234,7 +234,7 @@ class VitBackbone(MegatronModule):
         if self.pre_process:
             # cls_token
             if self.class_token:
-                self.cls_token = torch.nn.Parameter(torch.randn(1, class_token_length, self.hidden_size))
+                self.cls_token = torch.nn.Parameter(torch.randn(1, self.class_token_length, self.hidden_size))
                 torch.nn.init.zeros_(self.cls_token)
             self.position_ids = torch.arange(self.seq_length).expand(1, -1).cuda()
 
@@ -260,7 +260,7 @@ class VitBackbone(MegatronModule):
 
             self.embedding_dropout = torch.nn.Dropout(model_cfg.hidden_dropout)
             self.drop_patch = DropPatch(
-                self.drop_patch_rate, class_token_length=class_token_length, exclude_cls_tokens=self.class_token
+                self.drop_patch_rate, class_token_length=self.class_token_length, exclude_cls_tokens=self.class_token
             )
 
             if preprocess_layernorm:
@@ -293,6 +293,7 @@ class VitBackbone(MegatronModule):
             hidden_dropout=model_cfg.hidden_dropout,
             attention_dropout=model_cfg.attention_dropout,
             drop_path_rate=model_cfg.drop_path_rate,
+            layerscale=model_cfg.get("layerscale", False),
             bias_activation_fusion=model_cfg.get("bias_activation_fusion", False),
             persist_layer_norm=model_cfg.persist_layer_norm,
             openai_gelu=model_cfg.openai_gelu,
@@ -308,6 +309,35 @@ class VitBackbone(MegatronModule):
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
         self.transformer.set_input_tensor(input_tensor)
+
+    def interpolate_pos_encoding(self, x,):
+        output_seq_len = x.shape[1]
+        assert isPerfectSquare(output_seq_len - self.class_token_length)
+
+        num_tok_output = output_seq_len - self.class_token_length
+        num_tok_input = self.num_patches
+
+        if num_tok_input == num_tok_output:
+            return self.position_embeddings
+
+        embed_tok = self.position_embeddings[:self.class_token_length]
+        embed_grid = self.position_embeddings[self.class_token_length:]
+
+        gs_new = int(math.sqrt(num_tok_output))
+        gs_input = (self.num_patches_per_dim_h, self.num_patches_per_dim_w)
+
+        embed_grid = embed_grid.transpose(0, 1).contiguous()
+        embed_grid = embed_grid.reshape((1, -1, gs_input[0], gs_input[1]))
+        embed_grid = embed_grid.float()
+        scale_factor = (gs_new / gs_input[0], gs_new / gs_input[1])
+
+        embed_grid = F.interpolate(embed_grid, scale_factor=scale_factor, mode="bicubic")
+        # import pdb; pdb.set_trace()
+        # embed_grid = embed_grid.half()
+        embed_grid = embed_grid.reshape((-1, num_tok_output))
+        embed_grid = embed_grid.transpose(0, 1).contiguous()
+
+        return torch.cat((embed_tok, embed_grid), dim=0)
 
     def forward(self, input):
 
@@ -329,7 +359,7 @@ class VitBackbone(MegatronModule):
                     self.position_ids[:, : concatenated_tokens.shape[1]]
                 )
             elif self.position_embedding_type == "learned_parameters":
-                token_embeddings = concatenated_tokens + self.position_embeddings
+                token_embeddings = concatenated_tokens + self.interpolate_pos_encoding(concatenated_tokens)
 
             # a patch_dropout of 0. would mean it is disabled and this function would do nothing but return what was passed in
             token_embeddings = self.drop_patch(token_embeddings)
