@@ -1054,7 +1054,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
                 mel = self.duration_predictor.audio_enc_dec.encode(mel)
                 
                 audio_len = mask.sum(-1)
-                mel_len = audio_len // self.duration_predictor.audio_enc_dec.downsample_factor + 1
+                mel_len = audio_len // self.duration_predictor.audio_enc_dec.downsample_factor
                 mel_mask = get_mask_from_lengths(mel_len)
 
         else:

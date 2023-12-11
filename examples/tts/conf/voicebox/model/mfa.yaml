@@ -3,6 +3,8 @@ _target_: nemo.collections.tts.models.voicebox.VoiceboxModel
 
 defaults:
   - default
+  - override audio_enc_dec@duration_predictor.audio_enc_dec: encodec_voco
+  - override audio_enc_dec@voicebox.audio_enc_dec: encodec_voco
 
 mfa_tokenizer:
   _target_: nemo.collections.tts.modules.voicebox_modules.MFAEnglishPhonemeTokenizer
