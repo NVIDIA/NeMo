@@ -160,12 +160,11 @@ class DurationPredictor(_DP):
     def __init__(
         self,
         *args,
-        aligner_kwargs: dict | DictConfig | None = dict(dim_in = 80, attn_channels = 80),
+        aligner_kwargs: Optional[dict | DictConfig] = None,
         **kwargs,
     ):
         kwargs["frac_lengths_mask"] = tuple(kwargs["frac_lengths_mask"])
-        kwargs["aligner_kwargs"] = None
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, aligner_kwargs={})
 
         if aligner_kwargs is not None:
             # if we are using mel spec with 80 channels, we need to set attn_channels to 80
@@ -228,7 +227,7 @@ class DurationPredictor(_DP):
         # phoneme id of -1 is padding
         assert exists(self_attn_mask) and exists(phoneme_len) and exists(phoneme_mask)
 
-        if phoneme_mask.ndims == 2:
+        if phoneme_mask.ndim == 2:
             phoneme_mask =  rearrange(self_attn_mask, 'b t -> b 1 t')
 
         # phoneme_ids = phoneme_ids.clamp(min = 0)

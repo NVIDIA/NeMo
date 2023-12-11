@@ -99,7 +99,8 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                 phoneme = interval.mark
                 if phoneme == "":
                     phoneme = "sil"
-                phn_dur.append((phoneme, maxTime - minTime))
+                phn_dur.append((phoneme, round(maxTime - minTime, 2)))
+        assert len(phn_dur)
         return phn_dur
 
     def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
