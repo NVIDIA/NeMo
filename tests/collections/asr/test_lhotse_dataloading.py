@@ -262,9 +262,7 @@ def test_dataloader_from_nemo_manifest_has_custom_fields(nemo_manifest_path: Pat
         def __getitem__(self, cuts):
             return cuts
 
-    dl = get_lhotse_dataloader_from_config(
-        config=config, global_rank=0, world_size=1, dataset=_IdentityDataset()
-    )
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_IdentityDataset())
 
     batch = next(iter(dl))
     for cut in batch:
