@@ -662,6 +662,13 @@ class MegatronBaseModel(NLPModel):
                 )
                 with open_dict(self.cfg):
                     self.cfg.ub_tp_comm_overlap = False
+            if self.cfg.get('fsdp', False):
+                logging.info(
+                    "Userbuffer tensor-parallel communication overlap is not available with FSDP."
+                    "Setting `ub_tp_comm_overlap` to False."
+                )
+                with open_dict(self.cfg):
+                    self.cfg.ub_tp_comm_overlap = False
 
         if self.cfg.get('fsdp', False) and self.cfg.get('fp8', False):
             raise ValueError('Torch FSDP does not support FP8.')
