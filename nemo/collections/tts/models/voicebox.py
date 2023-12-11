@@ -287,14 +287,20 @@ class VoiceboxModel(TextToWaveform):
 
     
     def training_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT:
+        # voicebox's sampling rate
         audio = batch["audio_24k"]
         audio_lens = batch["audio_lens_24k"]
         tokens = batch["tokens"]
         token_lens = batch["token_lens"]
-        # aligner input
+
+        # nemo aligner input
         audio_22050 = batch["audio_22050"]
         audio_lens_22050 = batch["audio_lens_22050"]
         tgt_len = audio.shape[1]
+
+        # mfa tgt
+        durations = batch.get("durations", None)
+
 
         audio_mask = get_mask_from_lengths(audio_lens)
         _, losses = self.cfm_wrapper.forward(
@@ -303,6 +309,8 @@ class VoiceboxModel(TextToWaveform):
             # semantic_token_ids=None,
             phoneme_ids=tokens,
             phoneme_len=token_lens,
+            dp_cond=None,
+            durations=durations,
             cond=None,
             cond_mask=None,
             input_sampling_rate=None

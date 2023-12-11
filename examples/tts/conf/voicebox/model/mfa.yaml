@@ -11,4 +11,5 @@ mfa_tokenizer:
 tokenizer: null
 
 duration_predictor:
+  _target_: nemo.collections.tts.modules.voicebox_modules.MFADurationPredictor
   aligner_kwargs: null
