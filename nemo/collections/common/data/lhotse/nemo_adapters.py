@@ -20,10 +20,12 @@ class LazyNeMoIterator(ImitatesDict):
     ``LazyNeMoIterator`` reads a NeMo (non-tarred) JSON manifest and converts it on the fly to an ``Iterable[Cut]``.
     It's used to create a ``lhotse.CutSet``.
 
-    Currently, it requires (and exclusively supports) the following keys in NeMo manifests:
+    Currently, it requires the following keys in NeMo manifests:
     - "audio_filepath"
     - "duration"
     - "text" (overridable with text_field argument)
+
+    Every other key found in the manifest will be attached to Lhotse Cut and accessible via ``cut.custom[key]``.
 
     .. caution:: We assume every audio file has the same sampling rate, and it has to be explicitly provided
         in ``LazyNeMoIterator`` constructor.
@@ -50,12 +52,14 @@ class LazyNeMoIterator(ImitatesDict):
         from lhotse.utils import compute_num_samples
 
         for data in self.source:
+            audio_path = data.pop("audio_filepath")
+            duration = data.pop("duration")
             recording = Recording(
-                id=Path(data["audio_filepath"]).name,
-                sources=[AudioSource(type="file", channels=[0], source=data["audio_filepath"],)],
+                id=Path(audio_path).name,
+                sources=[AudioSource(type="file", channels=[0], source=audio_path)],
                 sampling_rate=self.sampling_rate,
-                duration=data["duration"],
-                num_samples=compute_num_samples(data["duration"], self.sampling_rate),
+                duration=duration,
+                num_samples=compute_num_samples(duration, self.sampling_rate),
             )
             cut = recording.to_cut()
             cut.supervisions.append(
@@ -67,6 +71,7 @@ class LazyNeMoIterator(ImitatesDict):
                     text=data[self.text_field],
                 )
             )
+            cut.custom = data
             yield cut
 
     def __len__(self) -> int:
@@ -83,11 +88,13 @@ class LazyNeMoTarredIterator(ImitatesDict):
     ``LazyNeMoTarredIterator`` reads a NeMo tarred JSON manifest and converts it on the fly to an ``Iterable[Cut]``.
     It's used to create a ``lhotse.CutSet``.
 
-    Currently, it requires (and exclusively supports) the following keys in NeMo manifests:
+    Currently, it requires the following keys in NeMo manifests:
     - "audio_filepath"
     - "duration"
     - "text" (overridable with text_field argument)
     - "shard_id"
+
+    Every other key found in the manifest will be attached to Lhotse Cut and accessible via ``cut.custom[key]``.
 
     Args ``manifest_path`` and ``tar_paths`` can be either a path/string to a single file, or a string in NeMo format
     that indicates multiple paths (e.g. "[[data/bucket0/tarred_audio_paths.json],[data/bucket1/...]]").
@@ -177,6 +184,9 @@ class LazyNeMoTarredIterator(ImitatesDict):
                             text=data[self.text_field],
                         )
                     )
+                    for k in ("audio_filepath", "duration"):
+                        data.pop(k, None)  # skip unwanted custom attributes
+                    cut.custom = data
                     yield cut
 
     def __len__(self) -> int:

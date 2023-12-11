@@ -71,6 +71,7 @@ def nemo_manifest_path(cutset_path: Path):
                 "text": "irrelevant",
                 "text-other": "not relevant",
                 "duration": c.duration,
+                "my-custom-field": "irrelevant",
             }
         )
     p = cutset_path.parent / "nemo_manifest.json"
@@ -238,6 +239,37 @@ def test_dataloader_from_nemo_manifest(nemo_manifest_path: Path):
     b = batches[3]
     assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
+
+
+def test_dataloader_from_nemo_manifest_has_custom_fields(nemo_manifest_path: Path):
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": nemo_manifest_path,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "lhotse": {
+                "use_bucketing": False,
+                "batch_duration": 4.0,  # seconds
+                "shuffle_buffer_size": 10,
+                "seed": 0,
+            },
+        }
+    )
+
+    class _IdentityDataset:
+        def __getitem__(self, cuts):
+            return cuts
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=_IdentityDataset()
+    )
+
+    batch = next(iter(dl))
+    for cut in batch:
+        assert isinstance(cut.custom, dict)
+        assert "my-custom-field" in cut.custom
 
 
 def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: Path):
