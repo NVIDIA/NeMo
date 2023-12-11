@@ -66,7 +66,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
@@ -243,7 +243,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         context_start_idx: Optional[List[List[int]]] = None,
     ):
         # [b, t, c]
-        lm_embedding = self.model.language_model.embedding
+        lm_embedding = self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
         input_embeds = lm_embedding.word_embeddings(input_ids)
         if isinstance(encoded, torch.Tensor):
             # single audio
@@ -264,7 +264,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         else:
             encoder_input = encoder_input
         encoder_max_length = encoder_input.shape[1]
-        if lm_embedding.transpose_batch_sequence:
+        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
         if self.cfg.get("sequence_parallel", False):
             encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
@@ -280,7 +280,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         return shifted_labels
 
     def _get_text_embeddings(self, text_tokens, position_ids):
-        lm_embedding = self.model.language_model.embedding
+        lm_embedding = self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
         text_embeddings = lm_embedding.word_embeddings(text_tokens)  # (batch_size, seq_len, hidden_size)
         if hasattr(lm_embedding, 'position_embeddings'):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
@@ -339,14 +339,23 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         as the LLM input.
         """
         encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
-        output = self.model(
-            input_ids=None,
-            position_ids=None,
-            encoder_input=encoder_input,
-            attention_mask=attention_mask,
-            labels=labels,
-            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-        )
+        if self.mcore_gpt:
+            output = self.model(
+                input_ids=None,
+                position_ids=None,
+                decoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+            )
+        else:
+            output = self.model(
+                input_ids=None,
+                position_ids=None,
+                encoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+            )
 
         return output, loss_mask
 
@@ -368,15 +377,32 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             if attention_mask is not None:
                 attention_mask = attention_mask.cuda()
                 attention_mask = attention_mask[0:1]
-            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            output_tensor = model(
-                input_ids=None,
-                position_ids=None,
-                encoder_input=input_embeddings,
-                attention_mask=attention_mask,
-                **extra_arg,
-            )
+            if self.mcore_gpt:
+                # if first step, then clear KV cache, otherwise reuse inference_paarms
+                if set_inference_key_value_memory[0].item():
+                    self.inference_params = InferenceParams(
+                        max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
+                    )
+                extra_arg['inference_params'] = self.inference_params
+            else:
+                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            if self.mcore_gpt:
+                output_tensor = model(
+                    input_ids=None,
+                    position_ids=None,
+                    decoder_input=input_embeddings,
+                    attention_mask=attention_mask,
+                    **extra_arg,
+                )
+            else:
+                output_tensor = model(
+                    input_ids=None,
+                    position_ids=None,
+                    encoder_input=input_embeddings,
+                    attention_mask=attention_mask,
+                    **extra_arg,
+                )
 
             if isinstance(output_tensor, tuple):
                 output_tensor = output_tensor[1]  # get logits only
@@ -395,7 +421,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             output_tensor, loss_mask = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
-            output_tensor = output_tensor[0]  # get loss only, ingore logits
+            if not self.mcore_gpt:
+                output_tensor = output_tensor[0]  # get loss only, ingore logits
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
