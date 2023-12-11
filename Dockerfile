@@ -53,12 +53,12 @@ RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
 # Distributed Adam support for multiple dtypes
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
-  git checkout 52e18c894223800cb611682dce27d88050edf1de && \
-  pip install install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
+  git checkout a2f6683b10fb4c29ab57c9e3d16957db76a8a5ba && \
+  pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   cd TransformerEngine && \
-  git fetch origin 8eae4ce2b8fdfbbe525fc8bfecb0df5498cc9687 && \
+  git fetch origin ff760a9d838ae4617600cccb22131d0359ce0296 && \
   git checkout FETCH_HEAD && \
   git submodule init && git submodule update && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .

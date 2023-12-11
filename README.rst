@@ -295,8 +295,8 @@ To install Apex, run
 
     git clone https://github.com/NVIDIA/apex.git
     cd apex
-    git checkout 52e18c894223800cb611682dce27d88050edf1de
-    pip install install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
+    git checkout a2f6683b10fb4c29ab57c9e3d16957db76a8a5ba
+    pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Apex or any other dependencies.
 
@@ -335,7 +335,7 @@ Transformer Engine requires PyTorch to be built with CUDA 11.8.
 
 Flash Attention
 ~~~~~~~~~~~~~~~~~~~~
-Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models, please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_. If you want to use Flash Attention with attention bias (introduced from position encoding, e.g. Alibi), please also install triton pinned version following the `implementation <https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3>`_. 
+Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models, please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_. If you want to use Flash Attention with attention bias (introduced from position encoding, e.g. Alibi), please also install triton pinned version following the `implementation <https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3>`_.
 
 .. code-block:: bash
 
