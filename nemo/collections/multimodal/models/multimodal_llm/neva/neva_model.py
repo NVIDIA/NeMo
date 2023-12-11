@@ -31,7 +31,7 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
     make_supervised_data_module,
 )
-from nemo.collections.multimodal.models.vision_language_foundation.clip import CLIPVisionTransformer, MegatronCLIPModel
+from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import CLIPVisionTransformer, MegatronCLIPModel
 from nemo.collections.multimodal.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
