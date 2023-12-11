@@ -51,7 +51,7 @@ from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer, EnglishPhonemesTokenizer
 
 
-class MFAEnglishPhonemeTokenizer:
+class MFAEnglishPhonemeTokenizer(Tokenizer):
     MFA_arpa_phone_set = ["PAD", "sil", "spn", "AA", "AA0", "AA1", "AA2", "AE", "AE0", "AE1", "AE2", "AH", "AH0", "AH1", "AH2", "AO", "AO0", "AO1", "AO2", "AW", "AW0", "AW1", "AW2", "AY", "AY0", "AY1", "AY2", "B", "CH", "D", "DH", "EH", "EH0", "EH1", "EH2", "ER", "ER0", "ER1", "ER2", "EY", "EY0", "EY1", "EY2", "F", "G", "HH", "IH", "IH0", "IH1", "IH2", "IY", "IY0", "IY1", "IY2", "JH", "K", "L", "M", "N", "NG", "OW", "OW0", "OW1", "OW2", "OY", "OY0", "OY1", "OY2", "P", "R", "S", "SH", "T", "TH", "UH", "UH0", "UH1", "UH2", "UW", "UW0", "UW1", "UW2", "V", "W", "Y", "Z", "ZH"]
 
     def __init__(
@@ -164,10 +164,10 @@ class DurationPredictor(_DP):
         **kwargs,
     ):
         kwargs["frac_lengths_mask"] = tuple(kwargs["frac_lengths_mask"])
-        kwargs["aligner_kwargs"] = {}
+        kwargs["aligner_kwargs"] = None
         super().__init__(*args, **kwargs)
 
-        if aligner_kwargs:
+        if aligner_kwargs is not None:
             # if we are using mel spec with 80 channels, we need to set attn_channels to 80
             # dim_in assuming we have spec with 80 channels
 
@@ -567,6 +567,25 @@ class NeMoDurationPredictor(DurationPredictor):
         return loss, losses, self.align_phoneme_ids_with_durations(phoneme_ids=phoneme_ids, durations=target)
 
 
+class MFADurationPredictor(DurationPredictor):
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        """
+        1. `cond` arg of `forward() should be ground-truth duration, therefore fix `self.proj_in` into nn.Linear(1,dim)
+        """
+        # audio_enc_dec = aligner.preprocessor
+
+        super().__init__(
+            *args,
+            **kwargs,
+            aligner_kwargs=None
+        )
+
+
+
 class VoiceBox(_VB):
     """ Nothing to fix currently. Add some docs.
     """
@@ -592,7 +611,8 @@ class VoiceBox(_VB):
         num_register_tokens = 16,
         p_drop_prob = 0.3, # p_drop in paper
         frac_lengths_mask: Tuple[float, float] = (0.7, 1.),
-        condition_on_text = True
+        condition_on_text = True,
+        **kwargs
     ):
         """
         Input related args:

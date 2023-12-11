@@ -63,6 +63,7 @@ class VoiceboxModel(TextToWaveform):
         self.normalizer: Normalizer = None
 
         aligner = None
+        dp_kwargs = {}
         # self.aligner: AlignerModel = None
         if cfg.get("nemo_aligner") and cfg.nemo_aligner.get("from_pretrained"):
             logging.info(cfg.nemo_aligner._target_)
@@ -77,6 +78,11 @@ class VoiceboxModel(TextToWaveform):
             self.text_normalizer_call_kwargs = aligner.text_normalizer_call_kwargs
             num_tokens = len(aligner.tokenizer.tokens)
 
+            dp_kwargs.update({
+                "tokenizer": self.tokenizer,
+                "aligner": aligner
+            })
+
         elif cfg.get("nemo_tokenizer"):
             # setup normalizer
             self.text_normalizer_call = None
@@ -89,12 +95,27 @@ class VoiceboxModel(TextToWaveform):
 
             num_tokens = len(self.tokenizer.tokens)
             self.tokenizer_pad = self.tokenizer.pad
+            dp_kwargs.update({
+                "tokenizer": self.tokenizer,
+            })
 
-        elif cfg.get("mfa_tokenizer", cfg.get("tokenizer")):
+        elif cfg.get("mfa_tokenizer"):
+            self.normalizer = None
+            self.tokenizer = instantiate(cfg.mfa_tokenizer)
+            num_tokens = self.tokenizer.vocab_size
+            self.tokenizer_pad = self.tokenizer.pad_id
+            dp_kwargs.update({
+                "tokenizer": self.tokenizer,
+            })
+
+        elif cfg.get("tokenizer"):
             self.normalizer = None
             self.tokenizer = instantiate(cfg.tokenizer)
             num_tokens = self.tokenizer.vocab_size
             self.tokenizer_pad = self.tokenizer.pad_id
+            dp_kwargs.update({
+                "tokenizer": self.tokenizer,
+            })
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -103,8 +124,7 @@ class VoiceboxModel(TextToWaveform):
 
         self.duration_predictor = instantiate(
             cfg.duration_predictor,
-            tokenizer=self.tokenizer,
-            aligner=aligner,
+            **dp_kwargs,
         )
         self.aligner = aligner
 

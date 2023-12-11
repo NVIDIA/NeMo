@@ -9,3 +9,6 @@ mfa_tokenizer:
   textgrid_dir: /datasets/LibriLight/mfa_data_aligned
 
 tokenizer: null
+
+duration_predictor:
+  aligner_kwargs: null
