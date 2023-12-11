@@ -17,6 +17,7 @@ import sys
 from urllib.parse import urlparse
 
 import yaml
+from nemo.utils import logging
 
 try:
     import webdataset.gopen as gopen_webdata
