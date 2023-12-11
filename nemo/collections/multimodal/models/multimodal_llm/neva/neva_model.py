@@ -31,7 +31,10 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
     make_supervised_data_module,
 )
-from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import CLIPVisionTransformer, MegatronCLIPModel
+from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import (
+    CLIPVisionTransformer,
+    MegatronCLIPModel,
+)
 from nemo.collections.multimodal.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -59,7 +62,6 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import AppState, logging
-
 
 try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state
