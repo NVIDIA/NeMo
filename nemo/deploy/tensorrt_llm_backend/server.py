@@ -5,8 +5,10 @@ import subprocess
 import typing
 
 from jinja2 import Environment, FileSystemLoader
+import shutil
 
-_ENSEMBLE_MODEL_DIR = "/opt/NeMo/nemo/deploy/tensorrt_llm_backend/configs/ensemble_models/llama"
+_ENSEMBLE_MODEL_CONFIGS = "/opt/NeMo/nemo/deploy/tensorrt_llm_backend/configs/"
+_ENSEMBLE_MODEL_DIR = os.getenv("ENSEMBLE_MODEL_DIR", default="/opt/ensemble")
 _TRITON_BIN = "/opt/tritonserver/bin/tritonserver"
 _MPIRUN_BIN = "/usr/local/mpi/bin/mpirun"
 logging.basicConfig(level=logging.DEBUG)
@@ -16,10 +18,11 @@ _LOGGER = logging.getLogger(__name__)
 class ModelServer:
     """Abstraction of a multi-gpu triton inference server cluster."""
 
-    def __init__(self, model=None, http: bool = False) -> None:
+    def __init__(self, model=None, http: bool = False, max_batch_size: int = 128) -> None:
         """Initialize the model server."""
         self._model = model
         self._http = http
+        self._max_batch_size = max_batch_size
         self._render_model_templates()
 
     @property
@@ -89,6 +92,15 @@ class ModelServer:
 
     def _render_model_templates(self) -> None:
         """Render and Jinja templates in the model directory."""
+        try:
+            # Copy the entire folder and its contents recursively
+            shutil.copytree(_ENSEMBLE_MODEL_CONFIGS, _ENSEMBLE_MODEL_DIR)
+            print(f"Folder '{_ENSEMBLE_MODEL_CONFIGS}' copied to '{_ENSEMBLE_MODEL_DIR}' successfully.")
+        except shutil.Error as e:
+            print(f"Error copying folder: {e}")
+        except OSError as e:
+            print(f"Error: {e}")
+
         env = Environment(
             loader=FileSystemLoader(searchpath=self.model_repository),
             autoescape=False,
@@ -101,11 +113,13 @@ class ModelServer:
 
         template = env.get_template(template_path)
 
+        breakpoint()
         with open(output_path, "w", encoding="UTF-8") as out:
             template_args = {
                 "engine_dir": self._model.model_dir,
                 "decoupled_mode": self._decoupled_mode,
                 "gpt_model_type": self._gpt_model_type,
+                
             }
             out.write(template.render(**template_args))
 
@@ -120,7 +134,6 @@ class ModelServer:
             self.proc = subprocess.Popen(cmd, env=env)
         except subporcess.CalledProcessError as e:
             _LOGGER.error("Error:", e)
-        print("##############$$$$$$$$$$$$")
 
 
     def stop(self) -> None:

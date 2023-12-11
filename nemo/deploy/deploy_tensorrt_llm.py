@@ -100,7 +100,7 @@ class DeployTensorRTLLM(DeployBase):
         ## create config here
 
         try:
-            self.triton=ModelServer(self.model, http=True)
+            self.triton=ModelServer(self.model, http=True, max_batch_size=self.max_batch_size)
         except Exception as e:
             self.triton = None
             print(e)

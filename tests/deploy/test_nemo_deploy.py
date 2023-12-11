@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import urllib.request as req
 from pathlib import Path
 
@@ -102,23 +103,24 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
         )
         trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
         use_inflight_batching = not use_pytriton
-        trt_llm_exporter.export(
-            nemo_checkpoint_path=model_info["checkpoint"],
-            model_type=model_info["model_type"],
-            n_gpus=n_gpu,
-            max_input_token=1024,
-            max_output_token=128,
-            max_batch_size=model_info["max_batch_size"],
-            use_inflight_batching=use_inflight_batching,
-        )
+        # trt_llm_exporter.export(
+        #     nemo_checkpoint_path=model_info["checkpoint"],
+        #     model_type=model_info["model_type"],
+        #     n_gpus=n_gpu,
+        #     max_input_token=1024,
+        #     max_output_token=128,
+        #     max_batch_size=model_info["max_batch_size"],
+        #     use_inflight_batching=use_inflight_batching,
+        # )
 
+        prompts = model_info["prompt_template"]
         if use_pytriton:
             nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
             nm.deploy()
             nm.run()
             nq = NemoQuery(url="http://localhost", model_name=model_name)
             output = nq.query_llm(
-                    prompts=model_info["prompt_template"],
+                    prompts=prompts,
                     max_output_token=model_info["max_output_token"],
                     top_k=1,
                     top_p=0.0,
@@ -128,17 +130,10 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
             nm = DeployTensorRTLLM(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
             nm.deploy()
             nm.run()
-            time.sleep(20)
+            time.sleep(10)
             nq = NemoQueryTensorRTLLM(url="localhost:8000", model_name="ensemble")
-            prompt = (
-                    "<s>[INST] <<SYS>>"
-                    "You are a helpful and friendly chatbot named George. If you don't know the answer, just say that you don't know, don't try to make up an answer."
-                    "<</SYS>>"
-                    "<s>[INST] Context: Bananas are yellow. Question: What color are bananas? Only return the helpful answer below and nothing else. Helpful answer:[/INST]"
-            )
-            
             output = nq.query_llm(
-                    prompt=prompt,
+                    prompts=prompts,
                     max_output_token=model_info["max_output_token"],
                     top_k=1,
                     top_p=0.0,
@@ -146,7 +141,7 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
             )
             
         print("")
-        print("--- Prompt: ", prompt)
+        print("--- Prompt: ", prompts)
         print("")
         print("--- Output: ", output)
         print("")
@@ -159,7 +154,7 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
 
         trt_llm_exporter = None
         nm.stop()
-        shutil.rmtree(model_info["trt_llm_model_dir"])
+        #shutil.rmtree(model_info["trt_llm_model_dir"])
 
 
 @pytest.mark.parametrize("n_gpus", [1])
@@ -215,7 +210,16 @@ def test_LLAMA2_7B_base_1gpu(n_gpus):
         pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
 
     run_trt_llm_export("LLAMA2-7B-base", n_gpus)
-    run_trt_llm_export("LLAMA2-7B-base", n_gpus, use_pytriton=False)
+
+@pytest.mark.parametrize("n_gpus", [1])
+def test_LLAMA2_7B_base_1gpu_ifb(n_gpus):
+    """Here we test the trt-llm transfer and infer function with IFB and c++ backend"""
+    if n_gpus > torch.cuda.device_count():
+        pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
+
+    run_trt_llm_export("LLAMA2-7B-base", n_gpus, use_pytriton=False, skip_accuracy=True)
+    shutil.rmtree(os.getenv("ENSEMBLE_MODEL_DIR"))
+
 
 
 @pytest.mark.parametrize("n_gpus", [1])

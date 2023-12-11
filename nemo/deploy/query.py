@@ -119,7 +119,7 @@ class NemoQueryTensorRTLLM(NemoQueryBase):
 
     def query_llm(
             self,
-            prompt,
+            prompts,
             max_output_token=512,
             top_k=1,
             top_p=0.0,
@@ -127,17 +127,20 @@ class NemoQueryTensorRTLLM(NemoQueryBase):
             init_timeout=600.0,
     ):
 
-        pload = {
-            'prompt':[[prompt]], 
-            'tokens':100,
-            'temperature':1.0,
-            'top_k':1,
-            'top_p':0,
-            'beam_width':1,
-            'repetition_penalty':1.0,
-            'length_penalty':1.0
-        }
+        client = HttpTritonClient(self.url)
+        results = []
+        for prompt in prompts:
+            pload = {
+                'prompt':[[prompt]], 
+                'tokens':100,
+                'temperature':temperature,
+                'top_k': top_k,
+                'top_p': top_p,
+                'beam_width':1,
+                'repetition_penalty':1.0,
+                'length_penalty':1.0
+            }
 
-        client = HttpTritonClient(self.url) 
-        result = client.request(self.model_name, **pload)
-        return result
+            result = client.request(self.model_name, **pload)
+            results.append(result)
+        return results
