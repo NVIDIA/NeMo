@@ -50,12 +50,14 @@ class LazyNeMoIterator(ImitatesDict):
         from lhotse.utils import compute_num_samples
 
         for data in self.source:
+            audio_path = data.pop("audio_filepath")
+            duration = data.pop("duration")
             recording = Recording(
-                id=Path(data["audio_filepath"]).name,
-                sources=[AudioSource(type="file", channels=[0], source=data["audio_filepath"],)],
+                id=Path(audio_path).name,
+                sources=[AudioSource(type="file", channels=[0], source=audio_path)],
                 sampling_rate=self.sampling_rate,
-                duration=data["duration"],
-                num_samples=compute_num_samples(data["duration"], self.sampling_rate),
+                duration=duration,
+                num_samples=compute_num_samples(duration, self.sampling_rate),
             )
             cut = recording.to_cut()
             cut.supervisions.append(
@@ -67,6 +69,7 @@ class LazyNeMoIterator(ImitatesDict):
                     text=data[self.text_field],
                 )
             )
+            cut.custom = data
             yield cut
 
     def __len__(self) -> int:
@@ -177,6 +180,9 @@ class LazyNeMoTarredIterator(ImitatesDict):
                             text=data[self.text_field],
                         )
                     )
+                    for k in ("audio_filepath", "duration"):
+                        data.pop(k, None)  # skip unwanted custom attributes
+                    cut.custom = data
                     yield cut
 
     def __len__(self) -> int:
