@@ -153,7 +153,7 @@ def main(cfg) -> None:
         model_cfg.restore_from_path = cfg.model.original_model
         # model_cfg.restore_from_path = model
 
-    # model_cfg.task_templates = cfg["model"]["task_templates"]
+    model_cfg.task_templates = cfg["model"]["task_templates"]
     # model_cfg.task_templates = {
     #     "taskname": "qasper",
     #     "prompt_template": " \nQuestion: {question} \nAnswer: {answer}",
