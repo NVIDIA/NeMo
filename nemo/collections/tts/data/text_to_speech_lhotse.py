@@ -103,6 +103,12 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         assert len(phn_dur)
         return phn_dur
 
+    def get_cut_alignment(self, cut):
+        phn_dur = []
+        for ali in cut.supervisions[0].alignment["phone"]:
+            phn_dur.append((ali.symbol, ali.duration))
+        return phn_dur
+
     def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
         batch = {}
 
@@ -134,7 +140,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                 tokens = [self.tokenizer(text) for text in texts]
                 padding_value = self.tokenizer.pad
             elif isinstance(self.tokenizer, MFAEnglishPhonemeTokenizer):
-                phn_durs = [self.parse_cut_mfa_textgrid(cut) for cut in cuts]
+                phn_durs = [self.get_cut_alignment(cut) for cut in cuts]
                 durs = [[dur for _, dur in phn_dur] for phn_dur in phn_durs]
                 durs = [torch.as_tensor(ds) for ds in durs]
                 durs = collate_vectors(durs, padding_value=0)

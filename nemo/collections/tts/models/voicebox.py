@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Tuple, Union, Optional, Any
 from pytorch_lightning.utilities.types import STEP_OUTPUT
+from tqdm import tqdm
 
 import torch
 from torch import nn, Tensor
@@ -166,6 +167,35 @@ class VoiceboxModel(TextToWaveform):
             new_path = old_path.replace(old_prefix, self._cfg.corpus_dir)
             cut.recording.sources[0].source = new_path
             return cut
+        
+        def textgrid_exist(cut):
+            cut_id = cut.id
+            subset, spk = cut_id.split('/')[:2]
+            f_id = f"{self.tokenizer.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
+            return os.path.exists(f_id)
+
+        def parse_cut_mfa_textgrid(seg):
+            from textgrid import TextGrid, IntervalTier
+            from lhotse.supervision import AlignmentItem, SupervisionSet
+            seg_id = seg.id
+            subset, spk = seg_id.split('/')[:2]
+            f_id = f"{self.tokenizer.textgrid_dir}/{subset}/{spk}/{','.join(seg_id.split('/'))}.TextGrid"
+            tg = TextGrid()
+            tg.read(f_id)
+            phn_dur = []
+            for tier in tg.tiers:
+                if tier.name != "phones":
+                    continue
+                for interval in tier.intervals:
+                    minTime = interval.minTime
+                    maxTime = interval.maxTime
+                    phoneme = interval.mark
+                    if phoneme == "":
+                        phoneme = "sil"
+                    phn_dur.append(AlignmentItem(symbol=phoneme, start=minTime, duration=round(maxTime - minTime, 2)))
+            assert len(phn_dur)
+            new_sup_seg = seg.with_alignment("phone", phn_dur)
+            return new_sup_seg
 
         logging.info(f"mkdir -p {self._cfg.manifests_dir}")
         os.makedirs(self._cfg.manifests_dir, exist_ok=True)
@@ -178,10 +208,18 @@ class VoiceboxModel(TextToWaveform):
                 cuts = load_manifest_lazy_or_eager("raw_" + manifest_path, CutSet)
                 logging.info(f"Filtering {subset} subset.")
                 cuts = cuts.filter(lambda c: ',' not in c.id)
-                # logging.info(f"Fixing {subset} subset prefix.")
-                # cuts = cuts.map(change_prefix)
+                cuts = cuts.filter(textgrid_exist)
+                cuts = cuts.map_supervisions(parse_cut_mfa_textgrid)
                 logging.info(f"Writing {subset} subset.")
-                cuts.to_file(manifest_path)
+                with CutSet.open_writer(
+                    manifest_path, overwrite=False
+                ) as cut_writer, tqdm(desc=f"Write {subset} subset") as progress:
+                    for cut in cuts:
+                        if cut_writer.contains(cut.id):
+                            continue
+                        cut_writer.write(cut)
+                        progress.update()
+                # cuts.to_file(manifest_path)
                 del cuts
             else:
                 logging.info(f"Skipping fix, {subset} subset exists.")
