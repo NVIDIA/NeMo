@@ -127,7 +127,8 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
                     temperature=1.0,
             )
         else:
-            nm = DeployTensorRTLLM(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
+            model_repo_dir="/tmp/ensembles"
+            nm = DeployTensorRTLLM(model=trt_llm_exporter, triton_model_name=model_name, port=8000, model_repo_dir=model_repo_dir)
             nm.deploy()
             nm.run()
             time.sleep(10)
@@ -154,6 +155,7 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
 
         trt_llm_exporter = None
         nm.stop()
+        shutil.rmtree(model_repo_dir)
         #shutil.rmtree(model_info["trt_llm_model_dir"])
 
 
@@ -218,8 +220,6 @@ def test_LLAMA2_7B_base_1gpu_ifb(n_gpus):
         pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
 
     run_trt_llm_export("LLAMA2-7B-base", n_gpus, use_pytriton=False, skip_accuracy=True)
-    shutil.rmtree(os.getenv("ENSEMBLE_MODEL_DIR"))
-
 
 
 @pytest.mark.parametrize("n_gpus", [1])

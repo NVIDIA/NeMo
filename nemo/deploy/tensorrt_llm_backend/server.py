@@ -8,7 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 import shutil
 
 _ENSEMBLE_MODEL_CONFIGS = "/opt/NeMo/nemo/deploy/tensorrt_llm_backend/configs/"
-_ENSEMBLE_MODEL_DIR = os.getenv("ENSEMBLE_MODEL_DIR", default="/opt/ensemble")
+_DEFAULT_MODEL_DIR = "/opt/ensemble"
 _TRITON_BIN = "/opt/tritonserver/bin/tritonserver"
 _MPIRUN_BIN = "/usr/local/mpi/bin/mpirun"
 logging.basicConfig(level=logging.DEBUG)
@@ -18,11 +18,12 @@ _LOGGER = logging.getLogger(__name__)
 class ModelServer:
     """Abstraction of a multi-gpu triton inference server cluster."""
 
-    def __init__(self, model=None, http: bool = False, max_batch_size: int = 128) -> None:
+    def __init__(self, model=None, http: bool = False, max_batch_size: int = 128, model_repo_dir: str = None) -> None:
         """Initialize the model server."""
         self._model = model
         self._http = http
         self._max_batch_size = max_batch_size
+        self._model_repo_dir = model_repo_dir
         self._render_model_templates()
 
     @property
@@ -48,7 +49,7 @@ class ModelServer:
     @property
     def model_repository(self) -> str:
         """Return the triton model repository."""
-        return _ENSEMBLE_MODEL_DIR
+        return _DEFAULT_MODEL_DIR if self._model_repo_dir is None else self._model_repo_dir
 
     def _triton_server_cmd(self, rank: int) -> typing.List[str]:
         """Generate the command to start a single triton server of given rank."""
@@ -90,12 +91,71 @@ class ModelServer:
             env["OMPI_ALLOW_RUN_AS_ROOT_CONFIRM"] = "1"
         return env
 
+    def _render_tensorrt_llm_template(self, env):
+        template_path = os.path.join("tensorrt_llm", "config.pbtxt.j2")
+        output_path = os.path.join(
+            self.model_repository, "tensorrt_llm", "config.pbtxt"
+        )
+
+        template = env.get_template(template_path)
+
+        with open(output_path, "w", encoding="UTF-8") as out:
+            template_args = {
+                "engine_dir": self._model.model_dir,
+                "decoupled_mode": self._decoupled_mode,
+                "gpt_model_type": self._gpt_model_type,
+                "max_batch_size": self._max_batch_size,
+            }
+            out.write(template.render(**template_args))
+
+    def _render_ensemble_template(self, env):
+        template_path = os.path.join("ensemble", "config.pbtxt.j2")
+        output_path = os.path.join(
+            self.model_repository, "ensemble", "config.pbtxt"
+        )
+
+        template = env.get_template(template_path)
+
+        with open(output_path, "w", encoding="UTF-8") as out:
+            template_args = {
+                "max_batch_size": self._max_batch_size,
+            }
+            out.write(template.render(**template_args))
+
+    def _render_postprocessing_template(self, env):
+        template_path = os.path.join("preprocessing", "config.pbtxt.j2")
+        output_path = os.path.join(
+            self.model_repository, "preprocessing", "config.pbtxt"
+        )
+
+        template = env.get_template(template_path)
+
+        with open(output_path, "w", encoding="UTF-8") as out:
+            template_args = {
+                "max_batch_size": self._max_batch_size,
+            }
+            out.write(template.render(**template_args))
+
+    def _render_preprocessing_template(self, env):
+        template_path = os.path.join("preprocessing", "config.pbtxt.j2")
+        output_path = os.path.join(
+            self.model_repository, "preprocessing", "config.pbtxt"
+        )
+
+        template = env.get_template(template_path)
+
+        with open(output_path, "w", encoding="UTF-8") as out:
+            template_args = {
+                "max_batch_size": self._max_batch_size,
+            }
+            out.write(template.render(**template_args))
+
     def _render_model_templates(self) -> None:
         """Render and Jinja templates in the model directory."""
         try:
             # Copy the entire folder and its contents recursively
-            shutil.copytree(_ENSEMBLE_MODEL_CONFIGS, _ENSEMBLE_MODEL_DIR)
-            print(f"Folder '{_ENSEMBLE_MODEL_CONFIGS}' copied to '{_ENSEMBLE_MODEL_DIR}' successfully.")
+            shutil.copytree(_ENSEMBLE_MODEL_CONFIGS, self.model_repository)
+            print(f"Folder '{_ENSEMBLE_MODEL_CONFIGS}' copied to '{self.model_repository}' successfully.")
         except shutil.Error as e:
             print(f"Error copying folder: {e}")
         except OSError as e:
@@ -106,22 +166,11 @@ class ModelServer:
             autoescape=False,
         )  # nosec; all the provided values are from code, not the user
 
-        template_path = os.path.join("tensorrt_llm", "config.pbtxt.j2")
-        output_path = os.path.join(
-            self.model_repository, "tensorrt_llm", "config.pbtxt"
-        )
-
-        template = env.get_template(template_path)
-
         breakpoint()
-        with open(output_path, "w", encoding="UTF-8") as out:
-            template_args = {
-                "engine_dir": self._model.model_dir,
-                "decoupled_mode": self._decoupled_mode,
-                "gpt_model_type": self._gpt_model_type,
-                
-            }
-            out.write(template.render(**template_args))
+        self._render_ensemble_template(env)
+        self._render_preprocessing_template(env)
+        self._render_postprocessing_template(env)
+        self._render_tensorrt_llm_template(env)
 
     def run(self) -> None:
         """Start the triton inference server."""
