@@ -15,6 +15,7 @@ import os
 from typing import Any, Callable, Dict, Tuple
 
 import torch
+import tempfile
 from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
 from pytorch_lightning import Trainer
@@ -28,7 +29,7 @@ from nemo.utils.distributed import initialize_distributed
 from transformers import CLIPImageProcessor
 
 try:
-    from megatron.core import parallel_state
+    from megatron.core import dist_checkpointing, parallel_state
 
     HAVE_MEGATRON_CORE = True
 
@@ -95,6 +96,56 @@ def apply_with_stopping_condition(module, apply_fn, apply_condition=None, stoppi
         apply_with_stopping_condition(
             child, apply_fn, apply_condition=apply_condition, stopping_condition=stopping_condition, **other_args
         )
+
+
+def load_nemo_model_weights(nemo_path, sharded_state_dict=None):
+    """
+    Shared method to load model weights from a given nemo_path.
+    """
+    if torch.cuda.is_available():
+        map_location = torch.device('cuda')
+    else:
+        map_location = torch.device('cpu')
+
+    save_restore_connector = NLPSaveRestoreConnector()
+    cwd = os.getcwd()
+    app_state = AppState()
+    is_dist_ckpt = False
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            if os.path.isfile(nemo_path):
+                save_restore_connector._unpack_nemo_file(path2file=nemo_path, out_folder=tmpdir)
+            else:
+                tmpdir = nemo_path
+            os.chdir(tmpdir)
+            if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                model_weights = save_restore_connector._inject_model_parallel_rank_for_ckpt(
+                    tmpdir, save_restore_connector.model_weights_ckpt
+                )
+            else:
+                model_weights = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+
+            state_dict = save_restore_connector._load_state_dict_from_disk(
+                model_weights, map_location=map_location
+            )
+
+            # distributed checkpointing
+            if state_dict is None and sharded_state_dict is not None:
+                is_dist_ckpt = True
+                checkpoint = dict(state_dict=sharded_state_dict)
+                tmp_model_weights_ckpt = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+                tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
+                assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
+                checkpoint = dist_checkpointing.load(
+                    sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir,
+                )
+                state_dict = checkpoint["state_dict"]
+
+        finally:
+            os.chdir(cwd)
+
+    return state_dict, is_dist_ckpt
 
 
 def setup_trainer_and_models_for_inference(

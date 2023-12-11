@@ -18,7 +18,6 @@ from transformers import CLIPImageProcessor
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
-from nemo.collections.multimodal.data.kosmos.kosmos_dataset import tokenize_and_insert_media_tokens
 from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_PAD_TOKEN,
     DEFAULT_BOS_TOKEN,
@@ -32,9 +31,10 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IM_END_TOKEN,
 )
+from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
-MAX_NUM_IMAGES = 4
+MAX_NUM_IMAGES = 1
 IGNORE_INDEX = -1
 
 
@@ -427,7 +427,6 @@ class LazySupervisedDataset(Dataset):
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         sources = self.list_data_dict[i]
-        processor = self.processor
         if isinstance(i, int):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
@@ -440,33 +439,39 @@ class LazySupervisedDataset(Dataset):
                 image = self.image_loader.open_image(image_file)
                 if image is None:
                     logging.warning(f"Image {image_file} could not be found!")
-                if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
-                    max_hw, min_hw = max(image.size), min(image.size)
-                    aspect_ratio = max_hw / min_hw
-                    max_len, min_len = 448, 224
-                    shortest_edge = int(min(max_len / aspect_ratio, min_len))
-                    image = processor.preprocess(
-                        image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-                    )['pixel_values'][0]
-                elif self.multimodal_cfg['image_aspect_ratio'] == 'pad':
+                if isinstance(self.processor, CLIPImageProcessor):
+                    # image processor from HF
+                    if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
+                        max_hw, min_hw = max(image.size), min(image.size)
+                        aspect_ratio = max_hw / min_hw
+                        max_len, min_len = 448, 224
+                        shortest_edge = int(min(max_len / aspect_ratio, min_len))
+                        image = self.processor.preprocess(
+                            image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
+                        )['pixel_values'][0]
+                    elif self.multimodal_cfg['image_aspect_ratio'] == 'pad':
 
-                    def expand2square(pil_img, background_color):
-                        width, height = pil_img.size
-                        if width == height:
-                            return pil_img
-                        elif width > height:
-                            result = Image.new(pil_img.mode, (width, width), background_color)
-                            result.paste(pil_img, (0, (width - height) // 2))
-                            return result
-                        else:
-                            result = Image.new(pil_img.mode, (height, height), background_color)
-                            result.paste(pil_img, ((height - width) // 2, 0))
-                            return result
+                        def expand2square(pil_img, background_color):
+                            width, height = pil_img.size
+                            if width == height:
+                                return pil_img
+                            elif width > height:
+                                result = Image.new(pil_img.mode, (width, width), background_color)
+                                result.paste(pil_img, (0, (width - height) // 2))
+                                return result
+                            else:
+                                result = Image.new(pil_img.mode, (height, height), background_color)
+                                result.paste(pil_img, ((height - width) // 2, 0))
+                                return result
 
-                    image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-                    image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                        image = expand2square(image, tuple(int(x * 255) for x in self.processor.image_mean))
+                        image = self.processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                    else:
+                        image = self.processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
                 else:
-                    image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                    assert self.multimodal_cfg['image_aspect_ratio'] == 'square', \
+                        'NeMo image transform with setting `image_aspect_ratio` to `square`.'
+                    image = self.processor(image)
                 images.append(image)
             images_tensors = torch.tensor([])
             if images:
@@ -498,10 +503,13 @@ class LazySupervisedDataset(Dataset):
 
         # image exist in the data
         if self.multimodal_cfg['is_multimodal']:
-            crop_size = self.processor.crop_size
+            if isinstance(self.processor, CLIPImageProcessor):
+                crop_size = [self.processor.crop_size['height'], self.processor.crop_size['width']]
+            else:
+                crop_size = self.multimodal_cfg['crop_size']
             # image does not exist in the data, but the model is multimodal
             zero_padding = torch.zeros(
-                (MAX_NUM_IMAGES - len(images_tensors), 3, crop_size['height'], crop_size['width']), dtype=torch.float
+                (MAX_NUM_IMAGES - len(images_tensors), 3, crop_size[0], crop_size[1]), dtype=torch.float
             )
             images_tensors = torch.cat((images_tensors, zero_padding), dim=0)
             data_dict['image'] = images_tensors
@@ -603,15 +611,15 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
     add_extra_token = 1
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
+    crop_size = data_cfg.get("crop_size", (224, 224))
     if mm_cfg.vision_encoder.from_hf:
         image_processor = CLIPImageProcessor.from_pretrained(
             mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
         )
     else:
         # TODO(yuya): Fix this hard-code for our own CLIP
-        image_processor = CLIPImageProcessor.from_pretrained(
-            "openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16
-        )
+        image_processor = image_transform(crop_size, is_train=False, mean=None, std=None,)
+
     train_dataset = NevaDataset(
         tokenizer=tokenizer,
         data_path=data_cfg.data_path,
@@ -619,6 +627,7 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             is_multimodal=data_cfg.is_multimodal,
             sep_image_conv_front=data_cfg.sep_image_conv_front,
             conv_template=data_cfg.get("conv_template", "nvgpt"),
+            crop_size=crop_size,
             image_token_len=data_cfg.image_token_len,
             image_folder=data_cfg.image_folder,
             image_aspect_ratio=data_cfg.image_aspect_ratio,

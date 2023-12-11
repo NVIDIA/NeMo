@@ -18,7 +18,7 @@ Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
     python convert_hf_llava_to_nevo.py \
      --in-file <path_to_hf_checkpoints_folder> \
      --out-file <path_to_output_nemo_file> \
-     --tokenizer-model <path_to_sp_tokenizer_model>
+     --tokenizer-model <path_to_sp_tokenizer_model> \
      --conv-template llama_2 # nvgpt, llama_2, v1 (vicuna)
 """
 

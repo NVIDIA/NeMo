@@ -85,6 +85,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
+from nemo.collections.multimodal.parts.utils import load_nemo_model_weights
 from nemo.collections.nlp.parts.mixins.multimodal_adapter_mixins import MultimodalAdapterModelMixin
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -130,6 +131,7 @@ class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
             model_cfg, model_parallel_config, pre_process=pre_process, post_process=post_process, skip_head=True,
         )
         self.frozen = False
+        self.dtype = self.config.params_dtype
 
     def train(self, mode):
         if self.frozen:
@@ -272,7 +274,7 @@ class NevaBaseModel:
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.mcore_gpt = mcore_gpt
-        self.dist_ckpt = False
+        self.is_dist_ckpt = False
         if getattr(self, 'language_model', None) is not None:
             self.embedding = self.language_model.embedding
 
@@ -320,48 +322,10 @@ class NevaBaseModel:
         """
         Shared method to load model weights from a given nemo_path.
         """
-        if torch.cuda.is_available():
-            map_location = torch.device('cuda')
-        else:
-            map_location = torch.device('cpu')
-
-        save_restore_connector = NLPSaveRestoreConnector()
-        cwd = os.getcwd()
-        app_state = AppState()
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                if os.path.isfile(nemo_path):
-                    save_restore_connector._unpack_nemo_file(path2file=nemo_path, out_folder=tmpdir)
-                else:
-                    tmpdir = nemo_path
-                os.chdir(tmpdir)
-                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                    model_weights = save_restore_connector._inject_model_parallel_rank_for_ckpt(
-                        tmpdir, save_restore_connector.model_weights_ckpt
-                    )
-                else:
-                    model_weights = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
-
-                state_dict = save_restore_connector._load_state_dict_from_disk(
-                    model_weights, map_location=map_location
-                )
-
-                # distributed checkpointing
-                if state_dict is None:
-                    self.dist_ckpt = True
-                    sharded_state_dict = self.sharded_state_dict(prefix="model.")
-                    checkpoint = dict(state_dict=sharded_state_dict)
-                    tmp_model_weights_ckpt = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
-                    tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
-                    assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
-                    checkpoint = dist_checkpointing.load(
-                        sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir,
-                    )
-                    state_dict = checkpoint["state_dict"]
-
-            finally:
-                os.chdir(cwd)
+        sharded_state_dict = None
+        if getattr(self, "sharded_state_dict", None) is not None:
+            sharded_state_dict = self.sharded_state_dict(prefix="model.")
+        state_dict, self.is_dist_ckpt = load_nemo_model_weights(nemo_path, sharded_state_dict)
 
         return state_dict
 
@@ -385,7 +349,7 @@ class NevaBaseModel:
         state_dict = self._load_model_weights(nemo_path)
 
         new_state_dict = {}
-        if self.dist_ckpt or self.mcore_gpt:
+        if self.is_dist_ckpt or self.mcore_gpt:
             for k, v in state_dict.items():
                 new_k = k
                 if k.startswith("model."):
