@@ -190,10 +190,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
         self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
 
-        if not bias and bias_dropout_add_fusion:
-            raise ValueError(
-                'bias_dropout_add_fusion=True requires bias=True, found bias=False. Either set both to True or both to False.'
-            )
+        # if not bias and bias_dropout_add_fusion:
+        #     raise ValueError(
+        #         'bias_dropout_add_fusion=True requires bias=True, found bias=False. Either set both to True or both to False.'
+        #     )
 
         # the low_precision_layernorm does not require a bias term, whereas layernorm1p from apex
         # does require a bias, so it cannot be used for bias-less low precision LN such as in MPT-7B

@@ -118,15 +118,28 @@ def main(cfg) -> None:
         model_cfg.restore_from_path = cfg.model.original_model
         # model_cfg.restore_from_path = model
 
+    # model_cfg.task_templates = cfg["model"]["task_templates"]
+    # model_cfg.task_templates = {
+    #     "taskname": "qasper",
+    #     "prompt_template": " \nQuestion: {question} \nAnswer: {answer}",
+    #     "prompt_template_fields": ["question", "answer"],
+    #     "total_virtual_tokens": 0,
+    #     "virtual_token_splits": [],
+    #     "truncate_field": "question",
+    #     "answer_only_loss": True,
+    #     "answer_field": "answer"
+    #                             }
+    # model_cfg.task_templates.taskname = "qasper"
+
     model = MegatronFusedRetrievalLoraModel.restore_from(
         cfg.model.restore_path,
         trainer=trainer,
         save_restore_connector=save_restore_connector,
         override_config_path=model_cfg,
-        strict=False,
-    )
+        strict=False,    
+        )
 
-        # Check whether the DDP is initialized
+    # Check whether the DDP is initialized
     if parallel_state.is_unitialized():
 
         def placeholder():

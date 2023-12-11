@@ -3,6 +3,7 @@ import os
 import pathlib
 import sys
 from collections import OrderedDict
+import yaml
 
 import torch
 
@@ -135,12 +136,18 @@ def set_weights(P, lm_checkpoint, new_checkpoint):
 
 
 if __name__ == "__main__":
-    result_path = '/raid/users/aficek/gpt/gpt3-2b-pretraining-retro-fitting/converted'
-    lm_ckpt_path = '/raid/users/aficek/gpt/gpt3-2b-pretraining-retro-fitting/iter_0097656'
+    # result_path = '/raid/users/aficek/gpt/gpt3-2b-pretraining-retro-fitting/converted'
+    # lm_ckpt_path = '/raid/users/aficek/gpt/gpt3-2b-pretraining-retro-fitting/iter_0097656'
     # result_path = '/home/aficek/software/playground/retro_v2_800m_dir_2/'
     # result_path = '/gpt/megatron_retro_converted_9B/'
     # lm_ckpt_path = '/raid/users/aficek/gpt/retro_v2/gpt3-800m-pretraining-retro-fitting/iter_0195312'
     # lm_ckpt_path = '/gpt/megatron_lm_9B_retro_checkpoint/'
+    # 800m retro
+    lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/iter_0195312'
+    result_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/converted/'
+    # 2b retro 
+    # lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-2b-pretraining-retro-fitting/iter_0097656'
+    # result_path = '/home/aficek/software/playground/retro_convert/gpt3-2b-pretraining-retro-fitting/converted/'
     all_files = pathlib.Path(lm_ckpt_path).glob('**/model_optim_rng.pt')
     for lm_ckpt in all_files:
         subdir = pathlib.Path(lm_ckpt).parts[-2]
@@ -148,7 +155,11 @@ if __name__ == "__main__":
         P = [8, 11, 14, 17, 20, 23]
 
         # install_megatron_dependence()
-        old_checkpoint = torch.load(lm_ckpt)
+        old_checkpoint = torch.load(lm_ckpt, 'cuda:3')
+        args_dict = vars(old_checkpoint["args"])
+        with open(result_path + "adlr_model_config.yaml", 'w') as file:
+            for key, value in args_dict.items():
+                yaml.dump({key: str(value)}, file, default_flow_style=False)
         checkpoint = OrderedDict()
         checkpoint['state_dict'] = OrderedDict()
         total_params = [0]
@@ -162,5 +173,10 @@ if __name__ == "__main__":
         set_weights(P, checkpoint, new_checkpoint)
         os.makedirs(result_path + subdir, exist_ok=True)
         vocab_size = new_checkpoint['model.encoder_embedding.word_embeddings.weight'].shape[0]
-        new_checkpoint['model.tokens_head.bias'] = torch.zeros(256000, dtype=torch.float32, device='cuda:0')
-        torch.save(new_checkpoint, result_path + subdir + '/model_weights.ckpt')
+        new_checkpoint['model.tokens_head.bias'] = torch.zeros(256000, dtype=torch.float32, device='cuda:3')
+        new_checkpoint['model.encoder.rotary_pos_emb.inv_freq'] = torch.zeros(16, dtype=torch.float32, device='cuda:3')
+        new_checkpoint['model.pre_decoder.rotary_pos_emb.inv_freq'] = torch.zeros(16, dtype=torch.float32, device='cuda:3')
+        new_checkpoint['model.post_decoder.rotary_pos_emb.inv_freq'] =torch.zeros(16, dtype=torch.float32, device='cuda:3')
+        output_path = result_path + subdir + '/model_weights.ckpt'
+        torch.save(new_checkpoint, output_path)
+        print("Output to path: ", output_path)

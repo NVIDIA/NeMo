@@ -3,12 +3,13 @@ inference:
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
   top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
   temperature: 1.0 # sampling temperature
-  add_BOS: True # add the bos token at the begining of the prompt
-  tokens_to_generate: 30 # The minimum length of the sequence to be generated.
+  add_BOS: False # add the bos token at the begining of the prompt
+  tokens_to_generate: 100 # The minimum length of the sequence to be generated.
   all_probs: False  # whether return the log prob for all the tokens in vocab
   repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
+  batch_size: 64
 
 
 trainer:
@@ -18,27 +19,41 @@ trainer:
   logger: False # logger provided by exp_manager
   precision: 16 # 16, 32, or bf16
 
-inference_batch_size: 2
-tensor_model_parallel_size: -1
-pipeline_model_parallel_size: -1
+inference_batch_size: 64
+tensor_model_parallel_size: 1
+pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: -1 # used for encoder and decoder model (0 for others)
 retro_model_file: null  # RETRO nemo file path
 
-use_predict_method: False  # whether to use the predict method
+use_predict_method: True  # whether to use the predict method
 
-prompts: # prompts for RETRO model inference
-  - "hello,"
-  - "good morning,"
-  - "good afternoon,"
-  - "good evening,"
- 
+# prompts: # prompts for RETRO model inference
+#   - "hello,"
+#   - "good morning,"
+#   - "good afternoon,"
+#   - "good evening,"
+data_paths: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
+
+
 ########### Faiss service parameters ########
 retrieval_service:
-  strategy: RetroModelTextGenerationStrategy  # choose customized inference strategy 
-  neighbors: 4
+  strategy: RetroQAModelNEIGHBORSREADYTextGenerationStrategy # RetroModelTextGenerationStrategy  # choose customized inference strategy 
+  neighbors: 2
+  retrieved_doc_len: 150
   frequent_query: False  # for the current token generation, frequently update the retrieval context. If false, update it every 64 tokens 
   pad_tokens: True # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
   store_retrieved: False # whether store the retrieved documents, so it can be checked
   combo_service:
     service_ip: '0.0.0.0'
     service_port: 17181 
+
+task_templates: # Add more/replace tasks as needed, these are just examples
+  taskname: "qasper" # The task name
+  # prompt_template: "System: This is a chat between a user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions based on the context. The assistant should also indicate when the answer cannot be found in the context.\n\ntitle: , {question}\n\nAssistant: {answer}"
+  prompt_template: " \nQuestion: {question} \nAnswer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+  prompt_template_fields: ["question", "answer"]
+  total_virtual_tokens: 0 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
+  virtual_token_splits: [] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
+  truncate_field: "question" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
+  answer_only_loss: True 
+  answer_field: "answer"

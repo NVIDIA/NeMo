@@ -22,7 +22,9 @@ from torch.utils.data import DataLoader
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from scripts.metric_calculation.compute_rouge import load_preds, load_ref, calculate_rouge
 from nemo.core.config import hydra_runner
+import torch
 
 try:
     from megatron.core import parallel_state
@@ -87,9 +89,11 @@ def main(cfg) -> None:
             cfg.pipeline_model_parallel_size = model_cfg.get('pipeline_model_parallel_size', 1)
             cfg.pipeline_model_parallel_split_rank = model_cfg.get('pipeline_model_parallel_split_rank', 0)
 
+    model_cfg.task_templates = cfg["task_templates"]
+    autocast_dtype = torch.float
     model = MegatronRetrievalModel.restore_from(
         model_path, trainer=trainer, save_restore_connector=save_restore_connector, override_config_path=model_cfg,
-    )
+    ).to(dtype=autocast_dtype)
 
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
@@ -107,19 +111,36 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    # check whether the DDP is initialized
     if parallel_state.is_unitialized():
 
-        def dummy():
+        def placeholder():
             return
 
         if model.trainer.strategy.launcher is not None:
-            model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
+            model.trainer.strategy.launcher.launch(placeholder, trainer=model.trainer)
         model.trainer.strategy.setup_environment()
 
     config = OmegaConf.to_container(cfg.inference)
     retrieval_service = OmegaConf.to_container(cfg.retrieval_service)
     model.set_inference_config(config, retrieval_service)
+    model.enable_autocast = True
+
+    _, request_dl = model.build_virtual_prompt_dataset(
+        data=cfg.data_paths,
+        batch_size=cfg.inference.batch_size,
+        max_seq_length=model.cfg.encoder_seq_length - length_params["max_length"],
+        min_seq_length=model.cfg.data.get('min_seq_length', 1),
+        add_bos=sampling_params["add_BOS"],
+        add_eos=False,
+        for_train=False,
+        tokens_to_generate=length_params["max_length"],
+        drop_last=False,
+        shuffle=False,
+        num_workers=cfg.get("num_workers", 1),
+        num_neighbors=int(cfg.retrieval_service.neighbors)+1,
+        retrieved_doc_len=cfg.retrieval_service.retrieved_doc_len
+    )
+
 
     if not cfg.use_predict_method:
         # First method of running text generation, call model.generate method
@@ -131,14 +152,30 @@ def main(cfg) -> None:
         )
     else:
         # Second method of running text generation, call trainer.predict
-        ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-        request_dl = DataLoader(dataset=ds, batch_size=cfg.inference_batch_size)
+        # ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
+        # request_dl = DataLoader(dataset=ds, batch_size=cfg.inference_batch_size)
         response = trainer.predict(model, request_dl)
 
     print("***************************")
     print(response)
     print("***************************")
 
+
+    with open("temp_output.jsonl", "w", encoding="utf-8") as pred_file:
+        for i in range(len(response)):
+            for sent in response[i]["sentences"]:
+                sent = sent.strip()
+                sent = sent.replace("\n", " ")
+                pred_file.write(sent + "\n")
+
+    output_lns = load_preds("temp_output.jsonl", "Answer:")
+    reference_lns = load_ref(cfg.data_paths, "answer")
+
+    assert len(output_lns) == len(reference_lns)
+    print("Calculating Rouge")
+
+    scores = calculate_rouge(output_lns=output_lns, reference_lns=reference_lns)
+    print(scores)
 
 if __name__ == '__main__':
     main()

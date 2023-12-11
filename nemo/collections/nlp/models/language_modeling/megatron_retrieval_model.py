@@ -290,6 +290,8 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             megatron_lm_compatible=self.cfg.get('megatron_lm_compatible', False),
             version=self.cfg.get('version', 1),
             add_output_layer=self.cfg.get('add_output_layer', False),
+            use_flash_attention=self.cfg.get('use_flash_attention', False),
+            turn_off_rop=self.cfg.get('turn_off_rop', True)
         )
         return model
 
@@ -680,7 +682,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             inference_config = inference_config.copy()
             compute_logprob = inference_config['compute_logprob']
             if compute_logprob:
-                del inference_config['compute_logprob']
+                # del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
                 inference_config['tokens_to_generate'] = 1
                 inference_config['all_probs'] = True

@@ -25,6 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     init_method_normal,
     scaled_init_method_normal,
+    parallel_lm_logits
 )
 from nemo.collections.nlp.parts import utils_funcs
 
@@ -102,7 +103,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         activations_checkpoint_granularity=None,
         megatron_lm_compatible=False,
         version=1,
-        add_output_layer=False
+        add_output_layer=False,
+        use_flash_attention=False,
+        turn_off_rop=True
     ):
         super(MegatronRetrievalTokenLevelEncoderDecoderModule, self).__init__()
         if megatron_lm_compatible:
@@ -202,8 +205,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 chunk_size=chunk_size,
                 layer_number_offset=0,
                 normalize_attention_scores=normalize_attention_scores,
-                turn_off_rop=True,
+                turn_off_rop=turn_off_rop,
                 version=version,
+                use_flash_attention=use_flash_attention
             )
             self._encoder_key = "encoder"
 
@@ -267,8 +271,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 chunk_size=chunk_size,
                 layer_number_offset=0,
                 normalize_attention_scores=normalize_attention_scores,
-                turn_off_rop=True,
+                turn_off_rop=turn_off_rop,
                 version=version,
+                use_flash_attention=use_flash_attention
             )
 
             # it is where the chunked cross attention happens
@@ -312,8 +317,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 chunk_size=chunk_size,
                 layer_number_offset=pre_decoder_num_layers + 1,
                 normalize_attention_scores=normalize_attention_scores,
-                turn_off_rop=True,
+                turn_off_rop=turn_off_rop,
                 version=version,
+                use_flash_attention=use_flash_attention
             )
             self._pre_decoder_key = "pre_decoder"
             self._post_decoder_key = "post_decoder"
@@ -327,7 +333,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             self._tokens_head_key = 'tokens_head'
 
 
-
+        self.add_output_layer = add_output_layer
         if add_output_layer:
             self.output_layer = tensor_parallel.ColumnParallelLinear(
                 hidden_size,
@@ -430,6 +436,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             # only transpose it for post_ln
             token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 
+            if self.add_output_layer:
+                token_logits = parallel_lm_logits(dec_output, self.output_layer.weight, self.parallel_output)
+
             if labels is not None:
                 # [b, s] -> [s, b]
                 labels = labels.transpose(0, 1).contiguous()
@@ -447,6 +456,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 # [s, b, h] -> [b, s, h]
                 token_logits = token_logits.transpose(0, 1).contiguous()
                 return token_logits
+
+
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load when model is combined with other heads,
@@ -467,6 +478,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         state_dict_[self._tokens_head_key] = self.tokens_head.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )
+        state_dict_[self._output_layer_key] = self.output_layer.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):
@@ -477,3 +491,4 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.pre_decoder.load_state_dict(state_dict[self._pre_decoder_key], strict=strict)
         self.post_decoder.load_state_dict(state_dict[self._post_decoder_key], strict=strict)
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
+        self.output_layer.load_state_dict(state_dict[self._output_layer_key], strict=strict)

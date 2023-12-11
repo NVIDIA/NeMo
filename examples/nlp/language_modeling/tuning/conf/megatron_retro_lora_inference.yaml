@@ -3,7 +3,7 @@ inference:
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
   top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
   temperature: 1.0 # sampling temperature
-  add_BOS: True # add the bos token at the begining of the prompt
+  add_BOS: False # add the bos token at the begining of the prompt
   tokens_to_generate: 30 # The minimum length of the sequence to be generated.
   all_probs: False  # whether return the log prob for all the tokens in vocab
   repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
@@ -19,7 +19,7 @@ trainer:
   precision: 16 # 16, 32, or bf16
 
 tensor_model_parallel_size: 4
-micro_batch_size: 1
+micro_batch_size: 8
 pipeline_model_parallel_size: 1
 retro_model_file: null  # GPT nemo file path
 virtual_prompt_model_file: ??? # path to a MegatronGPTPromptLearningModel model if you want to use soft prompts
@@ -69,7 +69,7 @@ train_ds:
   # file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
   answer_only_loss: True  # whether use answer only loss
   seq_length: 2048  # must be multiple of the chunk_size in your dataset
-  add_bos: True  # whether to add bos at the beginning 
+  add_bos: False  # whether to add bos at the beginning 
   add_eos: True  # whether to add eos at the end
   seed: 1234
   neighbors: 5  # number of retrieved neighbors
@@ -78,7 +78,7 @@ val_ds:
   # file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
   answer_only_loss: True  # whether use answer only loss
   seq_length: 2048  # must be multiple of the chunk_size in your dataset
-  add_bos: True  # whether to add bos at the beginning 
+  add_bos: False  # whether to add bos at the beginning 
   add_eos: True  # whether to add eos at the end
   seed: 1234
   neighbors: 5  # number of retrieved neighbors
@@ -87,7 +87,7 @@ test_ds:
   # file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
   answer_only_loss: True  # whether use answer only loss
   seq_length: 2048  # must be multiple of the chunk_size in your dataset
-  add_bos: True  # whether to add bos at the beginning 
+  add_bos: False  # whether to add bos at the beginning 
   add_eos: True  # whether to add eos at the end
   seed: 1234
   neighbors: 5  # number of retrieved neighbors
