@@ -103,7 +103,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             self.perception = imported_cls(cfg=cfg.perception)
 
         self.setup_optimizer_param_groups()
-        self.configure_optimizers()
+        # self.configure_optimizers()
         self.summarize(max_depth=3)
 
     def parameters(self):
