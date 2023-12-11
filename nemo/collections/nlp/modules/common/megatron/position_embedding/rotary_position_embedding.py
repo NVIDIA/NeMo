@@ -68,7 +68,7 @@ class RotaryEmbedding(nn.Module):
         if self.augment_seq['stretch']:
             max_stretch_factor  = self.base_len * self.seq_len_interpolation_factor / current_range
             stretch_factor = random.random() * max_stretch_factor
-            if self.augment_seq['discrete'] is not None:
+            if self.augment_seq.get('discrete', False):
                 stretch_factor = int(stretch_factor)
             seq *= stretch_factor
             current_range *= stretch_factor
@@ -77,7 +77,7 @@ class RotaryEmbedding(nn.Module):
         total_shift = self.base_len - current_range
         shifts = torch.rand(num_shifts)
         shifts = shifts / shifts.sum() * total_shift
-        if self.augment_seq['discrete'] is not None:
+        if self.augment_seq.get('discrete', False):
             shifts = shifts.to(torch.int)
         indices2shift = (torch.rand(num_shifts) * max_seq_len).to(torch.int)
         for idx, i in enumerate(indices2shift):
