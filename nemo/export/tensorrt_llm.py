@@ -101,7 +101,7 @@ class TensorRTLLM(ITritonDeployable):
         path = Path(os.path.join(self.model_dir, "__prompt_embeddings__.npy"))
         if path.exists():
             self.prompt_table = torch.from_numpy(np.load(path))
-            self.task_vocab_size = 1
+            self.task_vocab_size = self.prompt_table.size(dim=0)
 
             dtype = self.config['builder_config']['precision']
             self.prompt_table = self.prompt_table.cuda().to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype))
