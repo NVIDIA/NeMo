@@ -1,0 +1,11 @@
+_target_: nemo.collections.tts.models.voicebox.VoiceboxModel
+
+
+defaults:
+  - default
+
+mfa_tokenizer:
+  _target_: nemo.collections.tts.modules.voicebox_modules.MFAEnglishPhonemeTokenizer
+  textgrid_dir: /datasets/LibriLight/mfa_data_aligned
+
+tokenizer: null

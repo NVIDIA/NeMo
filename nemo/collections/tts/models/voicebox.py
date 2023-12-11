@@ -90,7 +90,7 @@ class VoiceboxModel(TextToWaveform):
             num_tokens = len(self.tokenizer.tokens)
             self.tokenizer_pad = self.tokenizer.pad
 
-        elif cfg.get("tokenizer"):
+        elif cfg.get("mfa_tokenizer", cfg.get("tokenizer")):
             self.normalizer = None
             self.tokenizer = instantiate(cfg.tokenizer)
             num_tokens = self.tokenizer.vocab_size

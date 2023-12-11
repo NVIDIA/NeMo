@@ -40,7 +40,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None, textgrid_dir=None):
+    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None):
         super().__init__()
         self.tokenizer = tokenizer
 
@@ -62,10 +62,14 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                     else:
                         self.text_normalizer_call_kwargs = {}
 
+            elif isinstance(self.tokenizer, MFAEnglishPhonemeTokenizer):
+                self.normalizer_call = None
+                self.text_normalizer_call_kwargs = {}
+                self.textgrid_dir = self.tokenizer.textgrid_dir
+
         self.corpus_dir = corpus_dir
         if corpus_dir is not None:
             self.old_prefix = "download/librilight"
-        self.textgrid_dir = textgrid_dir
 
         self.load_audio = AudioSamples(fault_tolerant=True)
 
@@ -82,7 +86,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         from textgrid import TextGrid, IntervalTier
         cut_id = cut.id
         subset, spk = cut_id.split('/')[:2]
-        f_id = f"{self.textgrid_dir}/{subset}/{spk}/{cut_id.split('/')}.TextGrid"
+        f_id = f"{self.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
         tg = TextGrid()
         tg.read(f_id)
         phn_dur = []

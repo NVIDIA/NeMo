@@ -1,6 +1,3 @@
-defaults:
-  - nemo
-
 
 duration_predictor:
   depth: 2

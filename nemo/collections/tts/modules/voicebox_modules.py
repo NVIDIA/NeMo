@@ -59,7 +59,9 @@ class MFAEnglishPhonemeTokenizer:
         vocab = MFA_arpa_phone_set,
         add_blank: bool = False,
         use_eos_bos = False,
-        pad_id = 0
+        pad_id = 0,
+        textgrid_dir = None,
+        **kwargs
     ):
         self.add_blank = add_blank
         self.use_eos_bos = use_eos_bos
@@ -72,6 +74,7 @@ class MFAEnglishPhonemeTokenizer:
         self.id_to_phn = {idx: phn for idx, phn in enumerate(self.vocab)}
 
         self.not_found_phonemes = []
+        self.textgrid_dir = textgrid_dir
 
     def encode(self, text: List[str]) -> List[int]:
         """Encodes a string of text as a sequence of IDs."""
