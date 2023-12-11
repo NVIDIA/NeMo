@@ -32,10 +32,9 @@ from nemo.utils import logging
 
 try:
     import webdataset as wds
-    from webdataset import WebDataset
+    from webdataset import WebDataset, warn_and_continue
     from webdataset.filters import _shuffle
     from webdataset.utils import pytorch_worker_info
-    from webdataset import warn_and_continue
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Webdataset import failed! We recommend use `webdataset==0.2.48`.")
