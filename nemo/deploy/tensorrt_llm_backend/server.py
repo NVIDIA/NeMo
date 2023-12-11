@@ -166,7 +166,6 @@ class ModelServer:
             autoescape=False,
         )  # nosec; all the provided values are from code, not the user
 
-        breakpoint()
         self._render_ensemble_template(env)
         self._render_preprocessing_template(env)
         self._render_postprocessing_template(env)

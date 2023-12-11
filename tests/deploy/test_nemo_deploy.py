@@ -103,15 +103,15 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
         )
         trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
         use_inflight_batching = not use_pytriton
-        # trt_llm_exporter.export(
-        #     nemo_checkpoint_path=model_info["checkpoint"],
-        #     model_type=model_info["model_type"],
-        #     n_gpus=n_gpu,
-        #     max_input_token=1024,
-        #     max_output_token=128,
-        #     max_batch_size=model_info["max_batch_size"],
-        #     use_inflight_batching=use_inflight_batching,
-        # )
+        trt_llm_exporter.export(
+            nemo_checkpoint_path=model_info["checkpoint"],
+            model_type=model_info["model_type"],
+            n_gpus=n_gpu,
+            max_input_token=1024,
+            max_output_token=128,
+            max_batch_size=model_info["max_batch_size"],
+            use_inflight_batching=use_inflight_batching,
+        )
 
         prompts = model_info["prompt_template"]
         if use_pytriton:
@@ -127,11 +127,11 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
                     temperature=1.0,
             )
         else:
-            model_repo_dir="/tmp/ensembles"
+            model_repo_dir="/tmp/ensemble"
             nm = DeployTensorRTLLM(model=trt_llm_exporter, triton_model_name=model_name, port=8000, model_repo_dir=model_repo_dir)
             nm.deploy()
             nm.run()
-            time.sleep(10)
+            time.sleep(20)
             nq = NemoQueryTensorRTLLM(url="localhost:8000", model_name="ensemble")
             output = nq.query_llm(
                     prompts=prompts,
@@ -156,7 +156,7 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
         trt_llm_exporter = None
         nm.stop()
         shutil.rmtree(model_repo_dir)
-        #shutil.rmtree(model_info["trt_llm_model_dir"])
+        shutil.rmtree(model_info["trt_llm_model_dir"])
 
 
 @pytest.mark.parametrize("n_gpus", [1])
