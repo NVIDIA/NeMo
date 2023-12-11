@@ -22,17 +22,23 @@ from typing import Callable, List, Union
 
 import boto3
 import torch.distributed as dist
-import webdataset as wds
 from botocore.config import Config
 from PIL import Image
-from webdataset import WebDataset
-from webdataset.filters import _shuffle
-from webdataset.utils import pytorch_worker_info
 
 from nemo.collections.multimodal.data.common.data_samplers import SharedEpoch, WDSUrlsRandomSampler
 from nemo.collections.multimodal.data.common.webdataset_s3 import WebDataset as WebDatasetS3
 from nemo.core.classes import IterableDataset as NeMoIterableDataset
 from nemo.utils import logging
+
+try:
+    import webdataset as wds
+    from webdataset import WebDataset
+    from webdataset.filters import _shuffle
+    from webdataset.utils import pytorch_worker_info
+    from webdataset import warn_and_continue
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Webdataset import failed! We recommend use `webdataset==0.2.48`.")
 
 try:
     from megatron.core import parallel_state
@@ -45,7 +51,6 @@ except (ImportError, ModuleNotFoundError):
 
 Image.MAX_IMAGE_PIXELS = 933120000
 _IMG_EXTENSIONS = "jpg jpeg png ppm pgm pbm pnm".split()
-from webdataset import warn_and_continue
 
 
 class detshuffle2(wds.PipelineStage):

@@ -16,14 +16,19 @@ import os
 import sys
 from urllib.parse import urlparse
 
-import webdataset.gopen as gopen_webdata
 import yaml
-from webdataset import cache, filters, shardlists
-from webdataset.compat import FluidInterface
-from webdataset.handlers import reraise_exception
-from webdataset.pipeline import DataPipeline
-from webdataset.pytorch import IterableDataset
-from webdataset.tariterators import group_by_keys, tar_file_expander
+
+try:
+    import webdataset.gopen as gopen_webdata
+    from webdataset import cache, filters, shardlists
+    from webdataset.compat import FluidInterface
+    from webdataset.handlers import reraise_exception
+    from webdataset.pipeline import DataPipeline
+    from webdataset.pytorch import IterableDataset
+    from webdataset.tariterators import group_by_keys, tar_file_expander
+
+except (ImportError, ModuleNotFoundError):
+    logging.warning("Webdataset import failed! We recommend use `webdataset==0.2.48`.")
 
 # Number of attempts to read aws objects.
 _NUM_OBJECT_STORE_READ_ATTEMPTS = 10
