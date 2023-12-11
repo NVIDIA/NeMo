@@ -37,10 +37,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
-from nemo.collections.nlp.parts.utils_funcs import (
-    load_state_dict_helper,
-    torch_dtype_from_precision,
-)
+from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper, torch_dtype_from_precision
 from nemo.utils import logging
 
 
