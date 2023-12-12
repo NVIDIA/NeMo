@@ -5,3 +5,4 @@ torchmetrics>=0.11.0
 transformers>=4.0.1,<=4.33.3
 wandb
 webdataset>=0.1.48,<=0.1.62
+lightning-utilities<0.10.0  # temporary fix, broken named tuples in 0.10.0, remove once fixed
