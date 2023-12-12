@@ -397,7 +397,7 @@ class VoiceboxModel(TextToWaveform):
             tb_writer.add_image("train_vb/pred", plot_spectrogram_to_numpy(pred[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
 
             pred_audio = self.voicebox.audio_enc_dec.decode(pred)[plot_id].detach().cpu().numpy()
-            orig_audio = audio[plot_id]
+            orig_audio = audio[plot_id].detach().cpu().numpy()
             tb_writer.add_audio("train_vb/pred_audio", pred_audio / max(np.abs(pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
             tb_writer.add_audio("train_vb/orig_audio", orig_audio / max(np.abs(orig_audio)), self.global_step, sample_rate=24000)
 
@@ -486,6 +486,8 @@ def plot_segment_to_numpy(phoneme_ids, durations, predictions, spectrogram, text
     import numpy as np
     phn_lens = durations.nonzero()[-1].item() + 1
     phoneme_ids = phoneme_ids[:phn_lens]
+    if phoneme_ids[0] == 'sil':
+        predictions[0] = durations[0]
     phoneme_ids = [pid if i % 2 else pid+" "*10 for i, pid in enumerate(phoneme_ids)]
     durations = durations[:phn_lens].clamp(min=1)
     cum_dur = torch.cumsum(durations, -1).cpu().numpy()
