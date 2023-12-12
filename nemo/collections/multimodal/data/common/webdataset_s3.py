@@ -17,8 +17,10 @@ import sys
 from urllib.parse import urlparse
 
 import yaml
-from nemo.utils import logging
+
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.utils import logging
+
 try:
     import webdataset.gopen as gopen_webdata
     from webdataset import cache, filters, shardlists
@@ -40,6 +42,7 @@ except (ImportError, AttributeError, ModuleNotFoundError):
 _NUM_OBJECT_STORE_READ_ATTEMPTS = 10
 
 if HAVE_WEBDATASET:
+
     def gopen(url, mode="rb", bufsize=8192, **kw):
         r"""Open the URL.
         This uses the `gopen_schemes` dispatch table to dispatch based
@@ -115,7 +118,6 @@ if HAVE_WEBDATASET:
         handler = gopen_webdata.gopen_schemes.get(pr.scheme, handler)
         return handler(url, mode, bufsize, **kw)
 
-
     def url_opener(data, handler=reraise_exception, **kw):
         r"""Given a stream of url names (packaged in `dict(url=url)`), yield opened streams.
 
@@ -137,7 +139,6 @@ if HAVE_WEBDATASET:
                     continue
                 else:
                     break
-
 
     # Define a new tarfile_samples
     def tarfile_samples(
@@ -258,7 +259,9 @@ if HAVE_WEBDATASET:
                     )
                 )
 
+
 else:
+
     class WebDataset(ApexGuardDefaults):
         def __init__(self):
             super().__init__()

@@ -272,7 +272,9 @@ class WebDatasetCommon(NeMoIterableDataset):
     def __len__(self):
         return self._dataset.total_images
 
+
 if HAVE_WEBDATASET:
+
     class detshuffle2(wds.PipelineStage):
         def __init__(
             self, bufsize=1000, initial=100, seed=0, epoch=-1,
@@ -299,7 +301,9 @@ if HAVE_WEBDATASET:
             rng.seed(seed)
             return _shuffle(src, self.bufsize, self.initial, rng)
 
+
 else:
+
     class detshuffle2(ApexGuardDefaults):
         def __init__(self):
             super().__init__()
