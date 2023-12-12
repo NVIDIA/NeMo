@@ -774,7 +774,15 @@ class DataAnnotator(object):
                 prev_align = 0 if i == 0 else alignments[i - 1]
                 align1 = round(float(prev_align + start), self._params.data_simulator.outputs.output_precision)
                 align2 = round(float(alignments[i] - prev_align), self._params.data_simulator.outputs.output_precision)
-                text = get_ctm_line(source=session_name, channel=0, beg_time=align1, duration=align2, token=word, conf=None type=None, speaker=speaker_id)
+                text = get_ctm_line(source=session_name, 
+                                    channel=1, 
+                                    beg_time=align1, 
+                                    duration=align2, 
+                                    token=word, 
+                                    conf=None,
+                                    type_token='lex', 
+                                    speaker=speaker_id,
+                        )
                 arr.append((align1, text))
         return arr
 

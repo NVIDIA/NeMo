@@ -101,7 +101,7 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
                                 duration=align2,
                                 token=word,
                                 conf=0,
-                                type='lex',
+                                type_token='lex',
                                 speaker=speaker_id,
                                 output_precision=output_precision)
             arr.append((align1, text))

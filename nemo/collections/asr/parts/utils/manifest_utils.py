@@ -30,8 +30,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     segments_manifest_to_subsegments_manifest,
     write_rttm2manifest,
 )
-from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line
-
 from nemo.utils.data_utils import DataStoreObject
 
 def get_ctm_line(source: str,
