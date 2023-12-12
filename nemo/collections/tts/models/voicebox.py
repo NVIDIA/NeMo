@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Union, Optional, Any
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from tqdm import tqdm
+import matplotlib.pylab as plt
+import numpy as np
 
 import torch
 from torch import nn, Tensor
@@ -44,7 +46,9 @@ from nemo.collections.tts.modules.voicebox_modules import (
     MelVoco,
     EncodecVoco,
     get_mask_from_lengths,
-    interpolate_1d
+    generate_mask_from_repeats,
+    interpolate_1d,
+    einsum
 )
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
@@ -54,9 +58,10 @@ from naturalspeech2_pytorch.utils.tokenizer import Tokenizer
 from nemo.collections.tts.parts.utils.helpers import (
     log_audio_to_tb,
     tacotron2_log_to_tb_func,
-    plot_alignment_to_numpy,
+    # plot_alignment_to_numpy,
     plot_spectrogram_to_numpy,
     waveglow_log_to_tb_func,
+    save_figure_to_numpy,
 )
 
 
@@ -200,9 +205,11 @@ class VoiceboxModel(TextToWaveform):
                     phoneme = interval.mark
                     if phoneme == "":
                         phoneme = "sil"
-                    phn_dur.append(AlignmentItem(symbol=phoneme, start=minTime, duration=round(maxTime - minTime, 2)))
+                    phn_dur.append(AlignmentItem(symbol=phoneme, start=minTime, duration=maxTime - minTime))
             assert len(phn_dur)
             new_sup_seg = seg.with_alignment("phone", phn_dur)
+            if seg.duration != maxTime:
+                logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.5f}, ali_end: {maxTime:.5f}")
             return new_sup_seg
 
         logging.info(f"mkdir -p {self._cfg.manifests_dir}")
@@ -347,9 +354,8 @@ class VoiceboxModel(TextToWaveform):
         # mfa tgt
         durations = batch.get("durations", None)
 
-
         audio_mask = get_mask_from_lengths(audio_lens)
-        _, losses = self.cfm_wrapper.forward(
+        _, losses, outputs = self.cfm_wrapper.forward(
             x1=audio,
             mask=audio_mask,
             # semantic_token_ids=None,
@@ -361,8 +367,7 @@ class VoiceboxModel(TextToWaveform):
             cond_mask=None,
             input_sampling_rate=None
         )
-        # self.log("loss", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
-        self.log_dict(losses, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+
         dp_loss = losses['d_pred_loss']
         align_loss = losses.get('align_loss', 0)
         bin_loss = losses.get('bin_loss', 0)
@@ -375,8 +380,39 @@ class VoiceboxModel(TextToWaveform):
         #     dp_loss = dp_loss * 0
         # if self.current_epoch < 10:
         #     vb_loss = vb_loss * 0
-
         loss = align_loss + bin_loss + dp_loss + vb_loss
+
+        self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+
+        if (batch_idx % 200) == 0:
+            tb_writer = self.logger.experiment
+            
+            plot_id = 0
+            x1, x0, w, pred = outputs['vb']['x1'], outputs['vb']['x0'], outputs['vb']['w'], outputs['vb']['pred']
+            cond, cond_mask = outputs['vb']["cond"], outputs['vb']["cond_mask"]
+            cond = cond * ~cond_mask
+            tb_writer.add_image("train_vb/x1", plot_spectrogram_to_numpy(x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_vb/xt", plot_spectrogram_to_numpy(w[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_vb/cond", plot_spectrogram_to_numpy(cond[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_vb/pred", plot_spectrogram_to_numpy(pred[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+
+            pred_audio = self.voicebox.audio_enc_dec.decode(pred)[plot_id].detach().cpu().numpy()
+            orig_audio = audio[plot_id].detach().cpu().numpy()
+            tb_writer.add_audio("train_vb/pred_audio", pred_audio / max(np.abs(pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+            tb_writer.add_audio("train_vb/orig_audio", orig_audio / max(np.abs(orig_audio)), self.global_step, sample_rate=24000)
+
+            # plot_id = -1
+            dp_cond, dp_pred = outputs['dp']['cond'], outputs['dp']['durations']
+            tb_writer.add_image("train_dp/dur",
+                                plot_alignment_to_numpy(tokens[plot_id], dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy()),
+                                self.global_step, dataformats="HWC")
+
+            phns = self.tokenizer.decode(tokens[plot_id].cpu().tolist()).split(' ')
+            text = batch["texts"][plot_id]
+            tb_writer.add_image("train_dp/seg",
+                                plot_segment_to_numpy(phns, dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy(), text),
+                                self.global_step, dataformats="HWC")
+
         return loss
     
     def validation_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT | None:
@@ -411,3 +447,81 @@ class VoiceboxModel(TextToWaveform):
     def convert_text_to_waveform(self, *, tokens, speakers=None):
         audio = self(tokens=tokens, speakers=speakers)[0].squeeze(1)
         return audio
+    
+
+@torch.no_grad()
+def plot_alignment_to_numpy(phoneme_ids, durations, predictions, spectrogram):
+    import numpy as np
+    phn_lens = (durations > 0).sum().item()
+    phoneme_ids = phoneme_ids[:phn_lens]
+    durations = durations[:phn_lens]
+    predictions = predictions[:phn_lens]
+
+    ids = torch.arange(phoneme_ids.shape[0]).float().to(phoneme_ids.device)
+    repeat_dur_mask = generate_mask_from_repeats(rearrange(durations.clamp(min=1), 't -> 1 t'))
+    aligned_dur = (ids @ repeat_dur_mask.float()).cpu().numpy()[0]
+    repeat_pred_mask = generate_mask_from_repeats(rearrange(predictions.clamp(min=1), 't -> 1 t'))
+    aligned_pred = (ids @ repeat_pred_mask.float()).cpu().numpy()[0]
+
+    fig, ax = plt.subplots(figsize=(12, 3))
+    im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation='none')
+    ax.scatter(
+        range(len(aligned_dur)), aligned_dur, alpha=0.5, color='green', marker='+', s=1, label='target',
+    )
+    ax.scatter(
+        range(len(aligned_pred)), aligned_pred, alpha=0.5, color='red', marker='.', s=1, label='predicted',
+    )
+    plt.colorbar(im, ax=ax)
+    plt.xlabel("Frames (Green target, Red predicted)")
+    plt.ylabel("Cumulated Duration / Channels")
+    plt.tight_layout()
+
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+@torch.no_grad()
+def plot_segment_to_numpy(phoneme_ids, durations, predictions, spectrogram, text=None):
+    import numpy as np
+    phn_lens = durations.nonzero()[-1].item() + 1
+    phoneme_ids = phoneme_ids[:phn_lens]
+    durations = durations[:phn_lens].clamp(min=1)
+    cum_dur = torch.cumsum(durations, -1).cpu().numpy()
+    predictions = predictions[:phn_lens].clamp(min=1)
+    cum_pred = torch.cumsum(predictions, -1).cpu().numpy()
+
+    # ignore sil prediction
+    for i, phn in enumerate(phoneme_ids):
+        if phn == 'sil':
+            c_dur = cum_dur[i]
+            c_pred = cum_pred[i]
+            cum_pred[i:] = cum_pred[i:] - c_pred + c_dur
+    
+    # layout
+    phoneme_ids = [pid if i % 2 else pid+" "*10 for i, pid in enumerate(phoneme_ids)]
+
+    # fig, ax = plt.subplots(figsize=(12, 3))
+    fig, ax = plt.subplots(figsize=(32, 3))
+    im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation='none')
+
+    ax.set_xticks(cum_dur)
+    ax.set_xticklabels(phoneme_ids, rotation = 90, ha="right", fontsize=8)
+
+    ax.vlines(cum_dur, ymin=0.0, ymax=max(ax.get_yticks())/3, colors='green')
+    for d, p in zip(cum_dur, cum_pred):
+        ax.plot([d,p], [max(ax.get_yticks())/3, max(ax.get_yticks())*2/3], color='blue')
+    ax.vlines(cum_pred, ymin=max(ax.get_yticks())*2/3, ymax=max(ax.get_yticks()), colors='red')
+
+    plt.colorbar(im, ax=ax)
+    if text is not None:
+        plt.xlabel(f"Frames (Green target, Red predicted)\n{text}")
+    else:
+        plt.xlabel("Frames (Green target, Red predicted)")
+    plt.ylabel("Channels")
+    plt.tight_layout()
+
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data

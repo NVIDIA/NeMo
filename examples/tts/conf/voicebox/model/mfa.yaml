@@ -2,16 +2,9 @@ _target_: nemo.collections.tts.models.voicebox.VoiceboxModel
 
 
 defaults:
+  - tokenizer@mfa_tokenizer: mfa
   - default
-  - override audio_enc_dec@duration_predictor.audio_enc_dec: encodec_voco
-  - override audio_enc_dec@voicebox.audio_enc_dec: encodec_voco
-
-mfa_tokenizer:
-  _target_: nemo.collections.tts.modules.voicebox_modules.MFAEnglishPhonemeTokenizer
-  textgrid_dir: /datasets/LibriLight/mfa_data_aligned
-
-tokenizer: null
-
-duration_predictor:
-  _target_: nemo.collections.tts.modules.voicebox_modules.MFADurationPredictor
-  aligner_kwargs: null
+  - override duration_predictor: mfa
+  - override audio_enc_dec@duration_predictor.audio_enc_dec: mel_voco
+  - override audio_enc_dec@voicebox.audio_enc_dec: mel_voco
+  - override tokenizer: null

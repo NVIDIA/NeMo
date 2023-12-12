@@ -1,0 +1,5 @@
+_target_: naturalspeech2_pytorch.utils.tokenizer.Tokenizer
+phonemizer:
+  _target_: naturalspeech2_pytorch.utils.phonemizers.espeak_wrapper.ESpeak
+  language: en-us
+  keep_puncs: False
