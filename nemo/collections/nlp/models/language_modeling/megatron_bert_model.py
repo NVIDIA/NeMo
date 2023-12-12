@@ -93,7 +93,10 @@ class MegatronBertModel(MegatronBaseModel):
         self._validate_trainer()
 
         self.transformer_config = self.build_transformer_config()
+       
         self.mcore_bert = cfg.get('mcore_bert', False)
+        print(f'SHAN : {self.mcore_bert}')
+        print(cfg)
 
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
