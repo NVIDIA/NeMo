@@ -482,12 +482,12 @@ def plot_alignment_to_numpy(phoneme_ids, durations, predictions, spectrogram):
 @torch.no_grad()
 def plot_segment_to_numpy(phoneme_ids, durations, predictions, spectrogram, text=None):
     import numpy as np
-    phn_lens = (durations > 0).sum().item()
+    phn_lens = durations.nonzero()[-1].item() + 1
     phoneme_ids = phoneme_ids[:phn_lens]
     phoneme_ids = [pid if i % 2 else pid+" "*10 for i, pid in enumerate(phoneme_ids)]
-    durations = durations[:phn_lens]
+    durations = durations[:phn_lens].clamp(min=1)
     cum_dur = torch.cumsum(durations, -1).cpu().numpy()
-    predictions = predictions[:phn_lens]
+    predictions = predictions[:phn_lens].clamp(min=1)
     cum_pred = torch.cumsum(predictions, -1).cpu().numpy()
 
     # fig, ax = plt.subplots(figsize=(12, 3))
