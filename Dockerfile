@@ -47,14 +47,14 @@ WORKDIR /workspace/
 # We leave it here in case we need to work off of a specific commit in main
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout e122536b7645edcb7ebf099b5c92a443f7dbf8e7 && \
+  git checkout bcce6f54e075e3c3374ea67adefe54f3f2da2b07 && \
   pip install .
 
-# Distributed Adam support for multiple dtypes
-RUN git clone https://github.com/NVIDIA/apex.git && \
-  cd apex && \
-  git checkout 52e18c894223800cb611682dce27d88050edf1de && \
-  pip install install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
+# # Distributed Adam support for multiple dtypes
+# RUN git clone https://github.com/NVIDIA/apex.git && \
+#   cd apex && \
+#   git checkout 52e18c894223800cb611682dce27d88050edf1de && \
+#   pip install install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   cd TransformerEngine && \
@@ -66,7 +66,7 @@ RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
 WORKDIR /tmp/
 
 # uninstall stuff from base container
-RUN pip uninstall -y sacrebleu torchtext
+RUN pip3 uninstall -y sacrebleu torchtext
 
 # build torchaudio
 WORKDIR /tmp/torchaudio_build
@@ -83,7 +83,7 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/torchaudio_build/scripts/installers/install_tor
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
-RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
+RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 RUN pip install --no-deps encodec
 
 # install flash attention
@@ -93,21 +93,21 @@ RUN pip install numba>=0.57.1
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
-RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL_CODE=$?; \
-  echo ${INSTALL_MSG}; \
-  if [ ${INSTALL_CODE} -ne 0 ]; then \
-  echo "k2 installation failed";  \
-  if [ "${REQUIRE_K2}" = true ]; then \
-  exit ${INSTALL_CODE};  \
-  else echo "Skipping failed k2 installation"; fi \
-  else echo "k2 installed successfully"; fi
+# RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL_CODE=$?; \
+#   echo ${INSTALL_MSG}; \
+#   if [ ${INSTALL_CODE} -ne 0 ]; then \
+#   echo "k2 installation failed";  \
+#   if [ "${REQUIRE_K2}" = true ]; then \
+#   exit ${INSTALL_CODE};  \
+#   else echo "Skipping failed k2 installation"; fi \
+#   else echo "k2 installed successfully"; fi
 
 # copy nemo source into a scratch image
-# FROM scratch as nemo-src
-# COPY . .
+FROM scratch as nemo-src
+COPY . .
 
 # start building the final container
-# FROM nemo-deps as nemo
+FROM nemo-deps as nemo
 ARG NEMO_VERSION=1.21.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
@@ -126,11 +126,11 @@ RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
 
 
 # copy scripts/examples/tests into container for end user
-# WORKDIR /workspace/nemo
-# COPY scripts /workspace/nemo/scripts
-# COPY examples /workspace/nemo/examples
-# COPY tests /workspace/nemo/tests
-# COPY tutorials /workspace/nemo/tutorials
+WORKDIR /workspace/nemo
+COPY scripts /workspace/nemo/scripts
+COPY examples /workspace/nemo/examples
+COPY tests /workspace/nemo/tests
+COPY tutorials /workspace/nemo/tutorials
 # COPY README.rst LICENSE /workspace/nemo/
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
