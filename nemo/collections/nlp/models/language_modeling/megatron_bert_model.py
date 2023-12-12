@@ -772,7 +772,7 @@ class MegatronBertModel(MegatronBaseModel):
                 )
                 sync_embeddings()
 
-        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_bert', False):
+        if self.cfg.get('transformer_engine', False) or self.mcore_bert:
             self.setup_transformer_engine_tp_groups()
 
     def allreduce_sequence_parallel_gradients(self):
