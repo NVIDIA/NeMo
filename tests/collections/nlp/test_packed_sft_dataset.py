@@ -14,12 +14,11 @@
 
 
 import os
+
 import numpy as np
 import pytest
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import (
-    GPTSFTPackedDataset,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTPackedDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 TOKENIZER_FILE_Llama2 = '/home/TestData/nlp/megatron_sft/llama2_tokenizer.model'
@@ -36,34 +35,34 @@ def create_data_points(temp_file, answer_only_loss=True):
     # seq_start_id: start index of each sequence in the pack
     output_data = [
         {
-            'input_ids': [10, 11, 12,  2, 20, 21, 22, 23,  2, 30, 31, 32,  2],
-            'loss_mask': [ 0,  0,  1,  1,  0,  0,  0,  1,  1,  0,  1,  1,  1],
-            'seq_start_id': [0,            4,                  9],
+            'input_ids': [10, 11, 12, 2, 20, 21, 22, 23, 2, 30, 31, 32, 2],
+            'loss_mask': [0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1],
+            'seq_start_id': [0, 4, 9],
         },
         {
-            'input_ids': [10, 11, 12,  2, 20, 21, 22, 23,  2, 30, 31, 32, 33, 34, 35,  2],
-            'loss_mask': [ 0,  0,  1,  1,  0,  0,  0,  1,  1,  0,  1,  1,  1,  1,  1,  1],
-            'seq_start_id': [0,            4,                  9],
+            'input_ids': [10, 11, 12, 2, 20, 21, 22, 23, 2, 30, 31, 32, 33, 34, 35, 2],
+            'loss_mask': [0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+            'seq_start_id': [0, 4, 9],
         },
     ]
 
     expected_output = [
         {
-            "tokens":       [10, 11, 12, 20, 21, 22, 23, 30, 31, 32],
-            "labels":       [11, 12,  2, 21, 22, 23,  2, 31, 32,  2],
-            "loss_mask":    [0,   1,  1,  0,  0,  1,  1,  1,  1,  1] if answer_only_loss else \
-                            [1,   1,  1,  1,  1,  1,  1,  1,  1,  1],
-            "position_ids": [0,   1,  2,  0,  1,  2,  3,  0,  1,  2],
-            "cu_seqlens":   [0,       3,              7,         10],
+            "tokens": [10, 11, 12, 20, 21, 22, 23, 30, 31, 32],
+            "labels": [11, 12, 2, 21, 22, 23, 2, 31, 32, 2],
+            "loss_mask": [0, 1, 1, 0, 0, 1, 1, 1, 1, 1] if answer_only_loss else [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            "position_ids": [0, 1, 2, 0, 1, 2, 3, 0, 1, 2],
+            "cu_seqlens": [0, 3, 7, 10],
         },
         {
-            "tokens":       [10, 11, 12, 20, 21, 22, 23, 30, 31, 32, 33, 34, 35],
-            "labels":       [11, 12,  2, 21, 22, 23,  2, 31, 32, 33, 34, 35,  2],
-            "loss_mask":    [0,   1,  1,  0,  0,  1,  1,  1,  1,  1,  1,  1,  1] if answer_only_loss else \
-                            [1,   1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-            "position_ids": [0,   1,  2,  0,  1,  2,  3,  0,  1,  2,  3,  4,  5],
-            "cu_seqlens":   [0,       3,              7,                     13],
-        }
+            "tokens": [10, 11, 12, 20, 21, 22, 23, 30, 31, 32, 33, 34, 35],
+            "labels": [11, 12, 2, 21, 22, 23, 2, 31, 32, 33, 34, 35, 2],
+            "loss_mask": [0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1]
+            if answer_only_loss
+            else [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            "position_ids": [0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5],
+            "cu_seqlens": [0, 3, 7, 13],
+        },
     ]
 
     np.save(temp_file, output_data)
@@ -72,7 +71,6 @@ def create_data_points(temp_file, answer_only_loss=True):
 
 @pytest.mark.skipif(not os.path.exists('/home/TestData'), reason='Not a Jenkins machine')
 class TestGPTSFTPackedDataset:
-
     def _packed_seq_test(self, tokenizer, answer_only_loss=True):
         try:
             expected_output = create_data_points(TEMP_FILE, answer_only_loss)
@@ -82,7 +80,7 @@ class TestGPTSFTPackedDataset:
                 label_key="output",
                 truncation_field="input",
                 prompt_template="{input} {output}",
-                answer_only_loss=answer_only_loss
+                answer_only_loss=answer_only_loss,
             )
             batch = [data for data in test_dataset]
             model_input = test_dataset.collate_fn(batch)
@@ -91,7 +89,7 @@ class TestGPTSFTPackedDataset:
                 for output_key in ('tokens', 'labels', 'loss_mask', 'position_ids', 'cu_seqlens'):
                     expected = expected_output[i][output_key]
                     # remove padding in the actual results
-                    actual = model_input[output_key][i][:len(expected)].tolist()
+                    actual = model_input[output_key][i][: len(expected)].tolist()
                     print('expected', expected, 'actual', actual)
                     if output_key == 'cu_seqlens':
                         # skip the last value of cu_seqlens since it was changed to the padded length for FP8 training
