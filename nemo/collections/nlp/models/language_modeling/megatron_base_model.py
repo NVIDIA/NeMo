@@ -318,7 +318,7 @@ class MegatronBaseModel(NLPModel):
         # TODO: need to check which activation functions are supported in mcore
         activation_func = activation_to_func(activation)
 
-        normalization = self.cfg.get('normalization', 'layernorm')
+        normalization = self.cfg.get('normalization', 'LayerNorm')
 
         init_method_std = self.cfg.get('init_method_std', 0.02)
         # default used in mcore
