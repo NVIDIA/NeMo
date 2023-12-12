@@ -93,7 +93,7 @@ class MegatronBertModel(MegatronBaseModel):
         self._validate_trainer()
 
         self.transformer_config = self.build_transformer_config()
-       
+
         self.mcore_bert = cfg.get('mcore_bert', False)
         print(f'SHAN : {self.mcore_bert}')
         print(cfg)
