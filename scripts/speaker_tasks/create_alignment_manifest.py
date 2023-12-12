@@ -16,12 +16,37 @@ import argparse
 import os
 import shutil
 from pathlib import Path
+from typing import List, Dict
 
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, get_ctm_line
 from nemo.utils import logging
 
+def get_seg_info_from_ctm_line(
+    ctm: List[str],
+    output_precision: int,
+    speaker_index: int = 7,
+    beg_time_index: int = 2,
+    duration_index: int = 3,
+    ):
+    """
+    Get time stamp information and speaker labels from CTM lines.
+    This is following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
+    
+    Args:
+        ctm (list):
+        output_precision (_type_): _description_
 
-def get_unaligned_files(unaligned_path):
+    Returns:
+        _type_: _description_
+    """
+    speaker_id = ctm[speaker_index]
+    start = float(ctm[beg_time_index])
+    end = float(ctm[beg_time_index]) + float(ctm[duration_index])
+    start = round(start, output_precision)
+    end = round(end, output_precision)
+    return start, end, speaker_id
+
+def get_unaligned_files(unaligned_path: str) -> List[str]:
     """
     Get files without alignments in order to filter them out (as they cannot be used for data simulation).
     In the unaligned file, each line contains the file name and the reason for the unalignment, if necessary to specify.
@@ -50,7 +75,6 @@ def get_unaligned_files(unaligned_path):
             skip_files.append(unaligned_file)
     return skip_files
 
-
 def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_precision=3):
     """
     Create new CTM entry (to write to output ctm file)
@@ -71,7 +95,15 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
             # note that using the current alignments the first word is always empty, so there is no error from indexing the array with i-1
             align1 = float(round(alignments[i - 1], output_precision))
             align2 = float(round(alignments[i] - alignments[i - 1], output_precision,))
-            text = f"{session_name} {speaker_id} {align1} {align2} {word} 0\n"
+            text = get_ctm_line(source=session_name,
+                                channel=speaker_id,
+                                beg_time=align1,
+                                duration=align2,
+                                token=word,
+                                conf=0,
+                                type='lex',
+                                speaker=speaker_id,
+                                output_precision=output_precision)
             arr.append((align1, text))
     return arr
 
@@ -94,7 +126,6 @@ def load_librispeech_alignment(alignment_filepath: str) -> dict:
             file_id, words, timestamps = line.split()
             alignments[file_id] = (words, timestamps)
     return alignments
-
 
 def create_librispeech_ctm_alignments(
     input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split
@@ -206,11 +237,7 @@ def create_manifest_with_alignments(
         prev_end = 0
         for i in range(len(lines)):
             ctm = lines[i].split(' ')
-            speaker_id = ctm[1]
-            start = float(ctm[2])
-            end = float(ctm[2]) + float(ctm[3])
-            start = round(start, output_precision)
-            end = round(end, output_precision)
+            speaker_id, start, end = get_seg_info_from_ctm_line(ctm=ctm, output_precision=output_precision)
             interval = start - prev_end
 
             if (i == 0 and interval > 0) or (i > 0 and interval > silence_dur_threshold):
@@ -231,13 +258,13 @@ def create_manifest_with_alignments(
             end_times.append(f['duration'])
 
         # build target manifest entry
-        target_manifest.append({})
-        target_manifest[tgt_i]['audio_filepath'] = f['audio_filepath']
-        target_manifest[tgt_i]['duration'] = f['duration']
-        target_manifest[tgt_i]['text'] = f['text']
-        target_manifest[tgt_i]['words'] = words
-        target_manifest[tgt_i]['alignments'] = end_times
-        target_manifest[tgt_i]['speaker_id'] = speaker_id
+        target_manifest.append({'audio_filepath': f['audio_filepath'],
+                                'duration': f['duration'],
+                                'text': f['text'],
+                                'words': words,
+                                'alignments': end_times,
+                                'speaker_id': speaker_id
+                            })
 
         src_i += 1
         tgt_i += 1

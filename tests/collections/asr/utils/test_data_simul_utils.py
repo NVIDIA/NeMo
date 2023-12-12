@@ -29,6 +29,7 @@ from nemo.collections.asr.parts.utils.data_simulation_utils import (
     normalize_audio,
     read_noise_manifest,
 )
+from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line
 
 
 @pytest.fixture()
@@ -127,6 +128,52 @@ def generate_words_and_alignments(sample_index):
         raise ValueError(f"sample_index {sample_index} not supported")
     speaker_id = 'speaker_0'
     return words, alignments, speaker_id
+
+class TestGetCtmLine:
+    @pytest.mark.unit
+    def test_valid_input(self):
+        # Test with completely valid inputs
+        result = get_ctm_line(
+            source="test_source", channel=1, beg_time=0.123, duration=0.456,
+            token="word", conf=0.789, type_token="lex", speaker="speaker1"
+        )
+        expected = "test_source 1 0.123 0.456 word 0.789 lex speaker1\n"
+        assert result == expected, "Failed on valid input"
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("beg_time, duration", [
+        ("not a float", 1.0),
+        (1.0, "not a float"),
+        (1, 2.0),  # Integers should be converted to float
+        (2.0, 3)   # Same as above
+    ])
+    def test_invalid_types_for_time_duration(self, beg_time, duration):
+        # Test with invalid types for beg_time and duration
+        with pytest.raises(ValueError):
+            get_ctm_line(
+                source="test_source", channel=1, beg_time=beg_time, duration=duration,
+                token="word", conf=0.5, type_token="lex", speaker="speaker1"
+            )
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("conf", [-0.1, 1.1, "not a float"])
+    def test_invalid_conf_values(self, conf):
+        # Test with invalid values for conf
+        with pytest.raises(ValueError):
+            get_ctm_line(
+                source="test_source", channel=1, beg_time=0.123, duration=0.456,
+                token="word", conf=conf, type_token="lex", speaker="speaker1"
+            )
+
+    @pytest.mark.unit
+    def test_default_values(self):
+        # Test with missing optional parameters
+        result = get_ctm_line(
+            source="test_source", channel=None, beg_time=0.123, duration=0.456,
+            token="word", conf=None, type_token=None, speaker=None
+        )
+        expected = "test_source 1 0.123 0.456 word NA unknown NA\n"
+        assert result == expected, "Failed on default values"
 
 
 class TestDataSimulatorUtils:
@@ -253,11 +300,11 @@ class TestDataAnnotator:
         )
         assert ctm_list[0] == (
             alignments[1],
-            f"{session_name} {speaker_id} {alignments[1]} {alignments[1]-alignments[0]} {words[1]} 0\n",
+            f"{session_name} 1 {alignments[1]} {alignments[1]-alignments[0]} {words[1]} NA lex {speaker_id}\n",
         )
         assert ctm_list[1] == (
             alignments[2],
-            f"{session_name} {speaker_id} {alignments[2]} {alignments[2]-alignments[1]} {words[2]} 0\n",
+            f"{session_name} 1 {alignments[2]} {alignments[2]-alignments[1]} {words[2]} NA lex {speaker_id}\n",
         )
 
 
