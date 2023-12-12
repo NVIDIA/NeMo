@@ -137,19 +137,31 @@ class TestGetCtmLine:
         # Test with wrong integer confidence values
         with pytest.raises(ValueError):
             result = get_ctm_line(
-                source="test_source", channel=1, beg_time=0.123, duration=0.456,
-                token="word", conf=conf, type_of_token="lex", speaker="speaker1"
+                source="test_source",
+                channel=1,
+                beg_time=0.123,
+                duration=0.456,
+                token="word",
+                conf=conf,
+                type_of_token="lex",
+                speaker="speaker1",
             )
             expected = f"test_source 1 0.123 0.456 word {conf} lex speaker1\n"
             assert result == expected, f"Failed on valid conf value {conf}"
-    
+
     @pytest.mark.unit
     @pytest.mark.parametrize("conf", [0.0, 0.5, 1.0, 0.001, 0.999])
     def test_valid_conf_values(self, conf):
         # Test with valid confidence values
         result = get_ctm_line(
-            source="test_source", channel=1, beg_time=0.123, duration=0.456,
-            token="word", conf=conf, type_of_token="lex", speaker="speaker1"
+            source="test_source",
+            channel=1,
+            beg_time=0.123,
+            duration=0.456,
+            token="word",
+            conf=conf,
+            type_of_token="lex",
+            speaker="speaker1",
         )
         expected = f"test_source 1 0.123 0.456 word {conf} lex speaker1\n"
         assert result == expected, f"Failed on valid conf value {conf}"
@@ -160,10 +172,16 @@ class TestGetCtmLine:
         # Test with invalid confidence values
         with pytest.raises(ValueError):
             get_ctm_line(
-                source="test_source", channel=1, beg_time=0.123, duration=0.456,
-                token="word", conf=conf, type_of_token="lex", speaker="speaker1"
+                source="test_source",
+                channel=1,
+                beg_time=0.123,
+                duration=0.456,
+                token="word",
+                conf=conf,
+                type_of_token="lex",
+                speaker="speaker1",
             )
- 
+
     @pytest.mark.unit
     def test_valid_input(self):
         # Test with completely valid inputs
