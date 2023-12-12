@@ -113,7 +113,7 @@ def make_ctm(
                         duration=end_time - start_time,
                         token=text,
                         conf=None,
-                        type_token=None,
+                        type_of_token='lex',
                         speaker=None,
                     )
                     f_ctm.write(ctm_line)

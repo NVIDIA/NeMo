@@ -192,7 +192,7 @@ class TestGetCtmLine:
             duration=0.456,
             token="word",
             conf=0.789,
-            type_token="lex",
+            type_of_token="lex",
             speaker="speaker1",
         )
         expected = "test_source 1 0.123 0.456 word 0.789 lex speaker1\n"
@@ -218,7 +218,7 @@ class TestGetCtmLine:
                 duration=duration,
                 token="word",
                 conf=0.5,
-                type_token="lex",
+                type_of_token="lex",
                 speaker="speaker1",
             )
 
@@ -234,7 +234,7 @@ class TestGetCtmLine:
                 duration=0.456,
                 token="word",
                 conf=conf,
-                type_token="lex",
+                type_of_token="lex",
                 speaker="speaker1",
             )
 
@@ -248,7 +248,7 @@ class TestGetCtmLine:
             duration=0.456,
             token="word",
             conf=None,
-            type_token=None,
+            type_of_token=None,
             speaker=None,
         )
         expected = "test_source 1 0.123 0.456 word NA unknown NA\n"
