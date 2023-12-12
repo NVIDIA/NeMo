@@ -57,7 +57,8 @@ For documentation on fine-tuning this model, please visit -
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
 
 """
-
+import json
+from random import sample
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
@@ -81,6 +82,32 @@ def main(cfg):
     asr_model.maybe_init_from_pretrained_checkpoint(cfg)
 
     trainer.fit(asr_model)
+
+    paths2audio_files = []
+    pseudo_ds = []
+    with open(cfg.ipl.manifest_filepath, "r") as f:
+        for line in f:
+            data = json.loads(line)
+            pseudo_ds.append(data)
+            
+    cache = sample(pseudo_ds, cfg.ipl.c_cache)
+    paths2audio_files = [x["audio_filepath"] for x in cache]
+
+    texts = asr_model.transcribe(paths2audio_files = paths2audio_files,
+        batch_size = 4,
+        return_hypotheses = False,
+        partial_hypothesis = None,
+        num_workers = 0,
+        channel_selector = None,
+        augmentor = None,
+        verbose = True,
+        logprobs = False,
+        )[0]
+    for i, x in enumerate(cache):
+        x['text'] = texts[i]
+    # asr_model.on_train_batch_start()
+    # Decrease dropout
+
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         if asr_model.prepare_test(trainer):

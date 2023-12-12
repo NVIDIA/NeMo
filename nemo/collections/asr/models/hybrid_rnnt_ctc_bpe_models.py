@@ -14,7 +14,7 @@
 
 import copy
 import os
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
@@ -125,6 +125,10 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
         # setting the RNNT decoder as the default one
         self.cur_decoder = "rnnt"
+
+    def on_train_batch_start(self, batch: Any, batch_idx: int, unused: int = 0) -> Optional[int]:
+        super().on_train_batch_start(batch, batch_idx, unused)
+        # print("self.train_dataloader", self.train_dataloader)
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
