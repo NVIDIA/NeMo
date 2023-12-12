@@ -98,12 +98,11 @@ except (ImportError, ModuleNotFoundError):
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
-def init_model_parallel(global_rank: int, world_size: int) -> None:
+def init_model_parallel(nccl_communicator_config_path: str = None) -> None:
     """ Initializes Megatron-LM model parallel if using model parallelism.
 
     Args:
-        global_rank (int): the global process index.
-        world_size (int): the total number of GPUs, num_nodes * num_devices
+        nccl_communicator_config_path: Path to the yaml NCCL communication process group config file.
     """
     app_state = AppState()
 
@@ -119,7 +118,6 @@ def init_model_parallel(global_rank: int, world_size: int) -> None:
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
-                use_fp8=app_state.use_fp8,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -679,6 +677,32 @@ class NLPDDPStrategy(DDPStrategy):
                     logging.info(f'Removing checkpoint: {filepath}')
                     self.checkpoint_io.remove_checkpoint(filepath)
 
+
+def _get_sharded_state_dict_context(module: torch.nn.Module, rank0_only: bool = False) -> Generator[None, None, None]:
+    state_dict_config = ShardedStateDictConfig(offload_to_cpu=True)
+    optim_state_dict_config = ShardedOptimStateDictConfig(offload_to_cpu=True)
+    state_dict_type_context = FSDP.state_dict_type(
+        module=module,
+        state_dict_type=StateDictType.SHARDED_STATE_DICT,
+        state_dict_config=state_dict_config,
+        optim_state_dict_config=optim_state_dict_config,
+    )
+    return state_dict_type_context
+
+
+def _get_full_state_dict_context(module: torch.nn.Module, rank0_only: bool = False) -> Generator[None, None, None]:
+    # Store checkpoint at rank0 only when using DP=1 and non-shrded checkpoint.
+    # When TP > 1, all data-parallel rank0 should generate and save checkpoints.
+    optim_state_dict_config = FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=rank0_only)
+    state_dict_config = FullStateDictConfig(offload_to_cpu=True, rank0_only=rank0_only)
+    state_dict_type_context = FSDP.state_dict_type(
+        module=module,
+        state_dict_type=StateDictType.FULL_STATE_DICT,
+        state_dict_config=state_dict_config,
+        optim_state_dict_config=optim_state_dict_config,
+    )
+    return state_dict_type_context
+
 class NLPDDPStrategy(ModelParallelCheckpointStrategy, DDPStrategy):
     """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
 
@@ -814,12 +838,13 @@ class NLPDDPStrategyNotebook(NLPDDPStrategy):
         self._launcher = None
 
 
-class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
+class NLPFSDPStrategy(FSDPStrategy):
     """ FSDP plugin for Pytorch Lightning with the support for tensor-parallelism.
 
     Args:
         sharding_strategy: FSDP parameter sharding strategy.
         grad_reduce_dtype: Data type for FSDP gradient shard ReduceScatter.
+        sharded_checkpoint: Store/load FSDP-sharded checkpoints.
         precision: Precision recipe to be used with FSDP.
     """
 
@@ -827,7 +852,9 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
         self,
         sharding_strategy: str = 'full',
         grad_reduce_dtype: Union[int, str] = None,
+        sharded_checkpoint: bool = False,
         precision: Union[int, str] = 'bf16-mixed',
+        nccl_communicator_config_path: Optional[str] = None,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -866,23 +893,31 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
         assert sharding_strategy != 'hybrid', "Hybrid sharding is currrently not supported."
         kwargs['sharding_strategy'] = fsdp_sharding_strategy[sharding_strategy]
 
+        # Set FSDP state dict configs
+        self.sharded_checkpoint = sharded_checkpoint
+        self.state_dict_context = (
+            _get_sharded_state_dict_context if sharded_checkpoint else _get_full_state_dict_context
+        )
+
+        self.nccl_communicator_config_path = nccl_communicator_config_path
         super().__init__(**kwargs)
 
     def _set_mixed_precision_recipe(
         self, precision: Union[int, str], grad_reduce_dtype: Union[int, str]
     ) -> MixedPrecision:
-        # Set FSDP mixed precision recipe.
-        if precision == "16-mixed":
-            buffer_dtype = torch.float32
-            param_dtype = reduce_dtype = torch.float16
-        elif precision == "bf16-mixed":
-            buffer_dtype = torch.float32
-            param_dtype = reduce_dtype = torch.bfloat16
-        elif precision in ["16-true", 16]:
+        """
+        Set FSDP mixed precision recipe.
+        `param_dtype` sets the data type for computation in forward and backpropagation, and the parameter
+        data type for optimizer execution is maintained in the full precision.
+        `buffer_dtype` is only valid when a module has buffers by `register_buffer` method, which is not
+        shared by FSDP.
+        `reduce_dtype` sets gradient reduction data type.
+        """
+        if precision in ["16-true", "16-mixed", 16]:
             param_dtype = reduce_dtype = buffer_dtype = torch.float16
-        elif precision in ["bf16-true", "bf16"]:
+        elif precision in ["bf16-true", "bf16-mixed", "bf16"]:
             param_dtype = reduce_dtype = buffer_dtype = torch.bfloat16
-        elif precision in ["32-true", 32]:
+        elif precision == 32:
             param_dtype = reduce_dtype = buffer_dtype = torch.float
         else:
             raise ValueError(f"Was unable to infer precision type, received {precision!r}.")
@@ -906,7 +941,7 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
                 assert (
                     app_state.tensor_model_parallel_size == 1
                 ), "FSDP hybrid sharding cannot be used when tensor_model_parallel_size > 1."
-            init_model_parallel(app_state.global_rank, app_state.world_size)
+            init_model_parallel(self.nccl_communicator_config_path)
             # Set the FSDP process group as DP process group
             self._process_group = parallel_state.get_data_parallel_group()
 
@@ -914,11 +949,11 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
         self.kwargs["ignored_states"] = []
         if parallel_state.get_tensor_model_parallel_world_size() > 1:
             for p in self.model.parameters():
-                # Ignore sequence-parallel params to facilitate TP domain reduction.
+                # Ignore sequence-parallel params to facilitate TP domain gradient reduction.
                 if getattr(p, "sequence_parallel", False):
                     self.kwargs["ignored_states"].append(p)
                 else:
-                    # Ignore params with TP-duplicate to facilitate grad norm calculation.
+                    # Ignore params with TP-duplicate to facilitate gradient norm calculation.
                     is_not_tp_duplicate = torch.tensor(
                         int(param_is_not_tensor_parallel_duplicate(p)),
                         dtype=torch.int8,
@@ -932,35 +967,58 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
 
     def lightning_module_state_dict(self) -> Dict[str, Any]:
         """
-        Store the full model state dict
+        Store the model state dict in one of full or sharded format.
         """
         assert self.lightning_module is not None
-        state_dic_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=False)
-        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg):
+        # Store checkpoint at rank0 only when using DP=1 and non-shrded checkpoint.
+        rank0_only = (
+            True
+            if (not self.sharded_checkpoint and parallel_state.get_tensor_model_parallel_world_size() == 1)
+            else False
+        )
+        with self.state_dict_context(self.model, rank0_only=rank0_only):
             state_dict = self.lightning_module.state_dict()
         return state_dict
 
     def optimizer_state(self, optimizer: torch.optim.Optimizer) -> Dict[str, torch.Tensor]:
         """
-        Store the full optimizer state dict
+        Store the full optimizer state dict in one of full or sharded format.
         """
         if isinstance(optimizer, LightningOptimizer):
             optimizer = optimizer._optimizer
-        state_dic_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=False)
-        optim_state_dic_cfg = FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=False)
-        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg, optim_state_dic_cfg):
+        with self.state_dict_context(self.model):
             optim_state_dict = FSDP.optim_state_dict(self.model, optimizer)
         return optim_state_dict
+
+    def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
+        # Release strict state dict matching when using Megatron AMP-O2 to skip matching
+        # half-precision module wrapper module.
+        # TODO: Refactor this to be more generic.
+        model_key = None
+        model_attr = None
+        if hasattr(self.lightning_module, 'model'):
+            model_key = 'model'
+            model_attr = self.lightning_module.model
+        elif hasattr(self.lightning_module, 'enc_dec_model'):
+            model_key = 'enc_dec_model'
+            model_attr = self.lightning_module.enc_dec_model
+        if model_key is not None:
+            if isinstance(model_attr, Float16Module) or isinstance(model_attr, MCoreFloat16Module):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
+        with self.state_dict_context(self.model):
+            self.lightning_module.load_state_dict(checkpoint["state_dict"])
 
     def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         """
         Re-key the full optimizer state dict to sharded optimizer state dict
         """
-        optimizer_states = checkpoint["optimizer_states"]
-        state_dic_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=False)
-        optim_state_dic_cfg = FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=False)
 
-        def get_osd(opt_state):
+        def _get_osd(opt_state):
             temp_opt_state = opt_state
             while True:
                 if "state" in temp_opt_state:
@@ -968,30 +1026,85 @@ class NLPFSDPStrategy(ModelParallelCheckpointStrategy, FSDPStrategy):
                 assert isinstance(temp_opt_state, dict), "Fail to find optimizer state dict."
                 temp_opt_state = temp_opt_state[list(temp_opt_state.keys())[0]]
 
+        optimizer_states = checkpoint["optimizer_states"]
         for optimizer, opt_state in zip(self.optimizers, optimizer_states):
-            with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg, optim_state_dic_cfg):
-                full_osd = get_osd(opt_state)
-                if isinstance(list(full_osd["state"].keys())[0], int):
+            with self.state_dict_context(self.model):
+                temp_osd = _get_osd(opt_state)
+                if isinstance(list(temp_osd["state"].keys())[0], int):
+                    # Normal optimizer state dict without FSDP
                     try:
-                        # Optimizer state dict stored without FSDP
                         with FSDP.summon_full_params(self.model, writeback=True, rank0_only=False):
-                            full_osd = FSDP.rekey_optim_state_dict(full_osd, OptimStateKeyType.PARAM_NAME, self.model)
-                        sharded_osd = FSDP.shard_full_optim_state_dict(full_osd, self.model)
-                        sharded_osd = FSDP.optim_state_dict_to_load(
-                            optim_state_dict=sharded_osd, model=self.model, optim=optimizer,
+                            # rekey the osd stored from non-FSDP model
+                            rekeyed_osd = FSDP.rekey_optim_state_dict(
+                                temp_osd, OptimStateKeyType.PARAM_NAME, self.model,
                         )
+                        temp_osd = FSDP.shard_full_optim_state_dict(rekeyed_osd, self.model)
                     except Exception as e:
                         print(f"Failed to load optimzier state dicts. Errored with {e}")
                         exit(1)
-                else:
-                    # Optimizer state dict stored with FSDP
-                    sharded_osd = FSDP.rekey_optim_state_dict(full_osd, OptimStateKeyType.PARAM_NAME, self.model)
+                # Shard optimizer state dict
                     sharded_osd = FSDP.optim_state_dict_to_load(
-                        optim_state_dict=sharded_osd, model=self.model, optim=optimizer,
+                    optim_state_dict=temp_osd, model=self.model, optim=optimizer,
                     )
 
                 optimizer.load_state_dict(sharded_osd)
                 _optimizer_to_device(optimizer, self.root_device)
+
+    def save_checkpoint(
+        self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
+    ) -> None:
+        """ Store checkpoints
+            1. In case of sharded checkpoint, all ranks store unique checkpoints.
+            2. In case of non-sharded checkpoint, all data-parallel rank 0 store checkpoints.
+        """
+        app_state = AppState()
+        filepath = inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=self.sharded_checkpoint)
+        if not self.sharded_checkpoint:
+            if app_state.data_parallel_rank == 0:
+                self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        else:
+            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+
+    def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
+        """ Load checkpoints
+        """
+        # 1. Load normal or FSDP-sharded checkpoints.
+        fs = get_filesystem(checkpoint_path)
+
+        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+        checkpoint_path = inject_model_parallel_rank(checkpoint_path, fsdp_sharded_ckpt=self.sharded_checkpoint)
+        if not fs.exists(checkpoint_path):
+            raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
+        torch.cuda.empty_cache()
+
+        from torch.distributed._shard.api import load_with_process_group
+
+        with load_with_process_group(process_group=parallel_state.get_data_parallel_group()):
+            checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path)
+        return checkpoint
+
+    def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+        """ Remove checkpoints
+        """
+        # legacy checkpoint logic, does not use megatron core
+        app_state = AppState()
+        # PTL override to accomodate model parallel checkpoints
+        filepath = inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=self.sharded_checkpoint)
+        if not self.sharded_checkpoint:
+            logging.info(f'Removing checkpoint: {filepath}')
+            self.checkpoint_io.remove_checkpoint(filepath)
+        else:
+            if app_state.data_parallel_rank == 0:
+                logging.info(f'Removing checkpoint: {filepath}')
+                self.checkpoint_io.remove_checkpoint(filepath)
+
+    @property
+    def restore_checkpoint_after_setup(self) -> bool:
+        """ When loading FSDP-sharded checkpoint, need to restore checkpoint after configuring
+            FSDP sharding to match FSDP-sharded format between the checkpoint and the current
+            model and optimizer.
+        """
+        return True
 
 
 

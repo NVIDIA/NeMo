@@ -54,6 +54,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
+@torch.no_grad()
 def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
     """Clips gradient norm of an iterable of parameters whose gradients
        are in fp32.
@@ -131,11 +132,10 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
 
     else:
         if norm_type == 2.0:
-            dummy_overflow_buf = torch.cuda.IntTensor([0])
             # Use apex's multi-tensor applier for efficiency reasons.
             # Multi-tensor applier takes a function and a list of list
             # and performs the operation on that list all in one kernel.
-            if len(grads_for_norm) > 0:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1                grad_norm, _ = multi_tensor_applier(
+            if len(grads_for_norm) > 0:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
                 grad_norm, _ = multi_tensor_applier(
                     amp_C.multi_tensor_l2norm, dummy_overflow_buf, [grads_for_norm], False  # no per-parameter norm
                 )
@@ -163,7 +163,6 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
                 for grad in sharded_grads_for_norm:
                     grad_norm = torch.norm(grad, norm_type)
                     total_sharded_norm += grad_norm ** norm_type
-
             total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
             if use_fsdp:
                 total_sharded_norm_cuda = torch.cuda.FloatTensor([float(total_sharded_norm)])

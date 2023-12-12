@@ -671,6 +671,13 @@ class MegatronBaseModel(NLPModel):
                 )
                 with open_dict(self.cfg):
                     self.cfg.ub_tp_comm_overlap = False
+            if self.cfg.get('fsdp', False):
+                logging.info(
+                    "Userbuffer tensor-parallel communication overlap is not available with FSDP."
+                    "Setting `ub_tp_comm_overlap` to False."
+                )
+                with open_dict(self.cfg):
+                    self.cfg.ub_tp_comm_overlap = False
 
         if self.cfg.get('fsdp', False) and self.cfg.get('fp8', False):
             raise ValueError('Torch FSDP does not support FP8.')
@@ -808,7 +815,7 @@ class MegatronBaseModel(NLPModel):
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
             "grad_scale_func": self.trainer.precision_plugin.scaler.scale
-            if self.torch_dtype == torch.float16
+            if self.trainer.precision in ["16", "16-mixed"]
             else None,
             "enable_autocast": not megatron_amp_O2 and self.torch_dtype in [torch.bfloat16, torch.float16],
             "autocast_dtype": self.autocast_dtype,
@@ -881,18 +888,11 @@ class MegatronBaseModel(NLPModel):
 
         if self.use_fsdp:
             """ Top-evel FSDP model sharding """
-            # Cast the full model to initialization precision to match the precision among parameters.
-            params_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision, None)
-            self.model = self.model.to(params_dtype)
-            # Shard the top-level model with FSDP. We shard the strategy-unwrapped model not
+            # Shard the top-level model hierarchically. We shard the strategy-unwrapped model not
             # to lose the structure of non-FSDP wrapped parameters (e.g, embedding)
             frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
             self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
             self.model = self.trainer.strategy._setup_model(self.model)
-            # Keep the master parameters in fp32.
-            # The parameters can be initialized in half-precision to save memory before sharding
-            self.model = self.model.float()
-            # Move model from CPU to GPU, which is to avoid out-of-memory crash before sharding.
-            # FSDP with `use_cpu_initialization` has the model initialized on CPU then move GPU after sharding.
-            # In case of GPU-initialized model, this is no-op.
+            # Move the CPU-initialized model (with `use_cpu_initialization=True`) to GPU, which is to avoid
+            # out-of-memory carash before sharding. In case of GPU-initialized model, this is no-op.
             self.model = self.model.cuda(torch.cuda.current_device())
