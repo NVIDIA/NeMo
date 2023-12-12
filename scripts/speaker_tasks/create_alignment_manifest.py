@@ -16,29 +16,31 @@ import argparse
 import os
 import shutil
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line, read_manifest, write_ctm, write_manifest
 from nemo.utils import logging
 
 
 def get_seg_info_from_ctm_line(
-    ctm: List[str], output_precision: int, speaker_index: int = 7, beg_time_index: int = 2, duration_index: int = 3,
+    ctm_list: List[str], output_precision: int, speaker_index: int = 7, beg_time_index: int = 2, duration_index: int = 3,
 ):
     """
     Get time stamp information and speaker labels from CTM lines.
     This is following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
     
     Args:
-        ctm (list):
-        output_precision (_type_): _description_
+        ctm_list (list): List containing CTM items. e.g.: ['sw02001-A', '1', '0.000', '0.200', 'hello', '0.98', 'lex', 'speaker3']
+        output_precision (int): Precision for CTM outputs in integer.
 
     Returns:
-        _type_: _description_
+        start (float): Start time of the segment.
+        end (float): End time of the segment.
+        speaker_id (str): Speaker ID of the segment.
     """
-    speaker_id = ctm[speaker_index]
-    start = float(ctm[beg_time_index])
-    end = float(ctm[beg_time_index]) + float(ctm[duration_index])
+    speaker_id = ctm_list[speaker_index]
+    start = float(ctm_list[beg_time_index])
+    end = float(ctm_list[beg_time_index]) + float(ctm_list[duration_index])
     start = round(start, output_precision)
     end = round(end, output_precision)
     return start, end, speaker_id
@@ -239,7 +241,7 @@ def create_manifest_with_alignments(
         prev_end = 0
         for i in range(len(lines)):
             ctm = lines[i].split(' ')
-            speaker_id, start, end = get_seg_info_from_ctm_line(ctm=ctm, output_precision=output_precision)
+            speaker_id, start, end = get_seg_info_from_ctm_line(ctm_list=ctm, output_precision=output_precision)
             interval = start - prev_end
 
             if (i == 0 and interval > 0) or (i > 0 and interval > silence_dur_threshold):
