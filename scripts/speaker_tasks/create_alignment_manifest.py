@@ -16,18 +16,15 @@ import argparse
 import os
 import shutil
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_ctm, write_manifest, get_ctm_line
+from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line, read_manifest, write_ctm, write_manifest
 from nemo.utils import logging
 
+
 def get_seg_info_from_ctm_line(
-    ctm: List[str],
-    output_precision: int,
-    speaker_index: int = 7,
-    beg_time_index: int = 2,
-    duration_index: int = 3,
-    ):
+    ctm: List[str], output_precision: int, speaker_index: int = 7, beg_time_index: int = 2, duration_index: int = 3,
+):
     """
     Get time stamp information and speaker labels from CTM lines.
     This is following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
@@ -45,6 +42,7 @@ def get_seg_info_from_ctm_line(
     start = round(start, output_precision)
     end = round(end, output_precision)
     return start, end, speaker_id
+
 
 def get_unaligned_files(unaligned_path: str) -> List[str]:
     """
@@ -75,6 +73,7 @@ def get_unaligned_files(unaligned_path: str) -> List[str]:
             skip_files.append(unaligned_file)
     return skip_files
 
+
 def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_precision=3):
     """
     Create new CTM entry (to write to output ctm file)
@@ -95,15 +94,17 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
             # note that using the current alignments the first word is always empty, so there is no error from indexing the array with i-1
             align1 = float(round(alignments[i - 1], output_precision))
             align2 = float(round(alignments[i] - alignments[i - 1], output_precision,))
-            text = get_ctm_line(source=session_name,
-                                channel=speaker_id,
-                                beg_time=align1,
-                                duration=align2,
-                                token=word,
-                                conf=0,
-                                type_token='lex',
-                                speaker=speaker_id,
-                                output_precision=output_precision)
+            text = get_ctm_line(
+                source=session_name,
+                channel=speaker_id,
+                beg_time=align1,
+                duration=align2,
+                token=word,
+                conf=0,
+                type_token='lex',
+                speaker=speaker_id,
+                output_precision=output_precision,
+            )
             arr.append((align1, text))
     return arr
 
@@ -126,6 +127,7 @@ def load_librispeech_alignment(alignment_filepath: str) -> dict:
             file_id, words, timestamps = line.split()
             alignments[file_id] = (words, timestamps)
     return alignments
+
 
 def create_librispeech_ctm_alignments(
     input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split
@@ -258,13 +260,16 @@ def create_manifest_with_alignments(
             end_times.append(f['duration'])
 
         # build target manifest entry
-        target_manifest.append({'audio_filepath': f['audio_filepath'],
-                                'duration': f['duration'],
-                                'text': f['text'],
-                                'words': words,
-                                'alignments': end_times,
-                                'speaker_id': speaker_id
-                            })
+        target_manifest.append(
+            {
+                'audio_filepath': f['audio_filepath'],
+                'duration': f['duration'],
+                'text': f['text'],
+                'words': words,
+                'alignments': end_times,
+                'speaker_id': speaker_id,
+            }
+        )
 
         src_i += 1
         tgt_i += 1

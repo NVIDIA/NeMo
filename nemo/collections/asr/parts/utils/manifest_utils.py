@@ -32,19 +32,21 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 )
 from nemo.utils.data_utils import DataStoreObject
 
-def get_ctm_line(source: str,
-                 channel: int, 
-                 beg_time: float,
-                 duration: float,
-                 token: str, 
-                 conf: float,
-                 type_token: str, 
-                 speaker: str,
-                 NA_token: str='NA',
-                 UNK: str='unknown',
-                 default_channel: str='1',
-                 output_precision: int= 3
-    ) -> str:
+
+def get_ctm_line(
+    source: str,
+    channel: int,
+    beg_time: float,
+    duration: float,
+    token: str,
+    conf: float,
+    type_token: str,
+    speaker: str,
+    NA_token: str = 'NA',
+    UNK: str = 'unknown',
+    default_channel: str = '1',
+    output_precision: int = 3,
+) -> str:
     """
     Get a line in  Conversation Time Mark (CTM) format. Following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
     
@@ -83,8 +85,19 @@ def get_ctm_line(source: str,
         raise ValueError(f"`conf` must be between 0 and 1, but got {conf}")
     if type_token is not None and type(type_token) != str:
         raise ValueError(f"`type` must be a string, but got {type(type)}")
-    if type_token is not None and type_token not in ["lex", "frag", "fp", "un-lex", "for-lex", "non-lex", "misc", "noscore"]:
-        raise ValueError(f"`type` must be one of ['lex', 'frag', 'fp', 'un-lex', 'for-lex', 'non-lex', 'misc', 'noscore'], but got {type_token}")
+    if type_token is not None and type_token not in [
+        "lex",
+        "frag",
+        "fp",
+        "un-lex",
+        "for-lex",
+        "non-lex",
+        "misc",
+        "noscore",
+    ]:
+        raise ValueError(
+            f"`type` must be one of ['lex', 'frag', 'fp', 'un-lex', 'for-lex', 'non-lex', 'misc', 'noscore'], but got {type_token}"
+        )
     if speaker is not None and type(speaker) != str:
         raise ValueError(f"`speaker` must be a string, but got {type(speaker)}")
     channel = default_channel if channel is None else channel
@@ -92,6 +105,7 @@ def get_ctm_line(source: str,
     speaker = NA_token if speaker is None else speaker
     type_token = UNK if type_token is None else type_token
     return f"{source} {channel} {beg_time} {duration} {token} {conf} {type_token} {speaker}\n"
+
 
 def rreplace(s: str, old: str, new: str) -> str:
     """

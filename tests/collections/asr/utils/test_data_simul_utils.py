@@ -129,30 +129,46 @@ def generate_words_and_alignments(sample_index):
     speaker_id = 'speaker_0'
     return words, alignments, speaker_id
 
+
 class TestGetCtmLine:
     @pytest.mark.unit
     def test_valid_input(self):
         # Test with completely valid inputs
         result = get_ctm_line(
-            source="test_source", channel=1, beg_time=0.123, duration=0.456,
-            token="word", conf=0.789, type_token="lex", speaker="speaker1"
+            source="test_source",
+            channel=1,
+            beg_time=0.123,
+            duration=0.456,
+            token="word",
+            conf=0.789,
+            type_token="lex",
+            speaker="speaker1",
         )
         expected = "test_source 1 0.123 0.456 word 0.789 lex speaker1\n"
         assert result == expected, "Failed on valid input"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("beg_time, duration", [
-        ("not a float", 1.0),
-        (1.0, "not a float"),
-        (1, 2.0),  # Integers should be converted to float
-        (2.0, 3)   # Same as above
-    ])
+    @pytest.mark.parametrize(
+        "beg_time, duration",
+        [
+            ("not a float", 1.0),
+            (1.0, "not a float"),
+            (1, 2.0),  # Integers should be converted to float
+            (2.0, 3),  # Same as above
+        ],
+    )
     def test_invalid_types_for_time_duration(self, beg_time, duration):
         # Test with invalid types for beg_time and duration
         with pytest.raises(ValueError):
             get_ctm_line(
-                source="test_source", channel=1, beg_time=beg_time, duration=duration,
-                token="word", conf=0.5, type_token="lex", speaker="speaker1"
+                source="test_source",
+                channel=1,
+                beg_time=beg_time,
+                duration=duration,
+                token="word",
+                conf=0.5,
+                type_token="lex",
+                speaker="speaker1",
             )
 
     @pytest.mark.unit
@@ -161,16 +177,28 @@ class TestGetCtmLine:
         # Test with invalid values for conf
         with pytest.raises(ValueError):
             get_ctm_line(
-                source="test_source", channel=1, beg_time=0.123, duration=0.456,
-                token="word", conf=conf, type_token="lex", speaker="speaker1"
+                source="test_source",
+                channel=1,
+                beg_time=0.123,
+                duration=0.456,
+                token="word",
+                conf=conf,
+                type_token="lex",
+                speaker="speaker1",
             )
 
     @pytest.mark.unit
     def test_default_values(self):
         # Test with missing optional parameters
         result = get_ctm_line(
-            source="test_source", channel=None, beg_time=0.123, duration=0.456,
-            token="word", conf=None, type_token=None, speaker=None
+            source="test_source",
+            channel=None,
+            beg_time=0.123,
+            duration=0.456,
+            token="word",
+            conf=None,
+            type_token=None,
+            speaker=None,
         )
         expected = "test_source 1 0.123 0.456 word NA unknown NA\n"
         assert result == expected, "Failed on default values"
