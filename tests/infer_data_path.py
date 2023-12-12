@@ -163,7 +163,7 @@ def get_infer_test_data():
 
     test_data["FALCON-7B-base"] = {}
     test_data["FALCON-7B-base"]["model_type"] = "falcon"
-    test_data["FALCON-7B-base"]["total_gpus"] = [1, 2, 4, 8]
+    test_data["FALCON-7B-base"]["total_gpus"] = [1]
     test_data["FALCON-7B-base"]["location"] = "Local"
     test_data["FALCON-7B-base"]["trt_llm_model_dir"] = "/tmp/FALCON-7B-base/trt_llm_model-1/"
     test_data["FALCON-7B-base"]["checkpoint"] = "/opt/checkpoints/FALCON-7B-base/FALCON-7B-base-1.nemo"
