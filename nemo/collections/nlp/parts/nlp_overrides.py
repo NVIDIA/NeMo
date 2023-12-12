@@ -758,7 +758,7 @@ class NLPDDPStrategy(ModelParallelCheckpointStrategy, DDPStrategy):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
-                init_model_parallel(app_state.global_rank, app_state.world_size)
+                init_model_parallel()
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
