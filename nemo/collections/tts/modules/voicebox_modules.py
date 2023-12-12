@@ -221,6 +221,8 @@ class DurationPredictor(_DP):
         """ Allow passing `cond=None` while actually requires cond by setting `calculate_cond=True`
         `cond` should be ground-truth duration instead of encoded audio
         """
+        outputs = {}
+
         # text to phonemes, if tokenizer is given
         phoneme_ids = self.to_phoneme_ids(texts, phoneme_ids)
         
@@ -229,7 +231,6 @@ class DurationPredictor(_DP):
 
         if phoneme_mask.ndim == 2:
             phoneme_mask =  rearrange(self_attn_mask, 'b t -> b 1 t')
-
         # phoneme_ids = phoneme_ids.clamp(min = 0)
 
         # get phoneme embeddings
@@ -292,12 +293,14 @@ class DurationPredictor(_DP):
         )
 
         durations = self.to_pred(x)
+        outputs["durations"] = durations
 
         if not self.training:
-            if not return_aligned_phoneme_ids:
-                return durations
+            if return_aligned_phoneme_ids:
+                aligned_phoneme_ids = self.align_phoneme_ids_with_durations(phoneme_ids, durations)
+                outputs["aligned_phoneme_ids"] = aligned_phoneme_ids
 
-            return durations, self.align_phoneme_ids_with_durations(phoneme_ids, durations)
+            return outputs
 
         loss_mask = cond_mask & self_attn_mask
 
@@ -321,16 +324,18 @@ class DurationPredictor(_DP):
         alignment_mas = rearrange(alignment_mas, 'b tx ty -> b 1 ty tx')
         bin_loss = self.bin_loss(hard_attention=alignment_mas, soft_attention=alignment_soft)
         loss = loss + bin_loss
-
-        if not return_aligned_phoneme_ids:
-            return loss
         
         losses = {
             "d_pred_loss": loss,
             "align_loss": align_loss,
             "bin_loss": bin_loss
         }
-        return loss, losses, self.align_phoneme_ids_with_durations(phoneme_ids=phoneme_ids, durations=target)
+
+        if return_aligned_phoneme_ids:
+            aligned_phoneme_ids = self.align_phoneme_ids_with_durations(phoneme_ids=phoneme_ids, durations=target)
+            outputs["aligned_phoneme_ids"] = aligned_phoneme_ids
+
+        return loss, losses, outputs
 
 
 class NeMoDurationPredictor(DurationPredictor):
@@ -459,13 +464,13 @@ class NeMoDurationPredictor(DurationPredictor):
         """ Allow passing `cond=None` while actually requires cond by setting `calculate_cond=True`
         `cond` should be ground-truth duration instead of encoded audio
         """
+        outputs = {}
+
         # text to phonemes, if tokenizer is given
 
         # TODO: deal with NeMo aligner's phoneme tokenizer
         assert exists(self_attn_mask) and exists(phoneme_ids) and exists(phoneme_len) and exists(phoneme_mask)
 
-        batch, seq_len = phoneme_ids.shape
-        
         phoneme_ids = phoneme_ids.clamp(min = 0)
 
         # get phoneme embeddings
@@ -496,11 +501,8 @@ class NeMoDurationPredictor(DurationPredictor):
         # construct mask if not given
 
         if not exists(cond_mask):
-            if coin_flip():
-                frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*self.frac_lengths_mask)
-                cond_mask = mask_from_frac_lengths(seq_len, frac_lengths)
-            else:
-                cond_mask = prob_mask_like((batch, seq_len), self.p_drop_prob, self.device)
+            batch, seq_len = phoneme_ids.shape
+            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len)
 
         cond = cond * rearrange(~cond_mask, '... -> ... 1')
 
@@ -532,12 +534,14 @@ class NeMoDurationPredictor(DurationPredictor):
         )
 
         durations = self.to_pred(x)
+        outputs["durations"] = durations
 
         if not self.training:
-            if not return_aligned_phoneme_ids:
-                return durations
+            if return_aligned_phoneme_ids:
+                aligned_phoneme_ids = self.align_phoneme_ids_with_durations(phoneme_ids, durations)
+                outputs["aligned_phoneme_ids"] = aligned_phoneme_ids
 
-            return durations, self.align_phoneme_ids_with_durations(phoneme_ids, durations)
+            return outputs
 
         loss_mask = cond_mask & self_attn_mask
 
@@ -552,14 +556,15 @@ class NeMoDurationPredictor(DurationPredictor):
         loss = loss.mean()
 
         #aligner loss
-
-        if not return_aligned_phoneme_ids:
-            return loss
-        
         losses = {
             "d_pred_loss": loss,
         }
-        return loss, losses, self.align_phoneme_ids_with_durations(phoneme_ids=phoneme_ids, durations=target)
+
+        if return_aligned_phoneme_ids:
+            aligned_phoneme_ids = self.align_phoneme_ids_with_durations(phoneme_ids=phoneme_ids, durations=target)
+            outputs["aligned_phoneme_ids"] = aligned_phoneme_ids
+
+        return loss, losses, outputs
 
 
 class MFADurationPredictor(DurationPredictor):
@@ -601,6 +606,8 @@ class MFADurationPredictor(DurationPredictor):
             - cond
                 - sample_rate matching
         """
+        outputs = {}
+
         # text to phonemes, if tokenizer is given
         phoneme_ids = self.to_phoneme_ids(texts, phoneme_ids)
 
@@ -651,12 +658,14 @@ class MFADurationPredictor(DurationPredictor):
         )
 
         durations = self.to_pred(x)
+        outputs["durations"] = durations
 
         if not self.training:
-            if not return_aligned_phoneme_ids:
-                return durations
+            if return_aligned_phoneme_ids:
+                aligned_phoneme_ids = self.align_phoneme_ids_with_durations(phoneme_ids, durations)
+                outputs["aligned_phoneme_ids"] = aligned_phoneme_ids
 
-            return durations, self.align_phoneme_ids_with_durations(phoneme_ids, durations)
+            return outputs
 
         loss_mask = cond_mask & self_attn_mask
 
@@ -670,14 +679,15 @@ class MFADurationPredictor(DurationPredictor):
         loss = num / den
         loss = loss.mean()
 
-        if not return_aligned_phoneme_ids:
-            return loss
-        
         losses = {
             "d_pred_loss": loss,
         }
-        return loss, losses, self.align_phoneme_ids_with_durations(phoneme_ids=phoneme_ids, durations=target)
 
+        if return_aligned_phoneme_ids:
+            aligned_phoneme_ids = self.align_phoneme_ids_with_durations(phoneme_ids=phoneme_ids, durations=target)
+            outputs["aligned_phoneme_ids"] = aligned_phoneme_ids
+        
+        return loss, losses, outputs
 
 
 
@@ -1154,7 +1164,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
             
             self.duration_predictor.train()
 
-            dp_loss, dp_losses, aligned_phoneme_ids = self.duration_predictor.forward(
+            dp_loss, dp_losses, dp_outputs = self.duration_predictor.forward(
                 cond=dp_cond,               # might be None
                 texts=None,                 # converted to phoneme_ids by dataset
                 phoneme_ids=phoneme_ids,
@@ -1170,6 +1180,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
                 return_aligned_phoneme_ids=True,
                 calculate_cond=True
             )
+            aligned_phoneme_ids = dp_outputs.get("aligned_phoneme_ids")
 
             cond_token_ids = aligned_phoneme_ids
 
