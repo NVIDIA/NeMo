@@ -774,7 +774,8 @@ class MegatronBertModel(MegatronBaseModel):
                 sync_embeddings()
 
         print(self.cfg)
-        print(f'SHAN : {self.cfg.get('mcore_bert', False)}')
+        mcore_bert = self.cfg.get('mcore_bert', False)
+        print(f'SHAN : {mcore_bert}')
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_bert', False):
             self.setup_transformer_engine_tp_groups()
 
