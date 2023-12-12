@@ -163,21 +163,18 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
                 for grad in sharded_grads_for_norm:
                     grad_norm = torch.norm(grad, norm_type)
                     total_sharded_norm += grad_norm ** norm_type
-            total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
-            if use_fsdp:
-                total_sharded_norm_cuda = torch.cuda.FloatTensor([float(total_sharded_norm)])
-                # Sum norm of grad shards across data-parallel GPUs.
-                torch.distributed.all_reduce(
-                    total_sharded_norm_cuda,
-                    op=torch.distributed.ReduceOp.SUM,
-                    group=parallel_state.get_data_parallel_group(),
-                )
-                total_norm_cuda += total_sharded_norm_cuda
 
-        # Sum across all model-parallel GPUs.
-        total_norm_cuda = torch.cuda.FloatTensor(
-            [float(total_norm)]
-        )  # (@adithyare) total_norm can be a float at this point so we convert it to cuda.FloatTensor
+        total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
+        if use_fsdp:
+            total_sharded_norm_cuda = torch.cuda.FloatTensor([float(total_sharded_norm)])
+            # Sum norm of grad shards across data-parallel GPUs.
+            torch.distributed.all_reduce(
+                total_sharded_norm_cuda,
+                op=torch.distributed.ReduceOp.SUM,
+                group=parallel_state.get_data_parallel_group(),
+            )
+            total_norm_cuda += total_sharded_norm_cuda
+
         torch.distributed.all_reduce(
             total_norm_cuda, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
         )
