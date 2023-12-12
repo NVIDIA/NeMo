@@ -993,6 +993,40 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     new_state_dict[key_] = state_dict[key_]
             state_dict = new_state_dict
 
+        if os.getenv("TE_FP8_LINEAR", '0') == '0':
+            # remove _extra_state in fp8 if there is.
+            new_state_dict = {}
+            for key in checkpoint['state_dict'].keys():
+                if 'extra_state' in key:
+                    continue
+                new_state_dict[key] = checkpoint['state_dict'][key]
+            checkpoint['state_dict'] = new_state_dict
+
+        if os.getenv("TE_FP8_LayerNormLINEAR", '0') == '0':
+            # map LayerNormLinear weight if needed.
+            new_state_dict = {}
+            for key in checkpoint['state_dict'].keys():
+                ### LayerNormLinear
+                # norm_to_q.layer_norm_{weight|bias} -> norm_to_q.0.{weight|bias}
+                # norm_to_q.weight -> norm_to_q.1.weight
+                new_key = key.replace('norm_to_q.layer_norm_', 'norm_to_q.0.')
+                new_key = new_key.replace('norm_to_q.weight', 'norm_to_q.1.weight')
+                new_state_dict[new_key] = checkpoint['state_dict'][key]
+            checkpoint['state_dict'] = new_state_dict
+
+        if os.getenv("TE_FP8_LayerNormMLP", '0') == '0':
+            new_state_dict = {}
+            for key in checkpoint['state_dict'].keys():
+                ### LayerNormMLP
+                # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
+                # ff.net.fc1_{weight|bias} -> ff.net.1.proj.{weight|bias}
+                # ff.net.fc2_{weight|bias} -> ff.net.3.{weight|bias}
+                new_key = key.replace('ff.net.layer_norm_', 'ff.net.0.')
+                new_key = new_key.replace('ff.net.fc1_', 'ff.net.1.proj.')
+                new_key = new_key.replace('ff.net.fc2_', 'ff.net.3.')
+                new_state_dict[new_key] = checkpoint['state_dict'][key]
+            checkpoint['state_dict'] = new_state_dict
+
         return state_dict
 
     def _load_state_dict_from_disk(self, model_weights, map_location=None):
