@@ -801,9 +801,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         encoder_self_attention_relative_position_bias = None
         if self.position_embedding_type == 'rope':
             if self.rope_only_interpolate_decoding and not (inference_max_sequence_len is not None and not set_inference_key_value_memory):
-                rotary_pos_emb = self.rotary_pos_emb(enc_seq_length, maybe_interpolate=False, maybe_augment= not training_step)
+                rotary_pos_emb = self.rotary_pos_emb(enc_seq_length, maybe_interpolate=False, maybe_augment=training_step)
             else:
-                rotary_pos_emb = self.rotary_pos_emb(enc_seq_length, maybe_augment= not training_step)
+                rotary_pos_emb = self.rotary_pos_emb(enc_seq_length, maybe_augment=training_step)
         elif (
             self.position_embedding_type == 'alibi'
             or self.position_embedding_type == 'sandwich'
