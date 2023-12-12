@@ -482,18 +482,22 @@ def plot_segment_to_numpy(phoneme_ids, durations, predictions, spectrogram, text
     phoneme_ids = phoneme_ids[:phn_lens]
     phoneme_ids = [pid if i % 2 else pid+" "*10 for i, pid in enumerate(phoneme_ids)]
     durations = durations[:phn_lens]
-    cum_dur = torch.cumsum(durations, -1)
+    cum_dur = torch.cumsum(durations, -1).cpu().numpy()
     predictions = predictions[:phn_lens]
-    cum_pred = torch.cumsum(predictions, -1)
+    cum_pred = torch.cumsum(predictions, -1).cpu().numpy()
 
     # fig, ax = plt.subplots(figsize=(12, 3))
     fig, ax = plt.subplots(figsize=(32, 3))
     im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation='none')
 
-    ax.set_xticks(cum_dur.cpu().numpy())
-    ax.set_xticklabels(phoneme_ids, rotation = 45, ha="right")
-    ax.vlines(cum_dur.cpu().numpy(), ymin=0.0, ymax=max(ax.get_yticks())/2, colors='green')
-    ax.vlines(cum_pred.cpu().numpy(), ymin=max(ax.get_yticks())/2, ymax=max(ax.get_yticks()), colors='red')
+    ax.set_xticks(cum_dur)
+    ax.set_xticklabels(phoneme_ids, rotation = 90, ha="right", fontsize=8)
+
+    ax.vlines(cum_dur, ymin=0.0, ymax=max(ax.get_yticks())/3, colors='green')
+    for d, p in zip(cum_dur, cum_pred):
+        ax.plot([d,p], [max(ax.get_yticks())/3, max(ax.get_yticks())*2/3], color='blue')
+    ax.vlines(cum_pred, ymin=max(ax.get_yticks())*2/3, ymax=max(ax.get_yticks()), colors='red')
+
     plt.colorbar(im, ax=ax)
     if text is not None:
         plt.xlabel(f"Frames (Green target, Red predicted)\n{text}")
