@@ -30,7 +30,7 @@ echo "$INFO_MESSAGE"
 
 for lib in libavdevice ffmpeg sox; do
   if [[ -z $(ldconfig -p | grep -q ${lib}) ]]; then
-    echo "${lib} not found. Install dependencies before running the script: '${DEPENDENCIES_INSTALL_CMD}'"
+    echo "ERROR: ${lib} not found. Install dependencies before running the script: '${DEPENDENCIES_INSTALL_CMD}'"
     exit 1
   fi
 done
