@@ -513,6 +513,7 @@ class GPTDataset(Dataset):
             tokens = text
             labels = torch.roll(text, shifts=-1, dims=0)
             labels[-1] = -1
+        print(tokens.size())
         if self.create_inputs or not self.cached_inputs:
             attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
                 tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
@@ -606,6 +607,7 @@ def _create_ltor_masks_and_position_ids(
         eod_mask_loss
 
     """
+    print(tokens.size())
     assert tokens.ndim == 1
     seq_length = tokens.numel()
     # `attention_mask` has the shape of [1, seq_length, seq_length]
