@@ -30,7 +30,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets, _create_ltor_masks_and_position_ids
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import (
+    _create_ltor_masks_and_position_ids,
+    build_train_valid_test_datasets,
+)
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -74,11 +77,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import mpu, tensor_parallel
+    from megatron.core import InferenceParams, mpu, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-    from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
-    from megatron.core.datasets.gpt_dataset import GPTDataset
-    from megatron.core import InferenceParams, parallel_state
+    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
@@ -107,8 +108,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 global is_dataset_built_on_rank
+
+
 def is_dataset_built_on_rank():
-    return (mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()) and mpu.get_tensor_model_parallel_rank() == 0
+    return (
+        mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
+    ) and mpu.get_tensor_model_parallel_rank() == 0
+
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     """
@@ -228,7 +234,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.prev_consumed_samples = 0
             self.if_first_step = 0
             self.prev_global_batch_size = None
-        
+
         self.reset_position_ids = cfg.data.get('reset_position_ids', False)
         self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
         self.eod_mask_loss = cfg.data.get('eod_mask_loss', False)
@@ -838,12 +844,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # TODO @tmoon: Use once available in Megatron-LM
         # return DataIteratorList(iters)
 
-    def get_ltor_masks_and_position_ids(self,
-                                    data,
-                                    eod_token,
-                                    reset_position_ids,
-                                    reset_attention_mask,
-                                    eod_mask_loss):
+    def get_ltor_masks_and_position_ids(
+        self, data, eod_token, reset_position_ids, reset_attention_mask, eod_mask_loss
+    ):
         """Build masks and position id for left to right model."""
 
         # Extract batch size and sequence length.
@@ -854,9 +857,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             att_mask_batch = micro_batch_size
         else:
             att_mask_batch = 1
-        attention_mask = torch.tril(torch.ones(
-            (att_mask_batch, seq_length, seq_length), device=data.device)).view(
-                att_mask_batch, 1, seq_length, seq_length)
+        attention_mask = torch.tril(torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)).view(
+            att_mask_batch, 1, seq_length, seq_length
+        )
 
         # Loss mask.
         loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
@@ -864,8 +867,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             loss_mask[data == eod_token] = 0.0
 
         # Position ids.
-        position_ids = torch.arange(seq_length, dtype=torch.long,
-                                    device=data.device)
+        position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
         position_ids = position_ids.unsqueeze(0).expand_as(data)
         # We need to clone as the ids will be modifed based on batch index.
         if reset_position_ids:
@@ -887,14 +889,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     i = eod_index[j]
                     # Mask attention loss.
                     if reset_attention_mask:
-                        attention_mask[b, 0, (i + 1):, :(i + 1)] = 0
+                        attention_mask[b, 0, (i + 1) :, : (i + 1)] = 0
                     # Reset positions.
                     if reset_position_ids:
-                        position_ids[b, (i + 1):] -= (i + 1 - prev_index)
+                        position_ids[b, (i + 1) :] -= i + 1 - prev_index
                         prev_index = i + 1
 
         # Convert attention mask to binary:
-        attention_mask = (attention_mask < 0.5)
+        attention_mask = attention_mask < 0.5
 
         return attention_mask, loss_mask, position_ids
 
@@ -952,18 +954,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Get the masks and postition ids.
         attention_mask, loss_mask, position_ids = self.get_ltor_masks_and_position_ids(
-            tokens,
-            self.eos_id,
-            self.reset_position_ids,
-            self.reset_attention_mask,
-            self.eod_mask_loss)
+            tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss
+        )
 
         batch = {
             'tokens': tokens,
             'labels': labels,
             'loss_mask': loss_mask,
             'attention_mask': attention_mask,
-            'position_ids': position_ids
+            'position_ids': position_ids,
         }
         # slice batch along sequence dimension for context parallelism
         batch = self.get_batch_on_this_cp_rank(batch)
@@ -1203,19 +1202,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # )
 
         dataset_config = GPTDatasetConfig(
-           is_built_on_rank=is_dataset_built_on_rank,
-           random_seed=self.cfg.seed,
-           sequence_length=self.cfg.data.seq_length,
-           blend=self.cfg.data.data_prefix,
-           blend_per_split=None,
-           split=self.cfg.data.splits_string,
-           path_to_cache=self.cfg.data.index_mapping_dir,
+            is_built_on_rank=is_dataset_built_on_rank,
+            random_seed=self.cfg.seed,
+            sequence_length=self.cfg.data.seq_length,
+            blend=self.cfg.data.data_prefix,
+            blend_per_split=None,
+            split=self.cfg.data.splits_string,
+            path_to_cache=self.cfg.data.index_mapping_dir,
         )
 
         self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-           GPTDataset,
-           train_valid_test_num_samples,
-           dataset_config,
+            GPTDataset, train_valid_test_num_samples, dataset_config,
         ).build()
 
         if self._train_ds is not None:
