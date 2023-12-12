@@ -74,11 +74,7 @@ def model_cfg(test_data_dir):
         'overlap_p2p_comm': False,
         'batch_p2p_comm': True,
         'seq_len_interpolation_factor': None,
-        'tokenizer': {
-            'library': 'huggingface', 
-            'type': 'tiiuae/falcon-40b', 
-            'use_fast': True
-            },
+        'tokenizer': {'library': 'huggingface', 'type': 'tiiuae/falcon-40b', 'use_fast': True},
         'native_amp_init_scale': 4294967296,
         'native_amp_growth_interval': 1000,
         'hysteresis': 2,
@@ -118,23 +114,14 @@ def model_cfg(test_data_dir):
         'ub_tp_comm_overlap': False,
         'ub_tp_comm_overlap_cfg': None,
         'use_flash_attention': False,
-        'nsys_profile': {
-            'enabled': False, 
-            'start_step': 10, 
-            'end_step': 10, 
-            'ranks': [0], 
-            'gen_shape': False},
+        'nsys_profile': {'enabled': False, 'start_step': 10, 'end_step': 10, 'ranks': [0], 'gen_shape': False},
         'optim': {
-            'name': 'distributed_fused_adam', 
-            'lr': '2e-4', 
-            'weight_decay': 0.01, 
-            'betas': [0.9, 0.98], 
-            'sched': {
-                'name': 'CosineAnnealing', 
-                'warmup_steps': 500, 
-                'constant_steps': 50000, 
-                'min_lr': '2e-5'}
-                },
+            'name': 'distributed_fused_adam',
+            'lr': '2e-4',
+            'weight_decay': 0.01,
+            'betas': [0.9, 0.98],
+            'sched': {'name': 'CosineAnnealing', 'warmup_steps': 500, 'constant_steps': 50000, 'min_lr': '2e-5'},
+        },
         'gc_interval': 0,
         'precision': 'bf16',
         'new_decoder_architecture': False,
