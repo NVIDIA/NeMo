@@ -365,7 +365,7 @@ def create_neva_model_and_processor(cfg):
             neva_cfg.activations_checkpoint_granularity = None
             neva_cfg.activations_checkpoint_method = None
             neva_cfg.precision = trainer.precision
-            neva_cfg.mm_cfg.llm.from_pretrained = cfg.get('llm_model_file', None)
+            neva_cfg.mm_cfg.llm.from_pretrained = cfg.get('base_model_file', None)
         #    neva_cfg.mm_cfg.vision_encoder.from_pretrained = None
 
         model = MegatronNevaModel.restore_from(

@@ -48,7 +48,7 @@ pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0 # used for encoder and decoder model (0 for others)
 
 neva_model_file: /pwd/nemo_experiments/nemo_llava.nemo #neva_22b_tp8_finetuned_v1.nemo neva_8b_tp4_finetuned_v1.nemo
-llm_model_file: null
+base_model_file: null
 checkpoint_dir: null #/pwd/nemo_multimodal/nemo_experiments/nemo_llava_finetune/checkpoints # checkpoint file dir. This is used to load the PTL checkpoint generated during the Kosmos training
 checkpoint_name: null #megatron_clip--val_loss=0.41-step=13499-consumed_samples=431904.0.ckpt # PTL checkpoint file name, only used for PTL checkpoint loading
 hparams_file: null #/pwd/nemo_multimodal/nemo_experiments/nemo_llava_finetune/version_0/hparams.yaml # model configuration file, only used for PTL checkpoint loading
