@@ -32,19 +32,21 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 )
 from nemo.utils.data_utils import DataStoreObject
 
-def get_ctm_line(source: str,
-                 channel: int, 
-                 beg_time: float,
-                 duration: float,
-                 token: str, 
-                 conf: float,
-                 type_of_token: str, 
-                 speaker: str,
-                 NA_token: str='NA',
-                 UNK: str='unknown',
-                 default_channel: str='1',
-                 output_precision: int= 3
-    ) -> str:
+
+def get_ctm_line(
+    source: str,
+    channel: int,
+    beg_time: float,
+    duration: float,
+    token: str,
+    conf: float,
+    type_of_token: str,
+    speaker: str,
+    NA_token: str = 'NA',
+    UNK: str = 'unknown',
+    default_channel: str = '1',
+    output_precision: int = 3,
+) -> str:
     """
     Get a line in  Conversation Time Mark (CTM) format. Following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
     
@@ -93,6 +95,7 @@ def get_ctm_line(source: str,
     speaker = NA_token if speaker is None else speaker
     type_of_token = UNK if type_of_token is None else type_of_token
     return f"{source} {channel} {beg_time} {duration} {token} {conf} {type_of_token} {speaker}\n"
+
 
 def rreplace(s: str, old: str, new: str) -> str:
     """
