@@ -8,6 +8,9 @@ defaults:
   - voicebox: default
   - audio_enc_dec@voicebox.audio_enc_dec: encodec_voco
 
+  - tokenizer: default
+  - cfm_wrapper: default
+
 optim:
   name: adamw
 
@@ -25,27 +28,3 @@ optim:
 #   duration_predictor:
 #     lr: 1e-3
 
-
-tokenizer:
-  _target_: naturalspeech2_pytorch.utils.tokenizer.Tokenizer
-  phonemizer:
-    _target_: naturalspeech2_pytorch.utils.phonemizers.espeak_wrapper.ESpeak
-    language: en-us
-    keep_puncs: False
-
-
-
-cfm_wrapper:
-  _target_: nemo.collections.tts.modules.voicebox_modules.ConditionalFlowMatcherWrapper
-
-  # override in VoiceboxModel.__init__
-  voicebox: null
-  duration_predictor: null
-
-  sigma: 0.
-  ode_atol: 1e-5
-  ode_rtol: 1e-5
-  use_torchode: False
-  torchdiffeq_ode_method: 'midpoint'   # use midpoint for torchdiffeq, as in paper
-  torchode_method_klass: 'torchode.Tsit5'      # use tsit5 for torchode, as torchode does not have midpoint (recommended by Bryan @b-chiang)
-  cond_drop_prob: 0.

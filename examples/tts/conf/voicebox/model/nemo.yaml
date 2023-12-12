@@ -13,4 +13,4 @@ nemo_aligner:
   # from_pretrained: "tts_en_radtts_aligner"
   from_pretrained: "tts_en_radtts_aligner_ipa"
 
-tokenizer: null
+# tokenizer: null

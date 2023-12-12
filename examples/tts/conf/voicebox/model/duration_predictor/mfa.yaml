@@ -1,0 +1,6 @@
+_target_: nemo.collections.tts.modules.voicebox_modules.MFADurationPredictor
+
+defaults:
+  - default
+
+aligner_kwargs: null
