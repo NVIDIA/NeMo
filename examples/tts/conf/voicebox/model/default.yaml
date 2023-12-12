@@ -1,6 +1,5 @@
 _target_: nemo.collections.tts.models.voicebox.VoiceboxModel
 
-
 defaults:
   - duration_predictor: default
   - audio_enc_dec@duration_predictor.audio_enc_dec: mel_voco
