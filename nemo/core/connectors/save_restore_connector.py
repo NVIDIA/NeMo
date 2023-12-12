@@ -78,7 +78,7 @@ class SaveRestoreConnector:
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
-        pretrained_language_list = None,
+        pretrained_language_list=None,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file

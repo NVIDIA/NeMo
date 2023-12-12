@@ -141,7 +141,7 @@ def main(cfg) -> None:
             # Override micro/global batch
             pretrained_cfg.micro_batch_size = cfg.model.micro_batch_size
             pretrained_cfg.global_batch_size = cfg.model.global_batch_size
-            
+
             # override vocab size to correct embedding size before loading the weights
             pretrained_cfg.make_vocab_size_divisible_by = cfg.model.make_vocab_size_divisible_by
 
@@ -166,9 +166,8 @@ def main(cfg) -> None:
 
             # Optimizer overrides.
             pretrained_cfg.optim = cfg.model.optim
-            
-         
-             # override hidden_size
+
+            # override hidden_size
             if hasattr(pretrained_cfg.encoder, 'hidden_size'):
                 pretrained_cfg.hidden_size = pretrained_cfg.encoder.hidden_size
 

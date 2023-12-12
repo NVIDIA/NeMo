@@ -671,7 +671,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
-        pretrained_language_list = None,
+        pretrained_language_list=None,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -699,7 +699,15 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         loaded_params = super().load_config_and_state_dict(
-            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer, pretrained_language_list = pretrained_language_list)
+            calling_cls,
+            restore_path,
+            override_config_path,
+            map_location,
+            strict,
+            return_config,
+            trainer,
+            pretrained_language_list=pretrained_language_list,
+        )
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
         conf, instance, state_dict = loaded_params
