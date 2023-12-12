@@ -285,7 +285,7 @@ class MegatronBertModel(MegatronBaseModel):
             else:
                 forward_args["tokentype_ids"] = types
 
-            output_tensor = self.forward(**forward_args)
+            output_tensor = model(**forward_args)
 
             def loss_func(output_tensor):
                 loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
