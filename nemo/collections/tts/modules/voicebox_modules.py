@@ -636,6 +636,7 @@ class MFADurationPredictor(DurationPredictor):
         if not exists(cond_mask):
             batch, seq_len = phoneme_ids.shape
             cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len)
+        outputs["cond_mask"] = cond_mask
 
         cond = cond * rearrange(~cond_mask, '... -> ... 1')
 
@@ -813,6 +814,7 @@ class VoiceBox(_VB):
         x = self.proj_in(x)
 
         cond = default(cond, target)
+        outputs["cond"] = cond
 
         if exists(cond):
             cond = self.proj_in(cond)
@@ -840,6 +842,7 @@ class VoiceBox(_VB):
                 cond_mask = torch.ones((batch, seq_len), device = cond.device, dtype = torch.bool)
 
         cond_mask_with_pad_dim = rearrange(cond_mask, '... -> ... 1')
+        outputs["cond_mask"] = cond_mask_with_pad_dim
 
         # as described in section 3.2
 

@@ -389,10 +389,13 @@ class VoiceboxModel(TextToWaveform):
             
             plot_id = 0
             x1, x0, w, pred = outputs['vb']['x1'], outputs['vb']['x0'], outputs['vb']['w'], outputs['vb']['pred']
+            cond, cond_mask = outputs['vb']["cond"], outputs['vb']["cond_mask"]
+            cond = cond * ~cond_mask
             tb_writer.add_image("train_vb/x1", plot_spectrogram_to_numpy(x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
-            tb_writer.add_image("train_vb/x0", plot_spectrogram_to_numpy(x0[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
-            tb_writer.add_image("train_vb/w", plot_spectrogram_to_numpy(w[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_vb/xt", plot_spectrogram_to_numpy(w[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_vb/cond", plot_spectrogram_to_numpy(cond[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
             tb_writer.add_image("train_vb/pred", plot_spectrogram_to_numpy(pred[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+
             pred_audio = self.voicebox.audio_enc_dec.decode(pred)[plot_id].detach().cpu().numpy()
             tb_writer.add_audio("train_vb/pred_audio", pred_audio / max(np.abs(pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
 
@@ -401,6 +404,7 @@ class VoiceboxModel(TextToWaveform):
             tb_writer.add_image("train_dp/dur",
                                 plot_alignment_to_numpy(tokens[plot_id], dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy()),
                                 self.global_step, dataformats="HWC")
+
             phns = self.tokenizer.decode(tokens[plot_id].cpu().tolist()).split(' ')
             text = batch["texts"][plot_id]
             tb_writer.add_image("train_dp/seg",
