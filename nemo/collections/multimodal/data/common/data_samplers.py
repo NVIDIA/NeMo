@@ -21,6 +21,7 @@ try:
     from webdataset.pytorch import IterableDataset
 
 except (ImportError, ModuleNotFoundError):
+    from nemo.core.classes import IterableDataset
     logging.warning("Webdataset import failed! We recommend use `webdataset==0.2.48`.")
 
 

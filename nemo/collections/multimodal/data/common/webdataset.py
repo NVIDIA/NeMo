@@ -27,6 +27,7 @@ from PIL import Image
 
 from nemo.collections.multimodal.data.common.data_samplers import SharedEpoch, WDSUrlsRandomSampler
 from nemo.collections.multimodal.data.common.webdataset_s3 import WebDataset as WebDatasetS3
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.core.classes import IterableDataset as NeMoIterableDataset
 from nemo.utils import logging
 
@@ -36,7 +37,12 @@ try:
     from webdataset.filters import _shuffle
     from webdataset.utils import pytorch_worker_info
 
-except (ImportError, ModuleNotFoundError):
+    HAVE_WEBDATASET = True
+
+except (ImportError, AttributeError, ModuleNotFoundError):
+
+    HAVE_WEBDATASET = False
+
     logging.warning("Webdataset import failed! We recommend use `webdataset==0.2.48`.")
 
 try:
@@ -50,33 +56,6 @@ except (ImportError, ModuleNotFoundError):
 
 Image.MAX_IMAGE_PIXELS = 933120000
 _IMG_EXTENSIONS = "jpg jpeg png ppm pgm pbm pnm".split()
-
-
-class detshuffle2(wds.PipelineStage):
-    def __init__(
-        self, bufsize=1000, initial=100, seed=0, epoch=-1,
-    ):
-        self.bufsize = bufsize
-        self.initial = initial
-        self.seed = seed
-        self.epoch = epoch
-
-    def run(self, src):
-        if isinstance(self.epoch, SharedEpoch):
-            epoch = self.epoch.get_value()
-        else:
-            # NOTE: this is epoch tracking is problematic in a multiprocess (dataloader workers or train)
-            # situation as different workers may wrap at different times (or not at all).
-            self.epoch += 1
-            epoch = self.epoch
-        rng = random.Random()
-        # This seed to be deterministic AND the same across all nodes/workers in each epoch
-        if parallel_state.is_unitialized():
-            seed = self.seed + epoch
-        else:
-            seed = self.seed + epoch + (100 * parallel_state.get_data_parallel_rank())
-        rng.seed(seed)
-        return _shuffle(src, self.bufsize, self.initial, rng)
 
 
 def pil_loader(key, data):
@@ -292,3 +271,36 @@ class WebDatasetCommon(NeMoIterableDataset):
 
     def __len__(self):
         return self._dataset.total_images
+
+if HAVE_WEBDATASET:
+    class detshuffle2(wds.PipelineStage):
+        def __init__(
+            self, bufsize=1000, initial=100, seed=0, epoch=-1,
+        ):
+            self.bufsize = bufsize
+            self.initial = initial
+            self.seed = seed
+            self.epoch = epoch
+
+        def run(self, src):
+            if isinstance(self.epoch, SharedEpoch):
+                epoch = self.epoch.get_value()
+            else:
+                # NOTE: this is epoch tracking is problematic in a multiprocess (dataloader workers or train)
+                # situation as different workers may wrap at different times (or not at all).
+                self.epoch += 1
+                epoch = self.epoch
+            rng = random.Random()
+            # This seed to be deterministic AND the same across all nodes/workers in each epoch
+            if parallel_state.is_unitialized():
+                seed = self.seed + epoch
+            else:
+                seed = self.seed + epoch + (100 * parallel_state.get_data_parallel_rank())
+            rng.seed(seed)
+            return _shuffle(src, self.bufsize, self.initial, rng)
+
+else:
+    class detshuffle2(ApexGuardDefaults):
+        def __init__(self):
+            super().__init__()
+            logging.warning("Webdataset import failed! We recommend use `webdataset==0.2.48`.")
