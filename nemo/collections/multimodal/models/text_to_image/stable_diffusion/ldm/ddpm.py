@@ -1995,7 +1995,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
 
         if self.cfg.first_stage_key.endswith("encoded") or self.cfg.first_stage_key.endswith("moments"):
-            if self.cfg.cond_stage_key.endswith("precached_clip"):
+            if self.cfg.cond_stage_key.endswith("clip_encoded"):
                 self._train_ds, self._validation_ds = build_train_valid_precached_clip_datasets(
                     model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
                 )
@@ -2024,7 +2024,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
-            if self.cfg.cond_stage_key.endswith("precached_clip"):
+            if self.cfg.cond_stage_key.endswith("clip_encoded"):
                 collate_fn = get_collate_fn(
                     first_stage_key=self.cfg.first_stage_key, cond_stage_key=self.cfg.cond_stage_key,
                 )
