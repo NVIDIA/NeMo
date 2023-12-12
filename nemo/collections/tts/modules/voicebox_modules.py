@@ -1192,10 +1192,23 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         })
 
         if durations is not None:
-            dp_cond = durations * self.voicebox.audio_enc_dec.sampling_rate // self.voicebox.audio_enc_dec.downsample_factor
-            dp_cond = torch.round(dp_cond)
+            audio_len = mask.sum(-1)
+            mel_len = audio_len // self.voicebox.audio_enc_dec.downsample_factor
+
+            cum_dur = torch.cumsum(durations, -1)
+            dur_ratio = mel_len / cum_dur[:, -1]
+            cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
+            cum_dur = torch.round(cum_dur)
+
+            dp_cond = torch.zeros_like(cum_dur)
+            dp_cond[:, 0] = cum_dur[:, 0]
+            dp_cond[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
+
+            # dp_cond = durations * self.voicebox.audio_enc_dec.sampling_rate // self.voicebox.audio_enc_dec.downsample_factor
+            # dp_cond = torch.round(dp_cond)
             dp_inputs.update({
-                "dp_cond": dp_cond
+                "dp_cond": dp_cond,
+                "cum_dur": cum_dur,
             })
 
         if self.condition_on_text:
