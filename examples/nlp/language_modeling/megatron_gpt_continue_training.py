@@ -64,9 +64,10 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.window_size = cfg.model.get('window_size')
         gpt_cfg.enforce_fp32_pos_idx = cfg.model.get('enforce_fp32_pos_idx', False)
         gpt_cfg.rotary_augment_seq = cfg.model.get('rotary_augment_seq', False)
-        assert (
-            gpt_cfg.encoder_seq_length == gpt_cfg.max_position_embeddings * gpt_cfg.seq_len_interpolation_factor
-        ), 'seq_length should be equal to max_position_embedding * seq_len_interpolation_factor'
+        # D.R. nope, gpt_cfg.max_position_embeddings * gpt_cfg.seq_len_interpolation_factor should match the desired max future inference seq len
+        # assert (
+        #     gpt_cfg.encoder_seq_length == gpt_cfg.max_position_embeddings * gpt_cfg.seq_len_interpolation_factor
+        # ), 'seq_length should be equal to max_position_embedding * seq_len_interpolation_factor'
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
         if add_cfg_to_tree:
