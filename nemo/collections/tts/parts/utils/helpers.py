@@ -436,7 +436,6 @@ def plot_alignment_to_numpy(
         xlabel += '\n\n' + info
     plt.xlabel(xlabel)
     plt.ylabel('Encoder timestep')
-    plt.tight_layout()
 
     if phoneme_seq is not None:
         if phoneme_ver == 0:
@@ -471,6 +470,7 @@ def plot_alignment_to_numpy(
                     new_xticks.append(f"{tick+phoneme_seq[1]:.0f}")
                 ax.set_xticklabels(new_xticks)
 
+    plt.tight_layout()
     fig.canvas.draw()
     data = save_figure_to_numpy(fig)
     plt.close()

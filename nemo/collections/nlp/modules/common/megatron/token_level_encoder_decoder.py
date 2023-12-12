@@ -159,6 +159,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
         self.attn_prior_scaledown_start_step = 10000
         self.attn_prior_end_step = 11000
         self.return_all_crossattention_probs = False
+        self.logging_step = False
         self.num_cross_attention_heads = 12  # 12 for 220m T5, 16 for 11b T5
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
@@ -653,6 +654,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 else:
                     decoder_cross_attention_relative_position_bias = None
 
+            return_all_crossattention_probs=self.return_all_crossattention_probs
             if cross_attention_prior is not None:
                 # cross_attention_prior shape [B, dec_len, enc_len]
                 # Repeat it to make it [B, 12, dec_len, enc_len]
@@ -660,8 +662,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 attn_prior_scaledown_start_step = self.attn_prior_scaledown_start_step
                 num_attention_heads = self.num_cross_attention_heads
                 assert attn_prior_scaledown_start_step < attn_prior_end_step
-                logging.debug(f"attn_prior_scaledown_start_step: {attn_prior_scaledown_start_step}")
-                logging.debug(f"attn_prior_scaledown_start_step: {attn_prior_end_step}")
+                logging.debug(f"attn_prior_scaledown_start_step: {attn_prior_scaledown_start_step}, attn_prior_scaledown_start_step: {attn_prior_end_step}")
                 if global_step >= attn_prior_end_step:
                     decoder_cross_attention_relative_position_bias = None
                     self.return_all_crossattention_probs = False
@@ -675,13 +676,14 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                         1, num_attention_heads, 1, 1
                     )
                 else:
-                    logging.debug(f"global_step: {global_step}. prior_scaling_factor: 1")
                     decoder_cross_attention_relative_position_bias = cross_attention_prior.unsqueeze(1).repeat(
                         1, num_attention_heads, 1, 1
                     )
                     logging.debug(
+                        f"global_step: {global_step}, prior_scaling_factor: 1, "
                         f"decoder_cross_attention_relative_position_bias: {decoder_cross_attention_relative_position_bias.shape}",
                     )
+                return_all_crossattention_probs=return_all_crossattention_probs or self.logging_step
 
             output = self.enc_dec_model(
                 enc_input=enc_input,
@@ -697,13 +699,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
                 dec_self_attention_relative_position_bias=decoder_self_attention_relative_position_bias,
                 dec_cross_attention_relative_position_bias=decoder_cross_attention_relative_position_bias,
-                return_all_crossattention_probs=self.return_all_crossattention_probs,
+                return_all_crossattention_probs=return_all_crossattention_probs,
                 batch_data=batch_data,
             )
 
             if self.post_process and self.add_decoder:
                 dec_output, enc_output = output  # [s, b, h]
-                if self.return_all_crossattention_probs:
+                if return_all_crossattention_probs:
                     dec_output, attention_probs = dec_output
                 else:
                     attention_probs = None

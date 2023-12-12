@@ -378,9 +378,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 cross_attention_prior,
             ) = batch
 
-            saved_return_all_crossattention_probs = self.frozen_model.enc_dec_model.return_all_crossattention_probs
             if self.trainer.global_step % self.train_check_interval == 0 and not validation_step and self.is_rank_zero:
-                self.frozen_model.enc_dec_model.return_all_crossattention_probs = True
+                self.frozen_model.enc_dec_model.logging_step = True
             output_tensor, encoder_input, out_logits = model(
                 virtual_tokens,
                 context_and_question_tokens,
@@ -397,7 +396,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             output_tensor = output_tensor.contiguous()
 
             if self.trainer.global_step % self.train_check_interval == 0 and not validation_step and self.is_rank_zero:
-                self.frozen_model.enc_dec_model.return_all_crossattention_probs = saved_return_all_crossattention_probs
+                self.frozen_model.enc_dec_model.logging_step = False
                 with torch.no_grad():
                     with torch.cuda.amp.autocast(enabled=False):
                         # Encodec does not work with fp16, so we disable autocast for logging audio
@@ -503,7 +502,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                 attention_sliced = torch.mean(attention_sliced, 0)
                                 text = None
                                 if len(input_text) > 0:
-                                    text = self.frozen_model.tokenizer.ids_to_tokens([v[1] for v in input_token_list if v[1] < 30000]) + ['extra']
+                                    text = self.frozen_model.tokenizer.ids_to_tokens([v[1] for v in input_token_list if v[1] < 30000])
                                 elif len(phoneme_text) > 0:
                                     text = phoneme_text.split("|")
                                 alignment_image_sliced = plot_alignment_to_numpy(
@@ -677,9 +676,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         # )  # comment this out and add custom forward function to calculate WER
         # # logging.info (f'loss_mean {loss_mean}')
 
-        saved_return_all_crossattention_probs = self.frozen_model.enc_dec_model.return_all_crossattention_probs
         if batch_idx == 0 and self.is_rank_zero:
-            self.frozen_model.enc_dec_model.return_all_crossattention_probs = True
+            self.frozen_model.enc_dec_model.logging_step = True
 
         labels_original = labels.clone()  # (b, 8, t)
         output_loss, _, output_logits = self.forward(
@@ -697,7 +695,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         )
 
         if batch_idx == 0 and self.is_rank_zero:
-            self.frozen_model.enc_dec_model.return_all_crossattention_probs = saved_return_all_crossattention_probs
+            self.frozen_model.enc_dec_model.logging_step = False
             with torch.cuda.amp.autocast(enabled=False):
                 # Encodec does not work with fp16, so we disable autocast for logging audio
                 if torch.count_nonzero(speech_mask) == 0:
@@ -802,7 +800,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         attention_sliced = torch.mean(attention_sliced, 0)
                         text = None
                         if len(input_text) > 0:
-                            text = self.frozen_model.tokenizer.ids_to_tokens([v[1] for v in input_token_list if v[1] < 30000]) + ['extra']
+                            text = self.frozen_model.tokenizer.ids_to_tokens([v[1] for v in input_token_list if v[1] < 30000])
                         elif len(phoneme_text) > 0:
                             text = phoneme_text.split("|")
                         alignment_image_sliced = plot_alignment_to_numpy(

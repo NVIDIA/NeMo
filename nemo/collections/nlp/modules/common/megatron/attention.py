@@ -39,6 +39,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
+from nemo.utils import logging
 
 try:
     from apex.transformer.enums import AttnMaskType, AttnType
@@ -920,12 +921,14 @@ class CoreAttention(MegatronModule):
         # context_layer = self.attn_fn(
         #     query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
         # )
-        if return_scores and relative_position_bias is not None:
+        if return_scores or relative_position_bias is not None:
+            logging.debug(f"torch a: return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}")
             context_layer = self.torch_attention(
                 query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
             )
             context_layer, attention_probs = context_layer
         else:
+            logging.debug(f"flash a: return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}")
             context_layer = self.attn_fn(
                 query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
             )
