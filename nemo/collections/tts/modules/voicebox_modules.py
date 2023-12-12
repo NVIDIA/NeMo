@@ -1035,6 +1035,8 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
             assert exists(self.voicebox.audio_enc_dec)
 
             self.voicebox.audio_enc_dec.eval()
+            
+            # assert audio sampling_rate == voicebox sampling_rate
             cond = self.voicebox.audio_enc_dec.encode(cond)
 
         # setup text conditioning, either coming from duration model (as phoneme ids)
@@ -1069,6 +1071,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
                 assert exists(self.duration_predictor)
                 cond_target_length = cond_tokens_seq_len
 
+                # TODO: why not interpolate???
                 cond = curtail_or_pad(cond, cond_target_length)
                 self_attn_mask = curtail_or_pad(torch.ones_like(cond, dtype=torch.bool), cond_target_length)
             else:
