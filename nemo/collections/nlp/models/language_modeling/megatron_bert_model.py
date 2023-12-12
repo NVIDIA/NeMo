@@ -95,8 +95,6 @@ class MegatronBertModel(MegatronBaseModel):
         self.transformer_config = self.build_transformer_config()
 
         self.mcore_bert = cfg.get('mcore_bert', False)
-        print(f'SHAN : {self.mcore_bert}')
-        print(cfg)
 
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
@@ -775,7 +773,9 @@ class MegatronBertModel(MegatronBaseModel):
                 )
                 sync_embeddings()
 
-        if self.cfg.get('transformer_engine', False) or self.mcore_bert:
+        print(self.cfg)
+        print(f'SHAN : {self.cfg.get('mcore_bert', False)}')
+        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_bert', False):
             self.setup_transformer_engine_tp_groups()
 
     def allreduce_sequence_parallel_gradients(self):
