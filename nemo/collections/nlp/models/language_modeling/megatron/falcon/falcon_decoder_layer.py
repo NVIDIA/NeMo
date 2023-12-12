@@ -12,14 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from typing import Union
-
-import torch
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
 from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+from megatron.core.transformer.spec_utils import build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
