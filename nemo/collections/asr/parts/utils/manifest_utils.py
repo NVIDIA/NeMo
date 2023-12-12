@@ -38,7 +38,7 @@ def get_ctm_line(source: str,
                  duration: float,
                  token: str, 
                  conf: float,
-                 type_token: str, 
+                 type_of_token: str, 
                  speaker: str,
                  NA_token: str='NA',
                  UNK: str='unknown',
@@ -49,7 +49,7 @@ def get_ctm_line(source: str,
     Get a line in  Conversation Time Mark (CTM) format. Following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
     
     CTM Format: 
-        <SOURCE><SP><CHANNEL><SP> <BEG-TIME><SP><DURATION><SP><TOKEN><SP><CONF><SP><TYPE><SP><SPEAKER><NEWLINE>
+        <SOURCE><SP><CHANNEL><SP><BEG-TIME><SP><DURATION><SP><TOKEN><SP><CONF><SP><TYPE><SP><SPEAKER><NEWLINE>
     
     Reference: 
         https://web.archive.org/web/20170119114252/http://www.itl.nist.gov/iad/mig/tests/rt/2009/docs/rt09-meeting-eval-plan-v2.pdf
@@ -62,7 +62,7 @@ def get_ctm_line(source: str,
         token (str): <TOKEN> Token or word for the current entry
         conf (float): <CONF> is a floating point number between 0 (no confidence) and 1 (certainty). A value of “NA” is used (in CTM format data) 
                       when no confidence is computed and in the reference data. 
-        type (str): <TYPE> is the token type. The legal values of <TYPE> are “lex”, “frag”, “fp”, “un-lex”, “for-lex”, “non-lex”, “misc”, or “noscore”
+        type_of_token (str): <TYPE> is the token type. The legal values of <TYPE> are “lex”, “frag”, “fp”, “un-lex”, “for-lex”, “non-lex”, “misc”, or “noscore”
         speaker (str): <SPEAKER> is a string identifier for the speaker who uttered the token. This should be “null” for non-speech tokens and “unknown” when
                        the speaker has not been determined. 
         NA_token (str, optional): A token for  . Defaults to '<NA>'.
@@ -71,6 +71,7 @@ def get_ctm_line(source: str,
     Returns:
         str: Return a line in CTM format filled with the given information.
     """
+    VALID_TOKEN_TYPES = ["lex", "frag", "fp", "un-lex", "for-lex", "non-lex", "misc", "noscore"]
     if type(beg_time) != float:
         beg_time = round(float(beg_time), output_precision)
     if type(duration) != float:
@@ -81,17 +82,17 @@ def get_ctm_line(source: str,
         raise ValueError(f"`conf` must be a float, but got {type(conf)}")
     if conf is not None and not (0 <= conf <= 1):
         raise ValueError(f"`conf` must be between 0 and 1, but got {conf}")
-    if type_token is not None and type(type_token) != str:
+    if type_of_token is not None and type(type_of_token) != str:
         raise ValueError(f"`type` must be a string, but got {type(type)}")
-    if type_token is not None and type_token not in ["lex", "frag", "fp", "un-lex", "for-lex", "non-lex", "misc", "noscore"]:
-        raise ValueError(f"`type` must be one of ['lex', 'frag', 'fp', 'un-lex', 'for-lex', 'non-lex', 'misc', 'noscore'], but got {type_token}")
+    if type_of_token is not None and type_of_token not in VALID_TOKEN_TYPES:
+        raise ValueError(f"`type` must be one of {VALID_TOKEN_TYPES}, but got {type_of_token}")
     if speaker is not None and type(speaker) != str:
         raise ValueError(f"`speaker` must be a string, but got {type(speaker)}")
     channel = default_channel if channel is None else channel
     conf = NA_token if conf is None else conf
     speaker = NA_token if speaker is None else speaker
-    type_token = UNK if type_token is None else type_token
-    return f"{source} {channel} {beg_time} {duration} {token} {conf} {type_token} {speaker}\n"
+    type_of_token = UNK if type_of_token is None else type_of_token
+    return f"{source} {channel} {beg_time} {duration} {token} {conf} {type_of_token} {speaker}\n"
 
 def rreplace(s: str, old: str, new: str) -> str:
     """

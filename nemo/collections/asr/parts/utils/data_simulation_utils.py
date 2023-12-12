@@ -780,7 +780,7 @@ class DataAnnotator(object):
                                     duration=align2, 
                                     token=word, 
                                     conf=None,
-                                    type_token='lex', 
+                                    type_of_token='lex', 
                                     speaker=speaker_id,
                         )
                 arr.append((align1, text))
