@@ -802,7 +802,7 @@ class MegatronBertModel(MegatronBaseModel):
             return [self.model.module]
         else:
             return [self.model]
-        
+
     def allreduce_sequence_parallel_gradients(self):
         """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
             Modified from megatron-lm:
