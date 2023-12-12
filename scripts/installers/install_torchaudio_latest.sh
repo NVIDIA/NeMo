@@ -28,12 +28,17 @@ EOM
 
 echo "$INFO_MESSAGE"
 
-for lib in libavdevice ffmpeg sox; do
+for lib in libavdevice sox; do
   if ! grep -q ${lib} <<< "$(ldconfig -p)"; then
     echo "ERROR: ${lib} not found. Install dependencies before running the script: '${DEPENDENCIES_INSTALL_CMD}'"
     exit 1
   fi
 done
+
+if ! command -v ffmpeg &> /dev/null; then
+  echo "ERROR: ffmpeg not found. Install dependencies before running the script: '${DEPENDENCIES_INSTALL_CMD}'"
+  exit 1
+fi
 
 TORCHAUDIO_REPO=https://github.com/pytorch/audio
 # expected LATEST_RELEASE=release/*.**
