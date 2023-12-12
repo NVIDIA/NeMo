@@ -23,7 +23,11 @@ from nemo.utils import logging
 
 
 def get_seg_info_from_ctm_line(
-    ctm_list: List[str], output_precision: int, speaker_index: int = 7, beg_time_index: int = 2, duration_index: int = 3,
+    ctm_list: List[str],
+    output_precision: int,
+    speaker_index: int = 7,
+    beg_time_index: int = 2,
+    duration_index: int = 3,
 ):
     """
     Get time stamp information and speaker labels from CTM lines.
