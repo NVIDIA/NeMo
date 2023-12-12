@@ -721,57 +721,31 @@ class VoiceBox(_VB):
     ):
         """
         Input related args:
-
             - audio_enc_dec: Optional[AudioEncoderDecoder] = None, for EnCodecVoco or MelVoco
-        
             - dim_cond_emb = 1024,
-            
             - dim = 1024,
-
-                - dim_in = None,
-
-                        have to be None or equal to dim.
-
-                        should be deprecated and replaced with dim
-            
+                - dim_in = None, have to be None or equal to dim. should be deprecated and replaced with dim
             - time_hidden_dim = None, for time step embedding
 
         ConvPositionEmbed args
-
             - conv_pos_embed_kernel_size = 31,
-        
             - conv_pos_embed_groups = None,
 
         Transformer specific args
-
             - depth = 24,
-        
             - dim_head = 64,
-            
             - heads = 16,
-            
             - ff_mult = 4,
-            
             - ff_dropout = 0.,
-            
             - attn_dropout = 0,
-            
             - attn_flash = False,
-            
             - attn_qk_norm = True,
-            
             - num_register_tokens = 16,
 
         Conditional training args
-
             - num_cond_tokens = None,
-        
             - condition_on_text = True
-            
-            - p_drop_prob = 0.3
-            
-                    p_drop in paper
-            
+            - p_drop_prob = 0.3, p_drop in paper
             - frac_lengths_mask: Tuple[float, float] = (0.7, 1.),
         """
         super().__init__(
