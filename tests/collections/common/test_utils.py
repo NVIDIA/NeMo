@@ -128,8 +128,7 @@ class TestPreprocessingUtils:
         # In this case, we expect to return the same relative path.
         curr_dir = os.path.dirname(os.path.abspath(__file__))
         audio_files_relative_path_curr = [f'./file_{n}.test' for n in range(num_files)]
-        audio_files_absolute_path_curr = [os.path.join(curr_dir, f'./file_{n}.test') for n in range(num_files)]
-        with create_files(audio_files_absolute_path_curr):
+        with create_files(audio_files_relative_path_curr):
             # - single file
             for n in range(num_files):
                 assert os.path.isfile(audio_files_relative_path_curr[n]) == True
