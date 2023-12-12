@@ -56,8 +56,8 @@ class ArtifactPathType(Enum):
 
 @dataclass
 class ArtifactItem:
-    path: str
-    path_type: ArtifactPathType
+    path: str = ""
+    path_type: ArtifactPathType = ArtifactPathType.LOCAL_PATH
     hashed_path: Optional[str] = None
 
 
