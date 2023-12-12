@@ -477,7 +477,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                     for i in range(len(seq_boundaries) - 1)
                 ]
             )
-        return [1.0] * (len(processed_example['input_ids']) - len(processed_example['seq_boundaries']))
+        return [1.0] * (len(processed_example['input_ids']) - len(processed_example['seq_boundaries']) + 1)
 
     def _maybe_cast_to_list(self, x):
         return [item.tolist() if isinstance(item, np.ndarray) else item for item in x]
@@ -507,6 +507,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         if self.pad_to_max_length:
             max_length = self.max_seq_length
         else:
+            # pad to the nearest multiple of 16 for FP8 training
+            # for many datasets in practice, all packed sequence lengths are very close to the
+            # target length (2048, 4096, 8192), so there is very minimal padding
             max_length = max(len(l) for l in input_ids)
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
         assert max_length <= self.max_seq_length
