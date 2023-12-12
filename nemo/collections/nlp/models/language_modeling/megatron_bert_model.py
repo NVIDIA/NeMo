@@ -773,12 +773,36 @@ class MegatronBertModel(MegatronBaseModel):
                 )
                 sync_embeddings()
 
-        print(self.cfg)
-        mcore_bert = self.cfg.get('mcore_bert', False)
-        print(f'SHAN : {mcore_bert}')
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_bert', False):
             self.setup_transformer_engine_tp_groups()
 
+    def setup_transformer_engine_tp_groups(self):
+        """ This should be called after model parallel groups have been initialized
+            and only needs to be called when using Transformer Engine.
+        """
+        for module in self.get_bert_module_list():
+            """Set TP group
+               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            """
+            # Deep iterate but skip self to avoid infinite recursion.
+            for index, child in enumerate(module.modules()):
+                if index == 0:
+                    continue
+                if hasattr(child, "set_tensor_parallel_group"):
+                    tp_group = parallel_state.get_tensor_model_parallel_group()
+                    child.set_tensor_parallel_group(tp_group)
+
+    def get_bert_module_list(self):
+        if isinstance(self.model, list):
+            return [
+                model.module if isinstance(model, (Float16Module, MCoreFloat16Module)) else model
+                for model in self.model
+            ]
+        elif isinstance(self.model, (Float16Module, MCoreFloat16Module)):
+            return [self.model.module]
+        else:
+            return [self.model]
+        
     def allreduce_sequence_parallel_gradients(self):
         """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
             Modified from megatron-lm:
