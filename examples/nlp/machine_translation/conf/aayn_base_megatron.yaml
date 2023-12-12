@@ -46,7 +46,8 @@ model:
   shared_tokenizer: True # train tokenizer model across src and tgt train data
   preproc_out_dir: null # path to store data preprocessing outputs
   src_language: 'en'
-  tgt_language: 'de'
+  tgt_language: ['cs', 'da']
+  pretrained_language_list: ['cs', 'da', 'de', 'el', 'es', 'fi', 'fr', 'hu', 'it', 'lt', 'lv', 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk', 'sv', 'zh', 'ja', 'hi', 'ko', 'et', 'sl', 'bg', 'uk', 'hr', 'ar', 'vi', 'tr', 'id']
   max_generation_delta: 20 # Maximum decoder sequence length is encoder sequence length + this parameter.
   pretrained_model_path: null # Path to a pretrained model 
   pretrained_model_type: T5

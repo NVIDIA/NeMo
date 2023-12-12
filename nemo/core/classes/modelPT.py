@@ -397,6 +397,7 @@ class ModelPT(LightningModule, Model):
         return_config: bool = False,
         save_restore_connector: SaveRestoreConnector = None,
         trainer: Optional[Trainer] = None,
+        pretrained_language_list = None
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -439,9 +440,14 @@ class ModelPT(LightningModule, Model):
         app_state.model_restore_path = restore_path
 
         cls.update_save_restore_connector(save_restore_connector)
-        instance = cls._save_restore_connector.restore_from(
-            cls, restore_path, override_config_path, map_location, strict, return_config, trainer
-        )
+
+        if pretrained_language_list is None:
+            instance = cls._save_restore_connector.restore_from(
+            cls, restore_path, override_config_path, map_location, strict, return_config, trainer)
+        else:
+            instance = cls._save_restore_connector.restore_from(
+            cls, restore_path, override_config_path, map_location, strict, return_config, trainer, pretrained_language_list = pretrained_language_list)
+            
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector
         return instance

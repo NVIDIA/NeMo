@@ -78,6 +78,7 @@ class SaveRestoreConnector:
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        pretrained_language_list = None,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -160,6 +161,8 @@ class SaveRestoreConnector:
                 OmegaConf.set_struct(conf, True)
                 os.chdir(cwd)
                 # get the class
+                if pretrained_language_list is not None:
+                    conf['tgt_language'] = pretrained_language_list
                 calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
                 instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
