@@ -74,7 +74,7 @@ class RotaryEmbedding(nn.Module):
             current_range *= stretch_factor
         
         num_shifts = int(self.augment_seq['shift_fraction'] * max_seq_len)
-        total_shift = self.base_len - current_range
+        total_shift = self.base_len * self.seq_len_interpolation_factor - current_range
         shifts = torch.rand(num_shifts)
         shifts = shifts / shifts.sum() * total_shift
         if self.augment_seq.get('discrete', False):
