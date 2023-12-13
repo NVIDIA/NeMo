@@ -401,7 +401,7 @@ class VoiceboxModel(TextToWaveform):
             tb_writer.add_audio("train_vb/pred_audio", pred_audio / max(np.abs(pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
             tb_writer.add_audio("train_vb/orig_audio", orig_audio / max(np.abs(orig_audio)), self.global_step, sample_rate=24000)
 
-            plot_id = -1
+            # plot_id = -1
             dp_cond, dp_pred = outputs['dp']['cond'], outputs['dp']['durations']
             tb_writer.add_image("train_dp/dur",
                                 plot_alignment_to_numpy(tokens[plot_id], dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy()),
@@ -486,13 +486,20 @@ def plot_segment_to_numpy(phoneme_ids, durations, predictions, spectrogram, text
     import numpy as np
     phn_lens = durations.nonzero()[-1].item() + 1
     phoneme_ids = phoneme_ids[:phn_lens]
-    if phoneme_ids[0] == 'sil':
-        predictions[0] = durations[0]
-    phoneme_ids = [pid if i % 2 else pid+" "*10 for i, pid in enumerate(phoneme_ids)]
     durations = durations[:phn_lens].clamp(min=1)
     cum_dur = torch.cumsum(durations, -1).cpu().numpy()
     predictions = predictions[:phn_lens].clamp(min=1)
     cum_pred = torch.cumsum(predictions, -1).cpu().numpy()
+
+    # ignore sil prediction
+    for i, phn in enumerate(phoneme_ids):
+        if phn == 'sil':
+            c_dur = cum_dur[i]
+            c_pred = cum_pred[i]
+            cum_pred[i:] = cum_pred[i:] - c_pred + c_dur
+    
+    # layout
+    phoneme_ids = [pid if i % 2 else pid+" "*10 for i, pid in enumerate(phoneme_ids)]
 
     # fig, ax = plt.subplots(figsize=(12, 3))
     fig, ax = plt.subplots(figsize=(32, 3))
