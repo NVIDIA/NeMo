@@ -27,7 +27,7 @@ defaults:
   - optional local: null
 
   # debugging config (enable through command line, e.g. `python train.py debug=default)
-  - debug: default
+  - debug: null
 
 # task name, determines output directory path
 task_name: "train"

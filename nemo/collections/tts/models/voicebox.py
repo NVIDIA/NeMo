@@ -181,17 +181,17 @@ class VoiceboxModel(TextToWaveform):
             cut.recording.sources[0].source = new_path
             return cut
         
-        def textgrid_exist(cut):
+        def textgrid_exist(cut, subset=None):
             cut_id = cut.id
-            subset, spk = cut_id.split('/')[:2]
+            spk = cut_id.split('/')[1]
             f_id = f"{self.tokenizer.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
             return os.path.exists(f_id)
 
-        def parse_cut_mfa_textgrid(seg):
+        def parse_cut_mfa_textgrid(seg, subset=None):
             from textgrid import TextGrid, IntervalTier
             from lhotse.supervision import AlignmentItem, SupervisionSet
             seg_id = seg.id
-            subset, spk = seg_id.split('/')[:2]
+            spk = seg_id.split('/')[1]
             f_id = f"{self.tokenizer.textgrid_dir}/{subset}/{spk}/{','.join(seg_id.split('/'))}.TextGrid"
             tg = TextGrid()
             tg.read(f_id)
@@ -223,8 +223,8 @@ class VoiceboxModel(TextToWaveform):
                 cuts = load_manifest_lazy_or_eager("raw_" + manifest_path, CutSet)
                 logging.info(f"Filtering {subset} subset.")
                 cuts = cuts.filter(lambda c: ',' not in c.id)
-                cuts = cuts.filter(textgrid_exist)
-                cuts = cuts.map_supervisions(parse_cut_mfa_textgrid)
+                cuts = cuts.filter(lambda c: textgrid_exist(c, subset))
+                cuts = cuts.map_supervisions(lambda s: parse_cut_mfa_textgrid(s, subset))
                 logging.info(f"Writing {subset} subset.")
                 with CutSet.open_writer(
                     manifest_path, overwrite=False
@@ -238,6 +238,40 @@ class VoiceboxModel(TextToWaveform):
                 del cuts
             else:
                 logging.info(f"Skipping fix, {subset} subset exists.")
+
+    def setup(self, stage: Optional[str] = None):
+        """Called at the beginning of fit, validate, test, or predict.
+        This is called on every process when using DDP.
+
+        Args:
+            stage: fit, validate, test or predict
+        """
+        if stage == 'fit':
+            train_deferred_setup = (
+                'train_ds' in self._cfg
+                and self._cfg.train_ds is not None
+                and self._cfg.train_ds.get('defer_setup', False)
+            )
+            if self.train_dataloader() is None and train_deferred_setup:
+                self.setup_training_data(self._cfg.train_ds)
+
+        if stage in ('fit', 'validate'):
+            val_deferred_setup = (
+                'validation_ds' in self._cfg
+                and self._cfg.validation_ds is not None
+                and self._cfg.validation_ds.get('defer_setup', False)
+            )
+            if not self.val_dataloader() and val_deferred_setup:
+                self.setup_multiple_validation_data(val_data_config=self._cfg.validation_ds)
+
+        if stage == 'test':
+            test_deferred_setup = (
+                'test_ds' in self._cfg
+                and self._cfg.test_ds is not None
+                and self._cfg.test_ds.get('defer_setup', False)
+            )
+            if not self.test_dataloader() and test_deferred_setup:
+                self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
 
     def parse(self, str_input: str, **kwargs: Any) -> torch.tensor:
         if self.cfg.get("nemo_tokenizer"):
@@ -263,6 +297,8 @@ class VoiceboxModel(TextToWaveform):
         for kw in ["normalizer", "text_normalizer_call_kwargs", "tokenizer"]:
             if hasattr(self, kw):
                 ds_kwargs[kw] = getattr(self, kw)
+
+        self.set_world_size(self.trainer)
 
         return get_lhotse_dataloader_from_config(
             config,
@@ -358,28 +394,20 @@ class VoiceboxModel(TextToWaveform):
         _, losses, outputs = self.cfm_wrapper.forward(
             x1=audio,
             mask=audio_mask,
-            # semantic_token_ids=None,
             phoneme_ids=tokens,
             phoneme_len=token_lens,
             dp_cond=None,
             durations=durations,
-            cond=None,
+            cond=audio,
             cond_mask=None,
             input_sampling_rate=None
         )
 
-        dp_loss = losses['d_pred_loss']
-        align_loss = losses.get('align_loss', 0)
-        bin_loss = losses.get('bin_loss', 0)
-        vb_loss = losses['vb_loss']
+        dp_loss = losses['dp']
+        align_loss = losses.get('align', 0)
+        bin_loss = losses.get('bin', 0)
+        vb_loss = losses['vb']
 
-        # if self.current_epoch < 10:
-        #     align_loss = align_loss * 1e3
-        #     bin_loss = bin_loss * 1e3
-        # if self.current_epoch < 10:
-        #     dp_loss = dp_loss * 0
-        # if self.current_epoch < 10:
-        #     vb_loss = vb_loss * 0
         loss = align_loss + bin_loss + dp_loss + vb_loss
 
         self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
@@ -388,15 +416,18 @@ class VoiceboxModel(TextToWaveform):
             tb_writer = self.logger.experiment
             
             plot_id = 0
-            x1, x0, w, pred = outputs['vb']['x1'], outputs['vb']['x0'], outputs['vb']['w'], outputs['vb']['pred']
+            x1, x0, w, pred_dx = outputs['vb']['x1'], outputs['vb']['x0'], outputs['vb']['w'], outputs['vb']['pred']
             cond, cond_mask = outputs['vb']["cond"], outputs['vb']["cond_mask"]
             cond = cond * ~cond_mask
+            σ = self.cfm_wrapper.sigma
+            pred_x1 = pred_dx + (1 - σ) * x0
             tb_writer.add_image("train_vb/x1", plot_spectrogram_to_numpy(x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
             tb_writer.add_image("train_vb/xt", plot_spectrogram_to_numpy(w[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
             tb_writer.add_image("train_vb/cond", plot_spectrogram_to_numpy(cond[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
-            tb_writer.add_image("train_vb/pred", plot_spectrogram_to_numpy(pred[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_vb/pred_dx", plot_spectrogram_to_numpy(pred_dx[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_vb/pred_x1", plot_spectrogram_to_numpy(pred_x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
 
-            pred_audio = self.voicebox.audio_enc_dec.decode(pred)[plot_id].detach().cpu().numpy()
+            pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1)[plot_id].detach().cpu().numpy()
             orig_audio = audio[plot_id].detach().cpu().numpy()
             tb_writer.add_audio("train_vb/pred_audio", pred_audio / max(np.abs(pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
             tb_writer.add_audio("train_vb/orig_audio", orig_audio / max(np.abs(orig_audio)), self.global_step, sample_rate=24000)
@@ -416,23 +447,36 @@ class VoiceboxModel(TextToWaveform):
         return loss
     
     def validation_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT | None:
-        audio = batch["audio"]
-        audio_lens = batch["audio_lens"]
+        # voicebox's sampling rate
+        audio = batch["audio_24k"]
+        audio_lens = batch["audio_lens_24k"]
         tokens = batch["tokens"]
         token_lens = batch["token_lens"]
 
+        # mfa tgt
+        durations = batch.get("durations", None)
+
         audio_mask = get_mask_from_lengths(audio_lens)
-        loss, losses = self.cfm_wrapper.forward(
+        _, losses, outputs = self.cfm_wrapper.forward(
             x1=audio,
             mask=audio_mask,
-            # semantic_token_ids=None,
             phoneme_ids=tokens,
             phoneme_len=token_lens,
-            cond=None,
+            dp_cond=None,
+            durations=durations,
+            cond=audio,
             cond_mask=None,
             input_sampling_rate=None
         )
-        self.log_dict(losses, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+
+        dp_loss = losses['dp']
+        align_loss = losses.get('align', 0)
+        bin_loss = losses.get('bin', 0)
+        vb_loss = losses['vb']
+
+        loss = align_loss + bin_loss + dp_loss + vb_loss
+        self.log_dict({f"val_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+        self.log("val_loss_total", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         return loss
 
     @classmethod

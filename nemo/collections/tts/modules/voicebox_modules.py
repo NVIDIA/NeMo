@@ -330,9 +330,9 @@ class DurationPredictor(_DP):
         loss = loss + bin_loss
         
         losses = {
-            "d_pred_loss": loss,
-            "align_loss": align_loss,
-            "bin_loss": bin_loss
+            "dp": loss,
+            "align": align_loss,
+            "bin": bin_loss
         }
 
         if return_aligned_phoneme_ids:
@@ -562,7 +562,7 @@ class NeMoDurationPredictor(DurationPredictor):
 
         #aligner loss
         losses = {
-            "d_pred_loss": loss,
+            "dp": loss,
         }
 
         if return_aligned_phoneme_ids:
@@ -689,7 +689,7 @@ class MFADurationPredictor(DurationPredictor):
         loss = loss.mean()
 
         losses = {
-            "d_pred_loss": loss,
+            "dp": loss,
         }
 
         def loss_masked(durations, target, *loss_masks):
@@ -708,9 +708,9 @@ class MFADurationPredictor(DurationPredictor):
             loss_no_sil_spn = loss_masked(durations, target, loss_mask, ~sil_mask, ~spn_mask)
 
         losses.update({
-            "dp_loss_sil": loss_sil,
-            "dp_loss_sil_spn": loss_sil_spn,
-            "dp_loss_no_sil_spn": loss_no_sil_spn,
+            "dp_sil": loss_sil,
+            "dp_sil_spn": loss_sil_spn,
+            "dp_no_sil_spn": loss_no_sil_spn,
         })
 
         if return_aligned_phoneme_ids:
@@ -930,7 +930,7 @@ class VoiceBox(_VB):
         # if no target passed in, just return logits
 
         if not exists(target):
-            return outputs
+            return x
 
         loss_mask = reduce_masks_with_and(cond_mask, self_attn_mask)
 
@@ -1025,6 +1025,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         text_token_ids: Optional[Tensor] = None,
         semantic_token_ids: Optional[Tensor] = None,
         phoneme_ids: Optional[Tensor] = None,
+        aligned_phoneme_ids: Optional[Tensor] = None,
         cond_mask = None,
         steps = 3,
         cond_scale = 1.,
@@ -1063,7 +1064,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         # setup text conditioning, either coming from duration model (as phoneme ids)
         # for coming from text-to-semantic module from spear-tts paper, as (semantic ids)
 
-        num_cond_inputs = sum([*map(exists, (texts, text_token_ids, semantic_token_ids, phoneme_ids))])
+        num_cond_inputs = sum([*map(exists, (texts, text_token_ids, semantic_token_ids, phoneme_ids, aligned_phoneme_ids))])
         assert num_cond_inputs <= 1
 
         self_attn_mask = None
@@ -1073,15 +1074,16 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
             assert not (exists(self.text_to_semantic) or exists(semantic_token_ids))
             assert exists(self.duration_predictor)
 
-            self.duration_predictor.eval()
+            if not exists(aligned_phoneme_ids):
+                self.duration_predictor.eval()
 
-            durations, aligned_phoneme_ids = self.duration_predictor.forward_with_cond_scale(
-                cond=dp_cond,
-                texts=texts,
-                phoneme_ids=phoneme_ids,
-                cond_scale=1,
-                return_aligned_phoneme_ids=True
-            )
+                durations, aligned_phoneme_ids = self.duration_predictor.forward_with_cond_scale(
+                    cond=dp_cond,
+                    texts=texts,
+                    phoneme_ids=phoneme_ids,
+                    cond_scale=1,
+                    return_aligned_phoneme_ids=True
+                )
 
             cond_token_ids = aligned_phoneme_ids
 
@@ -1094,7 +1096,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
 
                 # TODO: why not interpolate???
                 cond = curtail_or_pad(cond, cond_target_length)
-                self_attn_mask = curtail_or_pad(torch.ones_like(cond, dtype=torch.bool), cond_target_length)
+                # self_attn_mask = curtail_or_pad(torch.ones_like(cond, dtype=torch.bool), cond_target_length)
             else:
                 cond = torch.zeros((cond_token_ids.shape[0], cond_target_length, self.dim_cond_emb), device = self.device)
         else:
@@ -1111,6 +1113,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
             if exists(packed_shape):
                 x = unpack_one(x, packed_shape, 'b *')
 
+            # print(x.shape, t.shape, cond_token_ids.shape, cond.shape, cond_mask.shape, self_attn_mask.shape)
             out = self.voicebox.forward_with_cond_scale(
                 x,
                 times = t,
@@ -1383,7 +1386,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         losses = {}
         if self.condition_on_text:
             losses.update(dp_losses)
-        losses['vb_loss'] = loss
+        losses['vb'] = loss
         loss = loss + dp_loss
 
         outputs = {
