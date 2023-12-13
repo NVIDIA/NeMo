@@ -4,7 +4,7 @@ import secrets
 import tarfile
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Iterable
+from typing import Dict, Iterable, List
 
 try:
     from lhotse.lazy import ImitatesDict
@@ -113,7 +113,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
         self, manifest_path: str | Path, tar_paths: str | list, shuffle_shards: bool = False, text_field: str = "text"
     ) -> None:
         from cytoolz import groupby
-        from lhotse.lazy import LazyJsonlIterator, LazyIteratorChain
+        from lhotse.lazy import LazyIteratorChain, LazyJsonlIterator
 
         def strip_pipe(p):
             if isinstance(p, str):
