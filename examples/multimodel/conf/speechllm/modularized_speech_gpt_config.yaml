@@ -218,8 +218,8 @@ model:
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
       context_key: 'input'
       label_key: 'output'
-      # add_eos: True
-      add_eos: False
+      add_eos: True
+      # add_eos: False
       end_string: ${model.data.end_string}
       add_sep: False
       add_bos: False
