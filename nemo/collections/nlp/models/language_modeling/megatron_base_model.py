@@ -360,6 +360,7 @@ class MegatronBaseModel(NLPModel):
 
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
+            'apply_query_key_layer_scaling': apply_query_key_layer_scaling,
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': False,
             'add_bias_linear': add_bias_linear,
