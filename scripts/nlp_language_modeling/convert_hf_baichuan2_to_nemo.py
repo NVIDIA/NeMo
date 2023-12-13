@@ -96,7 +96,13 @@ def load_model(cls, checkpoint, strict, **kwargs):
 
 def load_config(args, baichuan2_config):
     nemo_config = OmegaConf.load(
+<<<<<<< HEAD
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_baichuan2_config.yaml')
+=======
+        os.path.join(
+            os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_baichuan2_config.yaml'
+        )
+>>>>>>> 65ba8a3b1fde09ad70b87d44e280da52ee89d56e
     ).model
     if 'max_position_embeddings' in baichuan2_config:
         nemo_config.encoder_seq_length = baichuan2_config['max_position_embeddings']
@@ -218,7 +224,11 @@ def convert(args):
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
         qkv_weights = model.state_dict()[f'model.layers.{l}.self_attn.W_pack.weight']
+<<<<<<< HEAD
         qkv_weights = qkv_weights.unflatten(0, (3, hidden_size)) 
+=======
+        qkv_weights = qkv_weights.unflatten(0, (3, hidden_size))
+>>>>>>> 65ba8a3b1fde09ad70b87d44e280da52ee89d56e
         old_tensor_shape = qkv_weights[0].squeeze().size()
         new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
         new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
@@ -234,7 +244,10 @@ def convert(args):
 
         qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
 
+<<<<<<< HEAD
     
+=======
+>>>>>>> 65ba8a3b1fde09ad70b87d44e280da52ee89d56e
         if mcore_gpt:
             qkv_weights_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.weight'
         else:
