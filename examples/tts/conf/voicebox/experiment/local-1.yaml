@@ -14,7 +14,20 @@ seed: 12345
 
 model:
   train_ds:
+    # defer_setup: false
+    max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
+    min_duration: 0.1
     manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_small.jsonl.gz
+    lhotse:
+      batch_duration: 300
+
+  validation_ds:
+    # defer_setup: false
+    lhotse:
+      batch_duration: 300
+  
+  test_ds:
+    # defer_setup: false
     lhotse:
       batch_duration: 300
   
@@ -26,14 +39,21 @@ model:
     depth: 2
     heads: 2
 
+  mfa_tokenizer:
+    textgrid_dir: /datasets/LibriLight/mfa_data_aligned
+
 trainer:
   devices: 1
   # gradient_clip_val: .1
   # gradient_clip_algorithm: value
   max_epochs: 100
+  # num_sanity_val_steps: 5
 
 exp_manager:
   resume_if_exists: False
+  checkpoint_callback_params:
+    monitor: val_loss/total
+    save_top_k: -1
 
 # task name, determines output directory path
 task_name: "local-1"

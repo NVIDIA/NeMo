@@ -16,14 +16,14 @@ sample_rate: 16000
 
 train_ds:
   defer_setup: true
-  manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_medium.jsonl.gz
-  sample_rate: ${model.sample_rate}
+  manifest_filepath: ${..manifests_dir}/libriheavy_cuts_medium.jsonl.gz
+  sample_rate: ${..sample_rate}
   batch_size: 16 # you may increase batch_size if your memory allows
   shuffle: true
   num_workers: 16
   pin_memory: true
-  max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
-  min_duration: 0.1
+  # max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
+  # min_duration: 0.1
 
   # tarred datasets
   is_tarred: false
@@ -37,58 +37,60 @@ train_ds:
   # lhotse
   use_lhotse: true
   lhotse:
-    cuts_path: ${model.train_ds.manifest_filepath}
+    cuts_path: ${..manifest_filepath}
     use_bucketing: true
     batch_duration: 100.0  # seconds
 
 validation_ds:
   defer_setup: true
-  manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_dev.jsonl.gz
-  sample_rate: ${model.sample_rate}
+  manifest_filepath: ${..manifests_dir}/libriheavy_cuts_dev.jsonl.gz
+  sample_rate: ${..sample_rate}
   batch_size: 16
   shuffle: false
-  use_start_end_token: false
   num_workers: 8
   pin_memory: true
+  # max_duration: 100 # it is set for LibriSpeech, you may need to update it for your dataset
+  # min_duration: 0.1
 
-  # # tarred datasets
-  # is_tarred: false
-  # tarred_audio_filepaths: null
-  # # shuffle_n: 2048
+  # tarred datasets
+  is_tarred: false
+  tarred_audio_filepaths: null
+  # shuffle_n: 2048
 
-  # # bucketing params
-  # bucketing_strategy: "synced_randomized"
-  # bucketing_batch_size: null
+  # bucketing params
+  bucketing_strategy: "synced_randomized"
+  bucketing_batch_size: null
 
-  # # lhotse
-  # use_lhotse: true
-  # lhotse:
-  #   cuts_path: ${model.validation_ds.manifest_filepath}
-  #   use_bucketing: False
-  #   batch_duration: 100.0  # seconds
+  # lhotse
+  use_lhotse: true
+  lhotse:
+    cuts_path: ${..manifest_filepath}
+    use_bucketing: False
+    batch_duration: 100.0  # seconds
 
 test_ds:
   defer_setup: true
-  manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_test_clean.jsonl.gz
-  sample_rate: ${model.sample_rate}
+  manifest_filepath: ${..manifests_dir}/libriheavy_cuts_test_clean.jsonl.gz
+  sample_rate: ${..sample_rate}
   batch_size: 16
   shuffle: false
-  use_start_end_token: false
   num_workers: 8
   pin_memory: true
+  # max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
+  # min_duration: 0.1
 
-  # # tarred datasets
-  # is_tarred: false
-  # tarred_audio_filepaths: null
-  # # shuffle_n: 2048
+  # tarred datasets
+  is_tarred: false
+  tarred_audio_filepaths: null
+  # shuffle_n: 2048
 
   # # bucketing params
   # bucketing_strategy: "synced_randomized"
   # bucketing_batch_size: null
 
-  # # lhotse
-  # use_lhotse: true
-  # lhotse:
-  #   cuts_path: ${model.test_ds.manifest_filepath}
-  #   use_bucketing: False
-  #   batch_duration: 100.0  # seconds
+  # lhotse
+  use_lhotse: true
+  lhotse:
+    cuts_path: ${..manifest_filepath}
+    use_bucketing: False
+    batch_duration: 100.0  # seconds
