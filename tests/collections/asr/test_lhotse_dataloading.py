@@ -98,6 +98,24 @@ def nemo_tarred_manifest_path(nemo_manifest_path: Path) -> Tuple[str, str]:
     return mft_writer.path, f"{root}/audios__OP_0..1_CL_.tar"
 
 
+@pytest.fixture(scope="session")
+def nemo_tarred_manifest_path_multi(nemo_tarred_manifest_path: tuple[str, str]) -> Tuple[str, str]:
+    """10 utterances of length 1s as a NeMo tarred manifest. Stored in one manifest per shard."""
+    from lhotse.serialization import load_jsonl
+    from lhotse.shar.writers import JsonlShardWriter
+
+    json_p, tar_p = nemo_tarred_manifest_path
+
+    json_dir = json_p.parent / "shard_manifests"
+    json_dir.mkdir(exist_ok=True)
+    with JsonlShardWriter(f"{json_dir}/manifest_%d.jsonl", shard_size=5) as mft_writer:
+        for item in load_jsonl(json_p):
+            mft_writer.write(item)
+    print(mft_writer.output_paths)
+    print(f"{json_dir}/manifest__OP_0..1_CL_.jsonl")
+    return f"{json_dir}/manifest__OP_0..1_CL_.jsonl", tar_p
+
+
 class UnsupervisedAudioDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: lhotse.CutSet) -> Dict[str, torch.Tensor]:
         audio, audio_lens = lhotse.dataset.collation.collate_audio(cuts)
@@ -270,8 +288,55 @@ def test_dataloader_from_nemo_manifest_has_custom_fields(nemo_manifest_path: Pat
         assert "my-custom-field" in cut.custom
 
 
-def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: Path):
+def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[str, str]):
     json_mft, tar_mft = nemo_tarred_manifest_path
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": json_mft,
+            "tarred_audio_filepaths": tar_mft,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "lhotse": {
+                "use_bucketing": True,
+                "num_buckets": 2,
+                "drop_last": False,
+                "batch_duration": 4.0,  # seconds
+                "quadratic_duration": 15.0,  # seconds
+                "shuffle_buffer_size": 10,
+                "buffer_size": 100,
+                "seed": 0,
+            },
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    batches = [batch for batch in dl]
+    assert len(batches) == 4
+
+    b = batches[0]
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
+
+    b = batches[1]
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
+
+    b = batches[2]
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
+
+    b = batches[3]
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
+
+
+def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_multi: tuple[str, str]):
+    json_mft, tar_mft = nemo_tarred_manifest_path_multi
     config = OmegaConf.create(
         {
             "manifest_filepath": json_mft,

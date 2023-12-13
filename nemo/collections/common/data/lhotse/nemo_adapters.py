@@ -1,9 +1,10 @@
 import random
+import re
 import secrets
 import tarfile
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Iterable
 
 try:
     from lhotse.lazy import ImitatesDict
@@ -12,7 +13,7 @@ except ImportError:
 
 import soundfile
 
-from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
+from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths as _expand_sharded_filepaths
 
 
 class LazyNeMoIterator(ImitatesDict):
@@ -112,7 +113,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
         self, manifest_path: str | Path, tar_paths: str | list, shuffle_shards: bool = False, text_field: str = "text"
     ) -> None:
         from cytoolz import groupby
-        from lhotse.lazy import LazyJsonlIterator
+        from lhotse.lazy import LazyJsonlIterator, LazyIteratorChain
 
         def strip_pipe(p):
             if isinstance(p, str):
@@ -121,10 +122,23 @@ class LazyNeMoTarredIterator(ImitatesDict):
                 return Path(p)
             return p
 
-        self.source = LazyJsonlIterator(manifest_path)
-        self.shard_id_to_manifest: Dict[int, str] = groupby("shard_id", self.source)
-        tar_paths = expand_sharded_filepaths(tar_paths, shard_strategy="replicate", world_size=1, global_rank=0)
-        self.shard_id_to_tar_path: Dict[int, Path] = {int(strip_pipe(p).stem.split("_")[1]): p for p in tar_paths}
+        self.shard_id_to_manifest: dict[int, Iterable[dict]]
+        self.paths = expand_sharded_filepaths(manifest_path)
+        if len(self.paths) == 1:
+            self.source = LazyJsonlIterator(self.paths[0])
+            self.shard_id_to_manifest = groupby("shard_id", self.source)
+        else:
+            pattern = re.compile(r".+_(\d+)\.jsonl?(?:.gz)?")
+            shard_ids = []
+            for p in self.paths:
+                m = pattern.match(p)
+                assert m is not None, f"Cannot determine shard_id from manifest path: {p}"
+                shard_ids.append(int(m.group(1)))
+            self.shard_id_to_manifest = {sid: LazyJsonlIterator(p) for sid, p in zip(shard_ids, self.paths)}
+            self.source = LazyIteratorChain(*self.shard_id_to_manifest.values())
+
+        tar_paths = expand_sharded_filepaths(tar_paths)
+        self.shard_id_to_tar_path: dict[int, Path] = {int(strip_pipe(p).stem.split("_")[1]): p for p in tar_paths}
         self.shuffle_shards = shuffle_shards
         self.text_field = text_field
         self._validate()
@@ -140,10 +154,6 @@ class LazyNeMoTarredIterator(ImitatesDict):
     @property
     def shard_ids(self) -> List[int]:
         return sorted(self.shard_id_to_manifest.keys())
-
-    @property
-    def path(self) -> str | Path:
-        return self.source.path
 
     def __iter__(self):
         from lhotse import SupervisionSegment
@@ -196,3 +206,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
         from lhotse.lazy import LazyIteratorChain
 
         return LazyIteratorChain(self, other)
+
+
+def expand_sharded_filepaths(path: str | Path) -> list[str]:
+    return _expand_sharded_filepaths(str(path), shard_strategy="replicate", world_size=1, global_rank=0)
