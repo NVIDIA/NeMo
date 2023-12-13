@@ -61,8 +61,7 @@ def get_args():
         "--hf-in-path",
         type=str,
         default=None,
-        help="A HF model path, "
-             "e.g. a folder containing hhttps://huggingface.co/bigcode/starcoder/tree/main",
+        help="A HF model path, " "e.g. a folder containing hhttps://huggingface.co/bigcode/starcoder/tree/main",
     )
     parser.add_argument(
         "--hf-out-path",
