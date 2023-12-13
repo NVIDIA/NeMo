@@ -138,9 +138,5 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
         logging.info(
             f"Initializing Lhotse CutSet from a single NeMo manifest (non-tarred): '{config['manifest_filepath']}'"
         )
-        cuts = CutSet(
-            LazyNeMoIterator(
-                config["manifest_filepath"], sampling_rate=config.get("sample_rate"), text_field=text_field
-            )
-        )
+        cuts = CutSet(LazyNeMoIterator(config["manifest_filepath"], text_field=text_field))
     return cuts

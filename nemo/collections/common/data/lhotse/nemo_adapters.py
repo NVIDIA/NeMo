@@ -28,15 +28,16 @@ class LazyNeMoIterator(ImitatesDict):
 
     Every other key found in the manifest will be attached to Lhotse Cut and accessible via ``cut.custom[key]``.
 
-    .. caution:: We assume every audio file has the same sampling rate, and it has to be explicitly provided
-        in ``LazyNeMoIterator`` constructor.
+    .. caution:: If sampling rate is not specified, we will perform some I/O (as much as required by soundfile.info)
+        to discover the sampling rate of the audio file. Otherwise, if sampling rate is provided, we assume every
+        audio file has the same sampling rate.
 
     Example::
 
         >>> cuts = lhotse.CutSet(LazyNeMoIterator("nemo_manifests/train.json", sampling_rate=16000))
     """
 
-    def __init__(self, path: str | Path, sampling_rate: int = 16000, text_field: str = "text") -> None:
+    def __init__(self, path: str | Path, sampling_rate: int | None = None, text_field: str = "text") -> None:
         from lhotse.lazy import LazyJsonlIterator
 
         self.source = LazyJsonlIterator(path)
@@ -55,13 +56,16 @@ class LazyNeMoIterator(ImitatesDict):
         for data in self.source:
             audio_path = data.pop("audio_filepath")
             duration = data.pop("duration")
-            recording = Recording(
-                id=Path(audio_path).name,
-                sources=[AudioSource(type="file", channels=[0], source=audio_path)],
-                sampling_rate=self.sampling_rate,
-                duration=duration,
-                num_samples=compute_num_samples(duration, self.sampling_rate),
-            )
+            if self.sampling_rate is None:
+                recording = Recording.from_file(audio_path)
+            else:
+                recording = Recording(
+                    id=Path(audio_path).name,
+                    sources=[AudioSource(type="file", channels=[0], source=audio_path)],
+                    sampling_rate=self.sampling_rate,
+                    duration=duration,
+                    num_samples=compute_num_samples(duration, self.sampling_rate),
+                )
             cut = recording.to_cut()
             cut.supervisions.append(
                 SupervisionSegment(
