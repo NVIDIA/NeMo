@@ -45,7 +45,7 @@ def get_ctm_line(
     NA_token: str = 'NA',
     UNK: str = 'unknown',
     default_channel: str = '1',
-    output_precision: int = 3,
+    output_precision: int = 2,
 ) -> str:
     """
     Get a line in  Conversation Time Mark (CTM) format. Following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
