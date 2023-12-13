@@ -692,6 +692,27 @@ class MFADurationPredictor(DurationPredictor):
             "d_pred_loss": loss,
         }
 
+        def loss_masked(durations, target, *loss_masks):
+            l_mask = reduce_masks_with_and(*loss_masks)
+            loss_ = F.l1_loss(durations, target, reduction = 'none').masked_fill(~l_mask, 0.)
+            loss_ = loss_.sum(-1) / l_mask.sum(-1).clamp(min=1e-5)
+            loss_ = loss_.mean()
+            return loss_
+
+        # loss w/o sil, spn
+        with torch.no_grad():
+            sil_mask = (phoneme_ids == 1)
+            spn_mask = (phoneme_ids == 2)
+            loss_sil = loss_masked(durations, target, loss_mask, sil_mask)
+            loss_sil_spn = loss_masked(durations, target, loss_mask, sil_mask | spn_mask)
+            loss_no_sil_spn = loss_masked(durations, target, loss_mask, ~sil_mask, ~spn_mask)
+
+        losses.update({
+            "dp_loss_sil": loss_sil,
+            "dp_loss_sil_spn": loss_sil_spn,
+            "dp_loss_no_sil_spn": loss_no_sil_spn,
+        })
+
         if return_aligned_phoneme_ids:
             aligned_phoneme_ids = self.align_phoneme_ids_with_durations(phoneme_ids=phoneme_ids, durations=target)
             outputs["aligned_phoneme_ids"] = aligned_phoneme_ids
