@@ -240,6 +240,10 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         if 'prompt_encoder' in state_dict:
             self.prompt_encoder.load_state_dict(state_dict["prompt_encoder"], strict)
 
+        # Not sure why when we resume training the prompt encoder is on cpu
+        # Because it's not created on init - Should really be moved to init
+        self.prompt_encoder.to("cuda")
+
     # def setup_optimizer_param_groups(self):
     #     """
     #     ModelPT override. Optimizer will get self._optimizer_param_groups.

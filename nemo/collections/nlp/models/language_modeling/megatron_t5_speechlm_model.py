@@ -650,6 +650,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         return torch.cat(embedding_list, dim=1)
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        # batch = [x.cuda(non_blocking=True) for x in batch]
         (
             virtual_tokens,
             context_and_question_tokens,
