@@ -273,6 +273,7 @@ class TestDataSimulatorUtils:
         norm_array = normalize_audio(array_input)
         assert torch.max(torch.abs(norm_array)) == 1.0
         assert torch.min(torch.abs(norm_array)) < 1.0
+
     @pytest.mark.parametrize("output_dir", [os.path.join(os.getcwd(), "test_dir")])
     def test_get_cleaned_base_path(self, output_dir):
         result_path = get_cleaned_base_path(output_dir, overwrite_output=True)
