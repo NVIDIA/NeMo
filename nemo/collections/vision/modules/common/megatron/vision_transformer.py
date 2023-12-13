@@ -24,9 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTra
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
-    from apex.normalization import MixedFusedRMSNorm
-    from apex.transformer.enums import AttnMaskType, AttnType, ModelType
-    from apex.transformer.utils import divide as safe_divide
+    from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True
 
@@ -38,8 +36,7 @@ except (ImportError, ModuleNotFoundError):
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
-    from megatron.core.parallel_state import get_tensor_model_parallel_world_size
+    from megatron.core import parallel_state
 
     HAVE_MEGATRON_CORE = True
 

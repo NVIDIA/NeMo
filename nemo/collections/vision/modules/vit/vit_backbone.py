@@ -30,18 +30,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.vision.modules.common.megatron.vision_transformer import ParallelVisionTransformer
 
-try:
-    import apex
-    from apex.transformer.enums import AttnMaskType
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-    # fake missing classes with None attributes
-    AttnMaskType = ApexGuardDefaults()
-    LayerType = ApexGuardDefaults()
-
 
 class DropPatch(MegatronModule):
     """

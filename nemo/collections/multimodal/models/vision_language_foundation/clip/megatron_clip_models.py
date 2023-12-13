@@ -578,11 +578,6 @@ class MegatronCLIPModel(MegatronBaseModel):
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        # TODO (yuya): check if this is needed in text transformer when PP>1
-        # if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-        #     # when using pipeline parallelism the first and last stage must keep embeddings in sync
-        #     self.allreduce_first_last_embeddings()
-
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks

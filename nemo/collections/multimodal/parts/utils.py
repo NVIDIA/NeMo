@@ -23,15 +23,6 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.utils import logging
 
-try:
-    from megatron.core import parallel_state
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
 
 def numpy_to_pil(images):
     """

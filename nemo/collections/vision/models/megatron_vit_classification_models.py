@@ -14,9 +14,8 @@
 
 import itertools
 from functools import partial
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
-import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
@@ -24,7 +23,6 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -40,11 +38,9 @@ from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPr
 from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_datasets
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
@@ -394,18 +390,11 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                 self.reduce_overlap_gradients()
         elif self.megatron_amp_O2:
             # # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
-            # if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
-            #     # main grads are stored in the MainParamsOptimizer wrapper
-            #     self._optimizer.allreduce_main_grads()
             self._optimizer.allreduce_main_grads()
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
-
-        # if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-        #     # when using pipeline parallelism the first and last stage must keep embeddings in sync
-        #     self.allreduce_first_last_embeddings()
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
@@ -540,7 +529,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
     def on_validation_epoch_end(self):
         # TODO (yuya): need fix later, check with Sean
         if not self.validation_step_outputs:
-            return
+            return None
 
         if parallel_state.is_pipeline_last_stage():
             loss_outputs = [output[0] for output in self.validation_step_outputs]
@@ -698,7 +687,9 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             if not self.cfg.data.get('validation_drop_last', True):
                 logging.info(f'Drop last in validation dataset is set to False')
                 drop_last = False
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples,)
+            self._validation_dl = self.build_pretraining_data_loader(
+                self._validation_ds, consumed_samples, drop_last=drop_last
+            )
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds') and self._test_ds is not None:

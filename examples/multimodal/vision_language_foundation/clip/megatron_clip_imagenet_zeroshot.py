@@ -26,15 +26,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
-try:
-    from megatron.core import parallel_state, tensor_parallel
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
 
 def accuracy(output, target, topk=(1,)):
     pred = output.topk(max(topk), 1, True, True)[1].t()

@@ -31,7 +31,10 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
     make_supervised_data_module,
 )
-from nemo.collections.multimodal.models.vision_language_foundation.clip import CLIPVisionTransformer, MegatronCLIPModel
+from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import (
+    CLIPVisionTransformer,
+    MegatronCLIPModel,
+)
 from nemo.collections.multimodal.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -61,34 +64,14 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import AppState, logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.enums import AttnMaskType
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-
-try:
-    import transformer_engine
-
-    HAVE_TE = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
 
 
 class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
@@ -1025,8 +1008,6 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             def dummy():
                 return
 
-            import os
-
             if self.trainer.strategy.launcher is not None:
                 self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
             self.trainer.strategy.setup_environment()
@@ -1047,6 +1028,6 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         # Supports only one prompt at a time
         result = megatron_neva_generate(self.cuda(), input_prompts, length_params, sampling_params, inference_config)
         end = time.time()
-        # print(f'Time taken {end - start}')
+        print(f'Time taken {end - start}')
 
         return result
