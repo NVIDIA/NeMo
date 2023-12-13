@@ -16,7 +16,7 @@ import os
 
 import pytest
 import torch
-from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 

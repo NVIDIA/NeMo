@@ -1,6 +1,6 @@
 import pytest
 import torch
-from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
+from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import MegatronControlNet
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 

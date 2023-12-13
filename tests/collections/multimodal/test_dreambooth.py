@@ -13,7 +13,7 @@ import os
 
 import pytest
 import torch
-from nemo.collections.multimodal.models.dreambooth.dreambooth import MegatronDreamBooth
+from nemo.collections.multimodal.models.text_to_image.dreambooth.dreambooth import MegatronDreamBooth
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 

@@ -14,7 +14,7 @@
 
 import pytest
 import torch
-from nemo.collections.multimodal.models.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
+from nemo.collections.multimodal.models.text_to_image.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 

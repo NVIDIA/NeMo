@@ -14,7 +14,7 @@
 
 import pytest
 import torch
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 

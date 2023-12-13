@@ -16,7 +16,7 @@ import os
 
 import pytest
 import torch
-from nemo.collections.multimodal.models.clip.megatron_clip_models import (
+from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import (
     MegatronCLIPModel,
 )
 from omegaconf import DictConfig, OmegaConf
@@ -370,7 +370,6 @@ class TestMegatronCLIPModel:
     def test_forward(self, clip_trainer_and_model, test_data_dir, precision=None):
         trainer, clip_model = clip_trainer_and_model
 
-        dtype = None
         if clip_model.cfg['precision'] in [32, '32', '32-true']:
             dtype = torch.float
         elif clip_model.cfg['precision'] in [16, '16', '16-mixed']:
@@ -394,83 +393,5 @@ class TestMegatronCLIPModel:
             with torch.autocast('cuda', dtype=dtype):
                 output_tensor = clip_model(image=tokens.cuda(), text=texts.cuda(),)
             # output is (B, #classes)
-            # assert output_tensor.shape == torch.Size([B, clip_model.cfg['num_classes']])
-            # assert output_tensor.dtype == dtype
-
-    # @pytest.mark.unit
-    # def test_vit_backbone(self, model_cfg, trainer_cfg, precision):
-    #     initialize_model_parallel_for_nemo(
-    #         world_size=1,
-    #         global_rank=0,
-    #         local_rank=0,
-    #         tensor_model_parallel_size=model_cfg.get('tensor_model_parallel_size', 1),
-    #         pipeline_model_parallel_size=model_cfg.get('pipeline_model_parallel_size', 1),
-    #         virtual_pipeline_model_parallel_size=model_cfg.get('virtual_pipeline_model_parallel_size', None),
-    #         pipeline_model_parallel_split_rank=model_cfg.get('pipeline_model_parallel_split_rank', 0),
-    #         micro_batch_size=model_cfg.get('micro_batch_size'),
-    #         global_batch_size=model_cfg.get('global_batch_size'),
-    #         seed=model_cfg.get('seed', 1234),
-    #         apex_transformer_log_level=model_cfg.get('apex_transformer_log_level', 30),
-    #     )
-    #
-    #     dtype = None
-    #     if trainer_cfg['precision'] in [32, '32', '32-true']:
-    #         dtype = torch.float
-    #     elif trainer_cfg['precision'] in [16, '16', '16-mixed']:
-    #         dtype = torch.float16
-    #     elif trainer_cfg['precision'] in ['bf16', 'bf16-mixed']:
-    #         dtype = torch.bfloat16
-    #     else:
-    #         raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")
-    #
-    #     vit_backbone = VitBackbone(
-    #         model_cfg,
-    #         init_method=None,
-    #         scaled_init_method=None,
-    #         pre_process=True,
-    #         post_process=True,
-    #         single_token_output=True
-    #     ).cuda()
-    #     vit_backbone.eval()
-    #
-    #     # shape: (B, C, H, W)
-    #     tokens = torch.rand((6, 3, 224, 224))
-    #
-    #     with torch.no_grad():
-    #         B, C, H, W = tokens.shape
-    #         assert H == W
-    #         with torch.autocast('cuda', dtype=dtype):
-    #             output_tensor = vit_backbone(
-    #                 tokens.cuda(),
-    #             )
-    #         # output is (B, #classes)
-    #         assert output_tensor.shape == torch.Size([B, model_cfg['hidden_size']])
-    #         assert output_tensor.dtype == dtype
-    #
-    # @pytest.mark.unit
-    # def test_vit_head(self, model_cfg, trainer_cfg, precision):
-    #     dtype = None
-    #     if trainer_cfg['precision'] in [32, '32', '32-true']:
-    #         dtype = torch.float
-    #     elif trainer_cfg['precision'] in [16, '16', '16-mixed']:
-    #         dtype = torch.float16
-    #     elif trainer_cfg['precision'] in ['bf16', 'bf16-mixed']:
-    #         dtype = torch.bfloat16
-    #     else:
-    #         raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")
-    #
-    #     vit_head = VitMlpHead(
-    #         24, 50,
-    #     ).cuda()
-    #     vit_head.eval()
-    #
-    #     hidden = torch.rand((6, 24))
-    #
-    #     with torch.no_grad():
-    #         with torch.autocast('cuda', dtype=dtype):
-    #             output_tensor = vit_head(
-    #                 hidden.cuda(),
-    #             )
-    #         # output is (B, #classes)
-    #         assert output_tensor.shape == torch.Size([6, 50])
-    #         assert output_tensor.dtype == dtype
+            assert output_tensor.shape == torch.Size([B, clip_model.cfg['num_classes']])
+            assert output_tensor.dtype == dtype

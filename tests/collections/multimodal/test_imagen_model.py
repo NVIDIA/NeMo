@@ -14,7 +14,7 @@
 
 import pytest
 import torch
-from nemo.collections.multimodal.models.imagen.imagen import DUMMY_TENSOR, MegatronImagen
+from nemo.collections.multimodal.models.text_to_image.imagen.imagen import DUMMY_TENSOR, MegatronImagen
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
