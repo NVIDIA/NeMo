@@ -74,10 +74,17 @@ def get_ctm_line(
         str: Return a line in CTM format filled with the given information.
     """
     VALID_TOKEN_TYPES = ["lex", "frag", "fp", "un-lex", "for-lex", "non-lex", "misc", "noscore"]
-    if type(beg_time) != float:
-        beg_time = round(float(beg_time), output_precision)
-    if type(duration) != float:
-        duration = round(float(duration), output_precision)
+    
+    if type(beg_time) == str and beg_time.replace('.','',1).isdigit():
+        beg_time = float(beg_time)
+    elif type(beg_time) != float:
+        raise ValueError(f"`beg_time` must be a float or str containing float, but got {type(beg_time)}")
+    
+    if type(duration) == str and duration.replace('.','',1).isdigit():
+        duration = float(duration)
+    elif type(duration) != float:
+        raise ValueError(f"`duration` must be a float or str containing float, but got {type(duration)}")
+    
     if channel is not None and type(channel) != int:
         channel = str(channel)
     if conf is not None and type(conf) != float:
@@ -90,10 +97,12 @@ def get_ctm_line(
         raise ValueError(f"`type` must be one of {VALID_TOKEN_TYPES}, but got {type_of_token}")
     if speaker is not None and type(speaker) != str:
         raise ValueError(f"`speaker` must be a string, but got {type(speaker)}")
+    
     channel = default_channel if channel is None else channel
     conf = NA_token if conf is None else conf
     speaker = NA_token if speaker is None else speaker
     type_of_token = UNK if type_of_token is None else type_of_token
+    beg_time, duration = round(beg_time, output_precision), round(float(duration), output_precision)
     return f"{source} {channel} {beg_time} {duration} {token} {conf} {type_of_token} {speaker}\n"
 
 
