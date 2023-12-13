@@ -258,7 +258,11 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         context_start_idx: Optional[List[List[int]]] = None,
     ):
         # [b, t, c]
-        lm_embedding = self.model.language_model.embedding
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        lm_embedding = base_module.language_model.embedding
         input_embeds = lm_embedding.word_embeddings(input_ids)
         if isinstance(encoded, torch.Tensor):
             # single audio
@@ -295,7 +299,11 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         return shifted_labels
 
     def _get_text_embeddings(self, text_tokens, position_ids):
-        lm_embedding = self.model.language_model.embedding
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        lm_embedding = base_module.language_model.embedding
         text_embeddings = lm_embedding.word_embeddings(text_tokens)  # (batch_size, seq_len, hidden_size)
         if hasattr(lm_embedding, 'position_embeddings'):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
@@ -317,7 +325,11 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         num_audios = audio_batch.get("num_audios", None)
         context_start_idx = audio_batch.get("context_start_idx", None)
 
-        lm_embedding = self.model.language_model.embedding.word_embeddings
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        lm_embedding = base_module.language_model.embedding.word_embeddings
         # [b, t, c]
         encoded, encoded_len, aux_loss = self.perception(
             input_signal=input_signal,
@@ -717,7 +729,10 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            return self.model.state_dict(prefix="model.")
+            if self.cfg.get('megatron_amp_O2', False):
+                return self.model.state_dict(prefix="model.module.")
+            else:
+                return self.model.state_dict(prefix="model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:

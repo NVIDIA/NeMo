@@ -64,12 +64,16 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         # Move to GPU.
         micro_batch_size = context_tokens.shape[0]
 
+        if self.model.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.model.module
+        else:
+            base_module = self.model.model
         audio_feats, audio_feat_lens, _ = self.model.perception(
             input_signal=audio_signal,
             input_signal_length=audio_length,
             processed_signal=None,
             processed_signal_length=None,
-            lm_embedding=self.model.model.language_model.embedding.word_embeddings,
+            lm_embedding=base_module.language_model.embedding.word_embeddings,
         )
 
         if num_audios is not None:

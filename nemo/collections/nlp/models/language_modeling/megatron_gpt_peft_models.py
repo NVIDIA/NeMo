@@ -80,7 +80,11 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         """ 
         Gets the keys associated with the adapters only.
         """
-        state_dict = self.model.state_dict(prefix="model.")
+        if self.cfg.get('megatron_amp_O2', False):
+            state_dict = self.model.state_dict(prefix="model.module.")
+        else:
+            state_dict = self.model.state_dict(prefix="model.")
+
         peft_state_dict = {}
         for k in self.adapter_keys:
             peft_state_dict[k] = state_dict[k]
