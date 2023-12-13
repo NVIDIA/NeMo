@@ -16,24 +16,26 @@ import os
 
 import pytest
 import torch
-
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
 from megatron.core.transformer.transformer_config import TransformerConfig
-from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
-from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_decoder_layer import FalconTransformerLayer
 
+from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_decoder_layer import FalconTransformerLayer
+from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from tests.utils.test_parallel_utils import Utils
 
-class TestParallelFalconTransformerLayer:
 
+class TestParallelFalconTransformerLayer:
     def setup_method(self, method):
-        Utils.initialize_model_parallel(1,1)
+        Utils.initialize_model_parallel(1, 1)
         model_parallel_cuda_manual_seed(123)
-        transformer_config = TransformerConfig(num_layers=2, hidden_size=12, num_attention_heads=4, use_cpu_initialization=True)
-        self.parallel_falcon_transformer_layer = FalconTransformerLayer(transformer_config,
-                                                           get_falcon_layer_spec().submodules)
+        transformer_config = TransformerConfig(
+            num_layers=2, hidden_size=12, num_attention_heads=4, use_cpu_initialization=True
+        )
+        self.parallel_falcon_transformer_layer = FalconTransformerLayer(
+            transformer_config, get_falcon_layer_spec().submodules
+        )
 
     def teardown_method(self, method):
         Utils.destroy_model_parallel()
@@ -68,9 +70,10 @@ class TestParallelFalconTransformerLayer:
         Utils.destroy_model_parallel()
         Utils.initialize_model_parallel(*tp_pp)
         model_parallel_cuda_manual_seed(123)
-        transformer_config = TransformerConfig(num_layers=2, hidden_size=128, num_attention_heads=8, use_cpu_initialization=True)
-        parallel_transformer_layer = FalconTransformerLayer(transformer_config,
-                                                      get_falcon_layer_spec().submodules)
+        transformer_config = TransformerConfig(
+            num_layers=2, hidden_size=128, num_attention_heads=8, use_cpu_initialization=True
+        )
+        parallel_transformer_layer = FalconTransformerLayer(transformer_config, get_falcon_layer_spec().submodules)
 
         sharded_state_dict = parallel_transformer_layer.sharded_state_dict()
 
@@ -87,8 +90,9 @@ class TestParallelFalconTransformerLayer:
 
         # Test all global shapes. Prepend num layers in front of expected shapes
         tensor_global_shapes = {k: v.global_shape for k, v in sharded_tensors.items()}
-        expected_global_shapes = {k: (transformer_config.num_layers, *v)
-                                  for k, v in get_tensor_shapes_for_tp(transformer_config, 1).items()}
+        expected_global_shapes = {
+            k: (transformer_config.num_layers, *v) for k, v in get_tensor_shapes_for_tp(transformer_config, 1).items()
+        }
         assert tensor_global_shapes == expected_global_shapes
 
         # Test ShardedTensor keys
@@ -114,5 +118,5 @@ def get_tensor_shapes_for_tp(transformer_config, tp_size):
         '0.self_attention.linear_qkv.weight': (hs * 3 // tp_size, hs),
         '0.self_attention.linear_qkv.bias': (hs * 3 // tp_size,),
         '0.post_self_attn_layernorm.weight': (hs,),
-        '0.post_self_attn_layernorm.bias': (hs,)
+        '0.post_self_attn_layernorm.bias': (hs,),
     }
