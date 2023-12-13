@@ -1,5 +1,5 @@
 NeRF
-=============
+====
 NeMO NeRF is a collection of models and tools for training 3D and 4D models.
 
 The library is designed with a modular approach, enabling developers to explore and find the most suitable solutions for their requirements,

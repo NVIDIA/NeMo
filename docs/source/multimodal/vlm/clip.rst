@@ -13,17 +13,17 @@ NeMo's implementation of the CLIP model leverages its parallel transformer imple
         :alt: CLIP model
         :scale: 30%
 
-CLIP models in NeMo can be instantiated using the :class:`~nemo.collections.multimodal.models.clip.megatron_clip_models.MegatronCLIPModel` class.
+CLIP models in NeMo can be instantiated using the :class:`~nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models.MegatronCLIPModel` class.
 
 Text Encoder
 ^^^^^^^^^^^^^^^
 
-CLIP uses a transformer-based text encoder to encode text features. The text input is tokenized and embedded. Positional embeddings are added to these token embeddings, and this combined representation is then passed through several transformer layers. The output from the last transformer layer corresponding to the first token is used as the text representation. In NeMo, the CLIP text encoder can be instantiated using the :class:`~nemo.collections.multimodal.models.clip.megatron_clip_models.CLIPTextTransformer` class.
+CLIP uses a transformer-based text encoder to encode text features. The text input is tokenized and embedded. Positional embeddings are added to these token embeddings, and this combined representation is then passed through several transformer layers. The output from the last transformer layer corresponding to the first token is used as the text representation. In NeMo, the CLIP text encoder can be instantiated using the :class:`~nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models.CLIPTextTransformer` class.
 
 Vision Model
 ^^^^^^^^^^
 
-CLIP's vision model is based on the Vision Transformer (ViT) architecture. The image is first divided into fixed-size patches (e.g., 16x16 pixels). These patches are linearly embedded into a flat vector, which is then used as input to the transformer. The output of the transformer is then pooled to produce a single image representation. In NeMo, the CLIP vision model can be instantiated using the :class:`~nemo.collections.multimodal.models.clip.megatron_clip_models.CLIPVisionTransformer` class.
+CLIP's vision model is based on the Vision Transformer (ViT) architecture. The image is first divided into fixed-size patches (e.g., 16x16 pixels). These patches are linearly embedded into a flat vector, which is then used as input to the transformer. The output of the transformer is then pooled to produce a single image representation. In NeMo, the CLIP vision model can be instantiated using the :class:`~nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models.CLIPVisionTransformer` class.
 
 
 +-------+------------+----------------------+----------------+-----------------+-----------------+----------+----------------+------------+-----------------+-----------------+------------+

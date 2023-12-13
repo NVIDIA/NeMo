@@ -1,5 +1,5 @@
 Multimodal Language Models
-===========================
+==========================
 
 The endeavor to extend Language Models (LLMs) into multimodal domains by integrating additional structures like visual encoders has become a focal point of recent research, especially given its potential to significantly lower the cost compared to training multimodal universal models from scratch.
 

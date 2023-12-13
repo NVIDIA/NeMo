@@ -14,7 +14,7 @@ resolutions, all using diffusion models.
         :alt: imagen model
         :scale: 50%
 
-Imagen models can be instantiated using the :class:`~nemo.collections.multimodal.models.imagen.imagen.MegatronImagen` class.
+Imagen models can be instantiated using the :class:`~nemo.collections.multimodal.models.text_to_image.imagen.imagen.MegatronImagen` class.
 
 Text Encoder
 ^^^^^^^^^^^^^^^

@@ -1,5 +1,5 @@
-Text2Img
-=============
+Text to Image Models
+====================
 
 
 Supported Models
@@ -22,7 +22,7 @@ NeMo Multimodal currently supports the following models:
 
 
 Text2Img Foundation Models
------------------------
+--------------------------
 Text-to-image models are a fascinating category of artificial intelligence models that aim to generate realistic images from textual descriptions. The mainstream text-2-image models can be broadly grouped into:
 
 #. **Diffusion Based Models**: these models leverage diffusion processes to
@@ -51,7 +51,7 @@ The choice of model depends on the specific requirements of the text-to-image ge
 
 
 Approaches to Customize/Extend Text2Img Models
---------------------------
+----------------------------------------------
 
 Customizing and extending Text2Img models can be essential to tailor these foundation models to
 specific applications or creative tasks. Some popular approaches to customize and extend text2img models include:
