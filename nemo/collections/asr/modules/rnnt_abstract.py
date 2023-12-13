@@ -28,6 +28,44 @@ class AbstractRNNTJoint(NeuralModule, ABC):
     """
 
     @abstractmethod
+    def joint_after_projection(self, f: torch.Tensor, g: torch.Tensor):
+        """
+        Compute the joint step of the network after the projection step.
+        Args:
+            f: Output of the Encoder model after projection. A torch.Tensor of shape [B, T, H]
+            g: Output of the Decoder model (Prediction Network) after projection. A torch.Tensor of shape [B, U, H]
+
+        Returns:
+            Logits / log softmaxed tensor of shape (B, T, U, V + 1).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def project_encoder(self, encoder_output: torch.Tensor) -> torch.Tensor:
+        """
+        Project the encoder output to the joint hidden dimension.
+
+        Args:
+            encoder_output: A torch.Tensor of shape [B, T, D]
+
+        Returns:
+            A torch.Tensor of shape [B, T, H]
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def project_prednet(self, prednet_output: torch.Tensor) -> torch.Tensor:
+        """
+        Project the Prediction Network (Decoder) output to the joint hidden dimension.
+
+        Args:
+            prednet_output: A torch.Tensor of shape [B, U, D]
+
+        Returns:
+            A torch.Tensor of shape [B, U, H]
+        """
+        raise NotImplementedError()
+
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
         """
         Compute the joint step of the network.
@@ -58,7 +96,7 @@ class AbstractRNNTJoint(NeuralModule, ABC):
         Returns:
             Logits / log softmaxed tensor of shape (B, T, U, V + 1).
         """
-        raise NotImplementedError()
+        return self.joint_after_projection(self.project_encoder(f), self.project_prednet(g))
 
     @property
     def num_classes_with_blank(self):

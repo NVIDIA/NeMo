@@ -239,6 +239,30 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
 
         return logits
 
+    def _joint_step_after_projection(self, enc, pred, log_normalize: Optional[bool] = None):
+        """
+        Common joint step based on AbstractRNNTJoint implementation.
+
+        Args:
+            enc: Output of the Encoder model after projection. A torch.Tensor of shape [B, 1, H]
+            pred: Output of the Decoder model after projection. A torch.Tensor of shape [B, 1, H]
+            log_normalize: Whether to log normalize or not. None will log normalize only for CPU.
+
+        Returns:
+             logits of shape (B, T=1, U=1, V + 1)
+        """
+        with torch.no_grad():
+            logits = self.joint.joint_after_projection(enc, pred)
+
+            if log_normalize is None:
+                if not logits.is_cuda:  # Use log softmax only if on CPU
+                    logits = logits.log_softmax(dim=len(logits.shape) - 1)
+            else:
+                if log_normalize:
+                    logits = logits.log_softmax(dim=len(logits.shape) - 1)
+
+        return logits
+
 
 class GreedyRNNTInfer(_GreedyRNNTInfer):
     """A greedy transducer decoder.
@@ -635,6 +659,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         batch_size, max_time, _ = x.shape
 
+        x = self.joint.project_encoder(x)  # do not recalculate joint projection, project only once
+
         # Initialize empty hypotheses and all necessary tensors
         batched_hyps = rnnt_utils.BatchedHyps(
             batch_size=batch_size, init_length=max_time, device=x.device, float_dtype=x.dtype
@@ -662,11 +688,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 decoder_output, state, *_ = self._pred_step(self._SOS, state, batch_size=current_batch_size)
             else:
                 decoder_output, state, *_ = self._pred_step(labels.unsqueeze(1), state, batch_size=current_batch_size)
+            decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
 
             # stage 2: get joint output, iteratively seeking for non-blank labels
             # blank label in `labels` tensor means "end of hypothesis" (for this index)
             logits = (
-                self._joint_step(
+                self._joint_step_after_projection(
                     x[active_indices, time_indices[active_indices]].unsqueeze(1),
                     decoder_output,
                     log_normalize=True if self.preserve_frame_confidence else None,
@@ -693,7 +720,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 advance_indices = active_indices[advance_mask]
                 time_indices[advance_indices] += 1
                 logits = (
-                    self._joint_step(
+                    self._joint_step_after_projection(
                         x[advance_indices, time_indices[advance_indices]].unsqueeze(1),
                         decoder_output[advance_mask],
                         log_normalize=True if self.preserve_frame_confidence else None,
@@ -759,7 +786,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # but for preserving alignments/confidence we need a tensor with logits
                     force_blank_indices = active_indices[force_blank_mask]
                     logits = (
-                        self._joint_step(
+                        self._joint_step_after_projection(
                             x[force_blank_indices, time_indices[force_blank_indices]].unsqueeze(1),
                             decoder_output,
                             log_normalize=True if self.preserve_frame_confidence else None,
