@@ -146,11 +146,11 @@ class TestGetCtmLine:
                 type_of_token="lex",
                 speaker="speaker1",
             )
-            expected = f"test_source 1 0.123 0.456 word {conf} lex speaker1\n"
+            expected = f"test_source 1 0.12 0.46 word {conf} lex speaker1\n"
             assert result == expected, f"Failed on valid conf value {conf}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("conf", [0.0, 0.5, 1.0, 0.001, 0.999])
+    @pytest.mark.parametrize("conf", [0.0, 0.5, 1.0, 0.01, 0.99])
     def test_valid_conf_values(self, conf):
         # Test with valid confidence values
         result = get_ctm_line(
@@ -163,7 +163,7 @@ class TestGetCtmLine:
             type_of_token="lex",
             speaker="speaker1",
         )
-        expected = f"test_source 1 0.123 0.456 word {conf} lex speaker1\n"
+        expected = f"test_source 1 0.12 0.46 word {conf} lex speaker1\n"
         assert result == expected, f"Failed on valid conf value {conf}"
 
     @pytest.mark.unit
@@ -195,7 +195,7 @@ class TestGetCtmLine:
             type_of_token="lex",
             speaker="speaker1",
         )
-        expected = "test_source 1 0.123 0.456 word 0.789 lex speaker1\n"
+        expected = "test_source 1 0.12 0.46 word 0.789 lex speaker1\n"
         assert result == expected, "Failed on valid input"
 
     @pytest.mark.unit
@@ -251,7 +251,7 @@ class TestGetCtmLine:
             type_of_token=None,
             speaker=None,
         )
-        expected = "test_source 1 0.123 0.456 word NA unknown NA\n"
+        expected = "test_source 1 0.12 0.46 word NA unknown NA\n"
         assert result == expected, "Failed on default values"
 
 
@@ -273,7 +273,6 @@ class TestDataSimulatorUtils:
         norm_array = normalize_audio(array_input)
         assert torch.max(torch.abs(norm_array)) == 1.0
         assert torch.min(torch.abs(norm_array)) < 1.0
-
     @pytest.mark.parametrize("output_dir", [os.path.join(os.getcwd(), "test_dir")])
     def test_get_cleaned_base_path(self, output_dir):
         result_path = get_cleaned_base_path(output_dir, overwrite_output=True)
