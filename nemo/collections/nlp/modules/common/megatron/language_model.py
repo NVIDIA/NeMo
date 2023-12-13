@@ -14,6 +14,7 @@
 
 """Transformer based language model."""
 from ast import Mod
+import math
 
 import torch
 
@@ -127,6 +128,13 @@ def get_language_model(
     use_flash_attention=False,
     seq_len_interpolation_factor=None,
     rotary_base=10000,
+    embedding_noise=False,
+    embedding_noise_mean=0.0,
+    embedding_noise_std=0.001,
+    embedding_noise_type='uniform',
+    neft=False,
+    neft_alpha=5.0,
+    noise_positonal_embedding=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -204,6 +212,13 @@ def get_language_model(
         use_flash_attention=use_flash_attention,
         seq_len_interpolation_factor=seq_len_interpolation_factor,
         rotary_base=rotary_base,
+        embedding_noise=embedding_noise,
+        embedding_noise_mean=embedding_noise_mean,
+        embedding_noise_std=embedding_noise_std,
+        embedding_noise_type=embedding_noise_type,
+        neft=neft,
+        neft_alpha=neft_alpha,
+        noise_positonal_embedding=noise_positonal_embedding,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -256,6 +271,13 @@ class Embedding(MegatronModule):
         num_tokentypes: size of the token-type embeddings. 0 value
                         will ignore this embedding
         position_embedding_type: position embedding type determines whether we instantiate a learnable position embedding table.
+        embedding_noise: whether to add noise to the embeddings
+        embedding_noise_mean: mean of the embedding noise
+        embedding_noise_std: standard deviation of the embedding noise
+        embedding_noise_type: type of the embedding noise (distribution)
+        neft: whether to use NEFTune normalization technique
+        neft_alpha: alpha parameter for NEFTune
+        noise_positonal_embedding: whether to add noise to the positional embeddings
     """
 
     def __init__(
@@ -271,6 +293,13 @@ class Embedding(MegatronModule):
         fp32_residual_connection=False,
         position_embedding_type='learned_absolute',
         transpose_batch_sequence=True,
+        embedding_noise=False,
+        embedding_noise_mean=0.0,
+        embedding_noise_std=0.001,
+        embedding_noise_type='uniform',
+        neft=False,
+        neft_alpha=5.0,
+        noise_positonal_embedding=False,
     ):
         super(Embedding, self).__init__(config=config)
 
@@ -279,7 +308,14 @@ class Embedding(MegatronModule):
         self.num_tokentypes = num_tokentypes
         self.position_embedding_type = position_embedding_type
         self.transpose_batch_sequence = transpose_batch_sequence
-
+        self.embedding_noise = embedding_noise
+        self.embedding_noise_mean = embedding_noise_mean
+        self.embedding_noise_std = embedding_noise_std
+        self.embedding_noise_type = embedding_noise_type
+        self.neft = neft
+        self.neft_alpha = neft_alpha
+        self.noise_positonal_embedding = noise_positonal_embedding
+        
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
             vocab_size, self.hidden_size, init_method=self.init_method, config=config,
@@ -317,6 +353,7 @@ class Embedding(MegatronModule):
 
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
+       
 
     def zero_parameters(self):
         """Zero out all parameters in embedding."""
@@ -343,9 +380,40 @@ class Embedding(MegatronModule):
         # Initialize the token-type embeddings.
         self.init_method(self.tokentype_embeddings.weight)
 
+
+    def _noise(self, embeddings):
+        if self.embedding_noise and not self.neft:
+                # Add noise to the embeddings
+                if self.embedding_noise_type == 'uniform':
+                    noise = torch.empty_like(embeddings).uniform_(self.embedding_noise_mean, self.embedding_noise_std).detach()
+                elif self.embedding_noise_type == 'normal':
+                    noise = torch.empty_like(embeddings).normal_(self.embedding_noise_mean, self.embedding_noise_std).detach()
+                else:
+                    raise NotImplementedError(f"embedding noise type {self.embedding_noise_type} not implemented")
+
+                # Calculate the norm of the original embeddings
+                original_norm = torch.norm(embeddings, p=2, dim=1, keepdim=True)
+
+                # Apply noise
+                embeddings = embeddings + noise
+
+                # Calculate the norm of the noisy embeddings
+                noisy_norm = torch.norm(embeddings, p=2, dim=1, keepdim=True)
+
+                # Normalize the noisy embeddings
+                embeddings = embeddings * (original_norm / noisy_norm)
+        elif self.neft:
+                epsilon = torch.empty_like(embeddings).uniform_(-1, 1).detach()
+                scaled_noise = (self.neft_alpha / math.sqrt(embeddings.shape[0] * embeddings.shape[-1])) * epsilon
+                embeddings = embeddings + scaled_noise
+        return embeddings
+
     def forward(self, input_ids, position_ids=None, token_type_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
+        if not self.noise_positonal_embedding:
+            words_embeddings = self._noise(words_embeddings)
+
         if self.position_embedding_type == 'learned_absolute':
             assert position_ids is not None
             position_embeddings = self.position_embeddings(position_ids)
@@ -376,6 +444,9 @@ class Embedding(MegatronModule):
         else:
             embeddings = self.embedding_dropout(embeddings)
 
+        if self.noise_positonal_embedding:
+            embeddings = self._noise(embeddings)    
+        
         return embeddings
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
@@ -514,6 +585,13 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
         rotary_base=10000,
+        embedding_noise=False,
+        embedding_noise_mean=0.0,
+        embedding_noise_std=0.001,
+        embedding_noise_type='uniform',
+        neft=False,
+        neft_alpha=5.0,
+        noise_positonal_embedding=False
     ):
         super(TransformerLanguageModel, self).__init__(
             config=config, share_token_embeddings=share_embeddings_and_output_weights
@@ -537,6 +615,14 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = config.sequence_parallel
         self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
+        self.embedding_noise = embedding_noise
+        self.embedding_noise_mean = embedding_noise_mean
+        self.embedding_noise_std = embedding_noise_std
+        self.embedding_noise_type = embedding_noise_type
+        self.neft = neft
+        self.neft_alpha = neft_alpha
+        self.noise_positonal_embedding = noise_positonal_embedding
+
         if kv_channels is None:
 
             assert (
@@ -557,6 +643,13 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 position_embedding_type=position_embedding_type,
                 fp32_residual_connection=fp32_residual_connection,
                 dtype=self.dtype,
+                embedding_noise=self.embedding_noise,
+                embedding_noise_mean=self.embedding_noise_mean,
+                embedding_noise_std=self.embedding_noise_std,
+                embedding_noise_type=self.embedding_noise_type,
+                neft=self.neft,
+                neft_alpha=self.neft_alpha,
+                noise_positonal_embedding=self.noise_positonal_embedding,
             )
             self._embedding_key = 'embedding'
 
