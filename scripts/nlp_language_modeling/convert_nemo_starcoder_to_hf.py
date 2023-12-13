@@ -61,7 +61,8 @@ def get_args():
         "--hf-in-path",
         type=str,
         default=None,
-        help="A HF model path, " "e.g. a folder containing hhttps://huggingface.co/bigcode/starcoder/tree/main",
+        help="A HF model path, "
+             "e.g. a folder containing hhttps://huggingface.co/bigcode/starcoder/tree/main",
     )
     parser.add_argument(
         "--hf-out-path",
@@ -122,6 +123,10 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
             return "transformer.wte.weight"
         if new_key.startswith("model.embedding.position_embeddings.weight"):
             return "transformer.wpe.weight"
+        if new_key.startswith("decoder.final_layernorm"):
+            return new_key.replace("decoder.final_layernorm", "transformer.ln_f")
+        if new_key.startswith("output_layer"):
+            return new_key.replace("output_layer", "lm_head")
 
         key = new_key.replace("decoder.layers", "transformer.h")
 
@@ -139,6 +144,8 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         if '_extra_state' in key:
             continue
         orig_key = get_original_key(key)
+        if orig_key == key:
+            logging.warning("Cannot find the HF key for:", key)
         checkpoint[orig_key] = param_to_weights(value)
 
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
