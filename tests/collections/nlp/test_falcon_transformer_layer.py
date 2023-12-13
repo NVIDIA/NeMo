@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 import pytest
 import torch
 from megatron.core import parallel_state
@@ -85,7 +83,6 @@ class TestParallelFalconTransformerLayer:
         # Test all local shapes
         tensor_local_shapes = {k: v.local_shape for k, v in sharded_tensors.items()}
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        ans = get_tensor_shapes_for_tp(transformer_config, tp_size)
         assert tensor_local_shapes == get_tensor_shapes_for_tp(transformer_config, tp_size)
 
         # Test all global shapes. Prepend num layers in front of expected shapes
