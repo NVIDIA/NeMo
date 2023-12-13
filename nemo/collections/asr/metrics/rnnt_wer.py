@@ -1319,7 +1319,7 @@ class RNNTDecodingConfig:
 
     # greedy decoding config
     greedy: greedy_decode.GreedyBatchedRNNTInferConfig = field(
-        default_factory=lambda: greedy_decode.GreedyBatchedRNNTInferConfig()
+        default_factory=greedy_decode.GreedyBatchedRNNTInferConfig
     )
 
     # beam decoding config
