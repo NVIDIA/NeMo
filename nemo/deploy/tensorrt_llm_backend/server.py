@@ -123,9 +123,9 @@ class ModelServer:
             out.write(template.render(**template_args))
 
     def _render_postprocessing_template(self, env):
-        template_path = os.path.join("preprocessing", "config.pbtxt.j2")
+        template_path = os.path.join("postprocessing", "config.pbtxt.j2")
         output_path = os.path.join(
-            self.model_repository, "preprocessing", "config.pbtxt"
+            self.model_repository, "postprocessing", "config.pbtxt"
         )
 
         template = env.get_template(template_path)
