@@ -95,6 +95,8 @@ model:
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
 
   spec_overrides:
+    - submodule: 'submodules.input_layernorm'
+      class: 'megatron.core.transformer.custom_layers.transformer_engine.TENorm'
     - submodule: 'submodules.self_attention'
       class: 'nemo.collections.nlp.modules.common.hyena.HyenaOperator'
       config_key: 'hyena'

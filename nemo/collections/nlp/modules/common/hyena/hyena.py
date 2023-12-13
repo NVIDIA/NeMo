@@ -335,6 +335,9 @@ class HyenaOperator(nn.Module):
         raise NotImplementedError("Working on it!")
 
     def forward(self, u, *args, **kwargs):
+        # In MCore the leading dimension is the sequence dimension
+        u = rearrange(u, 'l b d -> b l d')
+
         l = u.size(-2)
         l_filter = min(l, self.l_max)
         u = self.in_proj(u)
@@ -377,6 +380,9 @@ class HyenaOperator(nn.Module):
 
         y = self.activation(rearrange(v * x[0], 'b h v z l -> b (z l) (h v)', z=self.num_blocks, h=self.num_heads))
         y = self.out_proj(y)
+
+        # Convert back to sequence-first for MCore
+        y = rearrange(y, 'b l h -> l b h')
 
         # MCore TransformerLayer expects tuple where 2nd element represents the bias, it can be None
         return y, None
