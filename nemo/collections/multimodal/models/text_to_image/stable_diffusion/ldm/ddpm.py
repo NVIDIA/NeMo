@@ -283,7 +283,6 @@ class DDPM(torch.nn.Module):
             for k in keys:
                 if k.startswith("cond_stage_model"):
                     deleted += 1
-                    logging.info("Deleting ignored key {} from state_dict.".format(k))
                     del sd[k]
             logging.info(f"Deleted {deleted} keys from `cond_stage_model` state_dict.")
 
@@ -294,7 +293,7 @@ class DDPM(torch.nn.Module):
                 if k.startswith("model.diffusion_model"):
                     deleted += 1
                     del sd[k]
-            logging.info(f"Deleted {deleted} keys from `cond_stage_model` state_dict.")
+            logging.info(f"Deleted {deleted} keys from `model.diffusion_model` state_dict.")
 
         missing, unexpected = (
             self.load_state_dict(sd, strict=False) if not only_model else self.model.load_state_dict(sd, strict=False)
