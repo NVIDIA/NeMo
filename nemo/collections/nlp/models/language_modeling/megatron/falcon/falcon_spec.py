@@ -33,10 +33,17 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+    from typing import Any
+    ModuleSpec = Any
+
 from .falcon_decoder_layer import FalconTransformerLayer
 
 # Use this spec for an implementation using modules in TE
 def get_falcon_layer_spec() -> ModuleSpec:
+    if not HAVE_MEGATRON_CORE:
+        raise ImportError(
+            "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+        )
     falcon_submodules = TransformerLayerSubmodules(
         input_layernorm=TENorm,
         self_attention=ModuleSpec(

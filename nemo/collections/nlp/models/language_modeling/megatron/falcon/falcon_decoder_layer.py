@@ -27,6 +27,9 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+    class TransformerLayer:
+        pass
+
 """ We use the following notation throughout this file:
      h: hidden size
      n: number of attention heads
