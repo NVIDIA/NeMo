@@ -993,7 +993,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     new_state_dict[key_] = state_dict[key_]
             state_dict = new_state_dict
 
-        if cfg.get('unet_config') and cfg.get('unet_config').get('use_te_fp8') == False:
+        if conf.get('unet_config') and conf.get('unet_config').get('use_te_fp8') == False:
             # remove _extra_state in fp8 if there is.
             new_state_dict = {}
             for key in state_dict.keys():
@@ -1014,7 +1014,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 new_key = new_key.replace('ff.net.fc1_', 'ff.net.1.proj.')
                 new_key = new_key.replace('ff.net.fc2_', 'ff.net.3.')
 
-                new_state_dict[new_key] = checkpoint['state_dict'][key]
+                new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
 
         return state_dict
