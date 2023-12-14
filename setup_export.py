@@ -37,7 +37,7 @@ def setup_export():
         # Versions should comply with PEP440.  For a discussion on single-sourcing
         # the version across setup.py and the project code, see
         # https://packaging.python.org/en/latest/single_source_version.html
-        version="MINOR",
+        version=1,
         description="NeMo Export - a module to export nemo checkpoints to TensorRT-LLM",
         long_description="NeMo Export - a module to export nemo checkpoints to TensorRT-LLM",
         # Author details
