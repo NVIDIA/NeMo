@@ -28,7 +28,6 @@ import torch
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
-from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
@@ -83,13 +82,12 @@ try:
         optim_state_to_sharding_state,
     )
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-
+    from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
