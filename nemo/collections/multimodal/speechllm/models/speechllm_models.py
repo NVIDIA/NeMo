@@ -38,6 +38,7 @@ from nemo.collections.multimodal.speechllm.modules.speechllm_perception import (
     MultiAudioPerceptionModel,
 )
 from nemo.collections.multimodal.speechllm.parts.utils.data_utils import normalize_text, to_cuda
+from nemo.collections.multimodal.speechllm.parts.utils.module_utils import convert_dataclass_to_dict
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -552,8 +553,16 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 gpt_cfg.perception.encoder = audio_cfg.encoder
             else:
                 for key in gpt_cfg.perception.encoders:
-                    model_key = gpt_cfg.perception.encoders[key].get("model_key", "encoder")
-                    gpt_cfg.perception.encoders[key]["model"] = audio_cfg[key][model_key]
+                    model_key = gpt_cfg.perception.encoders[key].get("model_key", None)
+                    if "clap" in key:
+                        output_key = gpt_cfg.perception.encoders[key].get('output_key', "projection_dim")
+                        gpt_cfg.perception.encoders[key]["model"][output_key] = getattr(audio_cfg[key], output_key)
+                        continue
+
+                    if model_key is None:
+                        gpt_cfg.perception.encoders[key]["model"] = audio_cfg[key]
+                    else:
+                        gpt_cfg.perception.encoders[key]["model"] = audio_cfg[key][model_key]
                     if "preprocessor" in audio_cfg[key]:
                         gpt_cfg.perception.encoders[key]['preprocessor'] = audio_cfg[key].preprocessor
                 if speaker_cfg is not None:
@@ -664,8 +673,15 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             audio_encoders = {}
             audio_enc_cfgs = {}
             for key, encoder_cfg in cfg.model.perception.encoders.items():
-                audio_encoders[key] = cls.get_pretraind_audio_model(encoder_cfg)
-                audio_enc_cfgs[key] = audio_encoders[key].cfg
+                if "clap" in key:
+                    from transformers import ClapAudioModelWithProjection
+
+                    pretrained_model = encoder_cfg.get("pretrained_model", "laion/clap-htsat-fused")
+                    audio_encoders[key] = ClapAudioModelWithProjection.from_pretrained(pretrained_model)
+                    audio_enc_cfgs[key] = audio_encoders[key].config
+                else:
+                    audio_encoders[key] = cls.get_pretraind_audio_model(encoder_cfg)
+                    audio_enc_cfgs[key] = audio_encoders[key].cfg
             return audio_encoders, audio_enc_cfgs
         else:
             pretrained_audio_model = cfg.model.get("pretrained_audio_model", None)
@@ -707,6 +723,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             return model
         else:
             for key, enc_cfg in cfg.model.perception.encoders.items():
+                if "clap" in key:
+                    continue
                 if enc_cfg.get("use_multi_layer_feat", False):
                     model.perception.encoders[key].encoder.load_state_dict(
                         audio_model[key].encoder.state_dict(), strict=True
@@ -1218,6 +1236,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     # consistent with speech models
     def write_predictions_to_file(self, outputs, output_file_path_prefix, output_dir):
         os.makedirs(output_dir, exist_ok=True)
+        import ipdb
+
+        ipdb.set_trace()
         output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
         output_file_path = os.path.join(output_dir, output_file_path)
         with open(output_file_path, "w") as f_json:

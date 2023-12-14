@@ -147,11 +147,13 @@ model:
     encoders:
       asr_model:
         _target_: nemo.collections.asr.models.ASRModel
+        model_key: encoder
         output_key: d_model
         freeze: True
         pretrained_model: stt_en_fastconformer_transducer_large
       ssl_model:
         _target_: nemo.collections.asr.models.SpeechEncDecSelfSupervisedModel
+        model_key: encoder
         output_key: d_model
         freeze: True
         pretrained_model: ssl_en_conformer_large
