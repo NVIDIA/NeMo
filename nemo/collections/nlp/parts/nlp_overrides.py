@@ -1043,7 +1043,7 @@ class NLPFSDPStrategy(FSDPStrategy):
                         print(f"Failed to load optimzier state dicts. Errored with {e}")
                         exit(1)
                 # Shard optimizer state dict
-                    sharded_osd = FSDP.optim_state_dict_to_load(
+                sharded_osd = FSDP.optim_state_dict_to_load(
                     optim_state_dict=temp_osd, model=self.model, optim=optimizer,
                     )
 
