@@ -14,7 +14,9 @@
 
 import abc
 from abc import ABC
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict
+
+import torch
 
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 
@@ -68,14 +70,16 @@ class ElementType(ABC):
     """Abstract class defining semantics of the tensor elements.
     We are relying on Python for inheritance checking"""
 
+    @torch.jit.unused
     def __str__(self):
         return self.__doc__
 
+    @torch.jit.unused
     def __repr__(self):
         return self.__class__.__name__
 
     @property
-    def type_parameters(self) -> Dict:
+    def type_parameters(self) -> Dict[str, Any]:
         """Override this property to parametrize your type. For example, you can specify 'storage' type such as
         float, int, bool with 'dtype' keyword. Another example, is if you want to represent a signal with a
         particular property (say, sample frequency), then you can put sample_freq->value in there.
@@ -83,13 +87,14 @@ class ElementType(ABC):
         return {}
 
     @property
-    def fields(self) -> Optional[Tuple]:
+    def fields(self):
         """This should be used to logically represent tuples/structures. For example, if you want to represent a
         bounding box (x, y, width, height) you can put a tuple with names ('x', y', 'w', 'h') in here.
         Under the hood this should be converted to the last tesnor dimension of fixed size = len(fields).
         When two types are compared their fields must match."""
         return None
 
+    @torch.jit.unused
     def compare(self, second) -> NeuralTypeComparisonResult:
         # First, check general compatibility
         first_t = type(self)
