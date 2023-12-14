@@ -330,9 +330,9 @@ class DurationPredictor(_DP):
         loss = loss + bin_loss
         
         losses = {
-            "d_pred_loss": loss,
-            "align_loss": align_loss,
-            "bin_loss": bin_loss
+            "dp": loss,
+            "align": align_loss,
+            "bin": bin_loss
         }
 
         if return_aligned_phoneme_ids:
@@ -562,7 +562,7 @@ class NeMoDurationPredictor(DurationPredictor):
 
         #aligner loss
         losses = {
-            "d_pred_loss": loss,
+            "dp": loss,
         }
 
         if return_aligned_phoneme_ids:
@@ -689,7 +689,7 @@ class MFADurationPredictor(DurationPredictor):
         loss = loss.mean()
 
         losses = {
-            "d_pred_loss": loss,
+            "dp": loss,
         }
 
         def loss_masked(durations, target, *loss_masks):
@@ -708,9 +708,9 @@ class MFADurationPredictor(DurationPredictor):
             loss_no_sil_spn = loss_masked(durations, target, loss_mask, ~sil_mask, ~spn_mask)
 
         losses.update({
-            "dp_loss_sil": loss_sil,
-            "dp_loss_sil_spn": loss_sil_spn,
-            "dp_loss_no_sil_spn": loss_no_sil_spn,
+            "dp_sil": loss_sil,
+            "dp_sil_spn": loss_sil_spn,
+            "dp_no_sil_spn": loss_no_sil_spn,
         })
 
         if return_aligned_phoneme_ids:
@@ -1383,7 +1383,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         losses = {}
         if self.condition_on_text:
             losses.update(dp_losses)
-        losses['vb_loss'] = loss
+        losses['vb'] = loss
         loss = loss + dp_loss
 
         outputs = {

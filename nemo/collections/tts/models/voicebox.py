@@ -261,8 +261,7 @@ class VoiceboxModel(TextToWaveform):
                 and self._cfg.validation_ds is not None
                 and self._cfg.validation_ds.get('defer_setup', False)
             )
-            print()
-            if len(self.val_dataloader())==0 and val_deferred_setup:
+            if not self.val_dataloader() and val_deferred_setup:
                 self.setup_multiple_validation_data(val_data_config=self._cfg.validation_ds)
 
         if stage == 'test':
@@ -271,7 +270,7 @@ class VoiceboxModel(TextToWaveform):
                 and self._cfg.test_ds is not None
                 and self._cfg.test_ds.get('defer_setup', False)
             )
-            if len(self.test_dataloader())==0 and test_deferred_setup:
+            if not self.test_dataloader() and test_deferred_setup:
                 self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
 
     def parse(self, str_input: str, **kwargs: Any) -> torch.tensor:
@@ -310,18 +309,12 @@ class VoiceboxModel(TextToWaveform):
         )
     
     def setup_training_data(self, train_data_config: DictConfig | Dict):
-        logging.info("setup_train_data")
-        logging.info(train_data_config)
         return EncDecRNNTModel.setup_training_data(self, train_data_config)
     
     def setup_validation_data(self, val_data_config: DictConfig | Dict):
-        logging.info("setup_validation_data")
-        logging.info(val_data_config)
         return EncDecRNNTModel.setup_validation_data(self, val_data_config)
 
     def setup_test_data(self, test_data_config: DictConfig | Dict):
-        logging.info("setup_test_data")
-        logging.info(test_data_config)
         return EncDecRNNTModel.setup_test_data(self, test_data_config)
 
     # for inference
@@ -408,10 +401,10 @@ class VoiceboxModel(TextToWaveform):
             input_sampling_rate=None
         )
 
-        dp_loss = losses['d_pred_loss']
-        align_loss = losses.get('align_loss', 0)
-        bin_loss = losses.get('bin_loss', 0)
-        vb_loss = losses['vb_loss']
+        dp_loss = losses['dp']
+        align_loss = losses.get('align', 0)
+        bin_loss = losses.get('bin', 0)
+        vb_loss = losses['vb']
 
         loss = align_loss + bin_loss + dp_loss + vb_loss
 
@@ -471,10 +464,10 @@ class VoiceboxModel(TextToWaveform):
             input_sampling_rate=None
         )
 
-        dp_loss = losses['d_pred_loss']
-        align_loss = losses.get('align_loss', 0)
-        bin_loss = losses.get('bin_loss', 0)
-        vb_loss = losses['vb_loss']
+        dp_loss = losses['dp']
+        align_loss = losses.get('align', 0)
+        bin_loss = losses.get('bin', 0)
+        vb_loss = losses['vb']
 
         loss = align_loss + bin_loss + dp_loss + vb_loss
         self.log_dict({f"val_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
