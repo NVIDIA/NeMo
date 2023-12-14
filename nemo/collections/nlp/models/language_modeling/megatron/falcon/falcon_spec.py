@@ -34,6 +34,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
     from typing import Any
+
     ModuleSpec = Any
 
 from .falcon_decoder_layer import FalconTransformerLayer
