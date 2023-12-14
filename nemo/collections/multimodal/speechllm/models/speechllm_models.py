@@ -71,7 +71,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
@@ -244,7 +244,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 encoder_input_i.append(input_emb_list[j])
             encoder_input_i = torch.cat(encoder_input_i)  # T, C
             encoder_length_i = encoded_len[i].sum() + input_length[i]  # total length of audio and text features
-            max_length = max(max_length, encoder_input_i.size(0))
+            max_length = max(max_length, encoder_length_i)
             encoder_input_list.append(encoder_input_i)
             encoder_length_list.append(encoder_length_i)
 
@@ -263,7 +263,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         context_start_idx: Optional[List[List[int]]] = None,
     ):
         # [b, t, c]
-        lm_embedding = self.model.language_model.embedding
+        lm_embedding = (
+            self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
+        )
         input_embeds = lm_embedding.word_embeddings(input_ids)
         if isinstance(encoded, torch.Tensor):
             # single audio
@@ -287,7 +289,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         else:
             encoder_input = encoder_input
         encoder_max_length = encoder_input.shape[1]
-        if lm_embedding.transpose_batch_sequence:
+        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
         if self.cfg.get("sequence_parallel", False):
             encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
@@ -303,7 +305,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         return shifted_labels
 
     def _get_text_embeddings(self, text_tokens, position_ids):
-        lm_embedding = self.model.language_model.embedding
+        lm_embedding = (
+            self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
+        )
         text_embeddings = lm_embedding.word_embeddings(text_tokens)  # (batch_size, seq_len, hidden_size)
         if hasattr(lm_embedding, 'position_embeddings'):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
@@ -362,14 +366,23 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         as the LLM input.
         """
         encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
-        output = self.model(
-            input_ids=None,
-            position_ids=None,
-            encoder_input=encoder_input,
-            attention_mask=attention_mask,
-            labels=labels,
-            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-        )
+        if self.mcore_gpt:
+            output = self.model(
+                input_ids=None,
+                position_ids=None,
+                decoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+            )
+        else:
+            output = self.model(
+                input_ids=None,
+                position_ids=None,
+                encoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+            )
 
         return output, loss_mask
 
@@ -391,18 +404,43 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             if attention_mask is not None:
                 attention_mask = attention_mask.cuda()
                 attention_mask = attention_mask[0:1]
-            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            output_tensor = model(
-                input_ids=None,
-                position_ids=None,
-                encoder_input=input_embeddings,
-                attention_mask=attention_mask,
-                **extra_arg,
-            )
+            if self.mcore_gpt:
+                # if first step, then clear KV cache, otherwise reuse inference_paarms
+                if set_inference_key_value_memory[0].item():
+                    self.inference_params = InferenceParams(
+                        max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
+                    )
+                extra_arg['inference_params'] = self.inference_params
+            else:
+                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            if self.mcore_gpt:
+                output_tensor = model(
+                    input_ids=None,
+                    position_ids=None,
+                    decoder_input=input_embeddings,
+                    attention_mask=attention_mask,
+                    **extra_arg,
+                )
+            else:
+                output_tensor = model(
+                    input_ids=None,
+                    position_ids=None,
+                    encoder_input=input_embeddings,
+                    attention_mask=attention_mask,
+                    **extra_arg,
+                )
 
             if isinstance(output_tensor, tuple):
                 output_tensor = output_tensor[1]  # get logits only
+
+            # Advance inference sequence offset.
+            if self.inference_params:
+                # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
+                if parallel_state.is_pipeline_last_stage():
+                    self.inference_params.sequence_len_offset += output_tensor.size(1)
+                else:
+                    self.inference_params.sequence_len_offset += output_tensor.size(0)
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
@@ -418,7 +456,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             output_tensor, loss_mask = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
-            output_tensor = output_tensor[0]  # get loss only, ingore logits
+            if not self.mcore_gpt:
+                output_tensor = output_tensor[0]  # get loss only, ingore logits
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
@@ -748,9 +787,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             base_model_cfg, cfg, audio_model_cfg, add_cfg_to_tree=False, speaker_cfg=speaker_cfg
         )
 
-        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         save_restore_connector = PEFTSaveRestoreConnector(
-            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=resume_from_checkpoint
+            peft_model_nemo_path=cfg.model.peft.restore_from_path,
+            peft_model_ckpt_path=cfg.model.peft.restore_from_path,
         )
         if os.path.isdir(cfg.model.restore_from_path):
             save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
@@ -802,7 +841,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:
-            super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=False)
+            super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=False)
         else:
             if self.cfg.get('override_vocab_size', False):
                 exclude_list = [
@@ -812,7 +851,14 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             else:
                 exclude_list = []
             state_dict = {k: v for k, v in state_dict.items() if k not in exclude_list}
-            super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=strict)
+            super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=strict)
+
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+         """
+        checkpoint_state_dict = checkpoint['state_dict']
+        self.load_state_dict(checkpoint_state_dict, strict=False)
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
@@ -899,7 +945,6 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-
         loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([batch]), batch_idx)
 
         # We need _inference_config to get generation params
@@ -964,7 +1009,18 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             'metadata': metadata,  # [dict]
         }
 
-        # TODO(zhehuai): handling self.validation_step_outputs for PTL2.0
+        if mode == 'validation':
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[-1] = outputs
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                self.test_step_outputs[-1] = outputs
         return outputs
 
     def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: Optional[int] = None):
@@ -1136,7 +1192,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                             logging.info(f"{mode} {metric_name} {k}: {v.item()}")
                     metric_result = metric_result['rouge1_fmeasure']
                 else:
-                    self.log(metric_log_key, metric_result.item(), sync_dist=True)
+                    self.log(metric_log_key, metric_result.item(), sync_dist=True, batch_size=1)
                     logging.info(f"{mode} {metric_name}: {metric_result.item()}")
 
                 metric_fn.reset()
@@ -1185,7 +1241,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
         self._restore_activation_checkpointing_args()
-        # TODO(zhehuai): add _restore_sequence_parallelism_args after sync to HEAD
+        self._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -1206,14 +1262,6 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             )
 
         return averaged_loss, averaged_metric
-
-    def validation_epoch_end(self, outputs):
-        averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
-        return averaged_loss
-
-    def test_epoch_end(self, outputs):
-        averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
-        return averaged_loss
 
     # consistent with speech models
     def write_predictions_to_file(self, outputs, output_file_path_prefix, output_dir):

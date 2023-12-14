@@ -81,14 +81,15 @@ def nemo_convert(argv):
 
     # Create a PL trainer object which is required for restoring Megatron models
     cfg_trainer = TrainerConfig(
-        gpus=1,
-        accelerator="ddp",
+        devices=1,
+        accelerator='auto',
         num_nodes=1,
         # Need to set the following two to False as ExpManager will take care of them differently.
         logger=False,
         enable_checkpointing=False,
     )
-    trainer = pl.Trainer(cfg_trainer)
+    cfg_trainer = OmegaConf.to_container(OmegaConf.create(cfg_trainer))
+    trainer = pl.Trainer(**cfg_trainer)
 
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
     try:

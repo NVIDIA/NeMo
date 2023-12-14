@@ -69,6 +69,7 @@ def get_default_sampling_params():
         "add_BOS": True,
         "all_probs": False,
         "compute_logprob": False,
+        "end_strings": ["<|endoftext|>", "<extra_id_1>"],
     }
 
     return sampling_params
@@ -104,6 +105,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
             top_p=sampling_params['top_p'],
             greedy=sampling_params['use_greedy'],
             repetition_penalty=sampling_params['repetition_penalty'],
+            end_strings=sampling_params['end_strings'],
             min_tokens_to_generate=length_params['min_length'],
             compute_attention_mask=sampling_params.get("compute_attention_mask", True),
             **strategy_args,
@@ -125,6 +127,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
                 top_p=sampling_params['top_p'],
                 greedy=sampling_params['use_greedy'],
                 repetition_penalty=sampling_params['repetition_penalty'],
+                end_strings=sampling_params['end_strings'],
                 min_tokens_to_generate=length_params['min_length'],
                 **strategy_args,
             )
@@ -157,6 +160,14 @@ def get_computeprob_response(tokenizer, response, inputs):
                     token_len = int(inputs[1][batch_id].item())
                     new_token_id = inputs[0][batch_id][:token_len].tolist()
                     new_text = tokenizer.ids_to_text(new_token_id)
+                else:
+                    raise TypeError(
+                        f"Unsupported type of `inputs[0]`: {type(inputs[0])}. Supported types: `str`, `torch.Tensor`."
+                    )
+            else:
+                raise TypeError(
+                    f"Unsupported type of parameter `inputs`: {type(inputs)}. Supported types: `list` and `tuple`"
+                )
             new_token_ids.append(new_token_id)
             new_tokens.append(response['tokens'][batch_id][:token_len])
             new_texts.append(new_text)
@@ -380,8 +391,8 @@ def synced_generate(
     compute_attention_mask=True,
     compute_logprob=False,
     repetition_penalty=1.2,
-    min_tokens_to_generate=0,
     end_strings=[],
+    min_tokens_to_generate=0,
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -476,8 +487,8 @@ def generate(
     compute_attention_mask=True,
     compute_logprob=False,
     repetition_penalty=1.0,
-    min_tokens_to_generate=0,
     end_strings=['<|endoftext|>'],
+    min_tokens_to_generate=0,
     **strategy_args,
 ) -> OutputType:
     """
@@ -561,8 +572,8 @@ def generate(
         top_p=top_p,
         greedy=greedy,
         repetition_penalty=repetition_penalty,
-        min_tokens_to_generate=min_tokens_to_generate,
         end_strings=end_strings,
+        min_tokens_to_generate=min_tokens_to_generate,
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:

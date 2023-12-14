@@ -196,7 +196,7 @@ def _multi_audio_text_collate_fn(
     batch = _audio_text_collate_fn(batch, tokens_to_generate, pad_to_max_length, max_seq_length, text_pad_id)
 
     # add multi audio specific fields
-    batch['context_start_idx'] = list(context_start_idx)
+    batch['context_start_idx'] = context_start_idx
     batch['num_audios'] = torch.LongTensor(num_audios)
     batch['audio_signal'] = audio_signals_merged
     batch['audio_signal_length'] = audio_lengths_merged
@@ -262,17 +262,12 @@ class TextProcessing(object):
         else:
             self.eos_id = None
 
-        if hasattr(tokenizer, "pad_id"):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             self.pad_id = tokenizer.pad_id
         else:
             self.pad_id = self.eos_id if self.eos_id is not None else 0
 
         self.sep_id = sep_id if add_sep else None
-
-        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
-            self.pad_id = tokenizer.pad_id
-        else:
-            self.pad_id = 0
 
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
