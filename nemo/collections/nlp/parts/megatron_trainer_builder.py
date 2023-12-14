@@ -118,9 +118,11 @@ class MegatronTrainerBuilder:
 
         return plugins
 
-    def create_trainer(self, callbacks=(CustomProgressBar(),)) -> Trainer:
+    def create_trainer(self, callbacks=None) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
+        if callbacks is None:
+            callbacks = [CustomProgressBar()]
         return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
 
 
