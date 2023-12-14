@@ -478,7 +478,7 @@ class VoiceboxModel(TextToWaveform):
 
         loss = align_loss + bin_loss + dp_loss + vb_loss
         self.log_dict({f"val_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
-        self.log("val_loss/total", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+        self.log("val_loss_total", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         return loss
 
     @classmethod

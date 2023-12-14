@@ -7,7 +7,7 @@
 defaults:
   - override /hydra/launcher: nemo_launcher
 
-optimized_metric: "val/acc_best"
+optimized_metric: "val_loss_total"
 
 # Hydra arguments necessary for hyperparameter optimization
 hydra:

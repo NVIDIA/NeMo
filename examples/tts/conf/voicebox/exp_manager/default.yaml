@@ -6,7 +6,7 @@ create_checkpoint_callback: True
 # any ModelCheckpoint argument can be set here
 checkpoint_callback_params:
   # save the best checkpoints based on this metric 
-  monitor: val_loss
+  monitor: val_loss_total
 
   # choose how many total checkpoints to save
   save_top_k: 5

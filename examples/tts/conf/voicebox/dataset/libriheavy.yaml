@@ -1,7 +1,7 @@
 # data_dir: ${paths.data_dir}
 
-corpus_dir: /datasets/LibriLight/
-manifests_dir: data/LibriHeavy
+corpus_dir: ???
+manifests_dir: ???
 subsets:
   - small
   - medium
