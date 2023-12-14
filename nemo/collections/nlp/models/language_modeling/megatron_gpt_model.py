@@ -286,17 +286,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.use_loss_mask and self.transformer_config.sequence_parallel:
             raise ValueError('Loss mask is not supported with sequence parallelism.')
 
-    def get_gpt_module_list(self):
-        if isinstance(self.model, list):
-            return [
-                model.module if isinstance(model, (Float16Module, MCoreFloat16Module)) else model
-                for model in self.model
-            ]
-        elif isinstance(self.model, (Float16Module, MCoreFloat16Module)):
-            return [self.model.module]
-        else:
-            return [self.model]
-
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -409,7 +398,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # Disable overlapped grad sync for embedding grad when
             # pipeline parallelism is enabled
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                modules = self.get_gpt_module_list()
+                modules = self.get_model_module_list()
                 if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
                     if len(modules) > 1:
                         module = modules[0]  # only the first virtual rank has the embeddings
@@ -498,7 +487,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             param_sync_func = self.sync_overlap_parameters
 
         # pipeline schedules will get these from self.model.config
-        for module in self.get_gpt_module_list():
+        for module in self.get_model_module_list():
             module.config.no_sync_func = no_sync_func
             module.config.grad_sync_func = grad_sync_func
             module.config.param_sync_func = param_sync_func
@@ -741,7 +730,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             parallel_state.is_pipeline_first_stage(ignore_virtual=True)
             or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
         ):
-            module_list = self.get_gpt_module_list()
+            module_list = self.get_model_module_list()
             if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
                 module = module_list[0]  # only the first virtual rank has the embeddings
             elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
@@ -1150,7 +1139,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if stage == 'fit':
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 if self.cfg.get('share_embeddings_and_output_weights', True):
-                    for index, module in enumerate(self.get_gpt_module_list()):
+                    for index, module in enumerate(self.get_model_module_list()):
                         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                             parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                         sync_embeddings = (
@@ -1297,22 +1286,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         return result
 
-    def setup_transformer_engine_tp_groups(self):
-        """ This should be called after model parallel groups have been initialized
-            and only needs to be called when using Transformer Engine.
-        """
-        for module in self.get_gpt_module_list():
-            """Set TP group
-               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
-            """
-            # Deep iterate but skip self to avoid infinite recursion.
-            for index, child in enumerate(module.modules()):
-                if index == 0:
-                    continue
-                if hasattr(child, "set_tensor_parallel_group"):
-                    tp_group = parallel_state.get_tensor_model_parallel_group()
-                    child.set_tensor_parallel_group(tp_group)
-
     def on_save_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-save-checkpoint
@@ -1338,7 +1311,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # mcore uses distributed checkpointing
         if self.mcore_gpt:
             if 'state_dict' in checkpoint and checkpoint['state_dict']:
-                for index, module in enumerate(self.get_gpt_module_list()):
+                for index, module in enumerate(self.get_model_module_list()):
                     if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                         checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
                     else:
@@ -1373,7 +1346,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             module_prefix = f'{prefix}model.'
             sharded_state_dict = {}
-            for index, module in enumerate(self.get_gpt_module_list()):
+            for index, module in enumerate(self.get_model_module_list()):
                 if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                     # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
                     parallel_state.set_virtual_pipeline_model_parallel_rank(index)
@@ -1420,7 +1393,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.activations_checkpoint_layers_per_pipeline = None
 
         # Reset model parameters.
-        for module in self.get_gpt_module_list():
+        for module in self.get_model_module_list():
             if self.cfg.get('mcore_gpt', False):
                 module.decoder.config.recompute_granularity = None
                 module.decoder.config.recompute_method = None
@@ -1443,7 +1416,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.activations_checkpoint_layers_per_pipeline = self.last_activations_checkpoint_layers_per_pipeline
 
         # Restore model parameters.
-        for module in self.get_gpt_module_list():
+        for module in self.get_model_module_list():
             if self.cfg.get('mcore_gpt', False):
                 module.decoder.config.recompute_granularity = self.last_activations_checkpoint_granularity
                 module.decoder.config.recompute_method = self.last_activations_checkpoint_method
@@ -1474,7 +1447,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.transformer_config.sequence_parallel = False
 
         # Reset model parameters.
-        for module in self.get_gpt_module_list():
+        for module in self.get_model_module_list():
             for mod in module.modules():
                 if hasattr(mod, "sequence_parallel"):
                     mod.sequence_parallel = False
@@ -1490,7 +1463,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.transformer_config.sequence_parallel = self.last_sequence_parallel
 
         # Restore model parameters.
-        for module in self.get_gpt_module_list():
+        for module in self.get_model_module_list():
             for mod in module.modules():
                 if hasattr(mod, "sequence_parallel"):
                     mod.sequence_parallel = self.last_sequence_parallel

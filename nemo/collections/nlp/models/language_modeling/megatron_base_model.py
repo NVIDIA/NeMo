@@ -27,6 +27,7 @@ from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
@@ -57,6 +58,7 @@ try:
     from megatron.core import ModelParallelConfig, parallel_state
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 
     HAVE_MEGATRON_CORE = True
 
@@ -210,6 +212,33 @@ class MegatronBaseModel(NLPModel):
         if self.gc_interval > 0:
             gc.disable()
             self.validation_global_step = 1
+
+    def setup_transformer_engine_tp_groups(self):
+        """ This should be called after model parallel groups have been initialized
+            and only needs to be called when using Transformer Engine.
+        """
+        for module in self.get_model_module_list():
+            """Set TP group
+               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            """
+            # Deep iterate but skip self to avoid infinite recursion.
+            for index, child in enumerate(module.modules()):
+                if index == 0:
+                    continue
+                if hasattr(child, "set_tensor_parallel_group"):
+                    tp_group = parallel_state.get_tensor_model_parallel_group()
+                    child.set_tensor_parallel_group(tp_group)
+
+    def get_model_module_list(self):
+        if isinstance(self.model, list):
+            return [
+                model.module if isinstance(model, (Float16Module, MCoreFloat16Module)) else model
+                for model in self.model
+            ]
+        elif isinstance(self.model, (Float16Module, MCoreFloat16Module)):
+            return [self.model.module]
+        else:
+            return [self.model]
 
     def _reconfigure_val_batches(self):
         """
