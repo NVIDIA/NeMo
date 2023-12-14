@@ -69,7 +69,7 @@ def convert_module_to_fp8(model):
     for n, v in model.named_modules():
         if isinstance(v, torch.nn.Linear):
             # if n in ['class_embed', 'bbox_embed.layers.0', 'bbox_embed.layers.1', 'bbox_embed.layers.2']: continue
-            print(f'[INFO] Replace Linear: {n}, weight: {v.weight.shape}', flush=True)
+            logging.info(f'[INFO] Replace Linear: {n}, weight: {v.weight.shape}', flush=True)
             if v.bias is None:
                 is_bias = False
             else:
@@ -563,7 +563,7 @@ class UNetModel(nn.Module):
         input_block_chans = [model_channels]
         ch = model_channels
         ds = 1
-        use_te = True if use_te_fp8 else False
+        self.use_te_fp8 = use_te_fp8
         for level, mult in enumerate(channel_mult):
             for _ in range(num_res_blocks):
                 layers = [
@@ -606,7 +606,7 @@ class UNetModel(nn.Module):
                             use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
-                            use_te=use_te,
+                            use_te=self.use_te_fp8,
                             lora_network_alpha=lora_network_alpha,
                         )
                     )
@@ -672,7 +672,7 @@ class UNetModel(nn.Module):
                 use_linear=use_linear_in_transformer,
                 use_checkpoint=use_checkpoint,
                 use_flash_attention=use_flash_attention,
-                use_te=use_te,
+                use_te=self.use_te_fp8,
                 lora_network_alpha=lora_network_alpha,
             ),
             ResBlock(
@@ -731,7 +731,7 @@ class UNetModel(nn.Module):
                             use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
-                            use_te=use_te,
+                            use_te=self.use_te_fp8,
                             lora_network_alpha=lora_network_alpha,
                         )
                     )
@@ -788,7 +788,7 @@ class UNetModel(nn.Module):
         if enable_amp_o2_fp16:
             self.convert_to_fp16()
 
-        elif use_te_fp8:
+        elif self.use_te_fp8:
             assert (enable_amp_o2_fp16 is False), "fp8 training can't work with fp16 O2 amp recipe"
             convert_module_to_fp8(self)
 
@@ -805,7 +805,6 @@ class UNetModel(nn.Module):
             }
             fp8_format = fp8_format_dict[fp8_format]
 
-            self.use_fp8 = True
             self.fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
                 margin=fp8_margin,
                 interval=fp8_interval,
@@ -1070,9 +1069,9 @@ class UNetModel(nn.Module):
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         with transformer_engine.pytorch.fp8_autocast(
-                enabled=self.use_fp8,
+                enabled=self.use_te_fp8,
                 fp8_recipe=self.fp8_recipe,
-            ) if self.use_fp8 else nullcontext():
+            ) if self.use_te_fp8 else nullcontext():
             out = self._forward(x, timesteps, context, y, **kwargs)
         return out
 
