@@ -4,9 +4,7 @@
 # python train.py experiment=local-1
 
 defaults:
-  - _self_  # original default order following train.yaml
   - override /model: mfa
-  - override /debug: default
 
 
 # all parameters below will be merged with parameters from default configurations set above
@@ -20,6 +18,14 @@ model:
   
   mfa_tokenizer:
     textgrid_dir: /datasets/LibriLight/mfa_data_aligned
+  
+  duration_predictor:
+    depth: 2
+    heads: 2
+
+  voicebox:
+    depth: 2
+    heads: 2
 
   train_ds:
     max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
