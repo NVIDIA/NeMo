@@ -43,7 +43,7 @@ def setup_export():
         # Author details
         author="NVIDIA",
         license='Apache2',
-        packages=setuptools.find_packages(where="./nemo/export/"),
+        packages=["nemo.export.trt_llm", "nemo.export.trt_llm.decoder"],
         install_requires=req_file("requirements_export.txt"),
         # Add in any packaged data.
         include_package_data=True,
