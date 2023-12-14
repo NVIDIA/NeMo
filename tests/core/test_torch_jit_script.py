@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from inspect import isclass
 from typing import Any, Dict
 
+import pytest
 import torch
 import torch.nn as nn
 
+import nemo.core.neural_types.elements as nelements
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types import FloatType, NeuralType, VoidType
 
@@ -79,6 +82,7 @@ class DummyModuleWithIOTypes(NeuralModule):
 
 
 class TestTorchJitCompatibility:
+    @pytest.mark.unit
     def test_simple_linear(self):
         module = torch.jit.script(SimpleLinear())
         x = torch.zeros(2, 10)
@@ -86,6 +90,7 @@ class TestTorchJitCompatibility:
         assert result.shape == (2, 20)
         assert torch.allclose(result, torch.zeros_like(result))
 
+    @pytest.mark.unit
     def test_simple_linear_exportable(self):
         module = torch.jit.script(SimpleLinearExportable())
         x = torch.zeros(2, 10)
@@ -93,6 +98,7 @@ class TestTorchJitCompatibility:
         assert result.shape == (2, 20)
         assert torch.allclose(result, torch.zeros_like(result))
 
+    @pytest.mark.unit
     def test_simple_linear_with_types(self):
         module = torch.jit.script(SimpleLinearWithTypes())
         x = torch.zeros(2, 10)
@@ -100,6 +106,32 @@ class TestTorchJitCompatibility:
         assert result.shape == (2, 20)
         assert torch.allclose(result, torch.zeros_like(result))
 
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "neural_type",
+        [
+            getattr(nelements, neural_type_str)
+            for neural_type_str in dir(nelements)
+            if isclass(getattr(nelements, neural_type_str))
+            and issubclass(getattr(nelements, neural_type_str), nelements.ElementType)
+            and not (getattr(nelements, neural_type_str) is nelements.ElementType)
+        ],
+    )
+    def test_element_compilable(self, neural_type):
+        """
+        Tests that NeuralType elements are compilable by TorchScript.
+        """
+
+        @torch.jit.script
+        def identity(x: torch.Tensor):
+            if isinstance(neural_type(), nelements.VoidType):
+                return x
+            else:
+                return x + 1
+
+        _ = identity(torch.tensor(1.0))
+
+    @pytest.mark.unit
     def test_dummy_module_with_io_types(self):
         module = torch.jit.script(DummyModuleWithIOTypes())
         x = torch.rand(2, 10)
@@ -107,6 +139,7 @@ class TestTorchJitCompatibility:
         assert result.shape == x.shape
         assert torch.allclose(result, x)
 
+    @pytest.mark.unit
     def test_chain_with_types(self):
         dummy_module = torch.jit.script(DummyModuleWithIOTypes())
         module = torch.jit.script(SimpleLinearWithTypes())

@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import abc
 from abc import ABC
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import torch
 
@@ -94,8 +93,10 @@ class ElementType(ABC):
         When two types are compared their fields must match."""
         return None
 
-    @torch.jit.unused
     def compare(self, second) -> NeuralTypeComparisonResult:
+        if torch.jit.is_scripting():
+            # Suppress in torch.jit.script
+            return NeuralTypeComparisonResult.SAME
         # First, check general compatibility
         first_t = type(self)
         second_t = type(second)
@@ -136,7 +137,11 @@ class VoidType(ElementType):
     For example, when you need template-like functionality.
     """
 
-    def compare(cls, second: abc.ABCMeta) -> NeuralTypeComparisonResult:
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
+
+    def compare(cls, second) -> NeuralTypeComparisonResult:
         return NeuralTypeComparisonResult.SAME
 
 
@@ -145,48 +150,92 @@ class ChannelType(ElementType):
     """Element to represent convolutional input/output channel.
     """
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
+
 
 class EmbeddedTextType(ChannelType):
     """Element to represent output on word/text embedding layers
     """
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
+
 
 class LogitsType(ElementType):
     """Element type to represent logits"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
 
 
 class ProbsType(ElementType):
     """Element type to represent probabilities. For example, outputs of softmax layers."""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
+
 
 class LogprobsType(ElementType):
     """Element type to represent log-probabilities. For example, outputs of log softmax layers."""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
 
 
 class LabelsType(ElementType):
     """Element type to represent some sort of labels. This is often used as a base class to create
     a more concrete types such as RegressionValuesType, etc."""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
+
 
 class HypothesisType(LabelsType):
     """Element type to represent some decoded hypothesis, which may further be processed to obtain
     a concrete label."""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
+
 
 class LengthsType(ElementType):
     """Element type representing lengths of something"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
 
 
 class LossType(ElementType):
     """Element type to represent outputs of Loss modules"""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
+
 
 class EncodedRepresentation(ChannelType):
     """Element type to represent encoded representation, for example, encoder's output"""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
+
 
 class AcousticEncodedRepresentation(EncodedRepresentation):
     """Element type to represent encoded representation returned by the acoustic encoder model"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
 
 
 class AudioSignal(ElementType):
@@ -196,8 +245,8 @@ class AudioSignal(ElementType):
         freq is the same.
     """
 
-    def __init__(self, freq: int = None):
-        self._params = {}
+    def __init__(self, freq: Optional[int] = None):
+        self._params: Dict[str, Any] = {}
         self._params['freq'] = freq
 
     @property
@@ -211,8 +260,8 @@ class VideoSignal(ElementType):
         fps (int): frames per second.
     """
 
-    def __init__(self, fps: int = None):
-        self._params = {}
+    def __init__(self, fps: Optional[int] = None):
+        self._params: dict[str, Any] = {}
         self._params['fps'] = fps
 
     @property
@@ -223,33 +272,73 @@ class VideoSignal(ElementType):
 class SpectrogramType(ChannelType):
     """Element type to represent generic spectrogram signal"""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class MelSpectrogramType(SpectrogramType):
     """Element type to represent mel spectrogram signal"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class MFCCSpectrogramType(SpectrogramType):
     """Element type to represent MFCC spectrogram signal"""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class PredictionsType(LabelsType):
     """Element type to represent some sort of predictions returned by model"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class RegressionValuesType(PredictionsType):
     """Element type to represent labels for regression task"""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class CategoricalValuesType(PredictionsType):
     """Element type to represent labels for categorical classification task"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class MaskType(PredictionsType):
     """Element type to represent a boolean mask"""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class Index(ElementType):
     """Type representing an element being an index of the sample."""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class Target(ElementType):
@@ -257,11 +346,21 @@ class Target(ElementType):
         Type representing an element being a target value.
     """
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class ClassificationTarget(Target):
     """
         Type representing an element being target value in the classification task, i.e. identifier of a desired class.
     """
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class ImageValue(ElementType):
@@ -270,6 +369,11 @@ class ImageValue(ElementType):
         e.g. a single element (R) of RGB image.
     """
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class NormalizedImageValue(ImageValue):
     """
@@ -277,13 +381,28 @@ class NormalizedImageValue(ImageValue):
         e.g. a single element (R) of normalized RGB image.
     """
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class ImageFeatureValue(ImageValue):
     """Type representing an element (single value) of a (image) feature maps."""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class StringType(ElementType):
     """Element type representing a single string"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class StringLabel(StringType):
@@ -291,57 +410,126 @@ class StringLabel(StringType):
         Type representing an label being a string with class name (e.g. the "hamster" class in CIFAR100).
     """
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class BoolType(ElementType):
     """Element type representing a single integer"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class IntType(ElementType):
     """Element type representing a single integer"""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class FloatType(ElementType):
     """Element type representing a single float"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+        pass
 
 
 class TokenIndex(IntType):
     """Type representing an element being index of a token in some kind of a vocabulary."""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class Length(IntType):
     """Type representing an element storing a "length" (e.g. length of a list)."""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class ProbabilityDistributionSamplesType(ElementType):
     """Element to represent tensors that meant to be sampled from a valid probability distribution
     """
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class NormalDistributionSamplesType(ProbabilityDistributionSamplesType):
     """Element to represent tensors that meant to be sampled from a valid normal distribution
     """
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class SequenceToSequenceAlignmentType(ElementType):
     """Class to represent the alignment from seq-to-seq attention outputs. Generally a mapping from endcoder time steps
     to decoder time steps."""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class NormalDistributionMeanType(ElementType):
     """Element to represent the mean of a normal distribution"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class NormalDistributionLogVarianceType(ElementType):
     """Element to represent the log variance of a normal distribution"""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class TokenDurationType(ElementType):
     """Element for representing the duration of a token"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
 
 
 class TokenLogDurationType(ElementType):
     """Element for representing the log-duration of a token"""
 
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
+
 
 class LogDeterminantType(ElementType):
     """Element for representing log determinants usually used in flow models"""
+
+    def __init__(self):
+        """Dummy init for TorchScript compatibility"""
+
+    pass
