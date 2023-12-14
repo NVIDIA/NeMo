@@ -27,10 +27,13 @@ except (ImportError, ModuleNotFoundError):
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
+    MLPInfusedAdapterConfig,
+    InfusedAdapterConfig,
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
     ParallelLinearAdapterConfig,
-    ParallelLinearAdapterWeightTyingConfig
+    ParallelLinearAdapterWeightTyingConfig,
+    PromptEncoderAdapterConfig
 )
 
 
@@ -202,9 +205,6 @@ class SDLoraPEFTConfig(PEFTConfig):
 
         name_key_to_cfg = {
             AdapterName.PARALLEL_LINEAR_ADAPTER: ParallelLinearAdapterConfig(**config_args)
-            # AdapterName.LORA_Q_ADAPTER: LoraQAdapterConfig(**config_args),
-            # AdapterName.LORA_K_ADAPTER: LoraKAdapterConfig(**config_args),
-            # AdapterName.LORA_V_ADAPTER: LoraVAdapterConfig(**config_args),
         }
         self.name_key_to_mcore_mixins = None
         super().__init__(lora_cfg, name_key_to_cfg)
