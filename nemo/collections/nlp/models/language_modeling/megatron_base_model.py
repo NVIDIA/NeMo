@@ -27,7 +27,6 @@ from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
@@ -35,6 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_fp32,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts import utils_funcs
@@ -56,9 +56,9 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 
     HAVE_MEGATRON_CORE = True
 
