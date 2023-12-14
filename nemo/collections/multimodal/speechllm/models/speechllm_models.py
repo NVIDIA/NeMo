@@ -407,6 +407,14 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             if isinstance(output_tensor, tuple):
                 output_tensor = output_tensor[1]  # get logits only
 
+            # Advance inference sequence offset.
+            if self.inference_params:
+                # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
+                if parallel_state.is_pipeline_last_stage():
+                    self.inference_params.sequence_len_offset += output_tensor.size(1)
+                else:
+                    self.inference_params.sequence_len_offset += output_tensor.size(0)
+
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
 
@@ -711,6 +719,13 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 exclude_list = []
             state_dict = {k: v for k, v in state_dict.items() if k not in exclude_list}
             super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=strict)
+
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+         """
+        checkpoint_state_dict = checkpoint['state_dict']
+        self.load_state_dict(checkpoint_state_dict, strict=False)
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
