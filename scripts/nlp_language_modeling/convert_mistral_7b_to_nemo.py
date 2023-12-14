@@ -98,12 +98,14 @@ def load_config(mistral_config, tokenizer_path):
     nemo_config = OmegaConf.load(
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
+    # akoumparouli: verify this.
     nemo_config.encoder_seq_length = mistral_config['sliding_window']
     nemo_config.num_layers = int(mistral_config['n_layers'])
     nemo_config.hidden_size = mistral_config['dim']
     nemo_config.ffn_hidden_size = mistral_config['hidden_dim']
     nemo_config.num_attention_heads = mistral_config['n_heads']
     nemo_config.max_position_embeddings = 32_768
+    nemo_config.window_size = mistral_config['sliding_window']
     nemo_config.init_method_std = 0.02
     # RMSNorm's epsilon.
     nemo_config.layernorm_epsilon = mistral_config['norm_eps']
