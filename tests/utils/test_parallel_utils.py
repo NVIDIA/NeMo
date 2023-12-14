@@ -10,6 +10,7 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
 class Utils:
 
     world_size = 1  # one gpu for unit test
