@@ -16,7 +16,6 @@ import os
 
 import pytest
 import torch
-from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
@@ -24,6 +23,7 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
     make_supervised_data_module,
 )
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 DEVICE_CAPABILITY = None

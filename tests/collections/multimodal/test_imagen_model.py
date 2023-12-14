@@ -14,11 +14,11 @@
 
 import pytest
 import torch
-from nemo.collections.multimodal.models.text_to_image.imagen.imagen import DUMMY_TENSOR, MegatronImagen
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.multimodal.data.imagen.imagen_dataset import build_train_valid_datasets
+from nemo.collections.multimodal.models.text_to_image.imagen.imagen import DUMMY_TENSOR, MegatronImagen
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 DEVICE_CAPABILITY = None

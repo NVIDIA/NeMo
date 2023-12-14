@@ -16,13 +16,11 @@ import os
 
 import pytest
 import torch
-from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import (
-    MegatronCLIPModel,
-)
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.multimodal.data.clip.clip_dataset import build_train_valid_datasets
+from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import MegatronCLIPModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 DEVICE_CAPABILITY = None

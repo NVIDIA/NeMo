@@ -1,10 +1,10 @@
 import pytest
 import torch
-from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import MegatronControlNet
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.multimodal.data.controlnet.controlnet_dataset import build_train_valid_datasets
+from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import MegatronControlNet
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 DEVICE_CAPABILITY = None
