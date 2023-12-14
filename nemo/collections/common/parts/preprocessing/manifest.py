@@ -208,7 +208,8 @@ def get_full_path(
     elif isinstance(audio_file, str):
         # If input is a string, get the corresponding full path
         if "/" not in audio_file and (
-            "/sharded_manifests/" in manifest_file or os.path.basename(manifest_file) == "tarred_audio_manifest.json"
+            "/sharded_manifests/" in manifest_file
+            or str(os.path.basename(manifest_file)).startswith("tarred_audio_manifest")
         ):
             logging.warning(
                 f"Manifest file {manifest_file} seems to be part of a tarred dataset, skip checking for relative paths. If this is not intended, please avoid have `/sharded_manifests/` and `tarred_audio_manifest.json` in your manifest filepath.",
