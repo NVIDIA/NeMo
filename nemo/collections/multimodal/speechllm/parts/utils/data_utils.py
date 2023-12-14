@@ -19,7 +19,7 @@ import numpy as np
 import torch
 
 
-def normalize_text(text):
+def remove_text_pc(text):
     return re.sub(r"[\(\);.,?\-!\"':]", '', text.lower())
 
 

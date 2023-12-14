@@ -37,15 +37,12 @@ from nemo.collections.multimodal.speechllm.modules.speechllm_perception import (
     AudioPerceptionModel,
     MultiAudioPerceptionModel,
 )
-from nemo.collections.multimodal.speechllm.parts.utils.data_utils import normalize_text, to_cuda
+from nemo.collections.multimodal.speechllm.parts.utils.data_utils import remove_text_pc, to_cuda
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
-    MegatronGPTLoRAModel,
-    MegatronGPTPEFTModel,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTLoRAModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -982,9 +979,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             preds_text = preds_text_cleaned
             labels_text = labels_text_cleaned
 
-        if data_cfg.get("normalize_text", False):
-            preds_text = [normalize_text(p) for p in preds_text]
-            labels_text = [normalize_text(l) for l in labels_text]
+        if data_cfg.get("remove_text_pc", False):
+            preds_text = [remove_text_pc(p) for p in preds_text]
+            labels_text = [remove_text_pc(l) for l in labels_text]
 
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
@@ -1188,7 +1185,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 if metric_name == 'rouge':
                     for k, v in metric_result.items():
                         if 'fmeasure' in k:
-                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
+                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True, batch_size=1)
                             logging.info(f"{mode} {metric_name} {k}: {v.item()}")
                     metric_result = metric_result['rouge1_fmeasure']
                 else:
@@ -1232,11 +1229,11 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         if mode == 'validation':
             self.log("validation_loss", averaged_loss, batch_size=1, sync_dist=True)
             if averaged_metric is not None:
-                self.log(f"validation_{self.val_metric_name}", averaged_metric, sync_dist=True)
+                self.log(f"validation_{self.val_metric_name}", averaged_metric, sync_dist=True, batch_size=1)
         elif mode == 'test':
             self.log("test_loss", averaged_loss, batch_size=1, sync_dist=True)
             if averaged_metric is not None:
-                self.log(f"test_{self.test_metric_name}", averaged_metric, sync_dist=True)
+                self.log(f"test_{self.test_metric_name}", averaged_metric, sync_dist=True, batch_size=1)
 
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
