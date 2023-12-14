@@ -83,6 +83,7 @@ try:
     )
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
