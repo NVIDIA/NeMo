@@ -43,9 +43,9 @@ class NeuralType:
             type can be optional.
     """
 
-    @torch.jit.unused
     def __str__(self):
-
+        if torch.jit.is_scripting():
+            return "SuppressedForTorchScript"
         if self.axes is not None:
             return f"axes: {self.axes}; elements_type: {self.elements_type.__class__.__name__}"
         else:
@@ -77,10 +77,12 @@ class NeuralType:
             self.axes = None
         self.optional = optional
 
-    @torch.jit.unused
     def compare(self, second) -> NeuralTypeComparisonResult:
         """Performs neural type comparison of self with second. When you chain two modules' inputs/outputs via
         __call__ method, this comparison will be called to ensure neural type compatibility."""
+        if torch.jit.is_scripting():
+            # suppress check for TorchScript
+            return NeuralTypeComparisonResult.SAME
         # First, handle dimensionality
         axes_a = self.axes
         axes_b = second.axes
@@ -116,9 +118,11 @@ class NeuralType:
         else:
             return NeuralTypeComparisonResult.INCOMPATIBLE
 
-    @torch.jit.unused
     def compare_and_raise_error(self, parent_type_name, port_name, second_object):
         """ Method compares definition of one type with another and raises an error if not compatible. """
+        if torch.jit.is_scripting():
+            # suppress for TorchScript
+            return
         type_comatibility = self.compare(second_object)
         if (
             type_comatibility != NeuralTypeComparisonResult.SAME
@@ -208,8 +212,10 @@ class NeuralType:
             else:
                 return 3
 
-    @torch.jit.unused
     def __repr__(self):
+        if torch.jit.is_scripting():
+            return "SuppressedForTorchScript"
+
         if self.axes is not None:
             axes = str(self.axes)
         else:

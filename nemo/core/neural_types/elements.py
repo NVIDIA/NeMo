@@ -69,12 +69,14 @@ class ElementType(ABC):
     """Abstract class defining semantics of the tensor elements.
     We are relying on Python for inheritance checking"""
 
-    @torch.jit.unused
     def __str__(self):
+        if torch.jit.is_scripting():
+            return "SuppressedForTorchScript"
         return self.__doc__
 
-    @torch.jit.unused
     def __repr__(self):
+        if torch.jit.is_scripting():
+            return "SuppressedForTorchScript"
         return self.__class__.__name__
 
     @property
