@@ -50,28 +50,30 @@ PEFT_MODULE_MAP = {
     "all": "all",
 }
 
-
 def get_target_modules(lora_cfg):
-    target_modules = lora_cfg.get("target_modules", ["attention_qkv"])
-    if PEFT_MODULE_MAP["attention"] in target_modules:
-        target_modules.extend([PEFT_MODULE_MAP['qkv_module'], PEFT_MODULE_MAP['dense_module']])
-        target_modules.remove(PEFT_MODULE_MAP["attention"])
-    if PEFT_MODULE_MAP["mlp"] in target_modules:
-        target_modules.extend([PEFT_MODULE_MAP['hto4h_module'], PEFT_MODULE_MAP['4htoh_module']])
-        target_modules.remove(PEFT_MODULE_MAP["mlp"])
-    if PEFT_MODULE_MAP["all"] in target_modules:
-        target_modules.extend(
-            [
-                PEFT_MODULE_MAP['qkv_module'],
-                PEFT_MODULE_MAP['dense_module'],
-                PEFT_MODULE_MAP['hto4h_module'],
-                PEFT_MODULE_MAP['4htoh_module'],
-            ]
-        )
-        target_modules.remove(PEFT_MODULE_MAP["all"])
+    original_target_modules = lora_cfg.get("target_modules", ["attention_qkv"])
+    target_modules = []
 
-    return list(set(target_modules))  # only return unique modules/elements
+    for module in original_target_modules:
+        if module == PEFT_MODULE_MAP["attention"]:
+            if PEFT_MODULE_MAP['qkv_module'] not in target_modules:
+                target_modules.append(PEFT_MODULE_MAP['qkv_module'])
+            if PEFT_MODULE_MAP['dense_module'] not in target_modules:
+                target_modules.append(PEFT_MODULE_MAP['dense_module'])
+        elif module == PEFT_MODULE_MAP["mlp"]:
+            if PEFT_MODULE_MAP['hto4h_module'] not in target_modules:
+                target_modules.append(PEFT_MODULE_MAP['hto4h_module'])
+            if PEFT_MODULE_MAP['4htoh_module'] not in target_modules:
+                target_modules.append(PEFT_MODULE_MAP['4htoh_module'])
+        elif module == PEFT_MODULE_MAP["all"]:
+            for sub_module in [PEFT_MODULE_MAP['qkv_module'], PEFT_MODULE_MAP['dense_module'], PEFT_MODULE_MAP['hto4h_module'], PEFT_MODULE_MAP['4htoh_module']]:
+                if sub_module not in target_modules:
+                    target_modules.append(sub_module)
+        else:
+            if module not in target_modules:
+                target_modules.append(module)
 
+    return target_modules
 
 class PEFTConfig:
     # superclass for adapter name and config
