@@ -12,13 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.core import parallel_state
-from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
-from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.spec_utils import build_module
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from megatron.core.utils import make_viewless_tensor
+try:
+    from megatron.core import parallel_state
+    from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
+    from megatron.core.transformer.enums import AttnMaskType
+    from megatron.core.transformer.spec_utils import build_module
+    from megatron.core.transformer.transformer_config import TransformerConfig
+    from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+    from megatron.core.utils import make_viewless_tensor
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -51,6 +58,10 @@ class FalconTransformerLayer(TransformerLayer):
         layer_number: int = 1,
         self_attn_mask_type=AttnMaskType.padding,
     ):
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
 
         if hasattr(self.config, 'new_decoder_architecture'):

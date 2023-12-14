@@ -14,10 +14,18 @@
 
 import pytest
 import torch
-from megatron.core import parallel_state
-from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
-from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
-from megatron.core.transformer.transformer_config import TransformerConfig
+
+try:
+    from megatron.core import parallel_state
+    from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
+    from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
+    from megatron.core.transformer.transformer_config import TransformerConfig
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_decoder_layer import FalconTransformerLayer
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec

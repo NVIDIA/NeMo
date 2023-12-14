@@ -12,19 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-from megatron.core.transformer.custom_layers.transformer_engine import (
-    TEColumnParallelLinear,
-    TEDotProductAttention,
-    TENorm,
-    TERowParallelLinear,
-)
-from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.mlp import MLP, MLPSubmodules
-from megatron.core.transformer.spec_utils import ModuleSpec
+try:
+    from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+    from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+    from megatron.core.transformer.custom_layers.transformer_engine import (
+        TEColumnParallelLinear,
+        TEDotProductAttention,
+        TENorm,
+        TERowParallelLinear,
+    )
+    from megatron.core.transformer.enums import AttnMaskType
+    from megatron.core.transformer.mlp import MLP, MLPSubmodules
+    from megatron.core.transformer.spec_utils import ModuleSpec
 
-from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
+    from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
 from .falcon_decoder_layer import FalconTransformerLayer
 
 # Use this spec for an implementation using modules in TE
