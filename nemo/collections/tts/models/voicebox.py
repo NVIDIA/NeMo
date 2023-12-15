@@ -299,6 +299,7 @@ class VoiceboxModel(TextToWaveform):
                 ds_kwargs[kw] = getattr(self, kw)
 
         logging.info(self.global_rank)
+        self.set_world_size(self.trainer)
         logging.info(self.world_size)
 
         return get_lhotse_dataloader_from_config(
