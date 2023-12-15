@@ -124,6 +124,7 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         use_attention_prior: Optional[bool] = False,
         attention_prior_scaling_factor: Optional[float] = 1.0,
         cross_attention_epsilon: Optional[float] = 0.0,
+        num_speech_codebooks: Optional[int] = 8,
         **kwargs,
     ):
         """
@@ -184,6 +185,7 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         self.use_phoneme_tokenizer = use_phoneme_tokenizer
         self.examples = []
         self.lm_vocab_size = tokenizer.vocab_size if lm_vocab_size is None else lm_vocab_size
+        self.num_speech_codebooks = num_speech_codebooks
 
         assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
@@ -401,7 +403,7 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
                     )
                     dec_input_new = []
                     dec_labels_new = []
-                    for _c in range(8):
+                    for _c in range(self.num_speech_codebooks):
                         st = num_codebooks - _c
                         et_decoder_input = dec_input_padded.shape[1] - _c
                         et_decoder_labels = dec_labels_padded.shape[1] - _c
@@ -941,7 +943,7 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
                     dim=1,
                 )
                 dec_input_new = []
-                for _c in range(8):
+                for _c in range(self.num_speech_codebooks):
                     st = num_codebooks - _c
                     et_decoder_input = dec_input_padded.shape[1] - _c
                     dec_input_new.append(dec_input_padded[_c, st:et_decoder_input])

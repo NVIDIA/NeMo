@@ -8,15 +8,13 @@ trainer:
   precision: 32
   logger: False 
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: 10000
   max_steps: -1
   log_every_n_steps: 10
   val_check_interval: null
   check_val_every_n_epoch: 3
   gradient_clip_val: 1.0
-  resume_from_checkpoint: null 
-  limit_val_batches: 25
 
 exp_manager:
   explicit_log_dir: null
