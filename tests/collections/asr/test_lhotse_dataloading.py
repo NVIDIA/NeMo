@@ -536,4 +536,3 @@ def test_dataloader_from_nemo_manifest_with_lang_field(nemo_manifest_path: Path,
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=LangDataset())
     b = next(iter(dl))
     assert b == [lang_value] * 2
-
