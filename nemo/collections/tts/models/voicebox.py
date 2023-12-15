@@ -298,6 +298,9 @@ class VoiceboxModel(TextToWaveform):
             if hasattr(self, kw):
                 ds_kwargs[kw] = getattr(self, kw)
 
+        logging.info(self.global_rank)
+        logging.info(self.world_size)
+
         return get_lhotse_dataloader_from_config(
             config,
             global_rank=self.global_rank,
