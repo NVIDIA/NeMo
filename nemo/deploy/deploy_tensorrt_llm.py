@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+use_trtllm_backend = True
 try:
     from pytriton.model_config import ModelConfig, Tensor
     from pytriton.triton import Triton, TritonConfig
     from nemo.deploy.deploy_base import DeployBase
     from nemo.deploy.tensorrt_llm_backend.server import ModelServer
 except:
-    pass
+    use_trtllm_backend = False
 
 class DeployTensorRTLLM(DeployBase):
 
