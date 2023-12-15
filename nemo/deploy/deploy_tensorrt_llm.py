@@ -13,10 +13,13 @@
 # limitations under the License.
 
 
-from pytriton.model_config import ModelConfig, Tensor
-from pytriton.triton import Triton, TritonConfig
-from nemo.deploy.deploy_base import DeployBase
-from nemo.deploy.tensorrt_llm_backend.server import ModelServer
+try:
+    from pytriton.model_config import ModelConfig, Tensor
+    from pytriton.triton import Triton, TritonConfig
+    from nemo.deploy.deploy_base import DeployBase
+    from nemo.deploy.tensorrt_llm_backend.server import ModelServer
+except:
+    pass
 
 class DeployTensorRTLLM(DeployBase):
 
