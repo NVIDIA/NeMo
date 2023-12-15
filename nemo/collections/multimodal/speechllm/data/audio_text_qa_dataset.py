@@ -1181,6 +1181,8 @@ def get_concat_tarred_aqa_dataset(
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
         conf['tarred_audio_filepaths'] = tarred_audio_filepath
+        question_file_set = config.get('question_file_set', None)
+        conf['question_file_set'] = [question_file_set[dataset_idx]]
         dataset = get_tarred_aqa_dataset(
             config=conf,
             tokenizer=tokenizer,
@@ -1225,15 +1227,19 @@ def get_tarred_aqa_dataset_from_config(
                 f"Concat dataset requires `concat_sampling_technique` but it was not provided. Config: {config}"
             )
             return None
-
-        if config['concat_sampling_technique'] == 'random':
+        if 'concat_sampling_technique' in config and config['concat_sampling_technique'] == 'random':
             if not 'concat_sampling_probabilities' in config:
                 logging.warning(f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}")
                 return None
             else:
                 if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
                     logging.warning(f"`concat_sampling_probabilities` need to sum to 1. Config: {config}")
-                    return None
+                    concat_sampling_probabilities = config['concat_sampling_probabilities']
+                    concat_sampling_probabilities = [
+                        float(x) / sum(concat_sampling_probabilities) for x in concat_sampling_probabilities
+                    ]
+                    logging.info(f"Normalized concat dataset sampling probabilities: {concat_sampling_probabilities}")
+                    config['concat_sampling_probabilities'] = concat_sampling_probabilities
 
     data_parallel_size = parallel_state.get_data_parallel_world_size()
     num_micro_batches = config.global_batch_size // (config.micro_batch_size * data_parallel_size)
