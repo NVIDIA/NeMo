@@ -384,7 +384,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             output_tokens_new = []
             for _c in range(output_tokens.shape[0]):
                 si = _c
-                ei = _c + output_tokens.shape[1] - 8
+                ei = _c + output_tokens.shape[1] - self.num_speech_codebooks
                 output_tokens_new.append(output_tokens[_c, si:ei])
             output_tokens_new = torch.stack(output_tokens_new)
             output_tokens = output_tokens_new
@@ -1275,7 +1275,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
                 if torch.count_nonzero(speech_mask) > 0:
                     # Convert back to (B, 8)
-                    output_tokens_curr_timestep = output_tokens_curr_timestep.view(output_logits.shape[0], 8)
+                    output_tokens_curr_timestep = output_tokens_curr_timestep.view(output_logits.shape[0], self.num_speech_codebooks)
 
                 for _b in range(token_preds.shape[0]):
                     if t > 10 and token_preds[_b] == self.tokenizer.eos_id:
