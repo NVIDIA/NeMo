@@ -48,6 +48,7 @@ def setup_export():
             "nemo.export", 
             "nemo.export.trt_llm", 
             "nemo.export.trt_llm.decoder",
+            "nemo.export.trt_llm.nemo",
             "nemo.deploy",
         ],
         install_requires=req_file("requirements_export.txt"),
