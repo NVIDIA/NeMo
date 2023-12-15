@@ -46,7 +46,7 @@ model:
       batch_duration: 100
 
 trainer:
-  devices: 1
+  devices: auto
   max_epochs: 1000
   # gradient_clip_val: .1
   # gradient_clip_algorithm: value
