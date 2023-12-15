@@ -23,7 +23,7 @@ from torch.utils.checkpoint import checkpoint
 from transformers import CLIPTextModel, CLIPTokenizer
 
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
-from nemo.collections.multimodal.models.vision_language_foundation.clip import CLIPModel
+from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import CLIPModel
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import (
     TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 )
