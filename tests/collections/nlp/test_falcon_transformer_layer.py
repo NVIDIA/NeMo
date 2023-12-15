@@ -29,9 +29,9 @@ except (ImportError, ModuleNotFoundError):
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_decoder_layer import FalconTransformerLayer
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 
+
 @pytest.mark.run_only_on('GPU')
 class TestParallelFalconTransformerLayer:
-
     def setup_method(self, method):
         model_parallel_cuda_manual_seed(123)
         transformer_config = TransformerConfig(
