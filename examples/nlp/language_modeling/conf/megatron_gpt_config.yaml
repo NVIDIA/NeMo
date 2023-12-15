@@ -199,6 +199,10 @@ model:
   
   ## Megatron timers
   enable_megatron_timers: False
+  megatron_timer_kwargs:
+    log_every_n_steps: 10
+    log_mode: minmax
+    barrier: False
 
   data:
    # Path to data must be specified by the user.

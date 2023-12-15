@@ -68,11 +68,12 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
-HAVE_MEGATRON_CORE_TIMERS = False
 try:
     from megatron.core import Timers
 
     HAVE_MEGATRON_CORE_TIMERS = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_MEGATRON_CORE_TIMERS = False
 
 __all__ = ["MegatronBaseModel"]
 
@@ -131,7 +132,14 @@ class MegatronBaseModel(NLPModel):
 
         self.megatron_timers = None
         if self.cfg.get('enable_megatron_timers', False) and HAVE_MEGATRON_CORE_TIMERS:
-            self.megatron_timers = Timers(log_level=2, log_option='minmax')
+            self.megatron_timers_cfg = dict(self.cfg.get('megatron_timer_kwargs', dict()))
+            if 'log_every_n_steps' not in self.megatron_timers_cfg:
+                self.megatron_timers_cfg['log_every_n_steps'] = self.trainer.log_every_n_steps
+            if 'log_option' not in self.megatron_timers_cfg:
+                self.megatron_timers_cfg['log_option'] = 'minmax' # minmax, max, all
+            if 'barrier' not in self.megatron_timers_cfg:
+                self.megatron_timers_cfg['barrier'] = False
+            self.megatron_timers = Timers(log_level=2, log_option=self.megatron_timers_cfg['log_option'])
 
         # set the megatron core model parallel config
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
@@ -555,6 +563,11 @@ class MegatronBaseModel(NLPModel):
 
     def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
+
+        # Megatron Timers
+        if self.megatron_timers:
+            if self.global_step % self.megatron_timers_cfg["log_every_n_steps"] == 0 :
+                logging.info("\n " + self.megatron_timers.get_all_timers_string(barrier = self.megatron_timers_cfg["barrier"]))
 
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar
@@ -1027,18 +1040,7 @@ class MegatronBaseModel(NLPModel):
         if self.megatron_timers:
             self.megatron_timers(name).stop()
 
-    def on_before_optimizer_step(self, *args, **kwargs):
-        print("starting optim")
+    def optimizer_step(self, *args, **kwargs):
         self.megatron_timer_start('optimizer', log_level=1)
-        return super().on_before_optimizer_step(*args, **kwargs)
-
-    def on_train_batch_end(self, *args, **kwargs):
-        print("stopping optim")
+        super().optimizer_step(*args, **kwargs)
         self.megatron_timer_stop('optimizer')
-        return super().on_train_batch_end(*args, **kwargs)
-
-    def on_fit_end(self, *args, **kwargs):
-        if self.megatron_timers:
-            names = self.megatron_timers.get_names()
-            self.megatron_timers.log(names, rank=0)
-        return super().on_fit_end(*args, **kwargs)
