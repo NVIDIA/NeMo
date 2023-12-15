@@ -32,8 +32,8 @@ def model_cfg(test_data_dir):
 
     model_cfg = {
         'mcore_gpt': True,
-        'micro_batch_size': 1,
-        'global_batch_size': 1,
+        'micro_batch_size': 4,
+        'global_batch_size': 8,
         'rampup_batch_size': None,
         'tensor_model_parallel_size': 1,
         'pipeline_model_parallel_size': 1,

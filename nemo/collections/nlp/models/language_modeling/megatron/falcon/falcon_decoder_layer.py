@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+
 try:
     from megatron.core import parallel_state
     from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
@@ -27,9 +29,10 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
-    class TransformerLayer:
-        pass
-
+    TransformerLayer = ApexGuardDefaults
+    TransformerConfig = ApexGuardDefaults
+    TransformerLayerSubmodules = ApexGuardDefaults
+    AttnMaskType = ApexGuardDefaults()
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -46,7 +49,6 @@ except (ImportError, ModuleNotFoundError):
         hyperparameters: transformer hyperparameters
 """
 
-
 class FalconTransformerLayer(TransformerLayer):
     """A single transformer layer.
 
@@ -57,7 +59,7 @@ class FalconTransformerLayer(TransformerLayer):
 
     def __init__(
         self,
-        config: TransformerConfig,  # should come from FalconTransformerConfig class
+        config: TransformerConfig,
         submodules: TransformerLayerSubmodules,
         layer_number: int = 1,
         self_attn_mask_type=AttnMaskType.padding,
