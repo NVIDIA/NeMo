@@ -38,7 +38,6 @@ try:
 except:
     use_pytriton = False
 
-
 LOGGER = logging.getLogger("NeMo")
 
 
