@@ -20,7 +20,7 @@ infer:
     - /datasets/coco-stuff/house.png #images/val2017/000000001584.jpg
   # Depending on the input control, if the input control is already the conditioning image, null should be passed here
   # If a reconstruction target is used as control, then preprocessing function that turns it into a conditioning image needs to be specified
-  control_image_preprocess: seg2img
+  control_image_preprocess:
 
 trainer:
   devices: 1
