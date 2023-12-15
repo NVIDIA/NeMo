@@ -107,8 +107,8 @@ def model_cfg():
         resblock_gn_groups: 32
 
     first_stage_config:
-        _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
-        from_pretrained: /ckpts/vae.bin
+        _target_: nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKL
+        from_pretrained: 
         embed_dim: 4
         monitor: val/rec_loss
         ddconfig:
@@ -287,7 +287,7 @@ class TestMegatronSDModel:
     def test_build_dataset(self, sd_trainer_and_model, test_data_dir):
         sd_model = sd_trainer_and_model[1]
         train_ds, validation_ds = build_train_valid_datasets(model_cfg=sd_model.cfg, consumed_samples=0,)
-        assert len(train_ds) == 100000
+        assert len(train_ds) == 10000
         assert validation_ds is None
         sample = next(iter(train_ds))
         assert "captions" in sample

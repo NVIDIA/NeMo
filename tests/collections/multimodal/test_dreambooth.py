@@ -108,7 +108,7 @@ def model_cfg():
         use_flash_attention: False
 
       first_stage_config:
-        _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
+        _target_: nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKL
         from_pretrained:
         embed_dim: 4
         monitor: val/rec_loss
@@ -138,7 +138,7 @@ def model_cfg():
         max_length: 77
 
       noise_scheduler:
-        _target_: nemo.collections.multimodal.models.dreambooth.util.sd_noise_scheduler
+        _target_: nemo.collections.multimodal.models.text_to_image.dreambooth.util.sd_noise_scheduler
         parameterization: eps
         v_posterior: 0
         given_betas:

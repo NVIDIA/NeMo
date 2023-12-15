@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -99,7 +100,7 @@ def model_cfg():
         use_flash_attention: False
 
     first_stage_config:
-        _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
+        _target_: nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKL
         from_pretrained: 
         embed_dim: 4
         monitor: val/rec_loss
@@ -160,7 +161,7 @@ def model_cfg():
     data:
         # Path to instruct-pix2pix dataset must be specified by the user.
         # https://github.com/timothybrooks/instruct-pix2pix#generated-dataset
-        data_path: /lustre/fsw/joc/yuya/stable_diffusion/instruct-pix2pix/data/tiny-ip2p
+        data_path: /path/to/stable_diffusion/instruct-pix2pix/data/tiny-ip2p
         num_workers: 2
         dataloader_type: cyclic # cyclic
         validation_drop_last: True # Set to false if the last partial validation samples is to be consumed

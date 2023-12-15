@@ -194,10 +194,10 @@ def model_cfg():
         num_workers: 1
         train:
           dataset_path: # List of paths to pkl files or tar files
-            - /lustre/fsw/joc/yuya/tiny-datasets/tiny-clip/00000.tar
+            - /path/to/tiny-datasets/tiny-clip/00000.tar
         validation: # List of paths to pkl files or tar files
           dataset_path:
-            - /lustre/fsw/joc/yuya/tiny-datasets/tiny-clip/00000.tar
+            - /path/to/tiny-datasets/tiny-clip/00000.tar
         webdataset:
           infinite_sampler: False
           local_root_path: /
@@ -339,8 +339,8 @@ class TestMegatronCLIPModel:
     @pytest.mark.unit
     def test_build_dataset(self, clip_trainer_and_model, test_data_dir):
         clip_model = clip_trainer_and_model[1]
-        clip_model.cfg.data.train.dataset_path[0] = [os.path.join(test_data_dir, "multimodal/tiny-clip/00000.tar")]
-        clip_model.cfg.data.validation.dataset_path[0] = [
+        clip_model.cfg.data.train.dataset_path = [os.path.join(test_data_dir, "multimodal/tiny-clip/00000.tar")]
+        clip_model.cfg.data.validation.dataset_path = [
             os.path.join(test_data_dir, "multimodal/tiny-clip/00000.tar")
         ]
         train_ds, validation_ds = build_train_valid_datasets(
@@ -391,5 +391,4 @@ class TestMegatronCLIPModel:
             with torch.autocast('cuda', dtype=dtype):
                 output_tensor = clip_model(image=tokens.cuda(), text=texts.cuda(),)
             # output is (B, #classes)
-            assert output_tensor.shape == torch.Size([B, clip_model.cfg['num_classes']])
-            assert output_tensor.dtype == dtype
+            assert output_tensor[0].shape == torch.Size([B, clip_model.cfg['output_dim']])

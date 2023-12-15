@@ -154,7 +154,7 @@ def model_cfg():
       tokenizer:
         library: 'sentencepiece'
         type: null
-        model: /lustre/fsw/joc/multimodal/datasets/LLaVA-CC3M-Pretrain-595K/tiny_neva/tokenizer_add_special.model
+        model: /path/to/datasets/LLaVA-CC3M-Pretrain-595K/tiny_neva/tokenizer_add_special.model
         vocab_file: null
         merge_file: null
         delimiter: null # only used for tabular tokenizer
@@ -164,13 +164,13 @@ def model_cfg():
       data:
         num_workers: 8
         dataloader_type: cyclic
-        data_path: /lustre/fsw/joc/multimodal/datasets/LLaVA-CC3M-Pretrain-595K/tiny_neva/dummy.json
+        data_path: /path/to/datasets/LLaVA-CC3M-Pretrain-595K/tiny_neva/dummy.json
         lazy_preprocess: True
         is_multimodal: True
         sep_image_conv_front: False
         image_token_len: 256
-        conv_template: ${mm_cfg.llm.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
-        image_folder: /lustre/fsw/joc/multimodal/datasets/LLaVA-CC3M-Pretrain-595K/tiny_neva/images
+        conv_template: llama_2 # check `nemo/collections/multimodal/data/neva/conversation.py`
+        image_folder: /path/to/datasets/LLaVA-CC3M-Pretrain-595K/tiny_neva/images
         image_aspect_ratio: 'square'
     
       # Nsys profiling options
@@ -268,9 +268,7 @@ def precision():
 def neva_trainer_and_model(model_cfg, trainer_cfg, precision, test_data_dir):
     model_cfg['precision'] = precision
     trainer_cfg['precision'] = precision
-    model_cfg['tokenizer']['model'] = (
-        os.path.join(test_data_dir, "multimodal/tiny-neva/tokenizer_add_special.model"),
-    )
+    model_cfg['tokenizer']['model'] = os.path.join(test_data_dir, "multimodal/tiny-neva/tokenizer_add_special.model")
 
     strategy = NLPDDPStrategy()
 
@@ -291,7 +289,7 @@ def neva_trainer_and_model(model_cfg, trainer_cfg, precision, test_data_dir):
 
 
 def build_datasets(cfg, tokenizer, test_data_dir):
-    cfg.data.data_path = (os.path.join(test_data_dir, "multimodal/tiny-neva/dummy.json"),)
+    cfg.data.data_path = os.path.join(test_data_dir, "multimodal/tiny-neva/dummy.json")
     cfg.data.image_folder = os.path.join(test_data_dir, "multimodal/tiny-neva/images")
     ds_dict = make_supervised_data_module(tokenizer=tokenizer, model_cfg=cfg,)
     return ds_dict["train_dataset"], ds_dict["eval_dataset"]
@@ -310,7 +308,7 @@ class TestMegatronNevaModel:
     @pytest.mark.unit
     def test_build_dataset(self, neva_trainer_and_model, test_data_dir):
         neva_model = neva_trainer_and_model[1]
-        neva_model.cfg.data.data_path = (os.path.join(test_data_dir, "multimodal/tiny-neva/dummy.json"),)
+        neva_model.cfg.data.data_path = os.path.join(test_data_dir, "multimodal/tiny-neva/dummy.json")
         neva_model.cfg.data.image_folder = os.path.join(test_data_dir, "multimodal/tiny-neva/images")
         ds_dict = make_supervised_data_module(tokenizer=neva_model.tokenizer, model_cfg=neva_model.cfg,)
         train_ds, validation_ds = ds_dict["train_dataset"], ds_dict["eval_dataset"]

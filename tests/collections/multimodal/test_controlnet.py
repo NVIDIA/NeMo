@@ -65,9 +65,9 @@ def model_cfg():
         sd_locked: True
 
         control_stage_config:
-          _target_: nemo.collections.multimodal.models.controlnet.controlnet.ControlNet
+          _target_: nemo.collections.multimodal.models.text_to_image.controlnet.controlnet.ControlNet
           params:
-            from_pretrained_unet: /ckpts/v1-5-pruned.ckpt
+            from_pretrained_unet: null
             from_NeMo: True
             image_size: 32 # unused
             in_channels: 4
@@ -86,7 +86,7 @@ def model_cfg():
             use_flash_attention: False
 
         unet_config:
-          _target_: nemo.collections.multimodal.models.controlnet.controlnet.ControlledUnetModel
+          _target_: nemo.collections.multimodal.models.text_to_image.controlnet.controlnet.ControlledUnetModel
           from_pretrained:
           from_NeMo: True
           image_size: 32 # unused
@@ -112,7 +112,7 @@ def model_cfg():
           use_flash_attention: False
 
         first_stage_config:
-          _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
+          _target_: nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKL
           from_pretrained:
           embed_dim: 4
           monitor: val/rec_loss
@@ -193,7 +193,7 @@ def model_cfg():
 @pytest.fixture()
 def trainer_cfg():
     trainer_cfg_string = """
-      devices: 2
+      devices: 1
       num_nodes: 1
       accelerator: gpu
       precision: 16
