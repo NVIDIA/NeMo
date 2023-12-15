@@ -25,7 +25,7 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, tokenizer, noise_cuts: Optional = None):
+    def __init__(self, tokenizer, noise_cuts: Optional = None, force_strip_pnc: bool = False):
         from lhotse.dataset import AudioSamples, CutMix
 
         super().__init__()
@@ -34,6 +34,7 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
         self.maybe_mix_noise = (
             _identity if noise_cuts is None else CutMix(noise_cuts, pad_to_longest=False, random_mix_offset=True)
         )
+        self.force_strip_pnc = force_strip_pnc
 
     def __getitem__(self, cuts) -> Tuple[torch.Tensor, ...]:
         from lhotse.dataset.collation import collate_vectors
@@ -42,9 +43,10 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
         cuts = self.maybe_mix_noise(cuts)
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        # Note(pzelasko): this is canary-specific temporary hack to check that PNC does not break things.
-        for c in cuts:
-            c.supervisions.text = c.supervisions.text.replace(".", "").replace(",", "").replace("?", "").lower()
+        if self.force_strip_pnc:
+            # Note(pzelasko): this is canary-specific temporary hack to check that PNC does not break things.
+            for c in cuts:
+                c.supervisions.text = c.supervisions.text.replace(".", "").replace(",", "").replace("?", "").lower()
 
         tokens = [torch.as_tensor(self.tokenizer(c.supervisions[0].text, c.supervisions[0].language)) for c in cuts]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)

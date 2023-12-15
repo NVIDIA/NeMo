@@ -493,7 +493,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 global_rank=self.global_rank,
                 world_size=self.world_size,
                 dataset=LhotseSpeechToTextBpeDataset(
-                    tokenizer=self.tokenizer, noise_cuts=config.get("lhotse", {}).get("noise_cuts")
+                    # TODO(pzelasko): remove temporary hack for canary with PNC stripping
+                    tokenizer=self.tokenizer, noise_cuts=config.get("lhotse", {}).get("noise_cuts"), force_strip_pnc=config.get("force_strip_pnc", False)
                 ),
             )
 
