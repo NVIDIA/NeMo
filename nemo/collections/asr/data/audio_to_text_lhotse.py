@@ -57,7 +57,7 @@ class TokenizerWrapper:
         from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 
         self._tokenizer = tokenizer
-        if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
+        if isinstance(tokenizer, AggregateTokenizer):
             self._impl = self._call_agg_tokenizer
         elif isinstance(tokenizer, TokenizerSpec):
             self._impl = self._call_tokenizer
@@ -67,14 +67,14 @@ class TokenizerWrapper:
     def __call__(self, text: str, lang: str | None = None):
         return self._impl(text, lang)
 
-    def _call_agg_tokenizer(text: str, lang: str | None = None):
+    def _call_agg_tokenizer(self, text: str, lang: str | None = None):
         assert lang is not None, "Expected 'lang' to be set for AggregateTokenizer."
         return self._tokenizer.text_to_ids(text, lang)
 
-    def _call_tokenizer(text: str, lang: str | None = None):
+    def _call_tokenizer(self, text: str, lang: str | None = None):
         return self._tokenizer.text_to_ids(text)
 
-    def _call_parser(text: str, lang: str | None = None):
+    def _call_parser(self, text: str, lang: str | None = None):
         return self._tokenizer(text)
 
 

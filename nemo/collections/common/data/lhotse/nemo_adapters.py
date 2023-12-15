@@ -70,9 +70,6 @@ class LazyNeMoIterator(ImitatesDict):
                     num_samples=compute_num_samples(duration, self.sampling_rate),
                 )
             cut = recording.to_cut()
-            print(data)
-            print(self.lang_field)
-            print(data.get(self.lang_field))
             cut.supervisions.append(
                 SupervisionSegment(
                     id=cut.id,
@@ -83,7 +80,6 @@ class LazyNeMoIterator(ImitatesDict):
                     language=data.get(self.lang_field),
                 )
             )
-            print(cut.supervisions[0])
             cut.custom = data
             yield cut
 

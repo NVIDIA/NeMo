@@ -98,7 +98,6 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
         "text_field": config.lhotse.get("text_field", "text"),
         "lang_field": config.lhotse.get("lang_field", "lang"),
     }
-    print(common_kwargs)
     shuffle = config.get("shuffle", False)
 
     if is_tarred:
