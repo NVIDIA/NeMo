@@ -2,7 +2,6 @@ from typing import Dict, Optional, Tuple
 
 import torch.utils.data
 
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 
 
@@ -53,6 +52,9 @@ class TokenizerWrapper:
     Provide a unified interface for NeMo Tokenizer, AggregateTokenizer, and (char) Parser.
     """
     def __init__(self, tokenizer):
+        from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+        from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+
         self._tokenizer = tokenizer
         if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
             self._impl = self._call_agg_tokenizer
@@ -77,5 +79,4 @@ class TokenizerWrapper:
 
 def _identity(x):
     return x
-
 
