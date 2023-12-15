@@ -340,9 +340,7 @@ class TestMegatronCLIPModel:
     def test_build_dataset(self, clip_trainer_and_model, test_data_dir):
         clip_model = clip_trainer_and_model[1]
         clip_model.cfg.data.train.dataset_path = [os.path.join(test_data_dir, "multimodal/tiny-clip/00000.tar")]
-        clip_model.cfg.data.validation.dataset_path = [
-            os.path.join(test_data_dir, "multimodal/tiny-clip/00000.tar")
-        ]
+        clip_model.cfg.data.validation.dataset_path = [os.path.join(test_data_dir, "multimodal/tiny-clip/00000.tar")]
         train_ds, validation_ds = build_train_valid_datasets(
             model_cfg=clip_model.cfg, consumed_samples=0, tokenizer=clip_model.tokenizer,
         )
