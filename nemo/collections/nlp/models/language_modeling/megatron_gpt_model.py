@@ -1122,17 +1122,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss
 
     def on_validation_epoch_end(self):
-        if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss with their batch size
-            if self.cfg.data.get('validation_drop_last', True):
-                averaged_loss = torch.stack(self.validation_step_outputs).mean()
-            else:
-                # Compute the avg loss by total_loss across all samples / total number of samples
-                total_loss_and_total_samples = torch.vstack(self.validation_step_outputs).sum(axis=0)
-                avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
-                averaged_loss = avg_loss.type(torch.float32).cuda()
-        else:
-            averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
+
+        # # DEBUGGING
+        # if parallel_state.is_pipeline_last_stage():
+        #     # only the last pipeline parallel stages return loss with their batch size
+        #     if self.cfg.data.get('validation_drop_last', True):
+        #         averaged_loss = torch.stack(self.validation_step_outputs).mean()
+        #     else:
+        #         # Compute the avg loss by total_loss across all samples / total number of samples
+        #         total_loss_and_total_samples = torch.vstack(self.validation_step_outputs).sum(axis=0)
+        #         avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
+        #         averaged_loss = avg_loss.type(torch.float32).cuda()
+        # else:
+        #     averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
+
+        averaged_loss = torch.tensor(10.0, dtype=torch.float32).cuda()
 
         # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
         # it should be casted to other pipeline stages for logging.
@@ -1292,7 +1296,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
             f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
             f'Number of model parameters on device: {num_parameters_on_device:.2e}. '
-            f'Total number of model parameters: {total_num_parameters:.2e}.'
+            f'Total number of model parameters: {total_num_parameters:.2e},'
+            f'Total number of model parameters full: {total_num_parameters}.'
         )
 
         resume_checkpoint_path = self.trainer.ckpt_path
@@ -1355,11 +1360,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):
-            consumed_samples = 0
-            logging.info(
-                f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
-            )
-            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+            if self._test_ds is not None:
+                consumed_samples = 0
+                logging.info(
+                    f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
+                )
+                self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+            else:
+                self._test_dl = None
 
     def generate(
         self,

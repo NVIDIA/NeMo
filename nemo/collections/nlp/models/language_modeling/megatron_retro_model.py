@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import itertools
+import json
 import os
 import queue
 import warnings
+import types
 from dataclasses import fields
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
@@ -30,7 +32,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.retro_dummy_dataset import build_train_valid_test_datasets
+# from nemo.collections.nlp.data.language_modeling.megatron.retro_dummy_dataset import build_train_valid_test_datasets as dummy_build_train_valid_test_datasets  # turn on when running with dummy data
+from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -75,13 +78,18 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import InferenceParams, parallel_state
-    from megatron.core.models.retro import RetroModel as MCoreRetroModel
-    from megatron.core.models.retro.config import RetroConfig
-    from megatron.core.models.retro.decoder_spec import get_retro_decoder_block_spec
+    from megatron.core.models.retro.model import RetroModel as MCoreRetroModel
+    from megatron.core.models.retro.model.config import RetroConfig
+    from megatron.core.models.retro.model.decoder_spec import get_retro_decoder_block_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.core.models.retro.data.utils import (
+        get_config_path as get_retro_config_path,
+        get_gpt_data_dir as get_retro_data_dir,
+    )
+
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -104,25 +112,109 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 
-class MegatronRetroModel(MegatronBaseModel, MegatronGPTModel):
+class MegatronRetroModel(MegatronGPTModel):
     """
     Megatron Retro pretraining
     """
 
+    def load_retro_config(self, cfg: DictConfig):
+        assert cfg.retro.get('retro_project_dir') is not None, \
+            "`--retro-project-dir` must be set to use Retro."
+
+        # Retro config path.
+        retro_config_path = get_retro_config_path(cfg.retro.get('retro_project_dir'))
+        assert os.path.exists(retro_config_path), \
+            "retro project dir missing config.json."
+
+        # Load retro config.
+        with open(retro_config_path) as f:
+
+
+            # # DEBUGGING
+            # print("before override: ")
+            # print("cfg.global_batch_size: " + str(cfg.global_batch_size))
+            # print("cfg.max_position_embeddings: " + str(cfg.max_position_embeddings))
+            # print("cfg.seed: " + str(cfg.seed))
+            # print("cfg.data.data_prefix : " + str(cfg.data.data_prefix ))
+            # print("cfg.data.seq_length: " + str(cfg.data.seq_length))
+            # print("cfg.data.splits_string: " + str(cfg.data.splits_string))
+            # print("cfg.tokenizer.model: " + str(cfg.tokenizer.model))
+            # print("cfg.tokenizer.type: " + str(cfg.tokenizer.type))
+            # print("cfg.tokenizer.vocab_file: " + str(cfg.tokenizer.vocab_file))
+            # print("cfg.tokenizer.merge_file: " + str(cfg.tokenizer.merge_file))
+            # print("----------------")
+
+            # Parse config.
+            retro_preprocess_config = types.SimpleNamespace(**json.load(f))
+
+            # Retro data path is relative to data path (via hard or soft links).
+            data_dir = get_retro_data_dir(cfg.retro.get('retro_project_dir'))
+            data_path = list(retro_preprocess_config.retro_gpt_data_path)
+            if len(data_path) % 2 == 0:
+                for i in range(len(data_path) - 1, -1, -2):
+                    data_path[i] = os.path.join(data_dir, data_path[i])
+            else:
+                assert len(data_path) == 1
+                data_path[0] = os.path.join(data_dir, data_path[0])
+
+            # Update args.
+            cfg.global_batch_size = retro_preprocess_config.retro_gpt_global_batch_size
+            cfg.seed = retro_preprocess_config.retro_gpt_seed
+            cfg.data.data_prefix = data_path
+            cfg.encoder_seq_length = retro_preprocess_config.retro_gpt_seq_length
+            cfg.data.seq_length = retro_preprocess_config.retro_gpt_seq_length
+            cfg.max_position_embeddings = retro_preprocess_config.retro_gpt_seq_length           
+            cfg.data.splits_string = retro_preprocess_config.retro_gpt_split
+            # cfg.data.data_cache_path = retro_preprocess_config.retro_gpt_data_cache_path        # no corresponding arg in Nemo
+            # cfg.data.eval_interval = retro_preprocess_config.retro_gpt_eval_interval            # no corresponding arg in Nemo
+            # cfg.data.eval_iters = retro_preprocess_config.retro_gpt_eval_iters                  # no corresponding arg in Nemo, but still add
+            # cfg.data.train_samples = retro_preprocess_config.retro_gpt_train_samples            # no corresponding arg in Nemo, but still add
+            cfg.tokenizer.model = retro_preprocess_config.retro_gpt_tokenizer_model
+            cfg.tokenizer.type = retro_preprocess_config.retro_gpt_tokenizer_type
+            cfg.tokenizer.vocab_file = retro_preprocess_config.retro_gpt_vocab_file
+            cfg.tokenizer.merge_file = retro_preprocess_config.retro_gpt_merge_file
+
+            cfg.data.retro_data.retro_block_size = retro_preprocess_config.retro_block_size
+            cfg.data.retro_data.retro_chunk_length = retro_preprocess_config.retro_gpt_chunk_length
+
+            # # DEBUGGING
+            # print("after override: ")
+            # print("cfg.global_batch_size: " + str(cfg.global_batch_size))
+            # print("cfg.max_position_embeddings: " + str(cfg.max_position_embeddings))
+            # print("cfg.seed: " + str(cfg.seed))
+            # print("cfg.data.data_prefix : " + str(cfg.data.data_prefix ))
+            # print("cfg.data.seq_length: " + str(cfg.data.seq_length))
+            # print("cfg.data.splits_string: " + str(cfg.data.splits_string))
+            # print("cfg.tokenizer.model: " + str(cfg.tokenizer.model))
+            # print("cfg.tokenizer.type: " + str(cfg.tokenizer.type))
+            # print("cfg.tokenizer.vocab_file: " + str(cfg.tokenizer.vocab_file))
+            # print("cfg.tokenizer.merge_file: " + str(cfg.tokenizer.merge_file))
+            # print("----------------")
+
+        return cfg
+
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        super().__init__()
-        self.retro_config = self.build_retro_config()
+
+        # override pre-processing arguments with retro pre-processing arguments
+        cfg = self.load_retro_config(cfg)
+
+        super().__init__(cfg, trainer=trainer)
+
+        # DEBUGGING
+        logging.info("\n\n************** Experiment configuration (after overriding) ***********")
+        logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
         return
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.mcore_gpt:
+            self.retro_model_config = self.build_retro_config()
             model = MCoreRetroModel(
-                config=self.retro_config,
-                transformer_layer_spec=get_retro_decoder_block_spec(self.retro_config, use_transformer_engine=True)
+                config=self.retro_model_config,
+                transformer_layer_spec=get_retro_decoder_block_spec(self.retro_model_config, use_transformer_engine=True),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
-                max_sequence_length=self.cfg.get('encoder_seq_length', 512),
+                max_sequence_length=self.cfg.data.get('seq_length', 512),
                 pre_process=pre_process,
                 post_process=post_process,
                 parallel_output=True,
@@ -131,13 +223,47 @@ class MegatronRetroModel(MegatronBaseModel, MegatronGPTModel):
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             )
+
+            # if torch.distributed.get_rank() == 0:
+            print("model: ")
+            print(model)
+            
+            # # DEBUGGING 
+            # if torch.distributed.get_rank() == 0:
+            #     print("Args related to training details, to check for consistent with NeMo model.")
+            #     print("Retro args: ")
+            #     print("  args.data_path: " + str(args.data_path))
+            #     print("  args.eval_iters: " + str(args.eval_iters))
+            #     print("  args.global_batch_size: " + str(args.global_batch_size))
+            #     print("  args.max_position_embeddings: " + str(args.max_position_embeddings))
+            #     print("  args.merge_file: " + str(args.merge_file))
+            #     print("  args.seed: " + str(args.seed))
+            #     print("  args.seq_length: " + str(args.seq_length))
+            #     print("  args.split: " + str(args.split))
+            #     print("  args.tokenizer_model: " + str(args.tokenizer_model))
+            #     print("  args.seq_length: " + str(args.seq_length))
+            #     print("  args.tokenizer_type: " + str(args.tokenizer_type))
+            #     print("  args.train_samples: " + str(args.train_samples))
+            #     print("  args.vocab_file: " + str(args.vocab_file))
+            #     print("  args.retro_block_size: " + str(args.retro_block_size))
+            #     print("  args.retro_chunk_length: " + str(args.retro_chunk_length))
+            #     print("Training args: ")
+            #     print("  args.lr_decay_samples: " + str(args.lr_decay_samples))
+            #     print("  args.lr_warmup_samples: " + str(args.lr_warmup_samples))
+            #     print("  args.lr: " + str(args.lr))
+            #     print("  args.min_lr: " + str(args.min_lr))
+            #     print("  args.lr_decay_style: " + str(args.lr_decay_style))
+            #     print("  args.weight_decay: " + str(args.weight_decay))
+            #     print("All config: ")
+            #     print(self.cfg)
+
         else:
             assert self.mcore_gpt==True, "Currently only support mcore Retro."
         return model
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, context_input_ids, context_position_ids, context_mask):
         output_tensor = self.model(
-            tokens,
+            # tokens,
             text_position_ids,
             attention_mask,
             context_input_ids=context_input_ids,
@@ -167,6 +293,73 @@ class MegatronRetroModel(MegatronBaseModel, MegatronGPTModel):
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
+            # ## DEBUGGING
+            # if torch.distributed.get_rank() == 0:
+            #     print("-----------")
+            #     # Check position_id, all inputs, make sure similar to mcore
+            #     print('input_ids: ' + str(batch['tokens'].shape))
+            #     print('position_ids: ' + str(batch['position_ids'].shape))
+            #     print('attention_mask: ' + str(batch['attention_mask'].shape))
+            #     print('context_input_ids: ' + str(batch['context_input_ids'].shape))
+            #     print('context_position_ids: ' + str(batch['context_position_ids'].shape))
+            #     print('context_attention_mask: ' + str(batch['context_attention_mask'].shape))
+            #     print('labels: ' + str(batch['labels'].shape))
+            #     print('loss_mask: ' + str(batch['loss_mask'].shape))
+            #     print("**************")
+            #     print('input_ids: ' + str(batch['tokens']))
+            #     print('position_ids: ' + str(batch['position_ids']))
+            #     print('attention_mask: ' + str(batch['attention_mask']))
+            #     print('context_input_ids: ' + str(batch['context_input_ids']))
+            #     print('context_position_ids: ' + str(batch['context_position_ids']))
+            #     print('context_attention_mask: ' + str(batch['context_attention_mask']))
+            #     print('labels: ' + str(batch['labels']))
+            #     print('loss_mask: ' + str(batch['loss_mask']))
+            # exit()
+
+
+            # # DEBUGGING
+            # if torch.distributed.get_rank() == 0:
+            #     # print out sample and corresponding chunks, make sure match
+            #     print("==========================================================")
+            #     b = 0
+            #     print("GPT sample: " + str(self.tokenizer.ids_to_text(batch['tokens'][b])).replace("\n", ""))
+            #     one_gpt_sample = batch['tokens'][b]
+            #     one_gpt_neighbors = batch['context_input_ids'][b]
+            #     one_gpt_neighbors = one_gpt_neighbors.reshape(-1, self.retro_model_config.retro_num_neighbors, self.retro_model_config.retro_retrieved_length)
+            #     [l, k, r] = one_gpt_neighbors.shape # check here
+            #     print("[k, l, r]: " + str([k, l, r]))
+            #     print("------------")
+            #     for i in range(l): # iterating through the chunks within one GPT sample
+            #         one_gpt_sample_chunk = one_gpt_sample[i*64:i*64+64]
+            #         one_gpt_neighbors_chunks = one_gpt_neighbors[i]
+            #         print("GPT sample chunk: " + str(self.tokenizer.ids_to_text(one_gpt_sample_chunk)).replace("\n", "") + "\n")
+            #         for j in range(k):
+            #             print("GPT sample neighbor chunk: " + str(self.tokenizer.ids_to_text(one_gpt_neighbors_chunks[j][:64])).replace("\n", "") + "\n")
+            #         print("------------")
+
+            # # DEBUGGING
+            # if torch.distributed.get_rank() == 0:
+            #     print("--")
+
+            # reshape context_input_ids and context_position_ids for RETRO from [bs, l*k, r] => [bs*l*k, r]
+            context_input_ids = batch['context_input_ids']
+            context_position_ids = batch['context_position_ids']
+            context_input_ids = context_input_ids.view(-1, context_input_ids.shape[-1]).long()
+            context_position_ids = context_position_ids.view(-1, context_position_ids.shape[-1]).long()
+            batch['context_input_ids'] = context_input_ids
+            batch['context_position_ids'] = context_position_ids
+
+            # # must check input tensor order of context_input_ids
+            # ## DEBUGGING
+            # print('input_ids:' + str(batch['tokens'].shape))
+            # print('position_ids:' + str(context_input_ids.shape))
+            # print('attention_mask:' + str(context_input_ids.shape))
+            # print('context_input_ids:' + str(context_input_ids.shape))
+            # print('context_position_ids:' + str(context_input_ids.shape))
+            # print('labels:' + str(context_input_ids.shape))
+            # print('loss_mask:' + str(context_input_ids.shape))
+
+
             # Model forward pass
             forward_args = {
                 'input_ids': batch['tokens'],
@@ -179,6 +372,54 @@ class MegatronRetroModel(MegatronBaseModel, MegatronGPTModel):
                 'loss_mask': batch['loss_mask'],
             }
 
+
+            # ## DEBUGGING
+            # if torch.distributed.get_rank() == 0:
+            #     print("-----------")
+            #     # Check position_id, all inputs, make sure similar to mcore
+            #     print('input_ids: ' + str(batch['tokens'].shape))
+            #     print('position_ids: ' + str(batch['position_ids'].shape))
+            #     print('attention_mask: ' + str(batch['attention_mask'].shape))
+            #     print('context_input_ids: ' + str(batch['context_input_ids'].shape))
+            #     print('context_position_ids: ' + str(batch['context_position_ids'].shape))
+            #     print('context_attention_mask: ' + str(batch['context_attention_mask'].shape))
+            #     print('labels: ' + str(batch['labels'].shape))
+            #     print('loss_mask: ' + str(batch['loss_mask'].shape))
+            #     print("**************")
+            #     print('input_ids: ' + str(batch['tokens']))
+            #     print('position_ids: ' + str(batch['position_ids']))
+            #     print('attention_mask: ' + str(batch['attention_mask']))
+            #     print('context_input_ids: ' + str(batch['context_input_ids']))
+            #     print('context_position_ids: ' + str(batch['context_position_ids']))
+            #     print('context_attention_mask: ' + str(batch['context_attention_mask']))
+            #     print('labels: ' + str(batch['labels']))
+            #     print('loss_mask: ' + str(batch['loss_mask']))
+
+            #     # print out sample and corresponding chunks, make sure match
+            #     [bs, sq] = batch['tokens'].shape
+            #     _, r = batch['context_input_ids'].shape
+            #     # reshape from [bs*(l*k), r] to [bs, l*k, r]
+            #     batch['context_input_ids'] = batch['context_input_ids'].reshape(bs, -1 , r)
+
+            #     print("==========================================================")
+            #     b = 0
+            #     print("GPT sample: " + str(self.tokenizer.ids_to_text(batch['tokens'][b])).replace("\n", ""))
+            #     one_gpt_sample = batch['tokens'][b]
+            #     one_gpt_neighbors = batch['context_input_ids'][b]
+            #     one_gpt_neighbors = one_gpt_neighbors.reshape(-1, self.retro_model_config.retro_num_neighbors, self.retro_model_config.retro_retrieved_length)
+            #     [l, k, r] = one_gpt_neighbors.shape # check here
+            #     print("[k, l, r]: " + str([k, l, r]))
+            #     print("------------")
+            #     for i in range(l): # iterating through the chunks within one GPT sample
+            #         one_gpt_sample_chunk = one_gpt_sample[i*64:i*64+64]
+            #         one_gpt_neighbors_chunks = one_gpt_neighbors[i]
+            #         print("GPT sample chunk: " + str(self.tokenizer.ids_to_text(one_gpt_sample_chunk)).replace("\n", "") + "\n")
+            #         for j in range(k):
+            #             print("GPT sample neighbor chunk: " + str(self.tokenizer.ids_to_text(one_gpt_neighbors_chunks[j][:64])).replace("\n", "") + "\n")
+            #         print("------------")
+            # exit()
+
+
             if not self.mcore_gpt:
                 forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
                 if not self.use_loss_mask:
@@ -187,6 +428,21 @@ class MegatronRetroModel(MegatronBaseModel, MegatronGPTModel):
                 # TODO: @eharper can we add this to mcore?
                 forward_args.pop('loss_mask')
             output_tensor = model(**forward_args)
+
+            # # DEBUGGING
+            # try:
+            #     print("Decoder forward sample: ")
+            #     print(self.tokenizer)
+            #     print("batch['tokens'].shape: " + str(batch['tokens'].shape))
+            #     print(batch['tokens'][0].tolist())
+            #     print(str(self.tokenizer.ids_to_text(batch['tokens'][0].tolist())))
+            # except:
+            #     print("Error happens. Keep running")
+
+
+            # # DEBUGGING
+            # print("output_tensor: " + str(output_tensor.shape))
+            # print(output_tensor)
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
@@ -244,7 +500,7 @@ class MegatronRetroModel(MegatronBaseModel, MegatronGPTModel):
                     attention_mask = attention_mask[0:1]
                 context_input_ids = context_input_ids.cuda()
                 context_position_ids = context_position_ids.cuda()
-                context_mask = context_mask.cuda()
+                context_mask = None
                 if self.mcore_gpt:
                     # if first step, then clear KV cache, otherwise reuse inference_paarms
                     if set_inference_key_value_memory[0].item():
@@ -285,40 +541,105 @@ class MegatronRetroModel(MegatronBaseModel, MegatronGPTModel):
         """
         retro_config = self.transformer_config
 
-        # retro preprocess args
-        import types
-        retro_args_path = os.path.join(self.cfg.get('retro_workdir'), "args.json")
-        assert os.path.exists(retro_args_path), "retro workdir missing args.json"
-        retro_preprocess = types.SimpleNamespace(**json.load(retro_args_path))
-        retro_config.retro_preprocess = retro_preprocess
-
         # retro model args
-        retro_config.retro_workdir = self.cfg.get('retro_workdir')
-        retro_config.retro_encoder_num_layers = self.cfg.get('retro_encoder_num_layers', 2)
-        retro_config.retro_encoder_hidden_dropout = self.cfg.get('retro_encoder_hidden_dropout', 0.1)
-        retro_config.retro_encoder_attention_dropout = self.cfg.get('retro_encoder_attention_dropout', 0.1)
-        retro_config.retro_num_neighbors = self.cfg.get('retro_num_neighbors', 2)
-        retro_config.retro_num_retrieved_chunks = self.cfg.get('retro_num_retrieved_chunks', 2)
-        retro_config.retro_verify_neighbor_count = self.cfg.get('retro_verify_neighbor_count', True)
+        retro_config.retro_project_dir = self.cfg.retro.get('retro_project_dir')
+        retro_config.retro_block_size = self.cfg.data.retro_data.get('retro_block_size')
+        retro_config.retro_chunk_length = self.cfg.data.retro_data.get('retro_chunk_length')
+        retro_config.retro_encoder_num_layers = self.cfg.retro.get('retro_encoder_num_layers', 2)
+        retro_config.retro_encoder_hidden_dropout = self.cfg.retro.get('retro_encoder_hidden_dropout', 0.1)
+        retro_config.retro_encoder_attention_dropout = self.cfg.retro.get('retro_encoder_attention_dropout', 0.1)
+        retro_config.retro_num_neighbors = self.cfg.retro.get('retro_num_neighbors', 2)
+        retro_config.retro_num_retrieved_chunks = self.cfg.retro.get('retro_num_retrieved_chunks', 2)
+        retro_config.retro_verify_neighbor_count = self.cfg.retro.get('retro_verify_neighbor_count', True)
+        retro_config.retro_retrieved_length = retro_config.retro_num_retrieved_chunks * retro_config.retro_chunk_length
+
+        # DEBUGGING
+        print("retro_config: ")
+        print(retro_config)
 
         return retro_config
+
+    # def build_train_valid_test_datasets(self):
+    #     # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+    #     self._reconfigure_val_batches()
+    #     logging.info('Building dummy RETRO datasets.')
+    #     if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
+    #         raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
+    #     global_batch_size = self.cfg.global_batch_size
+    #     max_train_steps = self.trainer.max_steps
+    #     eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches  
+    #     test_iters = self.trainer.limit_test_batches
+
+    #     train_valid_test_num_samples = [
+    #         max_train_steps * global_batch_size,
+    #         eval_iters * global_batch_size,
+    #         test_iters * global_batch_size,
+    #     ]
+
+    #     if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
+    #         train_valid_test_num_samples[
+    #             1
+    #         ] = 1  # This is to make sure we only have one epoch on every validation iteration
+
+    #     data_path = ["/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_00_text_document"]
+    #     self.cfg.data.data_prefix = data_path
+
+    #     self._train_ds, self._validation_ds, self._test_ds = dummy_build_train_valid_test_datasets(
+    #         cfg=self.cfg,
+    #         trainer=self.trainer,
+    #         data_prefix=self.cfg.data.data_prefix,
+    #         data_impl=self.cfg.data.data_impl,
+    #         splits_string=self.cfg.data.splits_string,
+    #         train_valid_test_num_samples=train_valid_test_num_samples,
+    #         seq_length=self.cfg.data.seq_length,
+    #         seed=self.cfg.seed,
+    #         skip_warmup=self.cfg.data.get('skip_warmup', True),
+    #         tokenizer=self.tokenizer,
+    #     )
+    #     if self._train_ds is not None:
+    #         logging.info(f'Length of train dataset: {len(self._train_ds)}')
+    #     if self._validation_ds is not None:
+    #         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+    #     if self._test_ds is not None:
+    #         logging.info(f'Length of test dataset: {len(self._test_ds)}')
+    #     logging.info(f'Finished building dummy RETRO datasets.')
+
+    #     return self._train_ds, self._validation_ds, self._test_ds
 
     def build_train_valid_test_datasets(self):
         # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
         self._reconfigure_val_batches()
-        logging.info('Building dummy RETRO datasets.')
+        logging.info('Building mcore RETRO datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
         global_batch_size = self.cfg.global_batch_size
-        max_train_steps = self.trainer.max_steps
-        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = self.trainer.limit_test_batches
+        # max_train_steps = self.trainer.max_steps
+        # eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches # check this carefully, we want to match mcore dataset value, should this computed, or overriden?
+        # test_iters = self.trainer.limit_test_batches
 
+        # train_valid_test_num_samples = [
+        #     max_train_steps * global_batch_size,
+        #     eval_iters * global_batch_size,
+        #     test_iters * global_batch_size,
+        # ]
+
+        # quick fix
         train_valid_test_num_samples = [
-            max_train_steps * global_batch_size,
-            eval_iters * global_batch_size,
-            test_iters * global_batch_size,
+            65000,
+            100 * global_batch_size,
+            0 * global_batch_size,
         ]
+
+        # # quick fix
+        # train_valid_test_num_samples = [
+        #     cfg.data.train_samples,
+        #     cfg.data.eval_iters * global_batch_size,
+        #     0 * global_batch_size,
+        # ]
+        # compile helpers for megatron
+        from megatron.core.datasets.utils import compile_helpers
+        compile_helpers()
+
 
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
             train_valid_test_num_samples[
@@ -327,22 +648,70 @@ class MegatronRetroModel(MegatronBaseModel, MegatronGPTModel):
 
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             cfg=self.cfg,
-            trainer=self.trainer,
-            data_prefix=self.cfg.data.data_prefix,
-            data_impl=self.cfg.data.data_impl,
-            splits_string=self.cfg.data.splits_string,
+            retro_config=self.retro_model_config,
             train_valid_test_num_samples=train_valid_test_num_samples,
             seq_length=self.cfg.data.seq_length,
-            seed=self.cfg.seed,
-            skip_warmup=self.cfg.data.get('skip_warmup', True),
             tokenizer=self.tokenizer,
         )
+
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
         if self._validation_ds is not None:
             logging.info(f'Length of val dataset: {len(self._validation_ds)}')
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building dummy RETRO datasets.')
+        logging.info(f'Finished building mcore RETRO datasets.')
+
+        # # DEBUGGING
+        # if torch.distributed.get_rank() == 0:
+        #     print("self._train_ds nemo RETRO datasets: ")
+        #     print("nemo RETRO datasets (train): {}".format(str(len(self._train_ds)) if self._train_ds else None))
+        #     print("nemo RETRO datasets (valid): {}".format(str(len(self._validation_ds)) if self._validation_ds else None))
+        #     print("nemo RETRO datasets (test): {}".format(str(len(self._test_ds)) if self._test_ds else None))
+        #     print("nemo RETRO datasets (train) [0]: {}".format(str(self._train_ds[0]) if self._train_ds else None))
+        # # exit()
 
         return self._train_ds, self._validation_ds, self._test_ds
+
+
+    def build_pretraining_data_loader(
+        self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
+    ):
+        """Buld dataloader given an input dataset."""
+
+        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
+        # Megatron sampler
+        if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
+            if self.cfg.data.dataloader_type == 'single':
+                batch_sampler = MegatronPretrainingSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self.cfg.micro_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    drop_last=drop_last,
+                    global_batch_size=self.cfg.global_batch_size,
+                    rampup_batch_size=self.cfg.get('rampup_batch_size', None),
+                    pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
+                )
+            elif self.cfg.data.dataloader_type == 'cyclic':
+                batch_sampler = MegatronPretrainingRandomSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self.cfg.micro_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    drop_last=self.cfg.get('drop_last', True),
+                )
+            else:
+                raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
+        else:
+            raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
+
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
+            persistent_workers=True if self.cfg.data.num_workers > 0 else False,
+        )
