@@ -138,7 +138,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                             manifest_path=manifest_path, tar_paths=tar_path, shuffle_shards=shuffle, **common_kwargs
                         )
                     )
-                    weight = len(cutsets[-1])
+                    weight = len(cs)
                 else:
                     assert (
                         isinstance(manifest_info, Sequence)
