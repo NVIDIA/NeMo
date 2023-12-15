@@ -936,13 +936,13 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
 
-    def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
-        batch = next(dataloader_iter)
+    def inference_step(self, dataloader_iter, mode):
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([batch]), batch_idx)
+        loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([(batch, batch_idx, dataloader_idx)]))
 
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
@@ -1085,14 +1085,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
-        if not outputs:
-            # Handle case where no metrics. This can break checkpoint save/load.
-            app_state = AppState()
-            monitor_mode = app_state.checkpoint_callback_params.mode
-            assert monitor_mode in ['min', 'max']
-            averaged_metric = 0.0 if monitor_mode == 'max' else 1e2
-            logging.warning(f"No outputs to log for {mode} epoch")
-            return torch.Tensor([1e2]), torch.Tensor([averaged_metric])
+        if not outputs or (all([not x for x in outputs])):
+            return
 
         if isinstance(outputs[0], dict):
             outputs = [outputs]

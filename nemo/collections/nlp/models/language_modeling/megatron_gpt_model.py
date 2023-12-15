@@ -482,8 +482,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
-
+    def fwd_bwd_step(self, dataloader_iter, forward_only):
         # handle asynchronous grad reduction
         no_sync_func = None
         grad_sync_func = None
@@ -562,7 +561,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         self.initialize_ub = False
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
             The input batch to each micro-batch is fetched using the dataloader function
@@ -601,7 +600,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        item = next(dataloader_iter)
+        loss_mean = self.fwd_bwd_step(itertools.chain([item[0]]), False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -935,7 +935,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter, batch_idx):
+    def validation_step(self, dataloader_iter):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -955,12 +955,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for model_module in self.model:
                 model_module.eval()
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
+        loss = self.fwd_bwd_step(itertools.chain([batch]), True)
 
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
-        self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
+
+        if mode == 'val':
+            if len(self._validation_dl) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        else:
+            if len(self._test_dl) > 1:
+                self.test_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.test_step_outputs.append(loss)
+
         return loss
 
     def on_validation_epoch_end(self):

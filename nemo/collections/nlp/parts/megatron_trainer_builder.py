@@ -14,7 +14,7 @@
 
 import sys
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -38,6 +38,7 @@ class MegatronTrainerBuilder:
 
     def __init__(self, cfg: DictConfig) -> None:
         self.cfg = cfg
+        self.use_precision_plugin = False
 
     def _training_strategy(self) -> NLPDDPStrategy:
         """
@@ -77,6 +78,7 @@ class MegatronTrainerBuilder:
 
         plugins = []
         if self.cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
+            self.use_precision_plugin = True
             scaler = None
             if self.cfg.trainer.precision in [16, '16', '16-mixed']:
                 scaler = self._grad_scaler()
@@ -97,7 +99,12 @@ class MegatronTrainerBuilder:
     def create_trainer(self) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=[CustomProgressBar()])
+        if self.use_precision_plugin:
+            trainer_cfg = OmegaConf.to_container(self.cfg.trainer, resolve=True)
+            trainer_cfg.pop('precision')
+        else:
+            trainer_cfg = self.cfg.trainer
+        return Trainer(plugins=plugins, strategy=strategy, **trainer_cfg, callbacks=[CustomProgressBar()])
 
 
 class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
