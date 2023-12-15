@@ -17,14 +17,9 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
-from pytorch_lightning import Trainer
-from transformers import (
-    AutoModelForCausalLM,
-    LlamaTokenizer,
-    LlamaTokenizerFast,
-    convert_slow_tokenizer,
-)
 from omegaconf import open_dict
+from pytorch_lightning import Trainer
+from transformers import AutoModelForCausalLM, LlamaTokenizer, LlamaTokenizerFast, convert_slow_tokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -123,10 +118,7 @@ def get_args():
         help="Path to tokenizer used for the input nemo model. (need to extract the .nemo file first)",
     )
     parser.add_argument(
-        "--hf-out-tokenizer",
-        type=str,
-        default=None,
-        help="Path to save the tokenizer used for the output HF model.",
+        "--hf-out-tokenizer", type=str, default=None, help="Path to save the tokenizer used for the output HF model.",
     )
     parser.add_argument(
         "--precision",
@@ -279,26 +271,13 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
 
 
 def replace_hf_weights_and_tokenizer(
-    weights_file,
-    dtype,
-    input_hf_path,
-    output_hf_path,
-    tokenizer_path,
-    output_hf_tokenizer,
+    weights_file, dtype, input_hf_path, output_hf_path, tokenizer_path, output_hf_tokenizer,
 ):
-    model = AutoModelForCausalLM.from_pretrained(
-        input_hf_path,
-        local_files_only=True,
-        torch_dtype=dtype,
-    )
+    model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True, torch_dtype=dtype,)
     nemo_exported = torch.load(weights_file)
 
     if tokenizer_path:
-        tokenizer = LlamaTokenizer.from_pretrained(
-            tokenizer_path,
-            local_files_only=True,
-            legacy=False,
-        )
+        tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path, local_files_only=True, legacy=False,)
         tmp_tokenizer = convert_slow_tokenizer.convert_slow_tokenizer(tokenizer)
         fast_tokenizer = LlamaTokenizerFast(tokenizer_object=tmp_tokenizer)
         tokenizer_length = len(fast_tokenizer)
@@ -319,21 +298,11 @@ if __name__ == '__main__':
     if not args.hf_out_tokenizer and args.hf_out_path:
         args.hf_out_tokenizer = args.hf_out_path
 
-    dtype = convert(
-        args.in_file,
-        args.out_file,
-        precision=args.precision,
-        cpu_only=args.cpu_only
-    )
+    dtype = convert(args.in_file, args.out_file, precision=args.precision, cpu_only=args.cpu_only)
 
     if args.hf_in_path and args.hf_out_path:
         replace_hf_weights_and_tokenizer(
-            args.out_file,
-            dtype,
-            args.hf_in_path,
-            args.hf_out_path,
-            args.in_tokenizer,
-            args.hf_out_tokenizer,
+            args.out_file, dtype, args.hf_in_path, args.hf_out_path, args.in_tokenizer, args.hf_out_tokenizer,
         )
     else:
         logging.info("`hf-in-path` and/or `hf-out-path` not provided, not generating full HF model.")
