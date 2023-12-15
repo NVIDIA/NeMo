@@ -41,6 +41,11 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
         cuts = cuts.sort_by_duration()
         cuts = self.maybe_mix_noise(cuts)
         audio, audio_lens, cuts = self.load_audio(cuts)
+
+        # Note(pzelasko): this is canary-specific temporary hack to check that PNC does not break things.
+        for c in cuts:
+            c.supervisions.text = c.supervisions.text.replace(".", "").replace(",", "").replace("?", "").lower()
+
         tokens = [torch.as_tensor(self.tokenizer(c.supervisions[0].text, c.supervisions[0].language)) for c in cuts]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=0)
