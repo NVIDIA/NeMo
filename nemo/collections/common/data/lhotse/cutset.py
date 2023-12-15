@@ -114,26 +114,51 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                 )
             )
         else:
-            # Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
-            # This is the format for multiple NeMo buckets.
-            # Note: we set "weights" here to be proportional to the number of utterances in each data source.
-            #       this ensures that we distribute the data from each source uniformly throughout each epoch.
-            #       Setting equal weights would exhaust the shorter data sources closer towatds the beginning
-            #       of an epoch (or over-sample it in the case of infinite CutSet iteration with .repeat()).
+            # Format option 1:
+            #   Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
+            #   This is the format for multiple NeMo buckets.
+            #   Note: we set "weights" here to be proportional to the number of utterances in each data source.
+            #         this ensures that we distribute the data from each source uniformly throughout each epoch.
+            #         Setting equal weights would exhaust the shorter data sources closer the towards the beginning
+            #         of an epoch (or over-sample it in the case of infinite CutSet iteration with .repeat()).
+            # Format option 1:
+            #   Assume it's [[path1, weight1], [path2, weight2], ...] (while tarred_audio_filepaths remain unchanged).
+            #   Note: this option allows to manually set the weights for multiple datasets.
             logging.info(
                 f"Initializing Lhotse CutSet from multiple tarred NeMo manifest sources with a weighted multiplexer. "
                 f"We found the following sources and weights: "
             )
             cutsets = []
             weights = []
-            for (mp,), (tp,) in zip(config["manifest_filepath"], config["tarred_audio_filepaths"]):
-                cutsets.append(
-                    CutSet(
-                        LazyNeMoTarredIterator(manifest_path=mp, tar_paths=tp, shuffle_shards=shuffle, **common_kwargs)
+            for manifest_info, (tar_path,) in zip(config["manifest_filepath"], config["tarred_audio_filepaths"]):
+                if len(manifest_info) == 1:
+                    (manifest_path,) = manifest_info
+                    cs = CutSet(
+                        LazyNeMoTarredIterator(
+                            manifest_path=manifest_path, tar_paths=tar_path, shuffle_shards=shuffle, **common_kwargs
+                        )
                     )
-                )
-                weights.append(len(cutsets[-1]))
-                logging.info(f"- path={mp} weight={weights[-1]}")
+                    weight = len(cutsets[-1])
+                else:
+                    assert (
+                        isinstance(manifest_info, Sequence)
+                        and len(manifest_info) == 2
+                        and isinstance(manifest_info[1], (int, float))
+                    ), (
+                        "Supported inputs types for config.manifest_filepath are: "
+                        "str | list[list[str]] | list[tuple[str, number]] "
+                        "where str is a path and number is a mixing weight (it may exceed 1.0). "
+                        f"We got: '{manifest_info}'"
+                    )
+                    manifest_path, weight = manifest_info
+                    cs = CutSet(
+                        LazyNeMoTarredIterator(
+                            manifest_path=manifest_path, tar_paths=tar_path, shuffle_shards=shuffle, **common_kwargs
+                        )
+                    )
+                logging.info(f"- {manifest_path=} {weight=}")
+                cutsets.append(cs.repeat())
+                weights.append(weight)
             cuts = CutSet.mux(*cutsets, weights=weights)
     else:
         logging.info(

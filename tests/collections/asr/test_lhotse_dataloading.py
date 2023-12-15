@@ -1,10 +1,11 @@
+import os
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import pytest
-import torch.utils.data
+import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
@@ -335,6 +336,38 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[s
     b = batches[3]
     assert set(b.keys()) == {"audio", "audio_lens", "ids"}
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
+
+
+def test_dataloader_from_tarred_nemo_manifest_weighted_combination(nemo_tarred_manifest_path: tuple[str, str]):
+    json_mft, tar_mft = nemo_tarred_manifest_path
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": [[json_mft, 0.8], [json_mft, 0.2]],
+            "tarred_audio_filepaths": [[tar_mft], [tar_mft]],
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "lhotse": {
+                "use_bucketing": True,
+                "num_buckets": 2,
+                "drop_last": False,
+                "batch_duration": 4.0,  # seconds
+                "quadratic_duration": 15.0,  # seconds
+                "shuffle_buffer_size": 10,
+                "buffer_size": 100,
+                "seed": 0,
+            },
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    b = next(iter(dl))
+    assert set(b.keys()) == {"audio", "audio_lens", "ids"}
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
 
 
 def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_multi: tuple[str, str]):
