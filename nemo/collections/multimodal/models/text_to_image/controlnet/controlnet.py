@@ -572,15 +572,6 @@ class ControlNet(nn.Module):
             else:
                 print("sd blocks loaded successfully")
 
-            # Check if unet blocks are loaded
-            # for key, value in self.state_dict().items():
-            #     if key in missing_keys:
-            #         continue
-            #     if torch.allclose(value, re_state_dict[key], atol = 1e-5):
-            #         pass
-            #     else:
-            #         print(f"{key} not matching after loading")
-
     def make_zero_conv(self, channels):
         return TimestepEmbedSequential(zero_module(conv_nd(self.dims, channels, channels, 1, padding=0)))
 
