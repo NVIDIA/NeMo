@@ -53,8 +53,8 @@ class TokenizerWrapper:
     """
 
     def __init__(self, tokenizer):
-        from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
         from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+        from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
         self._tokenizer = tokenizer
         if isinstance(tokenizer, AggregateTokenizer):
@@ -80,4 +80,3 @@ class TokenizerWrapper:
 
 def _identity(x):
     return x
-
