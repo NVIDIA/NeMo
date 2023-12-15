@@ -51,6 +51,7 @@ class TokenizerWrapper:
     """
     Provide a unified interface for NeMo Tokenizer, AggregateTokenizer, and (char) Parser.
     """
+
     def __init__(self, tokenizer):
         from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
         from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
