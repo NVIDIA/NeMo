@@ -27,7 +27,7 @@ from nemo.core.config import hydra_runner
 def get_control_input(image_path, batch_size, hint_image_size, control_image_preprocess=None):
     image = cv2.imread(image_path)
     if control_image_preprocess:
-        # More applications can be supported here
+        # More applications will be supported here
         process = get_preprocessing_function(control_image_preprocess)
         image = process(image)
     image = cv2.resize(image, (hint_image_size, hint_image_size))

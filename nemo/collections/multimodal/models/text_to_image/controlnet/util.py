@@ -7,8 +7,6 @@ from PIL import Image
 from pytorch_lightning import Callback
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
 
-from nemo.collections.multimodal.models.text_to_image.controlnet.uniformer import UniformerDetector
-
 
 class ImageLogger(Callback):
     def __init__(
@@ -90,10 +88,3 @@ class ImageLogger(Callback):
             self.log_img(pl_module, batch, batch_idx, split="train")
 
 
-def get_preprocessing_function(name):
-    if name == 'seg2img':
-        apply_uniformer = UniformerDetector()
-        return apply_uniformer
-    else:
-        print("The application is not yet supported")
-        raise NotImplementedError
