@@ -452,16 +452,39 @@ class GPTDataset(Dataset):
         l = int(ns/m)
         k = 2
         r = 128
-        neighbor_tokens = torch.zeros([k*l, r])
+        neighbor_tokens = torch.ones([k*l, r]).long()
         from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
         _, _, neighbor_position_ids = get_ltor_masks_and_position_ids(
             neighbor_tokens,
-            self.eod_id,
+            self.eos_id,
             self.reset_position_ids,
             self.reset_attention_mask,
             self.eod_mask_loss
         )
-        neighbor_attention_mask = None  # batch neighbor_attention_mask will be set to None following Lawrence's implementation
+        neighbor_attention_mask = torch.zeros([1, 1])  # batch neighbor_attention_mask will be set to None in megatron_retro_model.py following Lawrence's implementation
+
+        # # DEBUGGING
+        # print("-----------")
+        # print('tokens: ' + str(tokens.shape))
+        # print('labels: ' + str(labels.shape))
+        # print('attention_mask: ' + str(attention_mask.shape))
+        # print('loss_mask: ' + str(loss_mask.shape))
+        # print('position_ids: ' + str(position_ids.shape))
+        # print('context_input_ids: ' + str(neighbor_tokens.shape))
+        # print('context_position_ids: ' + str(neighbor_position_ids.shape))
+        # print('context_mask: ' + str(neighbor_attention_mask.shape))
+        # print('tokens: ' + str(tokens.type()))
+        # print('labels: ' + str(labels.type()))
+        # print('attention_mask: ' + str(attention_mask.type()))
+        # print('loss_mask: ' + str(loss_mask.type()))
+        # print('position_ids: ' + str(position_ids.type()))
+        # print('context_input_ids: ' + str(neighbor_tokens.type()))
+        # print('context_position_ids: ' + str(neighbor_position_ids.type()))
+        # print('context_mask: ' + str(neighbor_attention_mask.type())) 
+        # print('tokens: ' + str(tokens) )
+        # print('position_ids: ' + str(position_ids) )
+        # print('context_input_ids: ' + str(neighbor_tokens) )
+        # print('context_position_ids: ' + str(neighbor_position_ids) )
 
         return {
             'tokens': tokens,

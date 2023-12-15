@@ -32,10 +32,20 @@ from nemo.core import Dataset
 from nemo.utils import logging
 
 try:
-    from megatron.core import parallel_state
-    from megatron.core.models.retro.data.query.retro_dataset import RetroDataset as MCoreRETRODataset
-    from megatron.core.models.retro.data.db.utils import get_merged_train_dataset as get_db_dataset
-    from megatron.core.models.retro.data.query.chunk_dataset import get_chunk_dataset_map
+    from megatron.core import mpu, tensor_parallel
+    # from megatron.core.models.retro.data.query.retro_dataset import RetroDataset as MCoreRETRODataset
+    # from megatron.core.models.retro.data.db.utils import get_merged_train_dataset as get_db_dataset
+    # from megatron.core.models.retro.data.query.chunk_dataset import get_chunk_dataset_map
+    # from megatron.core.models.retro.data.utils import BlockPathMap
+    # from megatron.core.models.retro.data.query.utils import get_neighbor_dir
+    from megatron.core.models.retro.data.config import RetroGPTDatasets
+    from megatron.core.models.retro.model import RetroConfig
+    from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
+    from megatron.core.datasets.blended_megatron_dataset_config import GPTDatasetConfig
+    from megatron.core.datasets.gpt_dataset import GPTDataset
+    from megatron.core.models.retro.data.query import get_retro_datasets
+    from megatron.utils import get_ltor_masks_and_position_ids
+
 
     HAVE_MEGATRON_CORE = True
 
@@ -47,12 +57,9 @@ class RETRODataset(Dataset):
     def __init__(
         self,
         cfg,
-        num_neighbors,
-        num_retrieved_chunks,
-        block_size,
-        db_dataset,
-        chunk_dataset,
-        neighbor_path_map
+        retro_config: RetroConfig,
+        tokenizer,
+        mcore_retro_dataset
     ):
         super().__init__()
 
@@ -60,188 +67,196 @@ class RETRODataset(Dataset):
         self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
         self.eod_mask_loss = cfg.data.get('eod_mask_loss', False)
         self.eos_id = tokenizer.eos_id
+        self.retro_config = retro_config
+        self.mcore_retro_dataset = mcore_retro_dataset
 
-        self.mcore_retro_dataset = MCoreRETRODataset(
-                                        num_neighbors,
-                                        num_retrieved_chunks,
-                                        block_size,
-                                        db_dataset,
-                                        chunk_dataset,
-                                        neighbor_path_map            
-                                        )
+        # DEBUGGING
+        self.tokenizer = tokenizer
+
         return
 
     def __len__(self):
         return len(self.mcore_retro_dataset.chunk_dataset.sample_dataset)
-
+    
     def _get_text(self, idx: int):
-        n_chunks_per_sample = self.mcore_retro_dataset.chunk_dataset.n_chunks_per_sample
-
-        # Get standard sample.
-        sample = self.mcore_retro_dataset.chunk_dataset.sample_dataset[idx]
-
-        # Sample idx to chunk idxs.
-        chunk_idxs = list(range(
-            idx * n_chunks_per_sample,
-            (idx + 1) * n_chunks_per_sample,
-        ))
-
-        # Collect retrieved tokens.
-        all_retrieved_chunk_ids = []
-        all_retrieved_token_ids = []
-        for chunk_idx in chunk_idxs:
-
-            # Neighbor chunk ids.
-            neighbor_path = self.mcore_retro_dataset.neighbor_path_map[chunk_idx]
-            with h5py.File(neighbor_path, "r") as f:
-                neighbor_chunk_ids = f["neighbors"] \
-                    [chunk_idx % self.mcore_retro_dataset.block_size, :self.mcore_retro_dataset.num_neighbors].tolist()
-
-            # Retrieved (neighbor + continuation) token ids.
-            retrieved_chunk_ids = []
-            retrieved_token_ids = []
-            for neighbor_chunk_id in neighbor_chunk_ids:
-                current_chunk_ids = [
-                    i % len(self.mcore_retro_dataset.db_dataset)
-                    for i in range(
-                            neighbor_chunk_id,
-                            neighbor_chunk_id + self.mcore_retro_dataset.num_retrieved_chunks)]
-                current_token_ids = [self.mcore_retro_dataset.db_dataset[ci]["text"]
-                                     for ci in current_chunk_ids]
-                retrieved_chunk_ids.append(current_chunk_ids)
-                retrieved_token_ids.append(current_token_ids)
-
-            # Collect retrieved tokens.
-            all_retrieved_chunk_ids.append(retrieved_chunk_ids)
-            all_retrieved_token_ids.append(retrieved_token_ids)
-
-        # Reshape retrieved tokens.
-        all_retrieved_chunk_ids = np.array(all_retrieved_chunk_ids) \
-            .reshape((n_chunks_per_sample, self.mcore_retro_dataset.num_neighbors, -1))
-        all_retrieved_token_ids = np.array(all_retrieved_token_ids) \
-            .reshape((n_chunks_per_sample, self.mcore_retro_dataset.num_neighbors, -1))
-
-        # Sample.
-        sample = {
-            **sample,
-            "neighbor_chunks" : all_retrieved_chunk_ids,
-            "neighbor_tokens" : all_retrieved_token_ids,
-        }
-
-        return sample
+        return self.mcore_retro_dataset[idx]
 
     def __getitem__(self, idx):
 
         sample = self._get_text(idx)
 
         # Unpack
-        tokens_ = sample['text'].long()
+        tokens_ = torch.from_numpy(sample['text'])
+        tokens_ = tokens_.long() # size should be [seq_length]
         labels = tokens_[1:].contiguous()
         tokens = tokens_[:-1].contiguous()
+        neighbor_tokens = torch.from_numpy(sample['neighbor_tokens'])
+        neighbor_tokens = neighbor_tokens.long() # size should be [l, k, r]
 
-        # note: [l * k, r]
+        # # DEBUGGING
+        # print("tokens_.shape: " + str(tokens_.shape))
+        # print("neighbor_tokens.shape: " + str(neighbor_tokens.shape))
+
+        # note: [l, k, r]  => [l*k, r]
         # note: 2x == neighbor, continuation
-        neighbor_tokens = sample['neighbor_tokens'] \
-            .view(-1, retro_args.retro_gpt_retrieved_length).long()
+        neighbor_tokens = neighbor_tokens \
+            .view(-1, self.retro_config.retro_retrieved_length).long()
 
-        # Get the masks and postition ids.
-        from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-        tokens = torch.unsqueeze(tokens, 0)     # get_ltor_masks_and_position_ids takes as input tokens arguments as a batch (2D tensor)
+        # Get the masks and postition ids for tokens and neighbor_tokens
+        tokens = torch.unsqueeze(tokens, 0)     # get_ltor_masks_and_position_ids takes as input tokens arguments as a batch (2D tensor), so need to convert tokens from 1D to 2D
         attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
             tokens,
-            tokenizer.eod,
-            args.reset_position_ids,
-            args.reset_attention_mask,
-            args.eod_mask_loss)
-        tokens = tokens[0]
-        attention_mask = attention_mask[0]
-        loss_mask = loss_mask[0]
-        position_ids = position_ids[0]
-        _, _, neighbor_position_ids = get_ltor_masks_and_position_ids(
+            self.eos_id,
+            self.reset_position_ids,
+            self.reset_attention_mask,
+            self.eod_mask_loss)
+        tokens, attention_mask, loss_mask, position_ids  = tokens[0], attention_mask[0], loss_mask[0], position_ids[0]
+        _, _, neighbor_position_ids = get_ltor_masks_and_position_ids( # neighbor_tokens is already a 2D array
             neighbor_tokens,
-            tokenizer.eod,
-            args.reset_position_ids,
-            args.reset_attention_mask,
-            args.eod_mask_loss)
-        neighbor_attention_mask = None
+            self.eos_id,
+            self.reset_position_ids,
+            self.reset_attention_mask,
+            self.eod_mask_loss)
+        neighbor_attention_mask = torch.zeros([1, 1])  # just a dummy values, since the batch neighbor_attention_mask will be set to None in megatron_retro_model.py following Lawrence's implementation
+
+        # # DEBUGGING
+        # if torch.distributed.get_rank() == 0:
+        #     print("retro_dataset.__getitem__() method:")
+        #     print("GPT sample: " + str(self.tokenizer.ids_to_text(tokens)).replace("\n", ""))
+        #     one_gpt_sample = tokens
+        #     one_gpt_neighbors = neighbor_tokens
+        #     one_gpt_neighbors = one_gpt_neighbors.reshape(-1, self.retro_config.retro_num_neighbors, self.retro_config.retro_retrieved_length)
+        #     [l, k, r] = one_gpt_neighbors.shape # check here
+        #     print("[l, k, r]: " + str([l, k, r]))
+        #     print("------------")
+        #     for i in range(l): # iterating through the chunks within one GPT sample
+        #         one_gpt_sample_chunk = one_gpt_sample[i*64:i*64+64]
+        #         one_gpt_neighbors_chunks = one_gpt_neighbors[i]
+        #         print("GPT sample chunk: " + str(self.tokenizer.ids_to_text(one_gpt_sample_chunk)).replace("\n", "") + "\n")
+        #         for j in range(k):
+        #             print("GPT sample neighbor chunk: " + str(self.tokenizer.ids_to_text(one_gpt_neighbors_chunks[j][:64])).replace("\n", "") + "\n")
+        #         print("------------")
+            
+        #     print("========================================================== \n\n\n")
+        #     # exit()
+
+
 
         return {
             'tokens': tokens,
             'labels': labels,
             'loss_mask': loss_mask,
             'attention_mask': attention_mask,
-            'position_ids': context_position_idsmask,
-            'neighbor_tokens': neighbor_tokens,
-            'neighbor_attention_mask': neighbor_attention_mask,
-            'neighbor_position_ids': neighbor_position_ids
+            'position_ids': position_ids,
+            'context_input_ids': neighbor_tokens,
+            'context_attention_mask': neighbor_attention_mask,
+            'context_position_ids': neighbor_position_ids
         }
 
 def build_train_valid_test_datasets(
     cfg,
+    retro_config: RetroConfig,
+    train_valid_test_num_samples,
+    seq_length,
+    tokenizer,
 ):
 
-    # convert cfg to args and retro_args
-    args = get_args_from_config(cfg)
-    import types
-    retro_args_path = os.path.join(cfg.get('retro_workdir'), "args.json")
-    assert os.path.exists(retro_args_path), "retro workdir missing args.json"
-    retro_args = types.SimpleNamespace(**json.load(retro_args_path))
+    # gpt dataset
+    train_ds, valid_ds, test_ds = gpt_train_valid_test_datasets_provider(cfg, train_valid_test_num_samples)
+    gpt_datasets = RetroGPTDatasets(
+        train=(train_ds, train_valid_test_num_samples[0]),
+        valid=(valid_ds, train_valid_test_num_samples[1]),
+        test=(test_ds, train_valid_test_num_samples[2]),
+    )
 
-    # DB dataset.
-    db_dataset = get_db_dataset(args)   # Lawrence is working on to make it not using global variables
+    # # DEBUGGING
+    # if torch.distributed.get_rank() == 0:
+    #     gpt_train_ds, gpt_valid_ds, gpt_test_ds = gpt_datasets.train, gpt_datasets.valid, gpt_datasets.test
+    #     print("GPT datasets (train): {}".format(str(len(gpt_train_ds))))
+    #     print("GPT datasets (valid): {}".format(str(len(gpt_valid_ds))))
+    #     print("GPT datasets (test): {}".format(str(len(gpt_test_ds))))
+    #     print("GPT datasets shape (train): {}".format(str(gpt_train_ds)))
+    #     print("GPT datasets shape (valid): {}".format(str(gpt_valid_ds)))
+    #     print("GPT datasets shape (test): {}".format(str(gpt_test_ds)))
 
-    # Retro datasets.
-    chunk_ds_info_map = get_chunk_dataset_map(args) # Lawrence is working on to make it not using global variables
-    retro_dataset_map = {}
-    for data_key, chunk_ds_info in chunk_ds_info_map.items():
-        chunk_dataset = chunk_ds_info["data"]
-        neighbor_dir = chunk_ds_info["neighbor_dir"]
-        neighbor_path_map = BlockPathMap.from_dir(neighbor_dir, retro_args.retro_block_size)
+    retro_train_ds, retro_valid_ds, retro_test_ds = get_retro_datasets(
+        config=retro_config,
+        gpt_datasets=gpt_datasets,
+        sample_length=seq_length,
+        eod_token_id=tokenizer.eos_id,
+    )
 
-        # Verify dataset prefixes.
-        expected_dir = get_neighbor_dirname(data_key, chunk_dataset.sample_dataset)
-        assert expected_dir == neighbor_dir, \
-            "inconsistent dataset source; '%s' vs. '%s'." % \
-            (expected_dir, neighbor_dir)
+    train_ds = RETRODataset(
+        cfg, 
+        retro_config, 
+        tokenizer,
+        retro_train_ds) if retro_train_ds else None
+    valid_ds = RETRODataset(
+        cfg, 
+        retro_config, 
+        tokenizer, 
+        retro_valid_ds) if retro_valid_ds else None
+    test_ds = RETRODataset(
+        cfg, 
+        retro_config, 
+        tokenizer, 
+        retro_test_ds) if retro_test_ds else None
 
-        # Verify num chunks.
-        n_sample_chunks = len(chunk_dataset)
-        n_neighbor_chunks = neighbor_path_map.max_idx
+    # # DEBUGGING
+    # if torch.distributed.get_rank() == 0:
+    #     print("mcore RETRO datasets: ")
+    #     print("mcore RETRO datasets (train): {}".format(str(len(retro_train_ds)) if retro_train_ds else None))
+    #     print("mcore RETRO datasets (valid): {}".format(str(len(retro_valid_ds)) if retro_valid_ds else None))
+    #     print("mcore RETRO datasets (test): {}".format(str(len(retro_test_ds)) if retro_test_ds else None))
+    #     print("mcore RETRO datasets (train) [0]: {}".format(str(retro_train_ds[0]) if retro_train_ds else None))
 
-        if not os.path.isdir(neighbor_dir):
-            if torch.distributed.get_rank() == 0:
-                raise Exception("neighbor directory '%s' not found; please "
-                                "compare --train-samples, --seq-length, --seed, "
-                                "--eval-iters, and --eval-interval, with "
-                                "retro preprocessing args." %
-                                neighbor_dir)
-            torch.distributed.barrier()
-            exit()
+    #     print("nemo RETRO datasets: ")
+    #     print("nemo RETRO datasets (train): {}".format(str(len(train_ds)) if train_ds else None))
+    #     print("nemo RETRO datasets (valid): {}".format(str(len(valid_ds)) if valid_ds else None))
+    #     print("nemo RETRO datasets (test): {}".format(str(len(test_ds)) if test_ds else None))
+    #     print("nemo RETRO datasets (train) [0]: {}".format(str(train_ds[0]) if train_ds else None))
+    # # exit()
 
-        if verify_sizes and n_sample_chunks != n_neighbor_chunks:
-            if torch.distributed.get_rank() == 0:
-                print("neighbor_dir : %s" % neighbor_dir)
-                print("neighbor_path_map : %s" % neighbor_path_map)
-                raise Exception("num sampled chunks (%d) != num neighbor chunks "
-                                "(%d); did you complete querying the entire "
-                                "pretraining dataset?"
-                                % (n_sample_chunks, n_neighbor_chunks))
-            torch.distributed.barrier()
-            exit()
 
-        # Retro dataset.
-        retro_dataset_map[data_key] = RetroDataset(
-            num_neighbors=args.retro_num_neighbors,
-            num_retrieved_chunks=args.retro_num_retrieved_chunks,
-            block_size=retro_args.retro_block_size,
-            db_dataset=db_dataset,
-            chunk_dataset=chunk_dataset,
-            neighbor_path_map=neighbor_path_map,
-        )
-
-    # Extract datasets.
-    train_ds = retro_dataset_map.get("train", None)
-    valid_ds = retro_dataset_map.get("valid", None)
-    test_ds = retro_dataset_map.get("test", None)
 
     return train_ds, valid_ds, test_ds
+
+
+def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples):
+    """Build the train test and validation datasets.
+       Implemented from train_valid_test_datasets_provider in M-LM/pretrain_gpt.py
+
+    Args:
+        train_val_test_num_samples : A list containing the number of samples in train test and validation.
+    """
+
+    def is_dataset_built_on_rank():
+        return (mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()) and mpu.get_tensor_model_parallel_rank() == 0
+
+    def core_gpt_dataset_config_from_args(cfg):  # need to make sure all args are the overriden written
+        # Implemented from core_gpt_dataset_config_from_args in M-LM/pretrain_gpt.py
+        return GPTDatasetConfig(
+            is_built_on_rank=is_dataset_built_on_rank,
+            random_seed=cfg.seed,
+            sequence_length=cfg.data.seq_length,
+            blend=cfg.data.data_prefix,
+            blend_per_split=[None, None, None], # no corresponding argument in Nemo, set to None, train/valid/test is constructed from data_path and split
+            split=cfg.data.splits_string,
+            path_to_cache=None, # no corresponding argument in Nemo, set to None, train/valid/test is constructed from data_path and split
+            return_document_ids=False,
+        )
+
+    print("> building train, validation, and test datasets for GPT ...")
+
+    train_ds, valid_ds, test_ds = BlendedMegatronDatasetBuilder(
+        GPTDataset,
+        train_val_test_num_samples,
+        core_gpt_dataset_config_from_args(cfg)
+    ).build()
+
+    print("> finished creating GPT datasets ...")
+
+
+
+    return train_ds, valid_ds, test_ds
+
