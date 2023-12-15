@@ -180,7 +180,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     else:
         logging.warning(f"Precision string {precision} is not recognized, falling back to fp32")
         dtype = torch.float32  # fallback
-    logger.info(f"Using precision {dtype}")
+    logging.info(f"Using precision {dtype}")
 
     param_to_weights = lambda param: param.to(dtype)
     checkpoint = OrderedDict()
