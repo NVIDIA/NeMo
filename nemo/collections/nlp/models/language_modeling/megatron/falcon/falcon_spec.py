@@ -45,24 +45,25 @@ def get_falcon_layer_spec() -> ModuleSpec:
         raise ImportError(
             "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
         )
-    falcon_submodules = TransformerLayerSubmodules(
-        input_layernorm=TENorm,
-        self_attention=ModuleSpec(
-            module=SelfAttention,
-            params={"attn_mask_type": AttnMaskType.causal},
-            submodules=SelfAttentionSubmodules(
-                linear_qkv=TEColumnParallelLinear,
-                core_attention=TEDotProductAttention,
-                linear_proj=TERowParallelLinear,
+    else:
+        falcon_submodules = TransformerLayerSubmodules(
+            input_layernorm=TENorm,
+            self_attention=ModuleSpec(
+                module=SelfAttention,
+                params={"attn_mask_type": AttnMaskType.causal},
+                submodules=SelfAttentionSubmodules(
+                    linear_qkv=TEColumnParallelLinear,
+                    core_attention=TEDotProductAttention,
+                    linear_proj=TERowParallelLinear,
+                ),
             ),
-        ),
-        self_attn_bda=get_bias_dropout_add,
-        pre_mlp_layernorm=TENorm,
-        mlp=ModuleSpec(
-            module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
-        ),
-        mlp_bda=get_bias_dropout_add,
-    )
-    # Old falcon(prior to 7b/40b/180b) uses post_self_attn_layernorm that is not included in TransformerLayerModules.
-    falcon_submodules.post_self_attn_layernorm = TENorm
-    return ModuleSpec(module=FalconTransformerLayer, submodules=falcon_submodules)
+            self_attn_bda=get_bias_dropout_add,
+            pre_mlp_layernorm=TENorm,
+            mlp=ModuleSpec(
+                module=MLP, submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
+            ),
+            mlp_bda=get_bias_dropout_add,
+        )
+        # Old falcon(prior to 7b/40b/180b) uses post_self_attn_layernorm that is not included in TransformerLayerModules.
+        falcon_submodules.post_self_attn_layernorm = TENorm
+        return ModuleSpec(module=FalconTransformerLayer, submodules=falcon_submodules)

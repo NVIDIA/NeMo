@@ -69,35 +69,36 @@ class FalconTransformerLayer(TransformerLayer):
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__(config=config, submodules=submodules, layer_number=layer_number)
+        else:
+            super().__init__(config=config, submodules=submodules, layer_number=layer_number)
 
-        if hasattr(self.config, 'new_decoder_architecture'):
-            self.new_decoder_architecture = self.config.new_decoder_architecture
-        else:
-            self.new_decoder_architecture = None
-        if hasattr(self.config, 'parallel_attention'):
-            self.parallel_attention = self.config.parallel_attention
-        else:
-            self.parallel_attention = None
+            if hasattr(self.config, 'new_decoder_architecture'):
+                self.new_decoder_architecture = self.config.new_decoder_architecture
+            else:
+                self.new_decoder_architecture = None
+            if hasattr(self.config, 'parallel_attention'):
+                self.parallel_attention = self.config.parallel_attention
+            else:
+                self.parallel_attention = None
 
-        if self.new_decoder_architecture or self.parallel_attention:
-            self.post_self_attn_layernorm = None
-        else:
-            self.post_self_attn_layernorm = build_module(
-                submodules.post_self_attn_layernorm,
-                config=self.config,
-                hidden_size=self.config.hidden_size,
-                eps=self.config.layernorm_epsilon,
-            )
-        if self.new_decoder_architecture:
-            self.pre_mlp_layernorm = build_module(
-                submodules.pre_mlp_layernorm,
-                config=self.config,
-                hidden_size=self.config.hidden_size,
-                eps=self.config.layernorm_epsilon,
-            )
-        else:
-            self.pre_mlp_layernorm = None
+            if self.new_decoder_architecture or self.parallel_attention:
+                self.post_self_attn_layernorm = None
+            else:
+                self.post_self_attn_layernorm = build_module(
+                    submodules.post_self_attn_layernorm,
+                    config=self.config,
+                    hidden_size=self.config.hidden_size,
+                    eps=self.config.layernorm_epsilon,
+                )
+            if self.new_decoder_architecture:
+                self.pre_mlp_layernorm = build_module(
+                    submodules.pre_mlp_layernorm,
+                    config=self.config,
+                    hidden_size=self.config.hidden_size,
+                    eps=self.config.layernorm_epsilon,
+                )
+            else:
+                self.pre_mlp_layernorm = None
 
     def forward(
         self,
