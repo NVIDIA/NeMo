@@ -72,6 +72,8 @@ def nemo_manifest_path(cutset_path: Path):
                 "text-other": "not relevant",
                 "duration": c.duration,
                 "my-custom-field": "irrelevant",
+                "lang": "en",
+                "custom-lang": "pl",
             }
         )
     p = cutset_path.parent / "nemo_manifest.json"
@@ -493,7 +495,9 @@ class TextDataset(torch.utils.data.Dataset):
         return [c.supervisions[0].text for c in cuts]
 
 
-def test_dataloader_from_nemo_manifest_with_text_field(nemo_manifest_path: Path):
+@pytest.mark.parametrize(["text_field", "text_value"], [(None, "irrelevant"), ("text-other", "not relevant")])
+def test_dataloader_from_nemo_manifest_with_text_field(nemo_manifest_path: Path, text_field: str, text_value: str):
+    kwarg = {"text_field": text_field} if text_field is not None else {}
     config = OmegaConf.create(
         {
             "manifest_filepath": nemo_manifest_path,
@@ -501,10 +505,35 @@ def test_dataloader_from_nemo_manifest_with_text_field(nemo_manifest_path: Path)
             "shuffle": True,
             "use_lhotse": True,
             "num_workers": 0,
-            "lhotse": {"text_field": "text-other", "use_bucketing": False, "max_cuts": 2,},
+            "lhotse": {"use_bucketing": False, "max_cuts": 2, **kwarg},
         }
     )
 
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=TextDataset())
     b = next(iter(dl))
-    assert b == ["not relevant", "not relevant"]  # comes from manifest["text-other"] rather than ["text"]
+    assert b == [text_value] * 2
+
+
+class LangDataset(torch.utils.data.Dataset):
+    def __getitem__(self, cuts: lhotse.CutSet) -> List[str]:
+        return [c.supervisions[0].language for c in cuts]
+
+
+@pytest.mark.parametrize(["lang_field", "lang_value"], [(None, "en"), ("custom-lang", "pl")])
+def test_dataloader_from_nemo_manifest_with_lang_field(nemo_manifest_path: Path, lang_field: str, lang_value: str):
+    kwarg = {"lang_field": lang_field} if lang_field is not None else {}
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": nemo_manifest_path,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "lhotse": {"use_bucketing": False, "max_cuts": 2, **kwarg},
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=LangDataset())
+    b = next(iter(dl))
+    assert b == [lang_value] * 2
+

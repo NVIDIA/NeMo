@@ -94,7 +94,11 @@ def read_lhotse_manifest(config, is_tarred: bool) -> LhotseCutSet:
 def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
     from lhotse import CutSet
 
-    text_field = config.lhotse.get("text_field", "text")
+    common_kwargs = {
+        "text_field": config.lhotse.get("text_field", "text"),
+        "lang_field": config.lhotse.get("lang_field", "lang"),
+    }
+    print(common_kwargs)
     shuffle = config.get("shuffle", False)
 
     if is_tarred:
@@ -107,7 +111,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                     config["manifest_filepath"],
                     tar_paths=config["tarred_audio_filepaths"],
                     shuffle_shards=shuffle,
-                    text_field=text_field,
+                    **common_kwargs,
                 )
             )
         else:
@@ -127,7 +131,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                 cutsets.append(
                     CutSet(
                         LazyNeMoTarredIterator(
-                            manifest_path=mp, tar_paths=tp, shuffle_shards=shuffle, text_field=text_field
+                            manifest_path=mp, tar_paths=tp, shuffle_shards=shuffle, **common_kwargs
                         )
                     )
                 )
@@ -138,5 +142,5 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
         logging.info(
             f"Initializing Lhotse CutSet from a single NeMo manifest (non-tarred): '{config['manifest_filepath']}'"
         )
-        cuts = CutSet(LazyNeMoIterator(config["manifest_filepath"], text_field=text_field))
+        cuts = CutSet(LazyNeMoIterator(config["manifest_filepath"], **common_kwargs))
     return cuts

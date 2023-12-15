@@ -37,12 +37,13 @@ class LazyNeMoIterator(ImitatesDict):
         >>> cuts = lhotse.CutSet(LazyNeMoIterator("nemo_manifests/train.json", sampling_rate=16000))
     """
 
-    def __init__(self, path: str | Path, sampling_rate: int | None = None, text_field: str = "text") -> None:
+    def __init__(self, path: str | Path, sampling_rate: int | None = None, text_field: str = "text", lang_field: str = "lang") -> None:
         from lhotse.lazy import LazyJsonlIterator
 
         self.source = LazyJsonlIterator(path)
         self.sampling_rate = sampling_rate
         self.text_field = text_field
+        self.lang_field = lang_field
 
     @property
     def path(self) -> str | Path:
@@ -67,6 +68,9 @@ class LazyNeMoIterator(ImitatesDict):
                     num_samples=compute_num_samples(duration, self.sampling_rate),
                 )
             cut = recording.to_cut()
+            print(data)
+            print(self.lang_field)
+            print(data.get(self.lang_field))
             cut.supervisions.append(
                 SupervisionSegment(
                     id=cut.id,
@@ -74,8 +78,10 @@ class LazyNeMoIterator(ImitatesDict):
                     start=0,
                     duration=cut.duration,
                     text=data[self.text_field],
+                    language=data.get(self.lang_field),
                 )
             )
+            print(cut.supervisions[0])
             cut.custom = data
             yield cut
 
@@ -114,7 +120,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
     """
 
     def __init__(
-        self, manifest_path: str | Path, tar_paths: str | list, shuffle_shards: bool = False, text_field: str = "text"
+            self, manifest_path: str | Path, tar_paths: str | list, shuffle_shards: bool = False, text_field: str = "text", lang_field: str = "lang",
     ) -> None:
         from cytoolz import groupby
         from lhotse.lazy import LazyIteratorChain, LazyJsonlIterator
@@ -145,6 +151,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
         self.shard_id_to_tar_path: dict[int, Path] = {int(strip_pipe(p).stem.split("_")[1]): p for p in tar_paths}
         self.shuffle_shards = shuffle_shards
         self.text_field = text_field
+        self.lang_field = lang_field
         self._validate()
 
     def _validate(self) -> None:
@@ -196,6 +203,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
                             start=0,
                             duration=cut.duration,
                             text=data[self.text_field],
+                            language=data.get(self.lang_field),
                         )
                     )
                     for k in ("audio_filepath", "duration"):
