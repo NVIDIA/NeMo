@@ -19,29 +19,29 @@ model:
   mfa_tokenizer:
     textgrid_dir: /datasets/LibriLight/mfa_data_aligned
   
-  # duration_predictor:
-  #   depth: 4
-  #   heads: 2
+  duration_predictor:
+    # depth: 4
+    heads: 4
 
-  # voicebox:
-  #   depth: 12
-  #   heads: 2
+  voicebox:
+    # depth: 12
+    heads: 8
 
   train_ds:
     max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
     min_duration: 0.1
-    num_workers: 16
+    num_workers: 8
     manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
-      batch_duration: 33.4
+      batch_duration: 50
 
   validation_ds:
-    num_workers: 16
+    num_workers: 8
     lhotse:
       batch_duration: 100
   
   test_ds:
-    num_workers: 16
+    num_workers: 8
     lhotse:
       batch_duration: 100
 
