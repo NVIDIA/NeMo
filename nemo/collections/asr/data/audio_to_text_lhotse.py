@@ -52,6 +52,7 @@ class TokenizerWrapper:
     """
     Provide a unified interface for NeMo Tokenizer, AggregateTokenizer, and (char) Parser.
     """
+
     def __init__(self, tokenizer):
         self._tokenizer = tokenizer
         if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
@@ -77,5 +78,3 @@ class TokenizerWrapper:
 
 def _identity(x):
     return x
-
-
