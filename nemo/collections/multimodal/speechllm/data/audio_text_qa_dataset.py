@@ -15,6 +15,7 @@ import copy
 import io
 import json
 import os
+import random
 from math import isclose
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
@@ -22,7 +23,7 @@ import braceexpand
 import numpy as np
 import torch
 import webdataset as wd
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.data.audio_to_text import (
     cache_datastore_manifests,
@@ -127,7 +128,7 @@ def _audio_text_collate_fn(
     audio_lengths = [x["audio_length"] for x in batch]
     audio_signal, audio_lengths = _audio_collate_fn(audio_signal, audio_lengths)
 
-    input_ids = [item['input_ids'][:-1] for item in batch]
+    input_ids = [item.get('masked_input_ids', item['input_ids'])[:-1] for item in batch]
     labels = [item['input_ids'][1:] for item in batch]
     contexts = [item['context_ids'] for item in batch]
     context_lengths = torch.LongTensor([item['context_length'] for item in batch])
@@ -135,7 +136,10 @@ def _audio_text_collate_fn(
 
     loss_mask = [_build_loss_mask(item)[1:] for item in batch]
 
-    max_length = max([len(x) for x in input_ids]) + tokens_to_generate
+    max_length = (
+        max([len(x) for x in input_ids] + [len(x) for x in answers] + [len(x) for x in contexts]) + tokens_to_generate
+    )
+
     # increase max length to nearest multiple of 4 or 8
     if pad_to_max_length:
         max_length = max_seq_length
@@ -145,8 +149,8 @@ def _audio_text_collate_fn(
 
     position_ids = [list(range(max_length)) for _ in batch]
     position_ids = torch.LongTensor(position_ids)
-    input_ids = torch.LongTensor(_collate_item(input_ids, max_length=max_length, pad_id=text_pad_id))
     input_length = torch.LongTensor([len(x) for x in input_ids])
+    input_ids = torch.LongTensor(_collate_item(input_ids, max_length=max_length, pad_id=text_pad_id))
     labels = torch.LongTensor(_collate_item(labels, max_length=max_length, pad_id=text_pad_id))
     loss_mask = torch.LongTensor(_collate_item(loss_mask, max_length=max_length, pad_id=0))
     contexts = torch.LongTensor(_collate_item(contexts, max_length=max_length, pad_id=text_pad_id))
@@ -194,7 +198,7 @@ def _multi_audio_text_collate_fn(
     batch = _audio_text_collate_fn(batch, tokens_to_generate, pad_to_max_length, max_seq_length, text_pad_id)
 
     # add multi audio specific fields
-    batch['context_start_idx'] = context_start_idx
+    batch['context_start_idx'] = list(context_start_idx)
     batch['num_audios'] = torch.LongTensor(num_audios)
     batch['audio_signal'] = audio_signals_merged
     batch['audio_signal_length'] = audio_lengths_merged
@@ -229,6 +233,7 @@ class TextProcessing:
         end_string: Optional[str] = None,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
+        input_text_mask_ratio: Optional[float] = None,
     ):
         self.input_key = input_key
         self.output_key = output_key
@@ -249,6 +254,7 @@ class TextProcessing:
         self.end_string = end_string
         self.sample_alpha = sample_alpha
         self.audio_locator = audio_locator
+        self.input_text_mask_ratio = input_text_mask_ratio
 
         if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             self.bos_id = tokenizer.bos_id
@@ -271,6 +277,17 @@ class TextProcessing:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
+
+    def _random_mask_tokens(self, input_tokens, mask_ratio, mask_token, sample_tokens=None):
+        output_tokens = input_tokens[:]
+        mask = []
+        for i, token in enumerate(input_tokens):
+            prob = random.random()
+            mask_or_not = prob < mask_ratio
+            if mask_or_not:
+                output_tokens[i] = mask_token if sample_tokens is None or i >= len(sample_tokens) else sample_tokens[i]
+            mask.append(mask_or_not)
+        return output_tokens, mask
 
     def _process_example(self, context: str, output: str):
         """
@@ -311,7 +328,10 @@ class TextProcessing:
         else:
             pre_pad = []
         answer_text = text[len(context) :]
-        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+        # if input_text_mask_ratio, only do it on the input but not label
+        answer_ids = pre_pad + self.tokenizer.text_to_ids(
+            answer_text, self.sample_alpha if self.input_text_mask_ratio is None else None
+        )
         if self.end_string:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
 
@@ -323,6 +343,8 @@ class TextProcessing:
             # multiple audio case
             context_ids = []
             context_start_idx = []
+            if self.audio_locator not in context:
+                context = self.audio_locator + context
             for context_seg in context.split(self.audio_locator):
                 context_start_idx.append(len(context_ids))
                 context_ids.extend(self.tokenizer.text_to_ids(context_seg))
@@ -342,10 +364,9 @@ class TextProcessing:
         # If the total number of token is greater than the max, we will try to truncate the answer
         if total_ids > self.max_seq_length:
             truncation_length = total_ids - self.max_seq_length
-            if self.truncation_field == "answer":
-                answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
-            elif self.truncation_field == "context":
-                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
+            # TODO
+            answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
+            context_ids = context_ids[: -min(truncation_length, len(context_ids))]
 
         input_ids = context_ids
         answer_start_idx = len(input_ids)
@@ -362,15 +383,32 @@ class TextProcessing:
             input_ids = input_ids + [self.sep_id]
             answer_start_idx += 1
 
+        # TODO: create a copy of answer_ids and mask on it
+        if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
+            if self.sample_alpha is None:
+                masked_answer_ids, _ = self._random_mask_tokens(
+                    answer_ids, self.input_text_mask_ratio, self.tokenizer.unk_id
+                )
+            else:
+                sample_answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+                # does not consider different length for now
+                masked_answer_ids, _ = self._random_mask_tokens(
+                    answer_ids, self.input_text_mask_ratio, self.tokenizer.unk_id, sample_tokens=sample_answer_ids,
+                )
+            masked_input_ids = input_ids + masked_answer_ids
         input_ids = input_ids + answer_ids
 
         # Only training need to consider eos token
         if self.add_eos and self.tokens_to_generate == 0:
             input_ids = input_ids + [self.tokenizer.eos_id]
+            if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
+                masked_input_ids = masked_input_ids + [self.tokenizer.eos_id]
 
         if len(input_ids) > self.max_seq_length:
             logging.warning(f'Input ids length {len(input_ids)} exceed max sequence length {self.max_seq_length}')
             input_ids = input_ids[: self.max_seq_length]
+            if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
+                masked_input_ids = masked_input_ids[: self.max_seq_length]
 
         processed_example = {
             'input_ids': input_ids,
@@ -380,6 +418,9 @@ class TextProcessing:
             'answer_ids': answer_ids,
             'context_start_idx': context_start_idx,
         }
+
+        if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
+            processed_example['masked_input_ids'] = masked_input_ids
 
         return processed_example
 
@@ -460,6 +501,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
+        input_text_mask_ratio: Optional[float] = None,
     ):
         super().__init__(
             tokenizer=tokenizer,
@@ -482,6 +524,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             end_string=end_string,
             sample_alpha=sample_alpha,
             audio_locator=audio_locator,
+            input_text_mask_ratio=input_text_mask_ratio,
         )
 
         if isinstance(manifest_filepath, str):
@@ -846,6 +889,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         random_context_num: Optional[int] = 3,
         random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
+        input_text_mask_ratio: Optional[float] = None,
     ):
         super().__init__(
             tokenizer=tokenizer,
@@ -867,6 +911,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             output_key=output_key,
             end_string=end_string,
             sample_alpha=sample_alpha,
+            input_text_mask_ratio=input_text_mask_ratio,
         )
 
         self.shard_manifests = shard_manifests
@@ -1097,6 +1142,7 @@ def get_tarred_aqa_dataset(
             ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
             input_key=config.get('input_key', 'input'),
             output_key=config.get('output_key', 'output'),
+            input_text_mask_ratio=config.get('input_text_mask_ratio', None),
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
             question_file=question_file,
@@ -1302,6 +1348,7 @@ def get_aqa_dataset_from_config(
             output_key=config.get('output_key', 'output'),
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
+            input_text_mask_ratio=config.get('input_text_mask_ratio', None),
             random_context_prob=config.get('random_context_prob', None),
             random_context_num=config.get('random_context_num', 3),
             random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
