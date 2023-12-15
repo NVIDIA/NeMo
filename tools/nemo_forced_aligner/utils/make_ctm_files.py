@@ -109,7 +109,7 @@ def make_ctm(
                     ctm_line = get_ctm_line(
                         source=utt_obj.utt_id,
                         channel=1,
-                        beg_time=start_time,
+                        start_time=start_time,
                         duration=end_time - start_time,
                         token=text,
                         conf=None,

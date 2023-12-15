@@ -33,10 +33,31 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 from nemo.utils.data_utils import DataStoreObject
 
 
+def get_rounded_str_float(
+    num: float, 
+    output_precision: int, 
+    min_precision=1, 
+    max_precision=3
+)-> str:
+    """
+    Get a string of a float number with rounded precision.
+
+    Args:
+        num (float): float number to round
+        output_precision (int): precision of the output floating point number
+        min_precision (int, optional): Minimum precision of the output floating point number. Defaults to 1.
+        max_precision (int, optional): Maximum precision of the output floating point number. Defaults to 3.
+
+    Returns:
+        (str): Return a string of a float number with rounded precision.
+    """
+    output_precision = min(max_precision, max(min_precision, output_precision))
+    return f"{num:.{output_precision}f}"
+
 def get_ctm_line(
     source: str,
     channel: int,
-    beg_time: float,
+    start_time: float,
     duration: float,
     token: str,
     conf: float,
@@ -59,7 +80,7 @@ def get_ctm_line(
     Args:
         source (str): <SOURCE> is name of the source file, session name or utterance ID
         channel (int): <CHANNEL> is channel number defaults to 1
-        beg_time (float): <BEG_TIME> is begin time of the word
+        start_time (float): <BEG_TIME> is the begin time of the word, which we refer to as `start_time` in NeMo.
         duration (float): <DURATION> is duration of the word
         token (str): <TOKEN> Token or word for the current entry
         conf (float): <CONF> is a floating point number between 0 (no confidence) and 1 (certainty). A value of “NA” is used (in CTM format data) 
@@ -75,15 +96,20 @@ def get_ctm_line(
     """
     VALID_TOKEN_TYPES = ["lex", "frag", "fp", "un-lex", "for-lex", "non-lex", "misc", "noscore"]
 
-    if type(beg_time) == str and beg_time.replace('.', '', 1).isdigit():
-        beg_time = float(beg_time)
-    elif type(beg_time) != float:
-        raise ValueError(f"`beg_time` must be a float or str containing float, but got {type(beg_time)}")
+    if type(start_time) == str and start_time.replace('.', '', 1).isdigit():
+        start_time = float(start_time)
+    elif type(start_time) != float:
+        raise ValueError(f"`start_time` must be a float or str containing float, but got {type(start_time)}")
 
     if type(duration) == str and duration.replace('.', '', 1).isdigit():
         duration = float(duration)
     elif type(duration) != float:
         raise ValueError(f"`duration` must be a float or str containing float, but got {type(duration)}")
+
+    if type(conf) == str and conf.replace('.', '', 1).isdigit():
+        conf = float(conf)
+    elif type(duration) != float:
+        raise ValueError(f"`conf` must be a float or str containing float, but got {type(conf)}")
 
     if channel is not None and type(channel) != int:
         channel = str(channel)
@@ -102,8 +128,10 @@ def get_ctm_line(
     conf = NA_token if conf is None else conf
     speaker = NA_token if speaker is None else speaker
     type_of_token = UNK if type_of_token is None else type_of_token
-    beg_time, duration = round(beg_time, output_precision), round(float(duration), output_precision)
-    return f"{source} {channel} {beg_time} {duration} {token} {conf} {type_of_token} {speaker}\n"
+    start_time = get_rounded_str_float(start_time, output_precision)
+    duration = get_rounded_str_float(duration, output_precision)
+    conf = get_rounded_str_float(conf, output_precision) if conf != NA_token else conf
+    return f"{source} {channel} {start_time} {duration} {token} {conf} {type_of_token} {speaker}\n"
 
 
 def rreplace(s: str, old: str, new: str) -> str:

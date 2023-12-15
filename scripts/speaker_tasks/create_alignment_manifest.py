@@ -26,7 +26,7 @@ def get_seg_info_from_ctm_line(
     ctm_list: List[str],
     output_precision: int,
     speaker_index: int = 7,
-    beg_time_index: int = 2,
+    start_time_index: int = 2,
     duration_index: int = 3,
 ):
     """
@@ -43,8 +43,8 @@ def get_seg_info_from_ctm_line(
         speaker_id (str): Speaker ID of the segment.
     """
     speaker_id = ctm_list[speaker_index]
-    start = float(ctm_list[beg_time_index])
-    end = float(ctm_list[beg_time_index]) + float(ctm_list[duration_index])
+    start = float(ctm_list[start_time_index])
+    end = float(ctm_list[start_time_index]) + float(ctm_list[duration_index])
     start = round(start, output_precision)
     end = round(end, output_precision)
     return start, end, speaker_id
@@ -103,7 +103,7 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
             text = get_ctm_line(
                 source=session_name,
                 channel=speaker_id,
-                beg_time=align1,
+                start_time=align1,
                 duration=align2,
                 token=word,
                 conf=0,

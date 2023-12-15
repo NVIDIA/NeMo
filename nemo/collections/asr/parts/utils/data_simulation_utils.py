@@ -783,7 +783,7 @@ class DataAnnotator(object):
                 text = get_ctm_line(
                     source=session_name,
                     channel=1,
-                    beg_time=align1,
+                    start_time=align1,
                     duration=align2,
                     token=word,
                     conf=None,

@@ -139,7 +139,7 @@ class TestGetCtmLine:
             result = get_ctm_line(
                 source="test_source",
                 channel=1,
-                beg_time=0.123,
+                start_time=0.123,
                 duration=0.456,
                 token="word",
                 conf=conf,
@@ -153,17 +153,19 @@ class TestGetCtmLine:
     @pytest.mark.parametrize("conf", [0.0, 0.5, 1.0, 0.01, 0.99])
     def test_valid_conf_values(self, conf):
         # Test with valid confidence values
+        output_precision = 2
         result = get_ctm_line(
             source="test_source",
             channel=1,
-            beg_time=0.123,
+            start_time=0.123,
             duration=0.456,
             token="word",
             conf=conf,
             type_of_token="lex",
             speaker="speaker1",
+            output_precision=output_precision,
         )
-        expected = f"test_source 1 0.12 0.46 word {conf} lex speaker1\n"
+        expected = "test_source 1 0.12 0.46 word" + f" {conf:.{output_precision}f} lex speaker1\n"
         assert result == expected, f"Failed on valid conf value {conf}"
 
     @pytest.mark.unit
@@ -174,7 +176,7 @@ class TestGetCtmLine:
             get_ctm_line(
                 source="test_source",
                 channel=1,
-                beg_time=0.123,
+                start_time=0.123,
                 duration=0.456,
                 token="word",
                 conf=conf,
@@ -183,24 +185,52 @@ class TestGetCtmLine:
             )
 
     @pytest.mark.unit
+    @pytest.mark.parametrize("start_time, duration, output_precision", [
+        (0.123, 0.456, 2), 
+        (1.0, 2.0, 1), 
+        (0.0, 0.0, 2), 
+        (0.01, 0.99, 3), 
+        (1.23, 4.56, 2)
+    ])
+    def test_valid_start_time_duration_with_precision(self, start_time, duration, output_precision):
+        # Test with valid beginning time, duration values and output precision
+        confidence = 0.5
+        result = get_ctm_line(
+            source="test_source",
+            channel=1,
+            start_time=start_time,
+            duration=duration,
+            token="word",
+            conf=confidence,
+            type_of_token="lex",
+            speaker="speaker1",
+            output_precision=output_precision,
+        )
+        expected_start_time = f"{start_time:.{output_precision}f}"  # Adjusted to match the output format with precision
+        expected_duration = f"{duration:.{output_precision}f}"  # Adjusted to match the output format with precision
+        expected_confidence = f"{confidence:.{output_precision}f}"  # Adjusted to match the output format with precision
+        expected = f"test_source 1 {expected_start_time} {expected_duration} word {expected_confidence} lex speaker1\n"
+        assert result == expected, f"Failed on valid start_time {start_time}, duration {duration} with precision {output_precision}"
+
+    @pytest.mark.unit
     def test_valid_input(self):
         # Test with completely valid inputs
         result = get_ctm_line(
             source="test_source",
             channel=1,
-            beg_time=0.123,
+            start_time=0.123,
             duration=0.456,
             token="word",
             conf=0.789,
             type_of_token="lex",
             speaker="speaker1",
         )
-        expected = "test_source 1 0.12 0.46 word 0.789 lex speaker1\n"
+        expected = "test_source 1 0.12 0.46 word 0.79 lex speaker1\n"
         assert result == expected, "Failed on valid input"
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "beg_time, duration",
+        "start_time, duration",
         [
             ("not a float", 1.0),
             (1.0, "not a float"),
@@ -208,13 +238,13 @@ class TestGetCtmLine:
             (2.0, 3),  # Same as above
         ],
     )
-    def test_invalid_types_for_time_duration(self, beg_time, duration):
-        # Test with invalid types for beg_time and duration
+    def test_invalid_types_for_time_duration(self, start_time, duration):
+        # Test with invalid types for start_time and duration
         with pytest.raises(ValueError):
             get_ctm_line(
                 source="test_source",
                 channel=1,
-                beg_time=beg_time,
+                start_time=start_time,
                 duration=duration,
                 token="word",
                 conf=0.5,
@@ -230,7 +260,7 @@ class TestGetCtmLine:
             get_ctm_line(
                 source="test_source",
                 channel=1,
-                beg_time=0.123,
+                start_time=0.123,
                 duration=0.456,
                 token="word",
                 conf=conf,
@@ -244,7 +274,7 @@ class TestGetCtmLine:
         result = get_ctm_line(
             source="test_source",
             channel=None,
-            beg_time=0.123,
+            start_time=0.123,
             duration=0.456,
             token="word",
             conf=None,
@@ -371,19 +401,30 @@ class TestDataAnnotator:
 
     def test_create_new_ctm_entry(self, annotator):
         words, alignments, speaker_id = generate_words_and_alignments(sample_index=0)
-        start = alignments[0]
         session_name = 'test_session'
         ctm_list = annotator.create_new_ctm_entry(
-            words=words, alignments=alignments, session_name=session_name, speaker_id=speaker_id, start=start
+            words=words, alignments=alignments, session_name=session_name, speaker_id=speaker_id, start=alignments[0]
         )
-        assert ctm_list[0] == (
-            alignments[1],
-            f"{session_name} 1 {alignments[1]} {alignments[1]-alignments[0]} {words[1]} NA lex {speaker_id}\n",
-        )
-        assert ctm_list[1] == (
-            alignments[2],
-            f"{session_name} 1 {alignments[2]} {alignments[2]-alignments[1]} {words[2]} NA lex {speaker_id}\n",
-        )
+        assert ctm_list[0] == (alignments[1], get_ctm_line(
+            source=session_name,
+            channel="1",
+            start_time=alignments[1],
+            duration=float(alignments[1] - alignments[0]),
+            token=words[1],
+            conf=None,
+            type_of_token='lex',
+            speaker=speaker_id,
+        ))
+        assert ctm_list[1] == (alignments[2], get_ctm_line(
+            source=session_name,
+            channel="1",
+            start_time=alignments[2],
+            duration=float(alignments[2] - alignments[1]),
+            token=words[2],
+            conf=None,
+            type_of_token='lex',
+            speaker=speaker_id,
+        ))
 
 
 class TestSpeechSampler:
