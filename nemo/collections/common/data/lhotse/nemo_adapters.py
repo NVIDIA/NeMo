@@ -37,7 +37,9 @@ class LazyNeMoIterator(ImitatesDict):
         >>> cuts = lhotse.CutSet(LazyNeMoIterator("nemo_manifests/train.json", sampling_rate=16000))
     """
 
-    def __init__(self, path: str | Path, sampling_rate: int | None = None, text_field: str = "text", lang_field: str = "lang") -> None:
+    def __init__(
+        self, path: str | Path, sampling_rate: int | None = None, text_field: str = "text", lang_field: str = "lang"
+    ) -> None:
         from lhotse.lazy import LazyJsonlIterator
 
         self.source = LazyJsonlIterator(path)
@@ -120,7 +122,12 @@ class LazyNeMoTarredIterator(ImitatesDict):
     """
 
     def __init__(
-            self, manifest_path: str | Path, tar_paths: str | list, shuffle_shards: bool = False, text_field: str = "text", lang_field: str = "lang",
+        self,
+        manifest_path: str | Path,
+        tar_paths: str | list,
+        shuffle_shards: bool = False,
+        text_field: str = "text",
+        lang_field: str = "lang",
     ) -> None:
         from cytoolz import groupby
         from lhotse.lazy import LazyIteratorChain, LazyJsonlIterator

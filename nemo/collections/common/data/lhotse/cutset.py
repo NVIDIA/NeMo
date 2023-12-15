@@ -130,9 +130,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
             for (mp,), (tp,) in zip(config["manifest_filepath"], config["tarred_audio_filepaths"]):
                 cutsets.append(
                     CutSet(
-                        LazyNeMoTarredIterator(
-                            manifest_path=mp, tar_paths=tp, shuffle_shards=shuffle, **common_kwargs
-                        )
+                        LazyNeMoTarredIterator(manifest_path=mp, tar_paths=tp, shuffle_shards=shuffle, **common_kwargs)
                     )
                 )
                 weights.append(len(cutsets[-1]))
