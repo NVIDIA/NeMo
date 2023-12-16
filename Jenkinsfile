@@ -3610,8 +3610,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
         model.mcore_gpt=True \
-        model.optim.name=distributed_fused_adam \
         model.megatron_amp_O2=True \
+        model.optim.name=distributed_fused_adam \
         model.optim.lr=2e-4 \
         model.optim.sched.warmup_steps=1 \
         model.optim.sched.constant_steps=1 \
@@ -3644,13 +3644,12 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.precision=bf16 \
         trainer.gradient_clip_val=1.0 \
         model.mcore_gpt=True \
-        model.optim.name=distributed_fused_adam \
         model.megatron_amp_O2=True \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
         exp_manager.resume_if_exists=True \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
-        model.optim.name=fused_adam \
+        model.optim.name=distributed_fused_adam \
         model.optim.lr=2e-4 \
         model.optim.sched.warmup_steps=2 \
         model.optim.sched.constant_steps=2 \
