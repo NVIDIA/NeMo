@@ -15,6 +15,7 @@ import itertools
 import json
 import os
 from typing import Any, List
+import time
 
 import editdistance
 import numpy as np
@@ -1112,8 +1113,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
+        # generate a random seed to shuffle data differently in each run
+        seed = int(time.time())
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
+            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, seed=seed
         )
 
         dataloader = torch.utils.data.DataLoader(
