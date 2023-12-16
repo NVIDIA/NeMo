@@ -118,6 +118,7 @@ def init_model_parallel(nccl_communicator_config_path: str = None) -> None:
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                nccl_communicator_config_path=nccl_communicator_config_path,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -343,6 +344,7 @@ class NLPDDPStrategy(DDPStrategy):
     Args:
         no_ddp_communication_hook: Disable DDP communication hook when using AMP-O2
         with FP32 gradient accumulation.
+        nccl_communicator_config_path: Path to the yaml file with NCCL communicator options
     """
 
     def __init__(
@@ -351,6 +353,7 @@ class NLPDDPStrategy(DDPStrategy):
         cluster_environment: ClusterEnvironment = None,
         checkpoint_io: Optional[CheckpointIO] = None,
         no_ddp_communication_hook: bool = False,
+        nccl_communicator_config_path: Optional[str] = None,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -365,6 +368,7 @@ class NLPDDPStrategy(DDPStrategy):
         super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
+        self.nccl_communicator_config_path = nccl_communicator_config_path
 
     def setup(self, trainer: "pl.Trainer") -> None:
         """
@@ -392,7 +396,7 @@ class NLPDDPStrategy(DDPStrategy):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
-                self.init_model_parallel(app_state.global_rank, app_state.world_size)
+                init_model_parallel(self.nccl_communicator_config_path)
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
@@ -436,246 +440,204 @@ class NLPDDPStrategy(DDPStrategy):
             else:
                 super().configure_ddp()
 
-    def init_model_parallel(self, global_rank: int, world_size: int) -> None:
-        """ Initializes Megatron-LM model parallel if using model parallelism.
-
-        Args:
-            global_rank (int): the global process index.
-            world_size (int): the total number of GPUs, num_nodes * num_devices
-            is_slurm_managing_tasks (bool, optional): is the cluster managed by SLURM.
+    def optimizer_sharded_state_dict(self):
         """
-        app_state = AppState()
+        Sharded state dictionary for an MainParamsOptimizerWrapper.
+        Used to save and load the optimizer state when training with distributed_checkpoint.
+        Returns:
+            dict: The sharded state dictionary for the optimizer
+        Raises:
+            ValueError: If a parameter ID does not match any model sharded parameter.
+        """
 
-        # we initialize megatron-lm model parallel and data parallel groups
-        # after initializing DDP with PTL.
-        if app_state.model_parallel_size is not None:
-            # destroy groups in case they have already been created
-            # this happens with multiple calls to trainer.test for example
-            parallel_state.destroy_model_parallel()
-            if torch.distributed.is_initialized():
-                parallel_state.initialize_model_parallel(
-                    tensor_model_parallel_size=app_state.tensor_model_parallel_size,
-                    pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
-                    virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
-                    pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
-                    use_fp8=app_state.use_fp8,
-                )
+        optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)  # MainParamsOptimizerWrapper
 
-                # assert that fake tp and pp rank match after model parallel init
-                assert app_state.tensor_model_parallel_rank == parallel_state.get_tensor_model_parallel_rank()
-                assert app_state.pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
+        model_sharded_state_dict = self.lightning_module.sharded_state_dict()
 
-                app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
-                app_state.data_parallel_group = parallel_state.get_data_parallel_group()
-                app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
-                app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
-                app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
+        # remove _extra_state
+        model_sharded_state_dict = {
+            key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
+        }
 
-                # create MPI process group for UCX-based communication APIs
-                if app_state.init_mpi_proc_group:
-                    torch.distributed.new_group(backend='mpi')
+        if not isinstance(optimizer, MainParamsOptimizerWrapper):
+            return optimizer.sharded_state_dict(model_sharded_state_dict)
 
-    class ModelParallelCheckpointStrategy(Strategy):
-        """ Define model-parallel checkpoint save and resume methods shared by multiple strategies. """
+        optimizer_state_dict = optimizer.state_dict()
 
-        def optimizer_sharded_state_dict(self):
-            """
-            Sharded state dictionary for an MainParamsOptimizerWrapper.
-            Used to save and load the optimizer state when training with distributed_checkpoint.
-            Returns:
-                dict: The sharded state dictionary for the optimizer
-            Raises:
-                ValueError: If a parameter ID does not match any model sharded parameter.
-            """
+        id_to_sharded_param_map = get_param_id_to_sharded_param_map(
+            model_sharded_state_dict=model_sharded_state_dict,
+            optim_params_iter=itertools.chain.from_iterable(g for g in optimizer.float16_groups),
+        )
 
-            optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)  # MainParamsOptimizerWrapper
+        # Convert fp32_from_fp16_params
+        assert len(optimizer_state_dict['fp32_from_fp16_params']) == len(
+            optimizer_state_dict['optimizer']['param_groups']
+        )
 
-            model_sharded_state_dict = self.lightning_module.sharded_state_dict()
+        def get_safe(param_id):
+            try:
+                return id_to_sharded_param_map[param_id]
+            except KeyError as e:
+                raise ValueError(f'Param id {param_id} does not match any model sharded param') from e
 
-            # remove _extra_state
-            model_sharded_state_dict = {
-                key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
-            }
-
-            if not isinstance(optimizer, MainParamsOptimizerWrapper):
-                return optimizer.sharded_state_dict(model_sharded_state_dict)
-
-            optimizer_state_dict = optimizer.state_dict()
-
-            id_to_sharded_param_map = get_param_id_to_sharded_param_map(
-                model_sharded_state_dict=model_sharded_state_dict,
-                optim_params_iter=itertools.chain.from_iterable(g for g in optimizer.float16_groups),
-            )
-
-            # Convert fp32_from_fp16_params
-            assert len(optimizer_state_dict['fp32_from_fp16_params']) == len(
-                optimizer_state_dict['optimizer']['param_groups']
-            )
-
-            def get_safe(param_id):
-                try:
-                    return id_to_sharded_param_map[param_id]
-                except KeyError as e:
-                    raise ValueError(f'Param id {param_id} does not match any model sharded param') from e
-
-            optimizer_state_dict['fp32_from_fp16_params'] = [
-                [
-                    make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_param')
-                    for param_id, fp32_param in zip(state_group['params'], fp32_group)
-                ]
-                for fp32_group, state_group in zip(
-                    optimizer_state_dict['fp32_from_fp16_params'], optimizer_state_dict['optimizer']['param_groups']
-                )
+        optimizer_state_dict['fp32_from_fp16_params'] = [
+            [
+                make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_param')
+                for param_id, fp32_param in zip(state_group['params'], fp32_group)
             ]
+            for fp32_group, state_group in zip(
+                optimizer_state_dict['fp32_from_fp16_params'], optimizer_state_dict['optimizer']['param_groups']
+            )
+        ]
 
-            # Convert state
-            optim_state_to_sharding_state(optimizer_state_dict['optimizer'], id_to_sharded_param_map)
+        # Convert state
+        optim_state_to_sharding_state(optimizer_state_dict['optimizer'], id_to_sharded_param_map)
 
-            return optimizer_state_dict
+        return optimizer_state_dict
 
-        def save_checkpoint(
-                self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
-        ) -> None:
-            app_state = AppState()
-            """ PTL method which we override to accomodate distributed checkpoints and 
-                the legacy model parallel checkpoints.
+    def save_checkpoint(
+        self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
+    ) -> None:
+        app_state = AppState()
+        """ PTL method which we override to accomodate distributed checkpoints and 
+            the legacy model parallel checkpoints.
 
-                When using megatron core, the distributed checkpointing library expects save functions to be
-                called on every rank and internally does the rank checking.
-            """
-            # check if using distributed checkpointing
-            if (
-                    hasattr(self.lightning_module, 'sharded_state_dict')
-                    and self.lightning_module.sharded_state_dict() is not None
-            ):
-                # converts the optimizer states to their sharded equivalents
-                checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+            When using megatron core, the distributed checkpointing library expects save functions to be
+            called on every rank and internally does the rank checking.
+        """
+        # check if using distributed checkpointing
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
+            # converts the optimizer states to their sharded equivalents
+            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
-                # dist_checkpointing expects a directory so we will name the directory
-                # using the path with the file extension removed
-                checkpoint_dir = ckpt_to_dir(filepath)
+            # dist_checkpointing expects a directory so we will name the directory
+            # using the path with the file extension removed
+            checkpoint_dir = ckpt_to_dir(filepath)
 
-                fs = get_filesystem(checkpoint_dir)
-                if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
-                    logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
-                    return
-
-                if is_global_rank_zero():
-                    fs.makedirs(checkpoint_dir, exist_ok=True)
-
-                # remove device state_dict
-                checkpoint['state_dict'] = OrderedDict([])
-
-                dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
-            else:
-                # PTL override to accomodate model parallel checkpoints
-                filepath = inject_model_parallel_rank(filepath)
-                if self.is_global_zero or app_state.data_parallel_rank == 0:
-                    self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
-
-        def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
-            # if using distributed checkpointing, the state dict logic is at the model level
-            if (
-                    hasattr(self.lightning_module, 'sharded_state_dict')
-                    and self.lightning_module.sharded_state_dict() is not None
-            ):
+            fs = get_filesystem(checkpoint_dir)
+            if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
+                logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
                 return
 
-            # legacy state dict logic, does not use megatron core
-            else:
+            if is_global_rank_zero():
+                fs.makedirs(checkpoint_dir, exist_ok=True)
 
-                # Release strict state dict matching when using Megatron AMP-O2 to skip matching
-                # half-precision module wrapper module.
-                # TODO: Refactor this to be more generic.
-                model_key = None
-                model_attr = None
-                if hasattr(self.lightning_module, 'model'):
-                    model_key = 'model'
-                    model_attr = self.lightning_module.model
-                elif hasattr(self.lightning_module, 'enc_dec_model'):
-                    model_key = 'enc_dec_model'
-                    model_attr = self.lightning_module.enc_dec_model
-                if model_key is not None:
-                    if isinstance(model_attr, Float16Module) or isinstance(model_attr, MCoreFloat16Module):
-                        new_state_dict = {}
-                        for key in checkpoint['state_dict'].keys():
-                            new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
-                            new_state_dict[new_key] = checkpoint['state_dict'][key]
-                        checkpoint['state_dict'] = new_state_dict
+            # remove device state_dict
+            checkpoint['state_dict'] = OrderedDict([])
 
-                self.lightning_module.load_state_dict(checkpoint["state_dict"])
+            dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
+        else:
+            # PTL override to accomodate model parallel checkpoints
+            filepath = inject_model_parallel_rank(filepath)
+            if self.is_global_zero or app_state.data_parallel_rank == 0:
+                self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
-        def _fix_tensors_device(self, ckpt: Dict) -> Dict:
-            """ Ensure checkpoint tensors are on the correct device."""
-            assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
-            cur_dev = torch.device("cuda", index=torch.cuda.current_device())
+    def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
+        # if using distributed checkpointing, the state dict logic is at the model level
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
+            return
 
-            def _fix_device(t):
-                if isinstance(t, torch.Tensor) and t.is_cuda and t.device != cur_dev:
-                    t = t.to(cur_dev)
-                return t
+        # legacy state dict logic, does not use megatron core
+        else:
 
-            return dict_list_map_outplace(_fix_device, ckpt)
+            # Release strict state dict matching when using Megatron AMP-O2 to skip matching
+            # half-precision module wrapper module.
+            # TODO: Refactor this to be more generic.
+            model_key = None
+            model_attr = None
+            if hasattr(self.lightning_module, 'model'):
+                model_key = 'model'
+                model_attr = self.lightning_module.model
+            elif hasattr(self.lightning_module, 'enc_dec_model'):
+                model_key = 'enc_dec_model'
+                model_attr = self.lightning_module.enc_dec_model
+            if model_key is not None:
+                if isinstance(model_attr, Float16Module) or isinstance(model_attr, MCoreFloat16Module):
+                    new_state_dict = {}
+                    for key in checkpoint['state_dict'].keys():
+                        new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
+                        new_state_dict[new_key] = checkpoint['state_dict'][key]
+                    checkpoint['state_dict'] = new_state_dict
 
-        def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
-            """ PTL method which we override to integrate distributed checkpoints for model parallel models.
-                In order to load distributed checkpoints we need to provide the sharded_state_dict to
-                the distributed load function. We get the sharded_state_dict from self.lightning_module
-                which makes it convenient to have the loading logic happen at the strategy level.
-            """
+            self.lightning_module.load_state_dict(checkpoint["state_dict"])
 
-            fs = get_filesystem(checkpoint_path)
+    def _fix_tensors_device(self, ckpt: Dict) -> Dict:
+        """ Ensure checkpoint tensors are on the correct device."""
+        assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
+        cur_dev = torch.device("cuda", index=torch.cuda.current_device())
 
-            # Check if using distributed checkpointing
-            if (
-                    hasattr(self.lightning_module, 'sharded_state_dict')
-                    and self.lightning_module.sharded_state_dict() is not None
-            ):
+        def _fix_device(t):
+            if isinstance(t, torch.Tensor) and t.is_cuda and t.device != cur_dev:
+                t = t.to(cur_dev)
+            return t
 
-                # Distributed checkpoints must be directories.
-                if not fs.isdir(checkpoint_path):
-                    raise ValueError(f'Distributed checkpoints should be a directory. Found: {checkpoint_path}.')
+        return dict_list_map_outplace(_fix_device, ckpt)
 
-                sharded_state_dict = self.lightning_module.sharded_state_dict()
+    def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
+        """ PTL method which we override to integrate distributed checkpoints for model parallel models.
+            In order to load distributed checkpoints we need to provide the sharded_state_dict to
+            the distributed load function. We get the sharded_state_dict from self.lightning_module
+            which makes it convenient to have the loading logic happen at the strategy level.
+        """
 
-                checkpoint = {}
+        fs = get_filesystem(checkpoint_path)
 
-                # after dist_checkpointing.load, sharded tensors will be replaced with tensors
-                checkpoint['state_dict'] = sharded_state_dict
-                checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+        # Check if using distributed checkpointing
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
 
-                checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_path)
+            # Distributed checkpoints must be directories.
+            if not fs.isdir(checkpoint_path):
+                raise ValueError(f'Distributed checkpoints should be a directory. Found: {checkpoint_path}.')
 
-                checkpoint = self._fix_tensors_device(checkpoint)
+            sharded_state_dict = self.lightning_module.sharded_state_dict()
 
-                return checkpoint
+            checkpoint = {}
 
-            # Legacy model parallel checkpointing logic, does not use megatron core
-            else:
-                # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
-                checkpoint_path = inject_model_parallel_rank(checkpoint_path)
-                if not fs.exists(checkpoint_path):
-                    raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
-                torch.cuda.empty_cache()
-                return self.checkpoint_io.load_checkpoint(checkpoint_path)
+            # after dist_checkpointing.load, sharded tensors will be replaced with tensors
+            checkpoint['state_dict'] = sharded_state_dict
+            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
-        def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
-            # check if filepath is a distributed checkpoint
-            if (
-                    hasattr(self.lightning_module, 'sharded_state_dict')
-                    and self.lightning_module.sharded_state_dict() is not None
-            ):
-                if self.is_global_zero:
-                    shutil.rmtree(ckpt_to_dir(filepath))
+            checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_path)
 
-            # legacy checkpoint logic, does not use megatron core
-            else:
-                app_state = AppState()
-                # PTL override to accomodate model parallel checkpoints
-                filepath = inject_model_parallel_rank(filepath)
-                if self.is_global_zero or app_state.data_parallel_rank == 0:
-                    logging.info(f'Removing checkpoint: {filepath}')
-                    self.checkpoint_io.remove_checkpoint(filepath)
+            checkpoint = self._fix_tensors_device(checkpoint)
+
+            return checkpoint
+
+        # Legacy model parallel checkpointing logic, does not use megatron core
+        else:
+            # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+            checkpoint_path = inject_model_parallel_rank(checkpoint_path)
+            if not fs.exists(checkpoint_path):
+                raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
+            torch.cuda.empty_cache()
+            return self.checkpoint_io.load_checkpoint(checkpoint_path)
+
+    def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+        # check if filepath is a distributed checkpoint
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
+            if self.is_global_zero:
+                shutil.rmtree(ckpt_to_dir(filepath))
+
+        # legacy checkpoint logic, does not use megatron core
+        else:
+            app_state = AppState()
+            # PTL override to accomodate model parallel checkpoints
+            filepath = inject_model_parallel_rank(filepath)
+            if self.is_global_zero or app_state.data_parallel_rank == 0:
+                logging.info(f'Removing checkpoint: {filepath}')
+                self.checkpoint_io.remove_checkpoint(filepath)
 
 
 def _get_sharded_state_dict_context(module: torch.nn.Module, rank0_only: bool = False) -> Generator[None, None, None]:
@@ -1037,7 +999,7 @@ class NLPFSDPStrategy(FSDPStrategy):
                             # rekey the osd stored from non-FSDP model
                             rekeyed_osd = FSDP.rekey_optim_state_dict(
                                 temp_osd, OptimStateKeyType.PARAM_NAME, self.model,
-                        )
+                            )
                         temp_osd = FSDP.shard_full_optim_state_dict(rekeyed_osd, self.model)
                     except Exception as e:
                         print(f"Failed to load optimzier state dicts. Errored with {e}")
@@ -1045,7 +1007,7 @@ class NLPFSDPStrategy(FSDPStrategy):
                 # Shard optimizer state dict
                 sharded_osd = FSDP.optim_state_dict_to_load(
                     optim_state_dict=temp_osd, model=self.model, optim=optimizer,
-                    )
+                )
 
                 optimizer.load_state_dict(sharded_osd)
                 _optimizer_to_device(optimizer, self.root_device)
@@ -1091,8 +1053,9 @@ class NLPFSDPStrategy(FSDPStrategy):
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=self.sharded_checkpoint)
         if not self.sharded_checkpoint:
-            logging.info(f'Removing checkpoint: {filepath}')
-            self.checkpoint_io.remove_checkpoint(filepath)
+            if app_state.data_parallel_rank == 0:
+                logging.info(f'Removing checkpoint: {filepath}')
+                self.checkpoint_io.remove_checkpoint(filepath)
         else:
             if app_state.data_parallel_rank == 0:
                 logging.info(f'Removing checkpoint: {filepath}')
@@ -1105,10 +1068,6 @@ class NLPFSDPStrategy(FSDPStrategy):
             model and optimizer.
         """
         return True
-
-
-
-
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
