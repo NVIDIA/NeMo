@@ -13,7 +13,12 @@
 # limitations under the License.
 
 import math
-
+import re
+import os
+from jinja2 import Environment, Template, exceptions
+from jinja2.exceptions import TemplateError
+from jinja2.sandbox import ImmutableSandboxedEnvironment
+from jinja2.nodes import Name
 
 def get_datasets_weights_and_num_samples(data_prefix, num_samples):
 
@@ -75,3 +80,51 @@ def get_train_valid_test_split_(splits_string, size):
     assert len(splits_index) == 4
     assert splits_index[-1] == size
     return splits_index
+
+
+class JinjaTemplating:
+    def __init__(self):
+        pass
+
+    def is_jinja_template(self, template):
+        # Check using regex for Jinja patterns
+        if re.search(r'\{\{.*\}\}|\{%.*%\}|\{#.*#\}', self.template):
+            return True
+
+        # Try parsing with Jinja
+        try:
+            Template(template).render()
+            return True
+        except exceptions.TemplateSyntaxError:
+            return False
+
+    def load_prompt_file(self, file_path):
+        # Check if the input is a valid file path
+        if not os.path.isfile(file_path):
+            print(f"{file_path} is not a valid file path.")
+            return None
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                return file.read()
+        except IOError as e:
+            print(f"Error reading file: {e}")
+            return None
+
+    def find_template_variables(self, template_string):
+        env = Environment()
+        ast = env.parse(template_string)
+        variable_names = {node.name for node in ast.find_all(Name)}
+        return variable_names
+
+    def compile_template(self, template):
+        jinja_env = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True, undefined=StrictUndefined)
+        jinja_env.globals["raise_exception"] = lambda message: TemplateError(message)
+        # Check if target_template is template or path to template
+        if os.path.exists(template):
+            with open(template, 'r') as f:
+                template = f.read()
+        return jinja_env.from_string(template)
+
+
+    def apply_template(self, template, data) -> str:
+        return template.render(**data)
