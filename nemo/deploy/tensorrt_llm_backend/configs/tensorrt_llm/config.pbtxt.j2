@@ -26,7 +26,7 @@
 
 name: "tensorrt_llm"
 backend: "tensorrtllm"
-max_batch_size: 128
+max_batch_size: {{ max_batch_size }}
 
 model_transaction_policy {
   decoupled: {{ decoupled_mode }}
