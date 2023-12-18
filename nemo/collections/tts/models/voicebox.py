@@ -398,7 +398,7 @@ class VoiceboxModel(TextToWaveform):
             phoneme_len=token_lens,
             dp_cond=None,
             durations=durations,
-            cond=None,
+            cond=audio,
             cond_mask=None,
             input_sampling_rate=None
         )
@@ -464,7 +464,7 @@ class VoiceboxModel(TextToWaveform):
             phoneme_len=token_lens,
             dp_cond=None,
             durations=durations,
-            cond=None,
+            cond=audio,
             cond_mask=None,
             input_sampling_rate=None
         )
