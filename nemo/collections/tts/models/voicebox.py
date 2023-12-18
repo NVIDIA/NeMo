@@ -298,9 +298,7 @@ class VoiceboxModel(TextToWaveform):
             if hasattr(self, kw):
                 ds_kwargs[kw] = getattr(self, kw)
 
-        logging.info(self.global_rank)
         self.set_world_size(self.trainer)
-        logging.info(self.world_size)
 
         return get_lhotse_dataloader_from_config(
             config,
@@ -418,15 +416,18 @@ class VoiceboxModel(TextToWaveform):
             tb_writer = self.logger.experiment
             
             plot_id = 0
-            x1, x0, w, pred = outputs['vb']['x1'], outputs['vb']['x0'], outputs['vb']['w'], outputs['vb']['pred']
+            x1, x0, w, pred_dx = outputs['vb']['x1'], outputs['vb']['x0'], outputs['vb']['w'], outputs['vb']['pred']
             cond, cond_mask = outputs['vb']["cond"], outputs['vb']["cond_mask"]
             cond = cond * ~cond_mask
+            σ = self.cfm_wrapper.sigma
+            pred_x1 = pred_dx + (1 - σ) * x0
             tb_writer.add_image("train_vb/x1", plot_spectrogram_to_numpy(x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
             tb_writer.add_image("train_vb/xt", plot_spectrogram_to_numpy(w[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
             tb_writer.add_image("train_vb/cond", plot_spectrogram_to_numpy(cond[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
-            tb_writer.add_image("train_vb/pred", plot_spectrogram_to_numpy(pred[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_vb/pred_dx", plot_spectrogram_to_numpy(pred_dx[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_vb/pred_x1", plot_spectrogram_to_numpy(pred_x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
 
-            pred_audio = self.voicebox.audio_enc_dec.decode(pred)[plot_id].detach().cpu().numpy()
+            pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1)[plot_id].detach().cpu().numpy()
             orig_audio = audio[plot_id].detach().cpu().numpy()
             tb_writer.add_audio("train_vb/pred_audio", pred_audio / max(np.abs(pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
             tb_writer.add_audio("train_vb/orig_audio", orig_audio / max(np.abs(orig_audio)), self.global_step, sample_rate=24000)
