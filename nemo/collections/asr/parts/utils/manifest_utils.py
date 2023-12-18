@@ -36,8 +36,8 @@ from nemo.utils.data_utils import DataStoreObject
 def get_rounded_str_float(
     num: float, 
     output_precision: int, 
-    min_precision=1, 
-    max_precision=3
+    min_precision: int=1, 
+    max_precision: int=3,
 )-> str:
     """
     Get a string of a float number with rounded precision.
@@ -69,7 +69,7 @@ def get_ctm_line(
     output_precision: int = 2,
 ) -> str:
     """
-    Get a line in  Conversation Time Mark (CTM) format. Following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
+    Get a line in Conversation Time Mark (CTM) format. Following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
     
     CTM Format: 
         <SOURCE><SP><CHANNEL><SP><BEG-TIME><SP><DURATION><SP><TOKEN><SP><CONF><SP><TYPE><SP><SPEAKER><NEWLINE>
@@ -108,7 +108,7 @@ def get_ctm_line(
 
     if type(conf) == str and conf.replace('.', '', 1).isdigit():
         conf = float(conf)
-    elif type(duration) != float:
+    elif type(conf) != float:
         raise ValueError(f"`conf` must be a float or str containing float, but got {type(conf)}")
 
     if channel is not None and type(channel) != int:
