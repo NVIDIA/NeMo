@@ -32,6 +32,11 @@ from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging, model_utils
 
 
+def move_dimension_to_the_front(tensor, dim_index):
+    all_dims = list(range(tensor.ndim))
+    return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
+
+
 def get_buffered_pred_feat_rnnt(
     asr: FrameBatchASR,
     tokens_per_chunk: int,

@@ -25,10 +25,11 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.utils.slu_utils import SequenceGenerator, SequenceGeneratorConfig, get_seq_mask
 from nemo.collections.common.losses import SmoothedNLLLoss
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -102,7 +103,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
 
         # Setup metric with decoding strategy
-        self._wer = WERBPE(
+        self._wer = WER(
             decoding=self.decoding,
             use_cer=self._cfg.get('use_cer', False),
             dist_sync_on_step=True,
@@ -248,8 +249,8 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         if (batch_nb + 1) % log_every_n_steps == 0:
             self._wer.update(
                 predictions=predictions,
-                targets=eos_semantics,
                 predictions_lengths=pred_len,
+                targets=eos_semantics,
                 target_lengths=eos_semantics_len,
             )
             wer, _, _ = self._wer.compute()
@@ -313,8 +314,8 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
 
         self._wer.update(
             predictions=predictions,
-            targets=eos_semantics,
             predictions_lengths=pred_len,
+            targets=eos_semantics,
             target_lengths=eos_semantics_len,
         )
         wer, wer_num, wer_denom = self._wer.compute()
