@@ -115,6 +115,10 @@ class AudioPerceptionModel(NeuralModule, Exportable):
                 cfg.encoder._target_ = adapter_metadata.adapter_class_path
         # Initialize components
         self.preprocessor = self.from_config_dict(cfg.preprocessor)
+        overwrite_cfgs = cfg.get("overwrite_cfgs", None)
+        if overwrite_cfgs is not None:
+            for k, v in overwrite_cfgs.items():
+                setattr(cfg.encoder, k, v)
         encoder = self.from_config_dict(cfg.encoder)
         if cfg.get("use_multi_layer_feat", False) and cfg.get("multi_layer_feat", None):
             self.encoder = ConformerMultiLayerFeatureExtractor(cfg=cfg.multi_layer_feat, encoder=encoder)

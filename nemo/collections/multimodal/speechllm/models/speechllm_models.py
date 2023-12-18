@@ -685,12 +685,11 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         )
         # load am
         if pretrained_audio_model is not None:
+            strict = 'overwrite_cfgs' not in cfg.model.perception and 'adapter' not in cfg.model.perception
             if cfg.model.perception.get("use_multi_layer_feat", False):
-                model.perception.encoder.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
+                model.perception.encoder.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=strict)
             else:
-                model.perception.encoder.load_state_dict(
-                    audio_model.encoder.state_dict(), strict='adapter' not in cfg.model.perception
-                )
+                model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=strict)
             logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
 
         if cfg.model.get('use_am_tokenizer', False):
