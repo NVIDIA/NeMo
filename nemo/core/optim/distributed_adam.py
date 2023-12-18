@@ -26,7 +26,7 @@ from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
 from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_param_map, optim_state_to_sharding_state
 
-from nemo.utils import logging, str_to_dtype
+from nemo.utils import str_to_dtype
 
 # Check if Transformer Engine has FP8 tensor class
 HAVE_TE_FP8TENSOR = False
