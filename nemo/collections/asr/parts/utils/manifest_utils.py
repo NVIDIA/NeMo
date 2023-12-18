@@ -33,16 +33,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 from nemo.utils.data_utils import DataStoreObject
 
 
-<<<<<<< HEAD
-def get_rounded_str_float(
-    num: float, 
-    output_precision: int, 
-    min_precision: int=1, 
-    max_precision: int=3,
-)-> str:
-=======
 def get_rounded_str_float(num: float, output_precision: int, min_precision=1, max_precision=3) -> str:
->>>>>>> 2eaa24b17589a05482f2d4f8a511ad87d8c3c2c9
     """
     Get a string of a float number with rounded precision.
 
