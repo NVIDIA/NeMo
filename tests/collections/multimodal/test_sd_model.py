@@ -103,7 +103,7 @@ def model_cfg():
         use_checkpoint: False
         legacy: False
         use_flash_attention: True
-        enable_amp_o2_fp16: True
+        enable_amp_o2_fp16: False
         resblock_gn_groups: 32
 
     first_stage_config:
@@ -145,7 +145,7 @@ def model_cfg():
     ddp_overlap: True # True for using PyTorch DDP overlap.
 
     optim:
-        name: megatron_fused_adam
+        name: fused_adam
         lr: null
         weight_decay: 0.
         betas:
@@ -155,9 +155,7 @@ def model_cfg():
             name: WarmupHoldPolicy
             warmup_steps: 10000
             hold_steps: 10000000000000 # Incredibly large value to hold the lr as constant
-            capturable: True
-            master_weights: True
-            max_norm: 1
+
 
     # Nsys profiling options
     nsys_profile:
