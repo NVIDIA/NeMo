@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import math
-import re
 import os
+import re
+
 from jinja2 import Environment, Template, exceptions
 from jinja2.exceptions import TemplateError
-from jinja2.sandbox import ImmutableSandboxedEnvironment
 from jinja2.nodes import Name
+from jinja2.sandbox import ImmutableSandboxedEnvironment
+
 
 def get_datasets_weights_and_num_samples(data_prefix, num_samples):
 
@@ -124,7 +126,6 @@ class JinjaTemplating:
             with open(template, 'r') as f:
                 template = f.read()
         return jinja_env.from_string(template)
-
 
     def apply_template(self, template, data) -> str:
         return template.render(**data)

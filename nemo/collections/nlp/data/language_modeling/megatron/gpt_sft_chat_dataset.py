@@ -13,15 +13,15 @@
 # limitations under the License.
 
 import copy
+import os
 
 import torch
-import os
 from jinja2 import Environment, Template, exceptions
 from jinja2.nodes import Name
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import JinjaTemplating
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.utils import logging
 
 __all__ = ['GPTSFTChatDataset', 'get_prompt_template_example']
@@ -359,7 +359,6 @@ class GPTSFTChatDataset(GPTSFTDataset):
         else:
             jinja_template = JinjaTemplating()
             self.jinja_template = jinja_template.compile_template(self.prompt_template)
-
 
     def _process_example(self, example):
         """
