@@ -118,7 +118,6 @@ def init_model_parallel(nccl_communicator_config_path: str = None) -> None:
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
-                nccl_communicator_config_path=nccl_communicator_config_path,
             )
 
             # assert that fake tp and pp rank match after model parallel init
