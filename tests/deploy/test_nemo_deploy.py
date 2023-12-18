@@ -26,7 +26,7 @@ from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
 import torch
 import shutil
 import json
-
+from tqdm import tqdm
 
 def get_accuracy_with_lambada(nq):
         # lambada dataset based accuracy test, which includes more than 5000 sentences.
@@ -42,7 +42,7 @@ def get_accuracy_with_lambada(nq):
         with open('/opt/NeMo/tests/deploy/lambada.json', 'r') as file:
             records = json.load(file)
 
-            for record in records:
+            for record in tqdm(records):
                 prompt = record["text_before_last_word"]
                 expected_output = record["last_word"].strip().lower()
                 trtllm_output = nq.query_llm(prompts=[prompt], max_output_token=1, top_k=1, top_p=0.0, temperature=0.1)
@@ -155,7 +155,6 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
 
         trt_llm_exporter = None
         nm.stop()
-        shutil.rmtree(model_repo_dir)
         shutil.rmtree(model_info["trt_llm_model_dir"])
 
 
