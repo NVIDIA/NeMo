@@ -4810,7 +4810,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/imagen_train"
-        sh "python examples/multimodal/generative/imagen/imagen_training.py \
+        sh "python examples/multimodal/text_to_image/imagen/imagen_training.py \
         trainer.precision=16 \
         trainer.num_nodes=1 \
         trainer.devices=1 \
@@ -4836,7 +4836,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
-        sh "python examples/multimodal/generative/stable_diffusion/sd_train.py \
+        sh "python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
             trainer.precision=16 \
             trainer.num_nodes=1 \
             trainer.devices=1 \
@@ -4869,7 +4869,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/controlnet_train"
-        sh "python examples/multimodal/generative/controlnet/controlnet_train.py \
+        sh "python examples/multimodal/text_to_image/controlnet/controlnet_train.py \
             trainer.precision=16 \
             trainer.num_nodes=1 \
             trainer.devices=1 \
@@ -4898,7 +4898,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/dreambooth_train"
-        sh "python examples/multimodal/generative/dreambooth/dreambooth.py \
+        sh "python examples/multimodal/text_to_image/dreambooth/dreambooth.py \
             trainer.precision=16 \
             trainer.num_nodes=1 \
             trainer.devices=1 \
@@ -4961,7 +4961,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/clip_pretrain_tp1"
-        sh "python examples/multimodal/foundation/clip/megatron_clip_pretrain.py  \
+        sh "python examples/multimodal/vision_language_foundation/clip/megatron_clip_pretrain.py  \
             trainer.precision=16 \
             model.megatron_amp_O2=False \
             trainer.num_nodes=1 \
@@ -4969,8 +4969,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             trainer.val_check_interval=10 \
             ++exp_manager.max_time_per_run=00:00:03:00 \
             trainer.max_steps=20 \
-            model.micro_batch_size=4 \
-            model.global_batch_size=4 \
+            model.micro_batch_size=1 \
+            model.global_batch_size=1 \
             model.tensor_model_parallel_size=1 \
             model.pipeline_model_parallel_size=1 \
             exp_manager.create_checkpoint_callback=False \
@@ -4998,7 +4998,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/neva_pretrain_tp1"
-        sh "python examples/multimodal/mllm/neva/neva_pretrain.py \
+        sh "python examples/multimodal/multimodal_llm/neva/neva_pretrain.py \
             trainer.precision=bf16 \
             model.megatron_amp_O2=False \
             trainer.num_nodes=1 \
@@ -5186,13 +5186,13 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       parallel {
         stage('DreamFusion') {
           steps {
-            sh 'python examples/multimodal/generative/nerf/main.py \
+            sh 'python examples/multimodal/text_to_image/nerf/main.py \
             trainer.num_nodes=1 \
             trainer.devices="[0]" \
             trainer.max_steps=1000 \
             model.prompt="a DSLR photo of a delicious hamburger" \
-            exp_manager.exp_dir=examples/multimodal/generative/nerf/dreamfusion_results'
-            sh 'rm -rf examples/multimodal/generative/nerf/dreamfusion_results'
+            exp_manager.exp_dir=examples/multimodal/text_to_image/nerf/dreamfusion_results'
+            sh 'rm -rf examples/multimodal/text_to_image/nerf/dreamfusion_results'
           }
         }
       }
