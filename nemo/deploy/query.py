@@ -147,7 +147,7 @@ class NemoQueryTensorRTLLM(NemoQueryBase):
 
         results = []
         for prompt in prompts:
-            result = self._single_query(prompt, max_output_token=512,
+            result = self._single_query(prompt, max_output_token,
                                         top_k=1,
                                         top_p=0.0,
                                         temperature=1.0,)

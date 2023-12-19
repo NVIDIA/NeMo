@@ -47,8 +47,10 @@ def get_accuracy_with_lambada(nq, use_async=False):
                     prompt = record["text_before_last_word"]
                     expected_output = record["last_word"].strip().lower()
                     trtllm_output = nq.query_llm(prompts=[prompt], max_output_token=1, top_k=1, top_p=0.0, temperature=0.1)
-                    trtllm_output = trtllm_output[0][0].strip().lower()
-
+                    if isinstance(trtllm_output[0], str):
+                        trtllm_output = trtllm_output[0].strip().lower()
+                    else:
+                        trtllm_output = trtllm_output[0][0].strip().lower()
                     all_expected_outputs.append(expected_output)
                     all_trtllm_outputs.append(trtllm_output)
             else:
@@ -62,7 +64,6 @@ def get_accuracy_with_lambada(nq, use_async=False):
                 all_trtllm_outputs = [trtllm_output[0][0].strip().lower() for trtllm_output in all_trtllm_outputs]
 
             for trtllm_output, expected_output in zip(all_trtllm_outputs, all_expected_outputs):
-                print(trtllm_output, expected_output)
                 if expected_output == trtllm_output or trtllm_output.startswith(expected_output):
                     trtllm_correct += 1
 
@@ -115,15 +116,15 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
         )
         trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
         use_inflight_batching = not use_pytriton
-        # trt_llm_exporter.export(
-        #     nemo_checkpoint_path=model_info["checkpoint"],
-        #     model_type=model_info["model_type"],
-        #     n_gpus=n_gpu,
-        #     max_input_token=1024,
-        #     max_output_token=128,
-        #     max_batch_size=model_info["max_batch_size"],
-        #     use_inflight_batching=use_inflight_batching,
-        # )
+        trt_llm_exporter.export(
+            nemo_checkpoint_path=model_info["checkpoint"],
+            model_type=model_info["model_type"],
+            n_gpus=n_gpu,
+            max_input_token=1024,
+            max_output_token=128,
+            max_batch_size=model_info["max_batch_size"],
+            use_inflight_batching=use_inflight_batching,
+        )
 
         prompts = model_info["prompt_template"]
         if use_pytriton:
@@ -161,13 +162,13 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
         
         if not skip_accuracy:
             print("Start model accuracy testing ...")
-            trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(nq, True)
+            trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(nq, use_async=False)
             print("Model Accuracy: {0}, Relaxed Model Accuracy: {1}".format(trtllm_accuracy, trtllm_accuracy_relaxed))
             assert trtllm_accuracy_relaxed > 0.5, "Model accuracy is below 0.5"
 
         trt_llm_exporter = None
         nm.stop()
-        #shutil.rmtree(model_info["trt_llm_model_dir"])
+        shutil.rmtree(model_info["trt_llm_model_dir"])
 
 
 @pytest.mark.parametrize("n_gpus", [1])
