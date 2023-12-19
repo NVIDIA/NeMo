@@ -13,14 +13,29 @@
 # limitations under the License.
 
 import re
-from typing import List, Optional
+import string
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
 
 
-def remove_text_pc(text):
-    return re.sub(r"[\(\);.,?\-!\"':]", '', text.lower())
+def remove_text_pc(text, punctuations: Optional[Union[str, List]] = None):
+    """Remove punctuation and capitalization from text."""
+    text = text.lower()
+    # If punctuations are not specified, use all punctuation from string module
+    if punctuations is None:
+        punctuations = string.punctuation
+    if isinstance(punctuations, list):
+        punctuations = "".join(punctuations)
+
+    # Create a translation table to map each custom punctuation character to None
+    translation_table = str.maketrans("", "", punctuations)
+
+    # Use translate method to remove custom punctuation from the text
+    text_without_punctuation = text.translate(translation_table)
+
+    return text_without_punctuation
 
 
 def maybe_cast_to_list(x):

@@ -980,8 +980,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             labels_text = labels_text_cleaned
 
         if data_cfg.get("remove_text_pc", False):
-            preds_text = [remove_text_pc(p) for p in preds_text]
-            labels_text = [remove_text_pc(l) for l in labels_text]
+            preds_text = [remove_text_pc(p, data_cfg.get("punctuations", None)) for p in preds_text]
+            labels_text = [remove_text_pc(l, data_cfg.get("punctuations", None)) for l in labels_text]
 
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
