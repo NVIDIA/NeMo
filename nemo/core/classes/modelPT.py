@@ -190,6 +190,9 @@ class ModelPT(LightningModule, Model):
         # Setup nsys profiling if it has been enabled in the model config
         self._setup_nsys_profiling()
 
+        # A flag for the profile generation
+        self._profile_complete = False
+
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
 
@@ -767,7 +770,7 @@ class ModelPT(LightningModule, Model):
                     raise ValueError(f"{group} not found in model.")
                 elif hasattr(module, "parameters"):
                     known_groups.append(group)
-                    new_group = {"params": module.parameters()}
+                    new_group = {"params": list(module.parameters())}
                     for k, v in group_cfg.items():
                         new_group[k] = v
                     param_groups.append(new_group)
@@ -786,7 +789,7 @@ class ModelPT(LightningModule, Model):
             if len(other_params):
                 param_groups = [{"params": other_params}] + param_groups
         else:
-            param_groups = [{"params": self.parameters()}]
+            param_groups = [{"params": list(self.parameters())}]
 
         self._optimizer_param_groups = param_groups
 
@@ -1708,7 +1711,7 @@ class ModelPT(LightningModule, Model):
         # nsys profiling
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
-                if self._nsys_profile_enabled:
+                if self._nsys_profile_enabled and not self._profile_complete:
                     if batch_idx == self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== Start nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStart()
@@ -1745,10 +1748,11 @@ class ModelPT(LightningModule, Model):
 
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
-                if self._nsys_profile_enabled:
+                if self._nsys_profile_enabled and not self._profile_complete:
                     if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== End nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStop()
+                        self._profile_complete = True
 
     def _cleanup_on_execution_end(self):
         """

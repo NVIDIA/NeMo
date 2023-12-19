@@ -46,6 +46,7 @@ from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
+from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
 
 
@@ -187,6 +188,13 @@ class TimingCallback(Callback):
     def _on_batch_start(self, name):
         # reset only if we do not return mean of a sliding window
         if self.timer.buffer_size <= 0:
+            self.timer.reset(name)
+
+        if self.timer.is_active(name):
+            logging.warning(
+                f"Timer `{name}` was not correctly stopped, suggesting a "
+                "possible issue. The timer will be reset for now."
+            )
             self.timer.reset(name)
 
         self.timer.start(name)
@@ -511,6 +519,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         # doing the initialization such as moving files
         time.sleep(cfg.seconds_to_sleep)
 
+    add_handlers_to_mcore_logger()
+
     return log_dir
 
 
@@ -615,7 +625,7 @@ def check_resume(
                     f"Found {end_checkpoints[0]} indicating that the last training run has already completed."
                 )
         elif len(last_checkpoints) > 1:
-            if 'mp_rank' in str(last_checkpoints[0]) or 'tp_rank' in str(last_checkpoints[0]):
+            if any([s for s in ['mp_rank', 'tp_rank', 'fsdp_shard'] if s in str(last_checkpoints[0])]):
                 checkpoint = last_checkpoints[0]
                 checkpoint = uninject_model_parallel_rank(checkpoint)
             else:

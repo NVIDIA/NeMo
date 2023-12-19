@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+
 import git
 from omegaconf import OmegaConf, open_dict
 from utils import cal_target_metadata_wer, run_asr_inference
+
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -67,6 +69,9 @@ def main(cfg):
         langid=cfg.analyst.metric_calculator.langid,
         use_cer=cfg.analyst.metric_calculator.use_cer,
         output_filename=cfg.analyst.metric_calculator.output_filename,
+        ignore_capitalization=cfg.analyst.metric_calculator.get("ignore_capitalization", False),
+        ignore_punctuation=cfg.analyst.metric_calculator.get("ignore_punctuation", False),
+        punctuations=cfg.analyst.metric_calculator.get("punctuations", None),
     )
     with open_dict(cfg):
         cfg.analyst.metric_calculator.output_filename = output_manifest_w_wer
