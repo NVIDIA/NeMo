@@ -268,7 +268,7 @@ class InterCTCMixin:
                     predictions=intermediate_result[0],
                     predictions_lengths=intermediate_result[1],
                     targets=transcript,
-                    target_lengths=transcript_len,
+                    targets_lengths=transcript_len,
                 )
                 wer, wer_num, wer_denom = self.get_interctc_param('wer').compute()
                 self.get_interctc_param('wer').reset()

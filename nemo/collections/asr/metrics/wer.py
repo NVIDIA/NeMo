@@ -12,20 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import editdistance
 import jiwer
 import torch
 from torchmetrics import Metric
 
-
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMixin
-from nemo.collections.asr.parts.utils.transcribe_utils import move_dimension_to_the_front
+from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
+from nemo.collections.asr.parts.submodules.rnnt_decoding import AbstractRNNTDecoding
 from nemo.utils import logging
 
 __all__ = ['word_error_rate', 'word_error_rate_detail', 'WER']
+
+
+def move_dimension_to_the_front(tensor, dim_index):
+    all_dims = list(range(tensor.ndim))
+    return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
 
 
 def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False) -> float:
@@ -244,7 +247,7 @@ class WER(Metric):
 
     def __init__(
         self,
-        decoding: ConfidenceMixin,
+        decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding],
         use_cer=False,
         log_prediction=True,
         batch_dim_index=0,
@@ -253,8 +256,10 @@ class WER(Metric):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 
         self.decoding = decoding
-        self.decode = getattr(
-            self.decoding.rnnt_decoder_predictions_tensor, self.decoding.ctc_decoder_predictions_tensor
+        self.decode = (
+            self.decoding.rnnt_decoder_predictions_tensor
+            if isinstance(self.decoding, AbstractRNNTDecoding)
+            else self.decoding.ctc_decoder_predictions_tensor
         )  # TODO: Unify decoder predictions tensor
         self.use_cer = use_cer
         self.log_prediction = log_prediction
@@ -268,7 +273,7 @@ class WER(Metric):
         predictions: torch.Tensor,
         predictions_lengths: torch.Tensor,
         targets: torch.Tensor,
-        target_lengths: torch.Tensor,
+        targets_lengths: torch.Tensor,
     ):
         """
         Updates metric state.
@@ -285,7 +290,7 @@ class WER(Metric):
         scores = 0
         references = []
         with torch.no_grad():
-            tgt_lenths_cpu_tensor = target_lengths.long().cpu()
+            tgt_lenths_cpu_tensor = targets_lengths.long().cpu()
             targets_cpu_tensor = targets.long().cpu()
             # check batch_dim_index is first dim
             if self.batch_dim_index != 0:

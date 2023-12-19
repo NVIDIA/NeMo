@@ -713,7 +713,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                     predictions=encoded,
                     predictions_lengths=encoded_len,
                     targets=transcript,
-                    target_lengths=transcript_len,
+                    targets_lengths=transcript_len,
                 )
                 _, scores, words = self._wer.compute()
                 self._wer.reset()
@@ -803,7 +803,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 tensorboard_logs['val_loss'] = loss_value
 
             self._wer.update(
-                predictions=encoded, predictions_lengths=encoded_len, targets=transcript, target_lengths=transcript_len
+                predictions=encoded,
+                predictions_lengths=encoded_len,
+                targets=transcript,
+                targets_lengths=transcript_len,
             )
             wer, wer_num, wer_denom = self._wer.compute()
             self._wer.reset()

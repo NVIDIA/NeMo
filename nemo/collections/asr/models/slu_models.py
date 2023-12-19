@@ -251,7 +251,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
                 predictions=predictions,
                 predictions_lengths=pred_len,
                 targets=eos_semantics,
-                target_lengths=eos_semantics_len,
+                targets_lengths=eos_semantics_len,
             )
             wer, _, _ = self._wer.compute()
             self._wer.reset()
@@ -316,7 +316,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             predictions=predictions,
             predictions_lengths=pred_len,
             targets=eos_semantics,
-            target_lengths=eos_semantics_len,
+            targets_lengths=eos_semantics_len,
         )
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()

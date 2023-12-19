@@ -603,7 +603,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 predictions=log_probs,
                 predictions_lengths=encoded_len,
                 targets=transcript,
-                target_lengths=transcript_len,
+                targets_lengths=transcript_len,
             )
             wer, _, _ = self._wer.compute()
             self._wer.reset()
@@ -647,7 +647,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         )
 
         self._wer.update(
-            predictions=log_probs, predictions_lengths=encoded_len, targets=transcript, target_lengths=transcript_len,
+            predictions=log_probs, predictions_lengths=encoded_len, targets=transcript, targets_lengths=transcript_len,
         )
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()
