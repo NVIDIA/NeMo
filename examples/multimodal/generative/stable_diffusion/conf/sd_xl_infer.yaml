@@ -27,20 +27,14 @@ infer:
 sampling:
   base:
     sampler: EulerEDMSampler
-    width: 512
-    height: 512
+    width: 256
+    height: 256
     steps: 40
     discretization: "LegacyDDPMDiscretization"
     guider: "VanillaCFG"
     thresholder: "None"
     scale: 5.0
-    aesthetic_score: 5.0
-    negative_aesthetic_score: 5.0
     img2img_strength: 1.0
-    orig_width: 1344
-    orig_height: 768
-    crop_coords_top: 0
-    crop_coords_left: 0
     sigma_min: 0.0292
     sigma_max: 14.6146
     rho: 3.0

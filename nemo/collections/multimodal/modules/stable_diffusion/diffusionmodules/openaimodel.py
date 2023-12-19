@@ -1020,6 +1020,10 @@ class UNetModel(nn.Module):
             state_dict['output_blocks.2.2.conv.bias'] = state_dict['output_blocks.2.1.conv.bias']
             state_dict['output_blocks.2.2.conv.weight'] = state_dict['output_blocks.2.1.conv.weight']
 
+        if 'out.1.weight' in missing_keys:
+            state_dict['out.1.weight'] = state_dict['out.2.weight']
+            state_dict['out.1.bias'] = state_dict['out.2.bias']
+
         if (
             'input_blocks.1.0.in_layers.2.weight' in loaded_keys
             and 'input_blocks.1.0.in_layers.1.weight' in expected_keys
@@ -1034,9 +1038,9 @@ class UNetModel(nn.Module):
                 except:
                     continue
 
-            loaded_keys = list(state_dict.keys())
-            missing_keys = list(set(expected_keys) - set(loaded_keys))
-            unexpected_keys = list(set(loaded_keys) - set(expected_keys))
+        loaded_keys = list(state_dict.keys())
+        missing_keys = list(set(expected_keys) - set(loaded_keys))
+        unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
         def _find_mismatched_keys(
             state_dict, model_state_dict, loaded_keys, ignore_mismatched_sizes,
