@@ -88,7 +88,7 @@ class AudioDataset(Dataset):
             self.add_context_records_to_manifest()
         
         self.base_data_dir = get_base_dir([item["audio_filepath"] for item in self.data])
-        self.filter_invalid_records()
+        # self.filter_invalid_records()
         # if sup_data_dir is not None:
         #     self.sup_data_dir = sup_data_dir
         # else:
@@ -590,7 +590,11 @@ def main():
         random.shuffle(all_tasks_records)
         random.shuffle(phoneme_tts_records)
         random.shuffle(sentencepiece_tts_records)
-        random.shuffle(phoneme_plus_sentencepiece_tts_records)
+        # random.shuffle(phoneme_plus_sentencepiece_tts_records)
+        phoneme_plus_sentencepiece_tts_records = []
+        for idx in range(len(phoneme_tts_records)):
+            phoneme_plus_sentencepiece_tts_records.append(phoneme_tts_records[idx])
+            phoneme_plus_sentencepiece_tts_records.append(sentencepiece_tts_records[idx])
 
         num_val_records = args.num_val_records
         train_phoneme_tts_records = phoneme_tts_records[num_val_records:]
@@ -601,6 +605,8 @@ def main():
 
         train_phoneme_plus_sentencepiece_tts_records = phoneme_plus_sentencepiece_tts_records[num_val_records:]
         val_phoneme_plus_sentencepiece_tts_records = phoneme_plus_sentencepiece_tts_records[:num_val_records]
+        # Shuffle train mixed records
+        random.shuffle(train_phoneme_plus_sentencepiece_tts_records)
 
         train_all_tasks_records = all_tasks_records[num_val_records:]
         val_all_tasks_records = all_tasks_records[:num_val_records]

@@ -126,6 +126,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         lm_vocab_size: Optional[int] = None,
         num_speech_codebooks: Optional[int] = 8,
         codebook_fps: Optional[int] = 75,
+        add_special_tokens_to_only_first_codebook: Optional[bool] = False,
         **kwargs,
     ):
         """
@@ -175,6 +176,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         self.lm_vocab_size = tokenizer.vocab_size if lm_vocab_size is None else lm_vocab_size
         self.num_speech_codebooks = num_speech_codebooks
         self.codebook_fps = codebook_fps
+        self.add_special_tokens_to_only_first_codebook = add_special_tokens_to_only_first_codebook
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
@@ -539,6 +541,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 if isinstance(e, int):
                     tmp = torch.full((self.num_speech_codebooks, 1), e if fill else -1)
                     tmp[self.num_speech_codebooks-1] = e
+                    if self.add_special_tokens_to_only_first_codebook:
+                        # Fill zeros in all other codebooks (to avoid out of range when getting embeddings)
+                        tmp[1:] = 0
                 else:
                     tmp = e
                 ret.append(tmp)

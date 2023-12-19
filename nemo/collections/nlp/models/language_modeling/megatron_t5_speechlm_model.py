@@ -324,7 +324,13 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
-            t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056  # cfg.num_speech_tokens 39168
+            # TODO: Remove hardcoding
+            if self.speech_offset > 250000:
+                # multilingual model
+                t5_cfg.tokenizer.num_sentinel_tokens = 260096 - 250112
+            else:
+                # english model
+                t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056  # cfg.num_speech_tokens 39168
             t5_cfg.seq_length = cfg.data.max_seq_length
             t5_cfg.max_position_embeddings = cfg.data.max_seq_length
 
@@ -780,6 +786,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     input_phoneme_tokens = [
                         v[1] - self.lm_vocab_size for v in input_token_list if v[1] >= self.lm_vocab_size
                     ]
+                    
                     if len(input_phoneme_tokens) > 0:
                         phoneme_text = phoneme_tokenizer.decode(input_phoneme_tokens)
                         self.logger.experiment.add_text("Val Input Phoneme Text", phoneme_text, self.global_step)
@@ -1109,6 +1116,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             lm_vocab_size=self.lm_vocab_size,
             num_speech_codebooks=self.num_speech_codebooks,
             codebook_fps=self.cfg.data.get('codebook_fps', 75),
+            add_special_tokens_to_only_first_codebook=self.cfg.data.get('add_special_tokens_to_only_first_codebook', False),
         )
 
         rank = parallel_state.get_data_parallel_rank()
