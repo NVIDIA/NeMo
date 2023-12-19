@@ -238,7 +238,7 @@ class MegatronBaseModel(NLPModel):
         """
         cp_stream = torch.cuda.Stream()
 
-        for module in self.get_gpt_module_list():
+        for module in self.get_model_module_list():
             """Set context parallel running
                Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
             """
