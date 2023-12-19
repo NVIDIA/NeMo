@@ -21,21 +21,19 @@ Conversion script to convert Huggingface Mistral-7b checkpoints into nemo checkp
      [--fast-swiglu\
 """
 
+import json
 import os
 from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
+import torch.nn
 from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
-
-import torch.nn
-import json
 from sentencepiece import SentencePieceProcessor
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -44,7 +42,6 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
-
 
 
 def get_args():
@@ -128,6 +125,7 @@ def load_config(mistral_config, tokenizer_path):
 
     return nemo_config
 
+
 def load_mistral_ckpt(dir):
     params_file = os.path.join(dir, 'params.json')
     assert os.path.exists(params_file)
@@ -142,6 +140,7 @@ def load_mistral_ckpt(dir):
     tokenizer = SentencePieceProcessor(model_file=tokenizer_file)
     assert tokenizer.get_piece_size() == model_args['vocab_size']
     return model_args, ckpt, tokenizer
+
 
 def convert(args):
     logging.info(f"loading checkpoint {args.in_file}")
@@ -224,8 +223,6 @@ def convert(args):
     if mcore_gpt:
         assert nemo_config.activation.startswith('fast-'), 'mcore only supports fast version of gated linear unit.'
 
-
-
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
         old_tensor_shape = ckpt[f'layers.{l}.attention.wq.weight'].size()
@@ -273,7 +270,6 @@ def convert(args):
         else:
             mlp_up_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_4h_to_h.weight'
         checkpoint['state_dict'][mlp_up_base_name] = param_to_weights(mlp_up_weight)
-
 
         # LayerNorm
         input_ln_weight = ckpt[f'layers.{l}.attention_norm.weight']
@@ -326,6 +322,7 @@ def convert(args):
 
     model.save_to(args.out_file)
     logging.info(f'NeMo model saved to: {args.out_file}')
+
 
 if __name__ == '__main__':
     args = get_args()
