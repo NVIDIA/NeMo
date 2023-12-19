@@ -242,12 +242,9 @@ class MegatronBaseModel(NLPModel):
 
         Float16Wrapper = MCoreFloat16Module if is_mcore_model else Float16Module
 
-        nemo_args = {
-            'config': self.model_parallel_config,
-            'precision': self.cfg.precision
-        }
+        nemo_args = {'config': self.model_parallel_config, 'precision': self.cfg.precision}
 
-        if type(self).__name__ ==  'MegatronGPTModel':
+        if type(self).__name__ == 'MegatronGPTModel':
             nemo_args['share_token_embeddings'] = self.cfg.get('share_embeddings_and_output_weights', True)
 
         mcore_args = {
