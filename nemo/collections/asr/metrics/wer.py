@@ -250,20 +250,28 @@ class WER(Metric):
         decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding],
         use_cer=False,
         log_prediction=True,
+        fold_consecutive=True,
         batch_dim_index=0,
         dist_sync_on_step=False,
     ):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 
         self.decoding = decoding
-        self.decode = (
-            self.decoding.rnnt_decoder_predictions_tensor
-            if isinstance(self.decoding, AbstractRNNTDecoding)
-            else self.decoding.ctc_decoder_predictions_tensor
-        )  # TODO: Unify decoder predictions tensor
+        self.rnnt = isinstance(self.decoding, AbstractRNNTDecoding)
         self.use_cer = use_cer
         self.log_prediction = log_prediction
+        self.fold_consecutive = fold_consecutive
         self.batch_dim_index = batch_dim_index
+
+        self.decode = None
+        if isinstance(self.decoding, AbstractRNNTDecoding):
+            self.decode = self.decoding.rnnt_decoder_predictions_tensor
+        elif isinstance(self.decoding, AbstractCTCDecoding):
+            self.decode = lambda pred, pred_len: self.decoding.ctc_decoder_predictions_tensor(
+                pred, decoder_outputs=pred_len, fold_consecutive=self.fold_consecutive
+            )
+        else:
+            raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
 
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
