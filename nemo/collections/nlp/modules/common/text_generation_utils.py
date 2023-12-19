@@ -660,7 +660,7 @@ def sample_sequence_batch(
     extra={},
 ):
     # Importing here to avoid circular import errors
-
+    compute_attention_mask = False # CP Fixed
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
     _reconfigure_microbatch_calculator(

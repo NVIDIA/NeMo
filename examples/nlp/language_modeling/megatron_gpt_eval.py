@@ -222,6 +222,16 @@ def main(cfg) -> None:
                 pretrained_cfg.megatron_amp_O2 = False
             elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
                 pretrained_cfg.megatron_amp_O2 = True
+
+            pretrained_cfg.use_flash_attention = cfg.inference.get('use_flash_attention', False)
+            pretrained_cfg.rotary_augment_seq = cfg.inference.get('rotary_augment_seq', None)
+            pretrained_cfg.window_size = cfg.inference.get('window_size', [-1,-1])
+            pretrained_cfg.seq_len_interpolation_factor = cfg.inference.get('seq_len_interpolation_factor', None)
+            pretrained_cfg.rotary_base_len = cfg.inference.get('rotary_base_len', 4096)
+            pretrained_cfg.rope_only_interpolate_decoding = cfg.inference.get('rope_only_interpolate_decoding', False)
+            pretrained_cfg.limited_context_decoding = cfg.inference.get('limited_context_decoding', None)
+            pretrained_cfg.enforce_fp32_pos_idx = cfg.inference.get('enforce_fp32_pos_idx', False)
+
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,

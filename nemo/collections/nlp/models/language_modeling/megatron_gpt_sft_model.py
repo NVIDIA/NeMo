@@ -613,8 +613,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         inference_config = self.get_inference_config()
         # need to overwrite some configuration, make it immutable
         inference_config = inference_config.copy()
-        global_batch_size_per_gpu = batch['tokens'].size(0)
-        num_micro_batches_before_decode = get_num_microbatches()
+        global_batch_size_per_gpu = len(batch) if isinstance(batch, list) else batch['tokens'].size(0) 
+        micro_batch_size_before_decode = get_micro_batch_size()
 
         compute_logprob = inference_config.get('compute_logprob', False)
         if compute_logprob:
@@ -639,7 +639,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-            micro_batch_size=global_batch_size_per_gpu // num_micro_batches_before_decode,
+            micro_batch_size=micro_batch_size_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
 
