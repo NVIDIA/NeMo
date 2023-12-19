@@ -143,6 +143,15 @@ pipeline {
             sh 'rm -f /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/megatron_starcoder_tp1_pp1.nemo'
           }
         }
+        stage('Falcon') {
+          steps {
+            sh 'python scripts/nlp_language_modeling/convert_hf_falcon_to_nemo.py \
+            --config examples/nlp/language_modeling/conf/megatron_falcon_config.yaml \
+            --input /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
+            --output /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
+            sh 'rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
+          }
+        }
       }
     }
 
@@ -3595,12 +3604,14 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=3 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
-        model.optim.name=fused_adam \
+        model.mcore_gpt=True \
+        model.megatron_amp_O2=True \
+        model.optim.name=distributed_fused_adam \
         model.optim.lr=2e-4 \
         model.optim.sched.warmup_steps=1 \
         model.optim.sched.constant_steps=1 \
@@ -3630,13 +3641,15 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=6 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
         trainer.gradient_clip_val=1.0 \
+        model.mcore_gpt=True \
+        model.megatron_amp_O2=True \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
         exp_manager.resume_if_exists=True \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
-        model.optim.name=fused_adam \
+        model.optim.name=distributed_fused_adam \
         model.optim.lr=2e-4 \
         model.optim.sched.warmup_steps=2 \
         model.optim.sched.constant_steps=2 \
