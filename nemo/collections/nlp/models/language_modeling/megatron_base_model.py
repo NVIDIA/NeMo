@@ -231,7 +231,7 @@ class MegatronBaseModel(NLPModel):
                     tp_group = parallel_state.get_tensor_model_parallel_group()
                     child.set_tensor_parallel_group(tp_group)
 
-    def _wrap_model_for_O2(self, cls):
+    def _wrap_model_for_O2(self):
         """ Wraps self.model in a float16 wrapper if the model is using megatron amp O2.
             Args:
                 model: The model to wrap. Can be a list of modules or a single module.
