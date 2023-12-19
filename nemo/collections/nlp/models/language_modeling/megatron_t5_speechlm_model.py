@@ -325,7 +325,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
             # TODO: Remove hardcoding
-            if cfg.get('speech_offset', 30000) > 250000:
+            if cfg.data.get('speech_offset', 30000) > 250000:
                 # multilingual model
                 t5_cfg.tokenizer.num_sentinel_tokens = 260096 - 250112
             else:
