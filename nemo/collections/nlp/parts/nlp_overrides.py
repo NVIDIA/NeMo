@@ -421,7 +421,12 @@ class NLPDDPStrategy(DDPStrategy):
             and self.lightning_module.sharded_state_dict() is not None
         ):
             if self.is_global_zero:
-                shutil.rmtree(ckpt_to_dir(filepath))
+                ckpt_dir = ckpt_to_dir(filepath)
+                if ckpt_dir.exists():
+                    logging.info(f'Removing checkpoint: {ckpt_dir}')
+                    shutil.rmtree(ckpt_dir)
+                else:
+                    logging.warning(f'Cannot remove checkpoint since it does not exist: {ckpt_dir}')
 
         # legacy checkpoint logic, does not use megatron core
         else:
