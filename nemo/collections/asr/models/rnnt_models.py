@@ -94,7 +94,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
             decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
         )
         # Setup WER calculation
-        self._wer = WER(
+        self.wer = WER(
             decoding=self.decoding,
             batch_dim_index=0,
             use_cer=self._cfg.get('use_cer', False),
@@ -113,7 +113,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
             self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
         ):
             self.joint.set_loss(self.loss)
-            self.joint.set_wer(self._wer)
+            self.joint.set_wer(self.wer)
 
         # Setup optimization normalization (if provided in config)
         self.setup_optim_normalization()
@@ -378,11 +378,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
             )
 
-            self._wer = WER(
+            self.wer = WER(
                 decoding=self.decoding,
-                batch_dim_index=self._wer.batch_dim_index,
-                use_cer=self._wer.use_cer,
-                log_prediction=self._wer.log_prediction,
+                batch_dim_index=self.wer.batch_dim_index,
+                use_cer=self.wer.use_cer,
+                log_prediction=self.wer.log_prediction,
                 dist_sync_on_step=True,
             )
 
@@ -391,7 +391,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
             ):
                 self.joint.set_loss(self.loss)
-                self.joint.set_wer(self._wer)
+                self.joint.set_wer(self.wer)
 
             # Update config
             with open_dict(self.cfg.joint):
@@ -433,11 +433,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
         )
 
-        self._wer = WER(
+        self.wer = WER(
             decoding=self.decoding,
-            batch_dim_index=self._wer.batch_dim_index,
-            use_cer=self._wer.use_cer,
-            log_prediction=self._wer.log_prediction,
+            batch_dim_index=self.wer.batch_dim_index,
+            use_cer=self.wer.use_cer,
+            log_prediction=self.wer.log_prediction,
             dist_sync_on_step=True,
         )
 
@@ -446,7 +446,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
             self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
         ):
             self.joint.set_loss(self.loss)
-            self.joint.set_wer(self._wer)
+            self.joint.set_wer(self.wer)
 
         self.joint.temperature = decoding_cfg.get('temperature', 1.0)
 
@@ -709,14 +709,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
             }
 
             if (sample_id + 1) % log_every_n_steps == 0:
-                self._wer.update(
+                self.wer.update(
                     predictions=encoded,
                     predictions_lengths=encoded_len,
                     targets=transcript,
                     targets_lengths=transcript_len,
                 )
-                _, scores, words = self._wer.compute()
-                self._wer.reset()
+                _, scores, words = self.wer.compute()
+                self.wer.reset()
                 tensorboard_logs.update({'training_batch_wer': scores.float() / words})
 
         else:
@@ -802,14 +802,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
 
                 tensorboard_logs['val_loss'] = loss_value
 
-            self._wer.update(
+            self.wer.update(
                 predictions=encoded,
                 predictions_lengths=encoded_len,
                 targets=transcript,
                 targets_lengths=transcript_len,
             )
-            wer, wer_num, wer_denom = self._wer.compute()
-            self._wer.reset()
+            wer, wer_num, wer_denom = self.wer.compute()
+            self.wer.reset()
 
             tensorboard_logs['val_wer_num'] = wer_num
             tensorboard_logs['val_wer_denom'] = wer_denom
@@ -1003,3 +1003,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         results.append(model)
 
         return results
+
+    @property
+    def wer(self):
+        return self._wer
+
+    @wer.setter
+    def wer(self, wer):
+        self._wer = wer

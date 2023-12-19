@@ -82,7 +82,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
 
         # Setup metric with decoding strategy
-        self._wer = WER(
+        self.wer = WER(
             decoding=self.decoding,
             use_cer=self._cfg.get('use_cer', False),
             dist_sync_on_step=True,
@@ -263,7 +263,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer)
 
-        self._wer = WER(
+        self.wer = WER(
             decoding=self.decoding,
             use_cer=self._cfg.get('use_cer', False),
             log_prediction=self._cfg.get("log_prediction", False),
@@ -299,10 +299,10 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer,)
 
-        self._wer = WER(
+        self.wer = WER(
             decoding=self.decoding,
-            use_cer=self._wer.use_cer,
-            log_prediction=self._wer.log_prediction,
+            use_cer=self.wer.use_cer,
+            log_prediction=self.wer.log_prediction,
             dist_sync_on_step=True,
         )
 

@@ -103,7 +103,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
 
         # Setup metric with decoding strategy
-        self._wer = WER(
+        self.wer = WER(
             decoding=self.decoding,
             use_cer=self._cfg.get('use_cer', False),
             dist_sync_on_step=True,
@@ -247,14 +247,14 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             log_every_n_steps = 1
 
         if (batch_nb + 1) % log_every_n_steps == 0:
-            self._wer.update(
+            self.wer.update(
                 predictions=predictions,
-                predictions_lengths=pred_len,
                 targets=eos_semantics,
+                predictions_lengths=pred_len,
                 targets_lengths=eos_semantics_len,
             )
-            wer, _, _ = self._wer.compute()
-            self._wer.reset()
+            wer, _, _ = self.wer.compute()
+            self.wer.reset()
             tensorboard_logs.update({'training_batch_wer': wer})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
@@ -312,14 +312,14 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
 
         loss_value = self.loss(log_probs=log_probs, labels=eos_semantics, lengths=eos_semantics_len)
 
-        self._wer.update(
+        self.wer.update(
             predictions=predictions,
-            predictions_lengths=pred_len,
             targets=eos_semantics,
+            predictions_lengths=pred_len,
             targets_lengths=eos_semantics_len,
         )
-        wer, wer_num, wer_denom = self._wer.compute()
-        self._wer.reset()
+        wer, wer_num, wer_denom = self.wer.compute()
+        self.wer.reset()
 
         return {
             'val_loss': loss_value,
@@ -658,3 +658,11 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/slu_conformer_transformer_large_slurp/versions/1.13.0/files/slu_conformer_transformer_large_slurp.nemo",
         )
         results.append(model)
+
+    @property
+    def wer(self):
+        return self._wer
+
+    @wer.setter
+    def wer(self, wer):
+        self._wer = wer

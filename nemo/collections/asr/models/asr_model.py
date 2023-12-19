@@ -142,10 +142,6 @@ class ASRModel(ModelPT, ABC):
                 logging.warning(f'detected inf or nan values in gradients! Setting gradients to zero.')
                 self.zero_grad()
 
-    @property
-    def wer(self):
-        return self._wer
-
 
 class ExportableEncDecModel(Exportable):
     """

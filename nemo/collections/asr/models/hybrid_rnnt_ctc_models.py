@@ -416,14 +416,14 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             }
 
             if compute_wer:
-                self._wer.update(
+                self.wer.update(
                     predictions=encoded,
                     predictions_lengths=encoded_len,
                     targets=transcript,
                     targets_lengths=transcript_len,
                 )
-                _, scores, words = self._wer.compute()
-                self._wer.reset()
+                _, scores, words = self.wer.compute()
+                self.wer.reset()
                 tensorboard_logs.update({'training_batch_wer': scores.float() / words})
 
         else:  # If fused Joint-Loss-WER is used
@@ -459,9 +459,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             if compute_wer:
                 self.ctc_wer.update(
                     predictions=log_probs,
-                    predictions_lengths=encoded_len,
                     targets=transcript,
                     targets_lengths=transcript_len,
+                    predictions_lengths=encoded_len,
                 )
                 ctc_wer, _, _ = self.ctc_wer.compute()
                 self.ctc_wer.reset()
@@ -535,14 +535,14 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 )
                 tensorboard_logs['val_loss'] = loss_value
 
-            self._wer.update(
+            self.wer.update(
                 predictions=encoded,
                 predictions_lengths=encoded_len,
                 targets=transcript,
                 targets_lengths=transcript_len,
             )
-            wer, wer_num, wer_denom = self._wer.compute()
-            self._wer.reset()
+            wer, wer_num, wer_denom = self.wer.compute()
+            self.wer.reset()
 
             tensorboard_logs['val_wer_num'] = wer_num
             tensorboard_logs['val_wer_denom'] = wer_denom
@@ -584,7 +584,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             loss_value = (1 - self.ctc_loss_weight) * loss_value + self.ctc_loss_weight * ctc_loss
             tensorboard_logs['val_loss'] = loss_value
         self.ctc_wer.update(
-            predictions=log_probs, predictions_lengths=encoded_len, targets=transcript, targets_lengths=transcript_len,
+            predictions=log_probs, targets=transcript, targets_lengths=transcript_len, predictions_lengths=encoded_len,
         )
         ctc_wer, ctc_wer_num, ctc_wer_denom = self.ctc_wer.compute()
         self.ctc_wer.reset()

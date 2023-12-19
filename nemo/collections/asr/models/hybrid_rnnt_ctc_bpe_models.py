@@ -95,7 +95,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         )
 
         # Setup wer object
-        self._wer = WER(
+        self.wer = WER(
             decoding=self.decoding,
             batch_dim_index=0,
             use_cer=self.cfg.get('use_cer', False),
@@ -106,7 +106,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         # Setup fused Joint step if flag is set
         if self.joint.fuse_loss_wer:
             self.joint.set_loss(self.loss)
-            self.joint.set_wer(self._wer)
+            self.joint.set_wer(self.wer)
 
         # Setup CTC decoding
         ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)
@@ -295,11 +295,11 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
 
-        self._wer = WER(
+        self.wer = WER(
             decoding=self.decoding,
-            batch_dim_index=self._wer.batch_dim_index,
-            use_cer=self._wer.use_cer,
-            log_prediction=self._wer.log_prediction,
+            batch_dim_index=self.wer.batch_dim_index,
+            use_cer=self.wer.use_cer,
+            log_prediction=self.wer.log_prediction,
             dist_sync_on_step=True,
         )
 
@@ -308,7 +308,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
         ):
             self.joint.set_loss(self.loss)
-            self.joint.set_wer(self._wer)
+            self.joint.set_wer(self.wer)
 
         # Update config
         with open_dict(self.cfg.joint):
@@ -401,11 +401,11 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
             )
 
-            self._wer = WER(
+            self.wer = WER(
                 decoding=self.decoding,
-                batch_dim_index=self._wer.batch_dim_index,
-                use_cer=self._wer.use_cer,
-                log_prediction=self._wer.log_prediction,
+                batch_dim_index=self.wer.batch_dim_index,
+                use_cer=self.wer.use_cer,
+                log_prediction=self.wer.log_prediction,
                 dist_sync_on_step=True,
             )
 
@@ -414,7 +414,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
             ):
                 self.joint.set_loss(self.loss)
-                self.joint.set_wer(self._wer)
+                self.joint.set_wer(self.wer)
 
             self.joint.temperature = decoding_cfg.get('temperature', 1.0)
 
