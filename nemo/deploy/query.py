@@ -20,7 +20,7 @@ import numpy as np
 from pytriton.client import ModelClient
 from .tensorrt_llm_backend.client import HttpTritonClient
 from .utils import str_list2numpy
-
+import concurrent.futures
 
 class NemoQueryBase(ABC):
     def __init__(self, url, model_name):
@@ -116,6 +116,25 @@ class NemoQueryTensorRTLLM(NemoQueryBase):
             url=url,
             model_name=model_name,
         )
+        
+    def _single_query(self,
+                      prompt, max_output_token=512,
+                      top_k=1,
+                      top_p=0.0,
+                      temperature=1.0,):
+        client = HttpTritonClient(self.url)
+        pload = {
+            'prompt': [[prompt]], 
+            'tokens': max_output_token,
+            'temperature':temperature,
+            'top_k': top_k,
+            'top_p': top_p,
+            'beam_width':1,
+            'repetition_penalty':1.0,
+            'length_penalty':1.0
+        }
+        result = client.request(self.model_name, **pload)
+        return result
 
     def query_llm(
             self,
@@ -124,23 +143,42 @@ class NemoQueryTensorRTLLM(NemoQueryBase):
             top_k=1,
             top_p=0.0,
             temperature=1.0,
-            init_timeout=600.0,
     ):
 
-        client = HttpTritonClient(self.url)
         results = []
         for prompt in prompts:
-            pload = {
-                'prompt':[[prompt]], 
-                'tokens':100,
-                'temperature':temperature,
-                'top_k': top_k,
-                'top_p': top_p,
-                'beam_width':1,
-                'repetition_penalty':1.0,
-                'length_penalty':1.0
-            }
-
-            result = client.request(self.model_name, **pload)
+            result = self._single_query(prompt, max_output_token=512,
+                                        top_k=1,
+                                        top_p=0.0,
+                                        temperature=1.0,)
             results.append(result)
         return results
+
+    def query_llm_async(
+            self,
+            prompts,
+            max_output_token=512,
+            top_k=1,
+            top_p=0.0,
+            temperature=1.0,
+            num_threads = 12
+    ):
+        results = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+            future_to_prompt = {executor.submit(self._single_query, prompt, max_output_token,
+                                             top_k,
+                                             top_p,
+                                             temperature): prompt for prompt in prompts}
+            for future in concurrent.futures.as_completed(future_to_prompt):
+                prompt = future_to_prompt[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    logging.error(
+                        f"Could not run inference for prompt: - {prompt}")
+                    results.append(None)
+
+                print(len(results))
+        return results
+            
