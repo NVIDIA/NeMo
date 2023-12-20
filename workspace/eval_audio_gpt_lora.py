@@ -121,19 +121,12 @@ def main(cfg) -> None:
     model.set_inference_config(config)
     model.freeze()
 
-    _test_ds = model._build_dataset(peft_model_cfg.data.test_ds, is_train=False)
-    if isinstance(_test_ds, list):
-        _test_ds = _test_ds[0]
-
-    request_dl = DataLoader(
-        dataset=_test_ds, batch_size=peft_model_cfg.data.test_ds.global_batch_size, collate_fn=_test_ds.collate_fn,
-    )
-
+    test_loaders = model.get_test_dataloader(peft_model_cfg.data.test_ds)
     if cfg.evaluate_metric:
-        trainer.test(model, request_dl)
+        trainer.test(model, test_loaders)
         exit(0)
 
-    response = trainer.predict(model, request_dl)
+    response = trainer.predict(model, test_loaders)
 
     if model.global_rank == 0:
         print("***************************")

@@ -52,14 +52,13 @@ from nemo.collections.nlp.modules.common.text_generation_utils import get_comput
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, PEFTSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import ModelPT
-from nemo.core.classes.mixins import AccessMixin, adapter_mixins
-from nemo.utils import AppState, logging, model_utils
+from nemo.core.classes.mixins import adapter_mixins
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator,
         get_current_global_batch_size,
-        get_micro_batch_size,
         get_num_microbatches,
     )
 
@@ -69,8 +68,6 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
-    from megatron.core.enums import ModelType
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -1280,3 +1277,21 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
             dataloaders.append(eval_dl)
         return dataloaders
+
+    def get_test_dataloader(self, data_cfg):
+        datasets = self._build_dataset(data_cfg, False)
+        dataloaders = []
+        if not isinstance(datasets, list):
+            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0,)
+        for dataset in datasets:
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
+            dataloaders.append(eval_dl)
+        return dataloaders
+
+    # https://github.com/NVIDIA/NeMo/commit/43e69df8e9561532a85219faf1c61a41214e7923
+    # def on_load_checkpoint(self, checkpoint) -> None:
+    #     """LightningModule hook:
+    #      https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+    #      """
+    #     checkpoint_state_dict = checkpoint['state_dict']
+    #     self.load_state_dict(checkpoint_state_dict, strict=False)
