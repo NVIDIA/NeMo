@@ -218,10 +218,13 @@ class MegatronBertModel(MegatronBaseModel):
                 ),
                 layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
                 masked_softmax_fusion=cfg.get('masked_softmax_fusion', True),
+                normalization=cfg.get('normalization', 'layernorm'),
+                transformer_block_type=cfg.get('transformer_block_type', 'pre_ln'),
                 bias_gelu_fusion=cfg.get('bias_gelu_fusion', True),
                 bias_dropout_add_fusion=cfg.get("bias_dropout_add_fusion", True),
                 onnx_safe=cfg.get('onnx_safe', False),
                 add_binary_head=cfg.bert_binary_head,
+                skip_head=cfg.get('skip_head', False),
                 megatron_legacy=cfg.get('megatron_legacy', False),
                 position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
             )
