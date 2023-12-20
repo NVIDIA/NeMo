@@ -257,7 +257,6 @@ class WER(Metric):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 
         self.decoding = decoding
-        self.rnnt = isinstance(self.decoding, AbstractRNNTDecoding)
         self.use_cer = use_cer
         self.log_prediction = log_prediction
         self.fold_consecutive = fold_consecutive

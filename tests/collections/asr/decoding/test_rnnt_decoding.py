@@ -26,7 +26,6 @@ from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_dec
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.submodules.rnnt_decoding import (
     RNNTBPEDecoding,
-    RNNTBPEDecodingConfig,
     RNNTDecoding,
     RNNTDecodingConfig,
 )
