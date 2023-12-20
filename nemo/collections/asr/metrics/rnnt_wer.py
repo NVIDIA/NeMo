@@ -15,7 +15,7 @@
 import copy
 import re
 from abc import abstractmethod
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import editdistance
@@ -140,7 +140,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     timestep during greedy decoding. Setting to larger values allows longer sentences
                     to be decoded, at the cost of increased execution time.
                 preserve_frame_confidence: Same as above, overrides above value.
-                confidence_measure_cfg: Same as above, overrides confidence_cfg.measure_cfg.
+                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -277,7 +277,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
-                        confidence_measure_cfg=self.confidence_measure_cfg,
+                        confidence_measure_cfg=self.confidence_method_cfg,
                     )
                 else:
                     self.decoding = greedy_decode.GreedyTDTInfer(
@@ -291,7 +291,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
-                        confidence_measure_cfg=self.confidence_measure_cfg,
+                        confidence_measure_cfg=self.confidence_method_cfg,
                     )
             else:
                 self.decoding = greedy_decode.GreedyMultiblankRNNTInfer(
@@ -304,7 +304,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     ),
                     preserve_alignments=self.preserve_alignments,
                     preserve_frame_confidence=self.preserve_frame_confidence,
-                    confidence_measure_cfg=self.confidence_measure_cfg,
+                    confidence_measure_cfg=self.confidence_method_cfg,
                 )
 
         elif self.cfg.strategy == 'greedy_batch':
@@ -320,7 +320,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
-                        confidence_measure_cfg=self.confidence_measure_cfg,
+                        confidence_measure_cfg=self.confidence_method_cfg,
                     )
                 else:
                     self.decoding = greedy_decode.GreedyBatchedTDTInfer(
@@ -334,7 +334,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
-                        confidence_measure_cfg=self.confidence_measure_cfg,
+                        confidence_measure_cfg=self.confidence_method_cfg,
                     )
 
             else:
@@ -348,7 +348,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     ),
                     preserve_alignments=self.preserve_alignments,
                     preserve_frame_confidence=self.preserve_frame_confidence,
-                    confidence_measure_cfg=self.confidence_measure_cfg,
+                    confidence_measure_cfg=self.confidence_method_cfg,
                 )
 
         elif self.cfg.strategy == 'beam':
@@ -1047,7 +1047,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
 
                 preserve_frame_confidence: Same as above, overrides above value.
 
-                confidence_measure_cfg: Same as above, overrides confidence_cfg.measure_cfg.
+                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -1199,13 +1199,15 @@ class RNNTWER(Metric):
         def validation_step(self, batch, batch_idx):
             ...
             wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
-            return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            self.val_outputs = {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            return self.val_outputs
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self):
             ...
-            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            wer_num = torch.stack([x['val_wer_num'] for x in self.val_outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in self.val_outputs]).sum()
             tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+            self.val_outputs.clear()  # free memory
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
@@ -1297,7 +1299,7 @@ class RNNTDecodingConfig:
     preserve_alignments: Optional[bool] = None
 
     #  confidence config
-    confidence_cfg: ConfidenceConfig = ConfidenceConfig()
+    confidence_cfg: ConfidenceConfig = field(default_factory=lambda: ConfidenceConfig())
 
     # RNNT Joint fused batch size
     fused_batch_size: Optional[int] = None
@@ -1315,10 +1317,10 @@ class RNNTDecodingConfig:
     rnnt_timestamp_type: str = "all"  # can be char, word or all for both
 
     # greedy decoding config
-    greedy: greedy_decode.GreedyRNNTInferConfig = greedy_decode.GreedyRNNTInferConfig()
+    greedy: greedy_decode.GreedyRNNTInferConfig = field(default_factory=lambda: greedy_decode.GreedyRNNTInferConfig())
 
     # beam decoding config
-    beam: beam_decode.BeamRNNTInferConfig = beam_decode.BeamRNNTInferConfig(beam_size=4)
+    beam: beam_decode.BeamRNNTInferConfig = field(default_factory=lambda: beam_decode.BeamRNNTInferConfig(beam_size=4))
 
     # can be used to change temperature for decoding
     temperature: float = 1.0

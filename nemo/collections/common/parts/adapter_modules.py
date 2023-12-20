@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from typing import Any, Optional
 
 from hydra.utils import instantiate
@@ -60,6 +60,15 @@ class AdapterModuleUtil(access_mixins.AccessMixin):
         Returns a default adapter module strategy.
         """
         return adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+
+    def adapter_unfreeze(self,):
+        """
+        Sets the requires grad for all parameters in the adapter to True.
+        This method should be overridden for any custom unfreeze behavior that is required.
+        For example, if not all params of the adapter should be unfrozen.
+        """
+        for param in self.parameters():
+            param.requires_grad_(True)
 
 
 class LinearAdapter(nn.Module, AdapterModuleUtil):
@@ -151,5 +160,7 @@ class LinearAdapterConfig:
     activation: str = 'swish'
     norm_position: str = 'pre'
     dropout: float = 0.0
-    adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    adapter_strategy: Optional[Any] = field(
+        default_factory=lambda: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    )
     _target_: str = "{0}.{1}".format(LinearAdapter.__module__, LinearAdapter.__name__)

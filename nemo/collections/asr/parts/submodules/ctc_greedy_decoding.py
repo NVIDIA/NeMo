@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeasureConfig, ConfidenceMeasureMixin
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
@@ -55,7 +55,7 @@ def _states_to_device(dec_state, device='cpu'):
     return dec_state
 
 
-class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
+class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
     """A greedy CTC decoder.
 
     Provides a common abstraction for sample level and batch level greedy decoding.
@@ -140,8 +140,8 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
         self.compute_timestamps = compute_timestamps | preserve_frame_confidence
         self.preserve_frame_confidence = preserve_frame_confidence
 
-        # set confidence calculation measure
-        self._init_confidence_measure(confidence_measure_cfg)
+        # set confidence calculation method
+        self._init_confidence_method(confidence_method_cfg)
 
     @typecheck()
     def forward(
@@ -253,27 +253,13 @@ class GreedyCTCInferConfig:
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     preserve_frame_confidence: bool = False
-    confidence_measure_cfg: Optional[ConfidenceMeasureConfig] = ConfidenceMeasureConfig()
+    confidence_measure_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     confidence_method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
-        self.confidence_measure_cfg = OmegaConf.structured(
-            self.confidence_measure_cfg
-            if isinstance(self.confidence_measure_cfg, ConfidenceMeasureConfig)
-            else ConfidenceMeasureConfig(**self.confidence_measure_cfg)
+        self.confidence_method_cfg = OmegaConf.structured(
+            self.confidence_method_cfg
+            if isinstance(self.confidence_method_cfg, ConfidenceMethodConfig)
+            else ConfidenceMethodConfig(**self.confidence_method_cfg)
         )
-        if self.confidence_method_cfg != "DEPRECATED":
-            logging.warning(
-                "`confidence_method_cfg` is deprecated and will be removed in the future. "
-                "Please use `confidence_measure_cfg` instead."
-            )
-
-            # TODO (alaptev): delete the following two lines sometime in the future
-            logging.warning("Re-writing `confidence_measure_cfg` with the value of `confidence_method_cfg`.")
-            # OmegaConf.structured ensures that post_init check is always executed
-            self.confidence_measure_cfg = OmegaConf.structured(
-                self.confidence_method_cfg
-                if isinstance(self.confidence_method_cfg, ConfidenceMeasureConfig)
-                else ConfidenceMeasureConfig(**self.confidence_method_cfg)
-            )

@@ -576,7 +576,7 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> Tuple[Op
                 f"Could not check version compatibility."
             )
             return False, msg
-    except (ImportError, ModuleNotFoundError):
+    except (AttributeError, ImportError, ModuleNotFoundError):
         pass
 
     msg = f"Lib {lib_name} has not been installed. Please use pip or conda to install this package."
@@ -614,3 +614,20 @@ def inject_model_parallel_rank(filepath):
         return filepath
     else:
         return filepath
+
+
+def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
+    """ PTL considers checkpoints as .ckpt files.
+        This method removes the extension and returns a path
+        to be used as a directory for distributed checkpoints
+    """
+
+    filepath = Path(filepath)
+
+    # adding this assert because we will later remove directories based on the return value of this method
+    assert filepath.suffix == ".ckpt", f'filepath: {filepath} must have .ckpt extension'
+
+    # create a new path whose name is the original filepath without the .ckpt extension
+    checkpoint_dir = filepath.with_name(filepath.stem)
+
+    return checkpoint_dir

@@ -73,7 +73,9 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             input_signal_length=audio_length,
             processed_signal=None,
             processed_signal_length=None,
-            lm_embedding=base_module.language_model.embedding.word_embeddings,
+            lm_embedding=base_module.language_model.embedding
+            if hasattr(base_module, 'language_model')
+            else base_module.embedding,
         )
 
         if num_audios is not None:

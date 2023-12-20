@@ -464,7 +464,6 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
         ret = self.linear_out(out)
 
-        ret = self.linear_out(out.reshape(n_batch, -1, self.h * self.d_k)[:, :T])
         if cache is None:
             return ret
         else:

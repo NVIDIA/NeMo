@@ -18,22 +18,13 @@ import os
 
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch.utils.data import DataLoader
 
 from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTPEFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PEFTSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, PEFTSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -57,7 +48,7 @@ python eval_audio_gpt_lora.py \
 """
 
 
-@hydra_runner(config_path="../examples/multimodel/conf/speechllm", config_name="modularized_speech_gpt_config_eval")
+@hydra_runner(config_path="../examples/multimodel/conf/speechllm/", config_name="modularized_speech_gpt_config_eval")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
@@ -65,32 +56,7 @@ def main(cfg) -> None:
     megatron_amp_o2 = cfg.model.get("megatron_amp_O2", False)
     with_distributed_adam = False
 
-    plugins = []
-    strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-        find_unused_parameters=False,
-    )
-    if cfg.trainer.precision in [16, "bf16"]:
-        scaler = None
-        if cfg.trainer.precision == 16:
-            scaler = GradScaler(
-                init_scale=cfg.model.get("native_amp_init_scale", 2 ** 32),
-                growth_interval=cfg.model.get("native_amp_growth_interval", 1000),
-                hysteresis=cfg.model.get("hysteresis", 2),
-                enabled=False
-                if cfg.model.pipeline_model_parallel_size > 1
-                else True,  # turn off the grad scale for pipeline parallel LM model
-            )
-        if megatron_amp_o2 and not with_distributed_adam:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device="cuda", scaler=scaler))
-        else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device="cuda", scaler=scaler))
-
-    if cfg.get("cluster_type", None) == "BCP":
-        plugins.append(TorchElasticEnvironment())
-
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = MegatronTrainerBuilder(cfg).create_trainer()
     if cfg.model.peft.restore_from_path:
         if cfg.model.peft.restore_from_path.endswith(".nemo"):
             peft_model_cfg = MegatronGPTPEFTModel.restore_from(
@@ -155,18 +121,12 @@ def main(cfg) -> None:
     model.set_inference_config(config)
     model.freeze()
 
+    test_loaders = model.get_test_dataloader(peft_model_cfg.data.test_ds)
     if cfg.evaluate_metric:
-        trainer.test(model)
+        trainer.test(model, test_loaders)
         exit(0)
 
-    _test_ds = model._build_dataset(peft_model_cfg.data.test_ds, is_train=False)
-    if isinstance(_test_ds, list):
-        _test_ds = _test_ds[0]
-
-    request_dl = DataLoader(
-        dataset=_test_ds, batch_size=peft_model_cfg.data.test_ds.global_batch_size, collate_fn=_test_ds.collate_fn,
-    )
-    response = trainer.predict(model, request_dl)
+    response = trainer.predict(model, test_loaders)
 
     if model.global_rank == 0:
         print("***************************")

@@ -202,7 +202,7 @@ class ASRTarredDatasetMetadata:
     num_samples_per_shard: Optional[int] = None
     is_concatenated_manifest: bool = False
 
-    dataset_config: Optional[ASRTarredDatasetConfig] = ASRTarredDatasetConfig()
+    dataset_config: Optional[ASRTarredDatasetConfig] = field(default_factory=lambda: ASRTarredDatasetConfig())
     history: Optional[List[Any]] = field(default_factory=lambda: [])
 
     def __post_init__(self):
@@ -601,23 +601,9 @@ class ASRTarredDatasetBuilder:
                 to_write = base + "-sub" + str(count[squashed_filename]) + ext
                 count[squashed_filename] += 1
 
-            new_entry = {
-                'audio_filepath': to_write,
-                'duration': entry['duration'],
-                'shard_id': shard_id,  # Keep shard ID for recordkeeping
-            }
-
-            if 'label' in entry:
-                new_entry['label'] = entry['label']
-
-            if 'text' in entry:
-                new_entry['text'] = entry['text']
-
-            if 'offset' in entry:
-                new_entry['offset'] = entry['offset']
-
-            if 'lang' in entry:
-                new_entry['lang'] = entry['lang']
+            new_entry = dict(entry)
+            new_entry["audio_filepath"] = to_write
+            new_entry["shard_id"] = shard_id  # Keep shard ID for recordkeeping
 
             new_entries.append(new_entry)
 
