@@ -956,7 +956,7 @@ class MegatronBertModel(MegatronBaseModel):
                     if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
                     stage_bucket = []
-                    layers = module.transformer.layers if self.mcore_bert else module.language_model.encoder.layers
+                    layers = module.encoder.layers if self.mcore_bert else module.language_model.encoder.layers
                     for layer in layers:
                         stage_bucket.extend(
                             p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
@@ -968,7 +968,7 @@ class MegatronBertModel(MegatronBaseModel):
                 for module in modules:
                     if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
-                    layers = module.transformer.layers if self.mcore_bert else module.language_model.encoder.layers
+                    layers = module.encoder.layers if self.mcore_bert else module.language_model.encoder.layers
                     for layer in layers:
                         buckets.append(
                             [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
