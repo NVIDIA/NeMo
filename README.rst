@@ -38,6 +38,22 @@
 **NVIDIA NeMo**
 ===============
 
+Latest News
+-----------
+
+- 2023/12/06 `New NVIDIA NeMo Framework Features and NVIDIA H200 <https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/>`_
+
+.. image:: https://github.com/sbhavani/TransformerEngine/blob/main/docs/examples/H200-NeMo-performance.png
+  :target: https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility
+  :alt: H200-NeMo-performance
+  :width: 600
+
+NeMo Framework has been updated with state-of-the-art features, 
+such as FSDP, Mixture-of-Experts, and RLHF with TensorRT-LLM to provide speedups up to 4.2x for Llama-2 pre-training on H200. 
+**All of these features will be available in an upcoming release.**
+
+
+
 Introduction
 ------------
 
@@ -108,7 +124,7 @@ Key Features
     * `GLUE benchmark <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/glue_benchmark.html>`_
     * `Information retrieval <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/information_retrieval.html>`_
     * `Entity Linking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/entity_linking.html>`_
-    * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/sgd_qa.html>`_
+    * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/dialogue.html>`_
     * `Prompt Learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/nemo_megatron/prompt_learning.html>`_
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
     * `Synthetic Tabular Data Generation <https://developer.nvidia.com/blog/generating-synthetic-data-with-transformers-a-solution-for-enterprise-data-challenges/>`_
@@ -254,6 +270,36 @@ To install NeMo on Mac with Apple M-Series GPU:
     pip install cython
 
     # clone the repo and install in development mode
+    git clone https://github.com/NVIDIA/NeMo
+    cd NeMo
+    ./reinstall.sh
+
+
+Windows Computers
+~~~~~~~~~~~~~~~~~
+
+One of the options is using Windows Subsystem for Linux (WSL).
+
+To install WSL:
+
+- In PowerShell, run the following code:
+
+.. code-block:: shell
+
+    wsl --install
+    # [note] If you run wsl --install and see the WSL help text, it means WSL is already installed.
+
+Learn more about installing WSL at `Microsoft's official documentation <https://learn.microsoft.com/en-us/windows/wsl/install>`_.
+
+After Installing your Linux distribution with WSL:
+  - **Option 1:** Open the distribution (Ubuntu by default) from the Start menu and follow the instructions.
+  - **Option 2:** Launch the Terminal application. Download it from `Microsoft's Windows Terminal page <https://learn.microsoft.com/en-us/windows/terminal>`_ if not installed.
+
+Next, follow the instructions for Linux systems, as provided above. For example:
+
+.. code-block:: bash
+
+    apt-get update && apt-get install -y libsndfile1 ffmpeg
     git clone https://github.com/NVIDIA/NeMo
     cd NeMo
     ./reinstall.sh
