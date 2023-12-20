@@ -137,6 +137,8 @@ class AudioCodecModel(ModelPT):
             self.feature_loss_fn = RelativeFeatureMatchingLoss()
         elif feature_loss_type == "absolute":
             self.feature_loss_fn = FeatureMatchingLoss()
+        else:
+            raise ValueError(f'Unknown feature loss type {feature_loss_type}.')
 
         # Codebook loss setup
         if self.vector_quantizer:

@@ -188,10 +188,20 @@ class Conv2dNorm(NeuralModule):
 
 
 class PeriodDiscriminator(NeuralModule):
-    def __init__(self, period):
+    """
+    Period discriminator introduced in HiFi-GAN https://arxiv.org/abs/2010.05646 which attempts to
+    discriminate phase information by looking at equally spaced audio samples.
+
+    Args:
+        period: Spacing between audio sample inputs.
+        lrelu_slope: Slope to use for activation. Leaky relu with slope of 0.1 or 0.2 is recommended for the
+           stability of the feature matching loss.
+    """
+
+    def __init__(self, period, lrelu_slope=0.1):
         super().__init__()
         self.period = period
-        self.activation = nn.LeakyReLU(0.1)
+        self.activation = nn.LeakyReLU(lrelu_slope)
         self.conv_layers = nn.ModuleList(
             [
                 Conv2dNorm(1, 32, kernel_size=(5, 1), stride=(3, 1)),
@@ -212,26 +222,30 @@ class PeriodDiscriminator(NeuralModule):
     @property
     def output_types(self):
         return {
-            "score": NeuralType(('B', 'D', 'T'), VoidType()),
-            "fmap": [NeuralType(('B', 'C', 'H', 'W'), VoidType())],
+            "score": NeuralType(('B', 'C', 'T_out'), VoidType()),
+            "fmap": [NeuralType(('B', 'D', 'T_layer', 'C'), VoidType())],
         }
 
     @typecheck()
     def forward(self, audio):
-        # Pad audio
+
         batch_size, time = audio.shape
         out = rearrange(audio, 'B T -> B 1 T')
+        # Pad audio so that it is divisible by the period
         if time % self.period != 0:
             n_pad = self.period - (time % self.period)
             out = F.pad(out, (0, n_pad), "reflect")
             time = time + n_pad
+        # [batch, 1, (time / period), period]
         out = out.view(batch_size, 1, time // self.period, self.period)
 
         fmap = []
         for conv in self.conv_layers:
+            # [batch, filters, (time / period / stride), period]
             out = conv(inputs=out)
             out = self.activation(out)
             fmap.append(out)
+        # [batch, 1, (time / period / strides), period]
         score = self.conv_post(inputs=out)
         fmap.append(score)
         score = rearrange(score, "B 1 T C -> B C T")
@@ -240,9 +254,17 @@ class PeriodDiscriminator(NeuralModule):
 
 
 class MultiPeriodDiscriminator(NeuralModule):
-    def __init__(self, periods: Iterable[int] = (2, 3, 5, 7, 11)):
+    """
+    Wrapper class to aggregate results of multiple period discriminators.
+
+    The periods are expected to be increasing prime numbers in order to maximize coverage and minimize overlap
+    """
+
+    def __init__(self, periods: Iterable[int] = (2, 3, 5, 7, 11), lrelu_slope=0.1):
         super().__init__()
-        self.discriminators = nn.ModuleList([PeriodDiscriminator(period) for period in periods])
+        self.discriminators = nn.ModuleList(
+            [PeriodDiscriminator(period=period, lrelu_slope=lrelu_slope) for period in periods]
+        )
 
     @property
     def input_types(self):
@@ -254,10 +276,10 @@ class MultiPeriodDiscriminator(NeuralModule):
     @property
     def output_types(self):
         return {
-            "scores_real": [NeuralType(('B', 'C', 'T'), VoidType())],
-            "scores_gen": [NeuralType(('B', 'C', 'T'), VoidType())],
-            "fmaps_real": [[NeuralType(('B', 'D', 'H', 'C'), VoidType())]],
-            "fmaps_gen": [[NeuralType(('B', 'D', 'H', 'C'), VoidType())]],
+            "scores_real": [NeuralType(('B', 'C', 'T_out'), VoidType())],
+            "scores_gen": [NeuralType(('B', 'C', 'T_out'), VoidType())],
+            "fmaps_real": [[NeuralType(('B', 'D', 'T_layer', 'C'), VoidType())]],
+            "fmaps_gen": [[NeuralType(('B', 'D', 'T_layer', 'C'), VoidType())]],
         }
 
     @typecheck()
@@ -296,10 +318,10 @@ class Discriminator(NeuralModule):
     @property
     def output_types(self):
         return {
-            "scores_real": [NeuralType(('B', 'C', 'T'), VoidType())],
-            "scores_gen": [NeuralType(('B', 'C', 'T'), VoidType())],
-            "fmaps_real": [[NeuralType(('B', 'D', 'H', 'C'), VoidType())]],
-            "fmaps_gen": [[NeuralType(('B', 'D', 'H', 'C'), VoidType())]],
+            "scores_real": [NeuralType(('B', 'C', 'T_out'), VoidType())],
+            "scores_gen": [NeuralType(('B', 'C', 'T_out'), VoidType())],
+            "fmaps_real": [[NeuralType(('B', 'D', 'T_layer', 'C'), VoidType())]],
+            "fmaps_gen": [[NeuralType(('B', 'D', 'T_layer', 'C'), VoidType())]],
         }
 
     @typecheck()
