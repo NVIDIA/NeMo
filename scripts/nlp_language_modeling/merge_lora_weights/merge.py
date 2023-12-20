@@ -196,7 +196,9 @@ def main(cfg) -> None:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
     if hasattr(model, 'mcore_gpt'):
-        assert model.mcore_gpt == False, "merge script does not support mcore_gpt models" #TODO: revisit support for mcore models
+        assert (
+            model.mcore_gpt == False
+        ), "merge script does not support mcore_gpt models"  # TODO: revisit support for mcore models
     lora_model_cfg = MegatronGPTLoRAModel.restore_from(
         restore_path=cfg.lora_model_path, trainer=trainer, return_config=True,
     )
@@ -211,7 +213,7 @@ def main(cfg) -> None:
         tp=model.cfg.tensor_model_parallel_size,
         num_layers=model.cfg.num_layers,
         curr_rank=model.global_rank,
-        mcore=False, # (@adithyare) TODO: revisit mcore support for merge script.
+        mcore=False,  # (@adithyare) TODO: revisit mcore support for merge script.
     )
 
     # load the merged_weights back into the base model, for this current rank.
