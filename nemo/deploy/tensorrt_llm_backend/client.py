@@ -375,7 +375,6 @@ class HttpTritonClient(_BaseTritonClient):
         result_str = "".join(
             [val.decode("utf-8") for val in result.as_numpy("text_output").tolist()]
         )
-        print(result_str)
         # extract the generated part of the prompt
         # return(result_str)
         return self._trim_batch_response(result_str)
