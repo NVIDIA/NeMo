@@ -19,21 +19,20 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
-from torchmetrics.text.bleu import _bleu_score_compute # TODO: Move to asr_model pass
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from torchmetrics.text.bleu import _bleu_score_compute  # TODO: Move to asr_model pass
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.metrics.bleu import BLEU
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.asr.modules.transformer.transformer_decoding import TransformerBPEConfig, TransformerDecoding
 from nemo.collections.asr.modules.transformer import TransformerEncoder
+from nemo.collections.asr.modules.transformer.transformer_decoding import TransformerBPEConfig, TransformerDecoding
+from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
-
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -151,9 +150,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # Define autoregressive CE loss
-        self.loss = SmoothedCrossEntropyLoss(
-            pad_id=self.tokenizer.pad_id, label_smoothing=self.cfg.label_smoothing
-        )
+        self.loss = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id, label_smoothing=self.cfg.label_smoothing)
 
         # Setup decoding objects
         decoding_cfg = self.cfg.get('decoding', None)
@@ -166,16 +163,16 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             decoding_cfg=self.cfg.decoding,
             transformer_decoder=self.transf_decoder,
             classifier=self.log_softmax,
-            tokenizer=self.tokenizer
+            tokenizer=self.tokenizer,
         )
 
         # Setup metric. Need unique metric per dataloader
         self.bleu = BLEU(
-                decoding=self.decoding,
-                log_prediction=self.cfg.get("log_prediction", False),
-                dist_sync_on_step=True,
-                tokenize=self.cfg.get("bleu_tokenize", "13a"))
-
+            decoding=self.decoding,
+            log_prediction=self.cfg.get("log_prediction", False),
+            dist_sync_on_step=True,
+            tokenize=self.cfg.get("bleu_tokenize", "13a"),
+        )
 
     @torch.no_grad()
     def transcribe(
@@ -203,9 +200,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             return {}
 
         if return_hypotheses or logprobs:
-            raise NotImplemented(
-                "Return hypotheses is not available with this model."
-            )
+            raise NotImplemented("Return hypotheses is not available with this model.")
 
         # We will store transcriptions here
         hypotheses = []
@@ -240,7 +235,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                     log_probs, encoded_len, enc_states, enc_mask = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    hypotheses += self.decoding.transformer_decoder_predictions_tensor(encoder_hidden_states=enc_states,)
+                    hypotheses += self.decoding.transformer_decoder_predictions_tensor(
+                        encoder_hidden_states=enc_states,
+                    )
                     # TODO: Implement return all hypothesis
                     del test_batch, log_probs, encoded_len, enc_states, enc_mask
         finally:
@@ -477,7 +474,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 encoder_output=enc_states,
                 encoder_lengths=encoded_len,
                 targets=transcript,
-                targets_lengths=transcript_len
+                targets_lengths=transcript_len,
             )
             tensorboard_logs.update({'training_batch_bleu': self.bleu.compute()["bleu"]})
             self.bleu.reset()
@@ -506,12 +503,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         output_dict = {f'{eval_mode}_loss': loss_val}
         self.bleu.update(
-            encoder_output=enc_states,
-            encoder_lengths=encoded_len,
-            targets=transcript,
-            targets_lengths=transcript_len,
+            encoder_output=enc_states, encoder_lengths=encoded_len, targets=transcript, targets_lengths=transcript_len,
         )
-        output_dict.update(self.bleu.compute(prefix=eval_mode))        
+        output_dict.update(self.bleu.compute(prefix=eval_mode))
         self.bleu.reset()
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
         return output_dict
@@ -531,8 +525,17 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         val_bleu_targ = torch.stack([x['val_bleu_target'] for x in outputs]).sum()
         val_bleu_num = torch.stack([x['val_bleu_num'] for x in outputs]).sum(dim=0)
         val_bleu_denom = torch.stack([x['val_bleu_denom'] for x in outputs]).sum(dim=0)
-        tensorboard_logs = {'val_loss': val_loss_mean,
-                            'val_bleu': _bleu_score_compute(val_bleu_pred, val_bleu_targ, val_bleu_num, val_bleu_denom, self.bleu.n_gram, self.bleu.weights, self.bleu.smooth)
+        tensorboard_logs = {
+            'val_loss': val_loss_mean,
+            'val_bleu': _bleu_score_compute(
+                val_bleu_pred,
+                val_bleu_targ,
+                val_bleu_num,
+                val_bleu_denom,
+                self.bleu.n_gram,
+                self.bleu.weights,
+                self.bleu.smooth,
+            ),
         }
         self.bleu.reset()
 
@@ -544,9 +547,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         tensorboard_logs = {'test_loss': test_loss_mean}
-        bleu_score = {
-            f"test_bleu": self.bleu.compute()
-        }
+        bleu_score = {f"test_bleu": self.bleu.compute()}
         tensorboard_logs.update(bleu_score)
         self.bleu.reset()
 

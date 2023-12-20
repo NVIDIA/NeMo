@@ -19,8 +19,8 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from torch import nn
 from omegaconf import DictConfig, OmegaConf
+from torch import nn
 
 from nemo.collections.asr.modules.transformer import BeamSearchSequenceGenerator
 from nemo.collections.asr.parts.submodules import ctc_beam_decoding, ctc_greedy_decoding
@@ -36,14 +36,17 @@ def lens_to_mask(lens, max_length):
     mask = torch.arange(max_length).repeat(batch_size, 1).to(lens.device) < lens[:, None]
     return mask
 
+
 class TransformerDecoding:
     """
     Used for performing Transformer auto-regressive of the logprobs.
 
     """
 
-    def __init__(self, decoding_cfg, transformer_decoder: torch.Tensor, classifier: torch.Tensor, tokenizer: TokenizerSpec):
-        #super().__init__()
+    def __init__(
+        self, decoding_cfg, transformer_decoder: torch.Tensor, classifier: torch.Tensor, tokenizer: TokenizerSpec
+    ):
+        # super().__init__()
 
         # Convert dataclas to config
         if is_dataclass(decoding_cfg):
@@ -83,10 +86,7 @@ class TransformerDecoding:
             )
 
     def transformer_decoder_predictions_tensor(
-        self,
-        encoder_output: torch.Tensor,
-        encoder_lengths: torch.Tensor = None,
-        encoder_mask: torch.Tensor = None
+        self, encoder_output: torch.Tensor, encoder_lengths: torch.Tensor = None, encoder_mask: torch.Tensor = None
     ) -> Tuple[List[str]]:
         """
         """
@@ -140,4 +140,3 @@ class TransformerBPEConfig:
     beam_size: int = 4
     len_pen: float = 0.0
     max_delta_length: int = 50
-

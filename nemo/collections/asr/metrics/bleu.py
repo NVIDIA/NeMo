@@ -14,9 +14,9 @@
 
 from typing import Callable, Dict, List, Literal, Optional, Sequence, Union
 
+import editdistance
 import torch
 from torchmetrics.text import SacreBLEUScore
-import editdistance
 
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.modules.transformer.transformer_decoding import TransformerDecoding
@@ -63,12 +63,7 @@ class BLEU(SacreBLEUScore):
         self.batch_dim_index = batch_dim_index
 
     def update(
-        self,
-        encoder_output,
-        encoder_lengths,
-        targets,
-        targets_lengths,
-        encoder_mask=None,
+        self, encoder_output, encoder_lengths, targets, targets_lengths, encoder_mask=None,
     ):
         """
         Updates metric state.
@@ -106,11 +101,12 @@ class BLEU(SacreBLEUScore):
         if prefix:
             prefix = f"{prefix}_"
         bleu = super().compute()
-        return {f"{prefix}bleu": bleu, 
-                f"{prefix}bleu_pred": self.preds_len.detach().float(), 
-                f"{prefix}bleu_target": self.target_len.detach().float(), 
-                f"{prefix}bleu_num": self.numerator.detach().float(), 
-                f"{prefix}bleu_denom": self.denominator.detach().float()
+        return {
+            f"{prefix}bleu": bleu,
+            f"{prefix}bleu_pred": self.preds_len.detach().float(),
+            f"{prefix}bleu_target": self.target_len.detach().float(),
+            f"{prefix}bleu_num": self.numerator.detach().float(),
+            f"{prefix}bleu_denom": self.denominator.detach().float(),
         }
 
 
@@ -139,7 +135,8 @@ class BLEUWER(BLEU):
             weights=weights,
             smooth=smooth,
             log_prediction=log_prediction,
-            dist_sync_on_step=dist_sync_on_step)
+            dist_sync_on_step=dist_sync_on_step,
+        )
 
         self.use_cer = use_cer
         self.fold_consecutive = fold_consecutive
@@ -213,7 +210,7 @@ class BLEUWER(BLEU):
 
         self.scores = torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)
         self.words = torch.tensor(words, device=self.words.device, dtype=self.words.dtype)
-    
+
         super().update(preds=hypotheses, targets=references)
 
     def reset(self):
@@ -225,10 +222,9 @@ class BLEUWER(BLEU):
         scores = self.scores.detach().float()
         words = self.words.detach().float()
         return scores / words, scores, words
-    
+
     def bleu_compute(self):
         return super().compute()
 
     def bleu_reset(self):
         super().reset()
-    
