@@ -1177,7 +1177,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if stage == 'fit':
             self.initialize_last_rank_embeddings()
 
-
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.setup_transformer_engine_tp_groups()
 
