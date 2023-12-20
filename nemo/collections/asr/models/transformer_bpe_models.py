@@ -12,26 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import json
 import os
 import tempfile
 from math import ceil
 from typing import Dict, List, Optional, Union
 
-import editdistance
 import torch
-import torch.distributed as dist
-from omegaconf import DictConfig, OmegaConf
+from torchmetrics.text.bleu import _bleu_score_compute # TODO: Move to asr_model pass
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
+from nemo.collections.asr.metrics.bleu import BLEU
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.modules.transformer.transformer_decoding import TransformerBPEConfig, TransformerDecoding
+from nemo.collections.asr.modules.transformer import TransformerEncoder
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 
 from nemo.core.classes.common import typecheck
@@ -48,10 +48,8 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 
 try:
-    from sacrebleu import corpus_bleu
     from nemo.collections.nlp.modules.common import TokenClassifier
     from nemo.collections.nlp.modules.common.lm_utils import get_transformer
-    from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
 
     NLP_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -83,8 +81,17 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         # Setup audio preprocessor
         self.preprocessor = EncDecTransfModelBPE.from_config_dict(self.cfg.preprocessor)
 
+        # Setup specaug
+        if hasattr(self.cfg, 'spec_augment') and self.cfg.spec_augment is not None:
+            self.spec_augmentation = EncDecTransfModelBPE.from_config_dict(self.cfg.spec_augment)
+        else:
+            self.spec_augmentation = None
+
         # Setup audio encoder
         self.encoder = EncDecTransfModelBPE.from_config_dict(self.cfg.encoder)
+
+        # # Setup decoder module
+        # self.decoder = EncDecTransfModelBPE.from_config_dict(self._cfg.decoder)
 
         # Add projection layer if encoder and decoder differ in hidden size
         if self.cfg.encoder['d_model'] != self.cfg.transf_decoder['hidden_size']:
@@ -92,10 +99,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         else:
             self.adapter = torch.nn.Identity()
 
-        transf_encoder_cfg_dict = OmegaConf.to_container(cfg.get('transf_encoder'))
-
         # Whether to add Transformer Encoder block between Conformer and Transformer Decoder
         self.use_transf_encoder = False
+        transf_encoder_cfg_dict = OmegaConf.to_container(cfg.get('transf_encoder'))
         if transf_encoder_cfg_dict['num_layers'] > 0:
             self.use_transf_encoder = True
 
@@ -114,9 +120,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             std_init_range = 1 / transf_encoder_cfg_dict['hidden_size'] ** 0.5
             self.transf_encoder.apply(lambda module: transformer_weights_init(module, std_init_range))
 
-        transf_decoder_cfg_dict = OmegaConf.to_container(cfg.get('transf_decoder'))
-
         # Transformer decoder
+        transf_decoder_cfg_dict = OmegaConf.to_container(cfg.get('transf_decoder'))
         vocab_size = 8 * ceil(self.tokenizer.vocab_size / 8)
         transf_decoder_cfg_dict['vocab_size'] = vocab_size
         library = transf_decoder_cfg_dict.pop('library', 'nemo')
@@ -131,6 +136,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             pre_ln_final_layer_norm=transf_decoder_cfg_dict.get("pre_ln_final_layer_norm", False),
         )
 
+        # Setup classifier
         self.log_softmax = TokenClassifier(
             hidden_size=self.transf_decoder.hidden_size,
             num_classes=vocab_size,
@@ -144,31 +150,32 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
-        # Beam Search decoding
-        self.beam_search = BeamSearchSequenceGenerator(
-            embedding=self.transf_decoder.embedding,
-            decoder=self.transf_decoder.decoder,
-            log_softmax=self.log_softmax,
-            max_sequence_length=self.transf_decoder.max_sequence_length,
-            beam_size=self.cfg.beam_search.beam_size,
-            bos=self.tokenizer.bos_id,
-            pad=self.tokenizer.pad_id,
-            eos=self.tokenizer.eos_id,
-            len_pen=self.cfg.beam_search.len_pen,
-            max_delta_length=self.cfg.beam_search.max_generation_delta,
-        )
-
         # Define autoregressive CE loss
-        self.transf_loss = SmoothedCrossEntropyLoss(
+        self.loss = SmoothedCrossEntropyLoss(
             pad_id=self.tokenizer.pad_id, label_smoothing=self.cfg.label_smoothing
         )
 
-        if hasattr(self.cfg, 'spec_augment') and self.cfg.spec_augment is not None:
-            self.spec_augmentation = EncDecTransfModelBPE.from_config_dict(self.cfg.spec_augment)
-        else:
-            self.spec_augmentation = None
+        # Setup decoding objects
+        decoding_cfg = self.cfg.get('decoding', None)
+        # In case decoding config not found, use default config
+        if decoding_cfg is None:
+            decoding_cfg = OmegaConf.structured(TransformerBPEConfig)
+            with open_dict(self.cfg):
+                self.cfg.decoding = decoding_cfg
+        self.decoding = TransformerDecoding(
+            decoding_cfg=self.cfg.decoding,
+            transformer_decoder=self.transf_decoder,
+            classifier=self.log_softmax,
+            tokenizer=self.tokenizer
+        )
 
-        self.val_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
+        # Setup metric. Need unique metric per dataloader
+        self.bleu = BLEU(
+                decoding=self.decoding,
+                log_prediction=self.cfg.get("log_prediction", False),
+                dist_sync_on_step=True,
+                tokenize=self.cfg.get("bleu_tokenize", "13a"))
+
 
     @torch.no_grad()
     def transcribe(
@@ -195,10 +202,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
 
-        if return_hypotheses and logprobs:
-            raise ValueError(
-                "Either `return_hypotheses` or `logprobs` can be True at any given time."
-                "Returned hypotheses will contain the logprobs."
+        if return_hypotheses or logprobs:
+            raise NotImplemented(
+                "Return hypotheses is not available with this model."
             )
 
         # We will store transcriptions here
@@ -234,24 +240,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                     log_probs, encoded_len, enc_states, enc_mask = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-
-                    beam_hypotheses = (
-                        self.beam_search(
-                            encoder_hidden_states=enc_states, encoder_input_mask=enc_mask, return_beam_scores=False
-                        )
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                    beam_hypotheses = [self.tokenizer.ids_to_text(hyp) for hyp in beam_hypotheses]
-
-                    if return_hypotheses:
-                        # dump log probs per file
-                        for idx in range(logits.shape[0]):
-                            current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
-
-                    hypotheses += beam_hypotheses
-
+                    hypotheses += self.decoding.transformer_decoder_predictions_tensor(encoder_hidden_states=enc_states,)
+                    # TODO: Implement return all hypothesis
                     del test_batch, log_probs, encoded_len, enc_states, enc_mask
         finally:
             # set mode back to its original value
@@ -441,138 +431,126 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if self.use_transf_encoder:
             enc_states = self.transf_encoder(encoder_states=enc_states, encoder_mask=enc_mask)
 
-        transf_log_probs = None
+        log_probs = None
         if transcript is not None:
             dec_mask = lens_to_mask(transcript_length, transcript.shape[1]).to(transcript.dtype)
             dec_states = self.transf_decoder(
                 input_ids=transcript, decoder_mask=dec_mask, encoder_embeddings=enc_states, encoder_mask=enc_mask
             )
-            transf_log_probs = self.log_softmax(hidden_states=dec_states)
-
-        return transf_log_probs, encoded_len, enc_states, enc_mask
-
-    def compute_audio_loss(self, batch):
-
-        if batch is None:
-            return 0
-
-        signal, signal_len, transcript, transcript_len = batch
-        input_ids, labels = transcript[:, :-1], transcript[:, 1:]
-
-        transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
-            input_signal=signal,
-            input_signal_length=signal_len,
-            transcript=input_ids,
-            transcript_length=transcript_len,
-        )
-
-        transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
-
-        return transf_loss
+            log_probs = self.log_softmax(hidden_states=dec_states)
+        return log_probs, encoded_len, enc_states, enc_mask
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-
-        audio_loss = self.compute_audio_loss(batch)
-
-        tensorboard_logs = {
-            'train_loss': audio_loss,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
-
-        return {'loss': audio_loss, 'log': tensorboard_logs}
-
-    def validation_step(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
         signal, signal_len, transcript, transcript_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
+            log_probs, encoded_len, enc_states, enc_mask = self.forward(
                 processed_signal=signal,
                 processed_signal_length=signal_len,
                 transcript=input_ids,
                 transcript_length=transcript_len,
             )
         else:
-            transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
+            log_probs, encoded_len, enc_states, enc_mask = self.forward(
                 input_signal=signal,
                 input_signal_length=signal_len,
                 transcript=input_ids,
                 transcript_length=transcript_len,
             )
 
-        beam_hypotheses = self.beam_search(
-            encoder_hidden_states=enc_states, encoder_input_mask=enc_mask, return_beam_scores=False
+        loss_val = self.loss(log_probs=log_probs, labels=labels)
+        tensorboard_logs = {
+            'train_loss': loss_val,
+            'learning_rate': self._optimizer.param_groups[0]['lr'],
+            'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+        }
+
+        if hasattr(self, '_trainer') and self._trainer is not None:
+            log_every_n_steps = self._trainer.log_every_n_steps
+        else:
+            log_every_n_steps = 1
+
+        if (batch_nb + 1) % log_every_n_steps == 0:
+            self.bleu.update(
+                encoder_output=enc_states,
+                encoder_lengths=encoded_len,
+                targets=transcript,
+                targets_lengths=transcript_len
+            )
+            tensorboard_logs.update({'training_batch_bleu': self.bleu.compute()["bleu"]})
+            self.bleu.reset()
+
+        return {'loss': loss_val, 'log': tensorboard_logs}
+
+    def validation_pass(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
+        signal, signal_len, transcript, transcript_len = batch
+        input_ids, labels = transcript[:, :-1], transcript[:, 1:]
+
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            log_probs, encoded_len, enc_states, enc_mask = self.forward(
+                processed_signal=signal,
+                processed_signal_length=signal_len,
+                transcript=input_ids,
+                transcript_length=transcript_len,
+            )
+        else:
+            log_probs, encoded_len, enc_states, enc_mask = self.forward(
+                input_signal=signal,
+                input_signal_length=signal_len,
+                transcript=input_ids,
+                transcript_length=transcript_len,
+            )
+        loss_val = self.loss(log_probs=log_probs, labels=labels)
+
+        output_dict = {f'{eval_mode}_loss': loss_val}
+        self.bleu.update(
+            encoder_output=enc_states,
+            encoder_lengths=encoded_len,
+            targets=transcript,
+            targets_lengths=transcript_len,
         )
-        transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
-
-        ground_truths = [self.tokenizer.ids_to_text(sent) for sent in transcript.detach().cpu().tolist()]
-        translations = [self.tokenizer.ids_to_text(sent) for sent in beam_hypotheses.detach().cpu().tolist()]
-
-        self.val_loss(loss=transf_loss, num_measurements=transf_log_probs.shape[0] * transf_log_probs.shape[1])
-
-        output_dict = {f'{eval_mode}_loss': transf_loss, 'translations': translations, 'ground_truths': ground_truths}
-
-        self.validation_step_outputs.append(output_dict)
-
+        output_dict.update(self.bleu.compute(prefix=eval_mode))        
+        self.bleu.reset()
+        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
         return output_dict
+
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        metrics = self.validation_pass(batch, batch_idx, dataloader_idx)
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
+        return metrics
+
+    # TODO: move logic to ASR_Model.
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        val_bleu_pred = torch.stack([x['val_bleu_pred'] for x in outputs]).sum()
+        val_bleu_targ = torch.stack([x['val_bleu_target'] for x in outputs]).sum()
+        val_bleu_num = torch.stack([x['val_bleu_num'] for x in outputs]).sum(dim=0)
+        val_bleu_denom = torch.stack([x['val_bleu_denom'] for x in outputs]).sum(dim=0)
+        tensorboard_logs = {'val_loss': val_loss_mean,
+                            'val_bleu': _bleu_score_compute(val_bleu_pred, val_bleu_targ, val_bleu_num, val_bleu_denom, self.bleu.n_gram, self.bleu.weights, self.bleu.smooth)
+        }
+        self.bleu.reset()
+
+        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         return self.validation_step(batch, batch_idx, dataloader_idx, eval_mode="test")
 
-    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0, eval_mode: str = "val"):
-        """
-        Called at the end of validation to aggregate outputs.
-        :param outputs: list of individual outputs of each validation step.
-        """
-        if not outputs:
-            return
-
-        if isinstance(outputs[0], dict):
-            outputs = [outputs]
-
-        for output in outputs:
-            eval_loss = getattr(self, 'val_loss').compute()
-            translations = list(itertools.chain(*[x['translations'] for x in output]))
-            ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
-
-            # Gather translations and ground truths from all workers
-            tr_and_gt = [None for _ in range(self.world_size)]
-            # we also need to drop pairs where ground truth is an empty string
-            if self.world_size > 1:
-                dist.all_gather_object(
-                    tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != '']
-                )
-            else:
-                tr_and_gt[0] = [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != '']
-
-            if self.global_rank == 0:
-                _translations = []
-                _ground_truths = []
-                for rank in range(0, self.world_size):
-                    _translations += [t for (t, g) in tr_and_gt[rank]]
-                    _ground_truths += [g for (t, g) in tr_and_gt[rank]]
-
-                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
-                sb_score = sacre_bleu.score * self.world_size
-
-                wer_scores, wer_words = 0, 0
-                for h, r in zip(_translations, _ground_truths):
-                    wer_words += len(r.split())
-                    wer_scores += editdistance.eval(h.split(), r.split())
-                wer_score = 1.0 * wer_scores * self.world_size / wer_words
-
-            else:
-                sb_score = 0.0
-                wer_score = 0.0
-
-            self.log(f"{eval_mode}_loss", eval_loss, sync_dist=True)
-            self.log(f"{eval_mode}_sacreBLEU", sb_score, sync_dist=True)
-            self.log(f"{eval_mode}_WER", wer_score, sync_dist=True)
-            self.val_loss.reset()
-
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        return self.multi_validation_epoch_end(outputs, dataloader_idx, eval_mode="test")
+        test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'test_loss': test_loss_mean}
+        bleu_score = {
+            f"test_bleu": self.bleu.compute()
+        }
+        tensorboard_logs.update(bleu_score)
+        self.bleu.reset()
+
+        return {'test_loss': test_loss_mean, 'log': tensorboard_logs}
 
     def test_dataloader(self):
         if self._test_dl is not None:

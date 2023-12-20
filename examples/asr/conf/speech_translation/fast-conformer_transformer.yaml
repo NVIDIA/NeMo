@@ -22,7 +22,7 @@ model:
 
   train_ds:
     is_tarred: true
-    tarred_audio_filepaths: ???
+    tarred_audio_filepaths: null
     manifest_filepath: ???
     sample_rate: 16000
     shuffle: false
@@ -151,10 +151,11 @@ model:
     dropout: 0.0
     use_transformer_init: true
     
-  beam_search:
+  decoding:
+    strategy: "beam"
     beam_size: 4
     len_pen: 0.0
-    max_generation_delta: 50
+    max_delta_length: 50
 
   optim:
     name: adam
@@ -176,7 +177,7 @@ model:
       min_lr: 1e-6
 
 trainer:
-  gpus: -1 # number of GPUs, -1 would use all available GPUs
+  devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 100
   max_steps: -1 # computed at runtime if not set
@@ -201,7 +202,7 @@ exp_manager:
   create_checkpoint_callback: true
   checkpoint_callback_params:
     # in case of multiple validation sets, first one is used
-    monitor: "val_sacreBLEU"
+    monitor: "val_bleu"
     mode: "max"
     save_top_k: 3
     always_save_nemo: True # saves the checkpoints as nemo files instead of PTL checkpoints
