@@ -824,8 +824,8 @@ class CoreAttention(MegatronModule):
         # This arg is been provided mostly to support weight conversion of Huggingface models. (ex: T5v1.1)
         self.normalize_attention_scores = normalize_attention_scores
 
-            if window_size is not None:
-                assert use_flash_attention == True, 'window_size is only supported with Flash Attention'
+        if window_size is not None:
+            assert use_flash_attention == True, 'window_size is only supported with Flash Attention'
 
         if window_size is None:
             self.window_size = [-1, -1]
@@ -1030,7 +1030,7 @@ class CoreAttention(MegatronModule):
         key_layer = _cast_if_autocast_enabled(key_layer)
         value_layer = _cast_if_autocast_enabled(value_layer)
         attention_bias = _cast_if_autocast_enabled(attention_bias)
-        
+
         # if the autocast protection above fails, still need to protect flash attention
         if torch.cuda.get_device_capability()[0] < 8: # older gpus don't have bfloat16 support
             if query_layer.dtype == torch.float32:
