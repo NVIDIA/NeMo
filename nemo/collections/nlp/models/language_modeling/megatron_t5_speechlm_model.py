@@ -119,6 +119,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         return_all_crossattention_probs = cfg.get('return_all_crossattention_probs', False)
         num_cross_attention_heads = cfg.get('num_cross_attention_heads', 12)
         self.lm_vocab_size = cfg.get('lm_vocab_size', 30000)
+        self.context_pattern = cfg.data.get('context_pattern', 'parallel')
 
         self.speech_offset = speech_offset
         self.speech_codebook_size = speech_codebook_size
@@ -381,13 +382,15 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         return loss_mean
 
-    def convert_tokens_to_range(self, tokens, apply_offset_correction=True):
+    def convert_tokens_to_range(self, tokens, apply_offset_correction=True, pattern=None):
         # convert tokens to range [0, 1024]
         output_tokens = tokens.clone()
         if apply_offset_correction:
             output_tokens[0] = output_tokens[0] - self.speech_offset
         output_tokens = torch.clamp(output_tokens, min=0, max=1023)
-        if self.cfg.get('seq_pattern', 'delay_parallel') == "delay_parallel":
+        if pattern is None:
+            pattern = self.cfg.get('seq_pattern', 'delay_parallel')
+        if pattern == "delay_parallel":
             output_tokens_new = []
             for _c in range(output_tokens.shape[0]):
                 si = _c
@@ -475,11 +478,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                 (ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < self.speech_offset
                             ]
                             context_end_step = input_token_list[0][0]
-                            _context_tokens = context_and_question_tokens[0][:, :context_end_step].clone()
-                            _context_tokens[0] = _context_tokens[0] - self.speech_offset
-                            _context_tokens = torch.clamp(_context_tokens, min=0, max=1023)
-                            _context_wav = self.decode_wav_from_codec_model(_context_tokens)
-                            self.logger.experiment.add_audio("train_context_wav", _context_wav, self.global_step, self.sample_rate)
+                            if context_end_step > self.num_speech_codebooks:
+                                _context_tokens = context_and_question_tokens[0][:, :context_end_step].clone()
+                                _context_tokens = self.convert_tokens_to_range(_context_tokens, pattern=self.context_pattern)
+                                _context_wav = self.decode_wav_from_codec_model(_context_tokens)
+                                self.logger.experiment.add_audio("train_context_wav", _context_wav, self.global_step, self.sample_rate)
 
                             question_si = (
                                 input_token_list[0][0] + virtual_tokens.shape[1]
@@ -768,11 +771,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         (ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < self.speech_offset
                     ]
                     context_end_step = input_token_list[0][0]
-                    _context_tokens = context_and_question_tokens[0][:, :context_end_step].clone()
-                    _context_tokens[0] = _context_tokens[0] - self.speech_offset
-                    _context_tokens = torch.clamp(_context_tokens, min=0, max=1023)
-                    _context_wav = self.decode_wav_from_codec_model(_context_tokens)
-                    self.logger.experiment.add_audio("val_context_wav", _context_wav, self.global_step, self.sample_rate)
+                    if context_end_step > self.num_speech_codebooks:
+                        _context_tokens = context_and_question_tokens[0][:, :context_end_step].clone()
+                        _context_tokens = self.convert_tokens_to_range(_context_tokens, pattern=self.context_pattern)
+                        _context_wav = self.decode_wav_from_codec_model(_context_tokens)
+                        self.logger.experiment.add_audio("val_context_wav", _context_wav, self.global_step, self.sample_rate)
 
                     question_si = (
                         input_token_list[0][0] + virtual_tokens.shape[1]
@@ -1117,6 +1120,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             num_speech_codebooks=self.num_speech_codebooks,
             codebook_fps=self.cfg.data.get('codebook_fps', 75),
             add_special_tokens_to_only_first_codebook=self.cfg.data.get('add_special_tokens_to_only_first_codebook', False),
+            context_pattern=self.cfg.data.get('context_pattern', 'parallel'),
+            context_duration_min=self.cfg.data.get('context_duration_min', 3.0),
+            context_duration_max=self.cfg.data.get('context_duration_max', 5.0),
         )
 
         rank = parallel_state.get_data_parallel_rank()
@@ -1399,11 +1405,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         (ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < self.speech_offset
                     ]
                     context_end_step = input_token_list[0][0]
-                    _context_tokens = context_and_question_tokens[i][:, :context_end_step].clone()
-                    _context_tokens[0] = _context_tokens[0] - self.speech_offset
-                    _context_tokens = torch.clamp(_context_tokens, min=0, max=1023)
-                    _context_wav = self.decode_wav_from_codec_model(_context_tokens)
-                    self.logger.experiment.add_audio("Context Wav", _context_wav, step, self.sample_rate)
+                    if context_end_step > self.num_speech_codebooks:
+                        _context_tokens = context_and_question_tokens[i][:, :context_end_step].clone()
+                        _context_tokens = self.convert_tokens_to_range(_context_tokens, pattern=self.context_pattern)
+                        _context_wav = self.decode_wav_from_codec_model(_context_tokens)
+                        self.logger.experiment.add_audio("Context Wav", _context_wav, step, self.sample_rate)
 
                     task_question = self.frozen_model.tokenizer.ids_to_text(
                         [v[1] for v in input_token_list if v[1] < self.lm_vocab_size]
