@@ -50,6 +50,7 @@ PEFT_MODULE_MAP = {
     "all": "all",
 }
 
+
 def get_target_modules(lora_cfg):
     original_target_modules = lora_cfg.get("target_modules", ["attention_qkv"])
     target_modules = []
@@ -66,7 +67,12 @@ def get_target_modules(lora_cfg):
             if PEFT_MODULE_MAP['4htoh_module'] not in target_modules:
                 target_modules.append(PEFT_MODULE_MAP['4htoh_module'])
         elif module == PEFT_MODULE_MAP["all"]:
-            for sub_module in [PEFT_MODULE_MAP['qkv_module'], PEFT_MODULE_MAP['dense_module'], PEFT_MODULE_MAP['hto4h_module'], PEFT_MODULE_MAP['4htoh_module']]:
+            for sub_module in [
+                PEFT_MODULE_MAP['qkv_module'],
+                PEFT_MODULE_MAP['dense_module'],
+                PEFT_MODULE_MAP['hto4h_module'],
+                PEFT_MODULE_MAP['4htoh_module'],
+            ]:
                 if sub_module not in target_modules:
                     target_modules.append(sub_module)
         else:
@@ -74,6 +80,7 @@ def get_target_modules(lora_cfg):
                 target_modules.append(module)
 
     return target_modules
+
 
 class PEFTConfig:
     # superclass for adapter name and config
