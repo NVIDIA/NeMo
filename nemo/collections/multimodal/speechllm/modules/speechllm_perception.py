@@ -566,6 +566,8 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
     def get_text_embed(self, inputs, lm_embedding, pad_id=0):
         with torch.no_grad():
             input_ids = self.llm_tokenizer.text_to_ids(inputs)
+            if self.cfg.get('add_sep', False):
+                input_ids = [[self.llm_tokenizer.bos_id] + x + [self.llm_tokenizer.eos_id] for x in input_ids]
             input_length = torch.LongTensor([len(x) for x in input_ids]).to(lm_embedding.word_embeddings.weight.device)
             max_length = max(input_length)
             input_ids = torch.LongTensor([x + [pad_id] * (max_length - len(x)) for x in input_ids]).to(
