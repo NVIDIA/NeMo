@@ -1092,6 +1092,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         averaged_metric = []
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
+            if len(output) == 0:
+                logging.warning(f"Empty output for dataloader_idx: {dataloader_idx}")
+                continue
             # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
             loss_vals = [x['loss'] for x in output]
             if parallel_state.is_pipeline_last_stage():
