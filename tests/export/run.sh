@@ -38,3 +38,5 @@ py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_13B_base_ptun
 py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_13B_base_2gpu
 py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_70B_base_4gpu
 py.test -s /opt/NeMo/tests/export/test_nemo_export.py::test_LLAMA2_70B_base_8gpu
+
+

@@ -163,7 +163,6 @@ def run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus, tp_size=
             max_input_token=1024,
             max_output_token=128,
             max_batch_size=args.max_batch_size,
-            prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
         )
         output = trt_llm_exporter.forward(
             input_texts=prompt_template,
@@ -171,6 +170,7 @@ def run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus, tp_size=
             top_k=1,
             top_p=0.0,
             temperature=1.0,
+            prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
         )
 
         print("")
