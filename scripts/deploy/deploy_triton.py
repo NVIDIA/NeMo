@@ -142,6 +142,14 @@ def get_args(argv):
     )
 
     parser.add_argument(
+        "-mpet",
+        "--max_prompt_embedding_table_size",
+        default=None,
+        type=int,
+        help="Max prompt embedding table size"
+    )
+
+    parser.add_argument(
         "-dcf",
         "--disable_context_fmha",
         action="store_true",
@@ -242,12 +250,12 @@ def nemo_deploy(argv):
             trt_llm_exporter.export(
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
-                prompt_embeddings_checkpoint_path=args.ptuning_nemo_checkpoint,
                 n_gpus=args.num_gpus,
                 max_input_token=args.max_input_len,
                 max_output_token=args.max_output_len,
                 enable_context_fmha=not args.disable_context_fmha,
                 max_batch_size=args.max_batch_size,
+                max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
                 dtype=args.dtype
             )
         except Exception as error:

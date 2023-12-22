@@ -21,7 +21,7 @@ import shutil
 import json
 
 
-def get_accuracy_with_lambada(model):
+def get_accuracy_with_lambada(model, prompt_embeddings_checkpoint_path):
         # lambada dataset based accuracy test, which includes more than 5000 sentences.
         # Use generated last token with original text's last token for accuracy comparison.
         # If the generated last token start with the original token, trtllm_correct make an increment.
@@ -38,7 +38,14 @@ def get_accuracy_with_lambada(model):
             for record in records:
                 prompt = record["text_before_last_word"]
                 expected_output = record["last_word"].strip().lower()
-                trtllm_output = model.forward(input_texts=[prompt], max_output_token=1, top_k=1, top_p=0, temperature=0.1)
+                trtllm_output = model.forward(
+                    input_texts=[prompt],
+                    max_output_token=1,
+                    top_k=1,
+                    top_p=0,
+                    temperature=0.1,
+                    prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+                )
                 trtllm_output = trtllm_output[0][0].strip().lower()
 
                 all_expected_outputs.append(expected_output)
@@ -113,7 +120,6 @@ def run_trt_llm_export(model_name, n_gpu, ptuning=False, tp_size=None, pp_size=N
             max_input_token=1024,
             max_output_token=128,
             max_batch_size=model_info["max_batch_size"],
-            prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
         )
         output = trt_llm_exporter.forward(
             input_texts=model_info["prompt_template"],
@@ -121,6 +127,7 @@ def run_trt_llm_export(model_name, n_gpu, ptuning=False, tp_size=None, pp_size=N
             top_k=1,
             top_p=0.0,
             temperature=1.0,
+            prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
         )
 
         print("")
@@ -129,7 +136,7 @@ def run_trt_llm_export(model_name, n_gpu, ptuning=False, tp_size=None, pp_size=N
         print("--- Output: ", output)
         print("")
         print("Start model accuracy testing ...")
-        trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(trt_llm_exporter)
+        trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(trt_llm_exporter, prompt_embeddings_checkpoint_path)
         print("Model Accuracy: {0}, Relaxed Model Accuracy: {1}".format(trtllm_accuracy, trtllm_accuracy_relaxed))
         assert trtllm_accuracy_relaxed > 0.5, "Model accuracy is below 0.5"
 
@@ -383,6 +390,15 @@ def test_LLAMA2_7B_base_2gpu(n_gpus):
         pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
 
     run_trt_llm_export("LLAMA2-7B-base", n_gpus)
+
+
+@pytest.mark.parametrize("n_gpus", [2])
+def test_LLAMA2_7B_base_ptuning_2gpu(n_gpus):
+    """Here we test the trt-llm transfer and infer function"""
+    if n_gpus > torch.cuda.device_count():
+        pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
+
+    run_trt_llm_export("LLAMA2-7B-base", n_gpus, ptuning=True)
 
 
 @pytest.mark.parametrize("n_gpus", [1])

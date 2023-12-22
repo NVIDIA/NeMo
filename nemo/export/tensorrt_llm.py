@@ -67,8 +67,6 @@ class TensorRTLLM(ITritonDeployable):
         self.model_dir = model_dir
         self.model = None
         self.tokenizer = None
-        self.prompt_table = None
-        self.task_vocab_size = None
         self.n_gpus = None
         self.config = None
         if load_model:
@@ -77,8 +75,6 @@ class TensorRTLLM(ITritonDeployable):
     def load(self):
         self.model = None
         self.tokenizer = None
-        self.prompt_table = None
-        self.task_vocab_size = None
         self.n_gpus = None
         self.config = None
 
@@ -89,30 +85,12 @@ class TensorRTLLM(ITritonDeployable):
                     self._load_config_file()
                     self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
                     self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
-                    self._load_prompt_table()
                 except Exception as error:
                     raise Exception(
                         "Files in the TensorRT-LLM folder is corrupted and "
                         "model needs to be exported again. "
                         "Error message: " + str(error)
                     )
-
-    def _load_prompt_table(self):
-        path = Path(os.path.join(self.model_dir, "__prompt_embeddings__.npy"))
-        if path.exists():
-            self.prompt_table = torch.from_numpy(np.load(path))
-            self.task_vocab_size = self.prompt_table.size(dim=0)
-
-            dtype = self.config['builder_config']['precision']
-            self.prompt_table = self.prompt_table.cuda().to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype))
-
-            if self.prompt_table.shape[1] != self.config["builder_config"]["hidden_size"]:
-                raise Exception(
-                    "Hidden dimension of the model is {0} and does not match with the dimension of the prompt table.".format(self.config["builder_config"]["hidden_size"])
-                )
-        else:
-            self.prompt_table = None
-            self.task_vocab_size = None
 
     def _load_config_file(self):
         engine_dir = Path(self.model_dir)
@@ -136,7 +114,7 @@ class TensorRTLLM(ITritonDeployable):
             weights = torch.load(mw_path)
             weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
 
-            return weights.cpu().detach().numpy()
+            return weights.cpu().detach()
 
         return None
 
@@ -144,8 +122,6 @@ class TensorRTLLM(ITritonDeployable):
         self,
         nemo_checkpoint_path: str,
         model_type: str,
-        prompt_embeddings_table = None,
-        prompt_embeddings_checkpoint_path=None,
         delete_existing_files: bool = True,
         n_gpus: int = 1,
         tensor_parallel_size = None,
@@ -153,6 +129,7 @@ class TensorRTLLM(ITritonDeployable):
         max_input_token: int = 256,
         max_output_token: int = 256,
         max_batch_size: int = 8,
+        max_prompt_embedding_table_size=None,
         use_inflight_batching: bool = False,
         enable_context_fmha: bool = True,
         paged_kv_cache: bool = False,
@@ -165,8 +142,6 @@ class TensorRTLLM(ITritonDeployable):
         Args:
             nemo_checkpoint_path (str): path for the nemo checkpoint.
             model_type (str): type of the model. Currently, "llama", "gptnext", "falcon", and "starcoder" are supported.
-            prompt_embeddings_table: prompt embeddings table.
-            prompt_embeddings_checkpoint_path (str): path for the nemo checkpoint for the prompt embedding table.
             delete_existing_files (bool): if Truen, deletes all the files in model_dir.
             n_gpus (int): number of GPUs to use for inference.
             tensor_parallel_size (int): tensor parallelism.
@@ -174,6 +149,7 @@ class TensorRTLLM(ITritonDeployable):
             max_input_token (int): max input length.
             max_output_token (int): max output length.
             max_batch_size (int): max batch size.
+            max_prompt_embedding_table_size (int): max prompt embedding size.
             use_inflight_batching (bool): if True, enables inflight batching for TensorRT-LLM Triton backend.
             enable_context_fmha (bool): if True, use fused Context MultiHeadedAttention.
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
@@ -197,33 +173,6 @@ class TensorRTLLM(ITritonDeployable):
             tensor_parallel_size = 1
             pipeline_parallel_size = n_gpus
 
-        p_tuning = "no_ptuning"
-        if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
-            LOGGER.warning("prompt_embeddings_table will be used and "
-                            "prompt_embeddings_checkpoint_path will be "
-                            "ignored for ptuning.")
-            p_tuning = "use_table"
-        elif prompt_embeddings_table is not None:
-            p_tuning = "use_table"
-        elif prompt_embeddings_checkpoint_path is not None:
-            p_tuning = "use_checkpoint"
-
-        if p_tuning == "use_table":
-            if not isinstance(prompt_embeddings_table, np.ndarray):
-                raise TypeError("Only numpy array is allowed for the prompt embeddings table.")
-
-            if len(prompt_embeddings_table.shape) != 2:
-                raise Exception("A two dimensional prompt embeddings table for a single task is only supported.")
-        elif p_tuning == "use_checkpoint":
-            if not is_nemo_file(prompt_embeddings_checkpoint_path):
-                raise TypeError(prompt_embeddings_checkpoint_path + " is not a nemo file.")
-            prompt_embeddings_table = self._get_prompt_embedding_table_ckpt(prompt_embeddings_checkpoint_path)
-
-        if prompt_embeddings_table is None:
-            max_prompt_embedding_table_size = 0
-        else:
-            max_prompt_embedding_table_size = len(prompt_embeddings_table)
-
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
                 for files in os.listdir(self.model_dir):
@@ -239,6 +188,9 @@ class TensorRTLLM(ITritonDeployable):
                 raise Exception("There are files in this folder. Try setting delete_existing_files=True.")
         else:
             Path(self.model_dir).mkdir(parents=True, exist_ok=True)
+
+        if max_prompt_embedding_table_size is None:
+            max_prompt_embedding_table_size = 0
 
         self.model = None
 
@@ -267,9 +219,6 @@ class TensorRTLLM(ITritonDeployable):
             enable_context_fmha=enable_context_fmha,
         )
 
-        if p_tuning != "no_ptuning":
-            np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), prompt_embeddings_table)
-
         tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
         if os.path.exists(tokenizer_path):
             shutil.copy(tokenizer_path, self.model_dir)
@@ -279,6 +228,47 @@ class TensorRTLLM(ITritonDeployable):
 
         if load_model:
             self.load()
+
+    def _get_prompt_embedding_table(self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None,):
+        p_tuning = "no_ptuning"
+        if (prompt_embeddings_table is not None and
+            prompt_embeddings_checkpoint_path is not None
+        ):
+            LOGGER.warning("prompt_embeddings_table will be used and "
+                           "prompt_embeddings_checkpoint_path will be "
+                           "ignored for ptuning.")
+            p_tuning = "use_table"
+        elif prompt_embeddings_table is not None:
+            p_tuning = "use_table"
+        elif prompt_embeddings_checkpoint_path is not None:
+            p_tuning = "use_checkpoint"
+        else:
+            return None, None
+
+        if p_tuning == "use_table":
+            if not isinstance(prompt_embeddings_table, np.ndarray):
+                raise TypeError("Only numpy array is allowed for the prompt embeddings table.")
+
+            if len(prompt_embeddings_table.shape) != 2:
+                raise Exception("A two dimensional prompt embeddings table for a single task is only supported.")
+
+            prompt_embeddings_table = torch.from_numpy(prompt_embeddings_table)
+        elif p_tuning == "use_checkpoint":
+            if not is_nemo_file(prompt_embeddings_checkpoint_path):
+                raise TypeError(prompt_embeddings_checkpoint_path + " is not a nemo file.")
+            prompt_embeddings_table = self._get_prompt_embedding_table_ckpt(prompt_embeddings_checkpoint_path)
+
+        task_vocab_size = prompt_embeddings_table.size(dim=0)
+        dtype = self.config['builder_config']['precision']
+        prompt_embeddings_table = prompt_embeddings_table.to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype)).cuda()
+
+        if prompt_embeddings_table.size(dim=1) != self.config["builder_config"]["hidden_size"]:
+            raise Exception(
+                "Hidden dimension of the model is {0} and does not match with the dimension of the prompt table.".format(
+                    self.config["builder_config"]["hidden_size"])
+            )
+
+        return prompt_embeddings_table, task_vocab_size
 
     def forward(
         self,
@@ -290,6 +280,8 @@ class TensorRTLLM(ITritonDeployable):
         stop_words_list=None,
         bad_words_list=None,
         no_repeat_ngram_size=None,
+        prompt_embeddings_table=None,
+        prompt_embeddings_checkpoint_path=None,
         **sampling_kwargs,
     ):
         """
@@ -304,6 +296,8 @@ class TensorRTLLM(ITritonDeployable):
             stop_words_list (List(str)): list of stop words.
             bad_words_list (List(str)): list of bad words.
             no_repeat_ngram_size (int): no repeat ngram size.
+            prompt_embeddings_table (List(float)): prompt embeddings table.
+            prompt_embeddings_checkpoint_path (str): path for the nemo checkpoint for the prompt embedding table.
             sampling_kwargs: Additional kwargs to set in the SamplingConfig.
         """
         if self.model is None:
@@ -312,6 +306,10 @@ class TensorRTLLM(ITritonDeployable):
                 "then it should be loaded first to run inference."
             )
         else:
+            prompt_table, task_vocab_size = self._get_prompt_embedding_table(
+                prompt_embeddings_table, prompt_embeddings_checkpoint_path
+            )
+
             return generate(
                 input_texts=input_texts,
                 max_output_len=max_output_token,
@@ -319,8 +317,8 @@ class TensorRTLLM(ITritonDeployable):
                 top_k= top_k,
                 top_p= top_p,
                 temperature= temperature,
-                prompt_table=self.prompt_table,
-                task_vocab_size=self.task_vocab_size,
+                prompt_table=prompt_table,
+                task_vocab_size=task_vocab_size,
                 stop_words_list=stop_words_list,
                 bad_words_list=bad_words_list,
                 no_repeat_ngram_size=no_repeat_ngram_size,
