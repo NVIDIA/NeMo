@@ -9,8 +9,7 @@ inference:
   repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
-  batch_size: 64
-
+  batch_size: 128
 
 trainer:
   devices: 1
@@ -19,7 +18,7 @@ trainer:
   logger: False # logger provided by exp_manager
   precision: 16 # 16, 32, or bf16
 
-inference_batch_size: 64
+inference_batch_size: 128
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: -1 # used for encoder and decoder model (0 for others)
@@ -43,6 +42,7 @@ retrieval_service:
   frequent_query: False  # for the current token generation, frequently update the retrieval context. If false, update it every 64 tokens 
   pad_tokens: True # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
   store_retrieved: False # whether store the retrieved documents, so it can be checked
+  peft: True
   combo_service:
     service_ip: '0.0.0.0'
     service_port: 17181 

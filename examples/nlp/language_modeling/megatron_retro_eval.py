@@ -23,6 +23,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model impo
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from scripts.metric_calculation.compute_rouge import load_preds, load_ref, calculate_rouge
+from scripts.metric_calculation.squad_metric_calc import f1_score, exact_match_score
 from nemo.core.config import hydra_runner
 import torch
 
@@ -157,16 +158,17 @@ def main(cfg) -> None:
         response = trainer.predict(model, request_dl)
 
     print("***************************")
-    print(response)
+    # print(response)
     print("***************************")
 
 
-    with open("temp_output.jsonl", "w", encoding="utf-8") as pred_file:
-        for i in range(len(response)):
-            for sent in response[i]["sentences"]:
-                sent = sent.strip()
-                sent = sent.replace("\n", " ")
-                pred_file.write(sent + "\n")
+    sentences = [sent for item in response for sent in item["sentences"]]
+    with open("temp_output.jsonl", "w") as pred_file:
+        for sent in sentences:
+            sent = sent.strip()
+            sent = sent.replace("\n", " ")
+            sent = sent.replace("\r", " ")
+            pred_file.write(sent + "\n")
 
     output_lns = load_preds("temp_output.jsonl", "Answer:")
     reference_lns = load_ref(cfg.data_paths, "answer")
@@ -174,8 +176,13 @@ def main(cfg) -> None:
     assert len(output_lns) == len(reference_lns)
     print("Calculating Rouge")
 
-    scores = calculate_rouge(output_lns=output_lns, reference_lns=reference_lns)
-    print(scores)
+    rouge_scores = calculate_rouge(output_lns=output_lns, reference_lns=reference_lns)
+    f1_scores = f1_score(output_lns, reference_lns)
+    em_scores = exact_match_score(output_lns, reference_lns)
+
+    print("rouge: ", rouge_scores)
+    print("f1 scores: ", f1_scores)
+    print("em_scores: ", em_scores)
 
 if __name__ == '__main__':
     main()

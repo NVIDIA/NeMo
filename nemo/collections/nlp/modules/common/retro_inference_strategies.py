@@ -460,8 +460,10 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
 class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model, **args):
         super().__init__(model)
-        self.forward_model = self.model.model.model
-        # self.forward_model = self.model.model
+        if args.get("peft", True):
+            self.forward_model = self.model.model.model
+        else:
+            self.forward_model = self.model.model
         self.frequent_query = args['frequent_query']
         self.pad_token_for_retrieval = args['pad_tokens']
         self.store_retrieved = args['store_retrieved']
