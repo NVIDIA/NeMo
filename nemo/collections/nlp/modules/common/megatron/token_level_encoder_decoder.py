@@ -689,7 +689,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # datalayer or we infer it from model output as below
                     # text_token_size = 29184
                     # speech_mask = torch.nn.argmax(token_logits, dim=-1) > text_token_size
-                    speech_layers = 7
+                    speech_layers = self.num_speech_codebooks-1
                     last_layer_output = dec_output
                     last_layer_logits = token_logits
 
