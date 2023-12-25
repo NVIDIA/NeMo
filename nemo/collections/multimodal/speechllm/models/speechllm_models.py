@@ -277,6 +277,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         )
 
         input_embeds = lm_embedding.word_embeddings(input_ids)
+        if self.cfg.data.train_ds.get('add_bos', False):
+            encoded = torch.concat([input_embeds[:, :1], encoded], axis=1)
+
         if isinstance(encoded, torch.Tensor):
             # single audio
             encoder_input, encoder_length = self._concat_features(encoded, encoded_len, input_embeds, input_length)
