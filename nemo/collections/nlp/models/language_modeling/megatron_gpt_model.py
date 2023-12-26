@@ -1560,3 +1560,4 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             setattr(transformer_config, key, value)
 
         return transformer_config
+
