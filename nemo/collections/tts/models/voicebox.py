@@ -284,7 +284,10 @@ class VoiceboxModel(TextToWaveform):
     def _setup_dataloader_from_config(self, config: Optional[Dict]) -> DataLoader[Any]:
         """Modified from https://github.com/pzelasko/NeMo/blob/feature/lhotse-integration/nemo/collections/asr/models/hybrid_rnnt_ctc_bpe_models.py#L129
         """
-        from nemo.collections.asr.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+        try:
+            from nemo.collections.asr.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+        except:
+            from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
         from nemo.collections.tts.data.text_to_speech_lhotse import LhotseTextToSpeechDataset
 
         assert config.get("use_lhotse")

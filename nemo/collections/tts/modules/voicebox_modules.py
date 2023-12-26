@@ -860,7 +860,7 @@ class VoiceBox(_VB):
                 frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*self.frac_lengths_mask)
                 cond_mask = mask_from_frac_lengths(seq_len, frac_lengths)
             else:
-                cond_mask = torch.ones((batch, seq_len), device = cond.device, dtype = torch.bool)
+                cond_mask = torch.zeros((batch, seq_len), device = cond.device, dtype = torch.bool)
 
         cond_mask_with_pad_dim = rearrange(cond_mask, '... -> ... 1')
         outputs["cond_mask"] = cond_mask_with_pad_dim
@@ -886,6 +886,17 @@ class VoiceBox(_VB):
                 rearrange(cond_drop_mask, '... -> ... 1'),
                 self.null_cond_id,
                 cond_token_ids
+            )
+
+        # spectrogram dropout
+
+        if self.training:
+            p_drop_mask = prob_mask_like(cond.shape[:1], self.p_drop_prob, self.device)
+
+            cond = torch.where(
+                rearrange(p_drop_mask, '... -> ... 1 1'),
+                self.null_cond,
+                cond
             )
 
         # phoneme or semantic conditioning embedding
@@ -1324,7 +1335,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
                 phoneme_ids=phoneme_ids,
                 phoneme_len=phoneme_len,
                 phoneme_mask=phoneme_mask,
-                cond_drop_prob=0.2,
+                cond_drop_prob=self.cond_drop_prob,
                 target=dp_cond,
                 cond_mask=None,             # would be generated within
                 mel=mel,                     # TODO: not assuming DP using same audio_enc_dec with VB

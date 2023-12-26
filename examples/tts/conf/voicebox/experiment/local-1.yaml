@@ -17,7 +17,7 @@ model:
   manifests_dir: data/LibriHeavy
   
   mfa_tokenizer:
-    textgrid_dir: /datasets/LibriLight/mfa_data_aligned
+    textgrid_dir: /datasets/LibriLight_aligned/textgrids
   
   duration_predictor:
     depth: 2
