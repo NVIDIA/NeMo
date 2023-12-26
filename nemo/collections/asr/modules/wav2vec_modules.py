@@ -33,7 +33,6 @@ from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 
 
-
 class TransposeLast(torch.nn.Module):
     """
     Transposes last dimension. Useful for adding to a sequential block.
