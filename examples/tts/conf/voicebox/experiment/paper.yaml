@@ -72,7 +72,7 @@ exp_manager:
   #   monitor: val_loss_total
 
 # task name, determines output directory path
-task_name: "ngc"
+task_name: "paper"
 
 # set False to skip model training
 train: True
