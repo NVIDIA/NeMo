@@ -159,46 +159,6 @@ def combine_masked_dur(ori_word_dur, tgt_word_dur, ori_word_mask, tgt_word_mask)
     new_mask += [1] * (len(ori_word_mask) - ocut_ed)
     new_word_dur += [(w, st-_time_shift, ed-_time_shift) for w, st, ed in ori_word_dur[ocut_ed:]]
 
-    # ori_id, tgt_id = 0, 0
-    # while ori_id < len(ori_word_mask) or tgt_id < len(tgt_word_mask):
-    #     if ori_id < len(ori_word_mask):
-    #         # ori_word_mask[ori_id] == 1
-    #         while ori_word_mask[ori_id]:
-    #             # till mask=0 or end
-    #             new_dur.append(ori_dur[ori_id])
-    #             new_mask.append(1)
-    #             new_word_dur.append((ori_word_dur[ori_id][0], last_time, last_time+new_dur[-1]))
-    #             # print("o", ori_word_dur[ori_id], new_dur[-1])
-    #             ori_id += 1
-    #             last_time += new_dur[-1]
-    #             if ori_id == len(ori_word_mask):
-    #                 break
-    #     if ori_id < len(ori_word_mask):
-    #         # ori_word_mask[ori_id] == 0
-    #         while not ori_word_mask[ori_id]:
-    #             # till mask=1 or end
-    #             ori_id += 1
-    #             if ori_id == len(ori_word_mask):
-    #                 break
-    #     if tgt_id < len(tgt_word_mask):
-    #         # tgt_word_mask[tgt_id] == 0
-    #         while not tgt_word_mask[tgt_id]:
-    #             # till mask = 1 or end
-    #             tgt_id += 1
-    #             if tgt_id == len(tgt_word_mask):
-    #                 break
-    #     if tgt_id < len(tgt_word_mask):
-    #         # tgt_word_mask[tgt_id] == 1
-    #         while tgt_word_mask[tgt_id]:
-    #             # till mask = 0 or end
-    #             new_dur.append(tgt_dur[tgt_id])
-    #             new_mask.append(0)
-    #             new_word_dur.append((tgt_word_dur[tgt_id][0], last_time, last_time+new_dur[-1]))
-    #             # print("t", tgt_word_dur[tgt_id], new_dur[-1])
-    #             tgt_id += 1
-    #             last_time += new_dur[-1]
-    #             if tgt_id == len(tgt_word_mask):
-    #                 break
     return new_word_dur, new_mask, new_dur
 
 def audio_frame_mask_by_phn(ori_audio, model, ori_phn_dur, ori_phn_mask, new_phn_dur):
