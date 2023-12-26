@@ -33,7 +33,7 @@ tgt_word_masks = {
     '5': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
 }
 
-def get_audio_data(audio_path):
+def get_audio_data(audio_path, device):
     # audio_data, orig_sr = sf.read(audio_path)
     audio_data, orig_sr = librosa.load(audio_path, sr=sampling_rate)
     audio_data = audio_data / max(np.abs(audio_data))
@@ -194,8 +194,8 @@ def audio_frame_mask_by_phn(ori_audio, model, ori_phn_dur, ori_phn_mask, new_phn
     aligned_phoneme_ids = model.tokenizer.text_to_ids(aligned_phonemes)[0]
     return ori_mel, new_cond, new_frame_mask, new_phoneme_ids, aligned_phoneme_ids, new_dur
 
-def get_edit_data(model, ori_audio_path, ori_textgrid_path, tgt_textgrid_path, ori_word_mask=None, tgt_word_mask=None):
-    ori_audio, ori_audio_len, orig_sr = get_audio_data(ori_audio_path)
+def get_edit_data(model, device, ori_audio_path, ori_textgrid_path, tgt_textgrid_path, ori_word_mask=None, tgt_word_mask=None):
+    ori_audio, ori_audio_len, orig_sr = get_audio_data(ori_audio_path, device)
     ori_phn_dur, ori_word_dur, ori_text = get_textgrid_data(ori_textgrid_path)
     tgt_phn_dur, tgt_word_dur, tgt_text = get_textgrid_data(tgt_textgrid_path)
     if not ori_word_mask or not tgt_word_mask:
@@ -216,7 +216,7 @@ def get_data(model, corpus_dir, textgrid_dir, device):
         tgt_textgrid_path = f"{textgrid_dir}/{spk}/{spk}_0.TextGrid"
         ori_word_mask = ori_word_masks[spk]
         tgt_word_mask = tgt_word_masks[spk]
-        outputs[spk] = get_edit_data(model, ori_audio_path, ori_textgrid_path, tgt_textgrid_path, ori_word_mask, tgt_word_mask)
+        outputs[spk] = get_edit_data(model, device, ori_audio_path, ori_textgrid_path, tgt_textgrid_path, ori_word_mask, tgt_word_mask)
     return outputs
 
 
