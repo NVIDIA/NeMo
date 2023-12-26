@@ -16,8 +16,10 @@ import json
 import os
 import shutil
 from pathlib import Path
+from typing import List
 
 import numpy as np
+import pickle
 import tensorrt_llm
 import torch
 from pytriton.decorators import batch
@@ -69,6 +71,8 @@ class TensorRTLLM(ITritonDeployable):
         self.tokenizer = None
         self.n_gpus = None
         self.config = None
+        self.ptuning_tables = {}
+
         if load_model:
             self.load()
 
@@ -77,6 +81,7 @@ class TensorRTLLM(ITritonDeployable):
         self.tokenizer = None
         self.n_gpus = None
         self.config = None
+        self.ptuning_tables = {}
 
         if Path(self.model_dir).exists():
             folders = os.listdir(self.model_dir)
@@ -85,6 +90,7 @@ class TensorRTLLM(ITritonDeployable):
                     self._load_config_file()
                     self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
                     self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
+                    self._load_prompt_tables()
                 except Exception as error:
                     raise Exception(
                         "Files in the TensorRT-LLM folder is corrupted and "
@@ -284,6 +290,7 @@ class TensorRTLLM(ITritonDeployable):
         prompt_embeddings_checkpoint_path=None,
         **sampling_kwargs,
     ):
+
         """
         Exports nemo checkpoints to TensorRT-LLM.
 
@@ -300,31 +307,74 @@ class TensorRTLLM(ITritonDeployable):
             prompt_embeddings_checkpoint_path (str): path for the nemo checkpoint for the prompt embedding table.
             sampling_kwargs: Additional kwargs to set in the SamplingConfig.
         """
+
         if self.model is None:
             raise Exception(
                 "A nemo checkpoint should be exported to TensorRT-LLM and "
                 "then it should be loaded first to run inference."
             )
         else:
-            prompt_table, task_vocab_size = self._get_prompt_embedding_table(
-                prompt_embeddings_table, prompt_embeddings_checkpoint_path
-            )
+            if not prompt_embeddings_table is None or not prompt_embeddings_checkpoint_path is None:
+                prompt_table, task_vocab_size = self._get_prompt_embedding_table(
+                    prompt_embeddings_table, prompt_embeddings_checkpoint_path
+                )
+            elif len(self.ptuning_tables) > 0:
+                prompt_table = []
+                task_vocab_size = []
+                for task, pt in self.ptuning_tables.items():
+                    prompt_table.append(pt["table"])
+                    task_vocab_size.append(pt["task_vocab_size"])
+            else:
+                prompt_table = None
+                task_vocab_size = None
 
             return generate(
                 input_texts=input_texts,
                 max_output_len=max_output_token,
                 host_context=self.model,
-                top_k= top_k,
-                top_p= top_p,
-                temperature= temperature,
-                prompt_table=prompt_table,
-                task_vocab_size=task_vocab_size,
+                top_k=top_k,
+                top_p=top_p,
+                temperature=temperature,
+                prompt_table=prompt_table[0],
+                task_vocab_size=task_vocab_size[0],
                 stop_words_list=stop_words_list,
                 bad_words_list=bad_words_list,
                 no_repeat_ngram_size=no_repeat_ngram_size,
                 streaming=False,
                 **sampling_kwargs,
             )
+
+    def add_prompt_table(self, task_name: str, prompt_embeddings_checkpoint_path: str):
+        if self.model is None:
+            raise Exception(
+                "A nemo checkpoint should be exported to TensorRT-LLM and "
+                "then it should be loaded first to run inference."
+            )
+
+        prompt_table, task_vocab_size = self._get_prompt_embedding_table(
+            prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path
+        )
+        self.ptuning_tables[task_name] = {"table": prompt_table, "task_vocab_size": task_vocab_size}
+        with open(os.path.join(self.model_dir, 'prompt_tables.pkl'), 'wb') as f:
+            pickle.dump(self.ptuning_tables, f)
+
+    def remove_prompt_table(self, task_name: str):
+        if not self.ptuning_tables is None:
+            if task_name in self.ptuning_tables.keys():
+                self.ptuning_tables.pop(task_name)
+                with open(os.path.join(self.model_dir, 'prompt_tables.pkl'), 'wb') as f:
+                    pickle.dump(self.ptuning_tables, f)
+
+    def _load_prompt_tables(self):
+        if not self.model_dir is None:
+            pt_path = Path(os.path.join(self.model_dir, 'prompt_tables.pkl'))
+            if pt_path.exists():
+                with open(pt_path, 'rb') as f:
+                    self.ptuning_tables = pickle.load(f)
+            else:
+                self.ptuning_tables = {}
+
+            print("self.ptuning_tables: ", self.ptuning_tables)
 
     @property
     def get_supported_models_list(self):
