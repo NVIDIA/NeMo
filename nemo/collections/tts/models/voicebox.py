@@ -136,7 +136,7 @@ class VoiceboxModel(TextToWaveform):
         # self.audio_enc_dec = instantiate(cfg.audio_enc_dec)
         # self.audio_enc_dec.freeze()
 
-        self.duration_predictor = instantiate(
+        self.duration_predictor: DurationPredictor = instantiate(
             cfg.duration_predictor,
             **dp_kwargs,
         )
@@ -152,6 +152,8 @@ class VoiceboxModel(TextToWaveform):
             duration_predictor=self.duration_predictor,
             torchode_method_klass=get_class(cfg.cfm_wrapper.torchode_method_klass)
         )
+
+        self.maybe_init_from_pretrained_checkpoint(cfg=cfg, map_location='cpu')
         
     def prepare_data(self) -> None:
         """ Pytorch Lightning hook.
@@ -377,45 +379,67 @@ class VoiceboxModel(TextToWaveform):
         )
         return audio
 
-    
-    def training_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT:
-        # voicebox's sampling rate
-        audio = batch["audio_24k"]
-        audio_lens = batch["audio_lens_24k"]
-        tokens = batch["tokens"]
-        token_lens = batch["token_lens"]
-
-        # nemo aligner input
-        audio_22050 = batch["audio_22050"]
-        audio_lens_22050 = batch["audio_lens_22050"]
-        tgt_len = audio.shape[1]
-
-        # mfa tgt
-        durations = batch.get("durations", None)
-
-        audio_mask = get_mask_from_lengths(audio_lens)
-        _, losses, outputs = self.cfm_wrapper.forward(
+    def train_dp(self, audio, audio_mask, tokens, token_lens, texts, durations, batch_idx):
+        dp_inputs = self.duration_predictor.parse_dp_input(
             x1=audio,
             mask=audio_mask,
+            durations=durations,
+            phoneme_len=token_lens,
+            input_sampling_rate=None,
+        )
+        dp_loss, dp_losses, dp_outputs = self.duration_predictor.forward(
+            cond=dp_inputs.get("dp_cond"),               # might be None
+            texts=None,                 # converted to phoneme_ids by dataset
             phoneme_ids=tokens,
             phoneme_len=token_lens,
-            dp_cond=None,
-            durations=durations,
+            phoneme_mask=dp_inputs.get("phoneme_mask"),
+            cond_drop_prob=self.cfm_wrapper.cond_drop_prob,
+            target=dp_inputs.get("dp_cond"),
+            cond_mask=None,             # would be generated within
+            mel=dp_inputs["mel"],
+            mel_len=dp_inputs["mel_len"],
+            mel_mask=dp_inputs["mel_mask"],
+            self_attn_mask=dp_inputs.get("phoneme_mask"),
+            return_aligned_phoneme_ids=True,
+            calculate_cond=True
+        )
+        dp_outputs["cond"] = dp_inputs.get("dp_cond")
+
+        if self.training and self.trainer._logger_connector.should_update_logs:
+            tb_writer = self.logger.experiment
+            
+            plot_id = 0
+            x1 = dp_inputs["mel"]
+            dp_cond, dp_pred = dp_outputs['cond'], dp_outputs['durations']
+            tb_writer.add_image("train_dp/dur",
+                                plot_alignment_to_numpy(tokens[plot_id], dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy()),
+                                self.global_step, dataformats="HWC")
+
+            phns = self.tokenizer.decode(tokens[plot_id].cpu().tolist()).split(' ')
+            text = texts[plot_id]
+            tb_writer.add_image("train_dp/seg",
+                                plot_segment_to_numpy(phns, dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy(), text),
+                                self.global_step, dataformats="HWC")
+            
+        return dp_losses, dp_outputs
+
+    def train_vb(self, audio, audio_mask, tokens, batch_idx):
+        vb_inputs = self.cfm_wrapper.parse_vb_input(
+            x1=audio,
+            mask=audio_mask,
             cond=audio,
+            input_sampling_rate=None
+        )
+        _, losses, outputs = self.cfm_wrapper.forward(
+            x1=vb_inputs['x1'],
+            mask=vb_inputs['mask'],
+            phoneme_ids=tokens,
+            cond=vb_inputs['cond'],
             cond_mask=None,
             input_sampling_rate=None
         )
-
-        dp_loss = losses['dp']
-        align_loss = losses.get('align', 0)
-        bin_loss = losses.get('bin', 0)
-        vb_loss = losses['vb']
-
-        loss = align_loss + bin_loss + dp_loss + vb_loss
-
-        self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
-
-        if (batch_idx % 200) == 0:
+        
+        if self.training and self.trainer._logger_connector.should_update_logs:
             tb_writer = self.logger.experiment
             
             plot_id = 0
@@ -435,17 +459,54 @@ class VoiceboxModel(TextToWaveform):
             tb_writer.add_audio("train_vb/pred_audio", pred_audio / max(np.abs(pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
             tb_writer.add_audio("train_vb/orig_audio", orig_audio / max(np.abs(orig_audio)), self.global_step, sample_rate=24000)
 
-            # plot_id = -1
-            dp_cond, dp_pred = outputs['dp']['cond'], outputs['dp']['durations']
-            tb_writer.add_image("train_dp/dur",
-                                plot_alignment_to_numpy(tokens[plot_id], dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy()),
-                                self.global_step, dataformats="HWC")
+        return losses, outputs
+    
+    def training_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT:
+        # voicebox's sampling rate
+        audio = batch["audio_24k"]
+        audio_lens = batch["audio_lens_24k"]
+        tokens = batch["tokens"]
+        token_lens = batch["token_lens"]
+        texts = batch["texts"]
 
-            phns = self.tokenizer.decode(tokens[plot_id].cpu().tolist()).split(' ')
-            text = batch["texts"][plot_id]
-            tb_writer.add_image("train_dp/seg",
-                                plot_segment_to_numpy(phns, dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy(), text),
-                                self.global_step, dataformats="HWC")
+        # # nemo aligner input
+        # audio_22050 = batch["audio_22050"]
+        # audio_lens_22050 = batch["audio_lens_22050"]
+        # tgt_len = audio.shape[1]
+
+        # mfa tgt
+        durations = batch.get("durations", None)
+
+        audio_mask = get_mask_from_lengths(audio_lens)
+
+        # dp training
+        dp_losses, dp_outputs = self.train_dp(
+            audio=audio,
+            audio_mask=audio_mask,
+            tokens=tokens,
+            token_lens=token_lens,
+            texts=texts,
+            durations=durations,
+            batch_idx=batch_idx,
+        )
+
+        # vb training
+        losses, outputs = self.train_vb(
+            audio=audio,
+            audio_mask=audio_mask,
+            tokens=dp_outputs.get("aligned_phoneme_ids"),
+            batch_idx=batch_idx,
+        )
+        losses.update(dp_losses)
+
+        dp_loss = losses['dp']
+        align_loss = losses.get('align', 0)
+        bin_loss = losses.get('bin', 0)
+        vb_loss = losses['vb']
+
+        loss = align_loss + bin_loss + dp_loss + vb_loss
+
+        self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
 
         return loss
     
@@ -455,22 +516,33 @@ class VoiceboxModel(TextToWaveform):
         audio_lens = batch["audio_lens_24k"]
         tokens = batch["tokens"]
         token_lens = batch["token_lens"]
+        texts = batch["texts"]
 
         # mfa tgt
         durations = batch.get("durations", None)
 
         audio_mask = get_mask_from_lengths(audio_lens)
-        _, losses, outputs = self.cfm_wrapper.forward(
-            x1=audio,
-            mask=audio_mask,
-            phoneme_ids=tokens,
-            phoneme_len=token_lens,
-            dp_cond=None,
+
+        self.duration_predictor.train()
+        # dp training
+        dp_losses, dp_outputs = self.train_dp(
+            audio=audio,
+            audio_mask=audio_mask,
+            tokens=tokens,
+            token_lens=token_lens,
+            texts=texts,
             durations=durations,
-            cond=audio,
-            cond_mask=None,
-            input_sampling_rate=None
+            batch_idx=batch_idx,
         )
+
+        # vb training
+        losses, outputs = self.train_vb(
+            audio=audio,
+            audio_mask=audio_mask,
+            tokens=dp_outputs.get("aligned_phoneme_ids"),
+            batch_idx=batch_idx,
+        )
+        losses.update(dp_losses)
 
         dp_loss = losses['dp']
         align_loss = losses.get('align', 0)
