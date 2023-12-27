@@ -136,7 +136,7 @@ class VoiceboxModel(TextToWaveform):
         # self.audio_enc_dec = instantiate(cfg.audio_enc_dec)
         # self.audio_enc_dec.freeze()
 
-        self.duration_predictor = instantiate(
+        self.duration_predictor: DurationPredictor = instantiate(
             cfg.duration_predictor,
             **dp_kwargs,
         )
@@ -385,26 +385,51 @@ class VoiceboxModel(TextToWaveform):
         tokens = batch["tokens"]
         token_lens = batch["token_lens"]
 
-        # nemo aligner input
-        audio_22050 = batch["audio_22050"]
-        audio_lens_22050 = batch["audio_lens_22050"]
-        tgt_len = audio.shape[1]
+        # # nemo aligner input
+        # audio_22050 = batch["audio_22050"]
+        # audio_lens_22050 = batch["audio_lens_22050"]
+        # tgt_len = audio.shape[1]
 
         # mfa tgt
         durations = batch.get("durations", None)
 
         audio_mask = get_mask_from_lengths(audio_lens)
+
+        dp_inputs = self.duration_predictor.parse_dp_input(
+            x1=audio,
+            mask=audio_mask,
+            durations=durations,
+            phoneme_len=token_lens,
+            input_sampling_rate=None,
+        )
+        dp_loss, dp_losses, dp_outputs = self.duration_predictor.forward(
+            cond=dp_inputs.get("dp_cond"),               # might be None
+            texts=None,                 # converted to phoneme_ids by dataset
+            phoneme_ids=tokens,
+            phoneme_len=token_lens,
+            phoneme_mask=dp_inputs.get("phoneme_mask"),
+            cond_drop_prob=self.cfm_wrapper.cond_drop_prob,
+            target=dp_inputs.get("dp_cond"),
+            cond_mask=None,             # would be generated within
+            mel=dp_inputs["mel"],
+            mel_len=dp_inputs["mel_len"],
+            mel_mask=dp_inputs["mel_mask"],
+            self_attn_mask=dp_inputs.get("phoneme_mask"),
+            return_aligned_phoneme_ids=True,
+            calculate_cond=True
+        )
+        dp_outputs["cond"] = dp_inputs.get("dp_cond")
+
         _, losses, outputs = self.cfm_wrapper.forward(
             x1=audio,
             mask=audio_mask,
-            phoneme_ids=tokens,
-            phoneme_len=token_lens,
-            dp_cond=None,
-            durations=durations,
+            phoneme_ids=dp_outputs.get("aligned_phoneme_ids"),
             cond=audio,
             cond_mask=None,
             input_sampling_rate=None
         )
+        losses.update(dp_losses)
+        outputs['dp'] = dp_outputs
 
         dp_loss = losses['dp']
         align_loss = losses.get('align', 0)
@@ -460,17 +485,43 @@ class VoiceboxModel(TextToWaveform):
         durations = batch.get("durations", None)
 
         audio_mask = get_mask_from_lengths(audio_lens)
+
+        self.duration_predictor.train()
+        dp_inputs = self.duration_predictor.parse_dp_input(
+            x1=audio,
+            mask=audio_mask,
+            durations=durations,
+            phoneme_len=token_lens,
+            input_sampling_rate=None,
+        )
+        dp_loss, dp_losses, dp_outputs = self.duration_predictor.forward(
+            cond=dp_inputs.get("dp_cond"),               # might be None
+            texts=None,                 # converted to phoneme_ids by dataset
+            phoneme_ids=tokens,
+            phoneme_len=token_lens,
+            phoneme_mask=dp_inputs.get("phoneme_mask"),
+            cond_drop_prob=self.cfm_wrapper.cond_drop_prob,
+            target=dp_inputs.get("dp_cond"),
+            cond_mask=None,             # would be generated within
+            mel=dp_inputs["mel"],
+            mel_len=dp_inputs["mel_len"],
+            mel_mask=dp_inputs["mel_mask"],
+            self_attn_mask=dp_inputs.get("phoneme_mask"),
+            return_aligned_phoneme_ids=True,
+            calculate_cond=True
+        )
+        dp_outputs["cond"] = dp_inputs.get("dp_cond")
+
         _, losses, outputs = self.cfm_wrapper.forward(
             x1=audio,
             mask=audio_mask,
-            phoneme_ids=tokens,
-            phoneme_len=token_lens,
-            dp_cond=None,
-            durations=durations,
+            phoneme_ids=dp_outputs.get("aligned_phoneme_ids"),
             cond=audio,
             cond_mask=None,
             input_sampling_rate=None
         )
+        losses.update(dp_losses)
+        outputs['dp'] = dp_outputs
 
         dp_loss = losses['dp']
         align_loss = losses.get('align', 0)

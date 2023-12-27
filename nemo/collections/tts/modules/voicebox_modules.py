@@ -202,6 +202,71 @@ class DurationPredictor(_DP):
         """
         return self.aligner(x, x_mask, y, y_mask)
 
+    @torch.no_grad()
+    def parse_dp_input(self, x1, mask, durations=None, phoneme_len=None, input_sampling_rate=None):
+        assert exists(self.audio_enc_dec), 'audio_enc_dec must be set to train directly on raw audio'
+        input_sampling_rate = default(input_sampling_rate, self.audio_enc_dec.sampling_rate)
+        dp_inputs = {}
+
+        input_is_raw_audio = is_probably_audio_from_shape(x1)
+        if input_is_raw_audio:
+            self.audio_enc_dec.eval()
+            audio_enc_dec_sampling_rate = self.audio_enc_dec.sampling_rate
+
+            if isinstance(self, NeMoDurationPredictor):
+                mel = x1
+                mel_len = mask.sum(-1)
+                mel_mask = mask
+
+            else:
+                mel = resample(x1, input_sampling_rate, audio_enc_dec_sampling_rate)
+                mel = self.audio_enc_dec.encode(mel)
+                
+                audio_len = mask.sum(-1)
+                mel_len = audio_len // self.audio_enc_dec.downsample_factor
+                mel_mask = get_mask_from_lengths(mel_len)
+
+        else:
+            mel = x1
+            mel_len = mask.sum(-1)
+            mel_mask = mask
+
+        mel_mask = rearrange(mel_mask, 'b t -> b 1 t')
+        dp_inputs.update({
+            "mel": mel,
+            "mel_len": mel_len,
+            "mel_mask": mel_mask
+        })
+
+        if durations is not None:
+            audio_len = mask.sum(-1)
+            mel_len = audio_len // self.audio_enc_dec.downsample_factor
+
+            cum_dur = torch.cumsum(durations, -1)
+            dur_ratio = mel_len / cum_dur[:, -1]
+            cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
+            cum_dur = torch.round(cum_dur)
+
+            dp_cond = torch.zeros_like(cum_dur)
+            dp_cond[:, 0] = cum_dur[:, 0]
+            dp_cond[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
+
+            # dp_cond = durations * self.voicebox.audio_enc_dec.sampling_rate // self.voicebox.audio_enc_dec.downsample_factor
+            # dp_cond = torch.round(dp_cond)
+            dp_inputs.update({
+                "dp_cond": dp_cond,
+                "cum_dur": cum_dur,
+            })
+
+        assert exists(phoneme_len)
+        phoneme_mask = get_mask_from_lengths(phoneme_len)
+        dp_inputs.update({
+            "phoneme_mask": phoneme_mask
+        })
+
+        return dp_inputs
+
+
     @beartype
     def forward(
         self,
@@ -265,7 +330,7 @@ class DurationPredictor(_DP):
 
         if not exists(cond_mask):
             batch, seq_len = phoneme_ids.shape
-            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len)
+            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len, training=self.training)
 
         cond = cond * rearrange(~cond_mask, '... -> ... 1')
 
@@ -507,7 +572,7 @@ class NeMoDurationPredictor(DurationPredictor):
 
         if not exists(cond_mask):
             batch, seq_len = phoneme_ids.shape
-            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len)
+            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len, training=self.training)
 
         cond = cond * rearrange(~cond_mask, '... -> ... 1')
 
@@ -635,7 +700,7 @@ class MFADurationPredictor(DurationPredictor):
         # construct mask if not given
         if not exists(cond_mask):
             batch, seq_len = phoneme_ids.shape
-            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len)
+            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len, training=self.training)
         outputs["cond_mask"] = cond_mask
 
         cond = cond * rearrange(~cond_mask, '... -> ... 1')
@@ -1268,9 +1333,6 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         *,
         mask = None,
         phoneme_ids = None,
-        phoneme_len = None,
-        durations = None,
-        dp_cond = None,
         cond = None,
         cond_mask = None,
         input_sampling_rate = None # will assume it to be the same as the audio encoder decoder sampling rate, if not given. if given, will resample
@@ -1300,15 +1362,6 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         input_sampling_rate = default(input_sampling_rate, audio_enc_dec_sampling_rate)
 
         x1, cond = self.parse_vb_input(raw_audio, cond, input_sampling_rate=input_sampling_rate)
-        dp_inputs = self.parse_dp_input(
-            raw_audio,
-            mask,
-            durations=durations,
-            phoneme_len=phoneme_len,
-            input_sampling_rate=input_sampling_rate
-        )
-        mel, mel_len, mel_mask = dp_inputs["mel"], dp_inputs["mel_len"], dp_inputs["mel_mask"]
-        dp_cond = dp_inputs.get("dp_cond")
 
         # setup text conditioning, either coming from duration model (as phoneme ids)
         # or from text-to-semantic module, semantic ids encoded with wav2vec (hubert usually)
@@ -1322,33 +1375,45 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
 
         # handle downsample audio_mask
 
-        if self.condition_on_text:
-            assert not exists(self.text_to_semantic) and exists(self.duration_predictor)
-            assert exists(phoneme_ids) and exists(phoneme_len)
-            phoneme_mask = dp_inputs.get("phoneme_mask")
+        if self.condition_on_text and exists(self.duration_predictor):
+            assert not exists(self.text_to_semantic)
+            assert exists(phoneme_ids)
+            # assert exists(phoneme_len)
+
+            # dp_inputs = self.parse_dp_input(
+            #     raw_audio,
+            #     mask,
+            #     durations=durations,
+            #     phoneme_len=phoneme_len,
+            #     input_sampling_rate=input_sampling_rate
+            # )
+            # mel, mel_len, mel_mask = dp_inputs["mel"], dp_inputs["mel_len"], dp_inputs["mel_mask"]
+            # dp_cond = dp_inputs.get("dp_cond")
+            # phoneme_mask = dp_inputs.get("phoneme_mask")
             
-            self.duration_predictor.train()
+            # self.duration_predictor.train()
 
-            dp_loss, dp_losses, dp_outputs = self.duration_predictor.forward(
-                cond=dp_cond,               # might be None
-                texts=None,                 # converted to phoneme_ids by dataset
-                phoneme_ids=phoneme_ids,
-                phoneme_len=phoneme_len,
-                phoneme_mask=phoneme_mask,
-                cond_drop_prob=self.cond_drop_prob,
-                target=dp_cond,
-                cond_mask=None,             # would be generated within
-                mel=mel,                     # TODO: not assuming DP using same audio_enc_dec with VB
-                mel_len=mel_len,
-                mel_mask=mel_mask,
-                self_attn_mask=phoneme_mask,
-                return_aligned_phoneme_ids=True,
-                calculate_cond=True
-            )
-            dp_outputs["cond"] = dp_cond
-            aligned_phoneme_ids = dp_outputs.get("aligned_phoneme_ids")
+            # dp_loss, dp_losses, dp_outputs = self.duration_predictor.forward(
+            #     cond=dp_cond,               # might be None
+            #     texts=None,                 # converted to phoneme_ids by dataset
+            #     phoneme_ids=phoneme_ids,
+            #     phoneme_len=phoneme_len,
+            #     phoneme_mask=phoneme_mask,
+            #     cond_drop_prob=self.cond_drop_prob,
+            #     target=dp_cond,
+            #     cond_mask=None,             # would be generated within
+            #     mel=mel,                     # TODO: not assuming DP using same audio_enc_dec with VB
+            #     mel_len=mel_len,
+            #     mel_mask=mel_mask,
+            #     self_attn_mask=phoneme_mask,
+            #     return_aligned_phoneme_ids=True,
+            #     calculate_cond=True
+            # )
+            # dp_outputs["cond"] = dp_cond
+            # aligned_phoneme_ids = dp_outputs.get("aligned_phoneme_ids")
 
-            cond_token_ids = aligned_phoneme_ids
+            # cond_token_ids = aligned_phoneme_ids
+            cond_token_ids = phoneme_ids
 
         else:
             assert not exists(phoneme_ids), 'no conditioning inputs should be given if not conditioning on text'
@@ -1395,16 +1460,14 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         })
 
         losses = {}
-        if self.condition_on_text:
-            losses.update(dp_losses)
+        # if self.condition_on_text:
+        #     losses.update(dp_losses)
         losses['vb'] = loss
-        loss = loss + dp_loss
+        # loss = loss + dp_loss
 
         outputs = {
-            "dp": dp_outputs,
+            # "dp": dp_outputs,
             "vb": vb_outputs,
         }
 
         return loss, losses, outputs
-
-        # return super().forward(x1=x1, mask=mask, semantic_token_ids=semantic_token_ids,phoneme_ids=phoneme_ids, cond=cond, cond_mask=cond_mask, input_sampling_rate=input_sampling_rate)
