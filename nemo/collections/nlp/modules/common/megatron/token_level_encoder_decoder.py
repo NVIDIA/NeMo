@@ -715,9 +715,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                         attention_scores_combined = torch.cat(attention_scores, dim=1)
                         text_start_idx = text_limits[0,0].item()
                         assert torch.all(text_limits[:,0] == text_start_idx) # all texts should start at the same index
-                        attention_scores_sliced = attention_scores_combined[:,:,:,text_start_idx:-1]
-                        # Should probably mask out padding but should not matter I think
-                        attention_logprobs = torch.log_softmax(attention_scores_sliced, dim=-1)
+                        attention_scores_sliced = attention_scores_combined[:,:,:,text_start_idx:-2] # -2 to remove eos and pad
+                        # attention_logprobs = torch.log_softmax(attention_scores_sliced, dim=-1)
+                        attention_logprobs = attention_scores_sliced # not taking log_softmax, since we will do that in loss function
                         attention_logprobs = torch.mean(attention_logprobs, dim=1, keepdim=True)
                         dec_len = torch.sum(dec_attn_mask, dim=1)
                         enc_len = text_limits[:,1] - text_limits[:,0]
