@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.10-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.11-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -50,15 +50,16 @@ RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   git checkout e122536b7645edcb7ebf099b5c92a443f7dbf8e7 && \
   pip install .
 
-# Distributed Adam support for multiple dtypes
-RUN git clone https://github.com/NVIDIA/apex.git && \
+# Apex bugfix for PyTorch 23.11 container: https://github.com/NVIDIA/apex/pull/1760
+RUN git clone https://github.com/timmoon10/apex.git && \
   cd apex && \
-  git checkout a2f6683b10fb4c29ab57c9e3d16957db76a8a5ba && \
+  git checkout memory-efficient-layer-norm-bugfix && \
   pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
+# Transformer Engine 1.2.0
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   cd TransformerEngine && \
-  git fetch origin ff760a9d838ae4617600cccb22131d0359ce0296 && \
+  git fetch origin 4f9662fbe621671f5f905e772fc1138953af77f6 && \
   git checkout FETCH_HEAD && \
   git submodule init && git submodule update && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
