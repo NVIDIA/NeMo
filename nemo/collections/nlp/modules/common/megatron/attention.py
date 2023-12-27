@@ -970,7 +970,8 @@ class CoreAttention(MegatronModule):
 
         if return_scores:
             # import ipdb; ipdb.set_trace()
-            return context_layer, _attention_probs
+            # return context_layer, _attention_probs
+            return context_layer, attention_scores
         else:
             return context_layer
 
