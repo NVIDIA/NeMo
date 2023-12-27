@@ -308,7 +308,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(),
+                transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(
+                    num_experts=self.transformer_config.num_moe_experts),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
@@ -1518,7 +1519,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         gated_linear_unit = activation.endswith('glu')
         activation_func = activation_to_func(activation)
 
-        normalization = self.cfg.get('normalization', 'layernorm')
+        normalization = self.cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
@@ -1602,6 +1603,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'distribute_saved_activations': False,  # not currently used in NeMo
             'tp_comm_overlap': ub_tp_comm_overlap,
             'fp8': fp8,
+            'num_moe_experts': self.cfg.get('num_moe_experts', None),
+            'moe_router_type': self.cfg.get('moe_router_type', None)
         }
 
         # populate the transformer config dict
