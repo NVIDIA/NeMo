@@ -1369,7 +1369,6 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         assert self.condition_on_text or not exists(phoneme_ids), 'phoneme ids should not be passed in if not conditioning on text'
 
 
-        # NOTE: work in progress
         self_attn_mask = None
         cond_token_ids = None
 
@@ -1378,48 +1377,10 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         if self.condition_on_text and exists(self.duration_predictor):
             assert not exists(self.text_to_semantic)
             assert exists(phoneme_ids)
-            # assert exists(phoneme_len)
-
-            # dp_inputs = self.parse_dp_input(
-            #     raw_audio,
-            #     mask,
-            #     durations=durations,
-            #     phoneme_len=phoneme_len,
-            #     input_sampling_rate=input_sampling_rate
-            # )
-            # mel, mel_len, mel_mask = dp_inputs["mel"], dp_inputs["mel_len"], dp_inputs["mel_mask"]
-            # dp_cond = dp_inputs.get("dp_cond")
-            # phoneme_mask = dp_inputs.get("phoneme_mask")
-            
-            # self.duration_predictor.train()
-
-            # dp_loss, dp_losses, dp_outputs = self.duration_predictor.forward(
-            #     cond=dp_cond,               # might be None
-            #     texts=None,                 # converted to phoneme_ids by dataset
-            #     phoneme_ids=phoneme_ids,
-            #     phoneme_len=phoneme_len,
-            #     phoneme_mask=phoneme_mask,
-            #     cond_drop_prob=self.cond_drop_prob,
-            #     target=dp_cond,
-            #     cond_mask=None,             # would be generated within
-            #     mel=mel,                     # TODO: not assuming DP using same audio_enc_dec with VB
-            #     mel_len=mel_len,
-            #     mel_mask=mel_mask,
-            #     self_attn_mask=phoneme_mask,
-            #     return_aligned_phoneme_ids=True,
-            #     calculate_cond=True
-            # )
-            # dp_outputs["cond"] = dp_cond
-            # aligned_phoneme_ids = dp_outputs.get("aligned_phoneme_ids")
-
-            # cond_token_ids = aligned_phoneme_ids
             cond_token_ids = phoneme_ids
 
         else:
             assert not exists(phoneme_ids), 'no conditioning inputs should be given if not conditioning on text'
-
-        # NOTE: end of WIP
-
 
         # main conditional flow logic is below
 
