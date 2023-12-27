@@ -40,7 +40,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None):
+    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None, use_word_postfix=False, use_word_ghost_silence=False):
         super().__init__()
         self.tokenizer = tokenizer
 
@@ -73,6 +73,9 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
 
         self.load_audio = AudioSamples(fault_tolerant=True)
 
+        self.use_word_postfix = use_word_postfix
+        self.use_word_ghost_silence = use_word_ghost_silence
+
     def change_prefix(self, cut):
         # Some corpus, e.g., LibriHeavy, whose manifest includes given path prefix, which might not match our folder structure.
         # the following lines fix the path prefix
@@ -104,10 +107,55 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         return phn_dur
 
     def get_cut_alignment(self, cut):
+        phn_alis = cut.supervisions[0].alignment["phones"]
         phn_dur = []
-        for ali in cut.supervisions[0].alignment["phones"]:
+        for ali in phn_alis:
             phn_dur.append((ali.symbol, ali.duration))
-        return phn_dur
+
+        if "words" not in cut.supervisions[0].alignment or (not self.use_word_postfix and not self.use_word_ghost_silence):
+            return phn_dur
+        
+        word_alis = cut.supervisions[0].alignment["words"]
+        word_dur = []
+        w2ps = []
+        phn_id = 0
+        for ali in word_alis:
+            wrd = ali.symbol
+            if ali.symbol in ["", "sil", "<eps>"]:
+                wrd = "<eps>"
+            if ali.symbol in ["spn", "<unk>"]:
+                wrd = "<unk>"
+            word_dur.append((wrd, ali.duration))
+
+            w2ps.append([wrd, []])
+            wrd_st = ali.start
+            wrd_ed = wrd_st + ali.duration
+
+            phn_st = phn_alis[phn_id].start
+            phn_ed = phn_st + phn_alis[phn_id].duration
+            while phn_st >= wrd_st and phn_ed <= wrd_ed:
+                # phn_dur[phn_id] = (phn_dur[phn_id][0], phn_dur[phn_id][1])
+                w2ps[-1].append(phn_id)
+                phn_id += 1
+
+        new_phn_dur = []
+        for wrd, phn_ids in w2ps:
+            postfixs = [""] * len(phn_ids)
+            if self.use_word_postfix:
+                if len(phn_ids) == 1:
+                    if wrd not in ["<eps>", "<unk>"]:
+                        postfixs = ["_S"]
+                else:
+                    postfixs = ["_B"] + ["_I"] * (len(phn_ids)-2) + ["_E"]
+
+            for phn_id, postfix in zip(phn_ids, postfixs):
+                # phn_dur[phn_id][0] = phn_dur[phn_id][0] + postfix
+                new_phn_dur.append((phn_dur[phn_id][0] + postfix, phn_dur[phn_id][1]))
+
+            if self.use_word_ghost_silence:
+                if phn_ids[-1] < len(phn_dur) - 1:
+                    new_phn_dur.append(("sil", 0))
+        return new_phn_dur
 
     def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
         batch = {}

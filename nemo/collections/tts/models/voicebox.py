@@ -298,7 +298,8 @@ class VoiceboxModel(TextToWaveform):
         #    Lhotse Dataset only maps CutSet -> batch of tensors, but does not actually
         #    contain any data or meta-data; it is passed to it by a Lhotse sampler for
         #    each sampler mini-batch.
-        ds_kwargs = {}
+        ds_kwargs = config.get("ds_kwargs", {})
+        ds_kwargs = OmegaConf.to_container(ds_kwargs, resolve=True)
         for kw in ["normalizer", "text_normalizer_call_kwargs", "tokenizer"]:
             if hasattr(self, kw):
                 ds_kwargs[kw] = getattr(self, kw)

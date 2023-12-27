@@ -56,6 +56,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import Bas
 
 class MFAEnglishPhonemeTokenizer(Tokenizer):
     MFA_arpa_phone_set = ["PAD", "sil", "spn", "AA", "AA0", "AA1", "AA2", "AE", "AE0", "AE1", "AE2", "AH", "AH0", "AH1", "AH2", "AO", "AO0", "AO1", "AO2", "AW", "AW0", "AW1", "AW2", "AY", "AY0", "AY1", "AY2", "B", "CH", "D", "DH", "EH", "EH0", "EH1", "EH2", "ER", "ER0", "ER1", "ER2", "EY", "EY0", "EY1", "EY2", "F", "G", "HH", "IH", "IH0", "IH1", "IH2", "IY", "IY0", "IY1", "IY2", "JH", "K", "L", "M", "N", "NG", "OW", "OW0", "OW1", "OW2", "OY", "OY0", "OY1", "OY2", "P", "R", "S", "SH", "T", "TH", "UH", "UH0", "UH1", "UH2", "UW", "UW0", "UW1", "UW2", "V", "W", "Y", "Z", "ZH"]
+    word_postfix = ["_S", "_B", "_I", "_E"]
 
     def __init__(
         self,
@@ -64,11 +65,15 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
         use_eos_bos = False,
         pad_id = 0,
         textgrid_dir = None,
+        use_word_postfix = False,
         **kwargs
     ):
         self.add_blank = add_blank
         self.use_eos_bos = use_eos_bos
         self.pad_id = pad_id
+
+        if use_word_postfix:
+            vocab = vocab[:3] + [phn+_p for phn in vocab[3:] for _p in self.word_postfix]
 
         self.vocab = vocab
         self.vocab_size = len(vocab)

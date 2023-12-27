@@ -19,6 +19,7 @@ model:
   
   mfa_tokenizer:
     textgrid_dir: /datasets/LibriLight_aligned/textgrids
+    use_word_postfix: ${..ds_kwargs.use_word_postfix}
   
   duration_predictor:
     depth: 2
@@ -28,23 +29,30 @@ model:
     depth: 2
     heads: 2
 
+  ds_kwargs:
+    use_word_postfix: False
+    use_word_ghost_silence: False
+
   train_ds:
     max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
     min_duration: 0.1
     num_workers: 16
-    manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_small.jsonl.gz
+    manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
       batch_duration: 300
+    ds_kwargs: ${..ds_kwargs}
 
   validation_ds:
     num_workers: 16
     lhotse:
       batch_duration: 300
+    ds_kwargs: ${..ds_kwargs}
   
   test_ds:
     num_workers: 16
     lhotse:
       batch_duration: 300
+    ds_kwargs: ${..ds_kwargs}
 
 trainer:
   devices: 1
