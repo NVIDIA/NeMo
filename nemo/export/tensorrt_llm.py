@@ -74,55 +74,7 @@ class TensorRTLLM(ITritonDeployable):
         self.ptuning_tables = {}
 
         if load_model:
-            self.load()
-
-    def load(self):
-        self.model = None
-        self.tokenizer = None
-        self.n_gpus = None
-        self.config = None
-        self.ptuning_tables = {}
-
-        if Path(self.model_dir).exists():
-            folders = os.listdir(self.model_dir)
-            if len(folders) > 0:
-                try:
-                    self._load_config_file()
-                    self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
-                    self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
-                    self._load_prompt_tables()
-                except Exception as error:
-                    raise Exception(
-                        "Files in the TensorRT-LLM folder is corrupted and "
-                        "model needs to be exported again. "
-                        "Error message: " + str(error)
-                    )
-
-    def _load_config_file(self):
-        engine_dir = Path(self.model_dir)
-        config_path = engine_dir / 'config.json'
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                self.config = json.load(f)
-        else:
-            raise FileNotFoundError("file: {0} could not be found.".format(config_path))
-
-    def _get_prompt_embedding_table_ckpt(self, prompt_embeddings_checkpoint_path):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            unpack_nemo_ckpt(prompt_embeddings_checkpoint_path, temp_dir)
-            mw_path = os.path.join(temp_dir, "model_weights.ckpt")
-            if not Path(mw_path).exists():
-                mw_path = os.path.join(temp_dir, "mp_rank_00", "model_weights.ckpt")
-                if not Path(mw_path).exists():
-                    raise FileNotFoundError("File: {0} could not be found in the nemo checkpoint. "
-                                            "Please check the nemo checkpoint format for the prompt "
-                                            "embedding table.".format(mw_path))
-            weights = torch.load(mw_path)
-            weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
-
-            return weights.cpu().detach()
-
-        return None
+            self._load()
 
     def export(
         self,
@@ -233,48 +185,7 @@ class TensorRTLLM(ITritonDeployable):
         tmp_dir.cleanup()
 
         if load_model:
-            self.load()
-
-    def _get_prompt_embedding_table(self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None,):
-        p_tuning = "no_ptuning"
-        if (prompt_embeddings_table is not None and
-            prompt_embeddings_checkpoint_path is not None
-        ):
-            LOGGER.warning("prompt_embeddings_table will be used and "
-                           "prompt_embeddings_checkpoint_path will be "
-                           "ignored for ptuning.")
-            p_tuning = "use_table"
-        elif prompt_embeddings_table is not None:
-            p_tuning = "use_table"
-        elif prompt_embeddings_checkpoint_path is not None:
-            p_tuning = "use_checkpoint"
-        else:
-            return None, None
-
-        if p_tuning == "use_table":
-            if not isinstance(prompt_embeddings_table, np.ndarray):
-                raise TypeError("Only numpy array is allowed for the prompt embeddings table.")
-
-            if len(prompt_embeddings_table.shape) != 2:
-                raise Exception("A two dimensional prompt embeddings table for a single task is only supported.")
-
-            prompt_embeddings_table = torch.from_numpy(prompt_embeddings_table)
-        elif p_tuning == "use_checkpoint":
-            if not is_nemo_file(prompt_embeddings_checkpoint_path):
-                raise TypeError(prompt_embeddings_checkpoint_path + " is not a nemo file.")
-            prompt_embeddings_table = self._get_prompt_embedding_table_ckpt(prompt_embeddings_checkpoint_path)
-
-        task_vocab_size = prompt_embeddings_table.size(dim=0)
-        dtype = self.config['builder_config']['precision']
-        prompt_embeddings_table = prompt_embeddings_table.to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype)).cuda()
-
-        if prompt_embeddings_table.size(dim=1) != self.config["builder_config"]["hidden_size"]:
-            raise Exception(
-                "Hidden dimension of the model is {0} and does not match with the dimension of the prompt table.".format(
-                    self.config["builder_config"]["hidden_size"])
-            )
-
-        return prompt_embeddings_table, task_vocab_size
+            self._load()
 
     def forward(
         self,
@@ -345,6 +256,9 @@ class TensorRTLLM(ITritonDeployable):
             )
 
     def add_prompt_table(self, task_name: str, prompt_embeddings_checkpoint_path: str):
+        # TODO: check if the added table's size is larger than the max_prompt_embedding_table_size
+        #       If yes, then raise an error.
+
         if self.model is None:
             raise Exception(
                 "A nemo checkpoint should be exported to TensorRT-LLM and "
@@ -364,17 +278,6 @@ class TensorRTLLM(ITritonDeployable):
                 self.ptuning_tables.pop(task_name)
                 with open(os.path.join(self.model_dir, 'prompt_tables.pkl'), 'wb') as f:
                     pickle.dump(self.ptuning_tables, f)
-
-    def _load_prompt_tables(self):
-        if not self.model_dir is None:
-            pt_path = Path(os.path.join(self.model_dir, 'prompt_tables.pkl'))
-            if pt_path.exists():
-                with open(pt_path, 'rb') as f:
-                    self.ptuning_tables = pickle.load(f)
-            else:
-                self.ptuning_tables = {}
-
-            print("self.ptuning_tables: ", self.ptuning_tables)
 
     @property
     def get_supported_models_list(self):
@@ -426,3 +329,102 @@ class TensorRTLLM(ITritonDeployable):
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
             return {"outputs": output}
+
+    def _load_prompt_tables(self):
+        if not self.model_dir is None:
+            pt_path = Path(os.path.join(self.model_dir, 'prompt_tables.pkl'))
+            if pt_path.exists():
+                with open(pt_path, 'rb') as f:
+                    self.ptuning_tables = pickle.load(f)
+            else:
+                self.ptuning_tables = {}
+
+            print("self.ptuning_tables: ", self.ptuning_tables)
+
+    def _get_prompt_embedding_table_ckpt(self, prompt_embeddings_checkpoint_path):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            unpack_nemo_ckpt(prompt_embeddings_checkpoint_path, temp_dir)
+            mw_path = os.path.join(temp_dir, "model_weights.ckpt")
+            if not Path(mw_path).exists():
+                mw_path = os.path.join(temp_dir, "mp_rank_00", "model_weights.ckpt")
+                if not Path(mw_path).exists():
+                    raise FileNotFoundError("File: {0} could not be found in the nemo checkpoint. "
+                                            "Please check the nemo checkpoint format for the prompt "
+                                            "embedding table.".format(mw_path))
+            weights = torch.load(mw_path)
+            weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
+
+            return weights.cpu().detach()
+        return None
+
+    def _get_prompt_embedding_table(self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None, ):
+        p_tuning = "no_ptuning"
+        if (prompt_embeddings_table is not None and
+                prompt_embeddings_checkpoint_path is not None
+        ):
+            LOGGER.warning("prompt_embeddings_table will be used and "
+                           "prompt_embeddings_checkpoint_path will be "
+                           "ignored for ptuning.")
+            p_tuning = "use_table"
+        elif prompt_embeddings_table is not None:
+            p_tuning = "use_table"
+        elif prompt_embeddings_checkpoint_path is not None:
+            p_tuning = "use_checkpoint"
+        else:
+            return None, None
+
+        if p_tuning == "use_table":
+            if not isinstance(prompt_embeddings_table, np.ndarray):
+                raise TypeError("Only numpy array is allowed for the prompt embeddings table.")
+
+            if len(prompt_embeddings_table.shape) != 2:
+                raise Exception("A two dimensional prompt embeddings table for a single task is only supported.")
+
+            prompt_embeddings_table = torch.from_numpy(prompt_embeddings_table)
+        elif p_tuning == "use_checkpoint":
+            if not is_nemo_file(prompt_embeddings_checkpoint_path):
+                raise TypeError(prompt_embeddings_checkpoint_path + " is not a nemo file.")
+            prompt_embeddings_table = self._get_prompt_embedding_table_ckpt(prompt_embeddings_checkpoint_path)
+
+        task_vocab_size = prompt_embeddings_table.size(dim=0)
+        dtype = self.config['builder_config']['precision']
+        prompt_embeddings_table = prompt_embeddings_table.to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype)).cuda()
+
+        if prompt_embeddings_table.size(dim=1) != self.config["builder_config"]["hidden_size"]:
+            raise Exception(
+                "Hidden dimension of the model is {0} and does not match with the dimension of the prompt table.".format(
+                    self.config["builder_config"]["hidden_size"])
+            )
+
+        return prompt_embeddings_table, task_vocab_size
+
+    def _load_config_file(self):
+        engine_dir = Path(self.model_dir)
+        config_path = engine_dir / 'config.json'
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)
+        else:
+            raise FileNotFoundError("file: {0} could not be found.".format(config_path))
+
+    def _load(self):
+        self.model = None
+        self.tokenizer = None
+        self.n_gpus = None
+        self.config = None
+        self.ptuning_tables = {}
+
+        if Path(self.model_dir).exists():
+            folders = os.listdir(self.model_dir)
+            if len(folders) > 0:
+                try:
+                    self._load_config_file()
+                    self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
+                    self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
+                    self._load_prompt_tables()
+                except Exception as error:
+                    raise Exception(
+                        "Files in the TensorRT-LLM folder is corrupted and "
+                        "model needs to be exported again. "
+                        "Error message: " + str(error)
+                    )
