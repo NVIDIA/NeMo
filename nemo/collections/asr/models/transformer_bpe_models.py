@@ -15,10 +15,10 @@
 import itertools
 import json
 import os
+import re
 import tempfile
 from math import ceil
 from typing import Dict, List, Optional, Union
-import re
 
 import editdistance
 import torch
@@ -34,7 +34,6 @@ from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
-
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -50,6 +49,7 @@ from nemo.utils import logging
 
 try:
     from sacrebleu import corpus_bleu
+
     from nemo.collections.nlp.modules.common import TokenClassifier
     from nemo.collections.nlp.modules.common.lm_utils import get_transformer
     from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
@@ -288,7 +288,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 global_rank=self.global_rank,
                 world_size=self.world_size,
                 dataset=LhotseSpeechToTextBpeDataset(
-                    tokenizer=self.tokenizer, 
+                    tokenizer=self.tokenizer,
                     noise_cuts=config.get("lhotse", {}).get("noise_cuts"),
                     force_strip_pnc=config.get("force_strip_pnc", False),
                     token_sequence_format=config.get("token_sequence_format", None),
@@ -518,7 +518,6 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         assert isinstance(text, str), f"Expected str, got {type(text)}"
         return re.sub(r'<[^>]+>', '', text)
 
-    
     def validation_step(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
         signal, signal_len, transcript, transcript_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
@@ -541,9 +540,11 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         num_context_tokens_for_decoding = 5
         beam_hypotheses = self.beam_search(
             encoder_hidden_states=enc_states,
-            encoder_input_mask=enc_mask, 
+            encoder_input_mask=enc_mask,
             return_beam_scores=False,
-            decoder_input_ids=input_ids[:, :num_context_tokens_for_decoding] if num_context_tokens_for_decoding > 0 else None,
+            decoder_input_ids=input_ids[:, :num_context_tokens_for_decoding]
+            if num_context_tokens_for_decoding > 0
+            else None,
         )
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
 
@@ -616,22 +617,22 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
             # To log via on_validation_epoch_end in modelPT.py
             # remove  (* self.world_size) if logging via on_validation_epoch_end
-            #tensorboard_logs = {}
-            #tensorboard_logs.update({f"{eval_mode}_loss": eval_loss})
-            #tensorboard_logs.update({f"{eval_mode}_sacreBLEU": sb_score})
-            #tensorboard_logs.update({f"{eval_mode}_WER": wer_score})
-            
+            # tensorboard_logs = {}
+            # tensorboard_logs.update({f"{eval_mode}_loss": eval_loss})
+            # tensorboard_logs.update({f"{eval_mode}_sacreBLEU": sb_score})
+            # tensorboard_logs.update({f"{eval_mode}_WER": wer_score})
+
             # logging here only.
             dataloader_prefix = self.get_validation_dataloader_prefix(dataloader_idx)
             self.log(f"{dataloader_prefix}{eval_mode}_loss", eval_loss, sync_dist=True)
             self.log(f"{dataloader_prefix}{eval_mode}_sacreBLEU", sb_score, sync_dist=True)
             self.log(f"{dataloader_prefix}{eval_mode}_WER", wer_score, sync_dist=True)
-            
+
             # in multi-validation case, anything after first one will become NaN
-            # as we are resetting the metric here. 
+            # as we are resetting the metric here.
             # TODO: fix this, (not sure which hook will be ideal for this)
             self.val_loss.reset()
-        
+
         # if logging via on_validation_epoch_end in modelPT.py have to return logs
         # return {'log': tensorboard_logs}
 

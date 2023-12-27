@@ -215,7 +215,7 @@ class ASRBPEMixin(ABC):
                     ][lang]['type']
 
         if tokenizer_cfg.get('is_canary', False):
-            # CanaryTokenizer easy access to spl_tokens which aggegatate 
+            # CanaryTokenizer easy access to spl_tokens which aggegatate
             # doesn't have for now; TODO: merge both later
             self.tokenizer = tokenizers.CanaryTokenizer(tokenizers_dict)
         else:

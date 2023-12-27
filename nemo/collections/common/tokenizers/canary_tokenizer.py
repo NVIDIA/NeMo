@@ -12,19 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union
 from functools import cached_property
+from typing import Dict, List, Union
 
 import numpy as np
 
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
 __all__ = ['CanaryTokenizer']
 
 
-LANGUAGES={
+LANGUAGES = {
     "en": "english",
     "de": "german",
     "es": "spanish",
@@ -36,16 +36,16 @@ TO_LANGUAGE_CODE = {
 }
 
 SPECIAL_TOKENS = [
-        "<|endoftext|>",
-        "<|startoftranscript|>",
-        *[f"<|{lang}|>" for lang in list(LANGUAGES.keys())],
-        "<|transcribe|>",
-        "<|translate|>",
-        "<|nopnc|>",
-        "<|pnc|>",
-        "<|nospeech|>",
-        "<pad>",
-    ]
+    "<|endoftext|>",
+    "<|startoftranscript|>",
+    *[f"<|{lang}|>" for lang in list(LANGUAGES.keys())],
+    "<|transcribe|>",
+    "<|translate|>",
+    "<|nopnc|>",
+    "<|pnc|>",
+    "<|nospeech|>",
+    "<pad>",
+]
 
 
 class CanaryTokenizer(AggregateTokenizer):
@@ -66,39 +66,37 @@ class CanaryTokenizer(AggregateTokenizer):
     @cached_property
     def eos_id(self) -> int:
         return self.special_tokens["<|endoftext|>"]
-    
+
     @cached_property
     def bos_id(self) -> int:
         return self.special_tokens["<|startoftranscript|>"]
-    
+
     @cached_property
     def transcribe_id(self) -> int:
         return self.special_tokens["<|transcribe|>"]
-    
+
     @cached_property
     def translate_id(self) -> int:
         return self.special_tokens["<|translate|>"]
-    
+
     @cached_property
     def nopnc_id(self) -> int:
         return self.special_tokens["<|nopnc|>"]
-    
+
     @cached_property
     def pnc_id(self) -> int:
         return self.special_tokens["<|pnc|>"]
-    
+
     @cached_property
     def nospeech_id(self) -> int:
         return self.special_tokens["<|nospeech|>"]
-    
+
     @cached_property
     def pad_id(self) -> int:
         return self.special_tokens["<pad>"]
-    
+
     def to_language_id(self, language):
         if token_id := self.special_tokens.get(f"<|{language}|>", None):
             return token_id
 
         raise KeyError(f"Language {language} not found in tokenizer.")
-
-

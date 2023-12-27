@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
-from nemo.collections.common.tokenizers.canary_tokenizer import CanaryTokenizer
 from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelTokenizer
+from nemo.collections.common.tokenizers.canary_tokenizer import CanaryTokenizer
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
