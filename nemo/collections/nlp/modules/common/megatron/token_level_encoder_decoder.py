@@ -666,7 +666,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 logging.debug(f"attn_prior_scaledown_start_step: {attn_prior_scaledown_start_step}, attn_prior_scaledown_start_step: {attn_prior_end_step}")
                 if global_step >= attn_prior_end_step:
                     decoder_cross_attention_relative_position_bias = None
-                    self.return_all_crossattention_probs = False
+                    # self.return_all_crossattention_probs = False
                 elif global_step > attn_prior_scaledown_start_step and global_step < attn_prior_end_step:
                     total_annealing_steps = attn_prior_end_step - attn_prior_scaledown_start_step
                     curr_annealing_step = global_step - attn_prior_scaledown_start_step
