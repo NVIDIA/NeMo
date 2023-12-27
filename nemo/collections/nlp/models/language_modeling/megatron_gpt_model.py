@@ -105,11 +105,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 
-def get_specs(spec_name):
-    name_spec_dict = {"": get_gpt_layer_with_transformer_engine_spec(), "megatron_falcon_gpt": get_falcon_layer_spec()}
-    if spec_name not in name_spec_dict:
+def get_specs(spec_name, num_experts=None):
+    if spec_name == '':
+        return get_gpt_layer_with_transformer_engine_spec(num_experts)
+    elif spec_name == 'megatron_falcon_gpt':
+        return get_falcon_layer_spec()
+    else:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
-    return name_spec_dict[spec_name]
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -313,7 +315,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec=get_specs(self.spec_name),
+                transformer_layer_spec=get_specs(self.spec_name, self.transformer_config.num_moe_experts),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
@@ -1573,7 +1575,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
 
-        normalization = self.cfg.get('normalization', 'layernorm')
+        normalization = self.cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
@@ -1605,6 +1607,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'normalization': normalization,
             'fp8': fp8,
             'ub_tp_comm_overlap': ub_tp_comm_overlap,
+            'num_moe_experts': self.cfg.get('num_moe_experts', None),
+            'moe_router_type': self.cfg.get('moe_router_type', None),
         }
 
         transformer_config = super().build_transformer_config()
