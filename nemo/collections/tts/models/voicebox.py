@@ -152,6 +152,11 @@ class VoiceboxModel(TextToWaveform):
             duration_predictor=self.duration_predictor,
             torchode_method_klass=get_class(cfg.cfm_wrapper.torchode_method_klass)
         )
+
+        if cfg.get("freeze_module"):
+            for module in cfg.get("freeze_module"):
+                assert hasattr(self, module)
+                getattr(self, module).freeze()
         
     def prepare_data(self) -> None:
         """ Pytorch Lightning hook.

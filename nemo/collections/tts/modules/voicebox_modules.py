@@ -124,11 +124,13 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
 class MelVoco(_MelVoco, LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.freeze()
 
 
 class EncodecVoco(_EncodecVoco, LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.freeze()
 
 
 class Aligner(_Aligner):
@@ -147,7 +149,7 @@ class Aligner(_Aligner):
         return alignment_hard, alignment_soft, alignment_logprob, alignment_mask
 
 
-class DurationPredictor(_DP):
+class DurationPredictor(_DP, LightningModule):
     """
         1. Fixing `self.forward_aligner()`.
             Affecting:
@@ -776,7 +778,7 @@ class MFADurationPredictor(DurationPredictor):
 
 
 
-class VoiceBox(_VB):
+class VoiceBox(_VB, LightningModule):
     """ Nothing to fix currently. Add some docs.
     """
     def __init__(
@@ -1017,7 +1019,7 @@ class VoiceBox(_VB):
         return loss.mean(), outputs
     
 
-class ConditionalFlowMatcherWrapper(_CFMWrapper):
+class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
     """ Deal with `self.forward()` duration prediction and aligner.
     """
     @beartype

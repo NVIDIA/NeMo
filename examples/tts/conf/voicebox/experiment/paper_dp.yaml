@@ -24,6 +24,9 @@ model:
 
   cfm_wrapper:
     cond_drop_prob: 0.2
+
+  freeze_module:
+    - voicebox
     
   optim:
     name: adam
