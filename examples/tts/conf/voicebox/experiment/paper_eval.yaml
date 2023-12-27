@@ -25,19 +25,15 @@ model:
   cfm_wrapper:
     cond_drop_prob: 0.2
 
-  freeze_updates:
-    enabled: True
-    modules:
-      duration_predictor: -1  # steps to freeze from start (-1: to the end)
-    
-  optim:
-    name: adam
-    lr: 1e-4
-
-    sched:
-      name: WarmupAnnealing
-      warmup_steps: 5000
-      max_steps: ${..lr}
+  init_from_ptl_ckpt:
+    model0:
+      path: ???
+      include:
+        - duration_predictor
+    model1:
+      path: ???
+      include:
+        - voicebox
 
   train_ds:
     max_duration: 16 # ~1600 frames of paper settings
@@ -80,8 +76,8 @@ exp_manager:
 task_name: "paper"
 
 # set False to skip model training
-train: True
+train: False
 
 # evaluate on test set, using best model weights achieved during training
 # lightning chooses best weights based on the metric specified in checkpoint callback
-test: False
+test: True
