@@ -13,57 +13,48 @@ defaults:
 seed: 12345
 
 model:
-  corpus_dir: /datasets/LibriLight/
-  manifests_dir: data/LibriHeavy
-  
-  mfa_tokenizer:
-    textgrid_dir: /datasets/LibriLight_aligned/textgrids
-  
-  duration_predictor:
-    depth: 2
-    heads: 2
+  librilight_dir: ??? # LibriLight dir
+  libriheavy_dir: ??? # downloaded libriheavy manifests
+  manifests_dir: ???  # parsed manifests (e.g. filtering, add MFA alignments, etc.)
+  textgrid_dir: ???   # MFA parsed textgrids
 
-  voicebox:
-    depth: 2
-    heads: 2
+  corpus_dir: ${.librilight_dir}
+  
+  cfm_wrapper:
+    cond_drop_prob: 0.2
 
   train_ds:
     max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
     min_duration: 0.1
-    num_workers: 16
-    manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_small.jsonl.gz
-    lhotse:
-      batch_duration: 300
+    manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
+    num_workers: ${.ds_kwargs.num_workers}
 
   validation_ds:
-    num_workers: 16
-    lhotse:
-      batch_duration: 300
-  
+    num_workers: ${.ds_kwargs.num_workers}
+
   test_ds:
-    num_workers: 16
-    lhotse:
-      batch_duration: 300
+    num_workers: ${.ds_kwargs.num_workers}
+
+  ds_kwargs:
+    num_workers: 8
 
 trainer:
-  devices: 1
+  devices: auto
   max_epochs: 1000
-  # gradient_clip_val: .1
-  # gradient_clip_algorithm: value
 
 exp_manager:
   # save_dir = ${exp_dir}/${name}/${version}
-  exp_dir: null # defaults to ./nemo_experiments
+  # exp_dir defaults to ./nemo_experiments
+  # version defaults to datetime
+  exp_dir: null
   name: ${task_name}
-  version: null # defaults to datetime
+  version: null
 
   resume_if_exists: False
   create_checkpoint_callback: True
-  # checkpoint_callback_params:
-  #   monitor: val_loss_total
 
 # task name, determines output directory path
-task_name: "local-1"
+task_name: "default"
 
 # set False to skip model training
 train: True

@@ -1,0 +1,25 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=local-1
+
+defaults:
+  - local_1
+
+model:
+  optim:
+    name: adam
+    lr: 1e-4
+
+    sched:
+      name: WarmupAnnealing
+      warmup_steps: 5000
+      max_steps: ${....trainer.max_steps}
+
+trainer:
+  devices: auto
+  max_epochs: null
+  max_steps: 500000 # audio model steps
+
+# task name, determines output directory path
+task_name: "local_1-warmup"

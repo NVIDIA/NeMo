@@ -10,4 +10,4 @@ ode_rtol: 1e-5
 use_torchode: False
 torchdiffeq_ode_method: 'midpoint'   # use midpoint for torchdiffeq, as in paper
 torchode_method_klass: 'torchode.Tsit5'      # use tsit5 for torchode, as torchode does not have midpoint (recommended by Bryan @b-chiang)
-cond_drop_prob: 0.
+cond_drop_prob: 0.2

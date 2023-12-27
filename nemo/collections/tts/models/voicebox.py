@@ -166,12 +166,12 @@ class VoiceboxModel(TextToWaveform):
         from lhotse.serialization import load_manifest_lazy_or_eager
         from lhotse.recipes.utils import manifests_exist
 
-        logging.info(f"mkdir -p raw_{self._cfg.manifests_dir}")
-        os.makedirs("raw_" + self._cfg.manifests_dir, exist_ok=True)
+        logging.info(f"mkdir -p {self._cfg.libriheavy_dir}")
+        os.makedirs(self._cfg.libriheavy_dir, exist_ok=True)
         for subset in self._cfg.subsets:
-            if not manifests_exist(subset, "raw_" + self._cfg.manifests_dir, ["cuts"], "libriheavy"):
+            if not manifests_exist(subset, self._cfg.libriheavy_dir, ["cuts"], "libriheavy"):
                 logging.info(f"Downloading {subset} subset.")
-                os.system(f"wget -P raw_{self._cfg.manifests_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
+                os.system(f"wget -P {self._cfg.libriheavy_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
             else:
                 logging.info(f"Skipping download, {subset} subset exists.")
 
@@ -179,14 +179,14 @@ class VoiceboxModel(TextToWaveform):
         old_prefix="download/librilight"
         def change_prefix(cut):
             old_path = cut.recording.sources[0].source
-            new_path = old_path.replace(old_prefix, self._cfg.corpus_dir)
+            new_path = old_path.replace(old_prefix, self._cfg.librilight_dir)
             cut.recording.sources[0].source = new_path
             return cut
         
         def textgrid_exist(cut, subset=None):
             cut_id = cut.id
             spk = cut_id.split('/')[1]
-            f_id = f"{self.tokenizer.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
+            f_id = f"{self._cfg.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
             return os.path.exists(f_id)
 
         def parse_cut_mfa_textgrid(seg, subset=None):
@@ -194,35 +194,35 @@ class VoiceboxModel(TextToWaveform):
             from lhotse.supervision import AlignmentItem, SupervisionSet
             seg_id = seg.id
             spk = seg_id.split('/')[1]
-            f_id = f"{self.tokenizer.textgrid_dir}/{subset}/{spk}/{','.join(seg_id.split('/'))}.TextGrid"
+            f_id = f"{self._cfg.textgrid_dir}/{subset}/{spk}/{','.join(seg_id.split('/'))}.TextGrid"
             tg = TextGrid()
             tg.read(f_id)
-            phn_dur = []
+            new_sup_seg = seg
             for tier in tg.tiers:
-                if tier.name != "phones":
-                    continue
+                _dur = []
                 for interval in tier.intervals:
                     minTime = interval.minTime
                     maxTime = interval.maxTime
-                    phoneme = interval.mark
-                    if phoneme == "":
-                        phoneme = "sil"
-                    phn_dur.append(AlignmentItem(symbol=phoneme, start=minTime, duration=maxTime - minTime))
-            assert len(phn_dur)
-            new_sup_seg = seg.with_alignment("phone", phn_dur)
-            if seg.duration != maxTime:
-                logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.5f}, ali_end: {maxTime:.5f}")
+                    mark = interval.mark
+                    if mark == "":
+                        mark = "sil"
+                    _dur.append(AlignmentItem(symbol=mark, start=minTime, duration=maxTime - minTime))
+                assert len(_dur)
+                new_sup_seg = new_sup_seg.with_alignment(tier.name, _dur)
+                if seg.duration != maxTime:
+                    logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.5f}, ali_end: {maxTime:.5f}")
             return new_sup_seg
 
         logging.info(f"mkdir -p {self._cfg.manifests_dir}")
         os.makedirs(self._cfg.manifests_dir, exist_ok=True)
         for subset in self._cfg.subsets:
             manifest_path = os.path.join(self._cfg.manifests_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
+            ori_manifest_path = os.path.join(self._cfg.libriheavy_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
             if manifest_path not in [self._cfg.train_ds.manifest_filepath, self._cfg.validation_ds.manifest_filepath, self._cfg.test_ds.manifest_filepath]:
                 continue
             if not os.path.exists(manifest_path):
                 logging.info(f"Loading {subset} subset.")
-                cuts = load_manifest_lazy_or_eager("raw_" + manifest_path, CutSet)
+                cuts = load_manifest_lazy_or_eager(ori_manifest_path, CutSet)
                 logging.info(f"Filtering {subset} subset.")
                 cuts = cuts.filter(lambda c: ',' not in c.id)
                 cuts = cuts.filter(lambda c: textgrid_exist(c, subset))
@@ -298,7 +298,8 @@ class VoiceboxModel(TextToWaveform):
         #    Lhotse Dataset only maps CutSet -> batch of tensors, but does not actually
         #    contain any data or meta-data; it is passed to it by a Lhotse sampler for
         #    each sampler mini-batch.
-        ds_kwargs = {}
+        ds_kwargs = config.get("ds_kwargs", {})
+        ds_kwargs = OmegaConf.to_container(ds_kwargs, resolve=True)
         for kw in ["normalizer", "text_normalizer_call_kwargs", "tokenizer"]:
             if hasattr(self, kw):
                 ds_kwargs[kw] = getattr(self, kw)
@@ -310,7 +311,7 @@ class VoiceboxModel(TextToWaveform):
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=LhotseTextToSpeechDataset(
-                corpus_dir=self.cfg.corpus_dir,
+                corpus_dir=self.cfg.librilight_dir,
                 **ds_kwargs
             ),
         )
@@ -411,14 +412,17 @@ class VoiceboxModel(TextToWaveform):
             plot_id = 0
             x1 = dp_inputs["mel"]
             dp_cond, dp_pred = dp_outputs['cond'], dp_outputs['durations']
-            tb_writer.add_image("train_dp/dur",
-                                plot_alignment_to_numpy(tokens[plot_id], dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy()),
-                                self.global_step, dataformats="HWC")
+            # tb_writer.add_image("train_dp/dur",
+            #                     plot_alignment_to_numpy(tokens[plot_id], dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy()),
+            #                     self.global_step, dataformats="HWC")
 
             phns = self.tokenizer.decode(tokens[plot_id].cpu().tolist()).split(' ')
             text = texts[plot_id]
             tb_writer.add_image("train_dp/seg",
                                 plot_segment_to_numpy(phns, dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy(), text),
+                                self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_dp/bar",
+                                plot_duration_barplot_to_numpy(phns, dp_cond[plot_id], dp_pred[plot_id], text),
                                 self.global_step, dataformats="HWC")
             
         return dp_losses, dp_outputs
@@ -605,14 +609,14 @@ def plot_segment_to_numpy(phoneme_ids, durations, predictions, spectrogram, text
     import numpy as np
     phn_lens = durations.nonzero()[-1].item() + 1
     phoneme_ids = phoneme_ids[:phn_lens]
-    durations = durations[:phn_lens].clamp(min=1)
+    durations = durations[:phn_lens].clamp(min=0)
     cum_dur = torch.cumsum(durations, -1).cpu().numpy()
-    predictions = predictions[:phn_lens].clamp(min=1)
+    predictions = predictions[:phn_lens].clamp(min=0)
     cum_pred = torch.cumsum(predictions, -1).cpu().numpy()
 
     # ignore sil prediction
     for i, phn in enumerate(phoneme_ids):
-        if phn == 'sil':
+        if phn in ['sil', 'sil_S']:
             c_dur = cum_dur[i]
             c_pred = cum_pred[i]
             cum_pred[i:] = cum_pred[i:] - c_pred + c_dur
@@ -638,6 +642,48 @@ def plot_segment_to_numpy(phoneme_ids, durations, predictions, spectrogram, text
     else:
         plt.xlabel("Frames (Green target, Red predicted)")
     plt.ylabel("Channels")
+    plt.tight_layout()
+
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+
+@torch.no_grad()
+def plot_duration_barplot_to_numpy(phoneme_ids, durations, predictions, text=None):
+    import numpy as np
+    phn_lens = durations.nonzero()[-1].item() + 1
+    phoneme_ids = phoneme_ids[:phn_lens]
+    durations = durations[:phn_lens].clamp(min=0).cpu().numpy()
+    predictions = predictions[:phn_lens].clamp(min=0).cpu().numpy()
+
+    # fig, ax = plt.subplots(figsize=(12, 3))
+    fig, ax = plt.subplots(figsize=(48, 3))
+
+    # for plots
+    x = np.arange(phn_lens)
+    width = 0.4
+    rects = ax.bar(x - width/2, durations, width, label="target")
+    # ax.bar_label(rects, padding=3)
+    rects = ax.bar(x + width/2, predictions, width, label="predict")
+    # ax.bar_label(rects, padding=3)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(phoneme_ids, rotation = 90)
+    ax.set_xlim(-1, phn_lens)
+    ax.set_ylim(top=30)
+    ax.legend(loc='upper left', ncols=3)
+    ax2 = ax.twiny()
+    ax2.set_xticks(x)
+    ax2.set_xticklabels([f"{d:<2.0f}/{p:<2.0f}" for d, p in zip(durations, predictions)], rotation=90)
+    ax2.set_xlim(-1, phn_lens)
+
+    if text is not None:
+        plt.xlabel(f"# of Phonemes\n{text}")
+    else:
+        plt.xlabel("# of Phonemes")
+    plt.ylabel("# of Frames")
     plt.tight_layout()
 
     fig.canvas.draw()

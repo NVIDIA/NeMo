@@ -1,7 +1,8 @@
 # data_dir: ${paths.data_dir}
 
 corpus_dir: ???
-manifests_dir: ???
+manifests_dir: ???  # parsed manifests (e.g. filtering, add alignments, etc.)
+libriheavy_dir: ??? # downloaded manifests
 subsets:
   - small
   - medium
@@ -20,8 +21,8 @@ train_ds:
   sample_rate: ${..sample_rate}
   batch_size: 16 # you may increase batch_size if your memory allows
   shuffle: true
-  num_workers: 16
-  pin_memory: true
+  num_workers: 8
+  pin_memory: false
   # max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
   # min_duration: 0.1
 
@@ -40,6 +41,7 @@ train_ds:
     cuts_path: ${..manifest_filepath}
     use_bucketing: true
     batch_duration: 100.0  # seconds
+  ds_kwargs: ${..ds_kwargs}
 
 validation_ds:
   defer_setup: true
@@ -48,7 +50,7 @@ validation_ds:
   batch_size: 16
   shuffle: false
   num_workers: 8
-  pin_memory: true
+  pin_memory: false
   # max_duration: 100 # it is set for LibriSpeech, you may need to update it for your dataset
   # min_duration: 0.1
 
@@ -67,6 +69,7 @@ validation_ds:
     cuts_path: ${..manifest_filepath}
     use_bucketing: False
     batch_duration: 100.0  # seconds
+  ds_kwargs: ${..ds_kwargs}
 
 test_ds:
   defer_setup: true
@@ -75,7 +78,7 @@ test_ds:
   batch_size: 16
   shuffle: false
   num_workers: 8
-  pin_memory: true
+  pin_memory: false
   # max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
   # min_duration: 0.1
 
@@ -94,3 +97,4 @@ test_ds:
     cuts_path: ${..manifest_filepath}
     use_bucketing: False
     batch_duration: 100.0  # seconds
+  ds_kwargs: ${..ds_kwargs}

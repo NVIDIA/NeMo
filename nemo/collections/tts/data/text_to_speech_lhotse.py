@@ -40,7 +40,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None):
+    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None, textgrid_dir=None, use_word_postfix=False, use_word_ghost_silence=False, num_workers=0):
         super().__init__()
         self.tokenizer = tokenizer
 
@@ -65,13 +65,16 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             elif isinstance(self.tokenizer, MFAEnglishPhonemeTokenizer):
                 self.normalizer_call = None
                 self.text_normalizer_call_kwargs = {}
-                self.textgrid_dir = self.tokenizer.textgrid_dir
+                self.textgrid_dir = textgrid_dir
 
         self.corpus_dir = corpus_dir
         if corpus_dir is not None:
             self.old_prefix = "download/librilight"
 
-        self.load_audio = AudioSamples(fault_tolerant=True)
+        self.load_audio = AudioSamples(num_workers=num_workers, fault_tolerant=True)
+
+        self.use_word_postfix = use_word_postfix
+        self.use_word_ghost_silence = use_word_ghost_silence
 
     def change_prefix(self, cut):
         # Some corpus, e.g., LibriHeavy, whose manifest includes given path prefix, which might not match our folder structure.
@@ -104,10 +107,63 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         return phn_dur
 
     def get_cut_alignment(self, cut):
+        phn_alis = cut.supervisions[0].alignment["phones"]
         phn_dur = []
-        for ali in cut.supervisions[0].alignment["phone"]:
+        for ali in phn_alis:
             phn_dur.append((ali.symbol, ali.duration))
-        return phn_dur
+
+        if "words" not in cut.supervisions[0].alignment or (not self.use_word_postfix and not self.use_word_ghost_silence):
+            return phn_dur
+        
+        word_alis = cut.supervisions[0].alignment["words"]
+        w2pids = []
+        phn_id = 0
+        for ali in word_alis:
+            wrd = ali.symbol
+            if ali.symbol in ["", "sil", "<eps>"]:
+                wrd = "<eps>"
+            if ali.symbol in ["spn", "<unk>"]:
+                wrd = "<unk>"
+
+            w2pids.append([wrd, []])
+            wrd_st = ali.start
+            wrd_ed = wrd_st + ali.duration
+
+            phn_st = phn_alis[phn_id].start
+            phn_ed = phn_st + phn_alis[phn_id].duration
+            while phn_st >= wrd_st and phn_ed <= wrd_ed:
+                w2pids[-1][-1].append(phn_id)
+                phn_id += 1
+                if phn_id < len(phn_alis):
+                    phn_st = phn_alis[phn_id].start
+                    phn_ed = phn_st + phn_alis[phn_id].duration
+                else:
+                    break
+
+        new_phn_dur = []
+        _wrd = "<eps>"
+        for wrd, phn_ids in w2pids:
+            if self.use_word_ghost_silence and len(new_phn_dur) > 0:
+                if wrd != "<eps>" and _wrd != "<eps>":
+                    if self.use_word_postfix:
+                        new_phn_dur.append(("sil_S", 0))
+                    else:
+                        new_phn_dur.append(("sil", 0))
+                _wrd = wrd
+
+            postfixs = [""] * len(phn_ids)
+            if self.use_word_postfix:
+                if len(phn_ids) == 1:
+                    postfixs = ["_S"]
+                else:
+                    postfixs = ["_B"] + ["_I"] * (len(phn_ids)-2) + ["_E"]
+
+            _dur = []
+            for phn_id, postfix in zip(phn_ids, postfixs):
+                _dur.append((phn_dur[phn_id][0] + postfix, phn_dur[phn_id][1]))
+            new_phn_dur += _dur
+
+        return new_phn_dur
 
     def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
         batch = {}

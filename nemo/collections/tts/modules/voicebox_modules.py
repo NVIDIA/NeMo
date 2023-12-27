@@ -56,6 +56,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import Bas
 
 class MFAEnglishPhonemeTokenizer(Tokenizer):
     MFA_arpa_phone_set = ["PAD", "sil", "spn", "AA", "AA0", "AA1", "AA2", "AE", "AE0", "AE1", "AE2", "AH", "AH0", "AH1", "AH2", "AO", "AO0", "AO1", "AO2", "AW", "AW0", "AW1", "AW2", "AY", "AY0", "AY1", "AY2", "B", "CH", "D", "DH", "EH", "EH0", "EH1", "EH2", "ER", "ER0", "ER1", "ER2", "EY", "EY0", "EY1", "EY2", "F", "G", "HH", "IH", "IH0", "IH1", "IH2", "IY", "IY0", "IY1", "IY2", "JH", "K", "L", "M", "N", "NG", "OW", "OW0", "OW1", "OW2", "OY", "OY0", "OY1", "OY2", "P", "R", "S", "SH", "T", "TH", "UH", "UH0", "UH1", "UH2", "UW", "UW0", "UW1", "UW2", "V", "W", "Y", "Z", "ZH"]
+    word_postfix = ["_S", "_B", "_I", "_E"]
 
     def __init__(
         self,
@@ -63,12 +64,18 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
         add_blank: bool = False,
         use_eos_bos = False,
         pad_id = 0,
-        textgrid_dir = None,
+        use_word_postfix = False,
         **kwargs
     ):
         self.add_blank = add_blank
         self.use_eos_bos = use_eos_bos
         self.pad_id = pad_id
+        self.use_word_postfix = use_word_postfix
+
+        vocab.pop(vocab.index("PAD"))
+        if self.use_word_postfix:
+            vocab = [phn+_p for phn in vocab for _p in self.word_postfix]
+        vocab.insert(0, "PAD")
 
         self.vocab = vocab
         self.vocab_size = len(vocab)
@@ -77,14 +84,16 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
         self.id_to_phn = {idx: phn for idx, phn in enumerate(self.vocab)}
 
         self.not_found_phonemes = []
-        self.textgrid_dir = textgrid_dir
 
     def encode(self, text: List[str]) -> List[int]:
         """Encodes a string of text as a sequence of IDs."""
         token_ids = []
         for phn in text:
             if phn == "":
-                phn = "sil"
+                if self.use_word_postfix:
+                    phn = "sil_S"
+                else:
+                    phn = "sil"
             try:
                 idx = self.phn_to_id[phn]
                 token_ids.append(idx)
@@ -122,9 +131,27 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
 
 
 class MelVoco(_MelVoco, LightningModule):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, normalize=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.freeze()
+        self.normalize = normalize
+        self.global_mean = -5.8843
+        self.global_std = 2.2615
+
+    def encode(self, audio):
+        mel = self.vocos.feature_extractor(audio)
+
+        mel = rearrange(mel, 'b d n -> b n d')
+        if self.normalize:
+            mel = (mel - self.global_mean) / self.global_std
+        return mel
+
+    def decode(self, mel):
+        mel = rearrange(mel, 'b n d -> b d n')
+        if self.normalize:
+            mel = (mel * self.global_std) + self.global_mean
+
+        return self.vocos.decode(mel)
 
 
 class EncodecVoco(_EncodecVoco, LightningModule):
@@ -758,8 +785,12 @@ class MFADurationPredictor(DurationPredictor):
 
         # loss w/o sil, spn
         with torch.no_grad():
-            sil_mask = (phoneme_ids == 1)
-            spn_mask = (phoneme_ids == 2)
+            if self.tokenizer.use_word_postfix:
+                sil_mask = (phoneme_ids == 1) | (phoneme_ids == 2) | (phoneme_ids == 3) | (phoneme_ids == 4)
+                spn_mask = (phoneme_ids == 5) | (phoneme_ids == 6) | (phoneme_ids == 7) | (phoneme_ids == 8)
+            else:
+                sil_mask = (phoneme_ids == 1)
+                spn_mask = (phoneme_ids == 2)
             loss_sil = loss_masked(durations, target, loss_mask, sil_mask)
             loss_sil_spn = loss_masked(durations, target, loss_mask, sil_mask | spn_mask)
             loss_no_sil_spn = loss_masked(durations, target, loss_mask, ~sil_mask, ~spn_mask)
@@ -804,6 +835,7 @@ class VoiceBox(_VB, LightningModule):
         p_drop_prob = 0.3, # p_drop in paper
         frac_lengths_mask: Tuple[float, float] = (0.7, 1.),
         condition_on_text = True,
+        loss_masked = True,
         **kwargs
     ):
         """
@@ -859,6 +891,70 @@ class VoiceBox(_VB, LightningModule):
             condition_on_text=condition_on_text
         )
         self.audio_enc_dec.freeze()
+        self.loss_masked = loss_masked
+
+    def create_cond_mask(self, batch, seq_len, cond_token_ids=None, training=True):
+        if training:
+            frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*self.frac_lengths_mask)
+            # cond_mask = mask_from_frac_lengths(seq_len, frac_lengths)
+            cond_mask = self.phone_level_mask_from_frac_lengths(seq_len, frac_lengths, cond_token_ids)
+        else:
+            cond_mask = torch.zeros((batch, seq_len), device = self.device, dtype = torch.bool)
+        return cond_mask
+
+    @torch.no_grad()
+    def phone_level_mask_from_frac_lengths(
+        self,
+        seq_len: int,
+        frac_lengths: Tensor,
+        cond_token_ids: Tensor,
+    ):
+        device = frac_lengths.device
+
+        lengths = (frac_lengths * seq_len).long()
+        max_start = seq_len - lengths
+
+        rand = torch.zeros_like(frac_lengths, device = device).float().uniform_(0, 1)
+        start = (max_start * rand).clamp(min = 0)
+        end = start + lengths
+
+        start = torch.ceil(start).long()
+        start_of_start = self.find_start_of_phone(cond_token_ids, start)
+        end_of_start = self.find_end_of_phone(cond_token_ids, start, seq_len)
+        prob = (start - start_of_start + 1) / (end_of_start - start_of_start + 1)
+        start = torch.where(prob > 0.5, end_of_start + 1, start_of_start)
+
+        end = torch.ceil(end).long()
+        start_of_end = self.find_start_of_phone(cond_token_ids, end)
+        end_of_end = self.find_end_of_phone(cond_token_ids, end, seq_len)
+        prob = (end - start_of_end + 1) / (end_of_end - start_of_end + 1)
+        end = torch.where(prob > 0.5, end_of_end, start_of_end - 1)
+
+        return mask_from_start_end_indices(seq_len, start, end)
+
+    @torch.no_grad()
+    def find_start_of_phone(self, cond_token_ids, idx):
+        phone_token_id = cond_token_ids[range(len(idx)), idx]
+        start_of_phone = idx
+        should_continue = (start_of_phone > 0)
+        while should_continue.sum() > 0:
+            prev_idx = torch.where(should_continue, start_of_phone - 1, start_of_phone)
+            prev_the_same = should_continue & (cond_token_ids[range(len(idx)), prev_idx] == phone_token_id)
+            start_of_phone = torch.where(prev_the_same, start_of_phone - 1, start_of_phone)
+            should_continue = prev_the_same & (start_of_phone > 0)
+        return start_of_phone
+
+    @torch.no_grad()
+    def find_end_of_phone(self, cond_token_ids, idx, seq_len):
+        phone_token_id = cond_token_ids[range(len(idx)), idx]
+        end_of_phone = idx
+        should_continue = (end_of_phone < seq_len - 1)
+        while should_continue.sum() > 0:
+            post_idx = torch.where(should_continue, end_of_phone + 1, end_of_phone)
+            post_the_same = should_continue & (cond_token_ids[range(len(idx)), post_idx] == phone_token_id)
+            end_of_phone = torch.where(post_the_same, end_of_phone + 1, end_of_phone)
+            should_continue = post_the_same & (end_of_phone < seq_len - 1)
+        return end_of_phone
 
     def forward(
         self,
@@ -913,11 +1009,7 @@ class VoiceBox(_VB, LightningModule):
         # construct conditioning mask if not given
 
         if not exists(cond_mask):
-            if self.training:
-                frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*self.frac_lengths_mask)
-                cond_mask = mask_from_frac_lengths(seq_len, frac_lengths)
-            else:
-                cond_mask = torch.zeros((batch, seq_len), device = cond.device, dtype = torch.bool)
+            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len, cond_token_ids=cond_token_ids, training=self.training)
 
         cond_mask_with_pad_dim = rearrange(cond_mask, '... -> ... 1')
         outputs["cond_mask"] = cond_mask_with_pad_dim
@@ -1000,7 +1092,10 @@ class VoiceBox(_VB, LightningModule):
         if not exists(target):
             return x
 
-        loss_mask = reduce_masks_with_and(cond_mask, self_attn_mask)
+        if self.loss_masked:
+            loss_mask = reduce_masks_with_and(cond_mask, self_attn_mask)
+        else:
+            loss_mask = self_attn_mask
 
         if not exists(loss_mask):
             return F.mse_loss(x, target), outputs

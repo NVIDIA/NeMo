@@ -8,3 +8,14 @@ defaults:
   - override audio_enc_dec@duration_predictor.audio_enc_dec: mel_voco
   - override audio_enc_dec@voicebox.audio_enc_dec: mel_voco
   - override tokenizer: null
+
+textgrid_dir: ???
+
+mfa_tokenizer:
+  textgrid_dir: ${..textgrid_dir}
+  use_word_postfix: ${..ds_kwargs.use_word_postfix}
+
+ds_kwargs:
+  textgrid_dir: ${..textgrid_dir}
+  use_word_postfix: True
+  use_word_ghost_silence: True
