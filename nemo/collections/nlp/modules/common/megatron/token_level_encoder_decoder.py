@@ -552,6 +552,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
         output_enc_hidden_only=False,
         speech_mask=None,
         cross_attention_prior=None,
+        text_limits=None,
         global_step=None,
     ):
         """
@@ -702,11 +703,30 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 return_all_crossattention_probs=return_all_crossattention_probs,
                 batch_data=batch_data,
             )
-
+            
+            alignment_loss = None
             if self.post_process and self.add_decoder:
                 dec_output, enc_output = output  # [s, b, h]
                 if return_all_crossattention_probs:
-                    dec_output, attention_probs = dec_output
+                    dec_output, attention_scores = dec_output
+                    attention_probs = [torch.softmax(attention_score, dim=-1) for attention_score in attention_scores]
+                    
+                    if text_limits is not None and hasattr(self, "forward_sum_loss"):
+                        attention_scores_combined = torch.cat(attention_scores, dim=1)
+                        text_start_idx = text_limits[0,0].item()
+                        assert torch.all(text_limits[:,0] == text_start_idx) # all texts should start at the same index
+                        attention_scores_sliced = attention_scores_combined[:,:,:,text_start_idx:-1]
+                        # Should probably mask out padding but should not matter I think
+                        attention_logprobs = torch.log_softmax(attention_scores_sliced, dim=-1)
+                        attention_logprobs = torch.mean(attention_logprobs, dim=1, keepdim=True)
+                        dec_len = torch.sum(dec_attn_mask, dim=1)
+                        enc_len = text_limits[:,1] - text_limits[:,0]
+                        # print("enc len: ", enc_len)
+                        # print("dec len: ", dec_len)
+                        # print("text limits: ", text_limits)
+                        # print("attention_logprobs: ", attention_logprobs.shape)
+                        alignment_loss = self.forward_sum_loss(attn_logprob=attention_logprobs, in_lens=enc_len, out_lens=dec_len)
+                        # print("alignment_loss: ", alignment_loss)
                 else:
                     attention_probs = None
                 # output_type = self.predict_output_type(enc_output)
@@ -810,7 +830,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                         loss_dict["output"] = tokens_loss
                         return loss_dict
                     else:
-                        return tokens_loss, [token_logits, speech_logits_list, attention_probs]
+                        return tokens_loss, [token_logits, speech_logits_list, attention_probs, alignment_loss]
                 else:
                     # else return token logits (and hiddens if needed)
                     # [s, b, h] -> [b, s, h]
