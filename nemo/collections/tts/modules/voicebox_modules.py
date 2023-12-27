@@ -1345,13 +1345,9 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         })
 
         losses = {}
-        # if self.condition_on_text:
-        #     losses.update(dp_losses)
         losses['vb'] = loss
-        # loss = loss + dp_loss
 
         outputs = {
-            # "dp": dp_outputs,
             "vb": vb_outputs,
         }
 
