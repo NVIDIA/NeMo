@@ -1256,7 +1256,12 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
             audio_len = mask.sum(-1)
             mel_len = audio_len * x1.shape[1] // mask.shape[-1]
             mask = get_mask_from_lengths(mel_len)
-        return x1, cond, mask
+
+        return {
+            'x1': x1,
+            'cond': cond,
+            'mask': mask
+        }
     
     def forward(
         self,
@@ -1281,16 +1286,6 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper):
         """
 
         batch, seq_len, dtype, σ = *x1.shape[:2], x1.dtype, self.sigma
-
-        # if raw audio is given, convert if audio encoder / decoder was passed in
-        input_is_raw_audio, cond_is_raw_audio = map(is_probably_audio_from_shape, (x1, cond))
-
-        if input_is_raw_audio:
-            raw_audio = x1
-
-        # if any([input_is_raw_audio, cond_is_raw_audio]):
-
-        x1, cond, mask = self.parse_vb_input(raw_audio, mask, cond, input_sampling_rate=input_sampling_rate)
 
         # setup text conditioning, either coming from duration model (as phoneme ids)
         # or from text-to-semantic module, semantic ids encoded with wav2vec (hubert usually)

@@ -420,11 +420,17 @@ class VoiceboxModel(TextToWaveform):
         )
         dp_outputs["cond"] = dp_inputs.get("dp_cond")
 
-        _, losses, outputs = self.cfm_wrapper.forward(
+        vb_inputs = self.cfm_wrapper.parse_vb_input(
             x1=audio,
             mask=audio_mask,
-            phoneme_ids=dp_outputs.get("aligned_phoneme_ids"),
             cond=audio,
+            input_sampling_rate=None
+        )
+        _, losses, outputs = self.cfm_wrapper.forward(
+            x1=vb_inputs['x1'],
+            mask=vb_inputs['mask'],
+            phoneme_ids=dp_outputs.get("aligned_phoneme_ids"),
+            cond=vb_inputs['cond'],
             cond_mask=None,
             input_sampling_rate=None
         )
@@ -512,11 +518,17 @@ class VoiceboxModel(TextToWaveform):
         )
         dp_outputs["cond"] = dp_inputs.get("dp_cond")
 
-        _, losses, outputs = self.cfm_wrapper.forward(
+        vb_inputs = self.cfm_wrapper.parse_vb_input(
             x1=audio,
             mask=audio_mask,
-            phoneme_ids=dp_outputs.get("aligned_phoneme_ids"),
             cond=audio,
+            input_sampling_rate=None
+        )
+        _, losses, outputs = self.cfm_wrapper.forward(
+            x1=vb_inputs['x1'],
+            mask=vb_inputs['mask'],
+            phoneme_ids=dp_outputs.get("aligned_phoneme_ids"),
+            cond=vb_inputs['cond'],
             cond_mask=None,
             input_sampling_rate=None
         )
