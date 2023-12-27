@@ -28,7 +28,7 @@ import shutil
 import json
 from tqdm import tqdm
 
-def get_accuracy_with_lambada(nq):
+def get_accuracy_with_lambada(nq, use_async=False):
         # lambada dataset based accuracy test, which includes more than 5000 sentences.
         # Use generated last token with original text's last token for accuracy comparison.
         # If the generated last token start with the original token, trtllm_correct make an increment.
@@ -42,15 +42,28 @@ def get_accuracy_with_lambada(nq):
         with open('/opt/NeMo/tests/deploy/lambada.json', 'r') as file:
             records = json.load(file)
 
-            for record in tqdm(records):
-                prompt = record["text_before_last_word"]
-                expected_output = record["last_word"].strip().lower()
-                trtllm_output = nq.query_llm(prompts=[prompt], max_output_token=1, top_k=1, top_p=0.0, temperature=0.1)
-                trtllm_output = trtllm_output[0][0].strip().lower()
+            if not use_async:
+                for record in tqdm(records):
+                    prompt = record["text_before_last_word"]
+                    expected_output = record["last_word"].strip().lower()
+                    trtllm_output = nq.query_llm(prompts=[prompt], max_output_token=1, top_k=1, top_p=0.0, temperature=0.1)
+                    if isinstance(trtllm_output[0], str):
+                        trtllm_output = trtllm_output[0].strip().lower()
+                    else:
+                        trtllm_output = trtllm_output[0][0].strip().lower()
+                    all_expected_outputs.append(expected_output)
+                    all_trtllm_outputs.append(trtllm_output)
+            else:
+                prompts = []
+                for record in tqdm(records):
+                    prompt = record["text_before_last_word"]
+                    prompts.append(prompt)
+                    expected_output = record["last_word"].strip().lower()
+                    all_expected_outputs.append(expected_output)
+                all_trtllm_outputs = nq.query_llm(prompts=prompts, max_output_token=1, top_k=1, top_p=0.0, temperature=0.1)
+                all_trtllm_outputs = [trtllm_output[0][0].strip().lower() for trtllm_output in all_trtllm_outputs]
 
-                all_expected_outputs.append(expected_output)
-                all_trtllm_outputs.append(trtllm_output)
-
+            for trtllm_output, expected_output in zip(all_trtllm_outputs, all_expected_outputs):
                 if expected_output == trtllm_output or trtllm_output.startswith(expected_output):
                     trtllm_correct += 1
 
@@ -149,7 +162,7 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
         
         if not skip_accuracy:
             print("Start model accuracy testing ...")
-            trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(nq)
+            trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(nq, use_async=False)
             print("Model Accuracy: {0}, Relaxed Model Accuracy: {1}".format(trtllm_accuracy, trtllm_accuracy_relaxed))
             assert trtllm_accuracy_relaxed > 0.5, "Model accuracy is below 0.5"
 
@@ -218,7 +231,7 @@ def test_LLAMA2_7B_base_1gpu_ifb(n_gpus):
     if n_gpus > torch.cuda.device_count():
         pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
 
-    run_trt_llm_export("LLAMA2-7B-base", n_gpus, use_pytriton=False, skip_accuracy=True)
+    run_trt_llm_export("LLAMA2-7B-base", n_gpus, use_pytriton=False, skip_accuracy=False)
 
 
 @pytest.mark.parametrize("n_gpus", [1])
