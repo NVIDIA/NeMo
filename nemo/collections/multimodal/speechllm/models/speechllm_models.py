@@ -1169,7 +1169,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 if metric_name == 'bleu':
                     metric_result = torch.Tensor(
                         [sacrebleu.corpus_bleu(deduplicated_outputs['preds'], [labels]).score]
-                    )
+                    ).to(self.device)
                 else:
                     for pred, label in zip(deduplicated_outputs['preds'], labels):
                         _ = metric_fn(pred, label)
@@ -1212,6 +1212,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
         averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 0 else None
+        averaged_loss = averaged_loss.to(self.device)
+        if averaged_metric is not None:
+            averaged_metric = averaged_metric.to(self.device)
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
         if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
