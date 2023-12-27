@@ -105,7 +105,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
 
     def get_cut_alignment(self, cut):
         phn_dur = []
-        for ali in cut.supervisions[0].alignment["phone"]:
+        for ali in cut.supervisions[0].alignment["phones"]:
             phn_dur.append((ali.symbol, ali.duration))
         return phn_dur
 

@@ -1,7 +1,8 @@
 # data_dir: ${paths.data_dir}
 
 corpus_dir: ???
-manifests_dir: ???
+manifests_dir: ???  # parsed manifests (e.g. filtering, add alignments, etc.)
+libriheavy_dir: ??? # downloaded manifests
 subsets:
   - small
   - medium

@@ -166,12 +166,12 @@ class VoiceboxModel(TextToWaveform):
         from lhotse.serialization import load_manifest_lazy_or_eager
         from lhotse.recipes.utils import manifests_exist
 
-        logging.info(f"mkdir -p raw_{self._cfg.manifests_dir}")
-        os.makedirs("raw_" + self._cfg.manifests_dir, exist_ok=True)
+        logging.info(f"mkdir -p {self._cfg.libriheavy_dir}")
+        os.makedirs(self._cfg.libriheavy_dir, exist_ok=True)
         for subset in self._cfg.subsets:
-            if not manifests_exist(subset, "raw_" + self._cfg.manifests_dir, ["cuts"], "libriheavy"):
+            if not manifests_exist(subset, self._cfg.libriheavy_dir, ["cuts"], "libriheavy"):
                 logging.info(f"Downloading {subset} subset.")
-                os.system(f"wget -P raw_{self._cfg.manifests_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
+                os.system(f"wget -P {self._cfg.libriheavy_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
             else:
                 logging.info(f"Skipping download, {subset} subset exists.")
 
@@ -197,32 +197,32 @@ class VoiceboxModel(TextToWaveform):
             f_id = f"{self.tokenizer.textgrid_dir}/{subset}/{spk}/{','.join(seg_id.split('/'))}.TextGrid"
             tg = TextGrid()
             tg.read(f_id)
-            phn_dur = []
+            new_sup_seg = seg
             for tier in tg.tiers:
-                if tier.name != "phones":
-                    continue
+                _dur = []
                 for interval in tier.intervals:
                     minTime = interval.minTime
                     maxTime = interval.maxTime
-                    phoneme = interval.mark
-                    if phoneme == "":
-                        phoneme = "sil"
-                    phn_dur.append(AlignmentItem(symbol=phoneme, start=minTime, duration=maxTime - minTime))
-            assert len(phn_dur)
-            new_sup_seg = seg.with_alignment("phone", phn_dur)
-            if seg.duration != maxTime:
-                logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.5f}, ali_end: {maxTime:.5f}")
+                    mark = interval.mark
+                    if mark == "":
+                        mark = "sil"
+                    _dur.append(AlignmentItem(symbol=mark, start=minTime, duration=maxTime - minTime))
+                assert len(_dur)
+                new_sup_seg = new_sup_seg.with_alignment(tier.name, _dur)
+                if seg.duration != maxTime:
+                    logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.5f}, ali_end: {maxTime:.5f}")
             return new_sup_seg
 
         logging.info(f"mkdir -p {self._cfg.manifests_dir}")
         os.makedirs(self._cfg.manifests_dir, exist_ok=True)
         for subset in self._cfg.subsets:
             manifest_path = os.path.join(self._cfg.manifests_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
+            ori_manifest_path = os.path.join(self._cfg.libriheavy_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
             if manifest_path not in [self._cfg.train_ds.manifest_filepath, self._cfg.validation_ds.manifest_filepath, self._cfg.test_ds.manifest_filepath]:
                 continue
             if not os.path.exists(manifest_path):
                 logging.info(f"Loading {subset} subset.")
-                cuts = load_manifest_lazy_or_eager("raw_" + manifest_path, CutSet)
+                cuts = load_manifest_lazy_or_eager(ori_manifest_path, CutSet)
                 logging.info(f"Filtering {subset} subset.")
                 cuts = cuts.filter(lambda c: ',' not in c.id)
                 cuts = cuts.filter(lambda c: textgrid_exist(c, subset))

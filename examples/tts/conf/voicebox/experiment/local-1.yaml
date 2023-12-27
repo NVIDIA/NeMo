@@ -14,7 +14,8 @@ seed: 12345
 
 model:
   corpus_dir: /datasets/LibriLight/
-  manifests_dir: data/LibriHeavy
+  manifests_dir: data/LibriHeavy  # parsed manifests (e.g. filtering, add alignments, etc.)
+  libriheavy_dir: raw_data/LibriHeavy # downloaded manifests
   
   mfa_tokenizer:
     textgrid_dir: /datasets/LibriLight_aligned/textgrids
