@@ -403,7 +403,7 @@ class VoiceboxModel(TextToWaveform):
         )
         dp_outputs["cond"] = dp_inputs.get("dp_cond")
 
-        if self.training and (batch_idx % 200) == 0:
+        if self.training and self.trainer._logger_connector.should_update_logs:
             tb_writer = self.logger.experiment
             
             plot_id = 0
@@ -437,7 +437,7 @@ class VoiceboxModel(TextToWaveform):
             input_sampling_rate=None
         )
         
-        if self.training and (batch_idx % 200) == 0:
+        if self.training and self.trainer._logger_connector.should_update_logs:
             tb_writer = self.logger.experiment
             
             plot_id = 0
