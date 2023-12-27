@@ -14,13 +14,13 @@
 
 
 import os
-from omegaconf import OmegaConf
 from argparse import ArgumentParser
 
 import torch
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from omegaconf import OmegaConf
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.utils import logging
 
 try:
@@ -33,13 +33,11 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 import torch.nn.functional as F
-
 from torch import Tensor
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoModel, AutoTokenizer
 
 
-def average_pool(last_hidden_states: Tensor,
-                 attention_mask: Tensor) -> Tensor:
+def average_pool(last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
     last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
     return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
 
@@ -48,39 +46,74 @@ def create_rename_keys(num_hidden_layers):
     rename_keys = []
     for i in range(num_hidden_layers):
         # encoder layers: attention mechanism, 2 feedforward neural networks, and 2 layernorms
-        rename_keys.extend([
-            (f"encoder.layer.{i}.attention.self.query.weight",
-             f"model.language_model.encoder.layers.{i}.self_attention.query.weight"),
-            (f"encoder.layer.{i}.attention.self.query.bias",
-             f"model.language_model.encoder.layers.{i}.self_attention.query.bias"),
-            (f"encoder.layer.{i}.attention.self.key.weight",
-             f"model.language_model.encoder.layers.{i}.self_attention.key.weight"),
-            (f"encoder.layer.{i}.attention.self.key.bias",
-             f"model.language_model.encoder.layers.{i}.self_attention.key.bias"),
-            (f"encoder.layer.{i}.attention.self.value.weight",
-             f"model.language_model.encoder.layers.{i}.self_attention.value.weight"),
-            (f"encoder.layer.{i}.attention.self.value.bias",
-             f"model.language_model.encoder.layers.{i}.self_attention.value.bias"),
-            (f"encoder.layer.{i}.attention.output.dense.weight",
-             f"model.language_model.encoder.layers.{i}.self_attention.dense.weight"),
-            (f"encoder.layer.{i}.attention.output.dense.bias",
-             f"model.language_model.encoder.layers.{i}.self_attention.dense.bias"),
-            (f"encoder.layer.{i}.attention.output.LayerNorm.weight",
-             f"model.language_model.encoder.layers.{i}.input_layernorm.weight"),
-            (f"encoder.layer.{i}.attention.output.LayerNorm.bias",
-             f"model.language_model.encoder.layers.{i}.input_layernorm.bias"),
-            (f"encoder.layer.{i}.intermediate.dense.weight",
-             f"model.language_model.encoder.layers.{i}.mlp.dense_h_to_4h.weight"),
-            (f"encoder.layer.{i}.intermediate.dense.bias",
-             f"model.language_model.encoder.layers.{i}.mlp.dense_h_to_4h.bias"),
-            (f"encoder.layer.{i}.output.dense.weight",
-             f"model.language_model.encoder.layers.{i}.mlp.dense_4h_to_h.weight"),
-            (f"encoder.layer.{i}.output.dense.bias", f"model.language_model.encoder.layers.{i}.mlp.dense_4h_to_h.bias"),
-            (f"encoder.layer.{i}.output.LayerNorm.weight",
-             f"model.language_model.encoder.layers.{i}.post_attention_layernorm.weight"),
-            (f"encoder.layer.{i}.output.LayerNorm.bias",
-             f"model.language_model.encoder.layers.{i}.post_attention_layernorm.bias"),
-        ])
+        rename_keys.extend(
+            [
+                (
+                    f"encoder.layer.{i}.attention.self.query.weight",
+                    f"model.language_model.encoder.layers.{i}.self_attention.query.weight",
+                ),
+                (
+                    f"encoder.layer.{i}.attention.self.query.bias",
+                    f"model.language_model.encoder.layers.{i}.self_attention.query.bias",
+                ),
+                (
+                    f"encoder.layer.{i}.attention.self.key.weight",
+                    f"model.language_model.encoder.layers.{i}.self_attention.key.weight",
+                ),
+                (
+                    f"encoder.layer.{i}.attention.self.key.bias",
+                    f"model.language_model.encoder.layers.{i}.self_attention.key.bias",
+                ),
+                (
+                    f"encoder.layer.{i}.attention.self.value.weight",
+                    f"model.language_model.encoder.layers.{i}.self_attention.value.weight",
+                ),
+                (
+                    f"encoder.layer.{i}.attention.self.value.bias",
+                    f"model.language_model.encoder.layers.{i}.self_attention.value.bias",
+                ),
+                (
+                    f"encoder.layer.{i}.attention.output.dense.weight",
+                    f"model.language_model.encoder.layers.{i}.self_attention.dense.weight",
+                ),
+                (
+                    f"encoder.layer.{i}.attention.output.dense.bias",
+                    f"model.language_model.encoder.layers.{i}.self_attention.dense.bias",
+                ),
+                (
+                    f"encoder.layer.{i}.attention.output.LayerNorm.weight",
+                    f"model.language_model.encoder.layers.{i}.input_layernorm.weight",
+                ),
+                (
+                    f"encoder.layer.{i}.attention.output.LayerNorm.bias",
+                    f"model.language_model.encoder.layers.{i}.input_layernorm.bias",
+                ),
+                (
+                    f"encoder.layer.{i}.intermediate.dense.weight",
+                    f"model.language_model.encoder.layers.{i}.mlp.dense_h_to_4h.weight",
+                ),
+                (
+                    f"encoder.layer.{i}.intermediate.dense.bias",
+                    f"model.language_model.encoder.layers.{i}.mlp.dense_h_to_4h.bias",
+                ),
+                (
+                    f"encoder.layer.{i}.output.dense.weight",
+                    f"model.language_model.encoder.layers.{i}.mlp.dense_4h_to_h.weight",
+                ),
+                (
+                    f"encoder.layer.{i}.output.dense.bias",
+                    f"model.language_model.encoder.layers.{i}.mlp.dense_4h_to_h.bias",
+                ),
+                (
+                    f"encoder.layer.{i}.output.LayerNorm.weight",
+                    f"model.language_model.encoder.layers.{i}.post_attention_layernorm.weight",
+                ),
+                (
+                    f"encoder.layer.{i}.output.LayerNorm.bias",
+                    f"model.language_model.encoder.layers.{i}.post_attention_layernorm.bias",
+                ),
+            ]
+        )
 
     # Non-layer dependent keys
     rename_keys.extend(
@@ -158,8 +191,12 @@ def adjust_tensor_shapes(model, nemo_state_dict):
     original_embedding = nemo_state_dict['model.language_model.embedding.word_embeddings.weight']
     vocab_size = original_embedding.size(0)
     if model.padded_vocab_size > vocab_size:
-        zeros_to_add = torch.zeros(model.padded_vocab_size - vocab_size, original_embedding.size(1),
-                                   dtype=original_embedding.dtype, device=original_embedding.device)
+        zeros_to_add = torch.zeros(
+            model.padded_vocab_size - vocab_size,
+            original_embedding.size(1),
+            dtype=original_embedding.dtype,
+            device=original_embedding.device,
+        )
         # Concatenate the two tensors along rows
         padded_embedding = torch.cat([original_embedding, zeros_to_add], dim=0)
         nemo_state_dict['model.language_model.embedding.word_embeddings.weight'] = padded_embedding
@@ -168,7 +205,7 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 
 
 def adjust_nemo_config(model_config, ref_config):
-    model_config.tokenizer["type"] = "intfloat/e5-large-unsupervised" #ref_config["_name_or_path"]
+    model_config.tokenizer["type"] = "intfloat/e5-large-unsupervised"  # ref_config["_name_or_path"]
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["hidden_size"] = ref_config["hidden_size"]
     model_config["ffn_hidden_size"] = ref_config["intermediate_size"]
@@ -219,13 +256,14 @@ def convert(args):
     nemo_state_dict = adjust_tensor_shapes(model, new_state_dict)
     model.load_state_dict(nemo_state_dict, strict=True)
 
-
     logging.info(f'=' * 50)
     # Verifications
-    input_texts = ['query: how much protein should a female eat',
-                   'query: summit define',
-                   "passage: As a general guideline, the CDC's average requirement of protein for women ages 19 to 70 is 46 grams per day. But, as you can see from this chart, you'll need to increase that if you're expecting or training for a marathon. Check out the chart below to see how much protein you should be eating each day.",
-                   "passage: Definition of summit for English Language Learners. : 1  the highest point of a mountain : the top of a mountain. : 2  the highest level. : 3  a meeting or series of meetings between the leaders of two or more governments."]
+    input_texts = [
+        'query: how much protein should a female eat',
+        'query: summit define',
+        "passage: As a general guideline, the CDC's average requirement of protein for women ages 19 to 70 is 46 grams per day. But, as you can see from this chart, you'll need to increase that if you're expecting or training for a marathon. Check out the chart below to see how much protein you should be eating each day.",
+        "passage: Definition of summit for English Language Learners. : 1  the highest point of a mountain : the top of a mountain. : 2  the highest level. : 3  a meeting or series of meetings between the leaders of two or more governments.",
+    ]
 
     # Tokenize the input texts
     batch_dict = hf_tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
@@ -245,6 +283,7 @@ def convert(args):
 
     model.save_to(args.save_path)
     logging.info(f'NeMo model saved to: {args.save_path}')
+
 
 if __name__ == '__main__':
     args = get_args()
