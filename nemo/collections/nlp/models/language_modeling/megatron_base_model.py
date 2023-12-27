@@ -14,7 +14,6 @@
 
 import gc
 import itertools
-import math
 import os
 import re
 from dataclasses import fields
@@ -27,7 +26,6 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -47,7 +45,7 @@ from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 
