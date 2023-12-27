@@ -18,6 +18,7 @@ import os
 import tempfile
 from math import ceil
 from typing import Dict, List, Optional, Union
+import re
 
 import editdistance
 import torch
@@ -287,7 +288,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 global_rank=self.global_rank,
                 world_size=self.world_size,
                 dataset=LhotseSpeechToTextBpeDataset(
-                    tokenizer=self.tokenizer, noise_cuts=config.get("lhotse", {}).get("noise_cuts")
+                    tokenizer=self.tokenizer, 
+                    noise_cuts=config.get("lhotse", {}).get("noise_cuts"),
+                    force_strip_pnc=config.get("force_strip_pnc", False),
+                    token_sequence_format=config.get("token_sequence_format", None),
                 ),
             )
 
@@ -506,6 +510,15 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         return {'loss': audio_loss, 'log': tensorboard_logs}
 
+    def _strip_special_tokens(self, text):
+        """
+        assuming all special tokens are of format <token>
+        Note that if any label/pred is of format <token>, it will be stripped
+        """
+        assert isinstance(text, str), f"Expected str, got {type(text)}"
+        return re.sub(r'<[^>]+>', '', text)
+
+    
     def validation_step(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
         signal, signal_len, transcript, transcript_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
@@ -525,8 +538,12 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 transcript_length=transcript_len,
             )
 
+        num_context_tokens_for_decoding = 5
         beam_hypotheses = self.beam_search(
-            encoder_hidden_states=enc_states, encoder_input_mask=enc_mask, return_beam_scores=False
+            encoder_hidden_states=enc_states,
+            encoder_input_mask=enc_mask, 
+            return_beam_scores=False,
+            decoder_input_ids=input_ids[:, :num_context_tokens_for_decoding] if num_context_tokens_for_decoding > 0 else None,
         )
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
 
@@ -534,8 +551,19 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         translations = [self.tokenizer.ids_to_text(sent) for sent in beam_hypotheses.detach().cpu().tolist()]
 
         self.val_loss(loss=transf_loss, num_measurements=transf_log_probs.shape[0] * transf_log_probs.shape[1])
+        # return {f'{eval_mode}_loss': transf_loss, 'translations': translations, 'ground_truths': ground_truths}
+        output_dict = {
+            f'{eval_mode}_loss': transf_loss,
+            'translations': [self._strip_special_tokens(t) for t in translations],
+            'ground_truths': [self._strip_special_tokens(g) for g in ground_truths],
+        }
 
-        return {f'{eval_mode}_loss': transf_loss, 'translations': translations, 'ground_truths': ground_truths}
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(output_dict)
+        else:
+            self.validation_step_outputs.append(output_dict)
+
+        return output_dict
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         return self.validation_step(batch, batch_idx, dataloader_idx, eval_mode="test")
@@ -586,10 +614,26 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 sb_score = 0.0
                 wer_score = 0.0
 
-            self.log(f"{eval_mode}_loss", eval_loss, sync_dist=True)
-            self.log(f"{eval_mode}_sacreBLEU", sb_score, sync_dist=True)
-            self.log(f"{eval_mode}_WER", wer_score, sync_dist=True)
+            # To log via on_validation_epoch_end in modelPT.py
+            # remove  (* self.world_size) if logging via on_validation_epoch_end
+            #tensorboard_logs = {}
+            #tensorboard_logs.update({f"{eval_mode}_loss": eval_loss})
+            #tensorboard_logs.update({f"{eval_mode}_sacreBLEU": sb_score})
+            #tensorboard_logs.update({f"{eval_mode}_WER": wer_score})
+            
+            # logging here only.
+            dataloader_prefix = self.get_validation_dataloader_prefix(dataloader_idx)
+            self.log(f"{dataloader_prefix}{eval_mode}_loss", eval_loss, sync_dist=True)
+            self.log(f"{dataloader_prefix}{eval_mode}_sacreBLEU", sb_score, sync_dist=True)
+            self.log(f"{dataloader_prefix}{eval_mode}_WER", wer_score, sync_dist=True)
+            
+            # in multi-validation case, anything after first one will become NaN
+            # as we are resetting the metric here. 
+            # TODO: fix this, (not sure which hook will be ideal for this)
             self.val_loss.reset()
+        
+        # if logging via on_validation_epoch_end in modelPT.py have to return logs
+        # return {'log': tensorboard_logs}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         return self.multi_validation_epoch_end(outputs, dataloader_idx, eval_mode="test")
