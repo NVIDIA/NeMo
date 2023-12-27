@@ -271,11 +271,11 @@ class Embedding(MegatronModule):
         num_tokentypes: size of the token-type embeddings. 0 value
                         will ignore this embedding
         position_embedding_type: position embedding type determines whether we instantiate a learnable position embedding table.
-        embedding_noise: whether to add noise to the embeddings
+        embedding_noise: whether to add noise to the embeddings, only works during training
         embedding_noise_mean: mean of the embedding noise
         embedding_noise_std: standard deviation of the embedding noise
         embedding_noise_type: type of the embedding noise (distribution)
-        neft: whether to use NEFTune normalization technique
+        neft: whether to use NEFTune normalization technique, only works during training
         neft_alpha: alpha parameter for NEFTune
         noise_positonal_embedding: whether to add noise to the positional embeddings
     """
@@ -315,6 +315,8 @@ class Embedding(MegatronModule):
         self.neft = neft
         self.neft_alpha = neft_alpha
         self.noise_positonal_embedding = noise_positonal_embedding
+
+        print(f"Embedding noise: {self.embedding_noise}")
         
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
@@ -382,30 +384,31 @@ class Embedding(MegatronModule):
 
 
     def _noise(self, embeddings):
-        if self.embedding_noise and not self.neft:
-                # Add noise to the embeddings
-                if self.embedding_noise_type == 'uniform':
-                    noise = torch.empty_like(embeddings).uniform_(self.embedding_noise_mean, self.embedding_noise_std).detach()
-                elif self.embedding_noise_type == 'normal':
-                    noise = torch.empty_like(embeddings).normal_(self.embedding_noise_mean, self.embedding_noise_std).detach()
-                else:
-                    raise NotImplementedError(f"embedding noise type {self.embedding_noise_type} not implemented")
+        if self.training:
+            if self.embedding_noise and not self.neft:
+                    # Add noise to the embeddings
+                    if self.embedding_noise_type == 'uniform':
+                        noise = torch.empty_like(embeddings).uniform_(self.embedding_noise_mean, self.embedding_noise_std).detach()
+                    elif self.embedding_noise_type == 'normal':
+                        noise = torch.empty_like(embeddings).normal_(self.embedding_noise_mean, self.embedding_noise_std).detach()
+                    else:
+                        raise NotImplementedError(f"embedding noise type {self.embedding_noise_type} not implemented")
 
-                # Calculate the norm of the original embeddings
-                original_norm = torch.norm(embeddings, p=2, dim=1, keepdim=True)
+                    # Calculate the norm of the original embeddings
+                    original_norm = torch.norm(embeddings, p=2, dim=1, keepdim=True)
 
-                # Apply noise
-                embeddings = embeddings + noise
+                    # Apply noise
+                    embeddings = embeddings + noise
 
-                # Calculate the norm of the noisy embeddings
-                noisy_norm = torch.norm(embeddings, p=2, dim=1, keepdim=True)
+                    # Calculate the norm of the noisy embeddings
+                    noisy_norm = torch.norm(embeddings, p=2, dim=1, keepdim=True)
 
-                # Normalize the noisy embeddings
-                embeddings = embeddings * (original_norm / noisy_norm)
-        elif self.neft:
-                epsilon = torch.empty_like(embeddings).uniform_(-1, 1).detach()
-                scaled_noise = (self.neft_alpha / math.sqrt(embeddings.shape[0] * embeddings.shape[-1])) * epsilon
-                embeddings = embeddings + scaled_noise
+                    # Normalize the noisy embeddings
+                    embeddings = embeddings * (original_norm / noisy_norm)
+            elif self.neft:
+                    epsilon = torch.empty_like(embeddings).uniform_(-1, 1).detach()
+                    scaled_noise = (self.neft_alpha / math.sqrt(embeddings.shape[0] * embeddings.shape[-1])) * epsilon
+                    embeddings = embeddings + scaled_noise
         return embeddings
 
     def forward(self, input_ids, position_ids=None, token_type_ids=None):
