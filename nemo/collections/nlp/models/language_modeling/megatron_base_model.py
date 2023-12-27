@@ -28,6 +28,7 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -329,12 +330,10 @@ class MegatronBaseModel(NLPModel):
         else:
             assert isinstance(self.trainer.limit_val_batches, float)
             if self._validation_ds is not None:
-                val_length = len(self._validation_ds)
-                if not math.isinf(val_length):
-                    mb_times_dp = get_micro_batch_size() * parallel_state.get_data_parallel_world_size()
-                    total_val_microbatches = val_length // mb_times_dp
-                    limit_val_batches = int(self.trainer.limit_val_batches * total_val_microbatches)
-                    self.trainer.limit_val_batches = limit_val_batches - limit_val_batches % get_num_microbatches()
+                # limit_val_batches is already incorporated in the calculation of eval_iters which is used to compute the samples in dataloader.
+                # Hence not necessary to scale num_val_batches with the float value of limit_val_batches
+                num_val_batches = len(self._validation_dl)
+                self.trainer.limit_val_batches = num_val_batches * get_num_microbatches()
 
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()

@@ -1192,12 +1192,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             test_iters * global_batch_size,
         ]
 
-        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[
-                1
-            ] = 1  # This is to make sure we only have one epoch on every validation iteration
-
-        mock_dataset = self.cfg.data.get("mock_dataset", False)
         kwargs = {
             "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
@@ -1238,8 +1232,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building GPT datasets.')
-        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
-        self._reconfigure_val_batches()
 
         return self._train_ds, self._validation_ds, self._test_ds
 
@@ -1325,6 +1317,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.setup_training_data(self.cfg.data)
             self.setup_validation_data(self.cfg.data)
             self.setup_test_data(self.cfg.data)
+            # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+            self._reconfigure_val_batches()
 
         if stage == 'fit':
             self.initialize_last_rank_embeddings()
