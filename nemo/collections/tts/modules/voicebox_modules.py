@@ -71,9 +71,12 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
         self.add_blank = add_blank
         self.use_eos_bos = use_eos_bos
         self.pad_id = pad_id
+        self.use_word_postfix = use_word_postfix
 
-        if use_word_postfix:
-            vocab = vocab[:3] + [phn+_p for phn in vocab[3:] for _p in self.word_postfix]
+        vocab.pop(vocab.index("PAD"))
+        if self.use_word_postfix:
+            vocab = [phn+_p for phn in vocab for _p in self.word_postfix]
+        vocab.insert(0, "PAD")
 
         self.vocab = vocab
         self.vocab_size = len(vocab)
@@ -89,7 +92,10 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
         token_ids = []
         for phn in text:
             if phn == "":
-                phn = "sil"
+                if self.use_word_postfix:
+                    phn = "sil_S"
+                else:
+                    phn = "sil"
             try:
                 idx = self.phn_to_id[phn]
                 token_ids.append(idx)
@@ -763,8 +769,12 @@ class MFADurationPredictor(DurationPredictor):
 
         # loss w/o sil, spn
         with torch.no_grad():
-            sil_mask = (phoneme_ids == 1)
-            spn_mask = (phoneme_ids == 2)
+            if self.tokenizer.use_word_postfix:
+                sil_mask = (phoneme_ids == 1) | (phoneme_ids == 2) | (phoneme_ids == 3) | (phoneme_ids == 4)
+                spn_mask = (phoneme_ids == 5) | (phoneme_ids == 6) | (phoneme_ids == 7) | (phoneme_ids == 8)
+            else:
+                sil_mask = (phoneme_ids == 1)
+                spn_mask = (phoneme_ids == 2)
             loss_sil = loss_masked(durations, target, loss_mask, sil_mask)
             loss_sil_spn = loss_masked(durations, target, loss_mask, sil_mask | spn_mask)
             loss_no_sil_spn = loss_masked(durations, target, loss_mask, ~sil_mask, ~spn_mask)

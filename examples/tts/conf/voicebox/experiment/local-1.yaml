@@ -30,8 +30,8 @@ model:
     heads: 2
 
   ds_kwargs:
-    use_word_postfix: False
-    use_word_ghost_silence: False
+    use_word_postfix: True
+    use_word_ghost_silence: True
 
   train_ds:
     max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset

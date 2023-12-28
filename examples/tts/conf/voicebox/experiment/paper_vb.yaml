@@ -18,12 +18,17 @@ model:
   
   mfa_tokenizer:
     textgrid_dir: /datasets/LibriLight_aligned/textgrids
+    use_word_postfix: ${..ds_kwargs.use_word_postfix}
   
   duration_predictor:
     depth: 8  # for english
 
   cfm_wrapper:
     cond_drop_prob: 0.2
+
+  ds_kwargs:
+    use_word_postfix: True
+    use_word_ghost_silence: True
 
   freeze_updates:
     enabled: True
@@ -46,16 +51,19 @@ model:
     manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_large.jsonl.gz
     lhotse:
       batch_duration: 300
+    ds_kwargs: ${..ds_kwargs}
 
   validation_ds:
     num_workers: 8
     lhotse:
       batch_duration: 300
+    ds_kwargs: ${..ds_kwargs}
   
   test_ds:
     num_workers: 8
     lhotse:
       batch_duration: 300
+    ds_kwargs: ${..ds_kwargs}
 
 trainer:
   devices: auto

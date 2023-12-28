@@ -116,8 +116,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             return phn_dur
         
         word_alis = cut.supervisions[0].alignment["words"]
-        word_dur = []
-        w2ps = []
+        w2pids = []
         phn_id = 0
         for ali in word_alis:
             wrd = ali.symbol
@@ -125,36 +124,45 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                 wrd = "<eps>"
             if ali.symbol in ["spn", "<unk>"]:
                 wrd = "<unk>"
-            word_dur.append((wrd, ali.duration))
 
-            w2ps.append([wrd, []])
+            w2pids.append([wrd, []])
             wrd_st = ali.start
             wrd_ed = wrd_st + ali.duration
 
             phn_st = phn_alis[phn_id].start
             phn_ed = phn_st + phn_alis[phn_id].duration
             while phn_st >= wrd_st and phn_ed <= wrd_ed:
-                # phn_dur[phn_id] = (phn_dur[phn_id][0], phn_dur[phn_id][1])
-                w2ps[-1].append(phn_id)
+                w2pids[-1][-1].append(phn_id)
                 phn_id += 1
+                if phn_id < len(phn_alis):
+                    phn_st = phn_alis[phn_id].start
+                    phn_ed = phn_st + phn_alis[phn_id].duration
+                else:
+                    break
 
         new_phn_dur = []
-        for wrd, phn_ids in w2ps:
+        _wrd = "<eps>"
+        for wrd, phn_ids in w2pids:
+            if self.use_word_ghost_silence and len(new_phn_dur) > 0:
+                if wrd != "<eps>" and _wrd != "<eps>":
+                    if self.use_word_postfix:
+                        new_phn_dur.append(("sil_S", 0))
+                    else:
+                        new_phn_dur.append(("sil", 0))
+                _wrd = wrd
+
             postfixs = [""] * len(phn_ids)
             if self.use_word_postfix:
                 if len(phn_ids) == 1:
-                    if wrd not in ["<eps>", "<unk>"]:
-                        postfixs = ["_S"]
+                    postfixs = ["_S"]
                 else:
                     postfixs = ["_B"] + ["_I"] * (len(phn_ids)-2) + ["_E"]
 
+            _dur = []
             for phn_id, postfix in zip(phn_ids, postfixs):
-                # phn_dur[phn_id][0] = phn_dur[phn_id][0] + postfix
-                new_phn_dur.append((phn_dur[phn_id][0] + postfix, phn_dur[phn_id][1]))
+                _dur.append((phn_dur[phn_id][0] + postfix, phn_dur[phn_id][1]))
+            new_phn_dur += _dur
 
-            if self.use_word_ghost_silence:
-                if phn_ids[-1] < len(phn_dur) - 1:
-                    new_phn_dur.append(("sil", 0))
         return new_phn_dur
 
     def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
