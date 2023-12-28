@@ -344,6 +344,7 @@ def forward(
                 temperature=temperature,
                 prompt_table=prompt_table,
                 task_vocab_size=task_vocab_size,
+                task_ids=task_ids,
                 stop_words_list=stop_words_list,
                 bad_words_list=bad_words_list,
                 no_repeat_ngram_size=no_repeat_ngram_size,
