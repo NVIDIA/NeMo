@@ -11,9 +11,9 @@ defaults:
 
 model:
   corpus_dir: /datasets/LibriLight/
-  manifests_dir: data/LibriHeavy
-  libriheavy_dir: raw_data/LibriHeavy
-  textgrid_dir: /datasets/LibriLight_aligned/textgrids
+  manifests_dir: data/parsed/LibriHeavy
+  libriheavy_dir: data/download/LibriHeavy
+  textgrid_dir: data/aligned/textgrids
   
   duration_predictor:
     # depth: 4
