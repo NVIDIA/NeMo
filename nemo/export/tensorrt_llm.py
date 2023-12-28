@@ -330,11 +330,11 @@ class TensorRTLLM(ITritonDeployable):
     @property
     def get_triton_input(self):
         inputs = (
-            Tensor(name="prompts", shape=(1,), dtype=bytes),
-            Tensor(name="max_output_token", shape=(1,), dtype=np.int_),
-            Tensor(name="top_k", shape=(1,), dtype=np.int_),
-            Tensor(name="top_p", shape=(1,), dtype=np.single),
-            Tensor(name="temperature", shape=(1,), dtype=np.single),
+            Tensor(name="prompts", shape=(-1,), dtype=bytes),
+            Tensor(name="max_output_token", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
+            Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
         )
         return inputs
 
@@ -347,6 +347,7 @@ class TensorRTLLM(ITritonDeployable):
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
             input_texts = str_ndarray2list(inputs.pop("prompts"))
+            
             max_output_token = inputs.pop("max_output_token")
             top_k = inputs.pop("top_k")
             top_p = inputs.pop("top_p")
