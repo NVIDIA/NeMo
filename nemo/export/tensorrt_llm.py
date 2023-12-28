@@ -71,7 +71,9 @@ class TensorRTLLM(ITritonDeployable):
         self.tokenizer = None
         self.n_gpus = None
         self.config = None
-        self.ptuning_tables = {}
+        self.ptuning_tables = []
+        self.p_table = None
+        self.task_vocab_size = 0
 
         if load_model:
             self._load()
@@ -226,18 +228,16 @@ class TensorRTLLM(ITritonDeployable):
             )
         else:
             if not prompt_embeddings_table is None or not prompt_embeddings_checkpoint_path is None:
-                prompt_table, task_vocab_size = self._get_prompt_embedding_table(
+                prompt_table = self._get_prompt_embedding_table(
                     prompt_embeddings_table, prompt_embeddings_checkpoint_path
                 )
+                tv_size = prompt_table.size(dim=0)
             elif len(self.ptuning_tables) > 0:
-                prompt_table = []
-                task_vocab_size = []
-                for task, pt in self.ptuning_tables.items():
-                    prompt_table.append(pt["table"])
-                    task_vocab_size.append(pt["task_vocab_size"])
+                prompt_table = self.p_table
+                tv_size = self.task_vocab_size
             else:
                 prompt_table = None
-                task_vocab_size = None
+                tv_size = None
 
             return generate(
                 input_texts=input_texts,
@@ -246,8 +246,8 @@ class TensorRTLLM(ITritonDeployable):
                 top_k=top_k,
                 top_p=top_p,
                 temperature=temperature,
-                prompt_table=prompt_table[0],
-                task_vocab_size=task_vocab_size[0],
+                prompt_table=prompt_table,
+                task_vocab_size=tv_size,
                 stop_words_list=stop_words_list,
                 bad_words_list=bad_words_list,
                 no_repeat_ngram_size=no_repeat_ngram_size,
@@ -265,25 +265,32 @@ class TensorRTLLM(ITritonDeployable):
                 "then it should be loaded first to run inference."
             )
 
-        prompt_table, task_vocab_size = self._get_prompt_embedding_table(
+        prompt_table = self._get_prompt_embedding_table(
             prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path
         )
-        self.ptuning_tables[task_name] = {"table": prompt_table, "task_vocab_size": task_vocab_size}
+
+        self.ptuning_tables.append({"table": prompt_table, "task_name": task_name})
         with open(os.path.join(self.model_dir, 'prompt_tables.pkl'), 'wb') as f:
             pickle.dump(self.ptuning_tables, f)
 
+        self._prep_ptuning_table()
+
     def remove_prompt_table(self, task_name: str):
         if not self.ptuning_tables is None:
-            if task_name in self.ptuning_tables.keys():
-                self.ptuning_tables.pop(task_name)
-                with open(os.path.join(self.model_dir, 'prompt_tables.pkl'), 'wb') as f:
-                    pickle.dump(self.ptuning_tables, f)
+            for i in range(len(self.ptuning_tables)):
+                if self.ptuning_tables[i]["task_name"] == task_name:
+                    self.ptuning_tables.pop(i)
+                    with open(os.path.join(self.model_dir, 'prompt_tables.pkl'), 'wb') as f:
+                        pickle.dump(self.ptuning_tables, f)
+                    return
+            self._prep_ptuning_table()
 
     @property
     def get_supported_models_list(self):
         # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
         return ["gpt", "gptnext", "llama", "falcon", "starcoder"]
 
+    @property
     def get_hidden_size(self):
         if self.config is None:
             return None
@@ -330,16 +337,33 @@ class TensorRTLLM(ITritonDeployable):
             output = cast_output([err_msg], np.bytes_)
             return {"outputs": output}
 
+    def _prep_ptuning_table(self):
+        self.task_vocab_size = 0
+        for pt in self.ptuning_tables:
+            if self.task_vocab_size < pt["table"].size(dim=0):
+                self.task_vocab_size = pt["table"].size(dim=0)
+
+        # pad tasks to longest task embedding table
+        vtokens_embeddings = []
+        for i, ptuning_table in enumerate(self.ptuning_tables):
+            padded_table = torch.zeros((self.task_vocab_size, self.get_hidden_size))
+            padded_table[:ptuning_table["table"].size(dim=0), :] = ptuning_table["table"]
+            vtokens_embeddings.append(padded_table)
+
+        if len(vtokens_embeddings) > 0:
+            self.p_table = torch.stack(vtokens_embeddings, dim=0).view(-1, self.get_hidden_size)
+        else:
+            self.p_table = None
+
     def _load_prompt_tables(self):
         if not self.model_dir is None:
             pt_path = Path(os.path.join(self.model_dir, 'prompt_tables.pkl'))
             if pt_path.exists():
                 with open(pt_path, 'rb') as f:
                     self.ptuning_tables = pickle.load(f)
+                self._prep_ptuning_table()
             else:
-                self.ptuning_tables = {}
-
-            print("self.ptuning_tables: ", self.ptuning_tables)
+                self.ptuning_tables = []
 
     def _get_prompt_embedding_table_ckpt(self, prompt_embeddings_checkpoint_path):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -386,7 +410,6 @@ class TensorRTLLM(ITritonDeployable):
                 raise TypeError(prompt_embeddings_checkpoint_path + " is not a nemo file.")
             prompt_embeddings_table = self._get_prompt_embedding_table_ckpt(prompt_embeddings_checkpoint_path)
 
-        task_vocab_size = prompt_embeddings_table.size(dim=0)
         dtype = self.config['builder_config']['precision']
         prompt_embeddings_table = prompt_embeddings_table.to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype)).cuda()
 
@@ -396,7 +419,7 @@ class TensorRTLLM(ITritonDeployable):
                     self.config["builder_config"]["hidden_size"])
             )
 
-        return prompt_embeddings_table, task_vocab_size
+        return prompt_embeddings_table
 
     def _load_config_file(self):
         engine_dir = Path(self.model_dir)
@@ -412,7 +435,7 @@ class TensorRTLLM(ITritonDeployable):
         self.tokenizer = None
         self.n_gpus = None
         self.config = None
-        self.ptuning_tables = {}
+        self.ptuning_tables = []
 
         if Path(self.model_dir).exists():
             folders = os.listdir(self.model_dir)
