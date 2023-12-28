@@ -157,9 +157,12 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                         )
                     )
                 logging.info(f"- {manifest_path=} {weight=}")
-                cutsets.append(cs.repeat())
+                cutsets.append(cs)
                 weights.append(weight)
-            cuts = CutSet.mux(*cutsets, weights=weights)
+            if (max_open_streams := config.lhotse.get("max_open_streams", None)) is not None:
+                cuts = CutSet.infinite_mux(*cutsets, weights=weights, max_open_streams=max_open_streams, seed="trng")
+            else:
+                cuts = CutSet.mux(*[cs.repeat() for cs in cutsets], weights=weights, seed="trng")
     else:
         logging.info(
             f"Initializing Lhotse CutSet from a single NeMo manifest (non-tarred): '{config['manifest_filepath']}'"
