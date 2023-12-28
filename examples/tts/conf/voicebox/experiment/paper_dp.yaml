@@ -4,31 +4,19 @@
 # python train.py experiment=local-1
 
 defaults:
-  - override /model: mfa
-
+  - default
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-seed: 12345
-
 model:
   corpus_dir: /datasets/LibriLight/
   manifests_dir: data/LibriHeavy
-  
-  mfa_tokenizer:
-    textgrid_dir: /datasets/LibriLight_aligned/textgrids
-    use_word_postfix: ${..ds_kwargs.use_word_postfix}
-  
+  libriheavy_dir: raw_data/LibriHeavy
+  textgrid_dir: /datasets/LibriLight_aligned/textgrids
+    
   duration_predictor:
     depth: 8  # for english
-
-  cfm_wrapper:
-    cond_drop_prob: 0.2
-
-  ds_kwargs:
-    use_word_postfix: True
-    use_word_ghost_silence: True
 
   freeze_updates:
     enabled: True
@@ -46,24 +34,17 @@ model:
 
   train_ds:
     max_duration: 16 # ~1600 frames of paper settings
-    min_duration: 0.1
-    num_workers: 8
     manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_large.jsonl.gz
     lhotse:
       batch_duration: 600 # ~ 60k phones per batch
-    ds_kwargs: ${..ds_kwargs}
 
   validation_ds:
-    num_workers: 8
     lhotse:
       batch_duration: 300
-    ds_kwargs: ${..ds_kwargs}
   
   test_ds:
-    num_workers: 8
     lhotse:
       batch_duration: 300
-    ds_kwargs: ${..ds_kwargs}
 
 trainer:
   devices: auto

@@ -1,0 +1,52 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=local-1
+
+defaults:
+  - override /model: mfa
+
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+seed: 12345
+
+model:
+  corpus_dir: ???     # LibriLight dir
+  manifests_dir: ???  # parsed manifests (e.g. filtering, add MFA alignments, etc.)
+  libriheavy_dir: ??? # downloaded libriheavy manifests
+  textgrid_dir: ???   # MFA parsed textgrids
+  
+  cfm_wrapper:
+    cond_drop_prob: 0.2
+
+  train_ds:
+    max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
+    min_duration: 0.1
+    manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
+
+trainer:
+  devices: auto
+  max_epochs: 1000
+
+exp_manager:
+  # save_dir = ${exp_dir}/${name}/${version}
+  # exp_dir defaults to ./nemo_experiments
+  # version defaults to datetime
+  exp_dir: null
+  name: ${task_name}
+  version: null
+
+  resume_if_exists: False
+  create_checkpoint_callback: True
+
+# task name, determines output directory path
+task_name: "default"
+
+# set False to skip model training
+train: True
+
+# evaluate on test set, using best model weights achieved during training
+# lightning chooses best weights based on the metric specified in checkpoint callback
+test: False

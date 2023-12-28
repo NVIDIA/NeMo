@@ -4,22 +4,16 @@
 # python train.py experiment=local-1
 
 defaults:
-  - override /model: mfa
-
+  - default
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-seed: 12345
-
 model:
   corpus_dir: /datasets/LibriLight/
-  manifests_dir: data/LibriHeavy  # parsed manifests (e.g. filtering, add alignments, etc.)
-  libriheavy_dir: raw_data/LibriHeavy # downloaded manifests
-  
-  mfa_tokenizer:
-    textgrid_dir: /datasets/LibriLight_aligned/textgrids
-    use_word_postfix: ${..ds_kwargs.use_word_postfix}
+  manifests_dir: data/LibriHeavy
+  libriheavy_dir: raw_data/LibriHeavy
+  textgrid_dir: /datasets/LibriLight_aligned/textgrids
   
   duration_predictor:
     depth: 2
@@ -29,54 +23,23 @@ model:
     depth: 2
     heads: 2
 
-  ds_kwargs:
-    use_word_postfix: True
-    use_word_ghost_silence: True
+  cfm_wrapper:
+    cond_drop_prob: 0.0
 
   train_ds:
-    max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
-    min_duration: 0.1
     num_workers: 16
-    manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
       batch_duration: 300
-    ds_kwargs: ${..ds_kwargs}
 
   validation_ds:
     num_workers: 16
     lhotse:
       batch_duration: 300
-    ds_kwargs: ${..ds_kwargs}
-  
+
   test_ds:
     num_workers: 16
     lhotse:
       batch_duration: 300
-    ds_kwargs: ${..ds_kwargs}
-
-trainer:
-  devices: 1
-  max_epochs: 1000
-  # gradient_clip_val: .1
-  # gradient_clip_algorithm: value
-
-exp_manager:
-  # save_dir = ${exp_dir}/${name}/${version}
-  exp_dir: null # defaults to ./nemo_experiments
-  name: ${task_name}
-  version: null # defaults to datetime
-
-  resume_if_exists: False
-  create_checkpoint_callback: True
-  # checkpoint_callback_params:
-  #   monitor: val_loss_total
 
 # task name, determines output directory path
 task_name: "local-1"
-
-# set False to skip model training
-train: True
-
-# evaluate on test set, using best model weights achieved during training
-# lightning chooses best weights based on the metric specified in checkpoint callback
-test: False

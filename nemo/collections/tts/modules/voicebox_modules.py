@@ -64,7 +64,6 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
         add_blank: bool = False,
         use_eos_bos = False,
         pad_id = 0,
-        textgrid_dir = None,
         use_word_postfix = False,
         **kwargs
     ):
@@ -85,7 +84,6 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
         self.id_to_phn = {idx: phn for idx, phn in enumerate(self.vocab)}
 
         self.not_found_phonemes = []
-        self.textgrid_dir = textgrid_dir
 
     def encode(self, text: List[str]) -> List[int]:
         """Encodes a string of text as a sequence of IDs."""

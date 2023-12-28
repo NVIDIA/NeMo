@@ -21,7 +21,7 @@ train_ds:
   sample_rate: ${..sample_rate}
   batch_size: 16 # you may increase batch_size if your memory allows
   shuffle: true
-  num_workers: 16
+  num_workers: 8
   pin_memory: true
   # max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
   # min_duration: 0.1
@@ -41,6 +41,7 @@ train_ds:
     cuts_path: ${..manifest_filepath}
     use_bucketing: true
     batch_duration: 100.0  # seconds
+  ds_kwargs: ${..ds_kwargs}
 
 validation_ds:
   defer_setup: true
@@ -68,6 +69,7 @@ validation_ds:
     cuts_path: ${..manifest_filepath}
     use_bucketing: False
     batch_duration: 100.0  # seconds
+  ds_kwargs: ${..ds_kwargs}
 
 test_ds:
   defer_setup: true
@@ -95,3 +97,4 @@ test_ds:
     cuts_path: ${..manifest_filepath}
     use_bucketing: False
     batch_duration: 100.0  # seconds
+  ds_kwargs: ${..ds_kwargs}

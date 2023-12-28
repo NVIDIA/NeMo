@@ -40,7 +40,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None, use_word_postfix=False, use_word_ghost_silence=False):
+    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None, textgrid_dir=None, use_word_postfix=False, use_word_ghost_silence=False):
         super().__init__()
         self.tokenizer = tokenizer
 
@@ -65,7 +65,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             elif isinstance(self.tokenizer, MFAEnglishPhonemeTokenizer):
                 self.normalizer_call = None
                 self.text_normalizer_call_kwargs = {}
-                self.textgrid_dir = self.tokenizer.textgrid_dir
+                self.textgrid_dir = textgrid_dir
 
         self.corpus_dir = corpus_dir
         if corpus_dir is not None:

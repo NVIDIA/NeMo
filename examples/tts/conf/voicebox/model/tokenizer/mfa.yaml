@@ -1,2 +1,2 @@
 _target_: nemo.collections.tts.modules.voicebox_modules.MFAEnglishPhonemeTokenizer
-textgrid_dir: /datasets/LibriLight/mfa_data_aligned
+# textgrid_dir: /datasets/LibriLight/mfa_data_aligned
