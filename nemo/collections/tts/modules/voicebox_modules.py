@@ -134,6 +134,21 @@ class MelVoco(_MelVoco, LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.freeze()
+        self.global_mean = -5.8843
+        self.global_std = 2.2615
+
+    def encode(self, audio):
+        mel = self.vocos.feature_extractor(audio)
+
+        mel = rearrange(mel, 'b d n -> b n d')
+        mel = (mel - self.global_mean) / self.global_std
+        return mel
+
+    def decode(self, mel):
+        mel = rearrange(mel, 'b n d -> b d n')
+        mel = (mel * self.global_std) + self.global_mean
+
+        return self.vocos.decode(mel)
 
 
 class EncodecVoco(_EncodecVoco, LightningModule):
