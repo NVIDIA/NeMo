@@ -1,9 +1,10 @@
 import json
+import logging
 import multiprocessing as mp
 import os
 import pickle
 from datetime import datetime
-import logging
+
 from tqdm import tqdm
 
 from .sample import Sample
