@@ -193,7 +193,7 @@ class TensorRTLLM(ITritonDeployable):
     def forward(
         self,
         input_texts: List[str],
-        max_output_token: int = 512,
+        max_output_token: int = 64,
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
@@ -346,21 +346,17 @@ class TensorRTLLM(ITritonDeployable):
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
-            input_texts = str_ndarray2list(inputs.pop("prompts"))
-            
-            max_output_token = inputs.pop("max_output_token")
-            top_k = inputs.pop("top_k")
-            top_p = inputs.pop("top_p")
-            temperature = inputs.pop("temperature")
+            infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
+            if "max_output_token" in inputs:
+                infer_input["max_output_token"] = inputs.pop("max_output_token")[0][0]
+            if "top_k" in inputs:
+                infer_input["top_k"] = inputs.pop("top_k")[0][0]
+            if "top_p" in inputs:
+                infer_input["top_p"] = inputs.pop("top_p")[0][0]
+            if "temperature" in inputs:
+                infer_input["temperature"] = inputs.pop("temperature")[0][0]
 
-            output_texts = self.forward(
-                input_texts=input_texts,
-                max_output_token=max_output_token[0][0],
-                top_k=top_k[0][0],
-                top_p=top_p[0][0],
-                temperature=temperature[0][0],
-            )
-
+            output_texts = self.forward(**infer_input)
             output = cast_output(output_texts, np.bytes_)
             return {"outputs": output}
         except Exception as error:
