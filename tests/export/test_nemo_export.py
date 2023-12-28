@@ -21,7 +21,7 @@ import shutil
 import json
 
 
-def get_accuracy_with_lambada(model, prompt_embeddings_checkpoint_path):
+def get_accuracy_with_lambada(model, prompt_embeddings_checkpoint_path, task_ids):
         # lambada dataset based accuracy test, which includes more than 5000 sentences.
         # Use generated last token with original text's last token for accuracy comparison.
         # If the generated last token start with the original token, trtllm_correct make an increment.
@@ -44,7 +44,7 @@ def get_accuracy_with_lambada(model, prompt_embeddings_checkpoint_path):
                     top_k=1,
                     top_p=0,
                     temperature=0.1,
-                    prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+                    task_ids=task_ids,
                 )
                 trtllm_output = trtllm_output[0][0].strip().lower()
 
@@ -103,14 +103,20 @@ def run_trt_llm_export(model_name, n_gpu, ptuning=False, tp_size=None, pp_size=N
         )
 
         prompt_embeddings_checkpoint_path = None
+        task_ids = None
+        max_prompt_embedding_table_size = 0
+
         if ptuning:
             if "p_tuning_checkpoint" in model_info.keys():
-                prompt_embeddings_checkpoint_path=model_info["p_tuning_checkpoint"]    
+                prompt_embeddings_checkpoint_path=model_info["p_tuning_checkpoint"]
+                max_prompt_embedding_table_size = 8192
+                task_ids = ["0"]
                 print("---- PTuning enabled.")
             else:
                 print("---- PTuning could not be enabled.")
 
-        trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])        
+        trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
+
         trt_llm_exporter.export(
             nemo_checkpoint_path=model_info["checkpoint"],
             model_type=model_info["model_type"],
@@ -120,14 +126,22 @@ def run_trt_llm_export(model_name, n_gpu, ptuning=False, tp_size=None, pp_size=N
             max_input_token=1024,
             max_output_token=128,
             max_batch_size=model_info["max_batch_size"],
+            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )
+
+        if ptuning:
+            trt_llm_exporter.add_prompt_table(
+                task_name="0",
+                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+            )
+
         output = trt_llm_exporter.forward(
             input_texts=model_info["prompt_template"],
             max_output_token=model_info["max_output_token"],
             top_k=1,
             top_p=0.0,
             temperature=1.0,
-            prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+            task_ids=task_ids,
         )
 
         print("")
@@ -136,7 +150,7 @@ def run_trt_llm_export(model_name, n_gpu, ptuning=False, tp_size=None, pp_size=N
         print("--- Output: ", output)
         print("")
         print("Start model accuracy testing ...")
-        trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(trt_llm_exporter, prompt_embeddings_checkpoint_path)
+        trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(trt_llm_exporter, prompt_embeddings_checkpoint_path, task_ids)
         print("Model Accuracy: {0}, Relaxed Model Accuracy: {1}".format(trtllm_accuracy, trtllm_accuracy_relaxed))
         assert trtllm_accuracy_relaxed > 0.5, "Model accuracy is below 0.5"
 

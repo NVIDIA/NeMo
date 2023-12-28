@@ -151,6 +151,7 @@ def _forward(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        task_ids: List[int]=None,
         stop_words_list=None,
         bad_words_list=None,
         no_repeat_ngram_size=None,
@@ -197,15 +198,9 @@ def _forward(
                 raise Exception("task_vocab_size cannot be None")
 
             task_vocab_size = torch.tensor([task_vocab_size], dtype=torch.int32, device="cuda")
-
-            if isinstance(line_encoded, list):
-                le_size = len(line_encoded)
-            else:
-                le_size = line_encoded.size(0)
-            tasks = torch.zeros(le_size).cuda()
-
+            task_ids = torch.tensor(task_ids, dtype=torch.int32, device="cuda")
             prompt_table = prompt_table.cuda()
-            ptuning_args = [prompt_table, tasks, task_vocab_size]
+            ptuning_args = [prompt_table, task_ids, task_vocab_size]
 
         with torch.no_grad():
             sampling_config.top_k = top_k
@@ -300,6 +295,7 @@ def forward(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        task_ids: List[int]=None,
         stop_words_list=None,
         bad_words_list=None,
         no_repeat_ngram_size=None,
@@ -328,6 +324,7 @@ def forward(
             temperature=temperature,
             prompt_table=prompt_table,
             task_vocab_size=task_vocab_size,
+            task_ids=task_ids,
             stop_words_list=stop_words_list,
             bad_words_list=bad_words_list,
             no_repeat_ngram_size=no_repeat_ngram_size,
@@ -347,6 +344,7 @@ def forward(
                 temperature=temperature,
                 prompt_table=prompt_table,
                 task_vocab_size=task_vocab_size,
+                task_ids=task_ids,
                 stop_words_list=stop_words_list,
                 bad_words_list=bad_words_list,
                 no_repeat_ngram_size=no_repeat_ngram_size,
@@ -371,6 +369,7 @@ def generate(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        task_ids: List[int]=None,
         stop_words_list=None,
         bad_words_list=None,
         no_repeat_ngram_size=None,
@@ -418,6 +417,7 @@ def generate(
         temperature=temperature,
         prompt_table=prompt_table,
         task_vocab_size=task_vocab_size,
+        task_ids=task_ids,
         stop_words_list=stop_words_list_tensors,
         bad_words_list=bad_words_list_tensors,
         no_repeat_ngram_size=no_repeat_ngram_size,
