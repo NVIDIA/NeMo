@@ -74,6 +74,7 @@ class TensorRTLLM(ITritonDeployable):
         self.ptuning_tables = []
         self.p_table = None
         self.task_vocab_size = 0
+        self.task_ids = {}
 
         if load_model:
             self._load()
@@ -191,16 +192,17 @@ class TensorRTLLM(ITritonDeployable):
 
     def forward(
         self,
-        input_texts,
-        max_output_token=512,
+        input_texts: List[str],
+        max_output_token: int = 512,
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
-        stop_words_list=None,
-        bad_words_list=None,
-        no_repeat_ngram_size=None,
-        prompt_embeddings_table=None,
-        prompt_embeddings_checkpoint_path=None,
+        stop_words_list: List[str] = None,
+        bad_words_list: List[str] = None,
+        no_repeat_ngram_size: int = None,
+        task_ids: List[str] = None,
+        prompt_embeddings_table = None,
+        prompt_embeddings_checkpoint_path: str = None,
         **sampling_kwargs,
     ):
 
@@ -216,6 +218,7 @@ class TensorRTLLM(ITritonDeployable):
             stop_words_list (List(str)): list of stop words.
             bad_words_list (List(str)): list of bad words.
             no_repeat_ngram_size (int): no repeat ngram size.
+            task_ids (List(str)): list of the task ids for the prompt tables.
             prompt_embeddings_table (List(float)): prompt embeddings table.
             prompt_embeddings_checkpoint_path (str): path for the nemo checkpoint for the prompt embedding table.
             sampling_kwargs: Additional kwargs to set in the SamplingConfig.
@@ -239,6 +242,26 @@ class TensorRTLLM(ITritonDeployable):
                 prompt_table = None
                 tv_size = None
 
+            if task_ids is None:
+                assert prompt_table is None, "There is a prompt embedding table and task_ids cannot be None"
+                input_task_ids = None
+            else:
+                if prompt_table is None:
+                    input_task_ids = None
+                else:
+                    if len(task_ids) > 1:
+                        assert len(task_ids) == len(input_texts), ("Either len of the task_ids has to be 1 or"
+                                                                   "it needs to match with len of input_texts.")
+
+                    if len(task_ids) == 1:
+                        assert task_ids[0] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(task_ids[0])
+                        input_task_ids = [self.task_ids[task_ids[0]] for i in range(len(input_texts))]
+                    else:
+                        input_task_ids = []
+                        for i in range(len(input_texts)):
+                            assert task_ids[i] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(task_ids[i])
+                            input_task_ids.append(self.task_ids[task_ids[i]])
+
             return generate(
                 input_texts=input_texts,
                 max_output_len=max_output_token,
@@ -248,6 +271,7 @@ class TensorRTLLM(ITritonDeployable):
                 temperature=temperature,
                 prompt_table=prompt_table,
                 task_vocab_size=tv_size,
+                task_ids=input_task_ids,
                 stop_words_list=stop_words_list,
                 bad_words_list=bad_words_list,
                 no_repeat_ngram_size=no_repeat_ngram_size,
@@ -351,10 +375,14 @@ class TensorRTLLM(ITritonDeployable):
 
         # pad tasks to longest task embedding table
         vtokens_embeddings = []
+        self.task_ids = {}
+        tid = 0
         for i, ptuning_table in enumerate(self.ptuning_tables):
             padded_table = torch.zeros((self.task_vocab_size, self.get_hidden_size))
             padded_table[:ptuning_table["table"].size(dim=0), :] = ptuning_table["table"]
             vtokens_embeddings.append(padded_table)
+            self.task_ids[ptuning_table["task_name"]] = tid
+            tid = tid + 1
 
         if len(vtokens_embeddings) > 0:
             self.p_table = torch.stack(vtokens_embeddings, dim=0).view(-1, self.get_hidden_size)
