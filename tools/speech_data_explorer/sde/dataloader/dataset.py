@@ -3,10 +3,8 @@ import multiprocessing as mp
 import os
 import pickle
 from datetime import datetime
-
+import logging
 from tqdm import tqdm
-
-from nemo.utils import logging
 
 from .sample import Sample
 
