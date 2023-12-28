@@ -335,6 +335,9 @@ class TensorRTLLM(ITritonDeployable):
             Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
+            Tensor(name="stop_words_list", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="bad_words_list", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="no_repeat_ngram_size", shape=(-1,), dtype=np.single, optional=True),
         )
         return inputs
 
