@@ -261,7 +261,7 @@ class MegatronBaseModel(NLPModel):
                         f" {self.trainer.limit_val_batches} * {len(self._validation_dl)} < 1. Please increase the"
                         f" `limit_val_batches` argument. Try at least"
                         f" `limit_val_batches={min_percentage}`"
-        )
+                    )
 
                 self.trainer.limit_val_batches = num_val_batches * get_num_microbatches()
 
