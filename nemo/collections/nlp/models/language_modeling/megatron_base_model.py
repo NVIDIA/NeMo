@@ -27,6 +27,7 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -327,10 +328,17 @@ class MegatronBaseModel(NLPModel):
             self.trainer.limit_val_batches *= get_num_microbatches()
         else:
             assert isinstance(self.trainer.limit_val_batches, float)
-            if self._validation_ds is not None:
-                # limit_val_batches is already incorporated in the calculation of eval_iters which is used to compute the samples in dataloader.
-                # Hence not necessary to scale num_val_batches with the float value of limit_val_batches
-                num_val_batches = len(self._validation_dl)
+            if self._validation_ds is not None and len(self._validation_dl) != float("inf"):
+                num_val_batches = int(len(self._validation_dl) * self.trainer.limit_val_batches)
+                if num_val_batches == 0 and self.trainer.limit_val_batches > 0.0:
+                    min_percentage = 1.0 / len(self._validation_dl)
+                    raise MisconfigurationException(
+                        f"You requested to check {self.trainer.limit_val_batches} of the val_dataloader but"
+                        f" {self.trainer.limit_val_batches} * {len(self._validation_dl)} < 1. Please increase the"
+                        f" `limit_val_batches` argument. Try at least"
+                        f" `limit_val_batches={min_percentage}`"
+        )
+
                 self.trainer.limit_val_batches = num_val_batches * get_num_microbatches()
 
         # Override num sanity steps to be a multiple of num of microbatches
