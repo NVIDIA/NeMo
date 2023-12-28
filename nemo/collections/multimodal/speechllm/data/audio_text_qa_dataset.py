@@ -1155,6 +1155,12 @@ def get_concat_tarred_aqa_dataset(
         )
         datasets.append(dataset)
 
+    concat_sampling_probabilities = config.get('concat_sampling_probabilities', None)
+    if not isinstance(concat_sampling_probabilities, ListConfig) or len(concat_sampling_probabilities) != len(
+        datasets
+    ):
+        concat_sampling_probabilities = [1.0 / len(datasets)] * len(datasets)
+
     dataset = ConcatDataset(
         datasets,
         sampling_technique=config.get('concat_sampling_technique', 'temperature'),
