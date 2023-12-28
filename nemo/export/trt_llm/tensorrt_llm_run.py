@@ -199,15 +199,6 @@ def _forward(
 
             task_vocab_size = torch.tensor([task_vocab_size], dtype=torch.int32, device="cuda")
             task_ids = torch.tensor(task_ids, dtype=torch.int32, device="cuda")
-
-            '''
-            if isinstance(line_encoded, list):
-                le_size = len(line_encoded)
-            else:
-                le_size = line_encoded.size(0)
-            tasks = torch.zeros(le_size).cuda()
-            '''
-
             prompt_table = prompt_table.cuda()
             ptuning_args = [prompt_table, task_ids, task_vocab_size]
 
