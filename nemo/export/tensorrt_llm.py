@@ -265,6 +265,12 @@ class TensorRTLLM(ITritonDeployable):
                 "then it should be loaded first to run inference."
             )
 
+        for pt in self.ptuning_tables:
+            if pt["task_name"] == task_name:
+                raise Exception(
+                    "Task name: {0} has already exist.".format(task_name)
+                )
+
         prompt_table = self._get_prompt_embedding_table(
             prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path
         )
