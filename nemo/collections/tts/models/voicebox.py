@@ -412,14 +412,17 @@ class VoiceboxModel(TextToWaveform):
             plot_id = 0
             x1 = dp_inputs["mel"]
             dp_cond, dp_pred = dp_outputs['cond'], dp_outputs['durations']
-            tb_writer.add_image("train_dp/dur",
-                                plot_alignment_to_numpy(tokens[plot_id], dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy()),
-                                self.global_step, dataformats="HWC")
+            # tb_writer.add_image("train_dp/dur",
+            #                     plot_alignment_to_numpy(tokens[plot_id], dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy()),
+            #                     self.global_step, dataformats="HWC")
 
             phns = self.tokenizer.decode(tokens[plot_id].cpu().tolist()).split(' ')
             text = texts[plot_id]
             tb_writer.add_image("train_dp/seg",
                                 plot_segment_to_numpy(phns, dp_cond[plot_id], dp_pred[plot_id], x1[plot_id].T.detach().cpu().numpy(), text),
+                                self.global_step, dataformats="HWC")
+            tb_writer.add_image("train_dp/bar",
+                                plot_duration_barplot_to_numpy(phns, dp_cond[plot_id], dp_pred[plot_id], text),
                                 self.global_step, dataformats="HWC")
             
         return dp_losses, dp_outputs
@@ -606,14 +609,14 @@ def plot_segment_to_numpy(phoneme_ids, durations, predictions, spectrogram, text
     import numpy as np
     phn_lens = durations.nonzero()[-1].item() + 1
     phoneme_ids = phoneme_ids[:phn_lens]
-    durations = durations[:phn_lens].clamp(min=1)
+    durations = durations[:phn_lens].clamp(min=0)
     cum_dur = torch.cumsum(durations, -1).cpu().numpy()
-    predictions = predictions[:phn_lens].clamp(min=1)
+    predictions = predictions[:phn_lens].clamp(min=0)
     cum_pred = torch.cumsum(predictions, -1).cpu().numpy()
 
     # ignore sil prediction
     for i, phn in enumerate(phoneme_ids):
-        if phn == 'sil':
+        if phn in ['sil', 'sil_S']:
             c_dur = cum_dur[i]
             c_pred = cum_pred[i]
             cum_pred[i:] = cum_pred[i:] - c_pred + c_dur
@@ -639,6 +642,48 @@ def plot_segment_to_numpy(phoneme_ids, durations, predictions, spectrogram, text
     else:
         plt.xlabel("Frames (Green target, Red predicted)")
     plt.ylabel("Channels")
+    plt.tight_layout()
+
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+
+@torch.no_grad()
+def plot_duration_barplot_to_numpy(phoneme_ids, durations, predictions, text=None):
+    import numpy as np
+    phn_lens = durations.nonzero()[-1].item() + 1
+    phoneme_ids = phoneme_ids[:phn_lens]
+    durations = durations[:phn_lens].clamp(min=0).cpu().numpy()
+    predictions = predictions[:phn_lens].clamp(min=0).cpu().numpy()
+
+    # fig, ax = plt.subplots(figsize=(12, 3))
+    fig, ax = plt.subplots(figsize=(48, 3))
+
+    # for plots
+    x = np.arange(phn_lens)
+    width = 0.4
+    rects = ax.bar(x - width/2, durations, width, label="target")
+    # ax.bar_label(rects, padding=3)
+    rects = ax.bar(x + width/2, predictions, width, label="predict")
+    # ax.bar_label(rects, padding=3)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(phoneme_ids, rotation = 90)
+    ax.set_xlim(-1, phn_lens)
+    ax.set_ylim(top=30)
+    ax.legend(loc='upper left', ncols=3)
+    ax2 = ax.twiny()
+    ax2.set_xticks(x)
+    ax2.set_xticklabels([f"{d:<2.0f}/{p:<2.0f}" for d, p in zip(durations, predictions)], rotation=90)
+    ax2.set_xlim(-1, phn_lens)
+
+    if text is not None:
+        plt.xlabel(f"# of Phonemes\n{text}")
+    else:
+        plt.xlabel("# of Phonemes")
+    plt.ylabel("# of Frames")
     plt.tight_layout()
 
     fig.canvas.draw()
