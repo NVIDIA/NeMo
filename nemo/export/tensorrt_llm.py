@@ -268,7 +268,7 @@ class TensorRTLLM(ITritonDeployable):
         for pt in self.ptuning_tables:
             if pt["task_name"] == task_name:
                 raise Exception(
-                    "Task name: {0} has already exist.".format(task_name)
+                    "Task name: {0} has already added. Please pass a unique task name.".format(task_name)
                 )
 
         prompt_table = self._get_prompt_embedding_table(
