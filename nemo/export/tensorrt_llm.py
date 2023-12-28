@@ -340,7 +340,7 @@ class TensorRTLLM(ITritonDeployable):
 
     @property
     def get_triton_output(self):
-        outputs = (Tensor(name="outputs", shape=(1,), dtype=bytes),)
+        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
         return outputs
 
     @batch
