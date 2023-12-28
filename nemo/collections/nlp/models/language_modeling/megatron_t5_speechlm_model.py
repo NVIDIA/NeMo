@@ -138,7 +138,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         self.alignment_loss_start_step = 0
         if cfg.get('use_alignment_loss', False):
-            self.frozen_model.enc_dec_model.forward_sum_loss = ForwardSumLoss()
+            alignment_loss_scale = cfg.get('alignment_loss_scale', 1.0)
+            self.frozen_model.enc_dec_model.forward_sum_loss = ForwardSumLoss(loss_scale=alignment_loss_scale)
             self.alignment_loss_start_step = cfg.get('alignment_loss_start_step', 0)
 
         # Parallel output is used only for vocab parallel cross entropy.
