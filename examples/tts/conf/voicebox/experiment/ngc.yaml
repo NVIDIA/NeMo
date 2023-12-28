@@ -23,17 +23,26 @@ model:
     # depth: 12
     heads: 8
 
+  optim:
+    name: adam
+    lr: 1e-4
+
+    sched:
+      name: WarmupAnnealing
+      warmup_steps: 5000
+      max_steps: ${..lr}
+
   train_ds:
-    num_workers: 8
     lhotse:
       batch_duration: 50
 
-  validation_ds:
-    num_workers: 8
+trainer:
+  devices: auto
+  max_epochs: null
+  max_steps: 500000 # audio model steps
   
-  test_ds:
-    num_workers: 8
-
+  gradient_clip_algorithm: norm
+  gradient_clip_val: .2
 
 # task name, determines output directory path
 task_name: "ngc"
