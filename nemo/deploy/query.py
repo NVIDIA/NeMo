@@ -67,11 +67,14 @@ class NemoQuery(NemoQueryBase):
     def query_llm(
             self,
             prompts,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            init_timeout=600.0,
+            max_output_token=None,
+            top_k=None,
+            top_p=None,
+            temperature=None,
+            stop_words_list=None,
+            bad_words_list=None,
+            no_repeat_ngram_size=None,
+            init_timeout=60.0,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -82,23 +85,40 @@ class NemoQuery(NemoQueryBase):
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            stop_words_list (List(str)): list of stop words.
+            bad_words_list (List(str)): list of bad words.
+            no_repeat_ngram_size (int): no repeat ngram size.
             init_timeout (flat): timeout for the connection.
         """
 
         prompts = str_list2numpy(prompts)
-        max_output_token = np.full(prompts.shape, max_output_token, dtype=np.int_)
-        top_k = np.full(prompts.shape, top_k, dtype=np.int_)
-        top_p = np.full(prompts.shape, top_p, dtype=np.single)
-        temperature = np.full(prompts.shape, temperature, dtype=np.single)
+        inputs = {"prompts": prompts}
+
+        if not max_output_token is None:
+            inputs["max_output_token"] = np.full(prompts.shape, max_output_token, dtype=np.int_)
+
+        if not top_k is None:
+            inputs["top_k"] = np.full(prompts.shape, top_k, dtype=np.int_)
+
+        if not top_p is None:
+            inputs["top_p"] = np.full(prompts.shape, top_p, dtype=np.single)
+
+        if not temperature is None:
+            inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
+
+        if not stop_words_list is None:
+            stop_words_list = np.char.encode(stop_words_list, "utf-8")
+            inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
+
+        if not bad_words_list is None:
+            bad_words_list = np.char.encode(bad_words_list, "utf-8")
+            inputs["bad_words_list"] = np.full((prompts.shape[0], len(bad_words_list)), bad_words_list)
+
+        if not no_repeat_ngram_size is None:
+            inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
 
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
-            result_dict = client.infer_batch(
-                prompts=prompts,
-                max_output_token=max_output_token,
-                top_k=top_k,
-                top_p=top_p,
-                temperature=temperature,
-            )
+            result_dict = client.infer_batch(**inputs)
             output_type = client.model_config.outputs[0].dtype
 
         if output_type == np.bytes_:

@@ -193,7 +193,7 @@ class TensorRTLLM(ITritonDeployable):
     def forward(
         self,
         input_texts: List[str],
-        max_output_token: int = 512,
+        max_output_token: int = 64,
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
@@ -330,36 +330,44 @@ class TensorRTLLM(ITritonDeployable):
     @property
     def get_triton_input(self):
         inputs = (
-            Tensor(name="prompts", shape=(1,), dtype=bytes),
-            Tensor(name="max_output_token", shape=(1,), dtype=np.int_),
-            Tensor(name="top_k", shape=(1,), dtype=np.int_),
-            Tensor(name="top_p", shape=(1,), dtype=np.single),
-            Tensor(name="temperature", shape=(1,), dtype=np.single),
+            Tensor(name="prompts", shape=(-1,), dtype=bytes),
+            Tensor(name="max_output_token", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
+            Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
+            Tensor(name="stop_words_list", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="bad_words_list", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="no_repeat_ngram_size", shape=(-1,), dtype=np.single, optional=True),
         )
         return inputs
 
     @property
     def get_triton_output(self):
-        outputs = (Tensor(name="outputs", shape=(1,), dtype=bytes),)
+        outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
         return outputs
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
-            input_texts = str_ndarray2list(inputs.pop("prompts"))
-            max_output_token = inputs.pop("max_output_token")
-            top_k = inputs.pop("top_k")
-            top_p = inputs.pop("top_p")
-            temperature = inputs.pop("temperature")
+            infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
+            if "max_output_token" in inputs:
+                infer_input["max_output_token"] = inputs.pop("max_output_token")[0][0]
+            if "top_k" in inputs:
+                infer_input["top_k"] = inputs.pop("top_k")[0][0]
+            if "top_p" in inputs:
+                infer_input["top_p"] = inputs.pop("top_p")[0][0]
+            if "temperature" in inputs:
+                infer_input["temperature"] = inputs.pop("temperature")[0][0]
+            if "stop_words_list" in inputs:
+                swl = np.char.decode(inputs.pop("stop_words_list").astype("bytes"), encoding="utf-8")
+                infer_input["stop_words_list"] = swl[0]
+            if "bad_words_list" in inputs:
+                swl = np.char.decode(inputs.pop("bad_words_list").astype("bytes"), encoding="utf-8")
+                infer_input["bad_words_list"] = swl[0]
+            if "no_repeat_ngram_size" in inputs:
+                infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
 
-            output_texts = self.forward(
-                input_texts=input_texts,
-                max_output_token=max_output_token[0][0],
-                top_k=top_k[0][0],
-                top_p=top_p[0][0],
-                temperature=temperature[0][0],
-            )
-
+            output_texts = self.forward(**infer_input)
             output = cast_output(output_texts, np.bytes_)
             return {"outputs": output}
         except Exception as error:

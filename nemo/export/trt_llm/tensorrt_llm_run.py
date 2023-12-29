@@ -386,6 +386,7 @@ def generate(
     ]
 
     batch_size = len(input_texts)
+
     stop_words_list_tensors = None
     if stop_words_list is not None:
         stop_words_list_tensors = [
