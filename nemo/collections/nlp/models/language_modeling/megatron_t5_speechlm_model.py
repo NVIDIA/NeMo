@@ -1100,6 +1100,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     average_metrics[key] = []
                 if isinstance(output[key], torch.Tensor):
                     average_metrics[key].append(output[key].item())
+                elif output[key] is None:
+                    continue
                 else:
                     average_metrics[key].append(output[key])
 
@@ -1375,6 +1377,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             hyp_pred_transcript_list = []
             gt_transcript_list = []
             similarity_list = []
+            question_type = []
+            dataset_names = []
 
             # predicting audio
             batch_size = output_tokens_combined.shape[0]
@@ -1448,6 +1452,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         [v[1] for v in input_token_list if v[1] < self.lm_vocab_size]
                     )
                     self.logger.experiment.add_text("Task Question", task_question, step)
+                    if "Phoneme TTS" in task_question:
+                        question_type.append("Phoneme TTS")
+                    elif "Text to speech this" in task_question:
+                        question_type.append("Text to speech this")
+                    else:
+                        question_type.append("Other")
 
                     task_question_phoneme_tokens = [
                         v[1] - self.lm_vocab_size for v in input_token_list if v[1] >= self.lm_vocab_size
@@ -1488,6 +1498,29 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             wer_glob = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=False)
             self.logger.experiment.add_scalar(f'Inf WER Transcript', wer_glob, batch_idx)
 
+            phoneme_task_pred_transcript_list = [ t for t, q in zip(hyp_pred_transcript_list, question_type) if q == "Phoneme TTS"]
+            phoneme_task_gt_transcript_list = [ t for t, q in zip(gt_transcript_list, question_type) if q == "Phoneme TTS"]
+
+            tts_task_pred_transcript_list = [ t for t, q in zip(hyp_pred_transcript_list, question_type) if q == "Text to speech this"]
+            tts_task_gt_transcript_list = [ t for t, q in zip(gt_transcript_list, question_type) if q == "Text to speech this"]
+
+            cer_phoneme = None
+            wer_phoneme = None
+            cer_tts = None
+            wer_tts = None
+            if len(phoneme_task_pred_transcript_list) > 0:
+                cer_phoneme = word_error_rate(phoneme_task_pred_transcript_list, phoneme_task_gt_transcript_list, use_cer=True)
+                wer_phoneme = word_error_rate(phoneme_task_pred_transcript_list, phoneme_task_gt_transcript_list, use_cer=False)
+                self.logger.experiment.add_scalar(f'Inf CER Phoneme Task', cer_phoneme, batch_idx)
+                self.logger.experiment.add_scalar(f'Inf WER Phoneme Task', wer_phoneme, batch_idx)
+            
+            if len(tts_task_pred_transcript_list) > 0:
+                cer_tts = word_error_rate(tts_task_pred_transcript_list, tts_task_gt_transcript_list, use_cer=True)
+                wer_tts = word_error_rate(tts_task_pred_transcript_list, tts_task_gt_transcript_list, use_cer=False)
+                self.logger.experiment.add_scalar(f'Inf CER TTS Task', cer_tts, batch_idx)
+                self.logger.experiment.add_scalar(f'Inf WER TTS Task', wer_tts, batch_idx)
+
+
             # compute average similarity
             similarity_avg = np.mean(similarity_list)
             self.logger.experiment.add_scalar(f'Inf SV Avg Cossim', similarity_avg, batch_idx)
@@ -1495,6 +1528,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 'sv_avg_cossim': similarity_avg,
                 'cer_transcript': cer_glob,
                 'wer_transcript': wer_glob,
+                'cer_phoneme': cer_phoneme,
+                'wer_phoneme': wer_phoneme,
+                'cer_tts': cer_tts,
+                'wer_tts': wer_tts,
             })
 
     def predict_step_old(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
