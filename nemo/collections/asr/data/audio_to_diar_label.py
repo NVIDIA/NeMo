@@ -21,7 +21,7 @@ import torch
 
 from nemo.collections.asr.parts.utils.offline_clustering import get_argmin_mat
 from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line, prepare_split_data
-from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
+from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel, get_uniqname_from_filepath
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType, ProbsType
 
@@ -577,7 +577,7 @@ class _AudioMSDDInferDataset(Dataset):
         if sample.offset is None:
             sample.offset = 0
 
-        uniq_id = os.path.splitext(os.path.basename(sample.audio_file))[0]
+        uniq_id = get_uniqname_from_filepath(sample.audio_file)
         scale_n = len(self.emb_dict.keys())
         _avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)])
 

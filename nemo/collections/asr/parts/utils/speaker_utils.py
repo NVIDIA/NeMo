@@ -30,22 +30,13 @@ from tqdm import tqdm
 from nemo.collections.asr.data.audio_to_label import repeat_signal
 from nemo.collections.asr.parts.utils.longform_clustering import LongFormSpeakerClustering
 from nemo.collections.asr.parts.utils.offline_clustering import SpeakerClustering, get_argmin_mat, split_input_data
+from nemo.collections.common.parts.preprocessing.collections import get_uniqname_from_filepath
 from nemo.utils import logging
 
 """
 This file contains all the utility functions required for speaker embeddings part in diarization scripts
 """
 
-
-def get_uniqname_from_filepath(filepath):
-    """
-    Return base name from provided filepath
-    """
-    if type(filepath) is str:
-        uniq_id = os.path.splitext(os.path.basename(filepath))[0]
-        return uniq_id
-    else:
-        raise TypeError("input must be filepath string")
 
 
 def get_uniq_id_from_manifest_line(line: str) -> str:

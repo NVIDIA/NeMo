@@ -23,6 +23,16 @@ import pandas as pd
 from nemo.collections.common.parts.preprocessing import manifest, parsers
 from nemo.utils import logging
 
+def get_uniqname_from_filepath(filepath):
+    """
+    Return base name from provided filepath
+    """
+    if type(filepath) is str:
+        filename_noext = os.path.splitext(os.path.basename(filepath))[0]
+        uniq_id = urllib.parse.quote(filename_noext)
+        return urllib.uniq_id
+    else:
+        raise TypeError("input must be filepath string")
 
 class _Collection(collections.UserList):
     """List of parsed and preprocessed data."""
@@ -923,7 +933,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
             )
         item['audio_file'] = os.path.expanduser(item['audio_file'])
-        item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
+        item['uniq_id'] = get_uniqname_from_filepath(item['audio_file'])
         if 'duration' not in item:
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
         item = dict(

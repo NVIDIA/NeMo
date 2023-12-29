@@ -32,6 +32,7 @@ from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
+from nemo.collections.common.parts.preprocessing.collections import get_uniqname_from_filepath
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
@@ -1214,7 +1215,7 @@ class NeuralDiarizer(LightningModule):
                 Length of the sequence determined by `self.diar_window_length` variable.
         """
         emb_vectors_split = torch.zeros_like(emb_vectors)
-        uniq_id = os.path.splitext(os.path.basename(test_data_collection.audio_file))[0]
+        uniq_id = get_uniqname_from_filepath(test_data_collection.audio_file)
         clus_label_tensor = torch.tensor([x[-1] for x in self.msdd_model.clus_test_label_dict[uniq_id]])
         for spk_idx in range(len(test_data_collection.target_spks)):
             stt, end = (
