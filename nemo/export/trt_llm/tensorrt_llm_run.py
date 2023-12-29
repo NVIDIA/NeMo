@@ -382,7 +382,7 @@ def generate(
     """
     tokenizer = host_context.tokenizer
     input_tensors = [
-        torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
+        torch.IntTensor(tokenizer.encode(t)) for t in input_texts
     ]
 
     batch_size = len(input_texts)
@@ -390,7 +390,7 @@ def generate(
     stop_words_list_tensors = None
     if stop_words_list is not None:
         stop_words_list_tensors = [
-            tokenizer.encode(t, add_special_tokens=False) for t in stop_words_list
+            tokenizer.encode(t) for t in stop_words_list
         ]
         stop_words_list_tensors = torch.IntTensor(stop_words_list_tensors)
         stop_words_list_tensors = stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
@@ -399,7 +399,7 @@ def generate(
     bad_words_list_tensors = None
     if bad_words_list is not None:
         bad_words_list_tensors = [
-            tokenizer.encode(t, add_special_tokens=False) for t in bad_words_list
+            tokenizer.encode(t) for t in bad_words_list
         ]
         bad_words_list_tensors = torch.IntTensor(bad_words_list_tensors)
         bad_words_list_tensors = bad_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
@@ -429,7 +429,7 @@ def generate(
 
     input_lengths = [t.shape[0] for t in input_tensors]
     output_lines_list = [
-        tokenizer.batch_decode(output_tensor[b, :, input_lengths[b] :], skip_special_tokens=True)
+        tokenizer.batch_decode(output_tensor[b, :, input_lengths[b] :])
         for b in range(output_tensor.shape[0])
     ]
     return output_lines_list
