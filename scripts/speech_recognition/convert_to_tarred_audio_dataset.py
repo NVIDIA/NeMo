@@ -601,7 +601,6 @@ class ASRTarredDatasetBuilder:
             ti.size = len(encoded_audio.getvalue())
             tar.addfile(ti, encoded_audio)
 
-
     def _create_shard(self, entries, target_dir, shard_id, manifest_folder):
         """Creates a tarball containing the audio files from `entries`.
         """
