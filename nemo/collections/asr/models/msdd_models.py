@@ -32,7 +32,6 @@ from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
-from nemo.collections.common.parts.preprocessing.collections import get_uniqname_from_filepath
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
@@ -58,6 +57,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     parse_scale_configs,
     rttm_to_labels,
 )
+from nemo.collections.common.parts.preprocessing.collections import get_uniqname_from_filepath
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType

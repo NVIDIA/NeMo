@@ -23,6 +23,7 @@ import pandas as pd
 from nemo.collections.common.parts.preprocessing import manifest, parsers
 from nemo.utils import logging
 
+
 def get_uniqname_from_filepath(filepath):
     """
     Return base name from provided filepath
@@ -33,6 +34,7 @@ def get_uniqname_from_filepath(filepath):
         return urllib.uniq_id
     else:
         raise TypeError("input must be filepath string")
+
 
 class _Collection(collections.UserList):
     """List of parsed and preprocessed data."""

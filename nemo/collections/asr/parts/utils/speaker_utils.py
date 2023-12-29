@@ -38,7 +38,6 @@ This file contains all the utility functions required for speaker embeddings par
 """
 
 
-
 def get_uniq_id_from_manifest_line(line: str) -> str:
     """
     Retrieve `uniq_id` from the `audio_filepath` in a manifest line.
