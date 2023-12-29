@@ -542,9 +542,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             return_beam_scores=False,
-            decoder_input_ids=input_ids[:, :num_context_tokens_for_decoding]
-            if num_context_tokens_for_decoding > 0
-            else None,
+            decoder_input_ids=input_ids[:, :num_context_tokens_for_decoding] if num_context_tokens_for_decoding > 0 else None,
         )
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
 
