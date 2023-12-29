@@ -360,7 +360,10 @@ class TensorRTLLM(ITritonDeployable):
                 infer_input["temperature"] = inputs.pop("temperature")[0][0]
             if "stop_words_list" in inputs:
                 swl = np.char.decode(inputs.pop("stop_words_list").astype("bytes"), encoding="utf-8")
-                infer_input["stop_words_list"] = swl[0][0]
+                infer_input["stop_words_list"] = swl[0]
+            if "bad_words_list" in inputs:
+                swl = np.char.decode(inputs.pop("bad_words_list").astype("bytes"), encoding="utf-8")
+                infer_input["bad_words_list"] = swl[0]
             if "no_repeat_ngram_size" in inputs:
                 infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
 

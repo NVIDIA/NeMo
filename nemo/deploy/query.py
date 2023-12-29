@@ -110,6 +110,10 @@ class NemoQuery(NemoQueryBase):
             stop_words_list = np.char.encode(stop_words_list, "utf-8")
             inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
 
+        if not bad_words_list is None:
+            bad_words_list = np.char.encode(bad_words_list, "utf-8")
+            inputs["bad_words_list"] = np.full((prompts.shape[0], len(bad_words_list)), bad_words_list)
+
         if not no_repeat_ngram_size is None:
             inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
 
