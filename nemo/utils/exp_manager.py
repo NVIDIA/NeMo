@@ -601,11 +601,12 @@ def check_resume(
 
     trainer._checkpoint_connector.resume_from_checkpoint_fit_path = str(checkpoint)
 
+    trainer.strategy.barrier()
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
         files_to_move = []
         for child in Path(log_dir).iterdir():
-            if child.is_file():
+            if child.is_file() and not child.name.startswith("events.out.tfevents"):
                 files_to_move.append(child)
 
         if len(files_to_move) > 0:
