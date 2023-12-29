@@ -71,7 +71,10 @@ class NemoQuery(NemoQueryBase):
             top_k=None,
             top_p=None,
             temperature=None,
-            init_timeout=600.0,
+            stop_words_list=None,
+            bad_words_list=None,
+            no_repeat_ngram_size=None,
+            init_timeout=60.0,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -82,12 +85,14 @@ class NemoQuery(NemoQueryBase):
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            stop_words_list (List(str)): list of stop words.
+            bad_words_list (List(str)): list of bad words.
+            no_repeat_ngram_size (int): no repeat ngram size.
             init_timeout (flat): timeout for the connection.
         """
 
-        inputs = {}
         prompts = str_list2numpy(prompts)
-        inputs["prompts"] = prompts
+        inputs = {"prompts": prompts}
 
         if not max_output_token is None:
             inputs["max_output_token"] = np.full(prompts.shape, max_output_token, dtype=np.int_)
@@ -100,6 +105,13 @@ class NemoQuery(NemoQueryBase):
 
         if not temperature is None:
             inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
+
+        if not stop_words_list is None:
+            stop_words_list = np.char.encode(stop_words_list, "utf-8")
+            inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
+
+        if not no_repeat_ngram_size is None:
+            inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
 
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
