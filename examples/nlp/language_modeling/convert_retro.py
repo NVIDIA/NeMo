@@ -4,7 +4,7 @@ import pathlib
 import sys
 from collections import OrderedDict
 import yaml
-
+import argparse
 import torch
 
 enum_code = '''
@@ -136,23 +136,55 @@ def set_weights(P, lm_checkpoint, new_checkpoint):
 
 
 if __name__ == "__main__":
-    # result_path = '/raid/users/aficek/gpt/gpt3-2b-pretraining-retro-fitting/converted'
-    # lm_ckpt_path = '/raid/users/aficek/gpt/gpt3-2b-pretraining-retro-fitting/iter_0097656'
-    # result_path = '/home/aficek/software/playground/retro_v2_800m_dir_2/'
-    # result_path = '/gpt/megatron_retro_converted_9B/'
-    # lm_ckpt_path = '/raid/users/aficek/gpt/retro_v2/gpt3-800m-pretraining-retro-fitting/iter_0195312'
-    # lm_ckpt_path = '/gpt/megatron_lm_9B_retro_checkpoint/'
-    # 800m retro
-    lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/iter_0195312'
-    result_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/converted/'
-    # 2b retro 
-    # lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-2b-pretraining-retro-fitting/iter_0097656'
-    # result_path = '/home/aficek/software/playground/retro_convert/gpt3-2b-pretraining-retro-fitting/converted/'
+
+    parser = argparse.ArgumentParser(description='Script to process models.')
+    parser.add_argument('--model', type=str, required=False, default="", help='Type of model')
+    parser.add_argument('--model_input_path', type=str, required=False, default="", help='Model input path')
+    parser.add_argument('--model_output_path', type=str, required=False, default="", help='Model output path')
+    args = parser.parse_args()
+
+    if args.model == "800m":
+        # 800m retro
+        lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/iter_0195312'
+        result_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/converted/'
+        P = [8, 11, 14, 17, 20, 23]
+    elif args.model == "2b":
+        # 2b retro 
+        lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-2b-pretraining-retro-fitting/iter_0097656'
+        result_path = '/home/aficek/software/playground/retro_convert/gpt3-2b-pretraining-retro-fitting/converted/'
+        P = [8, 11, 14, 17, 20, 23]
+    elif args.model == "8b":
+        # 8b retro
+        lm_ckpt_path = '/raid/aficek/retro_paper/models/gpt3-8b-pretraining-retro-fitting-noseqpar/iter_0097656'
+        result_path = '/raid/aficek/retro_paper/models/gpt3-8b-pretraining-retro-fitting-noseqpar/converted/'
+        P = [8, 11, 14, 17, 20, 23]
+    elif args.model == "22b":
+        # 22b retro
+        lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-22b-pretraining-retro-fitting-noseqpar/iter_0097656'
+        result_path = '/home/aficek/software/playground/retro_convert/gpt3-22b-pretraining-retro-fitting-noseqpar/converted/'
+        P = [8, 11, 14, 17, 20, 23]
+    elif args.model == "43b":
+        # 43b retro        
+        lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-'
+        result_path = '/home/aficek/software/playground/retro_convert/gpt3-'
+        P = [8, 11, 14, 17, 20, 23]
+    else:
+        print("Model type not selected, used some other result_path and lm_ckpt_path")
+        # result_path = '/raid/users/aficek/gpt/gpt3-2b-pretraining-retro-fitting/converted'
+        # lm_ckpt_path = '/raid/users/aficek/gpt/gpt3-2b-pretraining-retro-fitting/iter_0097656'
+        # result_path = '/home/aficek/software/playground/retro_v2_800m_dir_2/'
+        # result_path = '/gpt/megatron_retro_converted_9B/'
+        # lm_ckpt_path = '/raid/users/aficek/gpt/retro_v2/gpt3-800m-pretraining-retro-fitting/iter_0195312'
+        # lm_ckpt_path = '/gpt/megatron_lm_9B_retro_checkpoint/'
+
+    if args.model_input_path != "" and args.model_output_path != "":
+        lm_ckpt_path = args.model_input_path
+        result_path = args.model_output_path
+
     all_files = pathlib.Path(lm_ckpt_path).glob('**/model_optim_rng.pt')
     for lm_ckpt in all_files:
         subdir = pathlib.Path(lm_ckpt).parts[-2]
         # P = [8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 39]
-        P = [8, 11, 14, 17, 20, 23]
 
         # install_megatron_dependence()
         old_checkpoint = torch.load(lm_ckpt, 'cuda:3')

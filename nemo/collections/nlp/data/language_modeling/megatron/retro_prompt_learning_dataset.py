@@ -72,7 +72,8 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         max_num_samples: int = None,
         megatron_lm_compatible: bool = False,
         retrieved_doc_len: int = 128,
-        chunk_size: int = 64
+        chunk_size: int = 64,
+        add_top_1: bool = True
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
@@ -91,6 +92,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         self.megatron_lm_compatible = megatron_lm_compatible
         self.retrieved_doc_len = retrieved_doc_len
         self.chunk_size = chunk_size
+        self.add_top_1 = add_top_1
         # self.examples = []
 
         if not self.for_train:
@@ -283,11 +285,17 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         assert self.neighbors <= len(
             contexts
         ), f"specify {self.neighbors}, but only provide {len(contexts)} neighbors in the dataset"
+
         for i, neighbor in enumerate(contexts[: self.neighbors]):
             tokens = self.tokenizer.text_to_ids(neighbor)
-            
-            if i == 0: # prepend top 1 
-                input_ids = tokens + input_ids
+            if self.add_top_1 == True:
+                if i == 0: # prepend top 1 
+                    input_ids = tokens + input_ids
+                else:
+                    tokens = tokens[:self.retrieved_doc_len]
+                    if len(tokens) < self.retrieved_doc_len:
+                        tokens = tokens + [self.pad_token_id] * (self.retrieved_doc_len - len(tokens))
+                    chunks.append(tokens)
             else:
                 tokens = tokens[:self.retrieved_doc_len]
                 if len(tokens) < self.retrieved_doc_len:
@@ -331,6 +339,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         input_ids = [self.pad_token_id] * padding_length + input_ids
         answer_start_idx += padding_length
 
+        # padding_strategy 4: do not pad input
 
         # Try to truncate input text to fit into the max sequence length
         if len(input_ids) > self.max_seq_length:
@@ -344,15 +353,13 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
                 virtual_token_splits,
             )
 
-       
-
-        
-
         # answer_start_idx = len(tokenized_input)
         # input_ids = tokenized_input + target
         # assert len(input_ids) <= 128, "cannot handle more than two chunks yet"
-
-        chunks = np.array(chunks).reshape(1, self.neighbors-1, -1).astype(np.int64)  # self.neighbors-1 because we prepend top1 before context
+        if self.add_top_1:
+            chunks = np.array(chunks).reshape(1, self.neighbors-1, -1).astype(np.int64)  # self.neighbors-1 because we prepend top1 before context
+        else:
+            chunks = np.array(chunks).reshape(1, self.neighbors, -1).astype(np.int64)
         repeat = max(1, (len(input_ids)-1 - 64) // 64 +1) # -1 because encoder shift one
         repeated_chunks = np.repeat(chunks, repeat, axis=0)
 

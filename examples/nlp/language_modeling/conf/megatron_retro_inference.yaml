@@ -40,9 +40,10 @@ retrieval_service:
   neighbors: 2
   retrieved_doc_len: 150
   frequent_query: False  # for the current token generation, frequently update the retrieval context. If false, update it every 64 tokens 
-  pad_tokens: True # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
+  pad_tokens: False # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
   store_retrieved: False # whether store the retrieved documents, so it can be checked
-  peft: True
+  peft: False
+  add_top_1: False
   combo_service:
     service_ip: '0.0.0.0'
     service_port: 17181 

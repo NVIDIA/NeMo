@@ -138,8 +138,9 @@ def main(cfg) -> None:
         drop_last=False,
         shuffle=False,
         num_workers=cfg.get("num_workers", 1),
-        num_neighbors=int(cfg.retrieval_service.neighbors)+1,
-        retrieved_doc_len=cfg.retrieval_service.retrieved_doc_len
+        num_neighbors=int(cfg.retrieval_service.neighbors),
+        retrieved_doc_len=cfg.retrieval_service.retrieved_doc_len,
+        add_top_1=cfg.retrieval_service.get("add_top_1", True)
     )
 
 
@@ -177,12 +178,7 @@ def main(cfg) -> None:
     print("Calculating Rouge")
 
     rouge_scores = calculate_rouge(output_lns=output_lns, reference_lns=reference_lns)
-    f1_scores = f1_score(output_lns, reference_lns)
-    em_scores = exact_match_score(output_lns, reference_lns)
-
     print("rouge: ", rouge_scores)
-    print("f1 scores: ", f1_scores)
-    print("em_scores: ", em_scores)
 
 if __name__ == '__main__':
     main()
