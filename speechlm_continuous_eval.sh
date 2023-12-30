@@ -5,22 +5,25 @@ EXP_DIRS=(
     "/lustre/fsw/swdl/swdl-langspeech/pneekhara/gitrepos/experiments/ctc_experiments"
     "/lustre/fsw/swdl/swdl-langspeech/pneekhara/gitrepos/experiments/ctc_experiments"
     "/lustre/fsw/swdl/swdl-langspeech/pneekhara/gitrepos/experiments/CodeCompare"
+    "/lustre/fsw/swdl/swdl-langspeech/pneekhara/gitrepos/experiments/CodeCompare"
 )
 
 EXP_NAMES=(
-    "oldcode_dac_speakerid"
     "oldcode_dac_speakerid_op"
+    "oldcode_dac_speakerid"
     "oldcode_encodec_speakerid"
     "oldcode_encodec_speakerid_noctc"
     "oldcode_ctc_0.05_parallel"
+    "correct_ctc_dac_speakerid_newcode_step0_scale0.1"
 )
 # TEST_DS="/datap/misc/speechllm_codecdatasets/manifests/speaker_id_manifests/LRH_OnlyHifi_dac_test_speakerid.json"
 TEST_DSS=(
-    "/datap/misc/speechllm_codecdatasets/manifests/speaker_id_manifests/LRH_dac_test_speakerid.json"
     "/datap/misc/speechllm_codecdatasets/manifests/speaker_id_manifests/LRH_dac_test_speakerid_op.json"
+    "/datap/misc/speechllm_codecdatasets/manifests/speaker_id_manifests/LRH_dac_test_speakerid.json"
     "/datap/misc/speechllm_codecdatasets/manifests/speaker_id_manifests/LRH_encodec_test_speakerid.json"
     "/datap/misc/speechllm_codecdatasets/manifests/speaker_id_manifests/LRH_encodec_test_speakerid.json"
     "/datap/misc/speechllm_codecdatasets/manifests/LRH_encodec_test.json"
+    "/datap/misc/speechllm_codecdatasets/manifests/speaker_id_manifests/LRH_dac_test_speakerid.json"
 )
 
 CODEC_MODEL_TYPES=(
@@ -29,6 +32,7 @@ CODEC_MODEL_TYPES=(
     "encodec"
     "encodec"
     "encodec"
+    "dac"
 )
 
 # Repeat whole thing 10 times
