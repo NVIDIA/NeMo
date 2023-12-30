@@ -272,7 +272,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             elif "Remove Noise" in question_in_manifest:
                 approx_context_len = doc["answer_duration"] * (self.codebook_fps + 1)
             elif "Extract Speaker Audio" in question_in_manifest:
-                approx_context_len = doc["answer_duration"] * (self.codebook_fps + 1) + 400  # 400 is the max ref speaker audio
+                approx_context_len = (
+                    doc["answer_duration"] * (self.codebook_fps + 1) + 400
+                )  # 400 is the max ref speaker audio
             elif ("Text to speech this" in question_in_manifest) or ('Phoneme TTS' in question_in_manifest):
                 approx_context_len = 400  # Max length of Ref TTS audio
             elif "Edit Speech" in question_in_manifest:
@@ -392,13 +394,21 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         question_tokens, question_tokens_len = self.list_to_tensor(question_tokens)
 
         if doc["question_type"] == "TEXT" and doc["context_type"] != "TEXT":
-            question_tokens = pad_text_to_speech_dims(question_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
+            question_tokens = pad_text_to_speech_dims(
+                question_tokens, self.tokenizer.pad_id, self.num_speech_codebooks - 1
+            )
         if doc["context_type"] == "TEXT" and doc["question_type"] != "TEXT":
-            context_tokens = pad_text_to_speech_dims(context_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
+            context_tokens = pad_text_to_speech_dims(
+                context_tokens, self.tokenizer.pad_id, self.num_speech_codebooks - 1
+            )
         if doc["context_type"] == "TEXT" and doc["question_type"] == "TEXT":
             # When context is text for speaker id conditioning.
-            context_tokens = pad_text_to_speech_dims(context_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
-            question_tokens = pad_text_to_speech_dims(question_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
+            context_tokens = pad_text_to_speech_dims(
+                context_tokens, self.tokenizer.pad_id, self.num_speech_codebooks - 1
+            )
+            question_tokens = pad_text_to_speech_dims(
+                question_tokens, self.tokenizer.pad_id, self.num_speech_codebooks - 1
+            )
 
         context_and_question_tokens = torch.cat([context_tokens, question_tokens], dim=1)
 
@@ -542,7 +552,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             for e in element:
                 if isinstance(e, int):
                     tmp = torch.full((self.num_speech_codebooks, 1), e if fill else -1)
-                    tmp[self.num_speech_codebooks-1] = e
+                    tmp[self.num_speech_codebooks - 1] = e
                     if self.add_special_tokens_to_only_first_codebook:
                         # Fill zeros in all other codebooks (to avoid out of range when getting embeddings)
                         tmp[1:] = 0
@@ -723,13 +733,16 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             reference_codec_len = rng.randint(_min_len, _max_len)
             reference_codec_len = min(reference_codec_len, field_tokens.shape[1])
             si = rng.randint(0, field_tokens.shape[1] - reference_codec_len)
-            field_tokens = field_tokens[:, si:si+reference_codec_len]
+            field_tokens = field_tokens[:, si : si + reference_codec_len]
             if self.context_pattern == "delay_parallel":
-                field_tokens = torch.cat([
-                    torch.zeros(self.num_speech_codebooks, self.num_speech_codebooks).long(), 
-                    field_tokens,
-                    torch.zeros(self.num_speech_codebooks, self.num_speech_codebooks).long()
-                ], dim=1)
+                field_tokens = torch.cat(
+                    [
+                        torch.zeros(self.num_speech_codebooks, self.num_speech_codebooks).long(),
+                        field_tokens,
+                        torch.zeros(self.num_speech_codebooks, self.num_speech_codebooks).long(),
+                    ],
+                    dim=1,
+                )
                 new_field_tokens = []
                 for _c in range(self.num_speech_codebooks):
                     st = self.num_speech_codebooks - _c
@@ -958,7 +971,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 )
                 cross_attention_prior_list.append(cross_attention_prior_padded)
                 _start_of_text_id = virtual_token_len + context_token_len + 4
-                _end_of_text_id = _start_of_text_id + (context_and_question_token_len - context_token_len - 2 - 4) # -2 for some end tokens
+                _end_of_text_id = _start_of_text_id + (
+                    context_and_question_token_len - context_token_len - 2 - 4
+                )  # -2 for some end tokens
                 text_limits.append(torch.tensor([_start_of_text_id.item(), _end_of_text_id.item()]))
 
         data_dict = {
