@@ -210,6 +210,7 @@ class Aggregator(nn.Module):
         self, encoded: List[torch.Tensor], encoded_len: List[torch.Tensor], ref_idx: Optional[int] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         if not self._have_same_length(encoded_len):
+            target_len = None
             if ref_idx is not None:
                 target_len = encoded[ref_idx].size(self.channel_dim)
             if self.channel_dim != 1:
@@ -242,7 +243,7 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
         self.encoder = encoder
         self.layer_idx_list = [int(l) for l in cfg.layer_idx_list]
         for x in self.layer_idx_list:
-            if x < 0 or x >= len(encoder.layers):
+            if x < -1 or x >= len(encoder.layers):
                 raise ValueError(f"layer index {x} out of range [0, {len(encoder.layers)})")
         access_cfg = {
             "interctc": {"capture_layers": self.layer_idx_list,},
@@ -268,17 +269,21 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
         encoded_list = []
         encoded_len_list = []
         for layer_idx in self.layer_idx_list:
-            try:
-                layer_outputs = total_registry[f"interctc/layer_output_{layer_idx}"]
-                layer_lengths = total_registry[f"interctc/layer_length_{layer_idx}"]
-            except KeyError:
-                raise RuntimeError(
-                    f"Intermediate layer {layer_idx} was not captured! Check the layer index and the number of ConformerEncoder layers."
-                )
-            if len(layer_outputs) > 1 or len(layer_lengths) > 1:
-                raise RuntimeError("Make sure encoder.forward is called exactly one time")
-            encoded_list.append(layer_outputs[0])  # [B, D, T]
-            encoded_len_list.append(layer_lengths[0])  # [B]
+            if layer_idx == -1:
+                encoded_list.append(kwargs['audio_signal'])
+                encoded_len_list.append(kwargs['length'])
+            else:
+                try:
+                    layer_outputs = total_registry[f"interctc/layer_output_{layer_idx}"]
+                    layer_lengths = total_registry[f"interctc/layer_length_{layer_idx}"]
+                except KeyError:
+                    raise RuntimeError(
+                        f"Intermediate layer {layer_idx} was not captured! Check the layer index and the number of ConformerEncoder layers."
+                    )
+                if len(layer_outputs) > 1 or len(layer_lengths) > 1:
+                    raise RuntimeError("Make sure encoder.forward is called exactly one time")
+                encoded_list.append(layer_outputs[0])  # [B, D, T]
+                encoded_len_list.append(layer_lengths[0])  # [B]
 
         self.encoder.reset_registry()
         self.set_access_enabled(access_enabled=old_access_flag)
@@ -504,9 +509,14 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
             self.encoder = ConformerMultiLayerFeatureExtractor(cfg=cfg.multi_layer_feat, encoder=self.encoder)
             if cfg.multi_layer_feat.aggregator.mode == "cat":
                 with open_dict(cfg.modality_adapter):
-                    cfg.modality_adapter.feat_in = cfg.modality_adapter.feat_in * len(
-                        cfg.multi_layer_feat.layer_idx_list
-                    )
+                    if -1 in cfg.multi_layer_feat.layer_idx_list:
+                        cfg.modality_adapter.feat_in = (
+                            cfg.modality_adapter.feat_in * (len(cfg.multi_layer_feat.layer_idx_list) - 1) + 80
+                        )
+                    else:
+                        cfg.modality_adapter.feat_in = cfg.modality_adapter.feat_in * len(
+                            cfg.multi_layer_feat.layer_idx_list
+                        )
         else:
             self.encoder = self.encoder
         self.spec_augmentation = self.asr_model.spec_augmentation
