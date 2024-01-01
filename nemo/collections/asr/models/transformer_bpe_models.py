@@ -35,6 +35,7 @@ from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -215,8 +216,17 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         assert isinstance(paths2audio_files, str), "Canary doesn't support list of paths at the moment"
         assert os.path.exists(paths2audio_files), f"File {paths2audio_files} doesn't exist"
         assert paths2audio_files.endswith('.json') or paths2audio_files.endswith('.jsonl'), f"File {paths2audio_files} must be a json or jsonl file"
+        assert batch_size == 1, "Canary doesn't support batch_size > 1 for inference at the moment"
+        
+        def _may_be_fix_paths(json_items):
+            for item in json_items:
+                item['audio_filepath'] = get_full_path(item['audio_filepath'], manifest_file=manifest_path)
+            return json_items
+        
         # load json lines
+        manifest_path = paths2audio_files       # need this as we are overwriting paths2audio_files in nextline
         paths2audio_files = manifest_utils.read_manifest(paths2audio_files)
+        paths2audio_files = _may_be_fix_paths(paths2audio_files)
 
         if return_hypotheses and logprobs:
             raise ValueError(
@@ -247,9 +257,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
                     for audio_file in paths2audio_files:
-                        if isinstance(audio_file, dict):
+                        if isinstance(audio_file, dict):        # assume we provided manifest
                             entry = audio_file
-                        elif isinstance(audio_file, str):
+                        elif isinstance(audio_file, str):       # if not manifest
                             entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                         fp.write(json.dumps(entry) + '\n')
 
@@ -693,6 +703,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             'lhotse' : {
                 'use_bucketing': False,
                 'max_cuts' : batch_size,
+                'drop_last' : False,
                 'text_field' : 'answer',
                 'lang_field' : 'target_lang',
             },
