@@ -31,6 +31,7 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
@@ -158,6 +159,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             len_pen=self.cfg.beam_search.len_pen,
             max_delta_length=self.cfg.beam_search.max_generation_delta,
         )
+        # TO DO: remove this hardcoded context size for AR decoding
+        self.context_len_for_AR_decoding = 5
 
         # Define autoregressive CE loss
         self.transf_loss = SmoothedCrossEntropyLoss(
@@ -185,7 +188,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     @torch.no_grad()
     def transcribe(
         self,
-        paths2audio_files: List[str],
+        paths2audio_files: Union[List[str], str],
         batch_size: int = 4,
         logprobs: bool = False,
         return_hypotheses: bool = False,
@@ -206,6 +209,14 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
+        
+        assert return_hypotheses is False, "return_hypotheses is not supported at the moment"
+        
+        assert isinstance(paths2audio_files, str), "Canary doesn't support list of paths at the moment"
+        assert os.path.exists(paths2audio_files), f"File {paths2audio_files} doesn't exist"
+        assert paths2audio_files.endswith('.json') or paths2audio_files.endswith('.jsonl'), f"File {paths2audio_files} must be a json or jsonl file"
+        # load json lines
+        paths2audio_files = manifest_utils.read_manifest(paths2audio_files)
 
         if return_hypotheses and logprobs:
             raise ValueError(
@@ -236,7 +247,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
                     for audio_file in paths2audio_files:
-                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
+                        if isinstance(audio_file, dict):
+                            entry = audio_file
+                        elif isinstance(audio_file, str):
+                            entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                         fp.write(json.dumps(entry) + '\n')
 
                 config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
@@ -249,13 +263,16 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
                     beam_hypotheses = (
                         self.beam_search(
-                            encoder_hidden_states=enc_states, encoder_input_mask=enc_mask, return_beam_scores=False
+                            encoder_hidden_states=enc_states,
+                            encoder_input_mask=enc_mask,
+                            return_beam_scores=False,
+                            decoder_input_ids=test_batch[2][:, :self.context_len_for_AR_decoding].to(device) if self.context_len_for_AR_decoding > 0 else None,
                         )
                         .detach()
                         .cpu()
                         .numpy()
                     )
-                    beam_hypotheses = [self.tokenizer.ids_to_text(hyp) for hyp in beam_hypotheses]
+                    beam_hypotheses = [self._strip_special_tokens(self.tokenizer.ids_to_text(hyp)) for hyp in beam_hypotheses]
 
                     if return_hypotheses:
                         # dump log probs per file
@@ -537,12 +554,11 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 transcript_length=transcript_len,
             )
 
-        num_context_tokens_for_decoding = 5
         beam_hypotheses = self.beam_search(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             return_beam_scores=False,
-            decoder_input_ids=input_ids[:, :num_context_tokens_for_decoding] if num_context_tokens_for_decoding > 0 else None,
+            decoder_input_ids=input_ids[:, :self.context_len_for_AR_decoding] if self.context_len_for_AR_decoding > 0 else None,
         )
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
 
@@ -665,6 +681,25 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             'num_workers': min(batch_size, os.cpu_count() - 1),
             'pin_memory': True,
         }
+
+        # TODO: remove this lhotse hardcoding later (@kpuvvada)
+        # currently only works for non-tarred
+        lhotse_config = {
+            'is_tarred': False,
+            'batch_size' : 1,
+            'force_strip_pnc': False,
+            'token_sequence_format' : "canary",
+            'use_lhotse' : True,
+            'lhotse' : {
+                'use_bucketing': False,
+                'max_cuts' : batch_size,
+                'text_field' : 'answer',
+                'lang_field' : 'target_lang',
+            },
+        }
+
+        # update dl_config
+        dl_config.update(lhotse_config)
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
