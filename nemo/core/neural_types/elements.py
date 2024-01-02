@@ -140,6 +140,7 @@ class VoidType(ElementType):
         """Dummy init for TorchScript compatibility"""
         if not torch.jit.is_scripting():
             # torch.jit does not support super() call
+            # see details: https://github.com/pytorch/pytorch/issues/42885
             super().__init__()
 
     def compare(cls, second) -> NeuralTypeComparisonResult:
