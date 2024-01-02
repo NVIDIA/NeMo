@@ -48,6 +48,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
+from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy, plot_encodec_to_numpy
 from nemo.utils import AppState, logging
 
@@ -111,7 +112,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         num_speech_codebooks = cfg.data.get('num_speech_codebooks', 8)
         speech_offset = cfg.data.get('speech_offset', 30000)
         speech_head_type = cfg.get('speech_head_type', 'token_level')  # token_level, linear
-        codecmodel_type = cfg.get('codecmodel_type', 'encodec')  # encodec, dac
+        codecmodel_type = cfg.get('codecmodel_type', 'encodec')  # encodec, dac, nemo_codec
 
         attn_prior_scaledown_start_step = cfg.get('attn_prior_scaledown_start_step', 10000)
         attn_prior_end_step = cfg.get('attn_prior_end_step', 11000)
@@ -200,6 +201,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             codec_model.cuda()
             codec_model.eval()
             self.sample_rate = 24000
+        elif codecmodel_type == 'nemo_codec':
+            codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'))
+            codec_model.to('cuda')
+            codec_model.eval()
+            self.sample_rate = 22050
         else:
             raise NotImplementedError()
 
@@ -212,6 +218,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             wav = codec_model.decoder(_z)[0][0]
         elif self.codecmodel_type == 'encodec':
             wav = codec_model.decode([[codes.unsqueeze(0), None]])[0, 0]
+        elif self.codecmodel_type == 'nemo_codec':
+            codec_len = torch.Tensor([codes.shape[1]]).long().cuda()
+            wav, _ = codec_model.decode(tokens=codes.unsqueeze(0), tokens_len=codec_len)
+            wav = wav[0]
         else:
             raise NotImplementedError()
         return wav
