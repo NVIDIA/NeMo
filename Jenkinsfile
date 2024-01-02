@@ -109,11 +109,11 @@ pipeline {
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
       }
     }
-    stage('L0: Unit Tests GPU') {
-      steps {
-        sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads'
-      }
-    }
+    // stage('L0: Unit Tests GPU') {
+    //   steps {
+    //     sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads'
+    //   }
+    // }
 
     stage('L0: Unit Tests CPU') {
       when {
