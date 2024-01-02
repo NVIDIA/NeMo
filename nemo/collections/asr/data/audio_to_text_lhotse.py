@@ -46,7 +46,9 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts) -> Tuple[torch.Tensor, ...]:
         from lhotse.dataset.collation import collate_vectors
 
-        cuts = cuts.sort_by_duration()
+        # commenting this, as we need to maintain the order of cuts in the batch during infernce.
+        # and sorting is not needed for training.
+        # cuts = cuts.sort_by_duration()
         cuts = self.maybe_mix_noise(cuts)
         audio, audio_lens, cuts = self.load_audio(cuts)
 
