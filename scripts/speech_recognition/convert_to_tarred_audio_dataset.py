@@ -185,7 +185,7 @@ parser.add_argument(
 parser.add_argument(
     "--force_codec",
     type=str,
-    default="opus",
+    default=None,
     help=(
         "If specified, transcode the audio to the given format. "
         "Supports libnsndfile formats (example values: 'opus', 'flac')."
