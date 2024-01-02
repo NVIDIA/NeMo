@@ -33,8 +33,9 @@ model:
       max_steps: ${..lr}
 
   train_ds:
+    max_duration: 16
     lhotse:
-      batch_duration: 50
+      batch_duration: 48
 
 trainer:
   devices: auto
