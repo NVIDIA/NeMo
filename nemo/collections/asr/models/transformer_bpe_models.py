@@ -210,20 +210,22 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
-        
+
         assert return_hypotheses is False, "return_hypotheses is not supported at the moment"
-        
+
         assert isinstance(paths2audio_files, str), "Canary doesn't support list of paths at the moment"
         assert os.path.exists(paths2audio_files), f"File {paths2audio_files} doesn't exist"
-        assert paths2audio_files.endswith('.json') or paths2audio_files.endswith('.jsonl'), f"File {paths2audio_files} must be a json or jsonl file"
-        
+        assert paths2audio_files.endswith('.json') or paths2audio_files.endswith(
+            '.jsonl'
+        ), f"File {paths2audio_files} must be a json or jsonl file"
+
         def _may_be_fix_paths(json_items):
             for item in json_items:
                 item['audio_filepath'] = get_full_path(item['audio_filepath'], manifest_file=manifest_path)
             return json_items
-        
+
         # load json lines
-        manifest_path = paths2audio_files       # need this as we are overwriting paths2audio_files in nextline
+        manifest_path = paths2audio_files  # need this as we are overwriting paths2audio_files in nextline
         paths2audio_files = manifest_utils.read_manifest(paths2audio_files)
         paths2audio_files = _may_be_fix_paths(paths2audio_files)
 
@@ -256,9 +258,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
                     for audio_file in paths2audio_files:
-                        if isinstance(audio_file, dict):        # assume we provided manifest
+                        if isinstance(audio_file, dict):  # assume we provided manifest
                             entry = audio_file
-                        elif isinstance(audio_file, str):       # if not manifest
+                        elif isinstance(audio_file, str):  # if not manifest
                             entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                         fp.write(json.dumps(entry) + '\n')
 
@@ -275,13 +277,17 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                             encoder_hidden_states=enc_states,
                             encoder_input_mask=enc_mask,
                             return_beam_scores=False,
-                            decoder_input_ids=test_batch[2][:, :self.context_len_for_AR_decoding].to(device) if self.context_len_for_AR_decoding > 0 else None,
+                            decoder_input_ids=test_batch[2][:, : self.context_len_for_AR_decoding].to(device)
+                            if self.context_len_for_AR_decoding > 0
+                            else None,
                         )
                         .detach()
                         .cpu()
                         .numpy()
                     )
-                    beam_hypotheses = [self._strip_special_tokens(self.tokenizer.ids_to_text(hyp)) for hyp in beam_hypotheses]
+                    beam_hypotheses = [
+                        self._strip_special_tokens(self.tokenizer.ids_to_text(hyp)) for hyp in beam_hypotheses
+                    ]
 
                     if return_hypotheses:
                         # dump log probs per file
@@ -567,7 +573,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             return_beam_scores=False,
-            decoder_input_ids=input_ids[:, :self.context_len_for_AR_decoding] if self.context_len_for_AR_decoding > 0 else None,
+            decoder_input_ids=input_ids[:, : self.context_len_for_AR_decoding]
+            if self.context_len_for_AR_decoding > 0
+            else None,
         )
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
 
@@ -695,16 +703,16 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         # currently only works for non-tarred
         lhotse_config = {
             'is_tarred': False,
-            'batch_size' : 1,
+            'batch_size': 1,
             'force_strip_pnc': False,
-            'token_sequence_format' : "canary",
-            'use_lhotse' : True,
-            'lhotse' : {
+            'token_sequence_format': "canary",
+            'use_lhotse': True,
+            'lhotse': {
                 'use_bucketing': False,
-                'max_cuts' : batch_size,
-                'drop_last' : False,
-                'text_field' : 'answer',
-                'lang_field' : 'target_lang',
+                'max_cuts': batch_size,
+                'drop_last': False,
+                'text_field': 'answer',
+                'lang_field': 'target_lang',
             },
         }
 
