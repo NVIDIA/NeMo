@@ -186,7 +186,7 @@ class VoiceboxModel(TextToWaveform):
         def textgrid_exist(cut, subset=None):
             cut_id = cut.id
             spk = cut_id.split('/')[1]
-            f_id = f"{self.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
+            f_id = f"{self._cfg.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
             return os.path.exists(f_id)
 
         def parse_cut_mfa_textgrid(seg, subset=None):
@@ -194,7 +194,7 @@ class VoiceboxModel(TextToWaveform):
             from lhotse.supervision import AlignmentItem, SupervisionSet
             seg_id = seg.id
             spk = seg_id.split('/')[1]
-            f_id = f"{self.textgrid_dir}/{subset}/{spk}/{','.join(seg_id.split('/'))}.TextGrid"
+            f_id = f"{self._cfg.textgrid_dir}/{subset}/{spk}/{','.join(seg_id.split('/'))}.TextGrid"
             tg = TextGrid()
             tg.read(f_id)
             new_sup_seg = seg
