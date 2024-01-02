@@ -850,8 +850,9 @@ class TestEncDecRNNTModel:
                     confidence_len = len(hyp.frame_confidence[t])
                     assert confidence_len <= max_symbols_per_step
                     if t in timestep_count:  # non-blank
-                        assert confidence_len == timestep_count[t] + (
-                            1 if confidence_len < max_symbols_per_step else 0
+                        assert (
+                            confidence_len
+                            == timestep_count[t] + (1 if confidence_len < max_symbols_per_step else 0) + 1
                         )
                     else:  # blank or max_symbols_per_step == 0
                         assert confidence_len <= 1
