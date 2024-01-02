@@ -24,6 +24,7 @@ import torch
 from tensorrt_llm._utils import str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
 from transformers import GPT2Tokenizer, LlamaConfig, T5Tokenizer, AutoTokenizer
+from .sentencepiece_tokenizer import SentencePieceTokenizer
 
 import tensorstore  # this is important even though not used
 import zarr
@@ -491,9 +492,8 @@ def copy_tokenizer_files(config, out_dir):
 
 def build_tokenizer(tokenizer_config: typing.Dict):
     if tokenizer_config["library"] == "sentencepiece":
-        # AMMO modification.
-        # Turn off legacy model by default: See https://github.com/huggingface/transformers/pull/24622
-        tokenizer = T5Tokenizer(tokenizer_config["model"], extra_ids=0, legacy=False)
+        # tokenizer = T5Tokenizer(tokenizer_config["model"], extra_ids=0, legacy=False)
+        return SentencePieceTokenizer(model_path=tokenizer_config["model"])
     elif "GPT2" in tokenizer_config["type"]:
         tokenizer = GPT2Tokenizer(tokenizer_config["vocab_file"], tokenizer_config["merge_file"])
     else:
