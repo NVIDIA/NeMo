@@ -138,7 +138,9 @@ class VoidType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
     def compare(cls, second) -> NeuralTypeComparisonResult:
         return NeuralTypeComparisonResult.SAME
@@ -151,7 +153,9 @@ class ChannelType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class EmbeddedTextType(ChannelType):
@@ -160,7 +164,9 @@ class EmbeddedTextType(ChannelType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class LogitsType(ElementType):
@@ -168,7 +174,9 @@ class LogitsType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class ProbsType(ElementType):
@@ -176,7 +184,9 @@ class ProbsType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class LogprobsType(ElementType):
@@ -184,7 +194,9 @@ class LogprobsType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class LabelsType(ElementType):
@@ -193,7 +205,9 @@ class LabelsType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class HypothesisType(LabelsType):
@@ -202,7 +216,9 @@ class HypothesisType(LabelsType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class LengthsType(ElementType):
@@ -210,7 +226,9 @@ class LengthsType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class LossType(ElementType):
@@ -218,7 +236,9 @@ class LossType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class EncodedRepresentation(ChannelType):
@@ -226,7 +246,9 @@ class EncodedRepresentation(ChannelType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class AcousticEncodedRepresentation(EncodedRepresentation):
@@ -234,7 +256,9 @@ class AcousticEncodedRepresentation(EncodedRepresentation):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class AudioSignal(ElementType):
@@ -273,8 +297,9 @@ class SpectrogramType(ChannelType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class MelSpectrogramType(SpectrogramType):
@@ -282,8 +307,9 @@ class MelSpectrogramType(SpectrogramType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class MFCCSpectrogramType(SpectrogramType):
@@ -291,8 +317,9 @@ class MFCCSpectrogramType(SpectrogramType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class PredictionsType(LabelsType):
@@ -300,8 +327,9 @@ class PredictionsType(LabelsType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class RegressionValuesType(PredictionsType):
@@ -309,8 +337,9 @@ class RegressionValuesType(PredictionsType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class CategoricalValuesType(PredictionsType):
@@ -318,8 +347,9 @@ class CategoricalValuesType(PredictionsType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class MaskType(PredictionsType):
@@ -327,8 +357,9 @@ class MaskType(PredictionsType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class Index(ElementType):
@@ -336,8 +367,9 @@ class Index(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class Target(ElementType):
@@ -347,8 +379,9 @@ class Target(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class ClassificationTarget(Target):
@@ -358,8 +391,9 @@ class ClassificationTarget(Target):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class ImageValue(ElementType):
@@ -370,8 +404,9 @@ class ImageValue(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class NormalizedImageValue(ImageValue):
@@ -382,8 +417,9 @@ class NormalizedImageValue(ImageValue):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class ImageFeatureValue(ImageValue):
@@ -391,8 +427,9 @@ class ImageFeatureValue(ImageValue):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class StringType(ElementType):
@@ -400,8 +437,9 @@ class StringType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class StringLabel(StringType):
@@ -411,8 +449,9 @@ class StringLabel(StringType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class BoolType(ElementType):
@@ -420,8 +459,9 @@ class BoolType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class IntType(ElementType):
@@ -429,8 +469,9 @@ class IntType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class FloatType(ElementType):
@@ -438,7 +479,9 @@ class FloatType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-        pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class TokenIndex(IntType):
@@ -446,8 +489,9 @@ class TokenIndex(IntType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class Length(IntType):
@@ -455,8 +499,9 @@ class Length(IntType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class ProbabilityDistributionSamplesType(ElementType):
@@ -465,8 +510,9 @@ class ProbabilityDistributionSamplesType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class NormalDistributionSamplesType(ProbabilityDistributionSamplesType):
@@ -475,8 +521,9 @@ class NormalDistributionSamplesType(ProbabilityDistributionSamplesType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class SequenceToSequenceAlignmentType(ElementType):
@@ -485,8 +532,9 @@ class SequenceToSequenceAlignmentType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class NormalDistributionMeanType(ElementType):
@@ -494,8 +542,9 @@ class NormalDistributionMeanType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class NormalDistributionLogVarianceType(ElementType):
@@ -503,8 +552,9 @@ class NormalDistributionLogVarianceType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class TokenDurationType(ElementType):
@@ -512,8 +562,9 @@ class TokenDurationType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class TokenLogDurationType(ElementType):
@@ -521,8 +572,9 @@ class TokenLogDurationType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
 
 
 class LogDeterminantType(ElementType):
@@ -530,5 +582,6 @@ class LogDeterminantType(ElementType):
 
     def __init__(self):
         """Dummy init for TorchScript compatibility"""
-
-    pass
+        if not torch.jit.is_scripting():
+            # torch.jit does not support super() call
+            super().__init__()
