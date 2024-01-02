@@ -5,6 +5,7 @@ ipywidgets
 jiwer
 kaldi-python-io
 kaldiio
+lhotse
 librosa>=0.10.0
 marshmallow
 matplotlib
