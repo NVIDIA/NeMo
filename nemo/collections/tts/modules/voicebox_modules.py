@@ -888,6 +888,69 @@ class VoiceBox(_VB, LightningModule):
         )
         self.audio_enc_dec.freeze()
 
+    def create_cond_mask(self, batch, seq_len, cond_token_ids=None, training=True):
+        if training:
+            frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*self.frac_lengths_mask)
+            # cond_mask = mask_from_frac_lengths(seq_len, frac_lengths)
+            cond_mask = self.phone_level_mask_from_frac_lengths(seq_len, frac_lengths, cond_token_ids)
+        else:
+            cond_mask = torch.zeros((batch, seq_len), device = self.device, dtype = torch.bool)
+        return cond_mask
+
+    @torch.no_grad()
+    def phone_level_mask_from_frac_lengths(
+        self,
+        seq_len: int,
+        frac_lengths: Tensor,
+        cond_token_ids: Tensor,
+    ):
+        device = frac_lengths.device
+
+        lengths = (frac_lengths * seq_len).long()
+        max_start = seq_len - lengths
+
+        rand = torch.zeros_like(frac_lengths, device = device).float().uniform_(0, 1)
+        start = (max_start * rand).clamp(min = 0)
+        end = start + lengths
+
+        start = torch.ceil(start).long()
+        start_of_start = self.find_start_of_phone(cond_token_ids, start)
+        end_of_start = self.find_end_of_phone(cond_token_ids, start, seq_len)
+        prob = (start - start_of_start + 1) / (end_of_start - start_of_start + 1)
+        start = torch.where(prob > 0.5, end_of_start + 1, start_of_start)
+
+        end = torch.ceil(end).long()
+        start_of_end = self.find_start_of_phone(cond_token_ids, end)
+        end_of_end = self.find_end_of_phone(cond_token_ids, end, seq_len)
+        prob = (end - start_of_end + 1) / (end_of_end - start_of_end + 1)
+        end = torch.where(prob > 0.5, end_of_end, start_of_end - 1)
+
+        return mask_from_start_end_indices(seq_len, start, end)
+
+    @torch.no_grad()
+    def find_start_of_phone(self, cond_token_ids, idx):
+        phone_token_id = cond_token_ids[range(len(idx)), idx]
+        start_of_phone = idx
+        should_continue = (start_of_phone > 0)
+        while should_continue.sum() > 0:
+            prev_idx = torch.where(should_continue, start_of_phone - 1, start_of_phone)
+            prev_the_same = should_continue & (cond_token_ids[range(len(idx)), prev_idx] == phone_token_id)
+            start_of_phone = torch.where(prev_the_same, start_of_phone - 1, start_of_phone)
+            should_continue = prev_the_same & (start_of_phone > 0)
+        return start_of_phone
+
+    @torch.no_grad()
+    def find_end_of_phone(self, cond_token_ids, idx, seq_len):
+        phone_token_id = cond_token_ids[range(len(idx)), idx]
+        end_of_phone = idx
+        should_continue = (end_of_phone < seq_len - 1)
+        while should_continue.sum() > 0:
+            post_idx = torch.where(should_continue, end_of_phone + 1, end_of_phone)
+            post_the_same = should_continue & (cond_token_ids[range(len(idx)), post_idx] == phone_token_id)
+            end_of_phone = torch.where(post_the_same, end_of_phone + 1, end_of_phone)
+            should_continue = post_the_same & (end_of_phone < seq_len - 1)
+        return end_of_phone
+
     def forward(
         self,
         x,
@@ -941,11 +1004,7 @@ class VoiceBox(_VB, LightningModule):
         # construct conditioning mask if not given
 
         if not exists(cond_mask):
-            if self.training:
-                frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*self.frac_lengths_mask)
-                cond_mask = mask_from_frac_lengths(seq_len, frac_lengths)
-            else:
-                cond_mask = torch.zeros((batch, seq_len), device = cond.device, dtype = torch.bool)
+            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len, cond_token_ids=cond_token_ids, training=self.training)
 
         cond_mask_with_pad_dim = rearrange(cond_mask, '... -> ... 1')
         outputs["cond_mask"] = cond_mask_with_pad_dim
