@@ -23,7 +23,7 @@ from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
-from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecTransfModelBPE
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
@@ -297,6 +297,10 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     # prepare audio filepaths and decide wether it's partial audio
     filepaths, partial_audio = prepare_audio_data(cfg)
+    if isinstance(asr_model, EncDecTransfModelBPE):
+        # EncDecTransfModelBPE currently only supports manifest input to the transcribe() function
+        filepaths = cfg.dataset_manifest
+        partial_audio = False
 
     # setup AMP (optional)
     if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
