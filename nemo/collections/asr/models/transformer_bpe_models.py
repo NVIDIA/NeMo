@@ -216,7 +216,6 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         assert isinstance(paths2audio_files, str), "Canary doesn't support list of paths at the moment"
         assert os.path.exists(paths2audio_files), f"File {paths2audio_files} doesn't exist"
         assert paths2audio_files.endswith('.json') or paths2audio_files.endswith('.jsonl'), f"File {paths2audio_files} must be a json or jsonl file"
-        assert batch_size == 1, "Canary doesn't support batch_size > 1 for inference at the moment"
         
         def _may_be_fix_paths(json_items):
             for item in json_items:
