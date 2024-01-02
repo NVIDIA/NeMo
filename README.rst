@@ -48,8 +48,8 @@ Latest News
   :alt: H200-NeMo-performance
   :width: 600
 
-NeMo Framework has been updated with state-of-the-art features, 
-such as FSDP, Mixture-of-Experts, and RLHF with TensorRT-LLM to provide speedups up to 4.2x for Llama-2 pre-training on H200. 
+NeMo Framework has been updated with state-of-the-art features,
+such as FSDP, Mixture-of-Experts, and RLHF with TensorRT-LLM to provide speedups up to 4.2x for Llama-2 pre-training on H200.
 **All of these features will be available in an upcoming release.**
 
 
@@ -325,7 +325,7 @@ To install Apex, run
 
     git clone https://github.com/NVIDIA/apex.git
     cd apex
-    git checkout a2f6683b10fb4c29ab57c9e3d16957db76a8a5ba
+    git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227
     pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Apex or any other dependencies.

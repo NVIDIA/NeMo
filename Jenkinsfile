@@ -72,9 +72,9 @@ pipeline {
     // Apex bugfix for PyTorch 23.11 container: https://github.com/NVIDIA/apex/pull/1760
     stage('Apex installation') {
       steps {
-         sh 'git clone https://github.com/timmoon10/apex.git && \
+         sh 'git clone https://github.com/NVIDIA/apex.git && \
              cd apex && \
-             git checkout memory-efficient-layer-norm-bugfix && \
+             git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227 && \
              cp -R apex /usr/local/lib/python3.10/dist-packages'
       }
     }
