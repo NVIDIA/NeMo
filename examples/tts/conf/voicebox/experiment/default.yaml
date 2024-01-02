@@ -13,10 +13,12 @@ defaults:
 seed: 12345
 
 model:
-  corpus_dir: ???     # LibriLight dir
-  manifests_dir: ???  # parsed manifests (e.g. filtering, add MFA alignments, etc.)
+  librilight_dir: ??? # LibriLight dir
   libriheavy_dir: ??? # downloaded libriheavy manifests
+  manifests_dir: ???  # parsed manifests (e.g. filtering, add MFA alignments, etc.)
   textgrid_dir: ???   # MFA parsed textgrids
+
+  corpus_dir: ${.librilight_dir}
   
   cfm_wrapper:
     cond_drop_prob: 0.2

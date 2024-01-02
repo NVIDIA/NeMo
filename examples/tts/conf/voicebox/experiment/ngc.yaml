@@ -10,9 +10,9 @@ defaults:
 # this allows you to overwrite only specified parameters
 
 model:
-  corpus_dir: /datasets/LibriLight/
-  manifests_dir: data/parsed/LibriHeavy
+  librilight_dir: /datasets/LibriLight/
   libriheavy_dir: data/download/LibriHeavy
+  manifests_dir: data/parsed/LibriHeavy
   textgrid_dir: data/aligned/textgrids
   
   duration_predictor:

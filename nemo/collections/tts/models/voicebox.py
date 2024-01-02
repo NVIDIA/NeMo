@@ -179,7 +179,7 @@ class VoiceboxModel(TextToWaveform):
         old_prefix="download/librilight"
         def change_prefix(cut):
             old_path = cut.recording.sources[0].source
-            new_path = old_path.replace(old_prefix, self._cfg.corpus_dir)
+            new_path = old_path.replace(old_prefix, self._cfg.librilight_dir)
             cut.recording.sources[0].source = new_path
             return cut
         
@@ -311,7 +311,7 @@ class VoiceboxModel(TextToWaveform):
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=LhotseTextToSpeechDataset(
-                corpus_dir=self.cfg.corpus_dir,
+                corpus_dir=self.cfg.librilight_dir,
                 **ds_kwargs
             ),
         )
