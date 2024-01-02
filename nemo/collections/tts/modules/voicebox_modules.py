@@ -832,6 +832,7 @@ class VoiceBox(_VB, LightningModule):
         p_drop_prob = 0.3, # p_drop in paper
         frac_lengths_mask: Tuple[float, float] = (0.7, 1.),
         condition_on_text = True,
+        loss_masked = True,
         **kwargs
     ):
         """
@@ -887,6 +888,7 @@ class VoiceBox(_VB, LightningModule):
             condition_on_text=condition_on_text
         )
         self.audio_enc_dec.freeze()
+        self.loss_masked = loss_masked
 
     def create_cond_mask(self, batch, seq_len, cond_token_ids=None, training=True):
         if training:
@@ -1087,7 +1089,10 @@ class VoiceBox(_VB, LightningModule):
         if not exists(target):
             return x
 
-        loss_mask = reduce_masks_with_and(cond_mask, self_attn_mask)
+        if self.loss_masked:
+            loss_mask = reduce_masks_with_and(cond_mask, self_attn_mask)
+        else:
+            loss_mask = self_attn_mask
 
         if not exists(loss_mask):
             return F.mse_loss(x, target), outputs

@@ -1,0 +1,50 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=ngc
+
+defaults:
+  - default
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+model:
+  librilight_dir: /datasets/LibriLight/
+  libriheavy_dir: data/download/LibriHeavy
+  manifests_dir: data/parsed/LibriHeavy
+  textgrid_dir: data/aligned/textgrids
+  
+  duration_predictor:
+    # depth: 4
+    heads: 4
+
+  voicebox:
+    # depth: 12
+    heads: 8
+    loss_masked: False
+
+  optim:
+    name: adam
+    lr: 1e-4
+
+    sched:
+      name: WarmupAnnealing
+      warmup_steps: 5000
+      max_steps: ${..lr}
+
+  train_ds:
+    max_duration: 16
+    lhotse:
+      batch_duration: 48
+
+trainer:
+  devices: auto
+  max_epochs: null
+  max_steps: 500000 # audio model steps
+  
+  gradient_clip_algorithm: norm
+  gradient_clip_val: .2
+
+# task name, determines output directory path
+task_name: "ngc-loss-full"
