@@ -271,7 +271,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
 
         self.transformer_engine = cfg.get('transformer_engine', False)
-
+        if self.mcore_gpt and self.cfg.get('fp8', False):
+            self.num_microbatches_in_previous_step = -1
+            self.microbatch_count = 0
+            
         # configuration used for inference
         self._inference_config = None
 
@@ -880,8 +883,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     forward_args['cu_seqlens_q'] = cu_seqlens
                     forward_args['cu_seqlens_kv'] = cu_seqlens
                     forward_args['qkv_format'] = 'thd'
+                    
+                if self.transformer_engine and self.cfg.get('fp8', False):
+                    # Determine if the current iteration is first microbatch
+                    if self.num_microbatches_in_previous_step != get_num_microbatches():
+                        self.microbatch_count = 0 # Reset count on new batch size rampup interval
+                    self.num_microbatches_in_previous_step = get_num_microbatches()
+                    is_first_microbatch = self.microbatch_count % get_num_microbatches() == 0
+                    forward_args['is_first_microbatch'] = is_first_microbatch
 
             output_tensor = model(**forward_args)
+
+            self.microbatch_count += 1
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
