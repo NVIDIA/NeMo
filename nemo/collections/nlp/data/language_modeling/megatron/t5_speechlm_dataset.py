@@ -126,6 +126,10 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         lm_vocab_size: Optional[int] = None,
         num_speech_codebooks: Optional[int] = 8,
         codebook_fps: Optional[int] = 75,
+        add_special_tokens_to_only_first_codebook: Optional[bool] = False,
+        context_pattern: Optional[str] = "parallel",
+        context_duration_min: Optional[float] = 3.0,
+        context_duration_max: Optional[float] = 5.0,
         **kwargs,
     ):
         """
@@ -175,6 +179,12 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         self.lm_vocab_size = tokenizer.vocab_size if lm_vocab_size is None else lm_vocab_size
         self.num_speech_codebooks = num_speech_codebooks
         self.codebook_fps = codebook_fps
+        self.add_special_tokens_to_only_first_codebook = add_special_tokens_to_only_first_codebook
+        
+        # context_pattern and duration arguments are supported only if context_type is REFSPEAKERCODEC in the manifest
+        self.context_pattern = context_pattern
+        self.context_duration_min = context_duration_min
+        self.context_duration_max = context_duration_max
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
@@ -293,7 +303,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 approx_answer_len = doc["answer_duration"] * (self.codebook_fps + 1)
                 if self.seq_pattern == "delay_parallel":
                     # In delay parallel, there is padding so add 8 frames
-                    approx_answer_len = approx_answer_len + 8
+                    approx_answer_len = approx_answer_len + self.num_speech_codebooks
             else:
                 approx_answer_len = len(doc["answer"].split(' ')) + 3
 
@@ -398,6 +408,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             question_tokens = pad_text_to_speech_dims(question_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
         if doc["context_type"] == "TEXT" and doc["question_type"] != "TEXT":
             context_tokens = pad_text_to_speech_dims(context_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
+        if doc["context_type"] == "TEXT" and doc["question_type"] == "TEXT":
+            context_tokens = pad_text_to_speech_dims(context_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
+            question_tokens = pad_text_to_speech_dims(question_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
         context_and_question_tokens = torch.cat([context_tokens, question_tokens], dim=1)
 
         # get answer ids
@@ -539,6 +552,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 if isinstance(e, int):
                     tmp = torch.full((self.num_speech_codebooks, 1), e if fill else -1)
                     tmp[self.num_speech_codebooks-1] = e
+                    if self.add_special_tokens_to_only_first_codebook:
+                        # Fill zeros in all other codebooks (to avoid out of range when getting embeddings)
+                        tmp[1:] = 0
                 else:
                     tmp = e
                 ret.append(tmp)
@@ -705,8 +721,27 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             reference_codec_path = rng.choice(reference_codec_paths)
             field_tokens = torch.load(reference_codec_path).long()
             field_tokens[0] = (field_tokens[0] + self.speech_offset).long()
-            reference_codec_len = rng.randint(240, 400)
-            field_tokens = [field_tokens[:, :reference_codec_len]]
+            _min_len = int(self.context_duration_min * self.codebook_fps)
+            _max_len = int(self.context_duration_max * self.codebook_fps)
+            reference_codec_len = rng.randint(_min_len, _max_len)
+            reference_codec_len = min(reference_codec_len, field_tokens.shape[1])
+            si = rng.randint(0, field_tokens.shape[1] - reference_codec_len)
+            field_tokens = field_tokens[:, si:si+reference_codec_len]
+            if self.context_pattern == "delay_parallel":
+                field_tokens = torch.cat([
+                    torch.zeros(self.num_speech_codebooks, self.num_speech_codebooks).long(), 
+                    field_tokens,
+                    torch.zeros(self.num_speech_codebooks, self.num_speech_codebooks).long()
+                ], dim=1)
+                new_field_tokens = []
+                for _c in range(self.num_speech_codebooks):
+                    st = self.num_speech_codebooks - _c
+                    et = field_tokens.shape[1] - _c
+                    new_field_tokens.append(field_tokens[_c, st:et])
+                field_tokens = torch.stack(new_field_tokens, dim=0)
+            
+            field_tokens = [field_tokens]
+
         elif doc[f"{field}_type"] == 'SEPARATIONCODECS':
             mixed_codec_path, reference_codec_paths = field_data.split(",")
             reference_codec_paths = reference_codec_paths.split(";")
@@ -1057,6 +1092,9 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
             question_tokens = pad_text_to_speech_dims(question_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
         if doc["context_type"] == "TEXT" and doc["question_type"] != "TEXT":
             context_tokens = pad_text_to_speech_dims(context_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
+        if doc["context_type"] == "TEXT" and doc["question_type"] == "TEXT":
+            context_tokens = pad_text_to_speech_dims(context_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
+            question_tokens = pad_text_to_speech_dims(question_tokens, self.tokenizer.pad_id, self.num_speech_codebooks-1)
         # context_and_question_tokens = torch.cat([context_tokens, question_tokens], dim=1)
 
         # get answer ids
