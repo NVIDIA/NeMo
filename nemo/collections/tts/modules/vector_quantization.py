@@ -7,6 +7,7 @@ from einops import rearrange
 from torch import Tensor
 
 from nemo.collections.tts.losses.audio_codec_loss import MaskedCosineLoss
+
 # from nemo.collections.tts.parts.utils.distributed import broadcast_tensors
 from nemo.collections.tts.parts.utils.helpers import mask_sequence_tensor
 from nemo.core.classes.common import typecheck
@@ -235,11 +236,7 @@ class GroupFiniteScalarQuantizer(NeuralModule):
         num_levels: Codebook leels
     """
 
-    def __init__(
-        self,
-        num_groups: int,
-        num_levels: List[int]
-    ):
+    def __init__(self, num_groups: int, num_levels: List[int]):
         super().__init__()
         self.num_groups = num_groups
         self.fsq_list = nn.ModuleList([FiniteScalarQuantizer(num_levels=num_levels) for _ in range(num_groups)])
@@ -267,7 +264,7 @@ class GroupFiniteScalarQuantizer(NeuralModule):
             "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
             "indices": NeuralType(('D', 'B', 'T'), Index()),
             "commit_loss": NeuralType((), LossType()),
-            "codebook_loss": NeuralType((), LossType())
+            "codebook_loss": NeuralType((), LossType()),
         }
 
     @typecheck()
@@ -442,17 +439,9 @@ class CosineCodebook(NeuralModule):
             self.register_buffer("ema", ema_init)
 
     def _compute_codebook_losses(self, inputs, codes, input_len):
-        commit_loss = self.commit_loss_fn(
-            predicted=inputs,
-            target=codes.detach(),
-            target_len=input_len,
-        )
+        commit_loss = self.commit_loss_fn(predicted=inputs, target=codes.detach(), target_len=input_len,)
 
-        codebook_loss = self.codebook_loss_fn(
-            predicted=codes,
-            target=inputs.detach(),
-            target_len=input_len,
-        )
+        codebook_loss = self.codebook_loss_fn(predicted=codes, target=inputs.detach(), target_len=input_len,)
         return commit_loss, codebook_loss
 
     def _expire_codes(self, inputs: Tensor) -> None:
@@ -464,7 +453,7 @@ class CosineCodebook(NeuralModule):
         modified_codes = torch.where(rearrange(is_expired, "N -> N ()"), samples, self.codebook.weight)
         self.codebook.weight.data.copy_(modified_codes)
         self.ema.data.add_(is_expired)
-        #broadcast_tensors(self.buffers())
+        # broadcast_tensors(self.buffers())
 
     def _update_codes(self, inputs: Tensor, indices: Tensor) -> None:
         code_onehot = F.one_hot(indices, self.codebook_size).type(inputs.dtype)
@@ -490,9 +479,7 @@ class CosineCodebook(NeuralModule):
         return quantized
 
     @typecheck(
-        input_types={
-            "inputs": NeuralType(('B', 'D', 'T'), EncodedRepresentation())
-        },
+        input_types={"inputs": NeuralType(('B', 'D', 'T'), EncodedRepresentation())},
         output_types={"preprocessed": NeuralType(('D', 'D', 'T'), EncodedRepresentation())},
     )
     def preprocess_input(self, inputs):
@@ -592,10 +579,7 @@ class GroupCosineCodebook(NeuralModule):
 
         # Initialize RVQ for each group
         self.codebooks = torch.nn.ModuleList(
-            [
-                CosineCodebook(codebook_dim=self.codebook_dim, **kwargs)
-                for _ in range(self.num_codebooks)
-            ]
+            [CosineCodebook(codebook_dim=self.codebook_dim, **kwargs) for _ in range(self.num_codebooks)]
         )
 
         logging.debug('Initialized %s with', self.__class__.__name__)

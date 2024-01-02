@@ -21,13 +21,7 @@ from einops import rearrange
 from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths, mask_sequence_tensor
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import (
-    AudioSignal,
-    LengthsType,
-    LossType,
-    NeuralType,
-    VoidType,
-)
+from nemo.core.neural_types import AudioSignal, LengthsType, LossType, NeuralType, VoidType
 
 
 class MaskedLoss(Loss):

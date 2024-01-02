@@ -51,6 +51,7 @@ from nemo.collections.tts.modules.audio_codec_modules import (
     ConvTranspose1dNorm,
     get_down_sample_padding,
 )
+
 # from nemo.collections.tts.parts.utils.distributed import broadcast_tensors
 from nemo.collections.tts.parts.utils.helpers import mask_sequence_tensor
 from nemo.core.classes.common import typecheck
@@ -154,7 +155,7 @@ class SEANetEncoder(NeuralModule):
         rnn_layers: int = 2,
         rnn_type: str = "lstm",
         rnn_skip: bool = True,
-        layer_norm_output: bool = False
+        layer_norm_output: bool = False,
     ):
         assert in_kernel_size > 0
         assert out_kernel_size > 0

@@ -23,6 +23,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.tts.data.vocoder_dataset import create_vocoder_dataset
 from nemo.collections.tts.losses.audio_codec_loss import (
     FeatureMatchingLoss,
     MultiResolutionMelLoss,
@@ -32,7 +33,6 @@ from nemo.collections.tts.losses.audio_codec_loss import (
     TimeDomainLoss,
 )
 from nemo.collections.tts.modules.common import GaussianDropout
-from nemo.collections.tts.data.vocoder_dataset import create_vocoder_dataset
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
 from nemo.core import ModelPT
@@ -401,7 +401,9 @@ class AudioCodecModel(ModelPT):
         elif self.current_epoch >= self.disc_warmup_epochs:
             return 1.0
 
-        weight = (self.current_epoch - self.disc_start_epoch + 1) / (self.disc_warmup_epochs - self.disc_start_epoch + 1)
+        weight = (self.current_epoch - self.disc_start_epoch + 1) / (
+            self.disc_warmup_epochs - self.disc_start_epoch + 1
+        )
         return weight
 
     def should_update_disc(self, batch_idx) -> bool:
@@ -422,9 +424,7 @@ class AudioCodecModel(ModelPT):
         }
 
         # Train discriminator
-        disc_scores_real, disc_scores_gen, _, _ = self.discriminator(
-            audio_real=audio, audio_gen=audio_gen.detach()
-        )
+        disc_scores_real, disc_scores_gen, _, _ = self.discriminator(audio_real=audio, audio_gen=audio_gen.detach())
         loss_disc = self.disc_loss_fn(disc_scores_real=disc_scores_real, disc_scores_gen=disc_scores_gen)
         metrics["d_loss"] = loss_disc
 
@@ -522,7 +522,7 @@ class AudioCodecModel(ModelPT):
             global_rank=self.trainer.global_rank,
             world_size=self.trainer.world_size,
             dataset_args=dataset_config.dataset_args,
-            is_train=True
+            is_train=True,
         )
         sampler = dataset.get_sampler(batch_size=dataloader_params.batch_size, world_size=self.trainer.world_size)
         data_loader = torch.utils.data.DataLoader(
@@ -532,9 +532,7 @@ class AudioCodecModel(ModelPT):
 
     def _setup_test_dataloader(self, dataset_config, dataloader_params):
         dataset = create_vocoder_dataset(
-            dataset_type=dataset_config.dataset_type,
-            dataset_args=dataset_config.dataset_args,
-            is_train=False
+            dataset_type=dataset_config.dataset_type, dataset_args=dataset_config.dataset_args, is_train=False
         )
         data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **dataloader_params)
         return data_loader

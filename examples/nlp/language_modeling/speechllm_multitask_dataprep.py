@@ -1,26 +1,28 @@
+import argparse
+import copy
 import json
+import math
 import os
+import random
+import time
 from pathlib import Path
+
 import numpy as np
+import soundfile as sf
 import torch
+import torchaudio
+from encodec import EncodecModel
+from omegaconf import OmegaConf
 from tqdm import tqdm
 
+from nemo.collections.asr.parts.preprocessing.perturb import NoisePerturbation, WhiteNoisePerturbation
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.tts.models import AudioCodecModel
+from nemo.collections.tts.modules.transformer import mask_from_lens
 from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-from nemo.collections.asr.parts.preprocessing.perturb import NoisePerturbation, WhiteNoisePerturbation
-from nemo.collections.tts.models import AudioCodecModel
-import copy
-import argparse
-import time
-import random
-import torchaudio
-from encodec import EncodecModel
-from nemo.collections.tts.modules.transformer import mask_from_lens
-import math
-import soundfile as sf
-from omegaconf import OmegaConf
+
 try:
     from models.soundstream import SoundStream
 except:
@@ -30,6 +32,7 @@ try:
     import dac
 except:
     logging.warning("DAC not found")
+
 
 class AudioDataset(Dataset):
     def __init__(
@@ -53,8 +56,10 @@ class AudioDataset(Dataset):
                     record = json.loads(line)
                     if record['answer_duration'] < min_duration or record['answer_duration'] > max_duration:
                         continue
-                    
-                    if ('context_duration' in record) and (record['context_duration'] < min_duration or record['context_duration'] > max_duration):
+
+                    if ('context_duration' in record) and (
+                        record['context_duration'] < min_duration or record['context_duration'] > max_duration
+                    ):
                         continue
 
                     self.data.append(json.loads(line))
@@ -65,7 +70,6 @@ class AudioDataset(Dataset):
         self.speakerwise_records = speakerwise_records
         self.speaker_list = list(self.speakerwise_records.keys())
 
-        
         self.sample_rate = sample_rate
 
         # TODO: Using White Noise Perturbation right now (dont have noise manifest)
@@ -79,17 +83,17 @@ class AudioDataset(Dataset):
         self.noise_perturber = WhiteNoisePerturbation()
 
         self.max_same_speaker_audios = max_same_speaker_audios
-        
+
         # If True, use the 'context' key as the same speaker reference audio,
         # otherwise randomly choose from the same speaker audios
-        
+
         self.use_context_as_same_speaker_audio = use_context_as_same_speaker_audio
         self.pad_multiple = pad_multiple
-        
+
         if self.use_context_as_same_speaker_audio:
             logging.info("Using context as same speaker audio")
             self.add_context_records_to_manifest()
-        
+
         self.base_data_dir = get_base_dir([item["audio_filepath"] for item in self.data])
         # self.filter_invalid_records()
         # if sup_data_dir is not None:
@@ -115,33 +119,34 @@ class AudioDataset(Dataset):
         print("Filtered data size", len(filtered_data))
         self.data = filtered_data
 
-
     def add_context_records_to_manifest(self):
-        # Add dummy records with audio_filepath as context 
+        # Add dummy records with audio_filepath as context
         # to ensure all context file paths have their codes extracted and saved.
         context_paths = {}
         target_paths = {}
         for record in self.data:
             if 'context' in record:
                 context_paths[record['context']] = {
-                    'speaker' : record['speaker'],
-                    'duration' : record['context_duration'],
+                    'speaker': record['speaker'],
+                    'duration': record['context_duration'],
                 }
             if 'answer' in record:
                 target_paths[record['audio_filepath']] = True
-        
+
         for context_path in context_paths:
             if context_path not in target_paths:
-                self.data.append({
-                    "audio_filepath" : context_path,
-                    "context" : context_path,
-                    "duration" : context_paths[context_path]['duration'],
-                    "answer_duration" : context_paths[context_path]['duration'],
-                    "context_duration" : context_paths[context_path]['duration'],
-                    "text" : "<dummy>", # Indicates that this is a dummy record
-                    "question" : "<dummy>",
-                    "speaker" : context_paths[context_path]['speaker'],
-                })
+                self.data.append(
+                    {
+                        "audio_filepath": context_path,
+                        "context": context_path,
+                        "duration": context_paths[context_path]['duration'],
+                        "answer_duration": context_paths[context_path]['duration'],
+                        "context_duration": context_paths[context_path]['duration'],
+                        "text": "<dummy>",  # Indicates that this is a dummy record
+                        "question": "<dummy>",
+                        "speaker": context_paths[context_path]['speaker'],
+                    }
+                )
 
     def __len__(self):
         return len(self.data)
@@ -154,7 +159,7 @@ class AudioDataset(Dataset):
         audio = torch.tensor(audio_samples)
         audio = torch.nn.functional.pad(audio, (0, self.pad_multiple - audio.size(0) % self.pad_multiple), value=0)
         audio_length = torch.tensor(audio.size(0)).long()
-        
+
         perturbed_audio = None
         perturbed_audio_length = None
         if perturb:
@@ -162,10 +167,12 @@ class AudioDataset(Dataset):
             self.noise_perturber.perturb(features_copy)
             perturbed_audio_samples = features_copy.samples
             perturbed_audio = torch.tensor(perturbed_audio_samples)
-            perturbed_audio = torch.nn.functional.pad(perturbed_audio, (0, self.pad_multiple - perturbed_audio.size(0) % self.pad_multiple), value=0)
+            perturbed_audio = torch.nn.functional.pad(
+                perturbed_audio, (0, self.pad_multiple - perturbed_audio.size(0) % self.pad_multiple), value=0
+            )
             perturbed_audio_length = torch.tensor(perturbed_audio.size(0)).long()
             # import ipdb; ipdb.set_trace()
-        
+
         return audio, audio_length, perturbed_audio, perturbed_audio_length
 
     def pad_collate_fn(self, batch):
@@ -198,7 +205,7 @@ class AudioDataset(Dataset):
         for audio in final_batch["mixed_audio"]:
             audio_padded = torch.nn.functional.pad(audio, (0, max_mixed_audio_len - audio.size(0)), value=0)
             mixed_audios_padded.append(audio_padded)
-        
+
         final_batch["mixed_audio"] = mixed_audios_padded
 
         non_tensor_keys = [
@@ -234,7 +241,7 @@ class AudioDataset(Dataset):
             random.seed(time.time())
             alternate_speaker = random.choice(self.speaker_list)
             _ctr += 1
-        
+
         random.seed(time.time())
         alternate_wavpath = random.choice(self.speakerwise_records[alternate_speaker])["audio_filepath"]
 
@@ -242,12 +249,12 @@ class AudioDataset(Dataset):
             random.shuffle(self.speakerwise_records[sample["speaker"]])
             samespeaker_wavpaths = []
             context_duration = 0.0
-            for _record in self.speakerwise_records[sample["speaker"]][:self.max_same_speaker_audios]:
+            for _record in self.speakerwise_records[sample["speaker"]][: self.max_same_speaker_audios]:
                 if _record["audio_filepath"] != sample["audio_filepath"]:
                     samespeaker_wavpath = _record["audio_filepath"]
                     samespeaker_wavpaths.append(samespeaker_wavpath)
                     context_duration += _record["answer_duration"]
-            
+
             if len(samespeaker_wavpaths) == 0:
                 # Use the same audio if no other audio is available from the same speaker
                 samespeaker_wavpaths = [sample["audio_filepath"]]
@@ -263,7 +270,9 @@ class AudioDataset(Dataset):
             samespeaker_audioids.append(samespeaker_rel_audio_path_as_text_id)
 
         alternate_audio, alternate_audio_length, _, _ = self._get_wav_from_filepath(alternate_wavpath, perturb=False)
-        audio, audio_length, perturbed_audio, perturbed_audio_length = self._get_wav_from_filepath(sample["audio_filepath"], perturb=True)
+        audio, audio_length, perturbed_audio, perturbed_audio_length = self._get_wav_from_filepath(
+            sample["audio_filepath"], perturb=True
+        )
 
         # Mix audio and alternate audio
         if audio_length > alternate_audio_length:
@@ -274,26 +283,26 @@ class AudioDataset(Dataset):
         elif audio_length <= alternate_audio_length:
             alternate_audio = alternate_audio[:audio_length]
             mixed_audio = 0.5 * (audio + alternate_audio)
-        
+
         mixed_audio_length = audio_length
 
         return {
             "audio": audio,
             "audio_len": audio_length,
-            "perturbed_audio" : perturbed_audio,
-            "perturbed_audio_len" : perturbed_audio_length,
+            "perturbed_audio": perturbed_audio,
+            "perturbed_audio_len": perturbed_audio_length,
             "mixed_audio": mixed_audio,
             "mixed_audio_len": mixed_audio_length,
             "rel_audio_path_as_text_id": rel_audio_path_as_text_id,
-            "samespeaker_audioids" : samespeaker_audioids,
+            "samespeaker_audioids": samespeaker_audioids,
             "samespeaker_wavpaths": samespeaker_wavpaths,
             "audio_filepath": sample["audio_filepath"],
             "question": sample["question"],
-            "text" : sample["text"],
-            "context" : sample.get("context", None),
-            "old_speaker_id" : sample.get("old_speaker_id", None),
-            "duration" : sample["answer_duration"],
-            "context_duration" : context_duration,
+            "text": sample["text"],
+            "context": sample.get("context", None),
+            "old_speaker_id": sample.get("old_speaker_id", None),
+            "duration": sample["answer_duration"],
+            "context_duration": context_duration,
             "speaker": speaker,
         }
 
@@ -324,7 +333,7 @@ def save_batch_audios(batch, bidx, temp_dir, codec_model, codec_model_type='enco
 
         for key in batch:
             if "CODEC" in key:
-                codec = batch[key][sidx] # (8, T)
+                codec = batch[key][sidx]  # (8, T)
                 if codec_model_type == 'encodec':
                     codec_decoded_audio = codec_model.decode([[codec.unsqueeze(0), None]])[0][0]
                 elif codec_model_type == 'uniaudio_codec':
@@ -340,10 +349,12 @@ def save_batch_audios(batch, bidx, temp_dir, codec_model, codec_model_type='enco
                 codec_decoded_audio_path = os.path.join(temp_dir, f"{bidx}_{sidx}_{key}_decoded.wav")
                 torchaudio.save(codec_decoded_audio_path, codec_decoded_audio[None].cpu(), codec_model_sample_rate)
 
+
 def estimate_duration_from_codeclen(codec_len, codec_downsampling_factor=320.0, codec_model_sample_rate=24000):
     num_audio_samples = codec_len * codec_downsampling_factor
     duration = num_audio_samples / codec_model_sample_rate
     return round(duration, 2)
+
 
 def save_manifest(records, manifest_path):
     with open(manifest_path, "w") as f:
@@ -354,16 +365,21 @@ def save_manifest(records, manifest_path):
         f.write(file_str)
     print("Saved manifest to {}".format(manifest_path))
 
+
 def main():
     parser = argparse.ArgumentParser(description='Create multiple tasks')
     parser.add_argument("--noise_manifest", type=str, default="/datap/misc/noisedata/train_manifest.json")
-    parser.add_argument('--manifest_paths', type=str, default="/Data/manifests_libri_local/train_clean_300_speechlm_ttstasks_with3sec_ref_all_random.json")
+    parser.add_argument(
+        '--manifest_paths',
+        type=str,
+        default="/Data/manifests_libri_local/train_clean_300_speechlm_ttstasks_with3sec_ref_all_random.json",
+    )
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--out_dir', type=str, default='/Data/CodecDatasets/speechllm_codecdatasets/')
     parser.add_argument('--dataset_name', type=str, default='LibriTTSCorrectContext_train')
     parser.add_argument('--codec_model_path', type=str, default='/Data/Checkpoints/rlang_codec/SpeechCodec.nemo')
-    parser.add_argument('--codec_bw', type=float, default=6.0) # 6 for 8 codebooks, 1.5 for 3 codebooks
-    parser.add_argument('--codec_model', type=str, default='nemo_codec') # encodec, uniaudio_codec, dac or nemo_codec
+    parser.add_argument('--codec_bw', type=float, default=6.0)  # 6 for 8 codebooks, 1.5 for 3 codebooks
+    parser.add_argument('--codec_model', type=str, default='nemo_codec')  # encodec, uniaudio_codec, dac or nemo_codec
     parser.add_argument('--use_context_as_same_speaker_audio', action='store_true')
     parser.add_argument('--save_only_tts_records', action='store_true')
     parser.add_argument('--shuffle', action='store_true')
@@ -383,7 +399,7 @@ def main():
         codec_config = OmegaConf.load(codec_config_path)
         codec_model = eval(codec_config.generator.name)(**codec_config.generator.config)
         codec_parameter_dict = torch.load(args.codec_model_path)
-        codec_model.load_state_dict(codec_parameter_dict['codec_model']) # load model
+        codec_model.load_state_dict(codec_parameter_dict['codec_model'])  # load model
         codec_model = codec_model.cuda()
         # codec_model.eval()
         codec_model_sample_rate = 16000
@@ -411,15 +427,11 @@ def main():
         use_context_as_same_speaker_audio=args.use_context_as_same_speaker_audio,
         pad_multiple=int(codec_model_downsampling_factor),
     )
-    
+
     dataloader = torch.utils.data.DataLoader(
-        dataset=dataset,
-        batch_size=args.batch_size,
-        collate_fn=dataset.pad_collate_fn,
-        shuffle=False,
-        num_workers=8,
+        dataset=dataset, batch_size=args.batch_size, collate_fn=dataset.pad_collate_fn, shuffle=False, num_workers=8,
     )
-    
+
     _exp_name = "{}_{}_bw_{}".format(args.dataset_name, args.codec_model, args.codec_bw)
     temp_dir = os.path.join(args.out_dir, "temp_{}".format(_exp_name))
     if not os.path.exists(temp_dir):
@@ -443,10 +455,10 @@ def main():
 
     for bidx, batch in enumerate(tqdm(dataloader)):
         # print("bidx", bidx+1, "of", len(dataloader))
-        
+
         audio_len_mask = mask_from_lens(batch["audio_len"])
-        
-        cuda_keys = ['audio', 'perturbed_audio', 'mixed_audio', 'audio_len' , 'perturbed_audio_len', 'mixed_audio_len']
+
+        cuda_keys = ['audio', 'perturbed_audio', 'mixed_audio', 'audio_len', 'perturbed_audio_len', 'mixed_audio_len']
         for key in cuda_keys:
             batch[key] = batch[key].cuda()
         with torch.no_grad():
@@ -455,51 +467,62 @@ def main():
                 perturbed_codec_codes = codec_model.encode(batch["perturbed_audio"].unsqueeze(1))[0][0]
                 mixed_codec_codes = codec_model.encode(batch["mixed_audio"].unsqueeze(1))[0][0]
             elif args.codec_model == 'uniaudio_codec':
-                original_codec_codes = codec_model.encode(batch["audio"].unsqueeze(1)*codec_config.audio_norm_scale, target_bw=args.codec_bw).permute(1, 0, 2)
+                original_codec_codes = codec_model.encode(
+                    batch["audio"].unsqueeze(1) * codec_config.audio_norm_scale, target_bw=args.codec_bw
+                ).permute(1, 0, 2)
                 print("original_codec_codes", original_codec_codes.shape)
-                perturbed_codec_codes = codec_model.encode(batch["perturbed_audio"].unsqueeze(1)*codec_config.audio_norm_scale, target_bw=args.codec_bw).permute(1, 0, 2)
-                mixed_codec_codes = codec_model.encode(batch["mixed_audio"].unsqueeze(1)*codec_config.audio_norm_scale, target_bw=args.codec_bw).permute(1, 0, 2)
+                perturbed_codec_codes = codec_model.encode(
+                    batch["perturbed_audio"].unsqueeze(1) * codec_config.audio_norm_scale, target_bw=args.codec_bw
+                ).permute(1, 0, 2)
+                mixed_codec_codes = codec_model.encode(
+                    batch["mixed_audio"].unsqueeze(1) * codec_config.audio_norm_scale, target_bw=args.codec_bw
+                ).permute(1, 0, 2)
             elif args.codec_model == 'dac':
                 # z, codes, latents, _, _ = model.encode(x)
                 _, original_codec_codes, _, _, _ = codec_model.encode(batch["audio"].unsqueeze(1))
                 _, perturbed_codec_codes, _, _, _ = codec_model.encode(batch["perturbed_audio"].unsqueeze(1))
                 _, mixed_codec_codes, _, _, _ = codec_model.encode(batch["mixed_audio"].unsqueeze(1))
             elif args.codec_model == 'nemo_codec':
-                original_codec_codes, _  = codec_model.encode(audio=batch["audio"],audio_len=batch["audio_len"])
-                perturbed_codec_codes, _ = codec_model.encode(audio=batch["perturbed_audio"],audio_len=batch["perturbed_audio_len"])
-                mixed_codec_codes, _ = codec_model.encode(audio=batch["mixed_audio"],audio_len=batch["mixed_audio_len"])
+                original_codec_codes, _ = codec_model.encode(audio=batch["audio"], audio_len=batch["audio_len"])
+                perturbed_codec_codes, _ = codec_model.encode(
+                    audio=batch["perturbed_audio"], audio_len=batch["perturbed_audio_len"]
+                )
+                mixed_codec_codes, _ = codec_model.encode(
+                    audio=batch["mixed_audio"], audio_len=batch["mixed_audio_len"]
+                )
             else:
                 raise ValueError("Unknown codec model {}".format(args.codec_model))
-            
+
         # codec_codes = transformer_encodec_model.encode(batch["audio"].unsqueeze(1), audio_len_mask, bandwidth=6.0)
         target_codecs = []
         mixed_codecs = []
         perturbed_codecs = []
         for sidx in range(batch['audio'].shape[0]):
-            
+
             codec_len = math.ceil(batch['audio_len'][sidx].item() / codec_model_downsampling_factor)
-            sample_codec_codes = original_codec_codes[sidx][:,:codec_len]
+            sample_codec_codes = original_codec_codes[sidx][:, :codec_len]
             target_codecs.append(sample_codec_codes)
 
-            perturbed_codec_len = math.ceil(batch['perturbed_audio_len'][sidx].item() / codec_model_downsampling_factor)
-            perturbed_sample_codec_codes = perturbed_codec_codes[sidx][:,:perturbed_codec_len]
+            perturbed_codec_len = math.ceil(
+                batch['perturbed_audio_len'][sidx].item() / codec_model_downsampling_factor
+            )
+            perturbed_sample_codec_codes = perturbed_codec_codes[sidx][:, :perturbed_codec_len]
             perturbed_codecs.append(perturbed_sample_codec_codes)
 
             mixed_codec_len = math.ceil(batch['mixed_audio_len'][sidx].item() / codec_model_downsampling_factor)
-            mixed_sample_codec_codes = mixed_codec_codes[sidx][:,:mixed_codec_len]
+            mixed_sample_codec_codes = mixed_codec_codes[sidx][:, :mixed_codec_len]
             mixed_codecs.append(mixed_sample_codec_codes)
 
-            
             example_name = batch['rel_audio_path_as_text_id'][sidx]
 
             target_codec_filepath = os.path.join(audiocodec_out_dir, "target_codes_{}.pt".format(example_name))
             torch.save(sample_codec_codes.cpu().type(torch.int16), target_codec_filepath)
-            
+
             if batch['text'][sidx] == "<dummy>":
                 # Only save target codes for dummy records
                 # Don't need to add dummy records to manifest
                 continue
-            
+
             perturbed_codec_filepath = os.path.join(audiocodec_out_dir, "perturbed_codes_{}.pt".format(example_name))
             mixed_codec_filepath = os.path.join(audiocodec_out_dir, "mixed_codes_{}.pt".format(example_name))
             if not args.save_only_tts_records:
@@ -512,64 +535,69 @@ def main():
                 tts_contextpath += ";"
             tts_contextpath = tts_contextpath[:-1]
 
-
             tts_record = {
-                "audio_filepath" : batch['audio_filepath'][sidx],
-                "text" : batch['text'][sidx],
-                "question" : batch['question'][sidx],
-                "answer" : target_codec_filepath,
-                "context" : tts_contextpath,
-                "question_type" : "TEXT",
-                "answer_type" : "AUDIOCODEC",
-                "context_type" : "REFSPEAKERCODEC",
-                "context_duration" : batch['context_duration'][sidx],
-                "answer_duration" : batch['duration'][sidx],
-                "taskname" : "squad",
+                "audio_filepath": batch['audio_filepath'][sidx],
+                "text": batch['text'][sidx],
+                "question": batch['question'][sidx],
+                "answer": target_codec_filepath,
+                "context": tts_contextpath,
+                "question_type": "TEXT",
+                "answer_type": "AUDIOCODEC",
+                "context_type": "REFSPEAKERCODEC",
+                "context_duration": batch['context_duration'][sidx],
+                "answer_duration": batch['duration'][sidx],
+                "taskname": "squad",
             }
 
-            phoneme_tts_record = {key : value for key, value in tts_record.items()}
-            phoneme_tts_record["question"] = phoneme_tts_record["question"].replace("Text to speech this", "Phoneme TTS")
+            phoneme_tts_record = {key: value for key, value in tts_record.items()}
+            phoneme_tts_record["question"] = phoneme_tts_record["question"].replace(
+                "Text to speech this", "Phoneme TTS"
+            )
 
             speechenhancement_record = {
-                "audio_filepath" : batch['audio_filepath'][sidx],
-                "text" : batch['text'][sidx],
-                "question" : "Remove Noise",
-                "answer" : target_codec_filepath,
-                "context" : perturbed_codec_filepath,
-                "question_type" : "TEXT",
-                "answer_type" : "AUDIOCODEC",
-                "context_type" : "AUDIOCODEC",
-                "context_duration" : estimate_duration_from_codeclen(perturbed_codec_len, codec_model_downsampling_factor, codec_model_sample_rate),
-                "answer_duration" : batch['duration'][sidx],
-                "taskname" : "squad",
+                "audio_filepath": batch['audio_filepath'][sidx],
+                "text": batch['text'][sidx],
+                "question": "Remove Noise",
+                "answer": target_codec_filepath,
+                "context": perturbed_codec_filepath,
+                "question_type": "TEXT",
+                "answer_type": "AUDIOCODEC",
+                "context_type": "AUDIOCODEC",
+                "context_duration": estimate_duration_from_codeclen(
+                    perturbed_codec_len, codec_model_downsampling_factor, codec_model_sample_rate
+                ),
+                "answer_duration": batch['duration'][sidx],
+                "taskname": "squad",
             }
 
             speechseparation_record = {
-                "audio_filepath" : batch['audio_filepath'][sidx],
-                "text" : batch['text'][sidx],
-                "question" : "Extract Speaker Audio",
-                "answer" : target_codec_filepath,
-                "context" : "{},{}".format(mixed_codec_filepath, tts_contextpath),
-                "question_type" : "TEXT",
-                "answer_type" : "AUDIOCODEC",
-                "context_type" : "SEPARATIONCODECS",
-                "context_duration" : estimate_duration_from_codeclen(mixed_codec_len, codec_model_downsampling_factor, codec_model_sample_rate),
-                "answer_duration" : batch['duration'][sidx],
-                "taskname" : "squad",
+                "audio_filepath": batch['audio_filepath'][sidx],
+                "text": batch['text'][sidx],
+                "question": "Extract Speaker Audio",
+                "answer": target_codec_filepath,
+                "context": "{},{}".format(mixed_codec_filepath, tts_contextpath),
+                "question_type": "TEXT",
+                "answer_type": "AUDIOCODEC",
+                "context_type": "SEPARATIONCODECS",
+                "context_duration": estimate_duration_from_codeclen(
+                    mixed_codec_len, codec_model_downsampling_factor, codec_model_sample_rate
+                ),
+                "answer_duration": batch['duration'][sidx],
+                "taskname": "squad",
             }
 
             speechediting_record = {
-                "audio_filepath" : batch['audio_filepath'][sidx],
-                "text" : batch['text'][sidx],
-                "question" : batch['question'][sidx].replace("Text to speech this", "Edit Speech"),
-                "answer" : target_codec_filepath,
-                "context" : target_codec_filepath,
-                "question_type" : "TEXT",
-                "answer_type" : "AUDIOCODEC",
-                "context_type" : "EDITINGCODECS",
-                "context_duration" : batch['duration'][sidx] + 3, # 3 sec for speaker context
-                "answer_duration" : batch['duration'][sidx],
-                "taskname" : "squad",
+                "audio_filepath": batch['audio_filepath'][sidx],
+                "text": batch['text'][sidx],
+                "question": batch['question'][sidx].replace("Text to speech this", "Edit Speech"),
+                "answer": target_codec_filepath,
+                "context": target_codec_filepath,
+                "question_type": "TEXT",
+                "answer_type": "AUDIOCODEC",
+                "context_type": "EDITINGCODECS",
+                "context_duration": batch['duration'][sidx] + 3,  # 3 sec for speaker context
+                "answer_duration": batch['duration'][sidx],
+                "taskname": "squad",
             }
 
             phoneme_tts_records.append(phoneme_tts_record)
@@ -583,7 +611,7 @@ def main():
             all_tasks_records.append(speechenhancement_record)
             all_tasks_records.append(speechseparation_record)
             all_tasks_records.append(speechediting_record)
-        
+
         batch['target_CODEC'] = target_codecs
         batch['perturbed_CODEC'] = perturbed_codecs
         batch['mixed_CODEC'] = mixed_codecs
@@ -628,23 +656,37 @@ def main():
         val_all_tasks_records = all_tasks_records[:num_val_records]
 
         manifest_base_name = _exp_name
-        phoneme_tts_train_manifest_path = os.path.join(manifest_dir, "{}_train_phoneme_tts.json".format(manifest_base_name))
-        phoneme_tts_val_manifest_path = os.path.join(manifest_dir, "{}_val_phoneme_tts.json".format(manifest_base_name))
+        phoneme_tts_train_manifest_path = os.path.join(
+            manifest_dir, "{}_train_phoneme_tts.json".format(manifest_base_name)
+        )
+        phoneme_tts_val_manifest_path = os.path.join(
+            manifest_dir, "{}_val_phoneme_tts.json".format(manifest_base_name)
+        )
         save_manifest(train_phoneme_tts_records, phoneme_tts_train_manifest_path)
         save_manifest(val_phoneme_tts_records, phoneme_tts_val_manifest_path)
 
-        sentencepiece_tts_train_manifest_path = os.path.join(manifest_dir, "{}_train_sentencepiece_tts.json".format(manifest_base_name))
-        sentencepiece_tts_val_manifest_path = os.path.join(manifest_dir, "{}_val_sentencepiece_tts.json".format(manifest_base_name))
+        sentencepiece_tts_train_manifest_path = os.path.join(
+            manifest_dir, "{}_train_sentencepiece_tts.json".format(manifest_base_name)
+        )
+        sentencepiece_tts_val_manifest_path = os.path.join(
+            manifest_dir, "{}_val_sentencepiece_tts.json".format(manifest_base_name)
+        )
         save_manifest(train_sentencepiece_tts_records, sentencepiece_tts_train_manifest_path)
         save_manifest(val_sentencepiece_tts_records, sentencepiece_tts_val_manifest_path)
 
-        sp_plus_phoneme_tts_train_manifest_path = os.path.join(manifest_dir, "{}_train_phoneme_plus_sentencepiece_tts.json".format(manifest_base_name))
-        sp_plus_phoneme_tts_val_manifest_path = os.path.join(manifest_dir, "{}_val_phoneme_plus_sentencepiece_tts.json".format(manifest_base_name))
+        sp_plus_phoneme_tts_train_manifest_path = os.path.join(
+            manifest_dir, "{}_train_phoneme_plus_sentencepiece_tts.json".format(manifest_base_name)
+        )
+        sp_plus_phoneme_tts_val_manifest_path = os.path.join(
+            manifest_dir, "{}_val_phoneme_plus_sentencepiece_tts.json".format(manifest_base_name)
+        )
         save_manifest(train_phoneme_plus_sentencepiece_tts_records, sp_plus_phoneme_tts_train_manifest_path)
         save_manifest(val_phoneme_plus_sentencepiece_tts_records, sp_plus_phoneme_tts_val_manifest_path)
 
         if not args.save_only_tts_records:
-            all_tasks_train_manifest_path = os.path.join(manifest_dir, "{}_train_all_tasks.json".format(args.dataset_name))
+            all_tasks_train_manifest_path = os.path.join(
+                manifest_dir, "{}_train_all_tasks.json".format(args.dataset_name)
+            )
             all_tasks_val_manifest_path = os.path.join(manifest_dir, "{}_val_all_tasks.json".format(args.dataset_name))
             save_manifest(train_all_tasks_records, all_tasks_train_manifest_path)
             save_manifest(val_all_tasks_records, all_tasks_val_manifest_path)
@@ -653,15 +695,20 @@ def main():
         phoneme_tts_manifest_path = os.path.join(manifest_dir, "{}_phoneme_tts.json".format(manifest_base_name))
         save_manifest(phoneme_tts_records, phoneme_tts_manifest_path)
 
-        sentencepiece_tts_manifest_path = os.path.join(manifest_dir, "{}_sentencepiece_tts.json".format(manifest_base_name))
+        sentencepiece_tts_manifest_path = os.path.join(
+            manifest_dir, "{}_sentencepiece_tts.json".format(manifest_base_name)
+        )
         save_manifest(sentencepiece_tts_records, sentencepiece_tts_manifest_path)
 
-        phoneme_plus_sentencepiece_tts_manifest_path = os.path.join(manifest_dir, "{}_phoneme_plus_sentencepiece_tts.json".format(manifest_base_name))
+        phoneme_plus_sentencepiece_tts_manifest_path = os.path.join(
+            manifest_dir, "{}_phoneme_plus_sentencepiece_tts.json".format(manifest_base_name)
+        )
         save_manifest(phoneme_plus_sentencepiece_tts_records, phoneme_plus_sentencepiece_tts_manifest_path)
 
         if not args.save_only_tts_records:
             all_manifest_path = os.path.join(manifest_dir, "{}_all_tasks.json".format(args.dataset_name))
             save_manifest(all_tasks_records, all_manifest_path)
+
 
 if __name__ == '__main__':
     main()

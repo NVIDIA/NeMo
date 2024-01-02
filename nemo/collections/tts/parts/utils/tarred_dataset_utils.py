@@ -1,14 +1,13 @@
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set
 
 import numpy as np
 import webdataset as wd
+from torch.utils.data import IterableDataset
 
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.tts.parts.utils.tts_dataset_utils import filter_dataset_by_duration
-from torch.utils.data import IterableDataset
-
 
 VALID_AUDIO_FORMATS = ';'.join(['wav', 'mp3', 'flac'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
 
@@ -68,10 +67,7 @@ class FileFilterIterator:
 
 
 def create_tarred_dataset(
-    sample_type: str,
-    sample_args: Optional[Dict],
-    datasets: List[IterableDataset],
-    dataset_lengths: List[int],
+    sample_type: str, sample_args: Optional[Dict], datasets: List[IterableDataset], dataset_lengths: List[int],
 ):
     if sample_args is None:
         sample_args = {}
@@ -85,11 +81,7 @@ def create_tarred_dataset(
 
 
 class TarredConcatDataset(IterableDataset, wd.Shorthands, wd.Composable):
-    def __init__(
-        self,
-        datasets: List[IterableDataset],
-        dataset_lengths: List[int]
-    ):
+    def __init__(self, datasets: List[IterableDataset], dataset_lengths: List[int]):
         super().__init__()
         self.datasets = datasets
         self.dataset_lengths = dataset_lengths
@@ -112,7 +104,7 @@ class TarredWeightedRandomDataset(IterableDataset, wd.Shorthands, wd.Composable)
         dataset_lengths: List[int],
         dataset_weights: List[float],
         batch_size: int,
-        steps_per_epoch: int
+        steps_per_epoch: int,
     ):
         super().__init__()
         assert len(datasets) == len(dataset_lengths) == len(dataset_weights)
@@ -137,4 +129,4 @@ class TarredWeightedRandomDataset(IterableDataset, wd.Shorthands, wd.Composable)
                 self.iterators[dataset_index] = iter(self.datasets[dataset_index])
                 sample = next(self.iterators[dataset_index])
 
-            yield(sample)
+            yield (sample)

@@ -17,19 +17,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import torch
 import soundfile as sf
+import torch
 import webdataset as wd
+from torch.utils.data import IterableDataset, Sampler
 
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.tts.parts.preprocessing.feature_processors import FeatureProcessor
 from nemo.collections.tts.parts.utils.tarred_dataset_utils import (
-    create_tarred_dataset,
-    process_tarred_manifest,
+    VALID_AUDIO_FORMATS,
     FileFilterIterator,
     TarredMetadata,
-    VALID_AUDIO_FORMATS
+    create_tarred_dataset,
+    process_tarred_manifest,
 )
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     filter_dataset_by_duration,
@@ -41,7 +42,6 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from torch.utils.data import IterableDataset, Sampler
 
 
 @dataclass
@@ -176,7 +176,7 @@ class VocoderDataset(Dataset):
             sample_weights=self.sample_weights,
             batch_size=batch_size,
             num_steps=self.weighted_sampling_steps_per_epoch,
-            world_size=world_size
+            world_size=world_size,
         )
         return sampler
 
@@ -354,7 +354,10 @@ class TarredVocoderDataset(IterableDataset):
 
             dataset_entries = read_manifest(dataset_meta.manifest_path)
             sample_map, unfiltered_file_count, unfiltered_hours, filtered_hours = process_tarred_manifest(
-                dataset_name=dataset_name, entries=dataset_entries, min_duration=min_duration, max_duration=max_duration
+                dataset_name=dataset_name,
+                entries=dataset_entries,
+                min_duration=min_duration,
+                max_duration=max_duration,
             )
             self.file_to_sample_map.update(sample_map)
 
@@ -373,17 +376,14 @@ class TarredVocoderDataset(IterableDataset):
                 shuffle_n=shuffle_n,
                 shard_strategy=shard_strategy,
                 global_rank=global_rank,
-                world_size=world_size
+                world_size=world_size,
             )
             if web_dataset is not None:
                 web_datasets.append(web_dataset)
                 dataset_lengths.append(dataset_length)
 
         self.dataset = create_tarred_dataset(
-            datasets=web_datasets,
-            dataset_lengths=dataset_lengths,
-            sample_type=sample_type,
-            sample_args=sample_args
+            datasets=web_datasets, dataset_lengths=dataset_lengths, sample_type=sample_type, sample_args=sample_args
         )
 
         if len(self.dataset) == 0:
@@ -432,7 +432,7 @@ class TarredVocoderDataset(IterableDataset):
             len_audio = audio.shape[0]
             if len_audio > self.n_samples:
                 start = torch.randint(0, len_audio - self.n_samples, (1,))
-                audio = audio[start: start + self.n_samples]
+                audio = audio[start : start + self.n_samples]
             else:
                 audio = audio[: self.n_samples]
 
