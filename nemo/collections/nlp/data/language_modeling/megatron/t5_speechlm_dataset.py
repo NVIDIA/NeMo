@@ -44,43 +44,44 @@ from nemo.utils import logging
 from dataclasses import dataclass
 from omegaconf import DictConfig, OmegaConf, open_dict
 from hydra.utils import instantiate
+from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import any_locale_text_preprocessing
 
 __all__ = ['T5SpeechLMDataset']
 
 
-@dataclass
-class G2PConfig:
-    _target_: str = "nemo.collections.tts.g2p.models.en_us_arpabet.EnglishG2p"
-    phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
-    heteronyms: str = "scripts/tts_dataset_files/heteronyms-052722"
-    phoneme_probability: float = 0.5
+# @dataclass
+# class G2PConfig:
+#     _target_: str = "nemo.collections.tts.g2p.models.en_us_arpabet.EnglishG2p"
+#     phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
+#     heteronyms: str = "scripts/tts_dataset_files/heteronyms-052722"
+#     phoneme_probability: float = 0.5
 
-@dataclass
-class TextTokenizer:
-    _target_: str = "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
-    punct: bool = True
-    stresses: bool = True
-    chars: bool = True
-    apostrophe: bool = True
-    pad_with_space: bool = True
-    add_blank_at: bool = True
-    g2p: G2PConfig = G2PConfig()
+# @dataclass
+# class TextTokenizer:
+#     _target_: str = "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
+#     punct: bool = True
+#     stresses: bool = True
+#     chars: bool = True
+#     apostrophe: bool = True
+#     pad_with_space: bool = True
+#     add_blank_at: bool = True
+#     g2p: G2PConfig = G2PConfig()
 
-@dataclass
-class TextTokenizerConfig:
-    text_tokenizer: TextTokenizer = TextTokenizer()
+# @dataclass
+# class TextTokenizerConfig:
+#     text_tokenizer: TextTokenizer = TextTokenizer()
 
-def _get_default_text_tokenizer_conf():
-    text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
-    return OmegaConf.create(OmegaConf.to_yaml(text_tokenizer))
+# def _get_default_text_tokenizer_conf():
+#     text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
+#     return OmegaConf.create(OmegaConf.to_yaml(text_tokenizer))
 
 def pad_text_to_speech_dims(text_tensor, pad_id, pad_size=7):
     token_len = text_tensor.shape[0]
     empty_padding = torch.ones((pad_size, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
     return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
-tokenizer_config = _get_default_text_tokenizer_conf()
-phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
+# tokenizer_config = _get_default_text_tokenizer_conf()
+# phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
 
 class T5SpeechLMDataset(BasePromptLearningDataset):
     """
@@ -180,11 +181,22 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         self.num_speech_codebooks = num_speech_codebooks
         self.codebook_fps = codebook_fps
         self.add_special_tokens_to_only_first_codebook = add_special_tokens_to_only_first_codebook
-        
+
         # context_pattern and duration arguments are supported only if context_type is REFSPEAKERCODEC in the manifest
         self.context_pattern = context_pattern
         self.context_duration_min = context_duration_min
         self.context_duration_max = context_duration_max
+        self.g2p = {"fr": lambda x: x}
+        if kwargs.get("g2p", None):
+            if "english" in kwargs["g2p"]:
+                english_g2p = instantiate(kwargs["g2p"]["english"])
+                self.g2p["en"] =lambda x: english_g2p.encode(x)
+            if "spanish" in kwargs["g2p"]:
+                spanish_g2p = instantiate(kwargs["g2p"]["spanish"])
+                self.g2p["es"] = lambda x: spanish_g2p.encode(x)
+            if "mandarin" in kwargs["g2p"]:
+                mandarin_g2p = instantiate(kwargs["g2p"]["mandarin"])
+                self.g2p["zh"] = lambda x: mandarin_g2p.encode(x)
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
@@ -566,9 +578,14 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         input_ids = self.tokenizer.text_to_ids(text)
         return input_ids
 
-    def _get_phoneme_tokens(self, text):
-        input_ids = phoneme_tokenizer.encode(text)
-        input_ids_adjusted = [_id + self.lm_vocab_size for _id in input_ids]
+    def _get_phoneme_tokens(self, text, lang="en"):
+        text = any_locale_text_preprocessing(text)
+        input_ids = self.g2p[lang](text)
+        input_ids_adjusted = []
+        for i in input_ids:
+            input_ids_adjusted.append(f"p{{{i}}}")
+        input_ids_adjusted = self.tokenizer.text_to_ids("".join(input_ids_adjusted))
+        # input_ids_adjusted = [_id + self.lm_vocab_size for _id in input_ids]
         return input_ids_adjusted
 
     def _pad_wav_to_multiple(self, wav):
@@ -692,8 +709,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         elif doc[f"{field}_type"] == 'TEXT':
             _text = field_data.strip(" ")
             if _text.startswith("Phoneme TTS"):
+                lang = doc.get("lang", "en")
                 instruction_tokens = self._get_text_tokens("Phoneme TTS")
-                field_tokens = self._get_phoneme_tokens(_text.replace("Phoneme TTS ", ""))
+                field_tokens = self._get_phoneme_tokens(_text.replace("Phoneme TTS ", ""), lang=lang)
                 field_tokens = instruction_tokens + field_tokens
             elif _text.startswith("Edit Speech"):
                 # Always use phoneme tokenizer for edit speech
@@ -729,7 +747,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             field_tokens = field_tokens[:, si:si+reference_codec_len]
             if self.context_pattern == "delay_parallel":
                 field_tokens = torch.cat([
-                    torch.zeros(self.num_speech_codebooks, self.num_speech_codebooks).long(), 
+                    torch.zeros(self.num_speech_codebooks, self.num_speech_codebooks).long(),
                     field_tokens,
                     torch.zeros(self.num_speech_codebooks, self.num_speech_codebooks).long()
                 ], dim=1)
@@ -739,7 +757,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                     et = field_tokens.shape[1] - _c
                     new_field_tokens.append(field_tokens[_c, st:et])
                 field_tokens = torch.stack(new_field_tokens, dim=0)
-            
+
             field_tokens = [field_tokens]
 
         elif doc[f"{field}_type"] == 'SEPARATIONCODECS':

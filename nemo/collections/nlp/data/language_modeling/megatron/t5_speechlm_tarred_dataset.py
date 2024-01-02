@@ -75,7 +75,7 @@ def pad_text_to_speech_dims(text_tensor, pad_id):
     return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
 tokenizer_config = _get_default_text_tokenizer_conf()
-phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
+# phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
 
 class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
     """

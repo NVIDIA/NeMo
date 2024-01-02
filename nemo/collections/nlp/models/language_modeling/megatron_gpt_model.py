@@ -33,7 +33,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
-from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import GPTSpeechLMDataset, phoneme_tokenizer
+# from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import GPTSpeechLMDataset, phoneme_tokenizer
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import GPTSpeechLMDataset
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_tarred_dataset import GPTSpeechLMTarredDataset
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel

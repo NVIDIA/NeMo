@@ -31,7 +31,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import (
     T5SpeechLMDataset,
-    phoneme_tokenizer,
+    # phoneme_tokenizer,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_tarred_dataset import T5SpeechLMTarredDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
@@ -789,7 +789,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     input_phoneme_tokens = [
                         v[1] - self.lm_vocab_size for v in input_token_list if v[1] >= self.lm_vocab_size
                     ]
-                    
+
                     if len(input_phoneme_tokens) > 0:
                         phoneme_text = phoneme_tokenizer.decode(input_phoneme_tokens)
                         self.logger.experiment.add_text("Val Input Phoneme Text", phoneme_text, self.global_step)
@@ -1127,7 +1127,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
-        
+
         sampler = torch.utils.data.distributed.DistributedSampler(
             dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
         )
