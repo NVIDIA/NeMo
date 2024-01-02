@@ -1361,7 +1361,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                         predictions=sub_enc,
                         predictions_lengths=sub_enc_lens,
                         targets=sub_transcripts,
-                        target_lengths=sub_transcript_lens,
+                        targets_lengths=sub_transcript_lens,
                     )
 
                 del sub_enc, sub_transcripts, sub_enc_lens, sub_transcript_lens
@@ -1851,7 +1851,7 @@ class SampledRNNTJoint(RNNTJoint):
                     predictions=sub_enc,
                     predictions_lengths=sub_enc_lens,
                     targets=sub_transcripts,
-                    target_lengths=sub_transcript_lens,
+                    targets_lengths=sub_transcript_lens,
                 )
 
             del sub_enc, sub_transcripts, sub_enc_lens, sub_transcript_lens
