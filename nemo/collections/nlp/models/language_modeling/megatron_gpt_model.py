@@ -31,6 +31,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
+from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -101,6 +102,13 @@ try:
 
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
+
+
+def get_specs(spec_name):
+    name_spec_dict = {"": get_gpt_layer_with_transformer_engine_spec(), "megatron_falcon_gpt": get_falcon_layer_spec()}
+    if spec_name not in name_spec_dict:
+        raise ValueError(f"Spec name '{spec_name}' is not recognized.")
+    return name_spec_dict[spec_name]
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -215,6 +223,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
+        self.spec_name = cfg.get('name', '')
 
         self.rampup_batch_size = self.cfg.get('rampup_batch_size', None)
         if self.rampup_batch_size:
@@ -238,6 +247,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                on_cpu=cfg.get('fsdp', False) and cfg.get('use_cpu_initialization', False),
             )
 
         # if we're not using interleaved, then self.model is a module.
@@ -297,7 +307,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(),
+                transformer_layer_spec=get_specs(self.spec_name),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
@@ -333,7 +343,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 init_method_std=self.cfg.get('init_method_std', 0.02),
                 use_scaled_init_method=self.cfg.get('use_scaled_init_method', True),
                 fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-                megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
                 hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
                 attention_dropout=self.cfg.get('attention_dropout', 0.1),
                 ffn_dropout=self.cfg.get('ffn_dropout', 0.0),
@@ -601,7 +610,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
             self.allreduce_sequence_parallel_gradients()
 
-        if self.with_distributed_adam:
+        if self.use_fsdp:
+            # Reduce the gradients omitted from FSDP-sharding
+            self.allreduce_fsdp_sharding_omitted_gradients()
+        elif self.with_distributed_adam:
             # synchronize asynchronous grad reductions
             # note: not necessary, but reduces performance degradation
             # from multiple simultaneous NCCL calls
@@ -719,6 +731,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
             buf.copy_(synced)
 
+    def allreduce_fsdp_sharding_omitted_gradients(self):
+        """ All-reduce gradients of FSDP-sharding-omitted parameters in sharding domain (data-parallel domain).
+        """
+        assert isinstance(self.model, torch.nn.Module)
+        grads = []
+        for param in self.model.parameters():
+            if not isinstance(param, torch.distributed.fsdp.FlatParameter) and param.requires_grad:
+                grad = param.grad
+                grads.append(grad.data)
+        if len(grads) > 0:
+            coalesced = torch._utils._flatten_dense_tensors(grads)
+            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
+            for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+                buf.copy_(synced)
+
     def allreduce_first_last_embeddings(self):
 
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
@@ -825,6 +852,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 required_keys.update(batch.keys())
             else:
                 required_keys.add('attention_mask')
+                if 'cu_seqlens' in batch:
+                    required_keys.add('cu_seqlens')
                 if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
@@ -849,6 +878,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 # TODO: @eharper can we add this to mcore?
                 forward_args.pop('loss_mask')
+
+                if 'cu_seqlens' in batch:  # packed sequence from GPTSFTPackedDataset
+                    # these args are passed eventually into TEDotProductAttention.forward()
+                    cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
+                    cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]  # remove -1 "paddings" added in collate_fn
+                    forward_args['cu_seqlens_q'] = cu_seqlens
+                    forward_args['cu_seqlens_kv'] = cu_seqlens
+                    forward_args['qkv_format'] = 'thd'
+
             output_tensor = model(**forward_args)
 
             def loss_func(output_tensor):
@@ -1292,7 +1330,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
 
         # mcore uses distributed checkpointing
-        if self.mcore_gpt:
+        # FSDP supports the lagecy checkpointing or torch-FSDP-native sharded checkpointing
+        if self.mcore_gpt and not self.use_fsdp:
             checkpoint['sharded_state_dict'] = self.sharded_state_dict()
 
         # legacy checkpointing for interleaved
@@ -1309,7 +1348,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
 
         # mcore uses distributed checkpointing
-        if self.mcore_gpt:
+        # FSDP supports the lagecy checkpointing or torch-FSDP-native sharded checkpointing
+        if self.mcore_gpt and not self.use_fsdp:
             if 'state_dict' in checkpoint and checkpoint['state_dict']:
                 for index, module in enumerate(self.get_model_module_list()):
                     if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -1514,4 +1554,42 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         for key, value in model_specific_configs.items():
             setattr(transformer_config, key, value)
 
+        # pass mcore customization configs directly to mcore
+        mcore_customization_config_dict = self.cfg.get('mcore_customization_config', {})
+        for key, value in mcore_customization_config_dict.items():
+            setattr(transformer_config, key, value)
+
         return transformer_config
+
+    def _wrap_model_for_O2(self):
+        """ Wraps self.model in a float16 wrapper if the model is using megatron amp O2.
+            Args:
+                model: The model to wrap. Can be a list of modules or a single module.
+            Returns:
+                The wrapped model. Returns a list of wrapped modules or a single wrapped module.
+        """
+        Float16Wrapper = MCoreFloat16Module if self.mcore_gpt else Float16Module
+
+        nemo_args = {
+            'config': self.model_parallel_config,
+            'precision': self.cfg.precision,
+            'share_token_embeddings': self.cfg.get('share_embeddings_and_output_weights', True),
+        }
+        mcore_args = {
+            'config': self.transformer_config,
+        }
+
+        args = mcore_args if self.mcore_gpt else nemo_args
+
+        # Model wrapper to convert both model and inputs to half precision
+        if isinstance(self.model, list):
+            converted_model = []
+            for module in self.model:
+                args['module'] = module
+                converted_model.append(Float16Wrapper(**args))
+            self.model = converted_model
+        else:
+            args['module'] = self.model
+            self.model = Float16Wrapper(**args)
+
+        args.pop('module')
