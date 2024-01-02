@@ -22,11 +22,12 @@ wav=wav.cuda()
 
 # Encode audio into token indices [batch_size, num_codebooks, time]
 tokens, token_lens = audio_codec.encode(audio=wav, audio_len=audio_len)
-print(tokens.shape)
+print('Tokens shape:', tokens.shape)
+print('Token_lens:', token_lens)
 # Decode audio from token indices.
 audio_pred, audio_pred_lens = audio_codec.decode(tokens=tokens, tokens_len=token_lens)
 
-print(audio_pred.shape)
+print('Audio pred shape:', audio_pred.shape)
 
 torchaudio.save("/Data/test.wav", audio_pred.cpu(), audio_codec.sample_rate)
 

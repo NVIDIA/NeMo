@@ -357,10 +357,10 @@ def save_manifest(records, manifest_path):
 def main():
     parser = argparse.ArgumentParser(description='Create multiple tasks')
     parser.add_argument("--noise_manifest", type=str, default="/datap/misc/noisedata/train_manifest.json")
-    parser.add_argument('--manifest_paths', type=str, default="/Data/manifests_libri_local/val_clean_300_speechlm_ttstasks_local.json")
+    parser.add_argument('--manifest_paths', type=str, default="/Data/manifests_libri_local/train_clean_300_speechlm_ttstasks_with3sec_ref_all_random.json")
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--out_dir', type=str, default='/Data/CodecDatasets/speechllm_codecdatasets/')
-    parser.add_argument('--dataset_name', type=str, default='libritts_val')
+    parser.add_argument('--dataset_name', type=str, default='LibriTTSCorrectContext_train')
     parser.add_argument('--codec_model_path', type=str, default='/Data/Checkpoints/rlang_codec/SpeechCodec.nemo')
     parser.add_argument('--codec_bw', type=float, default=6.0) # 6 for 8 codebooks, 1.5 for 3 codebooks
     parser.add_argument('--codec_model', type=str, default='nemo_codec') # encodec, uniaudio_codec, dac or nemo_codec
