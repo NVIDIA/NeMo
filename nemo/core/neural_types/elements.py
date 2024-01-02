@@ -143,7 +143,7 @@ class VoidType(ElementType):
             # see details: https://github.com/pytorch/pytorch/issues/42885
             super().__init__()
 
-    def compare(cls, second) -> NeuralTypeComparisonResult:
+    def compare(self, second) -> NeuralTypeComparisonResult:
         return NeuralTypeComparisonResult.SAME
 
 
