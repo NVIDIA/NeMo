@@ -17,11 +17,11 @@ model:
   
   duration_predictor:
     # depth: 4
-    heads: 2
+    heads: 1
 
   voicebox:
     # depth: 12
-    heads: 4
+    heads: 2
 
   optim:
     name: adam
