@@ -1149,6 +1149,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         averaged_metric = []
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
+            if len(output) == 0:
+                logging.warning(f"Empty output for dataloader_idx: {dataloader_idx}")
+                continue
             # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
             loss_vals = [x['loss'] for x in output]
             if parallel_state.is_pipeline_last_stage():
@@ -1223,7 +1226,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 if metric_name == 'bleu':
                     metric_result = torch.Tensor(
                         [sacrebleu.corpus_bleu(deduplicated_outputs['preds'], [labels]).score]
-                    ).cuda()
+                    ).to(self.device)
                 else:
                     for pred, label in zip(deduplicated_outputs['preds'], labels):
                         _ = metric_fn(pred, label)
@@ -1266,6 +1269,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
         averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 0 else None
+        averaged_loss = averaged_loss.to(self.device)
+        if averaged_metric is not None:
+            averaged_metric = averaged_metric.to(self.device)
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
         if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
