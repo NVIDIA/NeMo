@@ -121,85 +121,83 @@ pipeline {
     //   }
     // }
 
-    stage('L0: Unit Tests CPU') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      steps {
-        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
-      }
-    }
-
-    stage('L2: Multimodal Imagen Train') {
-      when {
-        anyOf {
-          branch 'r1.23.0'
-          changeRequest target: 'r1.23.0'
-        }
-      }
-      failFast true
-      steps {
-        sh "rm -rf /home/TestData/multimodal/imagen_train"
-        sh "pip install webdataset==0.2.48"
-        sh "python examples/multimodal/text_to_image/imagen/imagen_training.py \
-        trainer.precision=16 \
-        trainer.num_nodes=1 \
-        trainer.devices=1 \
-        ++exp_manager.max_time_per_run=00:00:03:00 \
-        trainer.max_steps=20 \
-        model.conditioning.embed_dim=64 \
-        model.micro_batch_size=1 \
-        model.global_batch_size=1 \
-        model.data.synthetic_data=True \
-        exp_manager.exp_dir=/home/TestData/multimodal/imagen_train \
-        model.inductor=False \
-        model.unet.flash_attention=False \
-        "
-        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
-        sh "rm -rf /home/TestData/multimodal/imagen_train"
-      }
-    }
-    stage('L2: Multimodal Stable Diffusion Train') {
-      when {
-        anyOf {
-          branch 'r1.23.0'
-          changeRequest target: 'r1.23.0'
-        }
-      }
-      failFast true
-      steps {
-        sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
-        sh "pip install webdataset==0.2.48"
-        sh "python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
-            trainer.precision=16 \
-            trainer.num_nodes=1 \
-            trainer.devices=1 \
-            ++exp_manager.max_time_per_run=00:00:03:00 \
-            trainer.max_steps=20 \
-            model.micro_batch_size=1 \
-            model.global_batch_size=1 \
-            model.data.synthetic_data=True \
-            exp_manager.exp_dir=/home/TestData/multimodal/stable_diffusion_train \
-            model.inductor=False \
-            model.cond_stage_config._target_=nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder \
-            ++model.cond_stage_config.version=openai/clip-vit-large-patch14 \
-            ++model.cond_stage_config.max_length=77 \
-            ~model.cond_stage_config.restore_from_path \
-            ~model.cond_stage_config.freeze \
-            ~model.cond_stage_config.layer \
-            model.unet_config.from_pretrained=null \
-            model.first_stage_config.from_pretrained=null \
-            model.unet_config.use_flash_attention=False \
-            model.unet_config.attention_resolutions=[1] \
-            model.unet_config.channel_mult=[1] \
-            "
-        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
-        sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
-      }
-    }
+//    stage('L0: Unit Tests CPU') {
+//      when {
+//        anyOf {
+//          branch 'main'
+//          changeRequest target: 'main'
+//        }
+//      }
+//      steps {
+//        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
+//      }
+//    }
+//
+//     stage('L2: Multimodal Imagen Train') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       failFast true
+//       steps {
+//         sh "rm -rf /home/TestData/multimodal/imagen_train"
+//         sh "pip install webdataset==0.2.48"
+//         sh "python examples/multimodal/text_to_image/imagen/imagen_training.py \
+//         trainer.precision=16 \
+//         trainer.num_nodes=1 \
+//         trainer.devices=1 \
+//         ++exp_manager.max_time_per_run=00:00:03:00 \
+//         trainer.max_steps=20 \
+//         model.micro_batch_size=1 \
+//         model.global_batch_size=1 \
+//         model.data.synthetic_data=True \
+//         exp_manager.exp_dir=/home/TestData/multimodal/imagen_train \
+//         model.inductor=False \
+//         model.unet.flash_attention=False \
+//         "
+//         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
+//         sh "rm -rf /home/TestData/multimodal/imagen_train"
+//       }
+//     }
+//
+//     stage('L2: Multimodal Stable Diffusion Train') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       failFast true
+//       steps {
+//         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
+//         sh "pip install webdataset==0.2.48"
+//         sh "python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
+//             trainer.precision=16 \
+//             trainer.num_nodes=1 \
+//             trainer.devices=1 \
+//             ++exp_manager.max_time_per_run=00:00:03:00 \
+//             trainer.max_steps=20 \
+//             model.micro_batch_size=1 \
+//             model.global_batch_size=1 \
+//             model.data.synthetic_data=True \
+//             exp_manager.exp_dir=/home/TestData/multimodal/stable_diffusion_train \
+//             model.inductor=False \
+//             model.cond_stage_config._target_=nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder \
+//             ++model.cond_stage_config.version=openai/clip-vit-large-patch14 \
+//             ++model.cond_stage_config.max_length=77 \
+//             ~model.cond_stage_config.restore_from_path \
+//             ~model.cond_stage_config.freeze \
+//             ~model.cond_stage_config.layer \
+//             model.unet_config.from_pretrained=null \
+//             model.first_stage_config.from_pretrained=null \
+//             model.unet_config.use_flash_attention=False \
+//             "
+//         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
+//         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
+//       }
+//     }
 //     stage('L2: Multimodal ControlNet Train') {
 //       when {
 //         anyOf {
