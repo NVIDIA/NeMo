@@ -19,8 +19,6 @@ from pathlib import Path
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
 import logging
-from service.rest_model_api import app
-import uvicorn
 
 try:
     from contextlib import nullcontext
@@ -37,19 +35,18 @@ def get_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton",
     )
-
     parser.add_argument(
         "-nc",
         "--nemo_checkpoint",
         type=str,
-        help="Source .nemo file")
-
+        help="Source .nemo file"
+    )
     parser.add_argument(
         "-pnc",
         "--ptuning_nemo_checkpoint",
         type=str,
-        help="Source .nemo file for prompt embeddings table")
-
+        help="Source .nemo file for prompt embeddings table"
+    )
     parser.add_argument(
         "-mt",
         "--model_type",
@@ -59,7 +56,6 @@ def get_args(argv):
         help="Type of the model. gptnext, gpt, llama, falcon, and starcoder are only supported."
              " gptnext and gpt are the same and keeping it for backward compatibility"
     )
-
     parser.add_argument(
         "-tmn",
         "--triton_model_name",
@@ -67,7 +63,6 @@ def get_args(argv):
         type=str,
         help="Name for the service"
     )
-
     parser.add_argument(
         "-tmv",
         "--triton_model_version",
@@ -75,7 +70,6 @@ def get_args(argv):
         type=int,
         help="Version for the service"
     )
-
     parser.add_argument(
         "-tp",
         "--triton_port",
@@ -83,7 +77,6 @@ def get_args(argv):
         type=int,
         help="Port for the Triton server to listen for requests"
     )
-
     parser.add_argument(
         "-tha",
         "--triton_http_address",
@@ -91,7 +84,6 @@ def get_args(argv):
         type=str,
         help="HTTP address for the Triton server"
     )
-
     parser.add_argument(
         "-tmr",
         "--triton_model_repository",
@@ -99,7 +91,6 @@ def get_args(argv):
         type=str,
         help="Folder for the trt-llm conversion"
     )
-
     parser.add_argument(
         "-ng",
         "--num_gpus",
@@ -107,7 +98,6 @@ def get_args(argv):
         type=int,
         help="Number of GPUs for the deployment"
     )
-
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -116,7 +106,6 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
-
     parser.add_argument(
         "-mil",
         "--max_input_len",
@@ -140,7 +129,6 @@ def get_args(argv):
         type=int,
         help="Max batch size of the model"
     )
-
     parser.add_argument(
         "-mpet",
         "--max_prompt_embedding_table_size",
@@ -148,38 +136,12 @@ def get_args(argv):
         type=int,
         help="Max prompt embedding table size"
     )
-
     parser.add_argument(
         "-dcf",
         "--disable_context_fmha",
         action="store_true",
         help="Disable fused Context MultiHeadedAttention (required for V100 support)."
     )
-
-    parser.add_argument(
-        "-srs",
-        "--start_rest_service",
-        default="False",
-        type=str,
-        help="Starts the REST service for OpenAI API support"
-    )
-
-    parser.add_argument(
-        "-sha",
-        "--service_http_address",
-        default="0.0.0.0",
-        type=str,
-        help="HTTP address for the REST Service"
-    )
-
-    parser.add_argument(
-        "-sp",
-        "--service_port",
-        default=8000,
-        type=int,
-        help="Port for the Triton server to listen for requests"
-    )
-
     parser.add_argument(
         "-dm",
         "--debug_mode",
@@ -235,13 +197,6 @@ def nemo_deploy(argv):
         )
         return
 
-    if args.start_rest_service == "True":
-        if args.service_port == args.triton_port:
-            LOGGER.error(
-                "REST service port and Triton server port cannot use the same port."
-            )
-            return
-
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
 
     if args.nemo_checkpoint is not None:
@@ -280,25 +235,10 @@ def nemo_deploy(argv):
 
     try:
         LOGGER.info("Model serving on Triton is will be started.")
-        if args.start_rest_service == "True":
-            nm.run()
-        else:
-            nm.serve()
+        nm.serve()
     except Exception as error:
         LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
-
-    if args.start_rest_service == "True":
-        try:
-            LOGGER.info("REST service is will be started.")
-            uvicorn.run(
-                'service.rest_model_api:app',
-                host=args.service_http_address,
-                port=args.service_port,
-                reload=True
-            )
-        except Exception as error:
-            LOGGER.error("Error message has occurred during REST service start. Error message: " + str(error))
 
     LOGGER.info("Model serving will be stopped.")
     nm.stop()
