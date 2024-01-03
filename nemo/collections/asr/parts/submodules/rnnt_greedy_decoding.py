@@ -559,17 +559,20 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             confidence_method_cfg=confidence_method_cfg,
         )
 
-        print("GALVEZ:go_very_fast", go_very_fast, self.decoder.blank_as_pad)
+        # print("GALVEZ:go_very_fast", go_very_fast, self.decoder.blank_as_pad)
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
         if self.decoder.blank_as_pad and go_very_fast:
-            self._greedy_decode = RNNTGreedyDecodeFast(max_symbols_per_step, torch.device("cuda"))
+            # This is not a very robust way to do this...
+            dtype = next(param.dtype for param in decoder_model.parameters())
+            print("GALVEZ: dtype=", dtype)
+            self._greedy_decode = RNNTGreedyDecodeFast(max_symbols_per_step, dtype, torch.device("cuda"), self)
         elif self.decoder.blank_as_pad:
             self._greedy_decode = self._greedy_decode_blank_as_pad
         else:
             self._greedy_decode = self._greedy_decode_masked
 
-        print("GALVEZ:", self._greedy_decode)
+        # print("GALVEZ:", self._greedy_decode)
 
     @typecheck()
     def forward(
@@ -827,7 +830,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         for batch_idx in range(batchsize):
             hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
 
-        print("ORIGINAL:", hypotheses)
+        # print("ORIGINAL:", hypotheses)
 
         # import ipdb; ipdb.set_trace()
 

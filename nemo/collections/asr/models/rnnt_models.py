@@ -293,8 +293,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 if augmentor:
                     config['augmentor'] = augmentor
 
-                print("GALVEZ:augmentor=", augmentor)
-
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=(not verbose)):
                     torch.cuda.nvtx.range_push("encoder")
@@ -319,7 +317,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                     else:
                         all_hypotheses += best_hyp
 
-                    print("GALVEZ:best_hyp=", best_hyp)
+                    # print("GALVEZ:best_hyp=", best_hyp)
 
                     del encoded
                     del test_batch

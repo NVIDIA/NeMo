@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 from nemo.collections.asr.models import ASRModel
@@ -7,6 +8,8 @@ from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBat
 
 from omegaconf import open_dict
 from omegaconf import OmegaConf
+
+import jiwer
 
 
 import torch
@@ -45,28 +48,18 @@ def test_for_loop():
     nemo_model.decoder.freeze()
     nemo_model.joint.freeze()
 
-    B = 2
-    T = 100
-    D = nemo_model.tokenizer.tokenizer.vocab_size  # + 1  # ?
+    audio_filepaths = glob.glob("/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/*.wav")[:64]
+    batch_size = 16
 
-    audio_filepath = ["/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/4446-2273-0019.wav", "/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/4446-2273-0018.wav"]
-    # audio_filepath = ["/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/4446-2273-0018.wav"]
+    torch.cuda.cudart().cudaProfilerStart()
 
-    actual_transcripts = nemo_model.transcribe(audio_filepath, batch_size=B)
+    actual_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size)
 
-
-    # for _ in range(5):
-    #     torch.zeros((1000,))
-    #     torch.nn.functional.linear(torch.zeros(100, 100), torch.zeros((100,)))
-
-
-    # nemo_model_fast = 
     conf = nemo_model.to_config_dict()
 
-    print("GALVEZ:", json.dumps(OmegaConf.to_container(conf), indent=4))
     with open_dict(conf):
         conf["decoding"]["greedy"]["go_very_fast"] = True
-        conf["decoding"]["greedy"]["max_symbols"] = 1
+        conf["decoding"]["greedy"]["max_symbols"] = 5
     with tempfile.NamedTemporaryFile() as fp:
         OmegaConf.save(config=conf, f=fp.name)
         fast_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge",
@@ -85,28 +78,20 @@ def test_for_loop():
     fast_model.decoder.freeze()
     fast_model.joint.freeze()
 
-    fast_transcripts = fast_model.transcribe(audio_filepath, batch_size=B)
+    fast_transcripts, _ = fast_model.transcribe(audio_filepaths, batch_size=batch_size)
 
-    # fast_transcripts = fast_model.transcribe([audio_filepath[0]], batch_size=B)
-    # fast_transcripts = fast_model.transcribe([audio_filepath[1]], batch_size=B)
-    # fast_transcripts = fast_model.transcribe([audio_filepath[1]], batch_size=B)
+    print("GALVEZ:", jiwer.wer(actual_transcripts, fast_transcripts))
+
+    for actual, fast in zip(actual_transcripts, fast_transcripts):
+        if actual != fast:
+            print("GALVEZ:erroneous!")
+            print(actual)
+            print(fast)
+
+    torch.cuda.cudart().cudaProfilerStop()
 
     import ipdb; ipdb.set_trace()
 
-
-    return
-
-    # import ipdb; ipdb.set_trace()
-
-    # decoding = GreedyBatchedRNNTInfer(nemo_model.decoder, nemo_model.joint, 
-    #                                   blank_index=nemo_model.tokenizer.tokenizer.vocab_size, 
-    #                                   max_symbols_per_step=5)
-    # fast_greedy_decoder = RNNTGreedyDecodeFast(5, torch.device("cuda"), B, nemo_model.tokenizer.tokenizer.vocab_size)
-
-    # x = torch.randn(B, T, D, dtype=torch.float32, device="cuda")
-    # out_len = torch.tensor([T] * B, dtype=torch.int64, device="cuda")
-
-    # fast_greedy_decoder(decoding, x, out_len, torch.device("cuda"))
 
 def test_reproducibility():
     nemo_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge",
@@ -115,7 +100,7 @@ def test_reproducibility():
     conf = nemo_model.to_config_dict()
     with open_dict(conf):
         conf["decoding"]["greedy"]["go_very_fast"] = True
-        conf["decoding"]["greedy"]["max_symbols"] = 1
+        conf["decoding"]["greedy"]["max_symbols"] = 5
 
     with tempfile.NamedTemporaryFile() as fp:
         OmegaConf.save(config=conf, f=fp.name)
@@ -125,9 +110,8 @@ def test_reproducibility():
 
     device = "cuda"
 
-    paths2audio_files = ["/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/4446-2273-0019.wav", 
-                         "/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/4446-2273-0018.wav"]
-    batch_size = len(paths2audio_files)
+    paths2audio_files = glob.glob("/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/*.wav")
+    batch_size = 16
     num_workers = 2
 
     nemo_model.preprocessor.featurizer.dither = 0.0
@@ -212,7 +196,7 @@ def test_reproducibility():
 
     
 if __name__ == "__main__":
-    # test_for_loop()
-    test_reproducibility()
+    test_for_loop()
+    # test_reproducibility()
 
 
