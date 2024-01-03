@@ -792,7 +792,7 @@ class MegatronBaseModel(NLPModel):
                 ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         if self.cfg.get('ub_tp_comm_overlap', False):
-            if self.cfg.get('ub_tp_comm_overlap', False) and not self.cfg.get('sequence_parallel', False):
+            if not self.cfg.get('sequence_parallel', False):
                 logging.info(
                     "Pipelined tensor-parallel communication overlap is available with sequence-parallelism."
                     "Setting `ub_tp_comm_overlap` to False."
