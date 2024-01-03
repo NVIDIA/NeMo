@@ -19,13 +19,13 @@ description: State of the Art Speech Recognition for Everyone
 
 # Announcing NVIDIA NeMo Parakeet ASR Models for Pushing the Boundaries of Speech Recognition
 
-[NVIDIA NeMo](https://nvidia.github.io/NeMo/), a leading open-source toolkit for conversational AI, announces the release of Parakeet, a family of state-of-the-art automatic speech recognition (ASR) models, capable of transcribing spoken English with exceptional accuracy. Developed in collaboration with Suno.ai, Parakeet ASR models mark a significant leap forward in speech recognition, paving the way for more natural and efficient human-computer interactions.
+[NVIDIA NeMo](https://nvidia.github.io/NeMo/), a leading open-source toolkit for conversational AI, announces the release of Parakeet, a family of state-of-the-art automatic speech recognition (ASR) models, capable of transcribing spoken English with exceptional accuracy. Developed in collaboration with [Suno.ai](http://suno.ai/), Parakeet ASR models mark a significant leap forward in speech recognition, paving the way for more natural and efficient human-computer interactions.
 
-NVIDIA announces four Parakeet models based on RNN Transducer / Connectionist Temporal Classification decoders and the size of the models. They boast 0.6-1.1 billion parameters abd capable of tackling diverse audio environments. Trained on only a 64,000-hour dataset encompassing various accents, domains, and noise conditions, the model delivers exceptional word error rate (WER) performance across benchmark datasets, outperforming previous models.
+NVIDIA announces four Parakeet models based on RNN Transducer / Connectionist Temporal Classification decoders and the size of the models. They boast 0.6-1.1 billion parameters and capable of tackling diverse audio environments. Trained on only a 64,000-hour dataset encompassing various accents, domains, and noise conditions, the models deliver exceptional word error rate (WER) performance across benchmark datasets, outperforming previous models.
 
 * [Parakeet RNNT 1.1B](https://huggingface.co/nvidia/parakeet-rnnt-1.1b) - Best recognition accuracy, modest inference speed. Best used when the most accurate transcriptions are necessary.
 * [Parakeet CTC 1.1B](https://huggingface.co/nvidia/parakeet-ctc-1.1b) - Fast inference, strong recognition accuracy. A great middle ground between accuracy and speed of inference.
-* [Parakeet RNNT 0.6B](https://huggingface.co/nvidia/parakeet-rnnt-0.6b) - Strong recognition accuracy, accurate, fast inference. Useful for large-scale inference on limited resources.
+* [Parakeet RNNT 0.6B](https://huggingface.co/nvidia/parakeet-rnnt-0.6b) - Strong recognition accuracy and fast inference. Useful for large-scale inference on limited resources.
 * [Parakeet CTC 0.6B](https://huggingface.co/nvidia/parakeet-ctc-0.6b) - Fastest speed, modest recognition accuracy. Useful when transcription speed is the most important.
 
 <!-- more -->
@@ -42,13 +42,13 @@ Key benefits of Parakeet models:
 * **Pre-trained checkpoints:** Ready-to-use models for inference or fine-tuning.
 * **Permissive license:** Released under CC-BY-4.0 license, model checkpoints can be used in any commercial application.
 
-Parakeet is a major step forward in the evolution of conversational AI. Its exceptional accuracy, coupled with the flexibility and ease of use offered by NeMo, empowers developers to create more natural and intuitive voice-powered applications. The possibilities are endless, from enhancing the accuracy of virtual assistants to enabling seamless real-time communication.. 
+Parakeet is a major step forward in the evolution of conversational AI. Its exceptional accuracy, coupled with the flexibility and ease of use offered by NeMo, empowers developers to create more natural and intuitive voice-powered applications. The possibilities are endless, from enhancing the accuracy of virtual assistants to enabling seamless real-time communication.
 
 The Parakeet family of models achieves state-of-the-art numbers on the [HuggingFace Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard). Users can try out the [parakeet-rnnt-1.1b](https://huggingface.co/nvidia/parakeet-rnnt-1.1b) firsthand at the [Gradio demo](https://huggingface.co/spaces/nvidia/parakeet-rnnt-1.1b). To access the model locally and explore the toolkit, visit the [NVIDIA NeMo Github page](https://github.com/NVIDIA/NeMo). 
 
 ## Architecture Details
 
-Parakeet models are based on the [Fast Conformer architecture published in ASRU 2023](https://arxiv.org/abs/2305.05084). Fast Conformer is an optimized version of the Conformer model with 8x depthwise-separable convolutional downsampling, modified Convolution kernel size, and an efficient subsampling module. Additionally it supports inference on very long audio segments (up to 11 hours of speech) on an A100 80GB card using Local Attention. The model is trained end-to-end using the Transducer decoder (RNNT) or Connectionist Temporal Classification decoder. For further details on long audio inference, please refer to the ICASSP 2024 paper “[Investigating End-to-End ASR Architectures for Long Form Audio Transcription](https://arxiv.org/abs/2309.09950)”.
+Parakeet models are based on the [Fast Conformer architecture published in ASRU 2023](https://arxiv.org/abs/2305.05084). Fast Conformer is an optimized version of the Conformer model with 8x depthwise-separable convolutional downsampling, modified convolution kernel size, and an efficient subsampling module. Additionally it supports inference on very long audio segments (up to 11 hours of speech) on an A100 80GB card using Local Attention. The model is trained end-to-end using the Transducer decoder (RNNT) or Connectionist Temporal Classification decoder. For further details on long audio inference, please refer to the ICASSP 2024 paper “[Investigating End-to-End ASR Architectures for Long Form Audio Transcription](https://arxiv.org/abs/2309.09950)”.
 
 <figure markdown>
   ![Parakeet architecture](https://github.com/NVIDIA/NeMo/releases/download/v1.21.0/asset-post-2024-01-03-parakeet_arch.png)
@@ -59,7 +59,7 @@ Parakeet models are based on the [Fast Conformer architecture published in ASRU 
 
 NVIDIA NeMo can be installed as a pip package as shown below. Cython and PyTorch (2.0 and above) should be installed before attempting to install NeMo Toolkit.
 
-Then simply use 
+Then simply use:
 ```bash 
 pip install nemo_toolkit['asr']
 ```
@@ -71,14 +71,14 @@ asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name="nvidia/parakeet
 transcript = asr_model.transcribe(["some_audio_file.wav"])
 ```
 
-## Long-form Speech Inference
+## Long-Form Speech Inference
 
-Once you have a Fast Conformer model loaded, can easily modify the attention type to limited context attention after building the model. Additionally, you can also apply audio chunking for the subsampling module to perform inference on huge audio files!
+Once you have a Fast Conformer model loaded, you can easily modify the attention type to limited context attention after building the model. You can also apply audio chunking for the subsampling module to perform inference on huge audio files!
 
 !!! note
     These models were trained with global attention, and switching to local attention will degrade their performance. However, they will still be able to transcribe long audio files reasonably well.
 
-For limited context attention on huge files (upto 11 hours on an A100), you can perform the following steps :
+For limited context attention on huge files (upto 11 hours on an A100), perform the following steps:
 
 ```python
 # Enable local attention
