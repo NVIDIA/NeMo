@@ -44,7 +44,12 @@ Key benefits of Parakeet models:
 
 Parakeet is a major step forward in the evolution of conversational AI. Its exceptional accuracy, coupled with the flexibility and ease of use offered by NeMo, empowers developers to create more natural and intuitive voice-powered applications. The possibilities are endless, from enhancing the accuracy of virtual assistants to enabling seamless real-time communication.
 
-The Parakeet family of models achieves state-of-the-art numbers on the [HuggingFace Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard). Users can try out the [parakeet-rnnt-1.1b](https://huggingface.co/nvidia/parakeet-rnnt-1.1b) firsthand at the [Gradio demo](https://huggingface.co/spaces/nvidia/parakeet-rnnt-1.1b). To access the model locally and explore the toolkit, visit the [NVIDIA NeMo Github page](https://github.com/NVIDIA/NeMo). 
+The Parakeet family of models achieves state-of-the-art numbers on the [HuggingFace Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard). Users can try out the [parakeet-rnnt-1.1b](https://huggingface.co/nvidia/parakeet-rnnt-1.1b) firsthand at the [Gradio demo](https://huggingface.co/spaces/nvidia/parakeet-rnnt-1.1b). To access the model locally and explore the toolkit, visit the [NVIDIA NeMo Github page](https://github.com/NVIDIA/NeMo).
+
+<figure markdown>
+  ![HuggingFace Leaderboard](https://github.com/NVIDIA/NeMo/releases/download/v1.21.0/asset-post-2024-01-03-parakeet_leaderboard.png)
+  <figcaption><b>Figure 1.</b> <i> HuggingFace Leaderboard as of 01/03/2024. </i></figcaption>
+</figure>
 
 ## Architecture Details
 
@@ -52,7 +57,7 @@ Parakeet models are based on the [Fast Conformer architecture published in ASRU 
 
 <figure markdown>
   ![Parakeet architecture](https://github.com/NVIDIA/NeMo/releases/download/v1.21.0/asset-post-2024-01-03-parakeet_arch.png)
-  <figcaption><b>Figure 1.</b> <i> Fast Conformer Architecture shows blocks of downsampling, conformer encoder blocks with limited context attention (LCA), and global token (GT).</i></figcaption>
+  <figcaption><b>Figure 2.</b> <i> Fast Conformer Architecture shows blocks of downsampling, conformer encoder blocks with limited context attention (LCA), and global token (GT).</i></figcaption>
 </figure>
 
 ## Usage
@@ -94,6 +99,7 @@ asr_model.transcribe(["<path to a huge audio file>.wav"])  # 10+ hours !
 ## Additional Resources
 
 * [HuggingFace ASR Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard)
+* [HuggingFace ASR Leaderboard Evaluation](https://github.com/huggingface/open_asr_leaderboard)
 * [NeMo Parakeet Models on HuggingFace](https://huggingface.co/models?library=nemo&sort=trending&search=parakee)
 * [NVIDIA NeMo Webpage](https://github.com/NVIDIA/NeMo)
 * [NVIDIA NeMo ASR Documentation](https://docs.nvidia.com/deeplearning/nemo/user-guide/index.html)
