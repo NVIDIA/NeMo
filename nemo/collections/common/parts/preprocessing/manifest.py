@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from nemo.utils import logging
 from nemo.utils.data_utils import DataStoreObject, datastore_path_to_local_path, is_datastore_path
+from nemo.utils.nemo_logging import LogMode
 
 
 class ManifestBase:
@@ -206,6 +207,15 @@ def get_full_path(
         ]
     elif isinstance(audio_file, str):
         # If input is a string, get the corresponding full path
+        if "/" not in audio_file and (
+            "/sharded_manifests/" in manifest_file
+            or str(os.path.basename(manifest_file)).startswith("tarred_audio_manifest")
+        ):
+            logging.warning(
+                f"Manifest file {manifest_file} seems to be part of a tarred dataset, skip checking for relative paths. If this is not intended, please avoid have `/sharded_manifests/` and `tarred_audio_manifest.json` in your manifest filepath.",
+                mode=LogMode.ONCE,
+            )
+            return audio_file
         if (
             (len(audio_file) < audio_file_len_limit)
             and not os.path.isabs(audio_file)

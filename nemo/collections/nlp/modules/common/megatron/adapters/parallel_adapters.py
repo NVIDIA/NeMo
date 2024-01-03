@@ -18,6 +18,7 @@ import enum
 import logging
 from dataclasses import dataclass
 from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.init as init
@@ -28,7 +29,6 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
-
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
@@ -46,6 +46,8 @@ try:
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
 
     ModelParallelConfig = ApexGuardDefaults
 
@@ -78,7 +80,16 @@ class InfusedAdapter(nn.Module, AdapterModuleUtil):
         if model_parallel_config is None:
             model_parallel_config = ModelParallelConfig()
 
+        if model_parallel_config is None:
+            model_parallel_config = ModelParallelConfig()
+
         self.scalers = nn.Parameter(torch.ones(in_features))
+
+        # cast all parameters when using amp O2 training
+        if model_parallel_config.bf16:
+            self.bfloat16()
+        elif model_parallel_config.fp16:
+            self.half()
 
         # cast all parameters when using amp O2 training
         if model_parallel_config.bf16:
@@ -139,6 +150,11 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             raise RuntimeError("ParallelLinearAdapter can not run without Megatron-core.")
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
+
+        # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
+        # in case this arg is not provided, use the dummy default config.
+        if model_parallel_config is None:
+            model_parallel_config = ModelParallelConfig()
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.

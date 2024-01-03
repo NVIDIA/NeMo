@@ -188,7 +188,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+                # to handle we stack one ConformerEncoder on the other
+                "audio_signal": NeuralType(('B', 'D', 'T'), ChannelType()),
                 "length": NeuralType(tuple('B'), LengthsType()),
                 "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
@@ -201,7 +202,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+                "audio_signal": NeuralType(('B', 'D', 'T'), ChannelType()),
                 "length": NeuralType(tuple('B'), LengthsType()),
                 "cache_last_channel": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
@@ -1068,6 +1069,10 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
             conformer_layer.set_enabled_adapters(name=name, enabled=enabled)
+
+    def unfreeze_enabled_adapters(self, freeze_batchnorm: bool = True) -> None:
+        for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            conformer_layer.unfreeze_enabled_adapters(freeze_batchnorm=freeze_batchnorm)
 
     def get_enabled_adapters(self) -> List[str]:
         names = set([])

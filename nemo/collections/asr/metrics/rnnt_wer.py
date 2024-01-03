@@ -141,6 +141,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     to be decoded, at the cost of increased execution time.
                 preserve_frame_confidence: Same as above, overrides above value.
                 confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
+                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -1048,6 +1049,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
                 preserve_frame_confidence: Same as above, overrides above value.
 
                 confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
+                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -1201,12 +1203,18 @@ class RNNTWER(Metric):
             wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
             self.val_outputs = {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
             return self.val_outputs
+            self.val_outputs = {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            return self.val_outputs
 
+        def on_validation_epoch_end(self):
         def on_validation_epoch_end(self):
             ...
             wer_num = torch.stack([x['val_wer_num'] for x in self.val_outputs]).sum()
             wer_denom = torch.stack([x['val_wer_denom'] for x in self.val_outputs]).sum()
+            wer_num = torch.stack([x['val_wer_num'] for x in self.val_outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in self.val_outputs]).sum()
             tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+            self.val_outputs.clear()  # free memory
             self.val_outputs.clear()  # free memory
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
@@ -1300,6 +1308,7 @@ class RNNTDecodingConfig:
 
     #  confidence config
     confidence_cfg: ConfidenceConfig = field(default_factory=lambda: ConfidenceConfig())
+    confidence_cfg: ConfidenceConfig = field(default_factory=lambda: ConfidenceConfig())
 
     # RNNT Joint fused batch size
     fused_batch_size: Optional[int] = None
@@ -1318,8 +1327,10 @@ class RNNTDecodingConfig:
 
     # greedy decoding config
     greedy: greedy_decode.GreedyRNNTInferConfig = field(default_factory=lambda: greedy_decode.GreedyRNNTInferConfig())
+    greedy: greedy_decode.GreedyRNNTInferConfig = field(default_factory=lambda: greedy_decode.GreedyRNNTInferConfig())
 
     # beam decoding config
+    beam: beam_decode.BeamRNNTInferConfig = field(default_factory=lambda: beam_decode.BeamRNNTInferConfig(beam_size=4))
     beam: beam_decode.BeamRNNTInferConfig = field(default_factory=lambda: beam_decode.BeamRNNTInferConfig(beam_size=4))
 
     # can be used to change temperature for decoding

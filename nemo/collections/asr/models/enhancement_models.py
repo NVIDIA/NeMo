@@ -67,9 +67,24 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             logging.debug('Mixture consistency not used')
             self.mixture_consistency = None
 
+        if 'mixture_consistency' in self._cfg:
+            logging.debug('Using mixture consistency')
+            self.mixture_consistency = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.mixture_consistency)
+        else:
+            logging.debug('Mixture consistency not used')
+            self.mixture_consistency = None
+
         # Future enhancement:
         # If subclasses need to modify the config before calling super()
         # Check ASRBPE* classes do with their mixin
+
+        # Setup augmentation
+        if hasattr(self.cfg, 'channel_augment') and self.cfg.channel_augment is not None:
+            logging.debug('Using channel augmentation')
+            self.channel_augmentation = EncMaskDecAudioToAudioModel.from_config_dict(self.cfg.channel_augment)
+        else:
+            logging.debug('Channel augmentation not used')
+            self.channel_augmentation = None
 
         # Setup augmentation
         if hasattr(self.cfg, 'channel_augment') and self.cfg.channel_augment is not None:
@@ -135,6 +150,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
                 temporary_manifest_filepath = os.path.join(tmpdir, 'manifest.json')
                 with open(temporary_manifest_filepath, 'w', encoding='utf-8') as fp:
                     for audio_file in paths2audio_files:
+                        entry = {'input_filepath': audio_file, 'duration': librosa.get_duration(path=audio_file)}
                         entry = {'input_filepath': audio_file, 'duration': librosa.get_duration(path=audio_file)}
                         fp.write(json.dumps(entry) + '\n')
 
@@ -332,6 +348,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
                 ('B', 'C', 'T'), AudioSignal(freq=self.sample_rate)
             ),  # multi-channel format, channel dimension can be 1 for single-channel audio
             "input_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "input_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -340,6 +357,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             "output_signal": NeuralType(
                 ('B', 'C', 'T'), AudioSignal(freq=self.sample_rate)
             ),  # multi-channel format, channel dimension can be 1 for single-channel audio
+            "output_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "output_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
@@ -389,6 +407,10 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         if self.mixture_consistency is not None:
             processed = self.mixture_consistency(mixture=encoded, estimate=processed)
 
+        # Mixture consistency
+        if self.mixture_consistency is not None:
+            processed = self.mixture_consistency(mixture=encoded, estimate=processed)
+
         # Decoder
         processed, processed_length = self.decoder(input=processed, input_length=processed_length)
 
@@ -412,11 +434,25 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             input_signal = self.channel_augmentation(input=input_signal)
 
         # Process input
+        # Apply channel augmentation
+        if self.training and self.channel_augmentation is not None:
+            input_signal = self.channel_augmentation(input=input_signal)
+
+        # Process input
         processed_signal, _ = self.forward(input_signal=input_signal, input_length=input_length)
 
         # Calculate the loss
         loss = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
+        # Calculate the loss
+        loss = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
 
+        # Logs
+        self.log('train_loss', loss)
+        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
+        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
+
+        # Return loss
+        return loss
         # Logs
         self.log('train_loss', loss)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
@@ -436,8 +472,11 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             target_signal = target_signal.unsqueeze(1)
 
         # Process input
+        # Process input
         processed_signal, _ = self.forward(input_signal=input_signal, input_length=input_length)
 
+        # Calculate the loss
+        loss = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
         # Calculate the loss
         loss = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
 

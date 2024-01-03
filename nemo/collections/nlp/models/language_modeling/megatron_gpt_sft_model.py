@@ -182,15 +182,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             self.setup_training_dataloader()
         if hasattr(self, '_validation_ds'):
             self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
-        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
+        if hasattr(self.cfg.data, 'test_ds'):
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
-
-        # Raise error if using multiple dataloaders
-        if type(self._validation_dl) == list and len(self._validation_dl) > 1:
-            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
-
-        if type(self._test_dl) == list and len(self._test_dl) > 1:
-            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if not self.cfg.get('mcore_gpt', False):
@@ -322,7 +315,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, forward_only):
         batch = next(dataloader_iter)
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
@@ -383,25 +376,21 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         return loss_mean
 
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
+    def validation_step(self, dataloader_iter):
+        return self.inference_step(dataloader_iter, 'validation')
 
-    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+    def test_step(self, dataloader_iter):
         # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
+        return self.inference_step(dataloader_iter, 'test')
 
-    def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
+    def inference_step(self, dataloader_iter, mode):
         # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
-        batch = next(dataloader_iter)
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        loss = super().validation_step(itertools.chain([batch]), batch_idx)
-
+        loss = super().validation_step(itertools.chain([(batch, batch_idx, dataloader_idx)]))
         if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
             # We need _inference_config to get generation params
             # add_BOS and tokens_to_generate are set in dataset
@@ -444,7 +433,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
-        if not outputs:
+        if not outputs or (all([not x for x in outputs])):
             return
 
         if isinstance(outputs[0], dict):
@@ -752,14 +741,16 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-            logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
+            lengths = [len(x) for x in self._validation_ds]
+            logging.info(f'Length of val datasets: {lengths}, total: {sum(lengths)}')
 
         if stage != 'validate':
-            if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
+            if hasattr(self.cfg.data, 'test_ds'):
                 logging.info('Building GPT SFT test datasets.')
                 # Wrap this in a list since the general finetuning parent class supports multi-validation.
                 self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
-                logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
+                lengths = [len(x) for x in self._test_ds]
+                logging.info(f'Length of test datasets: {lengths}, total: {sum(lengths)}')
 
         if stage == 'validate' or stage == 'test':
             return

@@ -76,7 +76,6 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -246,7 +245,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.megatron_amp_O2:
 
-            if not self.with_distributed_adam and not self.cfg.get("use_cpu_initialization", False):
+            if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
                 if isinstance(self.model, list):
                     for module in self.model:
@@ -308,7 +307,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
@@ -318,7 +316,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-                rotary_base=self.cfg.get('rotary_base', 10000),
             )
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
@@ -379,15 +376,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 fp8_hybrid=self.cfg.get('fp8_hybrid', False),
                 fp8_margin=self.cfg.get('fp8_margin', 0),
                 fp8_interval=self.cfg.get('fp8_interval', 1),
-                fp8_amax_history_len=self.cfg.get('fp8_amax_history_len', 1024),
-                fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'max'),
+                fp8_amax_history_len=self.cfg.get('fp8_amax_history_len', 1),
+                fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'most_recent'),
                 reduce_amax=self.cfg.get('reduce_amax', True),
                 use_emha=self.cfg.get('use_emha', False),
                 ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
                 use_flash_attention=self.cfg.get('use_flash_attention', False),
                 megatron_legacy=self.cfg.get('megatron_legacy', False),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-                rotary_base=self.cfg.get('rotary_base', 10000),
             )
         return model
 
@@ -479,6 +475,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if remaining_params:
                 buckets.append(remaining_params)
             self.distributed_adam_buckets = buckets
+            self.distributed_adam_buckets = [
+                [param for param in bucket if param.requires_grad] for bucket in self.distributed_adam_buckets
+            ]
 
         return super().configure_optimizers()
 
@@ -486,8 +485,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
-
+    def fwd_bwd_step(self, dataloader_iter, forward_only):
         # handle asynchronous grad reduction
         no_sync_func = None
         grad_sync_func = None
@@ -558,7 +556,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
             self.cfg.get('hidden_size'),
         ]
-
         te_module.base.initialize_ub(
             shape=input_shape,
             tp_size=self.cfg.get('tensor_model_parallel_size'),
@@ -567,7 +564,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         self.initialize_ub = False
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
             The input batch to each micro-batch is fetched using the dataloader function
@@ -606,7 +603,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        item = next(dataloader_iter)
+        loss_mean = self.fwd_bwd_step(itertools.chain([item[0]]), False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -940,7 +938,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter, batch_idx):
+    def validation_step(self, dataloader_iter):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -960,12 +958,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for model_module in self.model:
                 model_module.eval()
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
+        loss = self.fwd_bwd_step(itertools.chain([batch]), True)
 
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
-        self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
+
+        if mode == 'val':
+            if len(self._validation_dl) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        else:
+            if len(self._test_dl) > 1:
+                self.test_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.test_step_outputs.append(loss)
+
         return loss
 
     def on_validation_epoch_end(self):
@@ -1545,19 +1555,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
         apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
-
-        fp16_enabled = self.trainer.precision in [16, '16', '16-mixed']
-        if apply_query_key_layer_scaling:
-            if fp16_enabled:
-                os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "1"
-            else:
-                logging.warning(
-                    "apply_query_key_layer_scaling is only enabled when using FP16, setting it to False "
-                    "and setting NVTE_APPLY_QK_LAYER_SCALING=0"
-                )
-                os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "0"
-                apply_query_key_layer_scaling = False
-
         if apply_query_key_layer_scaling:
             attention_softmax_in_fp32 = True
 
@@ -1571,8 +1568,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         recompute_method = self.cfg.get('activations_checkpoint_method', None)
         recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
 
-        ub_tp_comm_overlap = self.cfg.get('ub_tp_comm_overlap', False)
-
         if not self.cfg.get('fp8', False):
             fp8 = None
         elif self.cfg.get('fp8_e4m3', False):
@@ -1584,7 +1579,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
-            'apply_query_key_layer_scaling': apply_query_key_layer_scaling,
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'add_bias_linear': add_bias_linear,
@@ -1600,7 +1594,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'recompute_method': recompute_method,
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
-            'tp_comm_overlap': ub_tp_comm_overlap,
             'fp8': fp8,
         }
 
