@@ -861,6 +861,7 @@ class MegatronBaseModel(NLPModel):
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
         """Returns the total number of parameters across all model parallel groups."""
+        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
         # log number of parameters
         if isinstance(model, list):
             num_parameters_on_device = sum(
@@ -873,7 +874,7 @@ class MegatronBaseModel(NLPModel):
             ):
                 word_embeddings_weight = (
                     model[-1].module.shared_embedding_or_output_weight()
-                    if getattr(self, 'mcore_gpt', False)
+                    if is_mcore_model
                     else model[-1].word_embeddings_weight()
                 )
                 # substract the embedding weights on the last virtual stage
@@ -888,7 +889,7 @@ class MegatronBaseModel(NLPModel):
             ):
                 word_embeddings_weight = (
                     model.module.shared_embedding_or_output_weight()
-                    if getattr(self, 'mcore_gpt', False)
+                    if is_mcore_model
                     else model.word_embeddings_weight()
                 )
                 # substract the embedding weights on the last stage
