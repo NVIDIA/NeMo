@@ -71,6 +71,23 @@ asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name="nvidia/parakeet
 transcript = asr_model.transcribe(["some_audio_file.wav"])
 ```
 
+## Long-form Speech Inference
+
+Once you have a Fast Conformer model loaded, can easily modify the attention type to local attention after building the model. Additionally, you can also apply audio chunking for the subsampling module to perform inference on huge audio files!
+
+For local attention on huge files (upto 11 hours on an A100), you can perform the following steps :
+
+```python
+# Enable local attention
+asr_model.change_attention_model("rel_pos_local_attn", [128, 128])  # local attn
+
+# Enable chunking for subsampling module
+asr_model.change_subsampling_conv_chunking_factor(1)  # 1 = auto select
+
+# Transcribe a huge audio file
+asr_model.transcribe(["<path to a huge audio file>.wav"])  # 10+ hours !
+```
+
 ## Additional Resources
 
 * [HuggingFace ASR Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard)
