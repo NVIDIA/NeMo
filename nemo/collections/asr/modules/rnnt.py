@@ -1073,9 +1073,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         # Would need to make a conditional node here... How annoying
         assert len(old_states) == len(new_states)
         for state_id in range(len(old_states)):
-            # This is probably wrong. Need to swap old_states and new_states here!
-            # new_states[state_id].masked_scatter_(mask.unsqueeze(1).unsqueeze(0), old_states[state_id])
-            old_states[state_id].masked_scatter_(mask.unsqueeze(1).unsqueeze(0), new_states[state_id])
+            torch.where(mask.unsqueeze(1).unsqueeze(0), new_states[state_id], old_states[state_id], out=old_states[state_id])
 
         return old_states
 

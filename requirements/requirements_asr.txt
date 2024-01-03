@@ -1,4 +1,5 @@
 braceexpand
+cuda-python>=12.3
 editdistance
 g2p_en
 ipywidgets

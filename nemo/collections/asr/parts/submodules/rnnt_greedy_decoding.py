@@ -603,8 +603,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
-                # inseq = inseq[:, :1, :]
-                # logitlen.fill_(1)
                 if isinstance(self._greedy_decode, RNNTGreedyDecodeFast):
                     hypotheses = self._greedy_decode(
                         self, inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
@@ -692,6 +690,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # Batch prediction and joint network steps
                     # If very first prediction step, submit SOS tag (blank) to pred_step.
                     # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
+                    # time_idx == 0, output blank for everything the first time
+                    # ~blank_mask.all() is equivalent to (symbols_added == 0), I think
                     if time_idx == 0 and symbols_added == 0 and hidden is None:
                         g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
                     else:
@@ -2948,7 +2948,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
                         if hidden is not None:
                             hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
 
-                        elif len(blank_indices) > 0 and hidden is None:
+                        elif hidden is None:
                             # Reset state if there were some blank and other non-blank predictions in batch
                             # Original state is filled with zeros so we just multiply
                             # LSTM has 2 states

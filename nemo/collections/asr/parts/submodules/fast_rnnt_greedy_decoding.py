@@ -185,7 +185,7 @@ class RNNTGreedyDecodeFast:
         self.symbols_added_t = torch.tensor(0, dtype=torch.int64, device=cuda_device)
         self.max_symbols_t = torch.tensor(max_symbols, dtype=torch.int64, device=cuda_device)
         self.max_symbols = max_symbols
-        self.not_blank_t = torch.tensor(True, dtype=torch.bool, device=cuda_device)
+        self.not_all_blank_t = torch.tensor(True, dtype=torch.bool, device=cuda_device)
 
         self.cuda_device = cuda_device
 
@@ -204,7 +204,6 @@ class RNNTGreedyDecodeFast:
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
 
-        print("GALVEZ:", type(self), type(caller))
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not supported")
 
@@ -273,14 +272,14 @@ class RNNTGreedyDecodeFast:
             with with_conditional_node(for_loop_kernel, for_loop_args, for_loop_conditional_handle):
                 torch.index_select(x, 1, self.time_idx_t.unsqueeze(0), out=self.f)
 
-                self.not_blank_t.fill_(True)
+                self.not_all_blank_t.fill_(True)
                 self.symbols_added_t.fill_(0)
 
                 self.blank_mask.copy_(self.time_idx_t >= out_len)
                 
                 while_loop_kernel = create_while_loop_kernel()
                 while_loop_conditional_handle, = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
-                not_blank_ptr = np.array([self.not_blank_t.data_ptr()], dtype=np.uint64)
+                not_blank_ptr = np.array([self.not_all_blank_t.data_ptr()], dtype=np.uint64)
                 symbols_added_ptr = np.array([self.symbols_added_t.data_ptr()], dtype=np.uint64)
                 max_symbols_ptr = np.array([self.max_symbols_t.data_ptr()], dtype=np.uint64)
                 while_loop_args = np.array([while_loop_conditional_handle.getPtr(),
@@ -294,16 +293,13 @@ class RNNTGreedyDecodeFast:
                         :, 0, 0, :
                     ]
 
-                    # torch.max(logp, 1, out=(self.scores[self.seq_idx_t, :], self.labels[self.seq_idx_t, :]))
-                    # v = self.scores[self.seq_idx_t, :]
-                    # k = self.labels[self.seq_idx_t, :]
                     v, k = logp.max(1)
 
-                    self.scores.index_copy_(0, self.seq_idx_t, v.unsqueeze(0))
-                    self.labels.index_copy_(0, self.seq_idx_t, k.unsqueeze(0))
                     # Causes D2H copy. See pytorch issue #105641
                     # self.scores[self.seq_idx_t, :] = v
                     # self.labels[self.seq_idx_t, :] = k
+                    self.scores.index_copy_(0, self.seq_idx_t, v.unsqueeze(0))
+                    self.labels.index_copy_(0, self.seq_idx_t, k.unsqueeze(0))
 
                     self.blank_mask.bitwise_or_(k == caller._blank_index)
 
@@ -312,22 +308,19 @@ class RNNTGreedyDecodeFast:
                     # for the next outer loop iteration.
                     hidden_prime = caller.decoder.batch_copy_states_mask(hidden_prime, hidden, self.blank_mask)
 
-                    # This seems wrong. Do I need to negate this?
-                    k.masked_scatter_(self.blank_mask, self.last_label)
+                    torch.where(self.blank_mask, self.last_label, k, out=k)
                     # This doesn't seem right. Why is my last label blank? It should be SOS, right?
                     # I should not copy k if last_label is SOS, right?
                     self.last_label.copy_(k)
 
-                    # It seems that I am unconditionally copying. That is wrong... I should do a masked copy
                     hidden[0].copy_(hidden_prime[0])
                     hidden[1].copy_(hidden_prime[1])
 
-                    self.not_blank_t = ~self.blank_mask.all()
+                    self.not_all_blank_t = ~self.blank_mask.all()
                     self.symbols_added_t += 1
                     self.seq_idx_t += 1
 
                 self.symbols_per_time_step.index_copy_(0, self.time_idx_t, self.symbols_added_t)
-                # self.symbols_per_time_step[self.time_idx_t] = self.symbols_added_t
                 self.time_idx_t += 1
 
             self.scores_cpu.copy_(self.scores, non_blocking=True)
@@ -351,10 +344,12 @@ class RNNTGreedyDecodeFast:
             print("total time:", end - start)
 
             torch.set_printoptions(threshold=100_000)
-            print("GALVEZ:", self.symbols_per_time_step_cpu)
+            print("GALVEZ:symbols_per_time_step=", self.symbols_per_time_step_cpu)
             print("GALVEZ:scores=", self.scores_cpu)
             print("GALVEZ:labels=", self.labels_cpu)
             print("GALVEZ:symbols_per_time_step=", self.symbols_per_time_step_cpu)
+            print("GALVEZ:hidden1=", torch.sum(torch.abs(hidden[0]), dim=2))
+            print("GALVEZ:hidden2=", torch.sum(torch.abs(hidden[1]), dim=2))
 
 
             torch.cuda.nvtx.range_push("Copy data out")
@@ -362,7 +357,7 @@ class RNNTGreedyDecodeFast:
             j = 0
             for t in range(max_time):
                 max_non_blank_symbols = self.symbols_per_time_step_cpu[t]
-                print("GALVEZ:", t, max_non_blank_symbols)
+                # print("GALVEZ:", t, max_non_blank_symbols)
                 for _ in range(max_non_blank_symbols):
                     for i in range(batch_size):
                         if self.labels_cpu[j, i] == caller._blank_index:
@@ -377,6 +372,6 @@ class RNNTGreedyDecodeFast:
 
             print("NEW:", hypotheses)
 
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
 
             return hypotheses
