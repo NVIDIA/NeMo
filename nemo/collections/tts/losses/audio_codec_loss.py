@@ -26,8 +26,6 @@ from nemo.core.neural_types import (
     LengthsType,
     LossType,
     NeuralType,
-    PredictionsType,
-    RegressionValuesType,
     VoidType,
 )
 
@@ -41,8 +39,8 @@ class MaskedLoss(Loss):
     @property
     def input_types(self):
         return {
-            "predicted": NeuralType(('B', 'D', 'T'), PredictionsType()),
-            "target": NeuralType(('B', 'D', 'T'), RegressionValuesType()),
+            "predicted": NeuralType(('B', 'D', 'T'), VoidType()),
+            "target": NeuralType(('B', 'D', 'T'), VoidType()),
             "target_len": NeuralType(tuple('B'), LengthsType()),
         }
 
@@ -80,6 +78,23 @@ class MaskedMSELoss(MaskedLoss):
     def __init__(self, loss_scale: float = 1.0):
         loss_fn = torch.nn.MSELoss(reduction='none')
         super(MaskedMSELoss, self).__init__(loss_fn=loss_fn, loss_scale=loss_scale)
+
+
+def cosine_loss(input, target):
+    # [B, D, T]
+    input_norm = F.normalize(input, dim=-1)
+    target_norm = F.normalize(target, dim=-1)
+    cosine_sim = torch.nn.functional.cosine_similarity(input_norm, target_norm, dim=1)
+    cosine_sim = rearrange(cosine_sim, 'B T -> B 1 T')
+    # rescale from [-1, 1] similarity to [0, 1] loss
+    loss = (1.0 - cosine_sim) / 2.0
+    return loss
+
+
+class MaskedCosineLoss(MaskedLoss):
+    def __init__(self, loss_scale: float = 1.0):
+        loss_fn = cosine_loss
+        super(MaskedCosineLoss, self).__init__(loss_fn=loss_fn, loss_scale=loss_scale)
 
 
 class TimeDomainLoss(Loss):
@@ -136,6 +151,7 @@ class MultiResolutionMelLoss(Loss):
                 n_window_stride=hop_len,
                 n_fft=n_fft,
                 pad_to=1,
+                exact_pad=True,
                 mag_power=1.0,
                 log_zero_guard_type="add",
                 log_zero_guard_value=log_guard,
@@ -328,6 +344,39 @@ class SISDRLoss(Loss):
 
         # [1]
         loss = -torch.mean(si_sdr)
+        return loss
+
+
+class FeatureMatchingLoss(Loss):
+    def __init__(self):
+        super(FeatureMatchingLoss, self).__init__()
+
+    @property
+    def input_types(self):
+        return {
+            "fmaps_real": [[NeuralType(elements_type=VoidType())]],
+            "fmaps_gen": [[NeuralType(elements_type=VoidType())]],
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, fmaps_real, fmaps_gen):
+        loss = 0.0
+        for fmap_real, fmap_gen in zip(fmaps_real, fmaps_gen):
+            # [B, ..., time]
+            for feat_real, feat_gen in zip(fmap_real, fmap_gen):
+                # [B, ...]
+                diff = torch.abs(feat_real - feat_gen)
+                feat_loss = torch.mean(diff) / len(fmap_real)
+                loss += feat_loss
+
+        loss /= len(fmaps_real)
+
         return loss
 
 
