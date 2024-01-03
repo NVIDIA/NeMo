@@ -289,7 +289,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                     config['augmentor'] = augmentor
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=not verbose):
+                for test_batch in tqdm(temporary_datalayer, desc=f"Transcribing {manifest_path}", disable=not verbose):
                     log_probs, encoded_len, enc_states, enc_mask = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
