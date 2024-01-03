@@ -37,7 +37,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     _cast_if_autocast_enabled,
     attention_mask_func,
 )
-from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 
 try:
@@ -66,10 +65,22 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
+    # Flash Attention Triton
+    import pkg_resources
+    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
+
+    # pinned triton version for flash-attention triton https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
+    assert pkg_resources.get_distribution("triton").version == '2.0.0.dev20221202'
+
+except (ImportError, ModuleNotFoundError, AssertionError):
+
+    flash_attn_func_triton = None
+
+
+try:
     # Flash Attention 1.X
     from flash_attn.bert_padding import pad_input, unpad_input
     from flash_attn.flash_attn_interface import flash_attn_unpadded_func
-    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
 
     HAVE_FLASH_ATTENTION = True
     flash_attn_func = None
@@ -85,8 +96,7 @@ except (ImportError, ModuleNotFoundError):
     except (ImportError, ModuleNotFoundError):
 
         HAVE_FLASH_ATTENTION = False
-
-        flash_attn_unpadded_func, flash_attn_func_triton, flash_attn_func = None, None, None
+        flash_attn_unpadded_func, flash_attn_func = None, None
         unpad_input, pad_input = None, None
 
     try:
@@ -133,7 +143,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         precision=16,
         apply_query_key_layer_scaling=False,
         kv_channels=None,
-        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         layer_type=None,
@@ -155,7 +164,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.use_flash_attention = use_flash_attention
 
         self.megatron_legacy = megatron_legacy
-        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
         self.set_accepted_adapter_types(
             [
@@ -587,7 +595,6 @@ class ParallelChunkedCrossAttention(MegatronModule):
         precision=16,
         apply_query_key_layer_scaling=False,
         kv_channels=None,
-        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         megatron_legacy=False,
@@ -609,7 +616,6 @@ class ParallelChunkedCrossAttention(MegatronModule):
             precision=precision,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
-            megatron_amp_O2=megatron_amp_O2,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             megatron_legacy=megatron_legacy,
