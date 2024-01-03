@@ -1,7 +1,7 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=ngc
+# python train.py experiment=local_1
 
 defaults:
   - default
@@ -16,35 +16,30 @@ model:
   textgrid_dir: data/aligned/textgrids
   
   duration_predictor:
-    # depth: 4
-    heads: 4
+    depth: 2
+    heads: 2
 
   voicebox:
-    # depth: 12
-    heads: 8
-    loss_masked: False
+    depth: 2
+    heads: 2
 
-  optim:
-    name: adam
-    lr: 1e-4
-
-    sched:
-      name: WarmupAnnealing
-      warmup_steps: 5000
-      max_steps: ${..lr}
+  cfm_wrapper:
+    cond_drop_prob: 0.0
 
   train_ds:
-    max_duration: 16
+    num_workers: 16
     lhotse:
-      batch_duration: 48
+      batch_duration: 300
 
-trainer:
-  devices: auto
-  max_epochs: null
-  max_steps: 500000 # audio model steps
-  
-  gradient_clip_algorithm: norm
-  gradient_clip_val: .2
+  validation_ds:
+    num_workers: 16
+    lhotse:
+      batch_duration: 300
+
+  test_ds:
+    num_workers: 16
+    lhotse:
+      batch_duration: 300
 
 # task name, determines output directory path
-task_name: "ngc-loss-full"
+task_name: "local_1"

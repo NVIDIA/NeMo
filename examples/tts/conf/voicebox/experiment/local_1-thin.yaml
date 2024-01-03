@@ -1,0 +1,19 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=local-1
+
+defaults:
+  - local_1
+
+model:
+  duration_predictor:
+    depth: 2
+    heads: 1
+
+  voicebox:
+    depth: 2
+    heads: 1
+
+# task name, determines output directory path
+task_name: "local_1-thin"
