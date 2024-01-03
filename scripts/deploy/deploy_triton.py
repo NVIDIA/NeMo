@@ -99,6 +99,18 @@ def get_args(argv):
         help="Number of GPUs for the deployment"
     )
     parser.add_argument(
+        "-tps",
+        "--tensor_parallelism_size",
+        type=int,
+        help="Tensor parallelism size"
+    )
+    parser.add_argument(
+        "-pps",
+        "--pipeline_parallelism_size",
+        type=int,
+        help="Pipeline parallelism size"
+    )
+    parser.add_argument(
         "-dt",
         "--dtype",
         choices=["bfloat16", "float16", "fp8", "int8"],
@@ -121,7 +133,6 @@ def get_args(argv):
         type=int,
         help="Max output length of the model"
     )
-
     parser.add_argument(
         "-mbs",
         "--max_batch_size",
@@ -135,6 +146,13 @@ def get_args(argv):
         default=None,
         type=int,
         help="Max prompt embedding table size"
+    )
+    parser.add_argument(
+        "-upkc",
+        "--use_paged_kv_cache",
+        default="False",
+        type=str,
+        help="Enable paged kv cache."
     )
     parser.add_argument(
         "-dcf",
@@ -206,11 +224,14 @@ def nemo_deploy(argv):
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
                 n_gpus=args.num_gpus,
+                tensor_parallel_size=args.tensor_parallelism_size,
+                pipeline_parallel_size=args.pipeline_parallelism_size,
                 max_input_token=args.max_input_len,
                 max_output_token=args.max_output_len,
-                enable_context_fmha=not args.disable_context_fmha,
                 max_batch_size=args.max_batch_size,
                 max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
+                paged_kv_cache=args.use_paged_kv_cache,
+                enable_context_fmha=not args.disable_context_fmha,
                 dtype=args.dtype
             )
         except Exception as error:
