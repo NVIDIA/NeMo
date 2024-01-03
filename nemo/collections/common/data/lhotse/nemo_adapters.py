@@ -185,6 +185,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
             tar_path = self.shard_id_to_tar_path[sid]
             with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
                 for data, tar_info in zip(shard_manifest, tar):
+                    assert data["audio_filepath"] == tar_info.name, f"Mismatched JSON manifest and tar file. {data['audio_filepath']=} != {tar_info.name=}"
                     raw_audio = tar.extractfile(tar_info).read()
                     # Note: Lhotse has a Recording.from_bytes() utility that we won't use here because
                     #       the profiling indicated significant overhead in torchaudio ffmpeg integration
