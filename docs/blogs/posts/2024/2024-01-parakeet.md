@@ -75,6 +75,9 @@ transcript = asr_model.transcribe(["some_audio_file.wav"])
 
 Once you have a Fast Conformer model loaded, can easily modify the attention type to limited context attention after building the model. Additionally, you can also apply audio chunking for the subsampling module to perform inference on huge audio files!
 
+!!! note
+    These models were trained with global attention, and switching to local attention will degrade their performance. However, they will still be able to transcribe long audio files reasonably well.
+
 For limited context attention on huge files (upto 11 hours on an A100), you can perform the following steps :
 
 ```python
@@ -97,7 +100,3 @@ asr_model.transcribe(["<path to a huge audio file>.wav"])  # 10+ hours !
 * Papers:
     * [Fast Conformer with Linearly Scalable Attention for Efficient Speech Recognition](https://arxiv.org/abs/2305.05084)
     * [Investigating End-to-End ASR Architectures for Long Form Audio Transcription](https://arxiv.org/abs/2309.09950)
-
-## About NVIDIA NeMo
-
-[NVIDIA NeMo](https://nvidia.github.io/NeMo/) is an open-source toolkit for building state-of-the-art conversational AI models. It provides a collection of pre-built modules for speech recognition, natural language processing, and text-to-speech, allowing developers to quickly and easily create custom conversational AI applications. 
