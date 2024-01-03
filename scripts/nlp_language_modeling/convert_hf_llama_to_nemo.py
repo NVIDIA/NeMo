@@ -60,9 +60,6 @@ def load_model(cls, checkpoint, strict, **kwargs):
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
         else:
-            # model = ptl_load_state(
-            #     cls, checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
-            # )
             model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
             for name, module in model.named_parameters():
                 if name in checkpoint['state_dict']:
@@ -98,6 +95,9 @@ def load_config(llama_config):
     nemo_config = OmegaConf.load(
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
+
+    if llama_config.get('rope_theta', None):
+        nemo_config['rotary_base'] = llama_config['rope_theta']
     nemo_config.encoder_seq_length = llama_config['max_position_embeddings']
     nemo_config.num_layers = int(llama_config['num_hidden_layers'])
     nemo_config.hidden_size = llama_config['hidden_size']
