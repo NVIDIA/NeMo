@@ -94,7 +94,7 @@ def run_trt_llm_inference(
                     model_info["checkpoint"], model_name, n_gpu, torch.cuda.device_count()
                 )
             )
-            return None
+            return None, None
 
         Path(trt_llm_model_dir).mkdir(parents=True, exist_ok=True)
 
@@ -123,7 +123,7 @@ def run_trt_llm_inference(
                     print("---- PTuning enabled.")
             else:
                 print("---- PTuning could not be enabled and skipping the test.")
-                return None
+                return None, None
 
         trt_llm_exporter = TensorRTLLM(trt_llm_model_dir)
         trt_llm_exporter.export(
@@ -181,7 +181,7 @@ def run_existing_checkpoints(model_name, n_gpus, tp_size=None, pp_size=None, ptu
 
     if n_gpus > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
-        return None
+        return None, None
 
     test_data = get_infer_test_data()
     if not model_name in test_data.keys():
@@ -191,7 +191,14 @@ def run_existing_checkpoints(model_name, n_gpus, tp_size=None, pp_size=None, ptu
 
     if n_gpus < model_info["min_gpus"]:
         print("Min n_gpus for this model is {0}".format(n_gpus))
-        return None
+        return None, None
+
+    p_tuning_checkpoint = None
+    if ptuning:
+        if "p_tuning_checkpoint" in model_info.keys():
+            p_tuning_checkpoint = model_info["p_tuning_checkpoint"]
+        else:
+            raise Exception("There is not ptuning checkpoint path defined.")
 
     return run_trt_llm_inference(
         model_name=model_name,
@@ -203,10 +210,10 @@ def run_existing_checkpoints(model_name, n_gpus, tp_size=None, pp_size=None, ptu
         max_batch_size=model_info["max_batch_size"],
         max_input_token=512,
         max_output_token=model_info["max_output_token"],
-        ptuning=False,
-        p_tuning_checkpoint=None,
-        tp_size=None,
-        pp_size=None,
+        ptuning=ptuning,
+        p_tuning_checkpoint=p_tuning_checkpoint,
+        tp_size=tp_size,
+        pp_size=pp_size,
         top_k=1,
         top_p=0.0,
         temperature=1.0,
@@ -220,6 +227,7 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton and benchmark the models",
     )
+
     parser.add_argument(
         "--model_name",
         type=str,
@@ -246,43 +254,98 @@ def get_args():
         type=int,
     )
     parser.add_argument(
-        "--location",
+        "--checkpoint_dir",
         type=str,
+        default="/tmp/nemo_checkpoint/",
     )
     parser.add_argument(
         "--trt_llm_model_dir",
         type=str,
     )
     parser.add_argument(
-        "--checkpoint_dir",
-        type=str,
-        default="/tmp/nemo_checkpoint/",
+        "--max_batch_size",
+        type=int,
+        default=8,
     )
     parser.add_argument(
-        "--checkpoint",
-        type=str,
-    )
-    parser.add_argument(
-        "--checkpoint_link",
-        type=str,
-    )
-    parser.add_argument(
-        "--prompt_template",
-        type=str,
+        "--max_input_token",
+        type=int,
+        default=256,
     )
     parser.add_argument(
         "--max_output_token",
         type=int,
-    )
-    parser.add_argument(
-        "--max_batch_size",
-        type=int,
+        default=128,
     )
     parser.add_argument(
         "--p_tuning_checkpoint",
         type=str,
     )
+    parser.add_argument(
+        "--ptuning",
+        type=str,
+        default="False",
+    )
+    parser.add_argument(
+        "--ptuning_checkpoint_dir",
+        type=str,
+        default="False",
+    )
+    parser.add_argument(
+        "--tp_size",
+        type=int,
+    )
+    parser.add_argument(
+        "--pp_size",
+        type=int,
+    )
+    parser.add_argument(
+        "--top_k",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+    )
+    parser.add_argument(
+        "--run_accuracy",
+        type=str,
+        default="True",
+    )
+    parser.add_argument(
+        "--debug",
+        type=str,
+        default="True",
+    )
+
     args = parser.parse_args()
+
+    if args.debug == "True":
+        args.debug = True
+    else:
+        args.debug = False
+
+    if args.run_accuracy == "True":
+        args.run_accuracy = True
+    else:
+        args.run_accuracy = False
+
+    if args.ptuning == "True":
+        args.ptuning = True
+    else:
+        args.ptuning = False
+
+    if args.existing_test_models == "True":
+        args.existing_test_models = True
+    else:
+        args.existing_test_models = False
 
     return args
 
@@ -291,32 +354,63 @@ def run_inference_tests(args):
 
     result_dic = {}
 
-    if args.existing_test_models == "True":
+    if args.existing_test_models:
         if args.max_gpus is None:
-            trtllm_accuracy, trtllm_accuracy_relaxed = run_existing_checkpoints(model_name=args.model_name, n_gpus=args.min_gpus)
+            trtllm_accuracy, trtllm_accuracy_relaxed = run_existing_checkpoints(
+                model_name=args.model_name,
+                n_gpus=args.min_gpus,
+                ptuning=args.ptuning,
+                tp_size=args.tp_size,
+                pp_size=args.pp_size,
+            )
             result_dic[args.min_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
         else:
             n_gpus = args.min_gpus
             while n_gpus <= args.max_gpus:
-                trtllm_accuracy, trtllm_accuracy_relaxed = run_existing_checkpoints(model_name=args.model_name, n_gpus=n_gpus)
+                trtllm_accuracy, trtllm_accuracy_relaxed = run_existing_checkpoints(
+                    model_name=args.model_name,
+                    n_gpus=n_gpus,
+                    ptuning=args.ptuning,
+                    tp_size=args.tp_size,
+                    pp_size=args.pp_size,
+                )
                 result_dic[n_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
                 n_gpus = n_gpus * 2
     else:
         prompt_template=["The capital of France is", "Largest animal in the sea is"]
-        expected_keyword=["Paris", "Whale", "Cheetah"]
-
         n_gpus = args.min_gpus
+
         while n_gpus <= args.max_gpus:
-            trtllm_accuracy, trtllm_accuracy_relaxed = run_trt_llm_export(args, prompt_template, expected_keyword, n_gpus)
+            trtllm_accuracy, trtllm_accuracy_relaxed = run_trt_llm_inference(
+                model_name=args.model_name,
+                model_type=args.model_type,
+                prompt=prompt_template,
+                checkpoint_path=args.checkpoint_dir,
+                trt_llm_model_dir=args.trt_llm_model_dir,
+                n_gpu=n_gpus,
+                max_batch_size=args.max_batch_size,
+                max_input_token=args.max_input_token,
+                max_output_token=args.max_output_token,
+                ptuning=args.ptuning,
+                p_tuning_checkpoint=args.ptuning_checkpoint_dir,
+                tp_size=args.tp_size,
+                pp_size=args.pp_size,
+                top_k=args.top_k,
+                top_p=args.top_p,
+                temperature=args.temperature,
+                run_accuracy=args.run_accuracy,
+                debug=args.debug,
+            )
             result_dic[n_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
             n_gpus = n_gpus * 2
 
     test_result = "PASS"
     print("======================================= Test Summary =======================================")
     for i, results in result_dic.items():
-        print("Number of GPUS: {0}, Model Accuracy: {1}, Relaxed Model Accuracy: {2}".format(i, results[0], results[1]))
-        if results[1] < 0.5:
-            test_result = "FAIL"
+        if not results[0] is None and not results[1] is None:
+            print("Number of GPUS: {0}, Model Accuracy: {1}, Relaxed Model Accuracy: {2}".format(i, results[0], results[1]))
+            if results[1] < 0.5:
+                test_result = "FAIL"
 
     print("=============================================================================================")
     print ("TEST: " + test_result)
