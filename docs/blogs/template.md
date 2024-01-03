@@ -1,5 +1,5 @@
 ---
-title: Template 2023
+title: Template 2024
 author: [First Name, Second Name]
 author_gh_user: [Github User 1, Github User 2]
 readtime: Time to read in minutes
