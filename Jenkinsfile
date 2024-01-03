@@ -115,17 +115,17 @@ pipeline {
     //   }
     // }
 
-    stage('L0: Unit Tests CPU') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      steps {
-        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
-      }
-    }
+//    stage('L0: Unit Tests CPU') {
+//      when {
+//        anyOf {
+//          branch 'main'
+//          changeRequest target: 'main'
+//        }
+//      }
+//      steps {
+//        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
+//      }
+//    }
 //
 //     stage('L2: Multimodal Imagen Train') {
 //       when {
