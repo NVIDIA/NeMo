@@ -134,7 +134,7 @@ def cal_write_wer(
                     gt_text_attr_name = "text"
                 else:
                     logging.info(
-                        f"ground-truth text attribute {pred_text_attr_name} is not present in manifest! Cannot calculate {metric}. Returning!"
+                        f"ground-truth text attribute {gt_text_attr_name} is not present in manifest! Cannot calculate WER. Returning!"
                     )
                 return None, None, eval_metric
 
@@ -219,7 +219,7 @@ def cal_write_text_metric(
                     gt_text_attr_name = "text"
                 else:
                     logging.info(
-                        f"ground-truth text attribute {pred_text_attr_name} is not present in manifest! Cannot calculate {metric}. Returning!"
+                        f"ground-truth text attribute {gt_text_attr_name} is not present in manifest! Cannot calculate {metric}. Returning!"
                     )
                 return None, None, metric
 
