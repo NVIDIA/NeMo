@@ -73,9 +73,9 @@ transcript = asr_model.transcribe(["some_audio_file.wav"])
 
 ## Long-form Speech Inference
 
-Once you have a Fast Conformer model loaded, can easily modify the attention type to local attention after building the model. Additionally, you can also apply audio chunking for the subsampling module to perform inference on huge audio files!
+Once you have a Fast Conformer model loaded, can easily modify the attention type to limited context attention after building the model. Additionally, you can also apply audio chunking for the subsampling module to perform inference on huge audio files!
 
-For local attention on huge files (upto 11 hours on an A100), you can perform the following steps :
+For limited context attention on huge files (upto 11 hours on an A100), you can perform the following steps :
 
 ```python
 # Enable local attention
