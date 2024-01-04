@@ -180,6 +180,16 @@ def nemo_deploy(argv):
     else:
         loglevel = logging.INFO
 
+    if args.use_paged_kv_cache == "True":
+        args.use_paged_kv_cache = True
+    else:
+        args.use_paged_kv_cache = False
+
+    if args.disable_context_fmha == "True":
+        args.disable_context_fmha = True
+    else:
+        args.disable_context_fmha = False
+
     LOGGER.setLevel(loglevel)
     LOGGER.info("Logging level set to {}".format(loglevel))
     LOGGER.info(args)
