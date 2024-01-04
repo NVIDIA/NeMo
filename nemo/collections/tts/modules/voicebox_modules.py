@@ -131,9 +131,10 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
 
 
 class MelVoco(_MelVoco, LightningModule):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, normalize=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.freeze()
+        self.normalize = normalize
         self.global_mean = -5.8843
         self.global_std = 2.2615
 
@@ -141,12 +142,14 @@ class MelVoco(_MelVoco, LightningModule):
         mel = self.vocos.feature_extractor(audio)
 
         mel = rearrange(mel, 'b d n -> b n d')
-        mel = (mel - self.global_mean) / self.global_std
+        if self.normalize:
+            mel = (mel - self.global_mean) / self.global_std
         return mel
 
     def decode(self, mel):
         mel = rearrange(mel, 'b n d -> b d n')
-        mel = (mel * self.global_std) + self.global_mean
+        if self.normalize:
+            mel = (mel * self.global_std) + self.global_mean
 
         return self.vocos.decode(mel)
 
