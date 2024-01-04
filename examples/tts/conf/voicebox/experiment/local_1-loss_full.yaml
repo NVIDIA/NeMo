@@ -4,26 +4,14 @@
 # python train.py experiment=ngc
 
 defaults:
-  - ngc
+  - local_1
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
 model:
-  
-  duration_predictor:
-    depth: 2
-    # heads: 2
-
   voicebox:
-    depth: 4
-    # heads: 4
-
-  train_ds:
-    max_duration: 16
-    lhotse:
-      batch_duration: 300
-
+    loss_masked: False
 
 # task name, determines output directory path
-task_name: "ngc-large_batch-small_model"
+task_name: "local_1-loss_full"
