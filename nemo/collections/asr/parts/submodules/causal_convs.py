@@ -151,7 +151,6 @@ class CausalConv1D(nn.Conv1d):
             return x, cache
 
 
-
 class CausalConv1DNew(nn.Conv1d):
     """
     A causal version of nn.Conv1d where each step would have limited access to locations on its right or left
@@ -233,7 +232,7 @@ class CausalConv1DNew(nn.Conv1d):
             x, cache = self.update_cache(x, cache=cache)
         x = super().forward(x)
         if cache is None:
-            x = x[:, :, self._left_padding:- self._right_padding]
+            x = x[:, :, self._left_padding : -self._right_padding]
             assert x.shape == original_shape, (x.shape, original_shape)
             return x
         else:

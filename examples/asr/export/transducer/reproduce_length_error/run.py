@@ -20,28 +20,19 @@
 This script runs an identity model with ONNX-Runtime and TensorRT,
 then compares outputs.
 """
+import numpy as np
 from polygraphy.backend.onnxrt import OnnxrtRunner, SessionFromOnnx
 from polygraphy.backend.trt import EngineFromNetwork, NetworkFromOnnxPath, TrtRunner
 from polygraphy.backend.trt.config import CreateConfig
 from polygraphy.backend.trt.profile import Profile
 from polygraphy.comparator import Comparator, CompareFunc
 
-import numpy as np
-
 
 def main():
     build_onnxrt_session = SessionFromOnnx("just_length_computation2.onnx")
 
-    config = CreateConfig(fp16=True, profiles=[
-        (Profile()
-         .add("length", min=(1, ), opt=(16, ), max=(32, ))
-        )
-    ]
-    )
-    build_engine = EngineFromNetwork(
-        NetworkFromOnnxPath("just_length_computation2.onnx"),
-        config
-    )
+    config = CreateConfig(fp16=True, profiles=[(Profile().add("length", min=(1,), opt=(16,), max=(32,)))])
+    build_engine = EngineFromNetwork(NetworkFromOnnxPath("just_length_computation2.onnx"), config)
 
     runners = [
         TrtRunner(build_engine),
@@ -53,6 +44,6 @@ def main():
     assert bool(Comparator.compare_accuracy(run_results, compare_func=CompareFunc.simple(atol=1e-8)))
     run_results.save("inference_results.json")
 
+
 if __name__ == "__main__":
     main()
-

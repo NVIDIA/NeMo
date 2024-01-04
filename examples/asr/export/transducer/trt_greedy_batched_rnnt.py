@@ -1,10 +1,14 @@
+from typing import Optional
+
 import tensorrt as trt
 import torch
-from nemo.utils import logging
+
 from nemo.collections.asr.parts.utils import rnnt_utils
-from typing import Optional
+from nemo.utils import logging
+
 logger = trt.Logger(trt.Logger.WARNING)
 runtime = trt.Runtime(logger)
+
 
 class ExportedModelGreedyBatchedRNNTInfer:
     def __init__(self, encoder_model: str, decoder_joint_model: str, max_symbols_per_step: Optional[int] = None):
@@ -120,7 +124,7 @@ class ExportedModelGreedyBatchedRNNTInfer:
                         g = last_label.astype(np.int32)
                 # Batched joint step - Output = [B, V + 1]
                 joint_out, hidden_prime = self.run_decoder_joint(f, g, target_lengths, *hidden)
-                
+
                 logp, pred_lengths = joint_out
                 logp = logp[:, 0, 0, :]
 
@@ -129,7 +133,6 @@ class ExportedModelGreedyBatchedRNNTInfer:
                     v, k = logp.max(1)
                 else:
                     k = np.argmax(logp, axis=1).astype(np.int32)
-
 
                 # Update blank mask with current predicted blanks
                 # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
@@ -230,7 +233,7 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         self.dec_stream = stream2
         self.dec_stream_ptr = stream2.cuda_stream
 
-        #logging.info("Successfully loaded encoder, decoder and joint onnx models !")
+        # logging.info("Successfully loaded encoder, decoder and joint onnx models !")
 
         # Will be populated at runtime
         self._blank_index = None
@@ -262,7 +265,7 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         states = self._get_initial_states(batchsize=dynamic_dim)
 
         # run decoder 1 step
-        joint_out, states = self.run_decoder_joint(enc_logits[:,:,0:1], None, None, *states)
+        joint_out, states = self.run_decoder_joint(enc_logits[:, :, 0:1], None, None, *states)
         log_probs, lengths = joint_out
 
         self._blank_index = log_probs.shape[-1] - 1  # last token of vocab size is blank token
@@ -273,21 +276,21 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
     def run_encoder(self, audio_signal, length):
         audio_signal = audio_signal.contiguous().cuda()
         length = length.contiguous().cuda()
-       
+
         idx0 = self.encoder_engine.get_binding_index(self.encoder_inputs[0])
-       
+
         idx1 = self.encoder_engine.get_binding_index(self.encoder_inputs[1])
-        #idx2 = self.encoder_engine.get_binding_index(self.encoder_outputs[0])
-        #idx3 = self.encoder_engine.get_binding_index(self.encoder_outputs[1])
-       
+        # idx2 = self.encoder_engine.get_binding_index(self.encoder_outputs[0])
+        # idx3 = self.encoder_engine.get_binding_index(self.encoder_outputs[1])
+
         self.encoder_context.set_binding_shape(idx0, tuple(audio_signal.shape))
         self.encoder_context.set_binding_shape(idx1, tuple(length.shape))
 
-        #for binding in self.encoder_engine:
+        # for binding in self.encoder_engine:
         #    binding_idx = self.encoder_engine.get_binding_index(binding)
         #    size = trt.volume(self.encoder_context.get_binding_shape(binding_idx))
         #    dtype = trt.nptype(self.encoder_engine.get_binding_dtype(binding))
-       
+
         # subsampling rate is 4 -> is there some way to do this sort of shape
         # inference automatically? Maybe via onnx?
         # https://github.com/onnx/onnx/blob/main/docs/ShapeInference.md
@@ -299,12 +302,12 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         # output_length = ((((audio_len - 1) // 2 + 1 ) - 1 ) // 2) + 1
         output1_shape = (audio_signal.shape[0], 512, output_length)
         output2_shape = (audio_signal.shape[0],)
-        
+
         enc_out = torch.zeros(output1_shape, dtype=torch.float32).contiguous().cuda()
         encoded_length = torch.zeros(output2_shape, dtype=torch.int64).contiguous().cuda()
         enc_out_ptr = enc_out.data_ptr()
         encoded_length_ptr = encoded_length.data_ptr()
-        
+
         buffers = [audio_signal.data_ptr(), length.data_ptr(), enc_out_ptr, encoded_length_ptr]
         for _ in range(3):
             self.encoder_context.execute_async_v2(buffers, self.enc_stream_ptr)
@@ -333,13 +336,12 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         target_length = target_length.contiguous().cuda()
         state0 = states[0].contiguous().cuda()
         state1 = states[1].contiguous().cuda()
-       
+
         idx0 = self.decoder_engine.get_binding_index(self.decoder_joint_inputs[0])
         idx1 = self.decoder_engine.get_binding_index(self.decoder_joint_inputs[1])
         idx2 = self.decoder_engine.get_binding_index(self.decoder_joint_inputs[2])
         idx3 = self.decoder_engine.get_binding_index(self.decoder_joint_inputs[3])
         idx4 = self.decoder_engine.get_binding_index(self.decoder_joint_inputs[4])
-
 
         idx5 = self.decoder_engine.get_binding_index(self.decoder_joint_outputs[0])
         idx6 = self.decoder_engine.get_binding_index(self.decoder_joint_outputs[1])
@@ -354,19 +356,26 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         self.decoder_joint_context.set_binding_shape(idx2, tuple(target_length.shape))
         self.decoder_joint_context.set_binding_shape(idx3, tuple(state0.shape))
         self.decoder_joint_context.set_binding_shape(idx4, tuple(state1.shape))
-       
+
         B = enc_logits.shape[0]
         outputs = torch.zeros((B, 1, 1, 1025), dtype=torch.float32).contiguous().cuda()
         prednet_lengths = torch.zeros((B,), dtype=torch.int32).contiguous().cuda()
         output_states_1 = torch.zeros((1, B, 640), dtype=torch.float32).contiguous().cuda()
         output_states_2 = torch.zeros((1, B, 640), dtype=torch.float32).contiguous().cuda()
-        
+
         buffers = []
-        
-        buffers = [enc_logits.data_ptr(), targets.data_ptr(), 
-                   target_length.data_ptr(), state0.data_ptr(), state1.data_ptr(), 
-                   output_states_1.data_ptr(), output_states_2.data_ptr(),
-                   outputs.data_ptr(), prednet_lengths.data_ptr()]
+
+        buffers = [
+            enc_logits.data_ptr(),
+            targets.data_ptr(),
+            target_length.data_ptr(),
+            state0.data_ptr(),
+            state1.data_ptr(),
+            output_states_1.data_ptr(),
+            output_states_2.data_ptr(),
+            outputs.data_ptr(),
+            prednet_lengths.data_ptr(),
+        ]
 
         self.decoder_joint_context.execute_async_v2(buffers, self.dec_stream_ptr)
         self.dec_stream.synchronize()
@@ -377,7 +386,6 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
 
     def _get_initial_states(self, batchsize):
 
-        input_states = [torch.zeros(1, batchsize, 640),
-                        torch.zeros(1, batchsize, 640)]
+        input_states = [torch.zeros(1, batchsize, 640), torch.zeros(1, batchsize, 640)]
 
         return input_states

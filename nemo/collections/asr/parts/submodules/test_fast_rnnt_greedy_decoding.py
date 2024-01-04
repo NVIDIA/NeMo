@@ -1,41 +1,40 @@
 import glob
 import json
 import os
+import sys
+import tempfile
+import traceback
+
+import ipdb
+import jiwer
+import torch
+from omegaconf import OmegaConf, open_dict
+
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.collections.asr.parts.submodules.fast_rnnt_greedy_decoding import RNNTGreedyDecodeFast
 from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBatchedRNNTInfer
 
-from omegaconf import open_dict
-from omegaconf import OmegaConf
-
-import jiwer
-
-
-import torch
-
-import tempfile
-import sys, ipdb, traceback
 
 def info(type, value, tb):
     traceback.print_exception(type, value, tb)
     ipdb.pm()
 
+
 sys.excepthook = info
 
 
 def test_for_loop():
-    nemo_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge",
-                                          map_location="cuda")
+    nemo_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge", map_location="cuda")
     conf = nemo_model.to_config_dict()
     with open_dict(conf):
         conf["decoding"]["greedy"]["max_symbols"] = 5
 
     with tempfile.NamedTemporaryFile() as fp:
         OmegaConf.save(config=conf, f=fp.name)
-        nemo_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge",
-                                              override_config_path=fp.name,
-                                              map_location="cuda")
+        nemo_model = ASRModel.from_pretrained(
+            "stt_en_fastconformer_transducer_xlarge", override_config_path=fp.name, map_location="cuda"
+        )
     nemo_model.freeze()
 
     nemo_model.preprocessor.featurizer.dither = 0.0
@@ -62,9 +61,9 @@ def test_for_loop():
         conf["decoding"]["greedy"]["max_symbols"] = 5
     with tempfile.NamedTemporaryFile() as fp:
         OmegaConf.save(config=conf, f=fp.name)
-        fast_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge",
-                                              override_config_path=fp.name,
-                                              map_location="cuda")
+        fast_model = ASRModel.from_pretrained(
+            "stt_en_fastconformer_transducer_xlarge", override_config_path=fp.name, map_location="cuda"
+        )
 
     fast_model.freeze()
 
@@ -90,12 +89,13 @@ def test_for_loop():
 
     torch.cuda.cudart().cudaProfilerStop()
 
-    import ipdb; ipdb.set_trace()
+    import ipdb
+
+    ipdb.set_trace()
 
 
 def test_reproducibility():
-    nemo_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge",
-                                          map_location="cuda")
+    nemo_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge", map_location="cuda")
 
     conf = nemo_model.to_config_dict()
     with open_dict(conf):
@@ -104,9 +104,9 @@ def test_reproducibility():
 
     with tempfile.NamedTemporaryFile() as fp:
         OmegaConf.save(config=conf, f=fp.name)
-        nemo_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge",
-                                              override_config_path=fp.name,
-                                              map_location="cuda")
+        nemo_model = ASRModel.from_pretrained(
+            "stt_en_fastconformer_transducer_xlarge", override_config_path=fp.name, map_location="cuda"
+        )
 
     device = "cuda"
 
@@ -141,62 +141,43 @@ def test_reproducibility():
         temporary_datalayer = nemo_model._setup_transcribe_dataloader(config)
         for test_batch in temporary_datalayer:
             encoded, encoded_len = nemo_model.forward(
-                input_signal=test_batch[0].to(device),
-                input_signal_length=test_batch[1].to(device)
+                input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
 
             best_hyp, all_hyp = nemo_model.decoding.rnnt_decoder_predictions_tensor(
-                encoded,
-                encoded_len,
-                return_hypotheses=False,
-                partial_hypotheses=None,
+                encoded, encoded_len, return_hypotheses=False, partial_hypotheses=None,
             )
 
             best_hyp_0, all_hyp_0 = nemo_model.decoding.rnnt_decoder_predictions_tensor(
-                encoded[0:1, ...],
-                encoded_len[0:1],
-                return_hypotheses=False,
-                partial_hypotheses=None,
+                encoded[0:1, ...], encoded_len[0:1], return_hypotheses=False, partial_hypotheses=None,
             )
 
             best_hyp_1, all_hyp_1 = nemo_model.decoding.rnnt_decoder_predictions_tensor(
-                encoded[1:2, ...],
-                encoded_len[1:2],
-                return_hypotheses=False,
-                partial_hypotheses=None,
+                encoded[1:2, ...], encoded_len[1:2], return_hypotheses=False, partial_hypotheses=None,
             )
 
             encoded_0, encoded_len_0 = nemo_model.forward(
-                input_signal=test_batch[0][0:1].to(device),
-                input_signal_length=test_batch[1][0:1].to(device)
+                input_signal=test_batch[0][0:1].to(device), input_signal_length=test_batch[1][0:1].to(device)
             )
 
             best_hyp_0_single, all_hyp_0_single = nemo_model.decoding.rnnt_decoder_predictions_tensor(
-                encoded_0,
-                encoded_len_0,
-                return_hypotheses=False,
-                partial_hypotheses=None,
+                encoded_0, encoded_len_0, return_hypotheses=False, partial_hypotheses=None,
             )
 
             encoded_1, encoded_len_1 = nemo_model.forward(
-                input_signal=test_batch[0][1:2].to(device),
-                input_signal_length=test_batch[1][1:2].to(device)
+                input_signal=test_batch[0][1:2].to(device), input_signal_length=test_batch[1][1:2].to(device)
             )
 
             best_hyp_1_single, all_hyp_1_single = nemo_model.decoding.rnnt_decoder_predictions_tensor(
-                encoded_1,
-                encoded_len_1,
-                return_hypotheses=False,
-                partial_hypotheses=None,
+                encoded_1, encoded_len_1, return_hypotheses=False, partial_hypotheses=None,
             )
 
+            import ipdb
 
-            import ipdb; ipdb.set_trace()
+            ipdb.set_trace()
             pass
 
-    
+
 if __name__ == "__main__":
     test_for_loop()
     # test_reproducibility()
-
-

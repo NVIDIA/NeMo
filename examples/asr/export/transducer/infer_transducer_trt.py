@@ -17,16 +17,15 @@ import json
 import os
 import tempfile
 from argparse import ArgumentParser
-import tensorrt as trt   # you must import trt before nemo import
 
+import tensorrt as trt  # you must import trt before nemo import
 import torch
 from tqdm import tqdm
+from trt_greedy_batched_rnnt import TRTGreedyBatchedRNNTInfer
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
-from trt_greedy_batched_rnnt import TRTGreedyBatchedRNNTInfer
 from nemo.utils import logging
-
 
 """
 Script to compare the outputs of a NeMo Pytorch based RNNT Model and its ONNX exported representation.
@@ -155,7 +154,7 @@ def main():
 
     audio_filepath = resolve_audio_filepaths(args)
 
-    audio_filepath = audio_filepath[:16 * 4]
+    audio_filepath = audio_filepath[: 16 * 4]
 
     # Evaluate Pytorch Model (CPU/GPU)
     torch.cuda.cudart().cudaProfilerStart()
@@ -165,10 +164,12 @@ def main():
     for at in actual_transcripts:
         print(at)
     torch.cuda.cudart().cudaProfilerStop()
-    import sys; sys.exit()
+    import sys
+
+    sys.exit()
     assert False
 
-    #torch.cuda.empty_cache() # to empty all cuda memory
+    # torch.cuda.empty_cache() # to empty all cuda memory
 
     # Evaluate TRT model
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -189,7 +190,9 @@ def main():
             if i == 2:
                 torch.cuda.cudart().cudaProfilerStart()
             if i == 5:
-                import sys; sys.exit()
+                import sys
+
+                sys.exit()
                 torch.cuda.cudart().cudaProfilerStop()
             torch.cuda.nvtx.range_push("iteration")
             # if i < 36:

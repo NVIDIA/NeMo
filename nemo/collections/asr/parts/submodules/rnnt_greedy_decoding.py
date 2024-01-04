@@ -29,20 +29,20 @@
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Union
 
-from cuda import cuda, cudart
-
 import numpy as np
 import torch
+from cuda import cuda, cudart
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
+from nemo.collections.asr.parts.submodules.fast_rnnt_greedy_decoding import RNNTGreedyDecodeFast
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
-from nemo.collections.asr.parts.submodules.fast_rnnt_greedy_decoding import RNNTGreedyDecodeFast
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
+
 
 def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
 
@@ -547,7 +547,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
-        go_very_fast=False
+        go_very_fast=False,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -751,11 +751,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # This is equivalent to if single sample predicted k
                     # If they're all blank, don't update hidden? Why not?
                     # We are basically setting hidden to be 0
-                    if blank_mask.all(): # GPU -> CPU
+                    if blank_mask.all():  # GPU -> CPU
                         not_blank = False
                     else:
                         # Collect batch indices where blanks occurred now/past
-                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False) # GPU -> CPU copy
+                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False)  # GPU -> CPU copy
 
                         # Recover prior state for all samples which predicted blank now/past
                         if hidden is not None:
@@ -785,7 +785,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # here... Is there a better way? We could
                         # remove this from the main loop. But how?
                         for kidx, ki in enumerate(k):
-                            if blank_mask[kidx] == 0: # GPU -> CPU copy
+                            if blank_mask[kidx] == 0:  # GPU -> CPU copy
                                 hypotheses[kidx].y_sequence.append(ki)
                                 hypotheses[kidx].timestep.append(time_idx)
                                 hypotheses[kidx].score += float(v[kidx])
@@ -1089,7 +1089,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # We have three conditionals
             # 1) the for loop over the encoder outputs
             # 2) the while loop until all are blank
-            #   We would like to copy the greedy outputs from device to host. 
+            #   We would like to copy the greedy outputs from device to host.
             #   Can't use a cudaEvent in the body of a loop though.
 
             # Get max sequence length
@@ -1113,7 +1113,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # Could do this in a separate stream
                 blank_mask_prev = blank_mask.clone()
 
-
                 capture_status, *outputs = cu_call(cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream()))
                 if capture_status == cudart.cudaStreamCaptureStatusActive:
                     _, graph, dependencies = outputs
@@ -1124,12 +1123,16 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     cuda.cuLaunchKernel(
                         while_loop_kernel,
-                        1, 1, 1,
-                        1, 1, 1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
                         0,
                         torch.cuda.current_stream(),
                         while_loop_args.ctypes.data,
-                        0
+                        0,
                     )
 
                     capture_status, *outputs = cu_call(cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream()))
@@ -1139,14 +1142,22 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     params = cudart.cudaGraphNodeParams()
                     params.type = cudart.cudaGraphNodeType.cudaGraphNodeTypeConditional
                     params.conditional.handle = while_loop_conditional
-                    params.conditional.type   = cudart.cudaGraphConditionalNodeType.cudaGraphCondTypeWhile
-                    params.conditional.size   = 1
+                    params.conditional.type = cudart.cudaGraphConditionalNodeType.cudaGraphCondTypeWhile
+                    params.conditional.size = 1
 
-                    node, = cu_call(cudart.cudaGraphAddNode(graph, dependencies, len(dependencies), params))
+                    (node,) = cu_call(cudart.cudaGraphAddNode(graph, dependencies, len(dependencies), params))
                     body_graph = params.conditional.phGraph_out[0]
-                    cu_call(cudart.cudaStreamUpdateCaptureDependencies(torch.cuda.current_stream(), [node], 1, cudart.cudaStreamSetCaptureDependencies))
+                    cu_call(
+                        cudart.cudaStreamUpdateCaptureDependencies(
+                            torch.cuda.current_stream(), [node], 1, cudart.cudaStreamSetCaptureDependencies
+                        )
+                    )
                     body_stream = cu_call(cudart.cudaStreamCreate())
-                    cu_call(cudart.cudaStreamBeginCaptureToGraph(body_stream, body_graph, None, None, 0, cudart.cudaStreamCaptureModeTODO))
+                    cu_call(
+                        cudart.cudaStreamBeginCaptureToGraph(
+                            body_stream, body_graph, None, None, 0, cudart.cudaStreamCaptureModeTODO
+                        )
+                    )
                     previous_stream = torch.cuda.current_stream()
                     torch.cuda.set_stream(body_stream)
                     is_capturing = True
@@ -1170,9 +1181,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # Batched joint step - Output = [B, V + 1]
                     # If preserving per-frame confidence, log_normalize must be true
                     torch.cuda.nvtx.range_push("joint")
-                    logp = self._joint_step(f, g, log_normalize=None)[
-                        :, 0, 0, :
-                    ]
+                    logp = self._joint_step(f, g, log_normalize=None)[:, 0, 0, :]
                     torch.cuda.nvtx.range_pop()
 
                     # Why is this necessary???
@@ -1221,7 +1230,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # here... Is there a better way? We could
                     # remove this from the main loop. But how?
                     for kidx, ki in enumerate(k):
-                        if blank_mask[kidx] == 0: # GPU -> CPU copy
+                        if blank_mask[kidx] == 0:  # GPU -> CPU copy
                             hypotheses[kidx].y_sequence.append(ki)
                             hypotheses[kidx].timestep.append(time_idx)
                             hypotheses[kidx].score += float(v[kidx])
@@ -1238,7 +1247,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
 
         return hypotheses
-
 
 
 class ExportedModelGreedyBatchedRNNTInfer:
@@ -3004,8 +3012,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
     ):
         raise NotImplementedError("masked greedy-batched decode is not supported for TDT models.")
 
-class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
 
+class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
     def __init__(self, encoder_model: str, decoder_joint_model: str, max_symbols_per_step: Optional[int] = 10):
         super().__init__(
             encoder_model=encoder_model,
@@ -3025,13 +3033,14 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         decoder_joint_engine = self.runtime.deserialize_cuda_engine(serialized_engine)
 
         self.encoder_module = PythonTorchTensorRTModule(
-            encoder_engine, ["audio_signal", "length"], 
-            ["outputs", "encoded_lengths"])
+            encoder_engine, ["audio_signal", "length"], ["outputs", "encoded_lengths"]
+        )
 
         self.decoder_joint_module = PythonTorchTensorRTModule(
             decoder_joint_engine,
             ["encoder_outputs", "targets", "target_length", "input_states_1", "input_states_2"],
-            ["outputs", "prednet_lengths", "output_states_1", "output_states_2"])
+            ["outputs", "prednet_lengths", "output_states_1", "output_states_2"],
+        )
 
     def _setup_blank_index(self):
         # ASSUME: Single input with no time length information
@@ -3047,7 +3056,7 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         states = self._get_initial_states(batchsize=dynamic_dim)
 
         # run decoder 1 step
-        joint_out, states = self.run_decoder_joint(enc_logits[:,:,0:1], None, None, *states)
+        joint_out, states = self.run_decoder_joint(enc_logits[:, :, 0:1], None, None, *states)
         log_probs, lengths = joint_out
 
         self._blank_index = log_probs.shape[-1] - 1  # last token of vocab size is blank token
@@ -3062,6 +3071,5 @@ class TRTGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         return self.decoder_joint_module(enc_logits, targets, target_length, *states)
 
     def _get_initial_states(self, batchsize):
-        input_states = [torch.zeros(1, batchsize, 640),
-                        torch.zeros(1, batchsize, 640)]
+        input_states = [torch.zeros(1, batchsize, 640), torch.zeros(1, batchsize, 640)]
         return input_states

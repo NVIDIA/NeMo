@@ -297,8 +297,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=(not verbose)):
                     torch.cuda.nvtx.range_push("encoder")
                     encoded, encoded_len = self.forward(
-                        input_signal=test_batch[0].to(device),
-                        input_signal_length=test_batch[1].to(device)
+                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
                     # print("GALVEZ:encoded=", encoded)
                     torch.cuda.nvtx.range_pop()
@@ -669,7 +668,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        dtype =  next(self.parameters()).dtype
+        dtype = next(self.parameters()).dtype
         processed_signal = processed_signal.to(dtype)
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)

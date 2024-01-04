@@ -576,6 +576,7 @@ def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_nu
             lengths = torch.floor(lengths)
     return lengths.to(dtype=torch.int)
 
+
 # def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
 #     """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
 #     add_pad: int = all_paddings - kernel_size
@@ -588,7 +589,6 @@ def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_nu
 #         lengths += one
 
 #     return lengths
-
 
 
 class TimeReductionModule(nn.Module):

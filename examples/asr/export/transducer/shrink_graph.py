@@ -1,8 +1,11 @@
 import onnx
 import onnx_graphsurgeon as gs
 
+
 def main():
-    onnx_model = onnx.load("/home/dgalvez/scratch/code/asr/nemo_conformer_benchmark/NeMo/examples/asr/export/transducer/encoder-temp_rnnt.onnx")
+    onnx_model = onnx.load(
+        "/home/dgalvez/scratch/code/asr/nemo_conformer_benchmark/NeMo/examples/asr/export/transducer/encoder-temp_rnnt.onnx"
+    )
     graph = gs.import_onnx(onnx_model)
 
     for node in graph.nodes:
@@ -11,6 +14,7 @@ def main():
 
     graph.cleanup()
     graph.toposort()
+
 
 if __name__ == "__main__":
     main()

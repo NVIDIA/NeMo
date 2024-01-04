@@ -1050,10 +1050,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         return old_states
 
     def batch_copy_states_mask(
-        self,
-        old_states: List[torch.Tensor],
-        new_states: List[torch.Tensor],
-        mask: torch.Tensor,
+        self, old_states: List[torch.Tensor], new_states: List[torch.Tensor], mask: torch.Tensor,
     ) -> List[torch.Tensor]:
         """Copy states from new state to old state at certain indices specified by mask
 
@@ -1073,7 +1070,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         # Would need to make a conditional node here... How annoying
         assert len(old_states) == len(new_states)
         for state_id in range(len(old_states)):
-            torch.where(mask.unsqueeze(1).unsqueeze(0), new_states[state_id], old_states[state_id], out=old_states[state_id])
+            torch.where(
+                mask.unsqueeze(1).unsqueeze(0), new_states[state_id], old_states[state_id], out=old_states[state_id]
+            )
 
         return old_states
 

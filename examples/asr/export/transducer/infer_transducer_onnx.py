@@ -111,7 +111,7 @@ def assert_args(args):
 
 def export_model_if_required(args, nemo_model):
     if args.export:
-        nemo_model.export("temp_rnnt.onnx", onnx_opset_version=18)  #, verbose=True)
+        nemo_model.export("temp_rnnt.onnx", onnx_opset_version=18)  # , verbose=True)
         args.onnx_encoder = "encoder-temp_rnnt.onnx"
         args.onnx_decoder = "decoder_joint-temp_rnnt.onnx"
 
