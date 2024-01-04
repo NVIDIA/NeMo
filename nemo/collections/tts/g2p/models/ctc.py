@@ -31,9 +31,9 @@ from nemo.utils import logging
 try:
     from nemo.collections.asr.losses.ctc import CTCLoss
     from nemo.collections.asr.metrics.wer import WER
-    from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
     from nemo.collections.asr.models import EncDecCTCModel
     from nemo.collections.asr.parts.mixins import ASRBPEMixin
+    from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 
     ASR_AVAILABLE = True
 except (ModuleNotFoundError, ImportError) as e:

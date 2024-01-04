@@ -21,8 +21,8 @@ from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.multimodal.speech_cv.data import video_to_text_dataset
 from nemo.collections.multimodal.speech_cv.models.visual_ctc_models import VisualEncDecCTCModel
 from nemo.core.classes.common import PretrainedModelInfo
