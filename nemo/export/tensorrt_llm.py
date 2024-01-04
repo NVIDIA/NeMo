@@ -369,8 +369,7 @@ class TensorRTLLM(ITritonDeployable):
                 infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
             if "task_id" in inputs:
                 task_id = np.char.decode(inputs.pop("task_id").astype("bytes"), encoding="utf-8")
-                infer_input["task_ids"] = [task_id[0]]
-                print("******** task id: ", infer_input["task_ids"])
+                infer_input["task_ids"] = task_id[0]
 
             output_texts = self.forward(**infer_input)
             output = cast_output(output_texts, np.bytes_)
