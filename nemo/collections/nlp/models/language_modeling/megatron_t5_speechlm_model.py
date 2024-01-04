@@ -51,6 +51,7 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy, plot_encodec_to_numpy
 from nemo.utils import AppState, logging
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
+from nemo.collections.tts.models import AudioCodecModel
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
@@ -208,6 +209,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             codec_model.cuda()
             codec_model.eval()
             self.sample_rate = 24000
+        elif codecmodel_type == 'nemo_codec':
+            codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'))
+            codec_model.to('cuda')
+            codec_model.eval()
+            self.sample_rate = 22050
         else:
             raise NotImplementedError()
 
@@ -225,6 +231,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             wav = codec_model.decoder(_z)[0][0]
         elif self.codecmodel_type == 'encodec':
             wav = codec_model.decode([[codes.unsqueeze(0), None]])[0, 0]
+        elif self.codecmodel_type == 'nemo_codec':
+            codec_len = torch.Tensor([codes.shape[1]]).long().cuda()
+            wav, _ = codec_model.decode(tokens=codes.unsqueeze(0), tokens_len=codec_len)
+            wav = wav[0]
         else:
             raise NotImplementedError()
         return wav
