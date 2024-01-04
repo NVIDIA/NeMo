@@ -12,11 +12,11 @@ defaults:
 model:
   
   duration_predictor:
-    depth: 4
+    depth: 2
     # heads: 2
 
   voicebox:
-    depth: 8
+    depth: 6
     # heads: 4
 
   train_ds:
