@@ -18,11 +18,16 @@ fid:
   coco_images_path: /coco2014/coco2014_val/images_256
   save_path: output
 
-use_refiner: True
+model:
+  restore_from_path:
+  is_legacy: False
+
+use_refiner: False
 use_fp16: False # use fp16 model weights
 
 base_model_config: /opt/NeMo/examples/multimodal/generative/stable_diffusion/conf/sd_xl_base.yaml
 refiner_config: /opt/NeMo/examples/multimodal/generative/stable_diffusion/conf/sd_xl_refiner.yaml
+
 
 infer:
   num_samples: 1
@@ -81,3 +86,10 @@ sampling:
     s_noise: 1.0
     eta: 1.0
     order: 4
+
+trainer:
+  devices: ${evaluation.fid.ntasks_per_node}
+  num_nodes: 1
+  accelerator: gpu
+  precision: 32
+  logger: False # logger provided by exp_manager

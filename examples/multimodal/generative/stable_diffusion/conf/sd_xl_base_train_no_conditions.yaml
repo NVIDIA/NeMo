@@ -134,22 +134,44 @@ model:
         input_key: captions
         ucg_rate: 0.1
         emb_model:
-          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
-          restore_from_path: /ckpts/openai.nemo
-          device: cuda
-          freeze: True
-          layer: "penultimate"
+          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder
+          layer: hidden
+          layer_idx: 11
       # crossattn and vector cond
       - is_trainable: False
         ucg_rate: 0.1
         input_key: captions
         emb_model:
-          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
-          restore_from_path: /ckpts/open_clip_bigG.nemo
-          device: cuda
+          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenOpenCLIPEmbedder2
+          arch: ViT-bigG-14
+          version: laion2b_s39b_b160k
           freeze: True
-          layer: "penultimate"
+          layer: penultimate
           always_return_pooled: True
+          legacy: False
+#    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.GeneralConditioner
+#    emb_models:
+#      # crossattn cond
+#      - is_trainable: False
+#        input_key: captions
+#        ucg_rate: 0.1
+#        emb_model:
+#          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
+#          restore_from_path: /ckpts/openai.nemo
+#          device: cuda
+#          freeze: True
+#          layer: "penultimate"
+#      # crossattn and vector cond
+#      - is_trainable: False
+#        ucg_rate: 0.1
+#        input_key: captions
+#        emb_model:
+#          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
+#          restore_from_path: /ckpts/open_clip_bigG.nemo
+#          device: cuda
+#          freeze: True
+#          layer: "penultimate"
+#          always_return_pooled: True
 
 
   data:
