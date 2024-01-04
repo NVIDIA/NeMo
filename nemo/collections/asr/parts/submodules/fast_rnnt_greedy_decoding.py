@@ -225,8 +225,15 @@ class RNNTGreedyDecodeFast:
             (self.batch_size,), dtype=encoder_output_length.dtype, device=encoder_output_length.device
         )
 
-        self.scores_cpu = torch.zeros((self.batch_size, self.max_time * self.max_symbols), dtype=encoder_output.dtype, device="cpu", pin_memory=True)
-        self.labels_cpu = torch.zeros((self.batch_size, self.max_time * self.max_symbols), dtype=torch.int64, device="cpu", pin_memory=True)
+        self.scores_cpu = torch.zeros(
+            (self.batch_size, self.max_time * self.max_symbols),
+            dtype=encoder_output.dtype,
+            device="cpu",
+            pin_memory=True,
+        )
+        self.labels_cpu = torch.zeros(
+            (self.batch_size, self.max_time * self.max_symbols), dtype=torch.int64, device="cpu", pin_memory=True
+        )
         self.symbols_per_time_step_cpu = torch.zeros(self.max_time, dtype=torch.int64, device="cpu", pin_memory=True)
 
         with torch.cuda.stream(torch.cuda.Stream()), torch.inference_mode():
@@ -237,7 +244,11 @@ class RNNTGreedyDecodeFast:
                 )
             )
 
-            self.f = torch.zeros((self.batch_size, 1, self.encoder_output.shape[-1]), dtype=encoder_output.dtype, device=encoder_output.device)
+            self.f = torch.zeros(
+                (self.batch_size, 1, self.encoder_output.shape[-1]),
+                dtype=encoder_output.dtype,
+                device=encoder_output.device,
+            )
             hidden = self.caller.decoder.initialize_state(self.f)
             self.last_label = torch.full(
                 [self.batch_size], fill_value=self.caller._SOS, dtype=torch.long, device=encoder_output.device
@@ -247,8 +258,14 @@ class RNNTGreedyDecodeFast:
             )
             self.seq_idx_t = torch.zeros([1], dtype=torch.int64, device=encoder_output.device)
 
-            self.scores = torch.zeros((self.max_time * self.max_symbols, self.batch_size), dtype=encoder_output.dtype, device=encoder_output.device)
-            self.labels = torch.zeros((self.max_time * self.max_symbols, self.batch_size), dtype=torch.int64, device=encoder_output.device)
+            self.scores = torch.zeros(
+                (self.max_time * self.max_symbols, self.batch_size),
+                dtype=encoder_output.dtype,
+                device=encoder_output.device,
+            )
+            self.labels = torch.zeros(
+                (self.max_time * self.max_symbols, self.batch_size), dtype=torch.int64, device=encoder_output.device
+            )
             self.symbols_per_time_step = torch.zeros(self.max_time, dtype=torch.int64, device=encoder_output.device)
 
             # Get max sequence length
@@ -380,7 +397,7 @@ class RNNTGreedyDecodeFast:
                 max_non_blank_symbols = self.symbols_per_time_step_cpu[t]
                 for counter in range(max_non_blank_symbols):
                     if self.labels_cpu[i, j] == caller._blank_index:
-                        j += (max_non_blank_symbols - counter)
+                        j += max_non_blank_symbols - counter
                         break
                     hypotheses[i].y_sequence.append(self.labels_cpu[i, j])
                     hypotheses[i].timestep.append(t)
