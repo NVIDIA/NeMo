@@ -210,6 +210,7 @@ class ResBlock(TimestepBlock):
         use_checkpoint=False,
         up=False,
         down=False,
+        resblock_gn_groups=32,
     ):
         super().__init__()
         self.channels = channels
@@ -221,7 +222,8 @@ class ResBlock(TimestepBlock):
         self.use_scale_shift_norm = use_scale_shift_norm
 
         self.in_layers = nn.Sequential(
-            normalization(channels, act="silu"), conv_nd(dims, channels, self.out_channels, 3, padding=1),
+            normalization(channels, act="silu", gn_groups=resblock_gn_groups),
+            conv_nd(dims, channels, self.out_channels, 3, padding=1),
         )
 
         self.updown = up or down
@@ -239,7 +241,7 @@ class ResBlock(TimestepBlock):
             nn.SiLU(), linear(emb_channels, 2 * self.out_channels if use_scale_shift_norm else self.out_channels,),
         )
         self.out_layers = nn.Sequential(
-            normalization(self.out_channels, act="silu"),
+            normalization(self.out_channels, act="silu", gn_groups=resblock_gn_groups),
             nn.Dropout(p=dropout),
             zero_module(conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)),
         )
@@ -419,6 +421,7 @@ class QKVAttention(nn.Module):
 class UNetModel(nn.Module):
     """
     The full UNet model with attention and timestep embedding.
+
     :param in_channels: channels in the input Tensor.
     :param model_channels: base channel count for the model.
     :param out_channels: channels in the output Tensor.
@@ -463,6 +466,7 @@ class UNetModel(nn.Module):
         num_heads=-1,
         num_head_channels=-1,
         num_heads_upsample=-1,
+        resblock_gn_groups=32,
         use_scale_shift_norm=False,
         resblock_updown=False,
         use_new_attention_order=False,
@@ -477,6 +481,7 @@ class UNetModel(nn.Module):
         # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
         use_flash_attention: bool = False,
         enable_amp_o2_fp16: bool = False,
+        lora_network_alpha=None,
     ):
         super().__init__()
         if use_spatial_transformer:
@@ -543,6 +548,7 @@ class UNetModel(nn.Module):
                         dims=dims,
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
+                        resblock_gn_groups=resblock_gn_groups,
                     )
                 ]
                 ch = mult * model_channels
@@ -573,6 +579,7 @@ class UNetModel(nn.Module):
                             use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
+                            lora_network_alpha=lora_network_alpha,
                         )
                     )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -591,6 +598,7 @@ class UNetModel(nn.Module):
                             use_checkpoint=use_checkpoint,
                             use_scale_shift_norm=use_scale_shift_norm,
                             down=True,
+                            resblock_gn_groups=resblock_gn_groups,
                         )
                         if resblock_updown
                         else Downsample(ch, conv_resample, dims=dims, out_channels=out_ch)
@@ -617,6 +625,7 @@ class UNetModel(nn.Module):
                 dims=dims,
                 use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
+                resblock_gn_groups=resblock_gn_groups,
             ),
             AttentionBlock(
                 ch,
@@ -635,6 +644,7 @@ class UNetModel(nn.Module):
                 use_linear=use_linear_in_transformer,
                 use_checkpoint=use_checkpoint,
                 use_flash_attention=use_flash_attention,
+                lora_network_alpha=lora_network_alpha,
             ),
             ResBlock(
                 ch,
@@ -643,6 +653,7 @@ class UNetModel(nn.Module):
                 dims=dims,
                 use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
+                resblock_gn_groups=resblock_gn_groups,
             ),
         )
         self._feature_size += ch
@@ -690,6 +701,7 @@ class UNetModel(nn.Module):
                             use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
+                            lora_network_alpha=lora_network_alpha,
                         )
                     )
                 if level and i == num_res_blocks:
@@ -704,6 +716,7 @@ class UNetModel(nn.Module):
                             use_checkpoint=use_checkpoint,
                             use_scale_shift_norm=use_scale_shift_norm,
                             up=True,
+                            resblock_gn_groups=resblock_gn_groups,
                         )
                         if resblock_updown
                         else Upsample(ch, conv_resample, dims=dims, out_channels=out_ch)
@@ -713,7 +726,8 @@ class UNetModel(nn.Module):
                 self._feature_size += ch
 
         self.out = nn.Sequential(
-            normalization(ch), nn.SiLU(), zero_module(conv_nd(dims, model_channels, out_channels, 3, padding=1)),
+            normalization(ch, act="silu", gn_groups=resblock_gn_groups),
+            zero_module(conv_nd(dims, model_channels, out_channels, 3, padding=1)),
         )
         if self.predict_codebook_ids:
             self.id_predictor = nn.Sequential(
@@ -730,13 +744,16 @@ class UNetModel(nn.Module):
                 missing_key, _, _, _ = self._load_pretrained_model(state_dict, from_NeMo=True)
             else:
                 state_dict = torch.load(from_pretrained, map_location='cpu')
-                if 'state_dict' in state_dict.keys():
-                    state_dict = state_dict['state_dict']
-                missing_key, _, _, _ = self._load_pretrained_model(state_dict)
+
+            if 'state_dict' in state_dict.keys():
+                state_dict = state_dict['state_dict']
+            missing_key, unexpected_keys, _, _ = self._load_pretrained_model(state_dict, from_NeMo=from_NeMo)
             if len(missing_key) > 0:
                 print(
                     'Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
                 )
+                print(f"Missing keys: {missing_key}")
+                print(f"Unexpected keys: {unexpected_keys}")
 
         if enable_amp_o2_fp16:
             self.convert_to_fp16()
@@ -867,10 +884,10 @@ class UNetModel(nn.Module):
         return res_dict
 
     def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
-        if from_NeMo:
-            state_dict = self._strip_unet_key_prefix(state_dict)
-        else:
+        state_dict = self._strip_unet_key_prefix(state_dict)
+        if not from_NeMo:
             state_dict = self._state_key_mapping(state_dict)
+
         model_state_dict = self.state_dict()
         loaded_keys = [k for k in state_dict.keys()]
         expected_keys = list(model_state_dict.keys())
@@ -925,14 +942,16 @@ class UNetModel(nn.Module):
         for key_, value_ in state_dict.items():
             if key_.startswith('model.diffusion_model'):
                 re_state_dict[key_.replace('model.diffusion_model.', '')] = value_
-            if key_.startswith('model.model.diffusion_model'):
+            elif key_.startswith('model.model.diffusion_model'):
                 re_state_dict[key_.replace('model.model.diffusion_model.', '')] = value_
-            if key_.startswith('model._orig_mod.diffusion_model.'):
+            elif key_.startswith('model._orig_mod.diffusion_model.'):
                 re_state_dict[key_.replace('model._orig_mod.diffusion_model.', '')] = value_
-            if key_.startswith('model.model._orig_mod.diffusion_model.'):
+            elif key_.startswith('model.model._orig_mod.diffusion_model.'):
                 re_state_dict[key_.replace('model.model._orig_mod.diffusion_model.', '')] = value_
-            if key_.startswith('model.model.diffusion_model._orig_mod.'):
+            elif key_.startswith('model.model.diffusion_model._orig_mod.'):
                 re_state_dict[key_.replace('model.model.diffusion_model._orig_mod.', '')] = value_
+            else:
+                re_state_dict[key_] = value_
         return re_state_dict
 
     def _load_state_dict_into_model(self, state_dict):
@@ -1022,6 +1041,7 @@ class EncoderUNetModel(nn.Module):
         resblock_updown=False,
         use_new_attention_order=False,
         pool="adaptive",
+        resblock_gn_groups=32,
         *args,
         **kwargs,
     ):
@@ -1066,6 +1086,7 @@ class EncoderUNetModel(nn.Module):
                         dims=dims,
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
+                        resblock_gn_groups=resblock_gn_groups,
                     )
                 ]
                 ch = mult * model_channels
@@ -1095,6 +1116,7 @@ class EncoderUNetModel(nn.Module):
                             use_checkpoint=use_checkpoint,
                             use_scale_shift_norm=use_scale_shift_norm,
                             down=True,
+                            resblock_gn_groups=resblock_gn_groups,
                         )
                         if resblock_updown
                         else Downsample(ch, conv_resample, dims=dims, out_channels=out_ch)
@@ -1113,6 +1135,7 @@ class EncoderUNetModel(nn.Module):
                 dims=dims,
                 use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
+                resblock_gn_groups=resblock_gn_groups,
             ),
             AttentionBlock(
                 ch,
@@ -1128,6 +1151,7 @@ class EncoderUNetModel(nn.Module):
                 dims=dims,
                 use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
+                resblock_gn_groups=resblock_gn_groups,
             ),
         )
         self._feature_size += ch

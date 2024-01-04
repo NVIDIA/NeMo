@@ -17,6 +17,7 @@ import itertools
 import os
 import re
 from dataclasses import fields
+from datetime import datetime
 from typing import Any, Dict, Optional, Union
 
 import omegaconf
@@ -78,9 +79,8 @@ class MegatronBaseModel(NLPModel):
       with O2 level optimizations and/or model parallelism.
     - Perform gradient clipping: `grad_clip_pl_default` triggers
       the PyTorch Lightning default implementation, `with_distributed_adam` triggers
-      the distributed optimizer's implementation, `with_megatron_fused_adam` triggers
-      the optimizer's implementation, `megatron_amp_O2` triggers gradient clipping
-      on the main grads, and otherwise gradient clipping is performed on the model grads.
+      the distributed optimizer's implementation, `megatron_amp_O2` triggers gradient clipping on the main grads,
+      and otherwise gradient clipping is performed on the model grads.
 
     """
 
@@ -200,6 +200,8 @@ class MegatronBaseModel(NLPModel):
         }
 
         self.gc_interval = cfg.get('gc_interval', 0)
+        # Do manual garbage collection during validation routine when gc_interval > 0
+        self.gc_in_validation = bool(int(os.getenv("NEMO_MANUAL_GC_IN_VALIDATION", 1)))
         assert self.gc_interval >= 0, "gc_interval should be an integer value larger than or equal to 0."
         # If gc_interval > 0, memory garbage collection is manually controlled.
         # The automatic garbage collector sould be disabled before training starts.
@@ -221,6 +223,11 @@ class MegatronBaseModel(NLPModel):
 
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
+
+        # Support DLFW master container
+        if nvidia_torch_version == 'master':
+            nvidia_torch_version = datetime.now().strftime('%y.%m')
+
         if nvidia_torch_version is not None:
             try:
                 NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
@@ -284,12 +291,12 @@ class MegatronBaseModel(NLPModel):
 
     def on_validation_start(self) -> None:
         super().on_validation_start()
-        if self.gc_interval > 0:
+        if self.gc_interval > 0 and self.gc_in_validation:
             gc.collect()
 
     def on_validation_end(self) -> None:
         super().on_validation_end()
-        if self.gc_interval > 0:
+        if self.gc_interval > 0 and self.gc_in_validation:
             gc.collect()
 
     def _build_vocab(self):
@@ -447,7 +454,7 @@ class MegatronBaseModel(NLPModel):
     def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
         super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
-        if self.gc_interval > 0:
+        if self.gc_interval > 0 and self.gc_in_validation:
             if self.validation_global_step % self.gc_interval == 0:
                 gc.collect()
             self.validation_global_step += 1
@@ -555,10 +562,11 @@ class MegatronBaseModel(NLPModel):
             overlap_params = []
             no_overlap_params = []
             for p in self.parameters():
-                if getattr(p, '_disable_overlap_grad_sync', False):
-                    no_overlap_params.append(p)
-                else:
-                    overlap_params.append(p)
+                if p.requires_grad:
+                    if getattr(p, '_disable_overlap_grad_sync', False):
+                        no_overlap_params.append(p)
+                    else:
+                        overlap_params.append(p)
             self._optimizer.init_params(reversed(overlap_params))
             self._optimizer.init_params(reversed(no_overlap_params))
 
@@ -697,7 +705,6 @@ class MegatronBaseModel(NLPModel):
                 parallel_state.get_pipeline_model_parallel_world_size() > 1
                 and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
                 and self.cfg.get('share_embeddings_and_output_weights', True)
-                and ("llm" in self.cfg and self.cfg.llm.get('share_embeddings_and_output_weights', True))
             ):
                 word_embeddings_weight = (
                     model.module.shared_embedding_or_output_weight()
@@ -790,7 +797,7 @@ class MegatronBaseModel(NLPModel):
             "async_tensor_model_parallel_allreduce": self.cfg.get('tensor_model_parallel_world_size', 1) > 1
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
-            "grad_scale_func": self.trainer.precision_plugin.scaler._scale
+            "grad_scale_func": self.trainer.precision_plugin.scaler.scale
             if self.torch_dtype == torch.float16
             else None,
             "enable_autocast": not megatron_amp_O2 and self.torch_dtype in [torch.bfloat16, torch.float16],

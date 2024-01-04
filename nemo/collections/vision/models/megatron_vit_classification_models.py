@@ -799,32 +799,3 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
             return self.model.parameters()
-
-    # For onnx export
-    def input_example(self, max_batch=8, max_dim=384):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        sample = next(self.parameters())
-        tokens = torch.randn(max_batch, 3, max_dim, max_dim, device=sample.device)
-        return (tokens,)
-
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "tokens": NeuralType(('B', 'C', 'H', 'W'), ChannelType()),
-        }
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"logits": NeuralType(('B', 'D'), ChannelType())}
-
-    @property
-    def input_names(self) -> List[str]:
-        return ['tokens']
-
-    @property
-    def output_names(self) -> List[str]:
-        return ['logits']

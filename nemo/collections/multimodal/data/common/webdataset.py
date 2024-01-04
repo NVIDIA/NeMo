@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import glob
 import io
 import itertools
 import json
@@ -105,6 +106,10 @@ def get_world_size():
 
 
 class WebDatasetCommon(NeMoIterableDataset):
+    """
+    A common dataset object shared by most of NeMo multimodal models.
+    """
+
     def __init__(
         self,
         dataset_cfg,
@@ -135,6 +140,13 @@ class WebDatasetCommon(NeMoIterableDataset):
             dataset_path = dataset_cfg.validation.dataset_path
             self.augmentations = dataset_cfg.validation.get("augmentations", None)
             self.filterings = dataset_cfg.validation.get("filterings", None)
+
+        # Optionally expand dataset as as a glob pattern
+        # This can be used to specify multiple .zip files: dataset_path="data/*.zip"
+        if isinstance(dataset_path, str):
+            glob_path = dataset_path
+            dataset_path = glob.glob(dataset_path)
+            assert len(dataset_path) > 0, f"No files found for {glob_path}"
 
         if "boto3" in dataset_cfg:
             logging.info(f'Init boto3 using credentials file at {dataset_cfg.boto3.credentials_file}')

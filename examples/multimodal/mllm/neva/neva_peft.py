@@ -15,9 +15,10 @@
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.multimodal.models.neva.neva_peft_models import MegatronNevaLoRAModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -31,23 +32,37 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    trainer = MegatronTrainerBuilder(cfg).create_trainer()
+    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
-
     if cfg.model.restore_from_path is None:
-        model = MegatronNevaLoRAModel(cfg.model, trainer)
+        model_cfg = cfg.model
+        model = MegatronNevaModel(cfg.model, trainer)
     else:
-        model = MegatronNevaLoRAModel.restore_from(
+        model_cfg = MegatronNevaModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+        model = MegatronNevaModel.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,
-            override_config_path=cfg.model,
+            override_config_path=model_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
             strict=False,
         )
+
+    peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
+
+    if cfg.model.peft.restore_from_path is not None:
+        # initialize peft weights from a checkpoint instead of randomly
+        # This is not the same as resume training because optimizer states are not restored.
+        logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
+        model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+    elif peft_cfg_cls is not None:
+        logging.info("Adding adapter weights to the model for PEFT")
+        model.add_adapter(peft_cfg_cls(model_cfg))
+    else:
+        logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
 
     trainer.fit(model)
 

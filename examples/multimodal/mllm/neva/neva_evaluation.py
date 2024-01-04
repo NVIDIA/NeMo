@@ -17,7 +17,6 @@ import json
 import os
 import re
 import threading
-
 import torch
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -25,12 +24,11 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
-from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
@@ -52,7 +50,6 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_AMMO = False
-
 
 """
 This is the script to run GPT text generation.
@@ -161,7 +158,7 @@ class RequestDataSet(Dataset):
         super().__init__()
         self.sentences = sentences
 
-    def __len__(self,):
+    def __len__(self, ):
         return len(self.sentences)
 
     def __getitem__(self, idx):
@@ -170,97 +167,7 @@ class RequestDataSet(Dataset):
 
 @hydra_runner(config_path="conf", config_name="neva_inference")
 def main(cfg) -> None:
-
-    plugins = []
-    if cfg.get('cluster_type', None) == 'BCP':
-        plugins.append(TorchElasticEnvironment())
-    # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=plugins, strategy=NLPDDPStrategy(), **cfg.trainer)
-
-    if (
-        cfg.tensor_model_parallel_size < 0
-        or cfg.pipeline_model_parallel_size < 0
-        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
-    ):
-        model_config = MegatronNevaModel.restore_from(
-            restore_path=cfg.neva_model_file, trainer=trainer, return_config=True,
-        )
-
-        with open_dict(cfg):
-            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
-
-    assert (
-        cfg.trainer.devices * cfg.trainer.num_nodes
-        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
-    ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
-
-    if cfg.neva_model_file:
-        save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.neva_model_file):
-            save_restore_connector.model_extracted_dir = cfg.neva_model_file
-
-        pretrained_cfg = MegatronNevaModel.restore_from(
-            restore_path=cfg.neva_model_file,
-            trainer=trainer,
-            return_config=True,
-            save_restore_connector=save_restore_connector,
-        )
-        OmegaConf.set_struct(pretrained_cfg, True)
-        with open_dict(pretrained_cfg):
-            pretrained_cfg.sequence_parallel = False
-            pretrained_cfg.activations_checkpoint_granularity = None
-            pretrained_cfg.activations_checkpoint_method = None
-            pretrained_cfg.precision = trainer.precision
-            pretrained_cfg.mm_cfg.llm.from_pretrained = None
-        #    pretrained_cfg.mm_cfg.vision_encoder.from_pretrained = None
-
-        model = MegatronNevaModel.restore_from(
-            restore_path=cfg.neva_model_file,
-            trainer=trainer,
-            override_config_path=pretrained_cfg,
-            save_restore_connector=save_restore_connector,
-        )
-
-    elif cfg.checkpoint_dir:
-        app_state = AppState()
-        if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
-            app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
-            app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
-            app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
-            (
-                app_state.tensor_model_parallel_rank,
-                app_state.pipeline_model_parallel_rank,
-                app_state.model_parallel_size,
-                app_state.data_parallel_size,
-                app_state.pipeline_model_parallel_split_rank,
-                app_state.virtual_pipeline_model_parallel_rank,
-            ) = fake_initialize_model_parallel(
-                world_size=app_state.model_parallel_size,
-                rank=trainer.global_rank,
-                tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
-                pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
-                pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
-            )
-        checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-        # TODO: This wont work properly (We need to set model.llm.from_pretrained model.vision.from_pretrained to nul)
-        model = MegatronNevaModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
-    else:
-        raise ValueError("need at least a nemo file or checkpoint dir")
-
-    model.freeze()
-
-    # Have to turn off activations_checkpoint_method for inference
-    # Have to turn off activations_checkpoint_method for inference
-    try:
-        model.model.language_model.encoder.activations_checkpoint_method = None
-    except AttributeError:
-        pass
-    try:
-        model.model.module.language_model.encoder.activations_checkpoint_method = None
-    except AttributeError:
-        pass
+    model, image_processor = create_neva_model_and_processor(cfg)
 
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
@@ -285,6 +192,16 @@ def main(cfg) -> None:
     final_prompts = []
     for line in lines:
         prompt_dict = json.loads(line)
+        assert 'prompt' in prompt_dict or 'text' in prompt_dict
+        if 'prompt' not in prompt_dict:
+            prompt_dict['prompt'] = prompt_dict['text']
+        if cfg.inference.insert_image_token == 'left':
+            prompt_dict['prompt'] = '<image>' + prompt_dict['prompt']
+        elif cfg.inference.insert_image_token == 'right':
+            prompt_dict['prompt'] = prompt_dict['prompt'] + '<image>'
+        if 'image' in prompt_dict:
+            prompt_dict['image_path'] = prompt_dict['image']
+            prompt_dict['image'] = image_processor(os.path.join(cfg.inference.images_base_path, prompt_dict['image']))
         final_prompts.append(prompt_dict)
 
     responses = model.generate(
@@ -327,8 +244,12 @@ def main(cfg) -> None:
         prompt['full_text'] = response["clean_text"]
         prompt['text'] = response["clean_response"]
         prompt['model_id'] = cfg.neva_model_file
-        prompt['answer_id'] = 0
-        prompt['metadata'] = {}
+        if 'image_path' in prompt:
+            prompt['image'] = prompt.pop('image_path')
+        if 'answer_id' not in prompt:
+            prompt['answer_id'] = 0
+        if 'metadata' not in prompt:
+            prompt['metadata'] = {}
         results.append(prompt)
 
     with open(cfg.output_file, 'w') as f:

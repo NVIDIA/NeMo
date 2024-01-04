@@ -57,16 +57,17 @@ pipeline {
       }
     }
 
-    stage('Megatron Core installation') {
-      steps {
-        // pinned MCore https://github.com/NVIDIA/Megatron-LM/commit/ab0336a5c8eab77aa74ae604ba1e73decbf6d560
-        // ToT for 23.08 branch
-        sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
-            cd Megatron-LM && \
-            git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
-            pip install -e .'
-      }
-    }
+    // megatron-core 0.3 has been pinned in the requirements, this should not be needed on r1.21.0
+    // stage('Megatron Core installation') {
+    //   steps {
+    //     // pinned MCore https://github.com/NVIDIA/Megatron-LM/commit/ab0336a5c8eab77aa74ae604ba1e73decbf6d560
+    //     // ToT for 23.08 branch
+    //     sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
+    //         cd Megatron-LM && \
+    //         git checkout ab0336a5c8eab77aa74ae604ba1e73decbf6d560 && \
+    //         pip install -e .'
+    //   }
+    // }
 
 
     stage('PyTorch Lightning version') {
@@ -4687,6 +4688,237 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         }
       }
     }
+    stage('L2: Multimodal Imagen Train') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf /home/TestData/multimodal/imagen_train"
+        sh "python examples/multimodal/generative/imagen/imagen_training.py \
+        trainer.precision=16 \
+        trainer.num_nodes=1 \
+        trainer.devices=1 \
+        ++exp_manager.max_time_per_run=00:00:03:00 \
+        trainer.max_steps=20 \
+        model.micro_batch_size=4 \
+        model.global_batch_size=4 \
+        model.data.synthetic_data=True \
+        exp_manager.exp_dir=/home/TestData/multimodal/imagen_train \
+        model.inductor=False
+        "
+        sh "rm -rf /home/TestData/multimodal/imagen_train"
+      }
+    }
+
+    stage('L2: Multimodal Stable Diffusion Train') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
+        sh "python examples/multimodal/generative/stable_diffusion/sd_train.py \
+            trainer.precision=16 \
+            trainer.num_nodes=1 \
+            trainer.devices=1 \
+            ++exp_manager.max_time_per_run=00:00:03:00 \
+            trainer.max_steps=20 \
+            model.micro_batch_size=1 \
+            model.global_batch_size=1 \
+            model.data.synthetic_data=True \
+            exp_manager.exp_dir=/home/TestData/multimodal/stable_diffusion_train \
+            model.inductor=False \
+            model.cond_stage_config._target_=nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder \
+            ++model.cond_stage_config.version=openai/clip-vit-large-patch14 \
+            ++model.cond_stage_config.max_length=77 \
+            ~model.cond_stage_config.restore_from_path \
+            ~model.cond_stage_config.freeze \
+            ~model.cond_stage_config.layer \
+            model.unet_config.from_pretrained=null \
+            model.first_stage_config.from_pretrained=null
+            "
+        sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
+      }
+    }
+    stage('L2: Multimodal ControlNet Train') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf /home/TestData/multimodal/controlnet_train"
+        sh "python examples/multimodal/generative/controlnet/controlnet_train.py \
+            trainer.precision=16 \
+            trainer.num_nodes=1 \
+            trainer.devices=1 \
+            ++exp_manager.max_time_per_run=00:00:03:00 \
+            trainer.max_steps=20 \
+            model.micro_batch_size=1 \
+            model.global_batch_size=1 \
+            model.data.synthetic_data=True \
+            exp_manager.exp_dir=/home/TestData/multimodal/controlnet_train \
+            model.inductor=False \
+            model.image_logger.max_images=0 \
+            model.control_stage_config.params.from_pretrained_unet=null \
+            model.unet_config.from_pretrained=null \
+            model.first_stage_config.from_pretrained=null
+            "
+        sh "rm -rf /home/TestData/multimodal/controlnet_train"
+      }
+    }
+    stage('L2: Multimodal DreamBooth Train') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf /home/TestData/multimodal/dreambooth_train"
+        sh "python examples/multimodal/generative/dreambooth/dreambooth.py \
+            trainer.precision=16 \
+            trainer.num_nodes=1 \
+            trainer.devices=1 \
+            ++exp_manager.max_time_per_run=00:00:03:00 \
+            trainer.max_steps=20 \
+            model.micro_batch_size=1 \
+            model.global_batch_size=1 \
+            exp_manager.exp_dir=/home/TestData/multimodal/dreambooth_train \
+            model.inductor=False \
+            model.cond_stage_config._target_=nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder \
+            ++model.cond_stage_config.version=openai/clip-vit-large-patch14 \
+            ++model.cond_stage_config.max_length=77 \
+            ~model.cond_stage_config.restore_from_path \
+            ~model.cond_stage_config.freeze \
+            ~model.cond_stage_config.layer \
+            model.unet_config.from_pretrained=null \
+            model.first_stage_config.from_pretrained=null \
+            model.data.instance_dir=/home/TestData/multimodal/tiny-dreambooth
+            "
+        sh "rm -rf /home/TestData/multimodal/dreambooth_train"
+      }
+    }
+    stage('L2: Vision ViT Pretrain TP=1') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf /home/TestData/vision/vit_pretrain_tp1"
+        sh "python examples/vision/vision_transformer/megatron_vit_classification_pretrain.py \
+            trainer.precision=16 \
+            model.megatron_amp_O2=False \
+            trainer.num_nodes=1 \
+            trainer.devices=1 \
+            trainer.val_check_interval=5 \
+            ++exp_manager.max_time_per_run=00:00:03:00 \
+            trainer.max_steps=20 \
+            model.micro_batch_size=2 \
+            model.global_batch_size=4 \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.data.num_workers=0 \
+            exp_manager.create_checkpoint_callback=False \
+            model.data.data_path=[/home/TestData/multimodal/tiny-imagenet/train,/home/TestData/multimodal/tiny-imagenet/val] \
+            exp_manager.exp_dir=/home/TestData/vision/vit_pretrain_tp1 "
+        sh "rm -rf /home/TestData/vision/vit_pretrain_tp1"
+      }
+    }
+
+    stage('L2: Multimodal CLIP Pretrain TP=1') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf /home/TestData/multimodal/clip_pretrain_tp1"
+        sh "python examples/multimodal/foundation/clip/megatron_clip_pretrain.py  \
+            trainer.precision=16 \
+            model.megatron_amp_O2=False \
+            trainer.num_nodes=1 \
+            trainer.devices=1 \
+            trainer.val_check_interval=10 \
+            ++exp_manager.max_time_per_run=00:00:03:00 \
+            trainer.max_steps=20 \
+            model.micro_batch_size=4 \
+            model.global_batch_size=4 \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            exp_manager.create_checkpoint_callback=False \
+            model.data.num_workers=0 \
+            model.vision.num_layers=2 \
+            model.text.num_layers=2 \
+            model.vision.patch_dim=32 \
+            model.vision.encoder_seq_length=49 \
+            model.vision.class_token_length=7 \
+            model.data.train.dataset_path=[/home/TestData/multimodal/tiny-clip/00000.tar] \
+            model.data.validation.dataset_path=[/home/TestData/multimodal/tiny-clip/00000.tar] \
+            model.data.webdataset.local_root_path=/ \
+            exp_manager.exp_dir=/home/TestData/multimodal/clip_pretrain_tp1 "
+        sh "rm -rf /home/TestData/multimodal/clip_pretrain_tp1"
+      }
+    }
+
+    stage('L2: Multimodal NeVA Pretrain TP=1') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf /home/TestData/multimodal/neva_pretrain_tp1"
+        sh "python examples/multimodal/mllm/neva/neva_pretrain.py \
+            trainer.precision=bf16 \
+            model.megatron_amp_O2=False \
+            trainer.num_nodes=1 \
+            trainer.devices=1 \
+            trainer.val_check_interval=10 \
+            trainer.limit_val_batches=5 \
+            trainer.log_every_n_steps=1 \
+            ++exp_manager.max_time_per_run=00:00:03:00 \
+            trainer.max_steps=20 \
+            model.micro_batch_size=2 \
+            model.global_batch_size=4 \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            exp_manager.create_checkpoint_callback=False \
+            model.data.data_path=/home/TestData/multimodal/tiny-neva/dummy.json \
+            model.data.image_folder=/home/TestData/multimodal/tiny-neva/images \
+            model.tokenizer.library=sentencepiece \
+            model.tokenizer.model=/home/TestData/multimodal/tiny-neva/tokenizer_add_special.model \
+            model.num_layers=2 \
+            model.hidden_size=5120 \
+            model.ffn_hidden_size=13824 \
+            model.num_attention_heads=40 \
+            model.normalization=rmsnorm \
+            model.data.num_workers=0 \
+            model.data.conv_template=llama_2 \
+            model.mm_cfg.vision_encoder.from_pretrained='openai/clip-vit-large-patch14' \
+            model.mm_cfg.llm.from_pretrained=null \
+            exp_manager.exp_dir=/home/TestData/multimodal/neva_pretrain_tp1 "
+        sh "rm -rf /home/TestData/multimodal/neva_pretrain_tp1"
+      }
+    }
+
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf {
@@ -4832,7 +5064,27 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         }
       }
     }
-
+    stage('L2: NeRF') {
+      when {
+        anyOf {
+          branch 'r1.21.0'
+          changeRequest target: 'r1.21.0'
+        }
+      }
+      parallel {
+        stage('DreamFusion') {
+          steps {
+            sh 'python examples/multimodal/generative/nerf/main.py \
+            trainer.num_nodes=1 \
+            trainer.devices="[0]" \
+            trainer.max_steps=1000 \
+            model.prompt="a DSLR photo of a delicious hamburger" \
+            exp_manager.exp_dir=examples/multimodal/generative/nerf/dreamfusion_results'
+            sh 'rm -rf examples/multimodal/generative/nerf/dreamfusion_results'
+          }
+        }
+      }
+    }
     stage('L??: Speech Checkpoints tests') {
       when {
         anyOf {

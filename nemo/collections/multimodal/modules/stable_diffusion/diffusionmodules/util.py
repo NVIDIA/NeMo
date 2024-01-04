@@ -26,8 +26,8 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
+from apex.contrib.group_norm import GroupNorm
 from einops import repeat
-from group_norm import GroupNormOpt
 from torch._dynamo import disable
 from torch.cuda.amp import custom_bwd, custom_fwd
 
@@ -214,13 +214,8 @@ def mean_flat(tensor):
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def normalization(channels, act=""):
-    """
-    Make a standard normalization layer.
-    :param channels: number of input channels.
-    :return: an nn.Module for normalization.
-    """
-    return GroupNormOpt(32, channels, act=act)
+def normalization(in_channels, act="", gn_groups=32):
+    return GroupNorm(num_groups=gn_groups, num_channels=in_channels, eps=1e-5, affine=True, act=act)
 
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.

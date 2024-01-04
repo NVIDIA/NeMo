@@ -384,6 +384,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 use_flash_attention=self.cfg.get('use_flash_attention', False),
                 megatron_legacy=self.cfg.get('megatron_legacy', False),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+                rotary_base=self.cfg.get('rotary_base', 10000),
             )
         return model
 
@@ -453,7 +454,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
                     for layer in layers:
                         stage_bucket.extend(
-                            p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+                            p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
                         )
                     buckets.append(stage_bucket)
             else:
@@ -465,13 +466,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
                     for layer in layers:
                         buckets.append(
-                            [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
+                            [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad]
                         )
             buckets.reverse()
             used_params = set()
             for bucket in buckets:
                 used_params.update(bucket)
-            remaining_params = [p for p in self.parameters() if p not in used_params]
+            remaining_params = [p for p in self.parameters() if p not in used_params and p.requires_grad]
             if remaining_params:
                 buckets.append(remaining_params)
             self.distributed_adam_buckets = buckets
@@ -1333,7 +1334,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # mcore uses distributed checkpointing
         if self.mcore_gpt:
-            if 'state_dict' in checkpoint:
+            if 'state_dict' in checkpoint and checkpoint['state_dict']:
                 for index, module in enumerate(self.get_gpt_module_list()):
                     if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                         checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
@@ -1515,10 +1516,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         activation_func = activation_to_func(activation)
 
         normalization = self.cfg.get('normalization', 'layernorm')
+        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
         elif normalization == 'rmsnorm':
             normalization = 'RMSNorm'
+        elif normalization == 'layernorm1p':
+            normalization = 'LayerNorm'
+            layernorm_zero_centered_gamma = True
         else:
             logging.warning(
                 f"The normalization type: {normalization} might not be supported in megatron core."
@@ -1562,7 +1567,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
-            'layernorm_zero_centered_gamma': False,  # not currently used in NeMo
+            'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'add_bias_linear': add_bias_linear,
             'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,

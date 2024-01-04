@@ -147,12 +147,12 @@ def force_cpu_model(cfg):
         original_cpu_init = cfg.get('use_cpu_initialization', False)
         if 'megatron_amp_O2' in cfg:
             key = 'megatron_amp_O2'
-            original_amp_O2 = cfg.megatron_amp_O2
+            original_amp_o2 = cfg.megatron_amp_O2
         elif 'megatron_amp_02' in cfg:
             key = 'megatron_amp_02'
-            original_amp_O2 = cfg.megatron_amp_02
+            original_amp_o2 = cfg.megatron_amp_02
         else:
-            key, original_amp_O2 = None, None
+            key, original_amp_o2 = None, None
 
         # Set new values
         cfg.use_cpu_initialization = True
@@ -160,9 +160,9 @@ def force_cpu_model(cfg):
             cfg[key] = False
 
     # Setup restore dict
-    restore_dict = {'use_cpu_initialization': original_cpu_init}  # 'megatron_amp_O2': original_amp_O2
+    restore_dict = {'use_cpu_initialization': original_cpu_init}  # 'megatron_amp_O2': original_amp_o2
     if key is not None:
-        restore_dict[key] = original_amp_O2
+        restore_dict[key] = original_amp_o2
 
     return cfg, restore_dict
 
@@ -213,7 +213,7 @@ def compute_tp_splits(
         split = torch.split(partitions[0][idx].data, param.shape[-1], dim=-1)
     else:
         # For T5-converted weights, the splitting needs to be strided such that q,k,v weights are bunched together on each tensor-parallel rank.
-        if 'query_key_value.weight' in param_name and megatron_legacy:
+        if '.query_key_value.' in param_name and megatron_legacy:  # weight or bias
             split_dim = partitions[0][idx].data.shape[0]
             if split_dim % (tp_size * 3) != 0:
                 raise ValueError(
@@ -224,7 +224,7 @@ def compute_tp_splits(
             for i in range(tp_size):
                 tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 3, tp_size)])
                 split.append(tp_qkv)
-        elif 'key_value.weight' in param_name and megatron_legacy:
+        elif '.key_value.' in param_name and megatron_legacy:  # weight or bias
             split_dim = partitions[0][idx].data.shape[0]
             if split_dim % (tp_size * 2) != 0:
                 raise ValueError(
@@ -858,7 +858,7 @@ def main():
             logging.warning("BF16 is not supported on this device. Using FP16 instead.")
             precision = precision[2:]
 
-    if precision in [32, '32', '32-true']:
+    if precision == 32:
         dtype = torch.float32
     elif precision in [16, "16", "16-mixed"]:
         dtype = torch.float16
@@ -1076,8 +1076,6 @@ def main():
                                 save_restore_connector=save_restore_connector,
                                 return_config=True,
                             )
-                            if "neva" in args.model_class:
-                                tmp_cfg.mm_cfg.llm.from_pretrained = None
 
                             # Force model onto CPU
                             tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
@@ -1327,8 +1325,6 @@ def main():
             save_restore_connector=save_restore_connector,
             return_config=True,
         )
-        if "neva" in args.model_class:
-            tmp_cfg.mm_cfg.llm.from_pretrained = None
 
         tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
 

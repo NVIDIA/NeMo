@@ -33,7 +33,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
-
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
@@ -296,9 +295,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 truncation_method=data_cfg.get(
                     'truncation_method', 'right'
                 ),  # used to choose truncation method. Options: ['random', 'left', 'right']
+                special_tokens=self.cfg.data.get(
+                    'chat_prompt_tokens', None
+                ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
             )
             datasets.append(dataset)
-
         if is_train:
             dataset = BlendableDataset(
                 datasets=datasets, weights=data_cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
@@ -401,21 +402,24 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
 
-        # We need _inference_config to get generation params
-        # add_BOS and tokens_to_generate are set in dataset
-        if self.get_inference_config() is None:
-            self.set_inference_config(inference_config={})
-        self._inference_config['add_BOS'] = data_cfg.add_bos
-        self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
+        if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
+            # We need _inference_config to get generation params
+            # add_BOS and tokens_to_generate are set in dataset
+            if self.get_inference_config() is None:
+                self.set_inference_config(inference_config={})
+            self._inference_config['add_BOS'] = data_cfg.add_bos
+            self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
 
-        output = self.predict_step(batch, batch_idx, dataloader_idx)
+            output = self.predict_step(batch, batch_idx, dataloader_idx)
+            inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
+            labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
+            preds_text = [
+                self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
+                for t, l in zip(output['token_ids'], batch['context_lengths'])
+            ]
+        else:
+            inputs_text, labels_text, preds_text = [], [], []
 
-        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-        labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
-        preds_text = [
-            self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
-            for t, l in zip(output['token_ids'], batch['context_lengths'])
-        ]
         outputs = {
             'loss': loss,
             'preds': preds_text,  # [str]
@@ -583,6 +587,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
         self._restore_activation_checkpointing_args()
+        self._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,

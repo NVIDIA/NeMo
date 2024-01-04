@@ -61,6 +61,9 @@ autodoc_mock_imports = [
     'ipadic',
     'psutil',
     'regex',
+    'PIL',
+    'boto3',
+    'taming',
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
@@ -125,6 +128,8 @@ bibtex_bibfiles = [
     'tts/tts_all.bib',
     'text_processing/text_processing_all.bib',
     'core/adapters/adapter_bib.bib',
+    'multimodal/mm_all.bib',
+    'vision/vision_all.bib',
 ]
 
 intersphinx_mapping = {
@@ -149,7 +154,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "NVIDIA NeMo"
-copyright = "© 2021-2022 NVIDIA Corporation & Affiliates. All rights reserved."
+copyright = "© 2021-2023 NVIDIA Corporation & Affiliates. All rights reserved."
 author = "NVIDIA CORPORATION"
 
 # The version info for the project you're documenting, acts as replacement for
