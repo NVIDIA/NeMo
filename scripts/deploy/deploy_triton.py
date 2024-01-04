@@ -215,6 +215,32 @@ def nemo_deploy(argv):
         )
         return
 
+
+    ptuning_tables_files = []
+    if not args.ptuning_nemo_checkpoint is None:
+        if args.max_prompt_embedding_table_size is None:
+            LOGGER.error(
+                "max_prompt_embedding_table_size parameter is needed for the prompt tuning table(s)."
+            )
+            return
+
+        ptuning_nemo_checkpoint_path = Path(args.ptuning_nemo_checkpoint)
+        if ptuning_nemo_checkpoint_path.exists():
+            if ptuning_nemo_checkpoint_path.is_file():
+                ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
+            elif ptuning_nemo_checkpoint_path.is_dir():
+                ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
+            else:
+                LOGGER.error(
+                    "Could not read the prompt tuning tables from {0}".format(args.ptuning_nemo_checkpoint)
+                )
+                return
+        else:
+            LOGGER.error(
+                "File or directory {0} does not exist.".format(args.ptuning_nemo_checkpoint)
+            )
+            return
+
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
 
     if args.nemo_checkpoint is not None:
@@ -237,6 +263,17 @@ def nemo_deploy(argv):
         except Exception as error:
             LOGGER.error("An error has occurred during the model export. Error message: " + str(error))
             return
+
+    try:
+        for task, prompt_embeddings_checkpoint_path in enumerate(ptuning_tables_files):
+            LOGGER.info("Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task))
+            trt_llm_exporter.add_prompt_table(
+                task_name=str(task),
+                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+            )
+    except Exception as error:
+        LOGGER.error("An error has occurred during adding the prompt embedding table(s). Error message: " + str(error))
+        return
 
     try:
         nm = DeployPyTriton(

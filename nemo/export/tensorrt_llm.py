@@ -338,6 +338,7 @@ class TensorRTLLM(ITritonDeployable):
             Tensor(name="stop_words_list", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="bad_words_list", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="no_repeat_ngram_size", shape=(-1,), dtype=np.single, optional=True),
+            Tensor(name="task_id", shape=(-1,), dtype=bytes, optional=True),
         )
         return inputs
 
@@ -366,6 +367,10 @@ class TensorRTLLM(ITritonDeployable):
                 infer_input["bad_words_list"] = swl[0]
             if "no_repeat_ngram_size" in inputs:
                 infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
+            if "task_id" in inputs:
+                task_id = np.char.decode(inputs.pop("task_id").astype("bytes"), encoding="utf-8")
+                infer_input["task_ids"] = [task_id[0]]
+                print("******** task id: ", infer_input["task_ids"])
 
             output_texts = self.forward(**infer_input)
             output = cast_output(output_texts, np.bytes_)
