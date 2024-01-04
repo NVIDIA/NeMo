@@ -105,12 +105,16 @@ if __name__ == '__main__':
                 texts = sorted(glob(f'{captions_path}/*.txt'))
                 print(images[:5], texts[:5])
                 # this enables computing clip on the smaller images set
-                texts = texts[:len(images)]
+                texts = texts[: len(images)]
                 assert len(images) == len(texts)
                 print(f'Number of images text pairs: {len(images)}')
 
-                imgs = torch.utils.data.DataLoader(images, sampler=torch.utils.data.distributed.DistributedSampler(images))
-                txts = torch.utils.data.DataLoader(texts, sampler=torch.utils.data.distributed.DistributedSampler(texts))
+                imgs = torch.utils.data.DataLoader(
+                    images, sampler=torch.utils.data.distributed.DistributedSampler(images)
+                )
+                txts = torch.utils.data.DataLoader(
+                    texts, sampler=torch.utils.data.distributed.DistributedSampler(texts)
+                )
 
                 ave_sim = torch.tensor(0.0).cuda()
                 count = 0
@@ -118,7 +122,7 @@ if __name__ == '__main__':
                     with open(text[0], 'r') as f:
                         text = f.read().strip()
                     sim = encoder.get_clip_score(text, img[0])
-                    ave_sim += sim[0,0]
+                    ave_sim += sim[0, 0]
                     count += 1
                     if count % 2000 == 0:
                         print(ave_sim / count)

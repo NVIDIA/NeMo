@@ -27,6 +27,7 @@ DEFAULT_IMAGE_PATCH_TOKEN = "<extra_id_3>"
 DEFAULT_IM_START_TOKEN = "<extra_id_4>"
 DEFAULT_IM_END_TOKEN = "<extra_id_5>"
 
+
 class SeparatorStyle(Enum):
     """Different separator style."""
 
@@ -81,7 +82,7 @@ class Conversation:
                     if type(message) is tuple:
                         message, _, _ = message
                     ret += role + ": " + message + seps[i % 2]
-                    if i % 2 == 1 and i != len(messages) - 1: #Assistant end
+                    if i % 2 == 1 and i != len(messages) - 1:  # Assistant end
                         ret += " "
                 else:
                     ret += role + ":"

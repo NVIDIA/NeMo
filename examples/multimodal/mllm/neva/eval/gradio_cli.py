@@ -1,5 +1,6 @@
-import requests
 import base64
+
+import requests
 
 # URL of the Gradio server
 url = 'http://localhost:8890/api/predict/'
@@ -12,9 +13,7 @@ with open("/path/to/images/001.jpg", "rb") as image_file:
     encoded_string = base64.b64encode(image_file.read()).decode()
 
 # Data to send
-data = {
-    'data': [text_data, encoded_string]
-}
+data = {'data': [text_data, encoded_string]}
 
 # Sending a POST request to the Gradio server
 response = requests.post(url, json=data)

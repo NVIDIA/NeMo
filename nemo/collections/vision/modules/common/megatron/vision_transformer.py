@@ -36,7 +36,7 @@ except (ImportError, ModuleNotFoundError):
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 try:
-    from megatron.core import parallel_state, ModelParallelConfig
+    from megatron.core import ModelParallelConfig, parallel_state
 
     HAVE_MEGATRON_CORE = True
 

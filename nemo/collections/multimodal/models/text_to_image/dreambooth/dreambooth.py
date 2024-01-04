@@ -21,11 +21,10 @@ from torch._inductor import config as inductor_config
 
 from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
-from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import LoraWrapper
-
 from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import (
     DiagonalGaussianDistribution,
 )
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import LoraWrapper
 from nemo.collections.multimodal.parts.utils import randn_like
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -129,7 +128,9 @@ class DreamBooth(torch.nn.Module, Serialization):
         model = DreamBooth.from_config_dict(cfg)
         if self.train_text_encoder:
             self.text_encoder = model.train()
-            if (not hasattr(model, 'lora_layers')) or len(model.lora_layers) == 0: # if no lora, train all the parameters
+            if (not hasattr(model, 'lora_layers')) or len(
+                model.lora_layers
+            ) == 0:  # if no lora, train all the parameters
                 for param in self.text_encoder.parameters():
                     param.requires_grad = True
         else:

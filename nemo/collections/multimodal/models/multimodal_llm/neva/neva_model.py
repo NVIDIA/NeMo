@@ -31,7 +31,7 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
 )
-from nemo.collections.multimodal.data.neva.neva_dataset import  (
+from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
     make_supervised_data_module,
 )
@@ -39,10 +39,8 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
     CLIPVisionTransformer,
     MegatronCLIPModel,
 )
-from nemo.collections.multimodal.parts.utils import extend_instance
+from nemo.collections.multimodal.parts.utils import extend_instance, load_nemo_model_weights
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
-from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomSampler
-
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import (
     build_train_valid_test_datasets as build_text_train_valid_test_datasets,
 )
@@ -66,7 +64,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
     get_computeprob_response,
@@ -74,15 +71,11 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_neva_generate,
 )
-from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    LengthParam,
-    OutputType,
-    SamplingParam,
-)
-from nemo.collections.multimodal.parts.utils import load_nemo_model_weights
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
 from nemo.collections.nlp.parts.mixins.multimodal_adapter_mixins import MultimodalAdapterModelMixin
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomSampler
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
@@ -607,8 +600,11 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             assert len(self._optimizer_param_groups) == 1
             assert len(self.adapter_keys) == len(self._optimizer_param_groups[0]['params'])
             # Mapping from parameter objects to their names
-            param_to_name = {param: name for name, param in self.model.named_parameters()
-                             if name or name.replace("model.module.", "model.", "1") in self.adapter_keys}
+            param_to_name = {
+                param: name
+                for name, param in self.model.named_parameters()
+                if name or name.replace("model.module.", "model.", "1") in self.adapter_keys
+            }
             # Match the parameters and separate them into two groups
             group1_params, group2_params = [], []
             for param in self._optimizer_param_groups[0]['params']:
@@ -619,7 +615,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     group1_params.append(param)
 
             base_lr = self._cfg.optim.get('lr')
-            mm_projector_lr_ratio = 0.1 # hard-coded ratio
+            mm_projector_lr_ratio = 0.1  # hard-coded ratio
             # Create two new optimizer param groups
             self._optimizer_param_groups = [
                 {'params': group1_params, 'lr': base_lr},

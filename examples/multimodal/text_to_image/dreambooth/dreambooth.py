@@ -55,7 +55,9 @@ def prepare_reg_data(cfg):
             model_cfg.global_batch_size = cfg.model.global_batch_size
             model_cfg.unet_config.from_pretrained = None
             model_cfg.first_stage_config.from_pretrained = None
-            model_cfg.target = 'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
+            model_cfg.target = (
+                'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
+            )
 
         trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
             model_provider=MegatronLatentDiffusion, cfg=cfg, model_cfg_modifier=model_cfg_modifier

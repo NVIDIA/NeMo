@@ -19,7 +19,9 @@ def plot_fid_vs_clip(fid_scores_csv, clip_scores_csv, ax, label):
     merged_data = pd.merge(fid_scores, clip_scores, on='cfg').sort_values('cfg')
     merged_data.index = range(len(merged_data))
 
-    ax.plot(merged_data['clip_score'], merged_data['fid'], marker='o', linestyle='-', label=label)  # Connect points with a line
+    ax.plot(
+        merged_data['clip_score'], merged_data['fid'], marker='o', linestyle='-', label=label
+    )  # Connect points with a line
 
     for i, txt in enumerate(merged_data['cfg']):
         ax.annotate(txt, (merged_data['clip_score'][i], merged_data['fid'][i]))
@@ -31,17 +33,27 @@ def plot_fid_vs_clip(fid_scores_csv, clip_scores_csv, ax, label):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--fid_scores_csv', nargs='+', required=True, type=str, help='Paths to the FID scores CSV files')
-    parser.add_argument('--clip_scores_csv', nargs='+', required=True, type=str, help='Paths to the CLIP scores CSV files')
-    parser.add_argument('--labels', nargs='+', required=False, type=str, help='If provided, curves will be named with these names')
-    parser.add_argument('--save_plot_path', required=False, type=str, help='If provided, the plot will be stored at this path')
+    parser.add_argument(
+        '--fid_scores_csv', nargs='+', required=True, type=str, help='Paths to the FID scores CSV files'
+    )
+    parser.add_argument(
+        '--clip_scores_csv', nargs='+', required=True, type=str, help='Paths to the CLIP scores CSV files'
+    )
+    parser.add_argument(
+        '--labels', nargs='+', required=False, type=str, help='If provided, curves will be named with these names'
+    )
+    parser.add_argument(
+        '--save_plot_path', required=False, type=str, help='If provided, the plot will be stored at this path'
+    )
     args = parser.parse_args()
 
     if not args.labels:
         args.labels = [None] * len(args.fid_scores_csv)
 
     assert len(args.fid_scores_csv) == len(args.clip_scores_csv) == len(args.labels), (
-        len(args.fid_scores_csv), len(args.clip_scores_csv), len(args.labels)
+        len(args.fid_scores_csv),
+        len(args.clip_scores_csv),
+        len(args.labels),
     )
 
     fig, ax = plt.subplots()
@@ -52,4 +64,3 @@ if __name__ == '__main__':
     plt.show()
     if args.save_plot_path:
         plt.savefig(args.save_plot_path)
-

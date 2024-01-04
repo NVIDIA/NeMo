@@ -137,21 +137,14 @@ def pipeline(model, cfg, verbose=True, rng=None):
             prompts = [prompts]
 
         multi_prompts = [p for p in prompts for _ in range(num_images_per_prompt)]
-        batched_prompts = [
-            multi_prompts[i:i + batch_size]
-            for i in range(0, len(multi_prompts), batch_size)
-        ]
+        batched_prompts = [multi_prompts[i : i + batch_size] for i in range(0, len(multi_prompts), batch_size)]
         # decrease batch_size if the number of imputs is lower than bs in the config
         batch_size = min(len(batched_prompts[0]), batch_size)
 
         for batch in batched_prompts:
             tic = time.perf_counter()
             tic_total = tic
-            cond, u_cond = encode_prompt(
-                model.cond_stage_model,
-                batch,
-                unconditional_guidance_scale,
-            )
+            cond, u_cond = encode_prompt(model.cond_stage_model, batch, unconditional_guidance_scale,)
             cond, u_cond = pad_with_zeros(cond, u_cond, batch_size)
             toc = time.perf_counter()
             conditioning_time = toc - tic
@@ -182,7 +175,7 @@ def pipeline(model, cfg, verbose=True, rng=None):
             tic = time.perf_counter()
             images = decode_images(model, samples)
             # remove padding
-            images = images[:len(batch)]
+            images = images[: len(batch)]
             toc = time.perf_counter()
             decode_time = toc - tic
 
@@ -212,8 +205,8 @@ def pipeline(model, cfg, verbose=True, rng=None):
             os.makedirs(out_path, exist_ok=True)
             if output_type == 'pil':
                 prompts = chain.from_iterable(batched_prompts)
-                pils    = chain.from_iterable(output)
-                counts  = defaultdict(int)
+                pils = chain.from_iterable(output)
+                counts = defaultdict(int)
                 for text_prompt, image in zip(prompts, pils):
                     idx = counts[text_prompt]
                     counts[text_prompt] += 1
@@ -229,4 +222,3 @@ def pipeline(model, cfg, verbose=True, rng=None):
             ave_metrics[f'avg-{key}'] = sum([dicts[key] for dicts in throughput]) / len(throughput)
         if verbose:
             print(ave_metrics)
-
