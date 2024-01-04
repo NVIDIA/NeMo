@@ -30,7 +30,8 @@ from nemo.utils import logging
 
 try:
     from nemo.collections.asr.losses.ctc import CTCLoss
-    from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
+    from nemo.collections.asr.metrics.wer import WER
+    from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
     from nemo.collections.asr.models import EncDecCTCModel
     from nemo.collections.asr.parts.mixins import ASRBPEMixin
 
@@ -98,8 +99,8 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
 
         self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
 
-        self._wer = WERBPE(decoding=self.decoding, use_cer=False, log_prediction=False, dist_sync_on_step=True,)
-        self._per = WERBPE(decoding=self.decoding, use_cer=True, log_prediction=False, dist_sync_on_step=True,)
+        self._wer = WER(decoding=self.decoding, use_cer=False, log_prediction=False, dist_sync_on_step=True,)
+        self._per = WER(decoding=self.decoding, use_cer=True, log_prediction=False, dist_sync_on_step=True,)
 
     def setup_grapheme_tokenizer(self, cfg):
         """ Initialized grapheme tokenizer """
