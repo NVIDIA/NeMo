@@ -16,7 +16,7 @@ model:
     # heads: 2
 
   voicebox:
-    depth: 12
+    depth: 8
     # heads: 4
 
   train_ds:
