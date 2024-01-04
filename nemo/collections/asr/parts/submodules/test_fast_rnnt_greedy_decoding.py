@@ -15,17 +15,30 @@ from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.collections.asr.parts.submodules.fast_rnnt_greedy_decoding import RNNTGreedyDecodeFast
 from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBatchedRNNTInfer
 
+from omegaconf import open_dict
+from omegaconf import OmegaConf
+import pytest
 
-def info(type, value, tb):
-    traceback.print_exception(type, value, tb)
-    ipdb.pm()
-
-
-sys.excepthook = info
+import jiwer
 
 
-def test_for_loop():
-    nemo_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge", map_location="cuda")
+import torch
+
+import tempfile
+import sys, ipdb, traceback
+
+@pytest.mark.parametrize(
+    ("model_name", "batch_size", "use_subset"),
+    [
+        pytest.param("stt_en_fastconformer_transducer_large", 8, True),
+        # marks=pytest.mark.xfail(reason="Cannot instantiate graph with persistent RNN")),
+        ("stt_en_fastconformer_transducer_large", 7, False),
+        ("stt_en_fastconformer_transducer_xlarge", 16, False)
+    ]
+)
+def test_for_loop(model_name, batch_size, use_subset):
+    nemo_model = ASRModel.from_pretrained(model_name,
+                                          map_location="cuda")
     conf = nemo_model.to_config_dict()
     with open_dict(conf):
         conf["decoding"]["greedy"]["max_symbols"] = 5
@@ -33,7 +46,7 @@ def test_for_loop():
     with tempfile.NamedTemporaryFile() as fp:
         OmegaConf.save(config=conf, f=fp.name)
         nemo_model = ASRModel.from_pretrained(
-            "stt_en_fastconformer_transducer_xlarge", override_config_path=fp.name, map_location="cuda"
+            model_name, override_config_path=fp.name, map_location="cuda"
         )
     nemo_model.freeze()
 
@@ -48,11 +61,15 @@ def test_for_loop():
     nemo_model.joint.freeze()
 
     audio_filepaths = glob.glob("/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/*.wav")
-    batch_size = 16
+
+    if use_subset:
+        audio_filepaths = audio_filepaths[:batch_size]
 
     torch.cuda.cudart().cudaProfilerStart()
 
-    actual_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size)
+    with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+        actual_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size,
+                                                      num_workers=None)
 
     conf = nemo_model.to_config_dict()
 
@@ -62,7 +79,7 @@ def test_for_loop():
     with tempfile.NamedTemporaryFile() as fp:
         OmegaConf.save(config=conf, f=fp.name)
         fast_model = ASRModel.from_pretrained(
-            "stt_en_fastconformer_transducer_xlarge", override_config_path=fp.name, map_location="cuda"
+            model_name, override_config_path=fp.name, map_location="cuda"
         )
 
     fast_model.freeze()
@@ -77,9 +94,15 @@ def test_for_loop():
     fast_model.decoder.freeze()
     fast_model.joint.freeze()
 
-    fast_transcripts, _ = fast_model.transcribe(audio_filepaths, batch_size=batch_size)
+    with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+        fast_transcripts, _ = fast_model.transcribe(audio_filepaths, batch_size=batch_size,
+                                                    num_workers=None)
 
-    print("GALVEZ:", jiwer.wer(actual_transcripts, fast_transcripts))
+    wer = jiwer.wer(actual_transcripts, fast_transcripts)
+
+    assert wer <= 1e-3
+
+    print("GALVEZ:wer=", wer)
 
     for actual, fast in zip(actual_transcripts, fast_transcripts):
         if actual != fast:
@@ -89,13 +112,12 @@ def test_for_loop():
 
     torch.cuda.cudart().cudaProfilerStop()
 
-    import ipdb
-
-    ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
 
 
 def test_reproducibility():
-    nemo_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge", map_location="cuda")
+    nemo_model = ASRModel.from_pretrained("stt_en_fastconformer_transducer_xlarge",
+                                          map_location="cuda")
 
     conf = nemo_model.to_config_dict()
     with open_dict(conf):
@@ -172,12 +194,4 @@ def test_reproducibility():
                 encoded_1, encoded_len_1, return_hypotheses=False, partial_hypotheses=None,
             )
 
-            import ipdb
-
-            ipdb.set_trace()
-            pass
-
-
-if __name__ == "__main__":
-    test_for_loop()
-    # test_reproducibility()
+            import ipdb; ipdb.set_trace()

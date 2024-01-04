@@ -563,10 +563,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
         if self.decoder.blank_as_pad and go_very_fast:
-            # This is not a very robust way to do this...
-            dtype = next(param.dtype for param in decoder_model.parameters())
-            print("GALVEZ: dtype=", dtype)
-            self._greedy_decode = RNNTGreedyDecodeFast(max_symbols_per_step, dtype, torch.device("cuda"), self)
+            self._greedy_decode = RNNTGreedyDecodeFast(max_symbols_per_step, torch.device("cuda"), self)
         elif self.decoder.blank_as_pad:
             self._greedy_decode = self._greedy_decode_blank_as_pad
         else:

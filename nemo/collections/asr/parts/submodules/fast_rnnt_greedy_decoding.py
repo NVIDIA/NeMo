@@ -180,7 +180,7 @@ def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditi
 
 
 class RNNTGreedyDecodeFast:
-    def __init__(self, max_symbols: int, dtype, cuda_device, caller):
+    def __init__(self, max_symbols: int, cuda_device, caller):
         assert max_symbols is not None
 
         self.symbols_added_t = torch.tensor(0, dtype=torch.int64, device=cuda_device)
@@ -208,7 +208,6 @@ class RNNTGreedyDecodeFast:
         self.graph_exec = None
 
         self.caller = caller
-        self.dtype = dtype
 
         # self._reinitialize(self.max_time, self.batch_size)
 
@@ -226,13 +225,8 @@ class RNNTGreedyDecodeFast:
             (self.batch_size,), dtype=encoder_output_length.dtype, device=encoder_output_length.device
         )
 
-        # (batch_size, max_time * max_symbols)
-        self.scores_cpu = torch.zeros(
-            (self.batch_size, self.max_time * self.max_symbols), dtype=self.dtype, device="cpu", pin_memory=True
-        )
-        self.labels_cpu = torch.zeros(
-            (self.batch_size, self.max_time * self.max_symbols), dtype=torch.int64, device="cpu", pin_memory=True
-        )
+        self.scores_cpu = torch.zeros((self.batch_size, self.max_time * self.max_symbols), dtype=encoder_output.dtype, device="cpu", pin_memory=True)
+        self.labels_cpu = torch.zeros((self.batch_size, self.max_time * self.max_symbols), dtype=torch.int64, device="cpu", pin_memory=True)
         self.symbols_per_time_step_cpu = torch.zeros(self.max_time, dtype=torch.int64, device="cpu", pin_memory=True)
 
         with torch.cuda.stream(torch.cuda.Stream()), torch.inference_mode():
@@ -243,9 +237,7 @@ class RNNTGreedyDecodeFast:
                 )
             )
 
-            self.f = torch.zeros(
-                (self.batch_size, 1, self.encoder_output.shape[-1]), dtype=self.dtype, device=encoder_output.device
-            )
+            self.f = torch.zeros((self.batch_size, 1, self.encoder_output.shape[-1]), dtype=encoder_output.dtype, device=encoder_output.device)
             hidden = self.caller.decoder.initialize_state(self.f)
             self.last_label = torch.full(
                 [self.batch_size], fill_value=self.caller._SOS, dtype=torch.long, device=encoder_output.device
@@ -255,12 +247,8 @@ class RNNTGreedyDecodeFast:
             )
             self.seq_idx_t = torch.zeros([1], dtype=torch.int64, device=encoder_output.device)
 
-            self.scores = torch.zeros(
-                (self.max_time * self.max_symbols, self.batch_size), dtype=self.dtype, device=encoder_output.device
-            )
-            self.labels = torch.zeros(
-                (self.max_time * self.max_symbols, self.batch_size), dtype=torch.int64, device=encoder_output.device
-            )
+            self.scores = torch.zeros((self.max_time * self.max_symbols, self.batch_size), dtype=encoder_output.dtype, device=encoder_output.device)
+            self.labels = torch.zeros((self.max_time * self.max_symbols, self.batch_size), dtype=torch.int64, device=encoder_output.device)
             self.symbols_per_time_step = torch.zeros(self.max_time, dtype=torch.int64, device=encoder_output.device)
 
             # Get max sequence length
@@ -363,7 +351,8 @@ class RNNTGreedyDecodeFast:
         # ideally we would use out_len.max() here...
         max_time = x.shape[1]
 
-        # print("GALVEZ:max_time=", max_time)
+        if torch.is_autocast_enabled():
+            x = x.to(torch.get_autocast_gpu_dtype())
 
         # What do we do if batch_size is actually smaller for the
         # input? Is this a problem? the clone() call will fail...
