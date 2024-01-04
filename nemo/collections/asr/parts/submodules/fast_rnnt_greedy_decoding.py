@@ -391,10 +391,8 @@ class RNNTGreedyDecodeFast:
                 max_non_blank_symbols = self.symbols_per_time_step_cpu[t]
                 for counter in range(max_non_blank_symbols):
                     if self.labels_cpu[i, j] == caller._blank_index:
-                        j += 1
-                        continue
-                        # j += (max_non_blank_symbols - counter)
-                        # break
+                        j += (max_non_blank_symbols - counter)
+                        break
                     hypotheses[i].y_sequence.append(self.labels_cpu[i, j])
                     hypotheses[i].timestep.append(t)
                     hypotheses[i].score += self.scores_cpu[i, j]
