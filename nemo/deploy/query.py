@@ -27,14 +27,19 @@ class NemoQueryBase(ABC):
         self.url = url
         self.model_name = model_name
 
+    @abstractmethod
     def query_llm(
             self,
             prompts,
+            stop_words_list=None,
+            bad_words_list=None,
+            no_repeat_ngram_size=None,
             max_output_token=512,
             top_k=1,
             top_p=0.0,
             temperature=1.0,
-            init_timeout=600.0,
+            task_id=None,
+            init_timeout=60.0
     ):
         pass
 
@@ -67,14 +72,15 @@ class NemoQuery(NemoQueryBase):
     def query_llm(
             self,
             prompts,
-            max_output_token=None,
-            top_k=None,
-            top_p=None,
-            temperature=None,
             stop_words_list=None,
             bad_words_list=None,
             no_repeat_ngram_size=None,
-            init_timeout=60.0,
+            max_output_token=512,
+            top_k=1,
+            top_p=0.0,
+            temperature=1.0,
+            task_id=None,
+            init_timeout=60.0
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -116,6 +122,10 @@ class NemoQuery(NemoQueryBase):
 
         if not no_repeat_ngram_size is None:
             inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
+
+        if not task_id is None:
+            task_id = np.char.encode(task_id, "utf-8")
+            inputs["task_id"] = np.full((prompts.shape[0], len([task_id])), task_id)
 
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
@@ -159,10 +169,15 @@ class NemoQueryTensorRTLLM(NemoQueryBase):
     def query_llm(
             self,
             prompts,
+            stop_words_list=None,
+            bad_words_list=None,
+            no_repeat_ngram_size=None,
             max_output_token=512,
             top_k=1,
             top_p=0.0,
             temperature=1.0,
+            task_id=None,
+            init_timeout=60.0
     ):
 
         results = []

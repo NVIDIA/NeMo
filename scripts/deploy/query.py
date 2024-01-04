@@ -127,7 +127,7 @@ def query_llm(
         top_p=0.0,
         temperature=1.0,
         task_id=None,
-        init_timeout=600.0
+        init_timeout=60.0
 ):
     prompts = str_list2numpy(prompts)
     inputs = {"prompts": prompts}
