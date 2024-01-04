@@ -932,7 +932,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # Modify state key for Dreambooth inference
         if (
             conf.get('target')
-            == 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
+            == 'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
         ):
             new_state_dict = {}
             for key in state_dict.keys():

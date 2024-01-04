@@ -16,7 +16,7 @@ from omegaconf import open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
 from nemo.collections.multimodal.parts.stable_diffusion.pipeline import pipeline
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
@@ -30,7 +30,7 @@ def main(cfg):
         model_cfg.precision = cfg.trainer.precision
         model_cfg.ckpt_path = None
         model_cfg.inductor = False
-        model_cfg.target = 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
+        model_cfg.target = 'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
         if cfg.model.unet_config.from_pretrained:
             model_cfg.unet_config.from_pretrained = cfg.model.unet_config.from_pretrained
 

@@ -124,7 +124,7 @@ model:
     lora_network_alpha: null
 
   first_stage_config:
-    _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
+    _target_: nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKL
     from_pretrained: /ckpts/vae.bin
     #ckpt_path: /ckpts/vae.ckpt #to support original opensource weights files, please use ckpt_path to load it.
     embed_dim: 4
@@ -162,7 +162,7 @@ model:
     #    enable_lora_finetune: False  #to enable text encoder lora finetune, please enable both this one and "train_text_encoder"
 
   noise_scheduler:
-    _target_: nemo.collections.multimodal.models.dreambooth.util.sd_noise_scheduler
+    _target_: nemo.collections.multimodal.models.text_to_image.dreambooth.util.sd_noise_scheduler
     parameterization: eps
     v_posterior: 0
     given_betas:

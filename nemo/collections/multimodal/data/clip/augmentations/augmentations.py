@@ -103,43 +103,42 @@ def image_transform(
         aug_cfg = aug_cfg or AugmentationCfg()
     normalize = Normalize(mean=mean, std=std)
     if is_train:
-        if is_train:
-            aug_cfg_dict = {k: v for k, v in asdict(aug_cfg).items() if v is not None}
-            use_timm = aug_cfg_dict.pop('use_timm', False)
-            if use_timm:
-                from timm.data import create_transform  # timm can still be optional
-                if isinstance(image_size, (tuple, list)):
-                    assert len(image_size) >= 2
-                    input_size = (3,) + image_size[-2:]
-                else:
-                    input_size = (3, image_size, image_size)
-                # by default, timm aug randomly alternates bicubic & bilinear for better robustness at inference time
-                aug_cfg_dict.setdefault('interpolation', 'random')
-                aug_cfg_dict.setdefault('color_jitter', None)  # disable by default
-                train_transform = create_transform(
-                    input_size=input_size,
-                    is_training=True,
-                    hflip=0.,
-                    mean=mean,
-                    std=std,
-                    re_mode='pixel',
-                    **aug_cfg_dict,
-                )
+        aug_cfg_dict = {k: v for k, v in asdict(aug_cfg).items() if v is not None}
+        use_timm = aug_cfg_dict.pop('use_timm', False)
+        if use_timm:
+            from timm.data import create_transform  # timm can still be optional
+            if isinstance(image_size, (tuple, list)):
+                assert len(image_size) >= 2
+                input_size = (3,) + image_size[-2:]
             else:
-                train_transform = Compose([
-                    RandomResizedCrop(
-                        image_size,
-                        scale=aug_cfg_dict.pop('scale'),
-                        interpolation=InterpolationMode.BICUBIC,
-                    ),
-                    _convert_to_rgb,
-                    ToTensor(),
-                    normalize,
-                ])
-                if aug_cfg_dict:
-                    logging.warning(
-                        f'Unused augmentation cfg items, specify `use_timm` to use ({list(aug_cfg_dict.keys())}).')
-            return train_transform
+                input_size = (3, image_size, image_size)
+            # by default, timm aug randomly alternates bicubic & bilinear for better robustness at inference time
+            aug_cfg_dict.setdefault('interpolation', 'random')
+            aug_cfg_dict.setdefault('color_jitter', None)  # disable by default
+            train_transform = create_transform(
+                input_size=input_size,
+                is_training=True,
+                hflip=0.,
+                mean=mean,
+                std=std,
+                re_mode='pixel',
+                **aug_cfg_dict,
+            )
+        else:
+            train_transform = Compose([
+                RandomResizedCrop(
+                    image_size,
+                    scale=aug_cfg_dict.pop('scale'),
+                    interpolation=InterpolationMode.BICUBIC,
+                ),
+                _convert_to_rgb,
+                ToTensor(),
+                normalize,
+            ])
+            if aug_cfg_dict:
+                logging.warning(
+                    f'Unused augmentation cfg items, specify `use_timm` to use ({list(aug_cfg_dict.keys())}).')
+        return train_transform
     else:
         if resize_longest_max:
             transforms = [ResizeMaxSize(image_size, fill=fill_color)]

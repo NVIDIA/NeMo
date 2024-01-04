@@ -24,7 +24,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam

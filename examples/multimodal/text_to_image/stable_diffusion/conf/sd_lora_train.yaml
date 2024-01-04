@@ -124,7 +124,7 @@ model:
     lora_network_alpha: null
 
   first_stage_config:
-    _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
+    _target_: nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKL
     from_pretrained: /ckpts/vae.bin
     embed_dim: 4
     monitor: val/rec_loss
