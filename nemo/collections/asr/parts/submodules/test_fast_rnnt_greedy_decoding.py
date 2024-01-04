@@ -29,7 +29,7 @@ def test_for_loop():
                                           map_location="cuda")
     conf = nemo_model.to_config_dict()
     with open_dict(conf):
-        conf["decoding"]["greedy"]["max_symbols"] = 1
+        conf["decoding"]["greedy"]["max_symbols"] = 5
 
     with tempfile.NamedTemporaryFile() as fp:
         OmegaConf.save(config=conf, f=fp.name)
@@ -48,7 +48,7 @@ def test_for_loop():
     nemo_model.decoder.freeze()
     nemo_model.joint.freeze()
 
-    audio_filepaths = glob.glob("/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/*.wav")[:64]
+    audio_filepaths = glob.glob("/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/*.wav")
     batch_size = 16
 
     torch.cuda.cudart().cudaProfilerStart()

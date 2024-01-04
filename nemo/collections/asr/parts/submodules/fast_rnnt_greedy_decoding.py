@@ -215,8 +215,8 @@ class RNNTGreedyDecodeFast:
                                                  device=encoder_output_length.device)
 
         # (batch_size, max_time * max_symbols)
-        self.scores_cpu = torch.zeros((self.max_time * self.max_symbols, self.batch_size), dtype=self.dtype, device="cpu", pin_memory=True)
-        self.labels_cpu = torch.zeros((self.max_time * self.max_symbols, self.batch_size), dtype=torch.int64, device="cpu", pin_memory=True)
+        self.scores_cpu = torch.zeros((self.batch_size, self.max_time * self.max_symbols), dtype=self.dtype, device="cpu", pin_memory=True)
+        self.labels_cpu = torch.zeros((self.batch_size, self.max_time * self.max_symbols), dtype=torch.int64, device="cpu", pin_memory=True)
         self.symbols_per_time_step_cpu = torch.zeros(self.max_time, dtype=torch.int64, device="cpu", pin_memory=True)
 
         with torch.cuda.stream(torch.cuda.Stream()), torch.inference_mode():
@@ -293,8 +293,8 @@ class RNNTGreedyDecodeFast:
                 self.symbols_per_time_step.index_copy_(0, self.time_idx_t, self.symbols_added_t)
                 self.time_idx_t += 1
 
-            self.scores_cpu.copy_(self.scores, non_blocking=True)
-            self.labels_cpu.copy_(self.labels, non_blocking=True)
+            self.scores_cpu.copy_(self.scores.transpose(0, 1).contiguous(), non_blocking=True)
+            self.labels_cpu.copy_(self.labels.transpose(0, 1).contiguous(), non_blocking=True)
             self.symbols_per_time_step_cpu.copy_(self.symbols_per_time_step, non_blocking=True)
 
             self.last_label.fill_(self.caller._SOS)
@@ -340,69 +340,27 @@ class RNNTGreedyDecodeFast:
 
         torch.cuda.nvtx.range_push("Copy data out")
 
+        out_len_cpu = out_len.cpu()
+
         hypotheses = [
             rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batch_size)
         ]
 
-        j = 0
-        # Can I make this more efficient somehow? max_symbols=5 makes this very inefficient. Hmm...
-        # No need to iterate over all times for all elements of the batch, right?
-        for t in range(max_time):
-            max_non_blank_symbols = self.symbols_per_time_step_cpu[t]
-            # print("GALVEZ:", t, max_non_blank_symbols)
-            for _ in range(max_non_blank_symbols):
-                for i in range(batch_size):
-                    if self.labels_cpu[j, i] == caller._blank_index:
-                        # This is slow because we go through every symbol in a batch even once we have seen our first blank
+        for i in range(batch_size):
+            j = 0
+            for t in range(out_len_cpu[i]):
+                max_non_blank_symbols = self.symbols_per_time_step_cpu[t]
+                for counter in range(max_non_blank_symbols):
+                    if self.labels_cpu[i, j] == caller._blank_index:
+                        j += 1
                         continue
-                    hypotheses[i].y_sequence.append(self.labels_cpu[j, i])
+                        # j += (max_non_blank_symbols - counter)
+                        # break
+                    hypotheses[i].y_sequence.append(self.labels_cpu[i, j])
                     hypotheses[i].timestep.append(t)
-                    hypotheses[i].score += self.scores_cpu[j, i]
-                j += 1
+                    hypotheses[i].score += self.scores_cpu[i, j]
+                    j += 1
+
         torch.cuda.nvtx.range_pop()
 
         return hypotheses
-
-
-        torch.cuda.nvtx.range_pop()
-
-        torch.cuda.nvtx.range_push("RNN-T greedy search Inference")
-
-        with torch.inference_mode():
-            start = time.time()
-            # torch.cuda.cudart().cudaProfilerStart()
-            cu_call(cudart.cudaGraphLaunch(self.graph_exec, torch.cuda.current_stream().cuda_stream))
-            cu_call(cudart.cudaStreamSynchronize(torch.cuda.current_stream().cuda_stream))
-            end = time.time()
-            # print("total time:", end - start)
-
-            # torch.set_printoptions(threshold=100_000)
-            # print("GALVEZ:symbols_per_time_step=", self.symbols_per_time_step_cpu)
-            # print("GALVEZ:scores=", self.scores_cpu)
-            # print("GALVEZ:labels=", self.labels_cpu)
-            # print("GALVEZ:symbols_per_time_step=", self.symbols_per_time_step_cpu)
-            # print("GALVEZ:hidden1=", torch.sum(torch.abs(hidden[0]), dim=2))
-            # print("GALVEZ:hidden2=", torch.sum(torch.abs(hidden[1]), dim=2))
-
-            torch.cuda.nvtx.range_push("Copy data out")
-            # js = torch.zeros(batch_size, dtype=torch.int64, device="cpu")
-            j = 0
-            for t in range(max_time):
-                max_non_blank_symbols = self.symbols_per_time_step_cpu[t]
-                # print("GALVEZ:", t, max_non_blank_symbols)
-                for _ in range(max_non_blank_symbols):
-                    for i in range(batch_size):
-                        if self.labels_cpu[j, i] == caller._blank_index:
-                            # Ooops! This is not correct!!!!! It's continue... It's fine...
-                            continue
-                        hypotheses[i].y_sequence.append(self.labels_cpu[j, i])
-                        hypotheses[i].timestep.append(t)
-                        hypotheses[i].score += self.scores_cpu[j, i]
-                    j += 1
-            torch.cuda.nvtx.range_pop()
-            torch.cuda.nvtx.range_pop()
-            # torch.cuda.cudart().cudaProfilerStop()
-            # print("NEW:", hypotheses)
-            # import ipdb; ipdb.set_trace()
-
-            return hypotheses
