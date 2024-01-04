@@ -27,6 +27,16 @@ model:
     max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
     min_duration: 0.1
     manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
+    num_workers: ${.ds_kwargs.num_workers}
+
+  validation_ds:
+    num_workers: ${.ds_kwargs.num_workers}
+
+  test_ds:
+    num_workers: ${.ds_kwargs.num_workers}
+
+  ds_kwargs:
+    num_workers: 8
 
 trainer:
   devices: auto

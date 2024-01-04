@@ -40,7 +40,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None, textgrid_dir=None, use_word_postfix=False, use_word_ghost_silence=False):
+    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None, textgrid_dir=None, use_word_postfix=False, use_word_ghost_silence=False, num_workers=0):
         super().__init__()
         self.tokenizer = tokenizer
 
@@ -71,7 +71,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         if corpus_dir is not None:
             self.old_prefix = "download/librilight"
 
-        self.load_audio = AudioSamples(fault_tolerant=True)
+        self.load_audio = AudioSamples(num_workers=num_workers, fault_tolerant=True)
 
         self.use_word_postfix = use_word_postfix
         self.use_word_ghost_silence = use_word_ghost_silence

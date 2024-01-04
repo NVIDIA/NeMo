@@ -27,19 +27,19 @@ model:
   #   cond_drop_prob: 0.0
 
   train_ds:
-    num_workers: 16
     lhotse:
       batch_duration: 300
 
   validation_ds:
-    num_workers: 16
     lhotse:
       batch_duration: 300
 
   test_ds:
-    num_workers: 16
     lhotse:
       batch_duration: 300
+
+  ds_kwargs:
+    num_workers: 16
 
 # task name, determines output directory path
 task_name: "local_1"

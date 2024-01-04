@@ -22,7 +22,7 @@ train_ds:
   batch_size: 16 # you may increase batch_size if your memory allows
   shuffle: true
   num_workers: 8
-  pin_memory: true
+  pin_memory: false
   # max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
   # min_duration: 0.1
 
@@ -50,7 +50,7 @@ validation_ds:
   batch_size: 16
   shuffle: false
   num_workers: 8
-  pin_memory: true
+  pin_memory: false
   # max_duration: 100 # it is set for LibriSpeech, you may need to update it for your dataset
   # min_duration: 0.1
 
@@ -78,7 +78,7 @@ test_ds:
   batch_size: 16
   shuffle: false
   num_workers: 8
-  pin_memory: true
+  pin_memory: false
   # max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
   # min_duration: 0.1
 
