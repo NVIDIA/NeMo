@@ -1,4 +1,4 @@
-name: stable-diffusion-train
+name: stable-diffusion-lora-train
 
 trainer:
   devices: 1
@@ -96,7 +96,7 @@ model:
 
   unet_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel.UNetModel
-    from_pretrained: #/ckpts/nemo-v1-2.ckpt
+    from_pretrained: /ckpts/nemo-v1-2.ckpt
     from_NeMo: True #Must be specified when from pretrained is not None, False means loading unet from HF ckpt
     image_size: 32 # unused
     in_channels: 4
@@ -121,9 +121,10 @@ model:
     use_flash_attention: True
     enable_amp_o2_fp16: False
     resblock_gn_groups: 32
+    lora_network_alpha: null
 
   first_stage_config:
-    _target_: nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKL
+    _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
     from_pretrained: /ckpts/vae.bin
     embed_dim: 4
     monitor: val/rec_loss
@@ -156,6 +157,7 @@ model:
     #    version: openai/clip-vit-large-patch14
     #    device: cuda
     #    max_length: 77
+    #    capture_cudagraph_iters: ${model.capture_cudagraph_iters}
 
 
   # miscellaneous
@@ -167,14 +169,14 @@ model:
 
   optim:
     name: fused_adam
-    lr: null
+    lr: 1e-4
     weight_decay: 0.
     betas:
       - 0.9
       - 0.999
     sched:
       name: WarmupHoldPolicy
-      warmup_steps: 10000
+      warmup_steps: 1
       hold_steps: 10000000000000 # Incredibly large value to hold the lr as constant
 
   # Nsys profiling options
@@ -201,3 +203,15 @@ model:
       webdataset:
           infinite_sampler: False
           local_root_path: /datasets/coyo
+
+  peft:
+    peft_scheme: "sdlora"
+    restore_from_path: null
+    lora_tuning:
+      adapter_dim: 32
+      adapter_dropout: 0.0
+      column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      layer_selection:  null  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+      weight_tying: False
+      position_embedding_strategy: null # used only when weight_tying is True

@@ -3,7 +3,6 @@ name: stable-diffusion-train
 infer:
   unconditional_guidance_scale: 7.5
   num_images_per_prompt: 4
-  batch_size: 8
   height: 512
   width: 512
   down_factor: 8
@@ -28,5 +27,8 @@ trainer:
   logger: False # logger provided by exp_manager
 
 model:
-  restore_from_path: null
   precision: ${trainer.precision}
+  peft:
+    restore_from_path: null
+  unet_config:
+    from_pretrained: null # In case user want to load lora weights to a different unet ckpt than that is used in training

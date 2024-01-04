@@ -16,7 +16,8 @@ This code is adapted from public repo
 https://github.com/mlfoundations/open_clip/blob/28c994406e39a5babc749c76871d92f33e9c558d/src/open_clip/transform.py
 by @yaoyu-33
 """
-from typing import Optional, Tuple
+from typing import Optional, Union, Tuple, Dict, Any
+from dataclasses import dataclass, asdict
 
 import torch
 import torch.nn as nn
@@ -30,10 +31,21 @@ from torchvision.transforms import (
     Resize,
     ToTensor,
 )
+from nemo.utils import logging
 
 OPENAI_DATASET_MEAN = (0.48145466, 0.4578275, 0.40821073)
 OPENAI_DATASET_STD = (0.26862954, 0.26130258, 0.27577711)
 
+
+@dataclass
+class AugmentationCfg:
+    scale: Tuple[float, float] = (0.9, 1.0)
+    ratio: Optional[Tuple[float, float]] = None
+    color_jitter: Optional[Union[float, Tuple[float, float, float]]] = None
+    interpolation: Optional[str] = None
+    re_prob: Optional[float] = None
+    re_count: Optional[int] = None
+    use_timm: bool = False
 
 class ResizeMaxSize(nn.Module):
     def __init__(self, max_size, interpolation=InterpolationMode.BICUBIC, fn='max', fill=0):
@@ -71,6 +83,7 @@ def image_transform(
     std: Optional[Tuple[float, ...]] = None,
     resize_longest_max: bool = False,
     fill_color: int = 0,
+    aug_cfg: Optional[Union[Dict[str, Any], AugmentationCfg]] = None,
 ):
     mean = mean or OPENAI_DATASET_MEAN
     if not isinstance(mean, (list, tuple)):
@@ -84,16 +97,49 @@ def image_transform(
         # for square size, pass size as int so that Resize() uses aspect preserving shortest edge
         image_size = image_size[0]
 
+    if isinstance(aug_cfg, dict):
+        aug_cfg = AugmentationCfg(**aug_cfg)
+    else:
+        aug_cfg = aug_cfg or AugmentationCfg()
     normalize = Normalize(mean=mean, std=std)
     if is_train:
-        return Compose(
-            [
-                RandomResizedCrop(image_size, scale=(0.9, 1.0), interpolation=InterpolationMode.BICUBIC),
-                _convert_to_rgb,
-                ToTensor(),
-                normalize,
-            ]
-        )
+        if is_train:
+            aug_cfg_dict = {k: v for k, v in asdict(aug_cfg).items() if v is not None}
+            use_timm = aug_cfg_dict.pop('use_timm', False)
+            if use_timm:
+                from timm.data import create_transform  # timm can still be optional
+                if isinstance(image_size, (tuple, list)):
+                    assert len(image_size) >= 2
+                    input_size = (3,) + image_size[-2:]
+                else:
+                    input_size = (3, image_size, image_size)
+                # by default, timm aug randomly alternates bicubic & bilinear for better robustness at inference time
+                aug_cfg_dict.setdefault('interpolation', 'random')
+                aug_cfg_dict.setdefault('color_jitter', None)  # disable by default
+                train_transform = create_transform(
+                    input_size=input_size,
+                    is_training=True,
+                    hflip=0.,
+                    mean=mean,
+                    std=std,
+                    re_mode='pixel',
+                    **aug_cfg_dict,
+                )
+            else:
+                train_transform = Compose([
+                    RandomResizedCrop(
+                        image_size,
+                        scale=aug_cfg_dict.pop('scale'),
+                        interpolation=InterpolationMode.BICUBIC,
+                    ),
+                    _convert_to_rgb,
+                    ToTensor(),
+                    normalize,
+                ])
+                if aug_cfg_dict:
+                    logging.warning(
+                        f'Unused augmentation cfg items, specify `use_timm` to use ({list(aug_cfg_dict.keys())}).')
+            return train_transform
     else:
         if resize_longest_max:
             transforms = [ResizeMaxSize(image_size, fill=fill_color)]

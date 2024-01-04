@@ -20,7 +20,6 @@ import warnings
 from typing import List, Set, Tuple
 
 import torch
-from transformers import CLIPImageProcessor
 
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
@@ -335,15 +334,6 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
         self.cfg = self.model.cfg
         self.data_cfg = self.model.cfg.data
 
-        if self.cfg.mm_cfg.vision_encoder.from_hf:
-            self.processor = CLIPImageProcessor.from_pretrained(
-                self.cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-            )
-        else:
-            self.processor = CLIPImageProcessor.from_pretrained(
-                "openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16
-            )
-
         add_extra_token = 0
         self.multimodal_cfg = dict(
             is_multimodal=self.data_cfg.is_multimodal,
@@ -353,7 +343,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             image_folder=self.data_cfg.image_folder,
             image_aspect_ratio=self.data_cfg.image_aspect_ratio,
             use_im_start_end=getattr(self.cfg.mm_cfg, 'use_im_start_end', False),
-            image_processor=self.processor,
+            image_processor=None,
             add_extra_token=add_extra_token,
             context_length=self.cfg.encoder_seq_length,
         )
@@ -450,50 +440,6 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
         context_length_tensor = torch.cuda.LongTensor(context_lengths)
         return context_tokens_tensor, context_length_tensor
-
-    def get_media_tensor(self, image_path):
-        from PIL import Image
-
-        image = Image.open(image_path).convert('RGB')
-
-        if self.data_cfg.image_aspect_ratio == 'keep':
-            max_hw, min_hw = max(image.size), min(image.size)
-            aspect_ratio = max_hw / min_hw
-            max_len, min_len = 448, 224
-            shortest_edge = int(min(max_len / aspect_ratio, min_len))
-            image = self.processor.preprocess(
-                image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-            )['pixel_values'][0]
-        elif self.data_cfg.image_aspect_ratio == 'pad':
-
-            def expand2square(pil_img, background_color):
-                width, height = pil_img.size
-                if width == height:
-                    return pil_img
-                elif width > height:
-                    result = Image.new(pil_img.mode, (width, width), background_color)
-                    result.paste(pil_img, (0, (width - height) // 2))
-                    return result
-                else:
-                    result = Image.new(pil_img.mode, (height, height), background_color)
-                    result.paste(pil_img, ((height - width) // 2, 0))
-                    return result
-
-            image = expand2square(image, tuple(int(x * 255) for x in self.processor.image_mean))
-            image = self.processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-        else:
-            image = self.processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-
-        model_cfg = self.model.cfg
-
-        if model_cfg.precision in [16, '16', '16-mixed']:
-            media = image.type(torch.float16)
-        elif model_cfg.precision in [32, '32', '32-true']:
-            media = image.type(torch.float32)
-        else:
-            media = image.type(torch.bfloat16)
-
-        return media.unsqueeze(dim=0).unsqueeze(dim=0).unsqueeze(dim=0)
 
     def prepare_batch_at_step(
         self,

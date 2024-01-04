@@ -25,9 +25,13 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel
 
-from nemo.collections.multimodal.data.neva.neva_dataset import (
+from nemo.collections.multimodal.data.neva.conversation import (
+    DEFAULT_BOS_TOKEN,
+    DEFAULT_EOS_TOKEN,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
+)
+from nemo.collections.multimodal.data.neva.neva_dataset import  (
     DataCollatorForSupervisedDataset,
     make_supervised_data_module,
 )
@@ -36,16 +40,31 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
     MegatronCLIPModel,
 )
 from nemo.collections.multimodal.parts.utils import extend_instance
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
+from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomSampler
+
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import (
+    build_train_valid_test_datasets as build_text_train_valid_test_datasets,
 )
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel, post_language_model_processing
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
-    MultimodalProjectorAdapterConfig,
+    MMProjectorAdapterConfig,
+)
+from nemo.collections.nlp.modules.common.megatron.build_model import build_model
+from nemo.collections.nlp.modules.common.megatron.language_model import Embedding, get_language_model
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    average_losses_across_data_parallel_group,
+    get_all_params_for_weight_decay_optimization,
+    get_params_for_weight_decay_optimization,
+    init_method_normal,
+    parallel_lm_logits,
+    scaled_init_method_normal,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
@@ -55,17 +74,34 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_neva_generate,
 )
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam,
+    OutputType,
+    SamplingParam,
+)
+from nemo.collections.multimodal.parts.utils import load_nemo_model_weights
 from nemo.collections.nlp.parts.mixins.multimodal_adapter_mixins import MultimodalAdapterModelMixin
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import AppState, logging
 
 try:
+    import apex.transformer.pipeline_parallel.utils
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
+try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -82,6 +118,7 @@ class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
             model_cfg, model_parallel_config, pre_process=pre_process, post_process=post_process, skip_head=True,
         )
         self.frozen = False
+        self.dtype = self.config.params_dtype
 
     def train(self, mode):
         if self.frozen:
@@ -239,7 +276,7 @@ class NevaBaseModel:
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.mcore_gpt = mcore_gpt
-        self.dist_ckpt = False
+        self.is_dist_ckpt = False
         if getattr(self, 'language_model', None) is not None:
             self.embedding = self.language_model.embedding
 
@@ -287,48 +324,10 @@ class NevaBaseModel:
         """
         Shared method to load model weights from a given nemo_path.
         """
-        if torch.cuda.is_available():
-            map_location = torch.device('cuda')
-        else:
-            map_location = torch.device('cpu')
-
-        save_restore_connector = NLPSaveRestoreConnector()
-        cwd = os.getcwd()
-        app_state = AppState()
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                if os.path.isfile(nemo_path):
-                    save_restore_connector._unpack_nemo_file(path2file=nemo_path, out_folder=tmpdir)
-                else:
-                    tmpdir = nemo_path
-                os.chdir(tmpdir)
-                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                    model_weights = save_restore_connector._inject_model_parallel_rank_for_ckpt(
-                        tmpdir, save_restore_connector.model_weights_ckpt
-                    )
-                else:
-                    model_weights = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
-
-                state_dict = save_restore_connector._load_state_dict_from_disk(
-                    model_weights, map_location=map_location
-                )
-
-                # distributed checkpointing
-                if state_dict is None:
-                    self.dist_ckpt = True
-                    sharded_state_dict = self.sharded_state_dict(prefix="model.")
-                    checkpoint = dict(state_dict=sharded_state_dict)
-                    tmp_model_weights_ckpt = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
-                    tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
-                    assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
-                    checkpoint = dist_checkpointing.load(
-                        sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir,
-                    )
-                    state_dict = checkpoint["state_dict"]
-
-            finally:
-                os.chdir(cwd)
+        sharded_state_dict = None
+        if getattr(self, "sharded_state_dict", None) is not None:
+            sharded_state_dict = self.sharded_state_dict(prefix="model.")
+        state_dict, self.is_dist_ckpt = load_nemo_model_weights(nemo_path, sharded_state_dict)
 
         return state_dict
 
@@ -352,7 +351,7 @@ class NevaBaseModel:
         state_dict = self._load_model_weights(nemo_path)
 
         new_state_dict = {}
-        if self.dist_ckpt or self.mcore_gpt:
+        if self.is_dist_ckpt or self.mcore_gpt:
             for k, v in state_dict.items():
                 new_k = k
                 if k.startswith("model."):
@@ -602,6 +601,30 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         for param_group in self._optimizer_param_groups:
             params_with_grad = [param for param in param_group['params'] if param.requires_grad]
             param_group['params'] = params_with_grad
+
+        # set projection matrix and lora to two param groups with different LR
+        if self.use_peft:
+            assert len(self._optimizer_param_groups) == 1
+            assert len(self.adapter_keys) == len(self._optimizer_param_groups[0]['params'])
+            # Mapping from parameter objects to their names
+            param_to_name = {param: name for name, param in self.model.named_parameters()
+                             if name or name.replace("model.module.", "model.", "1") in self.adapter_keys}
+            # Match the parameters and separate them into two groups
+            group1_params, group2_params = [], []
+            for param in self._optimizer_param_groups[0]['params']:
+                param_name = param_to_name.get(param)
+                if 'mm_projector' in param_name:
+                    group2_params.append(param)
+                else:
+                    group1_params.append(param)
+
+            base_lr = self._cfg.optim.get('lr')
+            mm_projector_lr_ratio = 0.1 # hard-coded ratio
+            # Create two new optimizer param groups
+            self._optimizer_param_groups = [
+                {'params': group1_params, 'lr': base_lr},
+                {'params': group2_params, 'lr': base_lr * mm_projector_lr_ratio},
+            ]
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, media=None):
         forward_args = {
@@ -894,13 +917,15 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
                 )
             elif self.cfg.data.dataloader_type == 'cyclic':
-                batch_sampler = MegatronPretrainingRandomSampler(
+                batch_sampler = MegatronVisionPretrainingRandomSampler(
+                    dataset=dataset,
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
                     micro_batch_size=self.cfg.micro_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=self.cfg.get('drop_last', True),
+                    data_sharding=False,
                 )
             else:
                 raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
