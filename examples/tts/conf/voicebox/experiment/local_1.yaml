@@ -23,8 +23,8 @@ model:
     depth: 2
     heads: 2
 
-  cfm_wrapper:
-    cond_drop_prob: 0.0
+  # cfm_wrapper:
+  #   cond_drop_prob: 0.0
 
   train_ds:
     num_workers: 16
