@@ -148,29 +148,33 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
 
     conv_template = model.cfg.data.get("conv_template", "nvgpt")
     final_response = []
-    for idx, prompt_dict in enumerate(prompt_dict_list):
-        response = generate(
-            model,
-            inputs=prompt_dict.get('prompt'),
-            tokens_to_generate=length_params['max_length'],
-            all_probs=sampling_params['all_probs'],
-            compute_logprob=sampling_params['compute_logprob'],
-            temperature=sampling_params['temperature'],
-            add_BOS=sampling_params['add_BOS'],
-            top_k=sampling_params['top_k'],
-            top_p=sampling_params['top_p'],
-            greedy=sampling_params['use_greedy'],
-            repetition_penalty=sampling_params['repetition_penalty'],
-            end_strings=sampling_params['end_strings'],
-            min_tokens_to_generate=length_params['min_length'],
-            compute_attention_mask=sampling_params.get("compute_attention_mask", True),
-            image_list=prompt_dict.get('image'),
-            **strategy_args,
-        )
 
+    prompt_list = [prompt_dict.get('prompt') for prompt_dict in prompt_dict_list]
+    image_list = [prompt_dict.get('image') for prompt_dict in prompt_dict_list]
+
+    response = generate(
+        model,
+        inputs=prompt_list,
+        tokens_to_generate=length_params['max_length'],
+        all_probs=sampling_params['all_probs'],
+        compute_logprob=sampling_params['compute_logprob'],
+        temperature=sampling_params['temperature'],
+        add_BOS=sampling_params['add_BOS'],
+        top_k=sampling_params['top_k'],
+        top_p=sampling_params['top_p'],
+        greedy=sampling_params['use_greedy'],
+        repetition_penalty=sampling_params['repetition_penalty'],
+        end_strings=sampling_params['end_strings'],
+        min_tokens_to_generate=length_params['min_length'],
+        compute_attention_mask=sampling_params.get("compute_attention_mask", True),
+        image_list=torch.cat(image_list),
+        **strategy_args,
+    )
+    for idx in range(len(prompt_list)):
+    
         # Regular expression pattern to match the sequence
         pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN}( ⁇ )+{DEFAULT_IM_END_TOKEN}')
-        clean_text = re.sub(pattern, '<image>', response['sentences'][0])
+        clean_text = re.sub(pattern, '<image>', response['sentences'][idx])
 
         clean_response = clean_text
         # for string in sampling_params['end_strings']:
@@ -188,12 +192,17 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             clean_response = clean_response.rsplit("ASSISTANT: ", 1)[-1]
 
         clean_response = clean_response.strip()
-        response["clean_text"] = clean_text
-        response["clean_response"] = clean_response
-        final_response.append(response)
+
+        current_response = {}
+        for key, value in response.items():
+            if value != None:
+                current_response[key] = [value[idx]]
+        current_response["clean_text"] = clean_text
+        current_response["clean_response"] = clean_response
+        final_response.append(current_response)
 
         if torch.cuda.current_device() == 0:
-            print(f"------------- PROMPT {idx} of {len(prompt_dict_list)} ------------ ")
+            print(f"------------- PROMPT {idx+1} of {len(prompt_dict_list)} ------------ ")
             print(clean_text)
             print()
             print(f"CLEAN RESPONSE: {clean_response}")
@@ -817,8 +826,8 @@ def sample_sequence_batch(
                         logits, top_k=extra.get('top_k', 0), top_p=extra.get('top_p', 0.9), started=started
                     )
                     probs = F.softmax(logits, dim=-1)
-                    prev = torch.multinomial(probs, num_samples=1).view(-1)
-
+                    prev = torch.multinomial(probs, num_samples=1).view(-1)          
+                
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
