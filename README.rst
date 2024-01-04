@@ -274,7 +274,7 @@ To install NeMo on Mac with Apple M-Series GPU:
     cd NeMo
     pip install 'nemo_toolkit[all]'
 
-    Note that only the ASR toolkit is guaranteed to work on MacBook - so for MacBook use pip install 'nemo_toolkit[asr]'
+    # Note that only the ASR toolkit is guaranteed to work on MacBook - so for MacBook use pip install 'nemo_toolkit[asr]'
 
 Windows Computers
 ~~~~~~~~~~~~~~~~~
