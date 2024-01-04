@@ -127,7 +127,7 @@ class ModelBuilder(Module):
         ptuning_args = []
         if self._use_prompt_tuning:
             ptuning_args = [prompt_embedding_table, prompt_tasks, prompt_vocab_size]
-       
+
         if self._mapping.is_first_pp_rank():
             x = self.vocab_embedding(input_ids, *ptuning_args)
             if hasattr(self, "positional_embedding") and self.positional_embedding:
@@ -150,7 +150,7 @@ class ModelBuilder(Module):
                   max_kv_cache_length) in enumerate(
                     zip(self.layers, kv_cache_params.past_key_value,
                         kv_cache_params.kv_cache_block_pointers,
-                        kv_cache_params.host_max_kv_cache_lengths)):
+                        kv_cache_params.host_max_attention_window_sizes)):
             hidden_states = layer(
                 hidden_states,
                 attention_mask=attention_mask,
@@ -159,7 +159,7 @@ class ModelBuilder(Module):
                     past_key_value=[past],
                     host_past_key_value_lengths=kv_cache_params.host_past_key_value_lengths,
                     kv_cache_block_pointers=[pointers],
-                    host_max_kv_cache_lengths=max_kv_cache_length,
+                    host_max_attention_window_sizes=max_kv_cache_length,
                     cache_indirection=kv_cache_params.cache_indirection
                 ),
                 attention_params=attention_params,
@@ -257,7 +257,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
 
         if use_cache:
             for i, present in zip(
-                    self.get_transformer_layers(self._mapping, self._num_layers), presents):
+                    self._mapping.pp_layers(self._num_layers), presents):
                 present.mark_output(f'present_key_value_{i}', self._kv_dtype)
             if self._mapping.is_last_pp_rank():
                 return (lm_logits, presents)
@@ -290,7 +290,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         enable_two_optimization_profiles = True
 
         head_size = self._hidden_size // self._num_heads
-        num_heads_kv = self._num_kv_heads   
+        num_heads_kv = self._num_kv_heads
         # num_heads_kv = (self._num_kv_heads + self._tensor_parallel - 1) // self._tensor_parallel
         remove_input_padding = default_net().plugin_config.remove_input_padding
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
@@ -330,7 +330,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             max(max_input_len * max_batch_size, max_beam_width * max_batch_size),
         ]
         inlen_range = [1, 1, max_input_len]
-        
+
         prompt_embedding_table = None
         tasks = None
         prompt_vocab_size = None
@@ -353,7 +353,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     ('hidden_size', [self._hidden_size, self._hidden_size]
                      if enable_two_optimization_profiles else [self._hidden_size]),
                 ]))
-            
+
             if remove_input_padding:
                 tasks = Tensor(
                     name="tasks",
@@ -381,7 +381,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                         ]
                     ),
                 )
-            
+
             prompt_vocab_size = Tensor(
                 name='prompt_vocab_size',
                 dtype=trt.int32,
@@ -405,8 +405,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 past_key_value=model_inputs['past_key_value'],
                 host_past_key_value_lengths=model_inputs[
                     'host_past_key_value_lengths'],
-                host_max_kv_cache_lengths=model_inputs[
-                    'host_max_kv_cache_lengths'],
+                host_max_attention_window_sizes=model_inputs[
+                    'host_max_attention_window_sizes'],
                 kv_cache_block_pointers=model_inputs[
                     'kv_cache_block_pointers_list'],
                 cache_indirection=model_inputs['cache_indirection'],
