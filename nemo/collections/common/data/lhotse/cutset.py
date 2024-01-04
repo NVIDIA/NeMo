@@ -1,7 +1,9 @@
 import logging
+import random
 import warnings
+from functools import partial
 from pathlib import Path
-from typing import Any, NewType, Sequence, Tuple
+from typing import Any, List, NewType, Sequence, Tuple
 
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
 
@@ -91,6 +93,24 @@ def read_lhotse_manifest(config, is_tarred: bool) -> LhotseCutSet:
     return cuts
 
 
+def get_random_questions(question_file):
+    question_file_list = question_file.split(",") if isinstance(question_file, str) else question_file
+    random_questions = []
+    for filepath in question_file_list:
+        with open(filepath, 'r') as f:
+            for line in f.readlines():
+                line = line.strip()
+                if line:
+                    random_questions.append(line)
+    return random_questions
+
+
+def sample_and_attach_question(cut, questions: List[str]):
+    q = random.sample(questions, 1)[0]
+    cut.question = q
+    return cut
+
+
 def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
     from lhotse import CutSet
 
@@ -130,7 +150,14 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
             )
             cutsets = []
             weights = []
-            for manifest_info, (tar_path,) in zip(config["manifest_filepath"], config["tarred_audio_filepaths"]):
+            question_file_set = (
+                config["question_file_set"]
+                if "question_file_set" in config
+                else [None for i in range(len(config["manifest_filepath"]))]
+            )
+            for manifest_info, (tar_path,), question_file in zip(
+                config["manifest_filepath"], config["tarred_audio_filepaths"], question_file_set
+            ):
                 if len(manifest_info) == 1:
                     (manifest_path,) = manifest_info
                     cs = CutSet(
@@ -156,6 +183,11 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                             manifest_path=manifest_path, tar_paths=tar_path, shuffle_shards=shuffle, **common_kwargs
                         )
                     )
+                if question_file is not None:
+                    logging.info(f"Use random questions from {question_file} for {manifest_path}")
+                    questions = get_random_questions(question_file)
+                    cs = cs.map(partial(sample_and_attach_question, questions=questions))
+
                 logging.info(f"- {manifest_path=} {weight=}")
                 cutsets.append(cs)
                 weights.append(weight)
@@ -164,8 +196,23 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
             else:
                 cuts = CutSet.mux(*[cs.repeat() for cs in cutsets], weights=weights, seed="trng")
     else:
-        logging.info(
-            f"Initializing Lhotse CutSet from a single NeMo manifest (non-tarred): '{config['manifest_filepath']}'"
+        question_file_set = (
+            config["question_file_set"]
+            if "question_file_set" in config
+            else [None for i in range(len(config["manifest_filepath"]))]
         )
-        cuts = CutSet(LazyNeMoIterator(config["manifest_filepath"], **common_kwargs))
+        cutsets = []
+        for manifest_info, question_file in zip(config["manifest_filepath"], question_file_set):
+            cs = CutSet(LazyNeMoIterator(manifest_info, **common_kwargs))
+            if question_file is not None:
+                logging.info(f"Use random questions from {question_file} for {manifest_info}")
+                questions = get_random_questions(question_file)
+                cs = cs.map(partial(sample_and_attach_question, questions=questions))
+
+            cutsets.append(cs)
+        if (max_open_streams := config.lhotse.get("max_open_streams", None)) is not None:
+            cuts = CutSet.infinite_mux(*cutsets, max_open_streams=max_open_streams, seed="trng")
+        else:
+            cuts = CutSet.mux(*[cs.repeat() for cs in cutsets], seed="trng")
+
     return cuts
