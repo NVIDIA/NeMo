@@ -19,7 +19,12 @@ description: State of the Art Speech Recognition for Everyone
 
 # Announcing NVIDIA NeMo Parakeet ASR Models for Pushing the Boundaries of Speech Recognition
 
-[NVIDIA NeMo](https://nvidia.github.io/NeMo/), a leading open-source toolkit for conversational AI, announces the release of Parakeet, a family of state-of-the-art automatic speech recognition (ASR) models, capable of transcribing spoken English with exceptional accuracy. Developed in collaboration with [Suno.ai](http://suno.ai/), Parakeet ASR models mark a significant leap forward in speech recognition, paving the way for more natural and efficient human-computer interactions.
+[NVIDIA NeMo](https://nvidia.github.io/NeMo/), a leading open-source toolkit for conversational AI, announces the release of Parakeet, a family of state-of-the-art automatic speech recognition (ASR) models (Figure 1.), capable of transcribing spoken English with exceptional accuracy. Developed in collaboration with [Suno.ai](http://suno.ai/), Parakeet ASR models mark a significant leap forward in speech recognition, paving the way for more natural and efficient human-computer interactions.
+
+<figure markdown>
+  ![HuggingFace Leaderboard](https://github.com/NVIDIA/NeMo/releases/download/v1.21.0/asset-post-2024-01-03-parakeet_leaderboard.png)
+  <figcaption><b>Figure 1.</b> <i> HuggingFace Leaderboard as of 01/03/2024. </i></figcaption>
+</figure>
 
 NVIDIA announces four Parakeet models based on RNN Transducer / Connectionist Temporal Classification decoders and the size of the models. They boast 0.6-1.1 billion parameters and capable of tackling diverse audio environments. Trained on only a 64,000-hour dataset encompassing various accents, domains, and noise conditions, the models deliver exceptional word error rate (WER) performance across benchmark datasets, outperforming previous models.
 
@@ -45,11 +50,6 @@ Key benefits of Parakeet models:
 Parakeet is a major step forward in the evolution of conversational AI. Its exceptional accuracy, coupled with the flexibility and ease of use offered by NeMo, empowers developers to create more natural and intuitive voice-powered applications. The possibilities are endless, from enhancing the accuracy of virtual assistants to enabling seamless real-time communication.
 
 The Parakeet family of models achieves state-of-the-art numbers on the [HuggingFace Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard). Users can try out the [parakeet-rnnt-1.1b](https://huggingface.co/nvidia/parakeet-rnnt-1.1b) firsthand at the [Gradio demo](https://huggingface.co/spaces/nvidia/parakeet-rnnt-1.1b). To access the model locally and explore the toolkit, visit the [NVIDIA NeMo Github page](https://github.com/NVIDIA/NeMo).
-
-<figure markdown>
-  ![HuggingFace Leaderboard](https://github.com/NVIDIA/NeMo/releases/download/v1.21.0/asset-post-2024-01-03-parakeet_leaderboard.png)
-  <figcaption><b>Figure 1.</b> <i> HuggingFace Leaderboard as of 01/03/2024. </i></figcaption>
-</figure>
 
 ## Architecture Details
 
