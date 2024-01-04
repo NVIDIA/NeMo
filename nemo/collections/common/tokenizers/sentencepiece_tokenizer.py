@@ -28,7 +28,7 @@ __all__ = ['SentencePieceTokenizer', 'create_spt_model']
 class SentencePieceTokenizer(TokenizerSpec):
     """
     Sentencepiecetokenizer https://github.com/google/sentencepiece.
-    
+
         Args:
         model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
         special_tokens: either list of special tokens or dictionary of token name to token value
@@ -188,6 +188,12 @@ class SentencePieceTokenizer(TokenizerSpec):
                     self.special_token_to_id[token] = self.vocab_size
                     self.id_to_special_token[self.vocab_size] = token
                     self.vocab_size += 1
+
+    def update_phone_tokens(self):
+        for i, word in enumerate(self.vocab):
+            if word.startswith("p{"):
+                self.special_token_to_id[word] = i
+                self.id_to_special_token[i] = word
 
     @property
     def pad_id(self):

@@ -106,7 +106,6 @@ model:
     pin_memory: true
     speech_offset: 30000
     train_task: asr
-    sup_data_path: ???
     g2p:
       english:
         _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p

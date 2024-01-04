@@ -190,13 +190,13 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         if kwargs.get("g2p", None):
             if "english" in kwargs["g2p"]:
                 english_g2p = instantiate(kwargs["g2p"]["english"])
-                self.g2p["en"] =lambda x: english_g2p.encode(x)
+                self.g2p["en"] =lambda x: english_g2p(x)
             if "spanish" in kwargs["g2p"]:
                 spanish_g2p = instantiate(kwargs["g2p"]["spanish"])
-                self.g2p["es"] = lambda x: spanish_g2p.encode(x)
+                self.g2p["es"] = lambda x: spanish_g2p(x)
             if "mandarin" in kwargs["g2p"]:
                 mandarin_g2p = instantiate(kwargs["g2p"]["mandarin"])
-                self.g2p["zh"] = lambda x: mandarin_g2p.encode(x)
+                self.g2p["zh"] = lambda x: mandarin_g2p(x)
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
@@ -272,7 +272,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
             question_in_manifest = doc['question']
 
-            if "Text to speech this" in question_in_manifest:
+            if "Text to speech this" in question_in_manifest or "Phoneme TTS" in question_in_manifest:
                 tts += 1
                 if self.train_task not in ['tts', 'all']:
                     continue
@@ -730,6 +730,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         elif doc[f"{field}_type"] == 'AUDIOCODEC':
             reference_codec_paths = field_data.split(";")
             reference_codec_path = rng.choice(reference_codec_paths)
+            if self.codec_folder is not None:
+                reference_codec_path = self.codec_folder / reference_codec_path
             field_tokens = torch.load(reference_codec_path).long()
             field_tokens[0] = (field_tokens[0] + self.speech_offset).long()
             field_tokens = [field_tokens]
@@ -737,6 +739,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         elif doc[f"{field}_type"] == 'REFSPEAKERCODEC':
             reference_codec_paths = field_data.split(";")
             reference_codec_path = rng.choice(reference_codec_paths)
+            if self.codec_folder is not None:
+                reference_codec_path = self.codec_folder / reference_codec_path
             field_tokens = torch.load(reference_codec_path).long()
             field_tokens[0] = (field_tokens[0] + self.speech_offset).long()
             _min_len = int(self.context_duration_min * self.codebook_fps)
@@ -1323,7 +1327,6 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         # print(attention_mask)
         # print(torch.max(torch.sum(cross_attention_prior, 2)))
         # print(torch.max(torch.sum(attention_mask[:,0,:,:] * cross_attention_prior, 2)))
-        # import ipdb; ipdb.set_trace()
 
 
         decoder_input = torch.stack(decoder_input_list)
