@@ -14,6 +14,9 @@ engine:
         total_buffer_in_secs: 4 #null # Need to specify if use buffered inference (default for offline_by_chunked is 22)
         model_stride: 8 # Model downsampling factor, 8 for Citrinet and FastConformer models, and 4 for Conformer models
         decoder_type: null # Used for hybrid CTC RNNT model only. Specify decoder_type *ctc* or *rnnt* for hybrid CTC RNNT model.
+        beam_search:
+            beam_size: 1
+            len_pen: 0.0
    
     test_ds:
         manifest_filepath: null

@@ -176,6 +176,22 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         self.val_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
 
+    def change_decoding_strategy(self, cfg: DictConfig):
+        logging.info(f"Changing beam search decoding to {cfg}")
+        # Beam Search decoding
+        self.beam_search = BeamSearchSequenceGenerator(
+            embedding=self.transf_decoder.embedding,
+            decoder=self.transf_decoder.decoder,
+            log_softmax=self.log_softmax,
+            max_sequence_length=self.transf_decoder.max_sequence_length,
+            beam_size=cfg.beam_size,
+            bos=self.tokenizer.bos_id,
+            pad=self.tokenizer.pad_id,
+            eos=self.tokenizer.eos_id,
+            len_pen=cfg.len_pen,
+            max_delta_length=cfg.max_generation_delta,
+        )
+
     @torch.no_grad()
     def translate(
         self,

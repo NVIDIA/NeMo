@@ -198,7 +198,9 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
             f"num_workers={cfg.test_ds.num_workers} "
             f"random_seed={cfg.random_seed} "
             f"eval_config_yaml={f.name} "
-            f"decoder_type={cfg.inference.decoder_type} ",
+            f"decoder_type={cfg.inference.decoder_type} "
+            f"beam_search.beam_size={cfg.inference.beam_search.beam_size} "
+            f"beam_search.len_pen={cfg.inference.beam_search.len_pen} ",
             shell=True,
             check=True,
         )

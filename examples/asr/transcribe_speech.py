@@ -108,6 +108,13 @@ class ModelChangeConfig:
 
 
 @dataclass
+class BeamSearchConfig:
+    beam_size: int = 1
+    len_pen: float = 0.0
+    max_generation_delta: int = 20
+
+
+@dataclass
 class TranscriptionConfig:
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
@@ -174,6 +181,9 @@ class TranscriptionConfig:
 
     # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
     return_hypotheses: bool = True
+
+    # beam search for Transfomer models
+    beam_search: BeamSearchConfig = BeamSearchConfig()
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -254,7 +264,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
-        if cfg.decoder_type is not None:
+        if isinstance(asr_model, EncDecTransfModelBPE):
+            asr_model.change_decoding_strategy(cfg.beam_search)
+        elif cfg.decoder_type is not None:
             # TODO: Support compute_langs in CTC eventually
             if cfg.compute_langs and cfg.decoder_type == 'ctc':
                 raise ValueError("CTC models do not support `compute_langs` at the moment")
