@@ -607,7 +607,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 alignment_loss = out_logits[3]
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
                 if (alignment_loss is not None) and (curr_step > self.alignment_loss_start_step):
-                    print("Adding alignment loss", curr_step, self.alignment_loss_start_step)
+                    # print("Adding alignment loss", curr_step, self.alignment_loss_start_step)
                     loss = loss + alignment_loss
                 reduced_loss = average_losses_across_data_parallel_group([loss])
                 return loss, {'avg': reduced_loss}
