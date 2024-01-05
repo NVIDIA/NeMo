@@ -181,7 +181,6 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         self.num_speech_codebooks = num_speech_codebooks
         self.codebook_fps = codebook_fps
         self.add_special_tokens_to_only_first_codebook = add_special_tokens_to_only_first_codebook
-
         # context_pattern and duration arguments are supported only if context_type is REFSPEAKERCODEC in the manifest
         self.context_pattern = context_pattern
         self.context_duration_min = context_duration_min
@@ -506,25 +505,26 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
             enc_len = context_tokens_len + question_tokens_len + virtual_tokens_len
             # TODO: Remove hardcoding
-            num_question_offset = 4  # For "Text to Speech this"
-
+            start_of_question_offset = 4  # For both "Text to Speech this" and "Phoneme TTS"
+            end_of_question_offset = 2
             cross_attention_prior = torch.zeros(dec_labels_len, enc_len) + self.cross_attention_epsilon
             if self.use_attention_prior:
                 cross_attention_question_prior = torch.from_numpy(
                     beta_binomial_prior_distribution(
-                        question_tokens_len.item() - num_question_offset,
+                        question_tokens_len.item() - start_of_question_offset - end_of_question_offset,
                         dec_labels_len.item(),
                         scaling_factor=self.attention_prior_scaling_factor,
                     )
                 )
                 cross_attention_prior[
-                    :, virtual_tokens_len + context_tokens_len + num_question_offset :
+                    :, virtual_tokens_len + context_tokens_len + start_of_question_offset : -end_of_question_offset
                 ] = cross_attention_question_prior
 
             return (
                 taskname_id,
                 virtual_tokens,
                 virtual_tokens_len,
+                context_tokens_len,
                 context_and_question_tokens,
                 context_tokens_len + question_tokens_len,
                 dec_input,
@@ -718,6 +718,12 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 instruction_tokens = self._get_text_tokens("Edit Speech")
                 field_tokens = self._get_phoneme_tokens(_text.replace("Edit Speech ", ""))
                 field_tokens = instruction_tokens + field_tokens
+            elif _text.startswith("| Language"):
+                # Speaker id conditioning
+                field_tokens = self._get_text_tokens(_text)
+                # pad field tokens to fixed length
+                _fixed_context_len = 20
+                field_tokens = field_tokens + [self.tokenizer.pad_id] * (_fixed_context_len - len(field_tokens))
             else:
                 field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
         elif doc[f"{field}_type"] == 'SPEECH':
@@ -761,7 +767,6 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                     et = field_tokens.shape[1] - _c
                     new_field_tokens.append(field_tokens[_c, st:et])
                 field_tokens = torch.stack(new_field_tokens, dim=0)
-
             field_tokens = [field_tokens]
 
         elif doc[f"{field}_type"] == 'SEPARATIONCODECS':
@@ -849,6 +854,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             data_dict['speech_mask'],
             data_dict['context_and_question_tokens_lens'],
             data_dict['cross_attention_prior'],
+            data_dict['text_limits'],
         )
 
     def pad_batch_and_build_loss_mask(self, batch):
@@ -857,6 +863,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             taskname_ids,
             _,
             virtual_tokens_len,
+            _,
             _,
             context_and_question_tokens_len,
             _,
@@ -894,6 +901,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             dec_labels_mask_list,
             speech_mask_list,
             cross_attention_prior_list,
+            text_limits,
         ) = (
             [],
             [],
@@ -903,6 +911,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             [],
             [],
             [],
+            []
         )
 
         for i, sample_tuple in enumerate(batch):
@@ -910,6 +919,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 _,
                 virtual_token,
                 virtual_token_len,
+                context_token_len,
                 context_and_question_token,
                 context_and_question_token_len,
                 dec_input,
@@ -978,6 +988,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                     cross_attention_prior, pad=(0, _p1, 0, _p0), mode="constant", value=1,
                 )
                 cross_attention_prior_list.append(cross_attention_prior_padded)
+                _start_of_text_id = virtual_token_len + context_token_len + 4
+                _end_of_text_id = _start_of_text_id + (context_and_question_token_len - context_token_len - 2 - 4) # -2 for some end tokens
+                text_limits.append(torch.tensor([_start_of_text_id.item(), _end_of_text_id.item()]))
 
         data_dict = {
             "taskname_id": taskname_ids,
@@ -993,6 +1006,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             "cross_attention_prior": torch.stack(cross_attention_prior_list)
             if len(cross_attention_prior_list) > 0
             else None,
+            "text_limits": torch.stack(text_limits) if len(text_limits) > 0 else None,
         }
 
         return data_dict

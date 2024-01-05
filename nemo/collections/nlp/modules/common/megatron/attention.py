@@ -1008,7 +1008,6 @@ class CoreAttention(MegatronModule):
         #     attention_bias_log = torch.log(attention_bias + eps)
         #     attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias_log
         #     # attention_scores += attention_bias
-
         _attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
         # print(f"a: {torch.max(torch.exp(torch.logsumexp(saved, -1)))}")
         # print(f"b: {torch.max(torch.exp(torch.logsumexp(attention_bias, -1)))}")
@@ -1034,7 +1033,8 @@ class CoreAttention(MegatronModule):
         context_layer = rearrange(context_layer, '(b np) sq hn -> b np sq hn', np=np)
 
         if return_scores:
-            return context_layer, _attention_probs
+            # return context_layer, _attention_probs
+            return context_layer, attention_scores
         else:
             return context_layer
 

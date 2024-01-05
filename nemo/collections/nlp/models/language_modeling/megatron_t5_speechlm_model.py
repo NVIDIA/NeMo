@@ -50,6 +50,8 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy, plot_encodec_to_numpy
 from nemo.utils import AppState, logging
+from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
+from nemo.collections.tts.models import AudioCodecModel
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
@@ -138,6 +140,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.frozen_model.enc_dec_model.return_all_crossattention_probs = return_all_crossattention_probs
         self.frozen_model.enc_dec_model.num_cross_attention_heads = num_cross_attention_heads
 
+        self.alignment_loss_start_step = 0
+        if cfg.get('use_alignment_loss', False):
+            alignment_loss_scale = cfg.get('alignment_loss_scale', 1.0)
+            self.frozen_model.enc_dec_model.forward_sum_loss = ForwardSumLoss(loss_scale=alignment_loss_scale)
+            self.alignment_loss_start_step = cfg.get('alignment_loss_start_step', 0)
+
         # Parallel output is used only for vocab parallel cross entropy.
         self.frozen_model.enc_dec_model.parallel_output = (
             self.frozen_model.enc_dec_model.cross_entropy_type == 'vocab_parallel'
@@ -201,6 +209,11 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             codec_model.cuda()
             codec_model.eval()
             self.sample_rate = 24000
+        elif codecmodel_type == 'nemo_codec':
+            codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'))
+            codec_model.to('cuda')
+            codec_model.eval()
+            self.sample_rate = 22050
         else:
             raise NotImplementedError()
 
@@ -218,6 +231,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             wav = codec_model.decoder(_z)[0][0]
         elif self.codecmodel_type == 'encodec':
             wav = codec_model.decode([[codes.unsqueeze(0), None]])[0, 0]
+        elif self.codecmodel_type == 'nemo_codec':
+            codec_len = torch.Tensor([codes.shape[1]]).long().cuda()
+            wav, _ = codec_model.decode(tokens=codes.unsqueeze(0), tokens_len=codec_len)
+            wav = wav[0]
         else:
             raise NotImplementedError()
         return wav
@@ -240,12 +257,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         speech_mask=None,
         inference=False,
         cross_attention_prior=None,
+        text_limits=None,
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
         T5 style models.
         """
-
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
             # import ipdb; ipdb.set_trace()
@@ -283,6 +300,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 enc_input=encoder_input,
                 speech_mask=speech_mask,
                 cross_attention_prior=cross_attention_prior,
+                text_limits=text_limits,
                 global_step=self.global_step,
             )
         else:
@@ -298,6 +316,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     enc_input=encoder_input,
                     speech_mask=speech_mask,
                     cross_attention_prior=cross_attention_prior,
+                    text_limits=text_limits,
                     global_step=self.global_step,
                 )
 
@@ -415,6 +434,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 speech_mask,
                 _,
                 cross_attention_prior,
+                text_limits,
             ) = batch
 
             if self.trainer.global_step % self.train_check_interval == 0 and not validation_step and self.is_rank_zero:
@@ -430,9 +450,14 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 labels=labels,
                 speech_mask=speech_mask,
                 cross_attention_prior=cross_attention_prior,
+                text_limits=text_limits,
                 inference=False,
             )
             output_tensor = output_tensor.contiguous()
+
+            alignment_loss = out_logits[3]
+            if alignment_loss is not None:
+                self.logger.experiment.add_scalar('train_alignment_loss', alignment_loss, self.global_step)
 
             if self.trainer.global_step % self.train_check_interval == 0 and not validation_step and self.is_rank_zero:
                 self.frozen_model.enc_dec_model.logging_step = False
@@ -467,12 +492,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             self.logger.experiment.add_audio("train_label_wav", label_wav, self.global_step, self.sample_rate)
                             self.logger.experiment.add_audio("train_dec_input_wav", dec_input_wav, self.global_step, self.sample_rate)
 
-                            input_token_list = [
+                            input_token_list_all = [
                                 context_and_question_tokens[0, 0, i].item()
                                 for i in range(context_and_question_tokens.shape[2])
                             ]
                             input_token_list = [
-                                (ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < self.speech_offset
+                                (ti, t) for ti, t in enumerate(input_token_list_all) if t != 0 and t < self.speech_offset
                             ]
                             context_end_step = input_token_list[0][0]
                             if context_end_step > self.num_speech_codebooks:
@@ -481,18 +506,23 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                 _context_wav = self.decode_wav_from_codec_model(_context_tokens)
                                 self.logger.experiment.add_audio("train_context_wav", _context_wav, self.global_step, self.sample_rate)
 
-                            question_si = (
-                                input_token_list[0][0] + virtual_tokens.shape[1]
-                            )
-                            question_ei = input_token_list[-1][0] + virtual_tokens.shape[1]
+                            # question_si = (
+                            #     input_token_list[0][0] + virtual_tokens.shape[1]
+                            # )
+                            # question_ei = input_token_list[-1][0] + virtual_tokens.shape[1]
+                            question_si = text_limits[0, 0].item() - virtual_tokens.shape[1]
+                            question_ei = text_limits[0, 1].item() - virtual_tokens.shape[1]
+                            text_si = text_limits[0, 0].item()
+                            text_ei = text_limits[0, 1].item()
                             input_text = self.frozen_model.tokenizer.ids_to_text(
-                                [v[1] for v in input_token_list if v[1] < self.lm_vocab_size]
+                                [v for v in input_token_list_all[question_si:question_ei] if v < self.lm_vocab_size]
                             )
                             self.logger.experiment.add_text("Train Input Text", input_text, self.global_step)
 
                             input_phoneme_tokens = [
-                                v[1] - self.lm_vocab_size for v in input_token_list if v[1] >= self.lm_vocab_size
+                                v - self.lm_vocab_size for v in input_token_list_all[question_si:question_ei] if v >= self.lm_vocab_size
                             ]
+
                             if len(input_phoneme_tokens) > 0:
                                 phoneme_text = phoneme_tokenizer.decode(input_phoneme_tokens)
                                 self.logger.experiment.add_text("Train Input Phoneme Text", phoneme_text, self.global_step)
@@ -512,17 +542,17 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                         #     f"Attention Probs Layer {lidx} Head {_i}", alignment_image, self.global_step, dataformats="HWC",
                                         # )
                                         name = f"Attention Probs Layer {lidx} Head {_i}"
-                                        attention_to_plot = attention_probs[0, _i, :audio_len, :question_ei]
+                                        attention_to_plot = attention_probs[0, _i, :audio_len, :text_ei]
                                         if self.plot_alignments_sliced:
                                             attention_to_plot = attention_probs[
-                                                0, _i, 0 : audio_len, question_si + 4: question_ei
+                                                0, _i, 0 : audio_len, text_si: text_ei
                                             ]
                                             # 4 to offset "Text to Speech this"
                                             name += " Sliced"
                                         alignment_image = plot_alignment_to_numpy(
                                             attention_to_plot.cpu().float().numpy().T,
                                             phoneme_ver=0 if self.plot_alignments_sliced else 1,
-                                            phoneme_seq=None if self.plot_alignments_sliced else [question_si]
+                                            phoneme_seq=None if self.plot_alignments_sliced else [text_si]
                                         )
                                         self.logger.experiment.add_image(
                                             name,
@@ -531,14 +561,14 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                             dataformats="HWC",
                                         )
                                         attention_sliced_list.append(attention_probs[
-                                            0, _i, 0 : audio_len, question_si : question_ei
+                                            0, _i, 0 : audio_len, text_si: text_ei
                                         ])
                                 attention_sliced = torch.stack(attention_sliced_list)
                                 attention_sliced = torch.mean(attention_sliced, 0)
                                 text = None
                                 if len(input_text) > 0:
-                                    text = self.frozen_model.tokenizer.ids_to_tokens([v[1] for v in input_token_list if v[1] < 30000])
-                                elif len(phoneme_text) > 0:
+                                    text = self.frozen_model.tokenizer.ids_to_tokens([v for v in input_token_list_all[question_si:question_ei] if v < self.lm_vocab_size])
+                                if len(input_phoneme_tokens) > 0:
                                     text = phoneme_text.split("|")
                                 alignment_image_sliced = plot_alignment_to_numpy(
                                     attention_sliced.cpu().float().numpy().T, phoneme_seq=text, phoneme_ver=2, vmin=0., phone_offset=0, h_offset=False
@@ -572,12 +602,17 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             predicted_wav = self.decode_wav_from_codec_model(all_layer_tokens)
                             self.logger.experiment.add_audio("train_tf_pred_wav", predicted_wav, self.global_step, self.sample_rate)
 
-            def loss_func(output_tensor):
+            def loss_func(loss_args):
+                output_tensor, out_logits, curr_step = loss_args
+                alignment_loss = out_logits[3]
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
+                if (alignment_loss is not None) and (curr_step > self.alignment_loss_start_step):
+                    print("Adding alignment loss", curr_step, self.alignment_loss_start_step)
+                    loss = loss + alignment_loss
                 reduced_loss = average_losses_across_data_parallel_group([loss])
                 return loss, {'avg': reduced_loss}
 
-            return output_tensor, loss_func
+            return [output_tensor, out_logits, self.global_step], loss_func
 
         return fwd_output_and_loss_func
 
@@ -697,8 +732,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             speech_mask,
             _,
             cross_attention_prior,
+            text_limits,
         ) = batch
-
         # loss_mask (b, t)
         # does not use dataloader_iter due to device placement issues arising from PTL
         mode = self.training
@@ -725,6 +760,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             labels=labels,
             speech_mask=speech_mask,
             cross_attention_prior=cross_attention_prior,
+            text_limits=text_limits,
             inference=True,
         )
 
@@ -760,12 +796,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     self.logger.experiment.add_audio("val_label_wav", label_wav, self.global_step, self.sample_rate)
                     self.logger.experiment.add_audio("val_dec_input_wav", dec_input_wav, self.global_step, self.sample_rate)
 
-                    input_token_list = [
+                    input_token_list_all = [
                         context_and_question_tokens[0, 0, i].item()
                         for i in range(context_and_question_tokens.shape[2])
                     ]
                     input_token_list = [
-                        (ti, t) for ti, t in enumerate(input_token_list) if t != 0 and t < self.speech_offset
+                        (ti, t) for ti, t in enumerate(input_token_list_all) if t != 0 and t < self.speech_offset
                     ]
                     context_end_step = input_token_list[0][0]
                     if context_end_step > self.num_speech_codebooks:
@@ -774,19 +810,24 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         _context_wav = self.decode_wav_from_codec_model(_context_tokens)
                         self.logger.experiment.add_audio("val_context_wav", _context_wav, self.global_step, self.sample_rate)
 
-                    question_si = (
-                        input_token_list[0][0] + virtual_tokens.shape[1]
-                    )
-                    question_ei = input_token_list[-1][0] + virtual_tokens.shape[1]
+                    # question_si = (
+                    #     input_token_list[0][0] + virtual_tokens.shape[1]
+                    # )
+                    # question_ei = input_token_list[-1][0] + virtual_tokens.shape[1]
+                    question_si = text_limits[0, 0].item() - virtual_tokens.shape[1]
+                    question_ei = text_limits[0, 1].item() - virtual_tokens.shape[1]
+
+                    text_si = text_limits[0, 0].item()
+                    text_ei = text_limits[0, 1].item()
+
                     input_text = self.frozen_model.tokenizer.ids_to_text(
-                        [v[1] for v in input_token_list if v[1] < self.lm_vocab_size]
+                        [v for v in input_token_list_all[question_si:question_ei] if v < self.lm_vocab_size]
                     )
                     self.logger.experiment.add_text("Val Input Text", input_text, self.global_step)
 
                     input_phoneme_tokens = [
-                        v[1] - self.lm_vocab_size for v in input_token_list if v[1] >= self.lm_vocab_size
+                        v - self.lm_vocab_size for v in input_token_list_all[question_si:question_ei] if v >= self.lm_vocab_size
                     ]
-
                     if len(input_phoneme_tokens) > 0:
                         phoneme_text = phoneme_tokenizer.decode(input_phoneme_tokens)
                         self.logger.experiment.add_text("Val Input Phoneme Text", phoneme_text, self.global_step)
@@ -825,14 +866,14 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                                 #     phoneme_seq=None if self.plot_alignments_sliced else [question_si]
                                 # )
                                 attention_sliced_list.append(attention_probs[
-                                    0, _i, 0 : audio_len, question_si : question_ei
+                                    0, _i, 0 : audio_len, text_si : text_ei
                                 ])
                         attention_sliced = torch.stack(attention_sliced_list)
                         attention_sliced = torch.mean(attention_sliced, 0)
                         text = None
                         if len(input_text) > 0:
-                            text = self.frozen_model.tokenizer.ids_to_tokens([v[1] for v in input_token_list if v[1] < 30000])
-                        elif len(phoneme_text) > 0:
+                            text = self.frozen_model.tokenizer.ids_to_tokens([v for v in input_token_list_all[question_si:question_ei] if v < self.lm_vocab_size])
+                        if len(input_phoneme_tokens) > 0:
                             text = phoneme_text.split("|")
                         alignment_image_sliced = plot_alignment_to_numpy(
                             attention_sliced.cpu().float().numpy().T, phoneme_seq=text, phoneme_ver=2, vmin=0., phone_offset=0, h_offset=False
@@ -1065,6 +1106,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     average_metrics[key] = []
                 if isinstance(output[key], torch.Tensor):
                     average_metrics[key].append(output[key].item())
+                elif output[key] is None:
+                    continue
                 else:
                     average_metrics[key].append(output[key])
 
@@ -1126,7 +1169,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
-
         sampler = torch.utils.data.distributed.DistributedSampler(
             dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
         )
@@ -1220,6 +1262,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 speech_mask,
                 _,
                 cross_attention_prior,
+                text_limits,
             ) = batch
             dec_input = dec_input_raw * 1  # (B, 8, T)
             dec_input_mask = dec_input_mask_raw * 1  # (B, T)
@@ -1341,6 +1384,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             hyp_pred_transcript_list = []
             gt_transcript_list = []
             similarity_list = []
+            question_type = []
+            dataset_names = []
 
             # predicting audio
             batch_size = output_tokens_combined.shape[0]
@@ -1414,6 +1459,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         [v[1] for v in input_token_list if v[1] < self.lm_vocab_size]
                     )
                     self.logger.experiment.add_text("Task Question", task_question, step)
+                    if "Phoneme TTS" in task_question:
+                        question_type.append("Phoneme TTS")
+                    elif "Text to speech this" in task_question:
+                        question_type.append("Text to speech this")
+                    else:
+                        question_type.append("Other")
 
                     task_question_phoneme_tokens = [
                         v[1] - self.lm_vocab_size for v in input_token_list if v[1] >= self.lm_vocab_size
@@ -1454,6 +1505,29 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             wer_glob = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=False)
             self.logger.experiment.add_scalar(f'Inf WER Transcript', wer_glob, batch_idx)
 
+            phoneme_task_pred_transcript_list = [ t for t, q in zip(hyp_pred_transcript_list, question_type) if q == "Phoneme TTS"]
+            phoneme_task_gt_transcript_list = [ t for t, q in zip(gt_transcript_list, question_type) if q == "Phoneme TTS"]
+
+            tts_task_pred_transcript_list = [ t for t, q in zip(hyp_pred_transcript_list, question_type) if q == "Text to speech this"]
+            tts_task_gt_transcript_list = [ t for t, q in zip(gt_transcript_list, question_type) if q == "Text to speech this"]
+
+            cer_phoneme = None
+            wer_phoneme = None
+            cer_tts = None
+            wer_tts = None
+            if len(phoneme_task_pred_transcript_list) > 0:
+                cer_phoneme = word_error_rate(phoneme_task_pred_transcript_list, phoneme_task_gt_transcript_list, use_cer=True)
+                wer_phoneme = word_error_rate(phoneme_task_pred_transcript_list, phoneme_task_gt_transcript_list, use_cer=False)
+                self.logger.experiment.add_scalar(f'Inf CER Phoneme Task', cer_phoneme, batch_idx)
+                self.logger.experiment.add_scalar(f'Inf WER Phoneme Task', wer_phoneme, batch_idx)
+
+            if len(tts_task_pred_transcript_list) > 0:
+                cer_tts = word_error_rate(tts_task_pred_transcript_list, tts_task_gt_transcript_list, use_cer=True)
+                wer_tts = word_error_rate(tts_task_pred_transcript_list, tts_task_gt_transcript_list, use_cer=False)
+                self.logger.experiment.add_scalar(f'Inf CER TTS Task', cer_tts, batch_idx)
+                self.logger.experiment.add_scalar(f'Inf WER TTS Task', wer_tts, batch_idx)
+
+
             # compute average similarity
             similarity_avg = np.mean(similarity_list)
             self.logger.experiment.add_scalar(f'Inf SV Avg Cossim', similarity_avg, batch_idx)
@@ -1461,6 +1535,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 'sv_avg_cossim': similarity_avg,
                 'cer_transcript': cer_glob,
                 'wer_transcript': wer_glob,
+                'cer_phoneme': cer_phoneme,
+                'wer_phoneme': wer_phoneme,
+                'cer_tts': cer_tts,
+                'wer_tts': wer_tts,
             })
 
     def predict_step_old(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
