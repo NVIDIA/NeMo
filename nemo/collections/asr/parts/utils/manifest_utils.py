@@ -104,19 +104,21 @@ def get_ctm_line(
 
     if type(conf) == str and conf.replace('.', '', 1).isdigit():
         conf = float(conf)
+    elif conf is None:
+        conf = NA_token
     elif type(conf) != float:
         raise ValueError(f"`conf` must be a float or str containing float, but got {type(conf)}")
 
     if channel is not None and type(channel) != int:
         channel = str(channel)
-    if conf is not None and type(conf) != float:
-        raise ValueError(f"`conf` must be a float, but got {type(conf)}")
-    if conf is not None and not (0 <= conf <= 1):
+    # if conf is not None and type(conf) != float:
+    #     raise ValueError(f"`conf` must be a float, but got {type(conf)} type {conf}")
+    if conf is not None and type(conf) == float and not (0 <= conf <= 1):
         raise ValueError(f"`conf` must be between 0 and 1, but got {conf}")
     if type_of_token is not None and type(type_of_token) != str:
-        raise ValueError(f"`type` must be a string, but got {type(type)}")
+        raise ValueError(f"`type` must be a string, but got {type(type_of_token)} type {type_of_token}")
     if type_of_token is not None and type_of_token not in VALID_TOKEN_TYPES:
-        raise ValueError(f"`type` must be one of {VALID_TOKEN_TYPES}, but got {type_of_token}")
+        raise ValueError(f"`type` must be one of {VALID_TOKEN_TYPES}, but got {type_of_token} type {type_of_token}")
     if speaker is not None and type(speaker) != str:
         raise ValueError(f"`speaker` must be a string, but got {type(speaker)}")
 
