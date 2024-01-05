@@ -231,6 +231,41 @@ class MegatronBaseModel(NLPModel):
                     tp_group = parallel_state.get_tensor_model_parallel_group()
                     child.set_tensor_parallel_group(tp_group)
 
+    def _wrap_model_for_O2(self):
+        """ Wraps self.model in a float16 wrapper if the model is using megatron amp O2.
+            Args:
+                model: The model to wrap. Can be a list of modules or a single module.
+            Returns:
+                The wrapped model. Returns a list of wrapped modules or a single wrapped module.
+        """
+        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+
+        Float16Wrapper = MCoreFloat16Module if is_mcore_model else Float16Module
+
+        nemo_args = {'config': self.model_parallel_config, 'precision': self.cfg.precision}
+
+        if type(self).__name__ == 'MegatronGPTModel':
+            nemo_args['share_token_embeddings'] = self.cfg.get('share_embeddings_and_output_weights', True)
+
+        mcore_args = {
+            'config': self.transformer_config,
+        }
+
+        args = mcore_args if is_mcore_model else nemo_args
+
+        # Model wrapper to convert both model and inputs to half precision
+        if isinstance(self.model, list):
+            converted_model = []
+            for module in self.model:
+                args['module'] = module
+                converted_model.append(Float16Wrapper(**args))
+            self.model = converted_model
+        else:
+            args['module'] = self.model
+            self.model = Float16Wrapper(**args)
+
+        args.pop('module')
+
     def get_model_module_list(self):
         if isinstance(self.model, list):
             return [
@@ -246,8 +281,9 @@ class MegatronBaseModel(NLPModel):
         """
         Reconfigure trainer.limit_val_batches for pretraining
         """
-        # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
-        self.trainer.limit_val_batches *= get_num_microbatches()
+        if isinstance(self.trainer.limit_val_batches, int):
+            # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
+            self.trainer.limit_val_batches *= get_num_microbatches()
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
@@ -346,6 +382,7 @@ class MegatronBaseModel(NLPModel):
         add_bias_linear = self.cfg.get('bias', True)
 
         activation = self.cfg.get('activation', 'gelu')
+        gated_linear_unit = activation.endswith('glu')
         # TODO: need to check which activation functions are supported in mcore
         activation_func = activation_to_func(activation)
 
@@ -395,7 +432,7 @@ class MegatronBaseModel(NLPModel):
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': False,
             'add_bias_linear': add_bias_linear,
-            'gated_linear_unit': False,
+            'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,
             'normalization': normalization,
             'init_method': init_method,
@@ -825,6 +862,7 @@ class MegatronBaseModel(NLPModel):
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
         """Returns the total number of parameters across all model parallel groups."""
+        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
         # log number of parameters
         if isinstance(model, list):
             num_parameters_on_device = sum(
@@ -837,7 +875,7 @@ class MegatronBaseModel(NLPModel):
             ):
                 word_embeddings_weight = (
                     model[-1].module.shared_embedding_or_output_weight()
-                    if getattr(self, 'mcore_gpt', False)
+                    if is_mcore_model
                     else model[-1].word_embeddings_weight()
                 )
                 # substract the embedding weights on the last virtual stage
@@ -852,7 +890,7 @@ class MegatronBaseModel(NLPModel):
             ):
                 word_embeddings_weight = (
                     model.module.shared_embedding_or_output_weight()
-                    if getattr(self, 'mcore_gpt', False)
+                    if is_mcore_model
                     else model.word_embeddings_weight()
                 )
                 # substract the embedding weights on the last stage
