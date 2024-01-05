@@ -111,8 +111,6 @@ def get_ctm_line(
 
     if channel is not None and type(channel) != int:
         channel = str(channel)
-    # if conf is not None and type(conf) != float:
-    #     raise ValueError(f"`conf` must be a float, but got {type(conf)} type {conf}")
     if conf is not None and type(conf) == float and not (0 <= conf <= 1):
         raise ValueError(f"`conf` must be between 0 and 1, but got {conf}")
     if type_of_token is not None and type(type_of_token) != str:
