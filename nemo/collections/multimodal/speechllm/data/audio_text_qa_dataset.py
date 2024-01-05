@@ -1159,6 +1159,9 @@ def get_concat_tarred_aqa_dataset(
     if not isinstance(concat_sampling_probabilities, ListConfig) or len(concat_sampling_probabilities) != len(
         datasets
     ):
+        logging.info(
+            f"concat_sampling_probabilities is not provided or is not of the same size as datasets, using uniform sampling."
+        )
         concat_sampling_probabilities = [1.0 / len(datasets)] * len(datasets)
 
     dataset = ConcatDataset(
@@ -1166,7 +1169,7 @@ def get_concat_tarred_aqa_dataset(
         sampling_technique=config.get('concat_sampling_technique', 'temperature'),
         sampling_temperature=config.get('concat_sampling_temperature', 5),
         sampling_scale=config.get('concat_sampling_scale', 1),
-        sampling_probabilities=config.get('concat_sampling_probabilities', None),
+        sampling_probabilities=concat_sampling_probabilities,
         shuffle=config.get('concat_shuffle', True),
         seed=config.get('concat_sampling_seed', None),
         global_rank=global_rank,
