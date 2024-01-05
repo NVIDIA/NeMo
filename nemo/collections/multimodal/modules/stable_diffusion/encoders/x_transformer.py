@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""shout-out to https://github.com/lucidrains/x-transformers/tree/main/x_transformers"""
+
+"""adopted from https://github.com/lucidrains/x-transformers/tree/main/x_transformers"""
 from collections import namedtuple
 from functools import partial
 from inspect import isfunction
