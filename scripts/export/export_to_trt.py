@@ -162,11 +162,6 @@ def nemo_export(argv):
     else:
         args.use_paged_kv_cache = False
 
-    if args.disable_context_fmha == "True":
-        args.disable_context_fmha = True
-    else:
-        args.disable_context_fmha = False
-
     if args.dtype != "bf16":
         LOGGER.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
                       "Support for the other precisions will be added in the coming releases.")
