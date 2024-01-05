@@ -30,7 +30,7 @@ model:
     sched:
       name: WarmupAnnealing
       warmup_steps: 5000
-      max_steps: ${..lr}
+      max_steps: ${....trainer.max_steps}
 
   train_ds:
     max_duration: 16 # ~1600 frames of paper settings
