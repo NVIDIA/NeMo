@@ -46,7 +46,10 @@ def run_nvrtc(kernel_string, kernel_name):
     ASSERT_DRV(err)
 
     # Compile program
-    opts = [b"--gpu-architecture=compute_80", b"--include-path=/home/dgalvez/scratch/cuda/cuda-12.3/include/"]
+    # Not specifying --gpu-architecture will default us to a fairly low compute capability, which is a safe bet.
+    # Otherwise, there are ways to query the current device's compute capability. 
+    # https://stackoverflow.com/questions/48283009/nvcc-get-device-compute-capability-in-runtime
+    opts = []
     (err,) = nvrtc.nvrtcCompileProgram(prog, len(opts), opts)
     err, size = nvrtc.nvrtcGetProgramLogSize(prog)
     buf = b" " * size
@@ -74,10 +77,6 @@ def run_nvrtc(kernel_string, kernel_name):
 
 def create_outer_for_loop_kernel():
     kernel_string = """\
-    #include "/home/dgalvez/scratch/cuda/cuda-12.3/include/cuda_device_runtime_api.h"
-    #include "/home/dgalvez/scratch/cuda/cuda-12.3/include/driver_types.h"
-
-    // TODO: Figure out why the includes don't work.
     typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
 
     extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
@@ -85,11 +84,7 @@ def create_outer_for_loop_kernel():
     extern "C" __global__
     void for_loop_conditional(cudaGraphConditionalHandle handle, const long *time_idx, const long *trip_count)
     {
-     // printf("Time idx: %ld, trip count: %ld\\n", *time_idx, *trip_count);
-     // we have problems ending only when this is set to true...
      cudaGraphSetConditional(handle, *time_idx < *trip_count);
-     // static int i = 0;
-     // cudaGraphSetConditional(handle, ++i < 10); // *time_idx < *trip_count);
     }
     """
     return run_nvrtc(kernel_string, b"for_loop_conditional")
@@ -102,7 +97,6 @@ def create_outer_for_loop_kernel():
 
 def create_while_loop_kernel():
     kernel_string = """\
-    // TODO: Figure out why the includes don't work.
     typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
 
     extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
@@ -110,7 +104,6 @@ def create_while_loop_kernel():
     extern "C" __global__
     void while_loop_conditional(cudaGraphConditionalHandle handle, const bool *not_blank, const long *symbols_added, const long *max_symbols)
     {
-     // printf("symbols_added: %ld, not_blank: %d, max_symbols:%ld\\n", *symbols_added, *not_blank, *max_symbols);
      cudaGraphSetConditional(handle, *not_blank && *symbols_added < *max_symbols);
     }
     """
@@ -198,6 +191,7 @@ class RNNTGreedyDecodeFast:
         self.f = None
 
         # Reasonable default maximum time. 375 frames * 40ms / frame = 15 seconds
+        # This affects only the size of the CPU-pinned memory buffers
         self.max_time = 375
         self.batch_size = 0
 
@@ -209,10 +203,14 @@ class RNNTGreedyDecodeFast:
 
         self.caller = caller
 
-        # self._reinitialize(self.max_time, self.batch_size)
-
     def _reinitialize(self, max_time, batch_size, encoder_output, encoder_output_length):
-        # TODO: Ideally I would run this once first. To "initialize" everything. Ugh. Could just call the blank_as_pad method instead.
+        # We need to call _greedy_decode_blank_as_pad at least once
+        # before hand in order to make sure that pytorch is
+        # "initialize".
+        self.caller._greedy_decode_blank_as_pad(encoder_output,
+                                                encoder_output_length,
+                                                encoder_output.device)
+
         self.max_time = max(self.max_time, max_time)
         self.batch_size = max(self.batch_size, batch_size)
 

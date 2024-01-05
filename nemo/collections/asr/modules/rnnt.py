@@ -1042,8 +1042,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             if value is None:
                 old_states[state_id][:, ids, :] = new_states[state_id][:, ids, :]
             else:
-                # Why not simply assign instead?
-                # Could we use masking instead?
                 old_states[state_id][:, ids, :] *= 0.0
                 old_states[state_id][:, ids, :] += value
 
@@ -1067,7 +1065,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             batch of decoder states with partial copy at ids (or a specific value).
                 (L x B x H, L x B x H)
         """
-        # Would need to make a conditional node here... How annoying
         assert len(old_states) == len(new_states)
         for state_id in range(len(old_states)):
             torch.where(
