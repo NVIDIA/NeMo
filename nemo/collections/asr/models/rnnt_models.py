@@ -254,9 +254,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         # Model's mode and device
         mode = self.training
         device = next(self.parameters()).device
-        # dtype =  next(self.parameters()).dtype
-        # dtypes = [p.dtype for p in self.parameters()]
-        # print("GALVEZ: dtypes=", dtypes)
         dither_value = self.preprocessor.featurizer.dither
         pad_to_value = self.preprocessor.featurizer.pad_to
 
@@ -299,7 +296,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    # print("GALVEZ:encoded=", encoded)
                     torch.cuda.nvtx.range_pop()
                     torch.cuda.nvtx.range_push("decoding")
                     best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
@@ -315,8 +311,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                         all_hypotheses += all_hyp
                     else:
                         all_hypotheses += best_hyp
-
-                    # print("GALVEZ:best_hyp=", best_hyp)
 
                     del encoded
                     del test_batch
@@ -668,8 +662,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        dtype = next(self.parameters()).dtype
-        processed_signal = processed_signal.to(dtype)
+        # dtype = next(self.parameters()).dtype
+        # processed_signal = processed_signal.to(dtype)
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         return encoded, encoded_len
@@ -971,7 +965,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                     param.grad.data.div_(norm)
 
     # EncDecRNNTModel is exported in 2 parts
-    # So this is an overridden class?
     def list_export_subnets(self):
         return ['encoder', 'decoder_joint']
 

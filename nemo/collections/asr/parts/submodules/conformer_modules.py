@@ -18,7 +18,7 @@ from torch import nn as nn
 from torch.nn import LayerNorm
 
 from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
-from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D, CausalConv1DNew
+from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
@@ -99,7 +99,6 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         self.norm_self_att = LayerNorm(d_model)
         MHA_max_cache_len = att_context_size[0]
 
-        # Which one am I using?
         if self_attention_model == 'rel_pos':
             self.self_attn = RelPositionMultiHeadAttention(
                 n_head=n_heads,
@@ -307,7 +306,7 @@ class ConformerConvolution(nn.Module):
             in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
         )
 
-        self.depthwise_conv = CausalConv1DNew(
+        self.depthwise_conv = CausalConv1D(
             in_channels=dw_conv_input_dim,
             out_channels=dw_conv_input_dim,
             kernel_size=kernel_size,
@@ -336,7 +335,6 @@ class ConformerConvolution(nn.Module):
             in_channels=dw_conv_input_dim, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
         )
 
-    # pad_mask is non-empty because of the lengths thingy...
     def forward(self, x, pad_mask=None, cache=None):
         x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
@@ -347,7 +345,6 @@ class ConformerConvolution(nn.Module):
         else:
             x = self.pointwise_activation(x)
 
-        # This an element-wise operation. Could fuse.
         if pad_mask is not None:
             x = x.float().masked_fill(pad_mask.unsqueeze(1), 0.0)
 
@@ -362,7 +359,6 @@ class ConformerConvolution(nn.Module):
         else:
             x = self.batch_norm(x)
 
-        # Using the swish activation function
         x = self.activation(x)
         x = self.pointwise_conv2(x)
         x = x.transpose(1, 2)
