@@ -37,6 +37,9 @@ model:
     lhotse:
       batch_duration: 48
 
+  ds_kwargs:
+    num_workers: 8
+
 trainer:
   devices: auto
   max_epochs: null

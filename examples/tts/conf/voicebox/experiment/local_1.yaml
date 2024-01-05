@@ -39,7 +39,7 @@ model:
       batch_duration: 300
 
   ds_kwargs:
-    num_workers: 16
+    num_workers: 8
 
 # task name, determines output directory path
 task_name: "local_1"
