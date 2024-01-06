@@ -13,7 +13,6 @@ model:
   optim:
     sched:
       warmup_steps: 0
-      max_steps: ${..lr}
 
 # task name, determines output directory path
 task_name: "ngc-no_warmup"

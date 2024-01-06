@@ -13,11 +13,11 @@ model:
   
   duration_predictor:
     depth: 2
-    # heads: 2
+    heads: 2
 
   voicebox:
-    depth: 4
-    # heads: 4
+    depth: 2
+    heads: 2
 
   train_ds:
     max_duration: 16
