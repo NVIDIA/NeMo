@@ -395,6 +395,13 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             self.log(
                 'audio_ratio', audio_batch['audio_ratio'].mean(), prog_bar=True, batch_size=1, rank_zero_only=False
             )
+            self.log(
+                'local_batch_size',
+                audio_batch['audio_ratio'].shape[0],
+                prog_bar=True,
+                batch_size=1,
+                rank_zero_only=False,
+            )
         encoder_input, attention_mask, labels, loss_mask, _, aux_loss = self.prepare_llm_input(audio_batch)
         if self.mcore_gpt:
             output = self.model(
