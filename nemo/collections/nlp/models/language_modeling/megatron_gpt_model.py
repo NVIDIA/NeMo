@@ -274,7 +274,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt and self.cfg.get('fp8', False):
             self.num_microbatches_in_previous_step = -1
             self.microbatch_count = 0
-
+            self.is_prev_microbatch_training = True
+            
         # configuration used for inference
         self._inference_config = None
 
@@ -890,21 +891,25 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         self.microbatch_count = 0  # Reset count on new batch size rampup interval
                     self.num_microbatches_in_previous_step = get_num_microbatches()
 
-                    vp_size = parallel_state.get_virtual_pipeline_model_parallel_world_size()
-                    if vp_size is not None:
-                        # compute fp8 weights first time a model chunk processes a microbatch
-                        pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-                        forwards_per_step = vp_size * get_num_microbatches()
-                        is_first_microbatch = (self.microbatch_count % forwards_per_step < vp_size * pp_size) and (
-                            self.microbatch_count % pp_size == 0
-                        )
+                    if not self.training:
+                        # compute fp8 weights only on first microbatch of first step
+                        is_first_microbatch = self.is_prev_microbatch_training
                     else:
-                        is_first_microbatch = self.microbatch_count % get_num_microbatches() == 0
+                        vp_size = parallel_state.get_virtual_pipeline_model_parallel_world_size()
+                        if vp_size is not None:
+                            # compute fp8 weights first time a model chunk processes a microbatch
+                            pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+                            forwards_per_step = vp_size * get_num_microbatches()
+                            is_first_microbatch = (self.microbatch_count % forwards_per_step < vp_size*pp_size) and \
+                                (self.microbatch_count % pp_size == 0)
+                        else:
+                            is_first_microbatch = self.microbatch_count % get_num_microbatches() == 0
                     forward_args['is_first_microbatch'] = is_first_microbatch
 
             output_tensor = model(**forward_args)
 
             self.microbatch_count += 1
+            self.is_prev_microbatch_training = self.training
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
