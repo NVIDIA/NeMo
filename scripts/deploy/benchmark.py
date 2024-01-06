@@ -166,8 +166,7 @@ def nemo_deploy(args):
 
 def get_inputs():
     with open("/opt/NeMo/scripts/deploy/benchmark_data.json") as json_file:
-        json_data = json.load(json_file)
-        data = json_data["llama"]
+        data = json.load(json_file)
 
     return {
         128: [data["test_input_128"]],
@@ -175,48 +174,6 @@ def get_inputs():
         512: [data["test_input_512"]],
         2048: [data["test_input_2048"]]
     }
-
-
-def get_inputs_llama(output_lens):
-    data = read_benchmark_data("benchmark_data.json")
-    data = data["llama"]
-
-    inputs_avail = {
-        128: [data["test_input_128"]],
-        256: [data["test_input_256"]],
-        512: [data["test_input_512"]],
-        2048: [data["test_input_2048"]]
-    }
-    inputs = {}
-    for olen in output_lens:
-        for inp, txt in inputs_avail.items():
-            inputs[f"{inp}_{olen}"] = {"output_len": olen, "input": txt}
-
-    return inputs
-
-
-def get_inputs_gptnext(output_lens):
-    data = read_benchmark_data("benchmark_data.json")
-    data = data["gpt"]
-
-    test_input_128 = [data["test_input_128"]]
-    base_text = data["base_text"]
-
-    test_input_256 = [" ".join([base_text]*1 + [base_text[:224]])]
-    test_input_512 = [" ".join([base_text]*2 + [base_text[:455]])]
-    test_input_2048 = [" ".join([base_text]*9 + [base_text[:777]])]
-    inputs_avail = {
-       128: test_input_128,
-       256: test_input_256,
-       512: test_input_512,
-       2048: test_input_2048
-    }
-    inputs = {}
-    for olen in output_lens:
-        for inp, txt in inputs_avail.items():
-            inputs[f"{inp}_{olen}"] = {"output_len": olen, "input": txt}
-
-    return inputs
 
 
 def perform_benchmark(args):
