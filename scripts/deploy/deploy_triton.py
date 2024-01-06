@@ -125,7 +125,6 @@ def get_args(argv):
         type=int,
         help="Max input length of the model"
     )
-
     parser.add_argument(
         "-mol",
         "--max_output_len",
