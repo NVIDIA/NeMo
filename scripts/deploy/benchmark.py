@@ -266,20 +266,18 @@ def perform_benchmark(args):
                         latency = round(latency, 3)
                         throughput = round(1000 / latency * batch_size, 3)
 
-                        LOGGER.info("Latency and throughput for "
-                                    "prompt len: {0}, output len: {1}, and batch size: "
-                                    "{2} is {3} ms and {4} prompts/sec, "
-                                    "respectively".format(prompt_len, out_len, batch_size, latency, throughput))
+                        LOGGER.info("Latency: {0} ms, and throughput: {1} prompts/sec, for "
+                                    "prompt len: {2}, output len: {3}, and batch size: "
+                                    "{4}.".format(latency, throughput, prompt_len, out_len, batch_size))
                     else:
                         latency = None
 
                     if args.out_jsonl:
                         measurement = {
-                            "input_output": inpt,
                             "failed":failed,
                             "batch_size": batch_size,
-                            "input_len": int(inpt.split("_")[0]),
-                            "output_len": ol['output_len'],
+                            "input_len": prompt_len,
+                            "output_len": out_len,
                             "latency": latency,
                             "all_latencies": latencies,
                             "nemo_checkpoint_path": args.nemo_checkpoint,
@@ -426,7 +424,7 @@ def get_args(argv):
     )
 
     parser.add_argument(
-        '-b',
+        '-bs',
         '--batch_size',
         nargs='+',
         default=["1", "2", "4", "8"],
@@ -434,7 +432,7 @@ def get_args(argv):
         help='Specify batch size'
     )
     parser.add_argument(
-        '-l',
+        '-ol',
         '--output_lens',
         nargs='+',
         default=[20, 100, 200, 300],
