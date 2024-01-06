@@ -97,8 +97,8 @@ def build_rank_engine(
     if not ootb:
         if args.use_gemm_plugin:
             network.plugin_config.set_gemm_plugin(dtype=args.use_gemm_plugin)
-        if args.use_rmsnorm_plugin:
-            network.plugin_config.set_rmsnorm_plugin(dtype=args.use_rmsnorm_plugin)
+        #if args.use_rmsnorm_plugin:
+        #    network.plugin_config.set_rmsnorm_plugin(dtype=args.use_rmsnorm_plugin)
         if args.use_layernorm_plugin:
             network.plugin_config.set_layernorm_plugin(dtype=args.use_layernorm_plugin)
         assert not (args.enable_context_fmha and args.enable_context_fmha_fp32_acc)
@@ -246,7 +246,7 @@ def build(
     args.use_gemm_plugin = dtype
     # Only enable rmsnorm_plugin for INT8 and FP16 as FP8 performance has a regression.
     # TODO: Understand why rmsnorm_plugin is not performing well in FP8
-    args.use_rmsnorm_plugin = dtype if "fp8" not in quantization else False
+    # args.use_rmsnorm_plugin = dtype if "fp8" not in quantization else False
     args.use_layernorm_plugin = False
     args.parallel_build = parallel_build
     args.enable_context_fmha = enable_context_fmha
