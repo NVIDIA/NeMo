@@ -85,6 +85,7 @@ def run_trt_llm_inference(
         temperature=1.0,
         run_accuracy=True,
         debug=True,
+        streaming=False,
 ):
 
     if Path(checkpoint_path).exists():
@@ -138,6 +139,7 @@ def run_trt_llm_inference(
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )
 
+        
         if ptuning:
             trt_llm_exporter.add_prompt_table(
                 task_name="0",
@@ -151,6 +153,7 @@ def run_trt_llm_inference(
             top_p=top_p,
             temperature=temperature,
             task_ids=task_ids,
+            streaming=streaming
         )
 
         if debug:
@@ -177,7 +180,7 @@ def run_trt_llm_inference(
         raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
 
 
-def run_existing_checkpoints(model_name, n_gpus, tp_size=None, pp_size=None, ptuning=False):
+def run_existing_checkpoints(model_name, n_gpus, tp_size=None, pp_size=None, ptuning=False, streaming=False):
 
     if n_gpus > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
@@ -219,6 +222,7 @@ def run_existing_checkpoints(model_name, n_gpus, tp_size=None, pp_size=None, ptu
         temperature=1.0,
         run_accuracy=True,
         debug=True,
+        streaming=streaming,
     )
 
 
@@ -325,6 +329,11 @@ def get_args():
         default="True",
     )
 
+    parser.add_argument(
+        "--streaming",
+        action="store_true"
+    )
+
     args = parser.parse_args()
 
     if args.debug == "True":
@@ -362,6 +371,7 @@ def run_inference_tests(args):
                 ptuning=args.ptuning,
                 tp_size=args.tp_size,
                 pp_size=args.pp_size,
+                streaming=args.streaming,
             )
             result_dic[args.min_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
         else:
@@ -373,6 +383,7 @@ def run_inference_tests(args):
                     ptuning=args.ptuning,
                     tp_size=args.tp_size,
                     pp_size=args.pp_size,
+                    streaming=args.streaming,
                 )
                 result_dic[n_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
                 n_gpus = n_gpus * 2
@@ -400,6 +411,7 @@ def run_inference_tests(args):
                 temperature=args.temperature,
                 run_accuracy=args.run_accuracy,
                 debug=args.debug,
+                streaming=args.streaming
             )
             result_dic[n_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
             n_gpus = n_gpus * 2
