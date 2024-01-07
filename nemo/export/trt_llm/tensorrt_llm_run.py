@@ -409,7 +409,7 @@ def generate(
         no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
             torch.cuda.current_device())
 
-    output_tensor = forward(
+    outputs = forward(
         input_tensors=input_tensors,
         max_output_len=max_output_len,
         host_context=host_context,
@@ -425,13 +425,23 @@ def generate(
         streaming=streaming,
         **sampling_kwargs
     )
-    assert output_tensor is not None
+    assert outputs is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]
-    output_lines_list = [
-        tokenizer.batch_decode(output_tensor[b, :, input_lengths[b] :])
-        for b in range(output_tensor.shape[0])
-    ]
+    
+    if streaming:
+        #TODO: outputs is a generator, how to enable the streaming for triton
+        final_outputs = [ cur_outputs for cur_outputs in outputs ]
+        output_lines_list = [
+            tokenizer.batch_decode(final_outputs[-1][b, :, input_lengths[b] :])
+            for b in range(len(final_outputs[-1]))
+       ]
+    else:
+        output_lines_list = [
+            tokenizer.batch_decode(outputs[b, :, input_lengths[b] :])
+            for b in range(outputs.shape[0])
+       ] 
+
     return output_lines_list
 
 

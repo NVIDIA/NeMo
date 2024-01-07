@@ -96,6 +96,7 @@ class TensorRTLLM(ITritonDeployable):
         paged_kv_cache: bool = False,
         dtype: str = "bfloat16",
         load_model: bool = True,
+        streaming: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -203,6 +204,7 @@ class TensorRTLLM(ITritonDeployable):
         task_ids: List[str] = None,
         prompt_embeddings_table = None,
         prompt_embeddings_checkpoint_path: str = None,
+        streaming: bool = False,
         **sampling_kwargs,
     ):
 
@@ -275,7 +277,7 @@ class TensorRTLLM(ITritonDeployable):
                 stop_words_list=stop_words_list,
                 bad_words_list=bad_words_list,
                 no_repeat_ngram_size=no_repeat_ngram_size,
-                streaming=False,
+                streaming=streaming,
                 **sampling_kwargs,
             )
 
