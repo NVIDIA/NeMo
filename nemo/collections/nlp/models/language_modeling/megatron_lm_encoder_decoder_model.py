@@ -699,7 +699,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     ##########
 
-    def _test_validation_step(self, step_outputs, dataloader_iter):
+    def _test_validation_step(self, dataloader_iter):
         """
         Shared code for validation and test step
         """
@@ -710,28 +710,25 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         #     return
 
         loss_dict = self.fwd_bwd_step(dataloader_iter, True)
-        step_outputs.append(loss_dict)
 
         return loss_dict
 
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+    def validation_step(self, dataloader_iter):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
+        outputs = self._test_validation_step(dataloader_iter=dataloader_iter)
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-            step_outputs = self.validation_step_outputs[dataloader_idx]
+            self.validation_step_outputs[dataloader_iter.dataloader_idx].append(outputs)
         else:
-            step_outputs = self.validation_step_outputs
+            self.validation_step_outputs.append(outputs)
 
-        return self._test_validation_step(step_outputs=step_outputs, dataloader_iter=dataloader_iter,)
-
-    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-            step_outputs = self.test_step_outputs[dataloader_idx]
+    def test_step(self, dataloader_iter):
+        outputs = self._test_validation_step(dataloader_iter=dataloader_iter)
+        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            self.test_step_outputs[dataloader_iter.dataloader_idx].append(outputs)
         else:
-            step_outputs = self.test_step_outputs
-
-        return self._test_validation_step(step_outputs=step_outputs, dataloader_iter=dataloader_iter,)
+            self.test_step_outputs.append(outputs)
 
     def _test_validation_epoch_end(self, step_outputs, prefix):
         """
