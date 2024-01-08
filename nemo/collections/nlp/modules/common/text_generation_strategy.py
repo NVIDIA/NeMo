@@ -323,6 +323,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 
+
 def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, conv_template):
     from nemo.collections.multimodal.data.neva.neva_dataset import (
         DEFAULT_IMAGE_TOKEN,
@@ -437,13 +438,25 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
     def tokenize_batch(self, prompt, max_len, add_BOS):
 
         if type(prompt) == str:
-            context_tokens = neva_process_prompts(prompt, self.tokenizer, self.multimodal_cfg, 
-                                                self.num_media_latents, self.multimodal_cfg['conv_template'])
+            context_tokens = neva_process_prompts(
+                prompt,
+                self.tokenizer,
+                self.multimodal_cfg,
+                self.num_media_latents,
+                self.multimodal_cfg['conv_template'],
+            )
         elif type(prompt) == list:
             context_tokens = []
             for p in prompt:
-                context_tokens.append(neva_process_prompts(p, self.tokenizer, self.multimodal_cfg, 
-                                                self.num_media_latents, self.multimodal_cfg['conv_template'])[0])
+                context_tokens.append(
+                    neva_process_prompts(
+                        p,
+                        self.tokenizer,
+                        self.multimodal_cfg,
+                        self.num_media_latents,
+                        self.multimodal_cfg['conv_template'],
+                    )[0]
+                )
         else:
             raise ValueError(f'{type(prompt)} is not supported for tokenization')
 

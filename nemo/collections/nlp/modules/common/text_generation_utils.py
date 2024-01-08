@@ -171,7 +171,7 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
         **strategy_args,
     )
     for idx in range(len(prompt_list)):
-    
+
         # Regular expression pattern to match the sequence
         pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN}( ⁇ )+{DEFAULT_IM_END_TOKEN}')
         clean_text = re.sub(pattern, '<image>', response['sentences'][idx])
@@ -819,8 +819,8 @@ def sample_sequence_batch(
                         logits, top_k=extra.get('top_k', 0), top_p=extra.get('top_p', 0.9), started=started
                     )
                     probs = F.softmax(logits, dim=-1)
-                    prev = torch.multinomial(probs, num_samples=1).view(-1)          
-                
+                    prev = torch.multinomial(probs, num_samples=1).view(-1)
+
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
