@@ -221,7 +221,7 @@ def adjust_nemo_config(model_config, ref_config):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--name_or_path", type=str, default="ViT-H-14")
+    parser.add_argument("--name_or_path", type=str, default="thenlper/gte-large")
     parser.add_argument(
         "--hparams_file",
         type=str,
