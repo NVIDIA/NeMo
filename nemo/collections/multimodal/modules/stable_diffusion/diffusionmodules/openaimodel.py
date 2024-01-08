@@ -304,7 +304,6 @@ class ResBlock(TimestepBlock):
         return self.skip_connection(x) + h
 
 
-
 def count_flops_attn(model, _x, y):
     """
     A counter for the `thop` package to count the operations in an
