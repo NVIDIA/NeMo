@@ -554,6 +554,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
         cross_attention_prior=None,
         text_limits=None,
         global_step=None,
+        set_inference_key_value_memory=False,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -702,15 +703,16 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 dec_cross_attention_relative_position_bias=decoder_cross_attention_relative_position_bias,
                 return_all_crossattention_probs=return_all_crossattention_probs,
                 batch_data=batch_data,
+                set_inference_key_value_memory=set_inference_key_value_memory,
             )
-            
+
             alignment_loss = None
             if self.post_process and self.add_decoder:
                 dec_output, enc_output = output  # [s, b, h]
                 if return_all_crossattention_probs:
                     dec_output, attention_scores = dec_output
                     attention_probs = [torch.softmax(attention_score, dim=-1) for attention_score in attention_scores]
-                    
+
                     if text_limits is not None and hasattr(self, "forward_sum_loss"):
                         attention_scores_combined = torch.cat(attention_scores, dim=1)
                         text_start_idx = text_limits[0,0].item()

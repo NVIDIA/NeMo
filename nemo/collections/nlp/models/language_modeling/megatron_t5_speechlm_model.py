@@ -501,7 +501,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             ]
                             context_end_step = input_token_list[0][0]
                             if context_end_step > self.num_speech_codebooks:
-                                _context_tokens = context_and_question_tokens[0][:, :context_end_step].clone()
+                                _context_tokens = context_and_question_tokens[0][:, :context_end_step]
                                 _context_tokens = self.convert_tokens_to_range(_context_tokens, pattern=self.context_pattern)
                                 _context_wav = self.decode_wav_from_codec_model(_context_tokens)
                                 self.logger.experiment.add_audio("train_context_wav", _context_wav, self.global_step, self.sample_rate)
@@ -598,7 +598,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             all_layer_tokens = self.convert_tokens_to_range(
                                 all_layer_tokens, apply_offset_correction=False
                             )
-                            all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
+                            # all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
                             predicted_wav = self.decode_wav_from_codec_model(all_layer_tokens)
                             self.logger.experiment.add_audio("train_tf_pred_wav", predicted_wav, self.global_step, self.sample_rate)
 
@@ -615,6 +615,43 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             return [output_tensor, out_logits, self.global_step], loss_func
 
         return fwd_output_and_loss_func
+
+    def get_forward_output_only_func(self):
+        """ Used in inference / predict """
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
+            batch = [x.cuda(non_blocking=True) for x in batch]
+            (
+                virtual_tokens,
+                context_and_question_tokens,
+                enc_mask,
+                dec_input,
+                dec_input_mask,
+                position_ids,
+                taskname_ids,
+                speech_mask,
+            ) = batch
+
+            output_logits, _, token_and_speech_logits = model(
+                virtual_tokens,
+                context_and_question_tokens,
+                enc_mask,
+                dec_input,
+                dec_input_mask,
+                position_ids,
+                taskname_ids,
+                labels=None,
+                speech_mask=speech_mask,
+                inference=True,
+            )
+            output_tensor = [output_logits, token_and_speech_logits]
+
+            def id_func(output_tensor):
+                return 0, {'output_logits': output_tensor[0], 'token_and_speech_logits': output_tensor[1]}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
@@ -805,7 +842,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     ]
                     context_end_step = input_token_list[0][0]
                     if context_end_step > self.num_speech_codebooks:
-                        _context_tokens = context_and_question_tokens[0][:, :context_end_step].clone()
+                        _context_tokens = context_and_question_tokens[0][:, :context_end_step]
                         _context_tokens = self.convert_tokens_to_range(_context_tokens, pattern=self.context_pattern)
                         _context_wav = self.decode_wav_from_codec_model(_context_tokens)
                         self.logger.experiment.add_audio("val_context_wav", _context_wav, self.global_step, self.sample_rate)
@@ -1091,7 +1128,14 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.validation_step_outputs.clear()
 
     def test_step(self, batch, batch_idx):
-        return self.predict_step(batch, batch_idx)
+        # torch.cuda.memory._record_memory_history(
+        #     max_entries=100000
+        # )
+        result = self.predict_step(batch, batch_idx)
+        # torch.cuda.memory._dump_snapshot(f"memory2")
+        # torch.cuda.memory._record_memory_history(enabled=None)
+        # exit()
+        return result
 
     def on_test_epoch_end(self):
         """
@@ -1278,24 +1322,47 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             )
 
             end_inference_loop_at = None
+            fwd_bwd_function = get_forward_backward_func()
             for t in range(dec_input.shape[2] - 1):
-                if t % 10 == 0:
+                if t % 50 == 0:
                     logging.info("Timestep {}".format(t))
                 if t == end_inference_loop_at:
                     print("All ends detected")
                     break
-                output_logits, _, token_and_speech_logits = self.forward(
+                # Prepare batch
+                batch = [
                     virtual_tokens,
                     context_and_question_tokens,
                     enc_mask,
-                    dec_input[:, :, : t + 1],  # Slice until the current timestep
+                    dec_input[:, :, : t + 1],
                     dec_input_mask[:, : t + 1],
                     position_ids,
                     taskname_ids,
-                    labels=None,
-                    speech_mask=speech_mask,
-                    inference=True,
+                    speech_mask,
+                ]
+                output_tensor = fwd_bwd_function(
+                    forward_step_func=self.get_forward_output_only_func(),
+                    data_iterator=iter([batch,]),
+                    model=[self],
+                    num_microbatches=get_num_microbatches(),
+                    forward_only=True,
+                    seq_length=t+1,
+                    micro_batch_size=dec_input.shape[0],
                 )
+                output_logits = output_tensor[0]['output_logits']
+                token_and_speech_logits = output_tensor[0]['token_and_speech_logits']
+                # output_logits, _, token_and_speech_logits = self.forward(
+                #     virtual_tokens,
+                #     context_and_question_tokens,
+                #     enc_mask,
+                #     dec_input[:, :, : t + 1],  # Slice until the current timestep
+                #     dec_input_mask[:, : t + 1],
+                #     position_ids,
+                #     taskname_ids,
+                #     labels=None,
+                #     speech_mask=speech_mask,
+                #     inference=True,
+                # )
                 # output_logits (B, T, V, 8)
                 token_logits = token_and_speech_logits[0]  # (B, T, V)
                 token_logits_currtimestep = token_logits[:, t, :]  # (B, V)
@@ -1319,7 +1386,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 indices_to_remove = output_logits_currtimestep < output_logits_currtimestep_topk[:, -1].unsqueeze(1)
                 # (B*8, 1024) or (B, 1024)
 
-                output_logits_currtimestep_rescored = output_logits_currtimestep.clone()
+                output_logits_currtimestep_rescored = output_logits_currtimestep
                 output_logits_currtimestep_rescored[indices_to_remove] = -float('Inf')
 
                 temperature = self.cfg.get('temperature', 0.7)  # Set temp 0.01 for greedy decoding
@@ -1450,7 +1517,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     ]
                     context_end_step = input_token_list[0][0]
                     if context_end_step > self.num_speech_codebooks:
-                        _context_tokens = context_and_question_tokens[i][:, :context_end_step].clone()
+                        _context_tokens = context_and_question_tokens[i][:, :context_end_step]
                         _context_tokens = self.convert_tokens_to_range(_context_tokens, pattern=self.context_pattern)
                         _context_wav = self.decode_wav_from_codec_model(_context_tokens)
                         self.logger.experiment.add_audio("Context Wav", _context_wav, step, self.sample_rate)

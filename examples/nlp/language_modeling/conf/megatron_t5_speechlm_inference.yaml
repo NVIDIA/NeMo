@@ -6,7 +6,7 @@ trainer:
   accelerator: gpu
   num_nodes: 1
   precision: 32
-  logger: False 
+  logger: False
   enable_checkpointing: False
   use_distributed_sampler: False
   max_epochs: 10000
@@ -48,8 +48,8 @@ model:
   nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1 
-  global_batch_size: 16 
+  pipeline_model_parallel_size: 1
+  global_batch_size: 16
   micro_batch_size: 16 # micro batch size should equal global batch size when pipeline parallel = 1
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
@@ -62,19 +62,19 @@ model:
   temperature: 0.7 # Temperature to be used for inference
   top_k: 80 # Top k to be used for inference
   max_inference_timesteps: 1000 # Maximum number of timesteps to run inference for
-  
+
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
-  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
+  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   existing_tasks: []
-  new_tasks: ["squad"] 
+  new_tasks: ["squad"]
 
 
-  task_templates: 
-  - taskname: "squad" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}" 
+  task_templates:
+  - taskname: "squad"
+    prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}"
     total_virtual_tokens: 3
-    virtual_token_splits: [3] 
+    virtual_token_splits: [3]
     truncate_field: context
     answer_field: answer
 
@@ -104,13 +104,39 @@ model:
     pin_memory: true
     speech_offset: 30000
     train_task: asr
-    sup_data_path: ???
+    sup_data_path: None
+    g2p:
+      english:
+        _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
+        phoneme_dict: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
+        heteronyms: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/heteronyms-052722"
+        phoneme_probability: 0.8
+        ignore_ambiguous_words: False
+        use_chars: True
+        use_stresses: True
+      spanish:
+        _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
+        phoneme_dict: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/es_ES/es_ES_nv230301.dict"
+        phoneme_probability: 0.8
+        use_chars: True
+        use_stresses: True
+        ignore_ambiguous_words: False
+        locale: "es-ES"
+      mandarin:
+        _target_: nemo.collections.tts.g2p.models.zh_cn_pinyin.ChineseG2p
+        phoneme_dict: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/zh/36finals/ipa_dict_nv23.05.txt"
+        word_segmenter: "jieba"
+        phoneme_prefix: ""
+        phoneme_case: "lower"
+        tone_prefix: "#"
+        ascii_letter_prefix: ""
+        ascii_letter_case: "upper"
 
   optim:
     name: fused_adam
     lr: 5e-5
-    weight_decay: 0.01 
-    betas: 
+    weight_decay: 0.01
+    betas:
     - 0.9
     - 0.98
     # sched:

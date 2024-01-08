@@ -194,6 +194,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_cross_attention_relative_position_bias=None,
         batch_data=None,
         return_all_crossattention_probs=False,
+        set_inference_key_value_memory=False,
     ):
         # encoder
         if enc_output is None:
@@ -205,6 +206,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                     enc_get_key_value=enc_get_key_value,
                     enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
                     batch_data=batch_data,
+                    set_inference_key_value_memory=set_inference_key_value_memory,
+                    # inference_max_sequence_len=inference_max_sequence_len,
                 )
             else:
                 assert self.encoder_hidden_state is not None
@@ -229,6 +232,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
             return_all_crossattention_probs=return_all_crossattention_probs,
+            set_inference_key_value_memory=set_inference_key_value_memory,
+            # inference_max_sequence_len=inference_max_sequence_len,
         )
 
         # if self.hiddens_module is not None enc_output is a dict, else it is a torch.tensor

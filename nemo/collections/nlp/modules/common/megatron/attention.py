@@ -928,7 +928,7 @@ class CoreAttention(MegatronModule):
             )
             context_layer, attention_probs = context_layer
         else:
-            logging.debug(f"flash a: return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}")
+            logging.debug(f"attn_fn: {self.attn_fn}, return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}")
             context_layer = self.attn_fn(
                 query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
             )
