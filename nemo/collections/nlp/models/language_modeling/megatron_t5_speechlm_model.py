@@ -256,6 +256,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         labels=None,
         speech_mask=None,
         inference=False,
+        inference_step=0,
         cross_attention_prior=None,
         text_limits=None,
     ):
@@ -263,7 +264,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         Special forward method for p-tuning/prompt-tuning pretrained
         T5 style models.
         """
-        if self.first_stage_of_pipeline():
+        enc_output = None
+        if self.first_stage_of_pipeline() and inference_step==0:
             # Get embeddings for text tokens and insert virtual token embeddings
             # import ipdb; ipdb.set_trace()
             input_embeds = self.get_embeddings_and_combine(
@@ -279,6 +281,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 encoder_input = input_embeds
         else:
             encoder_input = None
+            if inference_step != 0:
+                enc_output = context_and_question_tokens
 
         # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
         # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
@@ -314,6 +318,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     labels=labels,
                     output_enc_hidden_only=False,
                     enc_input=encoder_input,
+                    enc_output=enc_output,
                     speech_mask=speech_mask,
                     cross_attention_prior=cross_attention_prior,
                     text_limits=text_limits,
@@ -643,6 +648,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 labels=None,
                 speech_mask=speech_mask,
                 inference=True,
+                inference_step=1,
             )
             output_tensor = [output_logits, token_and_speech_logits]
 
@@ -1323,46 +1329,51 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
             end_inference_loop_at = None
             fwd_bwd_function = get_forward_backward_func()
+            encoder_output = None
             for t in range(dec_input.shape[2] - 1):
                 if t % 50 == 0:
                     logging.info("Timestep {}".format(t))
                 if t == end_inference_loop_at:
                     print("All ends detected")
                     break
-                # Prepare batch
-                batch = [
-                    virtual_tokens,
-                    context_and_question_tokens,
-                    enc_mask,
-                    dec_input[:, :, : t + 1],
-                    dec_input_mask[:, : t + 1],
-                    position_ids,
-                    taskname_ids,
-                    speech_mask,
-                ]
-                output_tensor = fwd_bwd_function(
-                    forward_step_func=self.get_forward_output_only_func(),
-                    data_iterator=iter([batch,]),
-                    model=[self],
-                    num_microbatches=get_num_microbatches(),
-                    forward_only=True,
-                    seq_length=t+1,
-                    micro_batch_size=dec_input.shape[0],
-                )
-                output_logits = output_tensor[0]['output_logits']
-                token_and_speech_logits = output_tensor[0]['token_and_speech_logits']
-                # output_logits, _, token_and_speech_logits = self.forward(
-                #     virtual_tokens,
-                #     context_and_question_tokens,
-                #     enc_mask,
-                #     dec_input[:, :, : t + 1],  # Slice until the current timestep
-                #     dec_input_mask[:, : t + 1],
-                #     position_ids,
-                #     taskname_ids,
-                #     labels=None,
-                #     speech_mask=speech_mask,
-                #     inference=True,
-                # )
+                if t == 0:
+                    # Run first step manually
+                    output_logits, _, token_and_speech_logits = self.forward(
+                        virtual_tokens,
+                        context_and_question_tokens,
+                        enc_mask,
+                        dec_input[:, :, : t + 1],  # Slice until the current timestep
+                        dec_input_mask[:, : t + 1],
+                        position_ids,
+                        taskname_ids,
+                        labels=None,
+                        speech_mask=speech_mask,
+                        inference=True,
+                    )
+                    encoder_output = token_and_speech_logits[-1].transpose(0,1)
+                else:
+                    # Prepare batch
+                    batch = [
+                        virtual_tokens,  # unused
+                        encoder_output,
+                        enc_mask,
+                        dec_input[:, :, : t + 1],
+                        dec_input_mask[:, : t + 1],
+                        position_ids,
+                        taskname_ids,
+                        speech_mask,
+                    ]
+                    output_tensor = fwd_bwd_function(
+                        forward_step_func=self.get_forward_output_only_func(),
+                        data_iterator=iter([batch,]),
+                        model=[self],
+                        num_microbatches=get_num_microbatches(),
+                        forward_only=True,
+                        seq_length=t+1,
+                        micro_batch_size=dec_input.shape[0],
+                    )
+                    output_logits = output_tensor[0]['output_logits']
+                    token_and_speech_logits = output_tensor[0]['token_and_speech_logits']
                 # output_logits (B, T, V, 8)
                 token_logits = token_and_speech_logits[0]  # (B, T, V)
                 token_logits_currtimestep = token_logits[:, t, :]  # (B, V)

@@ -868,7 +868,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                         hiddens_dict["output"] = token_logits
                         return hiddens_dict
                     else:
-                        return all_speech_logits, [token_logits, speech_logits, attention_probs]
+                        return all_speech_logits, [token_logits, speech_logits, attention_probs, enc_output]
 
             elif self.add_decoder and not self.add_encoder:
                 decoder_output, _ = output
