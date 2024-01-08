@@ -525,9 +525,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         np.random.seed(random_seed)
         starts = np.random.randint(0, audio_length - duration + 1, size=num_segments)
         for start in starts:
-            audio = audio[start : start + duration]
-
-            _, logits = self.infer_segment(audio)
+            _, logits = self.infer_segment(audio[start : start + duration])
             label_id = logits.argmax(axis=1)
             label_id_list.append(int(label_id[0]))
 
