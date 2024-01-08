@@ -77,5 +77,6 @@ def main(cfg):
         image_num = i + partition_size_per_node * node_id_per_cfg + partition_size_per_task * local_task_id
         image.save(os.path.join(save_path, f'image{image_num:06d}.png'))
 
+
 if __name__ == "__main__":
     main()

@@ -30,7 +30,9 @@ def main(cfg):
         model_cfg.precision = cfg.trainer.precision
         model_cfg.ckpt_path = None
         model_cfg.inductor = False
-        model_cfg.target = 'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
+        model_cfg.target = (
+            'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
+        )
         if cfg.model.unet_config.from_pretrained:
             model_cfg.unet_config.from_pretrained = cfg.model.unet_config.from_pretrained
 

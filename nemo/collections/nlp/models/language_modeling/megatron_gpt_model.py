@@ -455,7 +455,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
                     for layer in layers:
                         stage_bucket.extend(
-                            p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
+                            p
+                            for p in layer.parameters()
+                            if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
                         )
                     buckets.append(stage_bucket)
             else:
@@ -467,7 +469,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
                     for layer in layers:
                         buckets.append(
-                            [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad]
+                            [
+                                p
+                                for p in layer.parameters()
+                                if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
+                            ]
                         )
             buckets.reverse()
             used_params = set()

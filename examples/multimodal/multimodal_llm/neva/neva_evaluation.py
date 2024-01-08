@@ -150,7 +150,7 @@ class RequestDataSet(Dataset):
         super().__init__()
         self.sentences = sentences
 
-    def __len__(self, ):
+    def __len__(self,):
         return len(self.sentences)
 
     def __getitem__(self, idx):

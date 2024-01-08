@@ -299,7 +299,9 @@ class VitBackbone(MegatronModule):
         """See megatron.model.transformer.set_input_tensor()"""
         self.transformer.set_input_tensor(input_tensor)
 
-    def interpolate_pos_encoding(self, x,):
+    def interpolate_pos_encoding(
+        self, x,
+    ):
         output_seq_len = x.shape[1]
         assert isPerfectSquare(output_seq_len - self.class_token_length)
 
@@ -309,8 +311,8 @@ class VitBackbone(MegatronModule):
         if num_tok_input == num_tok_output:
             return self.position_embeddings
 
-        embed_tok = self.position_embeddings[:self.class_token_length]
-        embed_grid = self.position_embeddings[self.class_token_length:]
+        embed_tok = self.position_embeddings[: self.class_token_length]
+        embed_grid = self.position_embeddings[self.class_token_length :]
 
         gs_new = int(math.sqrt(num_tok_output))
         gs_input = (self.num_patches_per_dim_h, self.num_patches_per_dim_w)

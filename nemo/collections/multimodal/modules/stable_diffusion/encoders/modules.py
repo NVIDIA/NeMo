@@ -28,15 +28,14 @@ from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer
     TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 )
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.utils import logging
-
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     ParallelLinearAdapterConfig,
 )
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core import adapter_mixins
+from nemo.utils import logging
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
@@ -53,23 +52,25 @@ except (ImportError, ModuleNotFoundError):
 class AbstractEncoder(nn.Module):
     def __init__(self, enable_lora_finetune=False, target_block=[], target_module=[]):
         super().__init__()
-        self.TARGET_BLOCK = target_block 
+        self.TARGET_BLOCK = target_block
         self.TARGET_MODULE = target_module
         if enable_lora_finetune:
             self.lora_layers = []
 
     def encode(self, *args, **kwargs):
         raise NotImplementedError
-    
+
     def _enable_lora(self, lora_model):
         for module_name, module in lora_model.named_modules():
             if module.__class__.__name__ in self.TARGET_BLOCK:
-                tmp = {} 
+                tmp = {}
                 for sub_name, sub_module in module.named_modules():
                     if sub_module.__class__.__name__ in self.TARGET_MODULE:
-                        if hasattr(sub_module, "input_size") and hasattr(sub_module, "output_size"): # for megatron ParallelLinear
+                        if hasattr(sub_module, "input_size") and hasattr(
+                            sub_module, "output_size"
+                        ):  # for megatron ParallelLinear
                             lora = LoraWrapper(sub_module, sub_module.input_size, sub_module.output_size)
-                        else: # for nn.Linear
+                        else:  # for nn.Linear
                             lora = LoraWrapper(sub_module, sub_module.in_features, sub_module.out_features)
                         self.lora_layers.append(lora)
                         if sub_name not in tmp.keys():
@@ -79,7 +80,6 @@ class AbstractEncoder(nn.Module):
                 for sub_name, lora_layer in tmp.items():
                     lora_name = f'{sub_name}_lora'
                     module.add_module(lora_name, lora_layer)
-
 
 
 class ClassEmbedder(nn.Module):
@@ -214,6 +214,7 @@ class SpatialRescaler(nn.Module):
     def encode(self, x):
         return self(x)
 
+
 class LoraWrapper(nn.Module, adapter_mixins.AdapterModuleMixin):
     def __init__(self, target_module, in_features, out_features, lora_network_alpha=None):
         super().__init__()
@@ -242,7 +243,7 @@ class LoraWrapper(nn.Module, adapter_mixins.AdapterModuleMixin):
             else:
                 org_results = mixed_x
 
-        return org_results 
+        return org_results
 
     def add_adapter(self, name, cfg, **kwargs):
         self.lora_network_alpha = cfg.network_alpha
@@ -252,15 +253,14 @@ class LoraWrapper(nn.Module, adapter_mixins.AdapterModuleMixin):
         self.target_module.forward = self.forward
         del self.target_module
 
+
 class FrozenCLIPEmbedder(AbstractEncoder):
     """Uses the CLIP transformer encoder for text (from Hugging Face)"""
 
     def __init__(
         self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77, enable_lora_finetune=False
     ):
-        super().__init__(enable_lora_finetune,
-                         target_block=["CLIPAttention", "CLIPMLP"], 
-                         target_module=["Linear"])
+        super().__init__(enable_lora_finetune, target_block=["CLIPAttention", "CLIPMLP"], target_module=["Linear"])
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
         self.transformer = CLIPTextModel.from_pretrained(version)
         self.device = device
@@ -297,7 +297,7 @@ class FrozenCLIPEmbedder(AbstractEncoder):
 
     def encode(self, text):
         return self(text)
-    
+
 
 class FrozenOpenCLIPEmbedder(AbstractEncoder):
     """
@@ -380,11 +380,21 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
 
 
 class FrozenMegatronCLIPEmbedder(AbstractEncoder):
-
-    def __init__(self, restore_from_path, device="cuda", layer="last", freeze=True, cfg=None, use_fp16=False, enable_lora_finetune=False):
-        super().__init__(enable_lora_finetune=enable_lora_finetune,
-                        target_block=["ParallelAttention", "ParallelMLP"],
-                        target_module=["ColumnParallelLinear", "RowParallelLinear"])
+    def __init__(
+        self,
+        restore_from_path,
+        device="cuda",
+        layer="last",
+        freeze=True,
+        cfg=None,
+        use_fp16=False,
+        enable_lora_finetune=False,
+    ):
+        super().__init__(
+            enable_lora_finetune=enable_lora_finetune,
+            target_block=["ParallelAttention", "ParallelMLP"],
+            target_module=["ColumnParallelLinear", "RowParallelLinear"],
+        )
         if restore_from_path is not None:
             cfg, state_dict = self.load_config_and_state_from_nemo(restore_from_path)
         elif cfg is not None:

@@ -12,20 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import tempfile
 from typing import Any, Callable, Tuple
 
 import torch
-from omegaconf import DictConfig, open_dict
-import tempfile
 from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.utils import AppState, logging
 from transformers import CLIPImageProcessor
+
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
+from nemo.utils import AppState, logging
 
 try:
     from megatron.core import dist_checkpointing
@@ -125,9 +124,7 @@ def load_nemo_model_weights(nemo_path, sharded_state_dict=None):
             else:
                 model_weights = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
 
-            state_dict = save_restore_connector._load_state_dict_from_disk(
-                model_weights, map_location=map_location
-            )
+            state_dict = save_restore_connector._load_state_dict_from_disk(model_weights, map_location=map_location)
 
             # distributed checkpointing
             if state_dict is None and sharded_state_dict is not None:
@@ -317,6 +314,7 @@ def setup_trainer_and_model_for_inference(
     # Return the trainer and model objects.
     return trainer, model
 
+
 def create_neva_model_and_processor(cfg):
     from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 
@@ -425,9 +423,7 @@ def create_neva_model_and_processor(cfg):
                 neva_cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
         else:
-            processor = CLIPImageProcessor.from_pretrained(
-                "openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16
-            )
+            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16)
 
         if neva_cfg.data.image_aspect_ratio == 'keep':
             max_hw, min_hw = max(image.size), min(image.size)
