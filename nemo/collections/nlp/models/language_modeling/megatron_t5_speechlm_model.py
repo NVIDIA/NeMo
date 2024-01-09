@@ -259,6 +259,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         inference_step=0,
         cross_attention_prior=None,
         text_limits=None,
+        decoder_max_sequence_len=None,
+        encoder_max_sequence_len=None,
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
@@ -323,6 +325,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     cross_attention_prior=cross_attention_prior,
                     text_limits=text_limits,
                     global_step=self.global_step,
+                    set_inference_key_value_memory=True if inference and inference_step == 0 else False,
+                    decoder_max_sequence_len=decoder_max_sequence_len,
+                    encoder_max_sequence_len=encoder_max_sequence_len,
                 )
 
         return output, encoder_input, out_logits
@@ -625,9 +630,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         """ Used in inference / predict """
         def fwd_output_only_func(dataloader_iter, model):
             batch = next(dataloader_iter)
-            batch = [x.cuda(non_blocking=True) for x in batch]
+            batch = [x.cuda(non_blocking=True) if isinstance(x, torch.Tensor) else x for x in batch]
             (
-                virtual_tokens,
+                decoder_max_sequence_len,
+                encoder_max_sequence_len,
                 context_and_question_tokens,
                 enc_mask,
                 dec_input,
@@ -638,7 +644,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             ) = batch
 
             output_logits, _, token_and_speech_logits = model(
-                virtual_tokens,
+                context_and_question_tokens,
                 context_and_question_tokens,
                 enc_mask,
                 dec_input,
@@ -649,6 +655,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 speech_mask=speech_mask,
                 inference=True,
                 inference_step=1,
+                decoder_max_sequence_len=decoder_max_sequence_len,
+                encoder_max_sequence_len=encoder_max_sequence_len,
             )
             output_tensor = [output_logits, token_and_speech_logits]
 
@@ -1323,6 +1331,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             # pad dec_input (B, 8, T) to 1000 timesteps
             max_inference_timesteps = self.cfg.get('max_inference_timesteps', 1200)
             dec_input = torch.nn.functional.pad(dec_input, (0, max_inference_timesteps - dec_input.shape[2]), value=0)
+            dec_input[:,:,1:].zero_()
             dec_input_mask = torch.nn.functional.pad(
                 dec_input_mask, (0, max_inference_timesteps - dec_input_mask.shape[1]), value=1
             )
@@ -1336,28 +1345,35 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 if t == end_inference_loop_at:
                     print("All ends detected")
                     break
+                # print(t)
+                # print(dec_input[:, :, : t + 1].shape)
+                # print(dec_input_mask[:, : t + 1].shape)
+                # import ipdb; ipdb.set_trace()
                 if t == 0:
                     # Run first step manually
                     output_logits, _, token_and_speech_logits = self.forward(
                         virtual_tokens,
                         context_and_question_tokens,
                         enc_mask,
-                        dec_input[:, :, : t + 1],  # Slice until the current timestep
+                        dec_input[:, :, :t+1],
                         dec_input_mask[:, : t + 1],
                         position_ids,
                         taskname_ids,
                         labels=None,
                         speech_mask=speech_mask,
                         inference=True,
+                        decoder_max_sequence_len=max_inference_timesteps,
+                        encoder_max_sequence_len=enc_mask.size(1),
                     )
                     encoder_output = token_and_speech_logits[-1].transpose(0,1)
                 else:
                     # Prepare batch
                     batch = [
-                        virtual_tokens,  # unused
+                        max_inference_timesteps,
+                        enc_mask.size(1),
                         encoder_output,
                         enc_mask,
-                        dec_input[:, :, : t + 1],
+                        dec_input[:, :, t].unsqueeze(-1),
                         dec_input_mask[:, : t + 1],
                         position_ids,
                         taskname_ids,
@@ -1369,21 +1385,21 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         model=[self],
                         num_microbatches=get_num_microbatches(),
                         forward_only=True,
-                        seq_length=t+1,
+                        seq_length=t,
                         micro_batch_size=dec_input.shape[0],
                     )
                     output_logits = output_tensor[0]['output_logits']
                     token_and_speech_logits = output_tensor[0]['token_and_speech_logits']
                 # output_logits (B, T, V, 8)
                 token_logits = token_and_speech_logits[0]  # (B, T, V)
-                token_logits_currtimestep = token_logits[:, t, :]  # (B, V)
+                token_logits_currtimestep = token_logits[:, -1, :]  # (B, V)
                 token_preds = token_logits_currtimestep.argmax(dim=1)  # (B,)
                 # logging.info(f"Token preds {token_preds}")
 
                 if torch.count_nonzero(speech_mask) > 0:
                     # output_logits (B, T, V, 8)
                     output_logits_currtimestep = (
-                        output_logits[:, t, :, :].permute(0, 2, 1).contiguous().view(-1, self.speech_codebook_size)
+                        output_logits[:, -1, :, :].permute(0, 2, 1).contiguous().view(-1, self.speech_codebook_size)
                     )  # (B*8, V)
                 else:
                     output_logits_currtimestep = token_logits_currtimestep  # (B, V)

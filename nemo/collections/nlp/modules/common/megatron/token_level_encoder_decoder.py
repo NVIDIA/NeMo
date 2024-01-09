@@ -555,6 +555,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
         text_limits=None,
         global_step=None,
         set_inference_key_value_memory=False,
+        decoder_max_sequence_len=None,
+        encoder_max_sequence_len=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -617,6 +619,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
 
         if output_enc_hidden_only:
             # When pipeline parallel > 1 we need to make sure encoder exist (will be missing in decoder)
+            # Speecht5 should not go here for inference
             if enc_output is None and self.enc_dec_model.encoder is not None:
                 enc_output = self.enc_dec_model.encode(
                     enc_input=enc_input,
@@ -704,6 +707,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 return_all_crossattention_probs=return_all_crossattention_probs,
                 batch_data=batch_data,
                 set_inference_key_value_memory=set_inference_key_value_memory,
+                decoder_max_sequence_len=decoder_max_sequence_len,
+                encoder_max_sequence_len=encoder_max_sequence_len,
             )
 
             alignment_loss = None

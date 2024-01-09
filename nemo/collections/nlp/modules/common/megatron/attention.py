@@ -401,7 +401,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         # Some consistency check.
         if inference_max_sequence_len:
-            assert self.inference_current_sequence_len < self.inference_key_memory.size(0)
+            assert self.inference_current_sequence_len <= self.inference_key_memory.size(0)
             assert inference_max_sequence_len == self.inference_key_memory.size(0)
         # This is added for safety. In case inference_max_sequence_len
         # is not provided, make sure there is no potential memory left
@@ -438,26 +438,32 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             )
         else:
             # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
-            mixed_kv_layer, _ = self.key_value(encoder_output)
-            if self.is_adapter_available():
-                lora_kv_adapter = self.get_adapter_module(AdapterName.LORA_KV_ADAPTER)
-                if lora_kv_adapter:
-                    lora_mixed_kv_layer = lora_kv_adapter(encoder_output)
-                    mixed_kv_layer = mixed_kv_layer + lora_mixed_kv_layer
+            if self.inference_current_sequence_len < inference_max_sequence_len:
+                mixed_kv_layer, _ = self.key_value(encoder_output)
+                if self.is_adapter_available():
+                    lora_kv_adapter = self.get_adapter_module(AdapterName.LORA_KV_ADAPTER)
+                    if lora_kv_adapter:
+                        lora_mixed_kv_layer = lora_kv_adapter(encoder_output)
+                        mixed_kv_layer = mixed_kv_layer + lora_mixed_kv_layer
 
-            # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
-            new_tensor_shape = mixed_kv_layer.size()[:-1] + (
-                self.num_attention_heads_per_partition,
-                2 * self.hidden_size_per_attention_head,
-            )
-            if self.megatron_legacy:
-                mixed_kv_layer = self._transpose_last_dim(mixed_kv_layer, 2, True)
-            mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
+                # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
+                new_tensor_shape = mixed_kv_layer.size()[:-1] + (
+                    self.num_attention_heads_per_partition,
+                    2 * self.hidden_size_per_attention_head,
+                )
+                if self.megatron_legacy:
+                    mixed_kv_layer = self._transpose_last_dim(mixed_kv_layer, 2, True)
+                mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
 
-            # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
-            (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(
-                mixed_kv_layer, 2, contiguous_split_chunks=True
-            )
+                # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
+                (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(
+                    mixed_kv_layer, 2, contiguous_split_chunks=True
+                )
+            else:
+                key_layer = self.inference_key_memory[:self.inference_current_sequence_len, ...]
+                value_layer = self.inference_value_memory[:self.inference_current_sequence_len, ...]
+                if attention_mask is not None:
+                    attention_mask = attention_mask[..., -1, :].unsqueeze(-2)
 
             # Attention head [sq, b, h] --> [sq, b, hp]
             query_layer, _ = self.query(hidden_states)
@@ -493,7 +499,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if rotary_pos_emb is not None:
             rotary_pos_emb = rotary_pos_emb if isinstance(rotary_pos_emb, tuple) else ((rotary_pos_emb,) * 2)
 
-        if inference_max_sequence_len:
+        # If we are in cross attention, we only need to cache this once so add second check
+        if inference_max_sequence_len and self.inference_current_sequence_len < inference_max_sequence_len:
+            # print(f"{self.inference_current_sequence_len}|{key_layer.shape}")
             # Adjust the range variables.
             start = self.inference_current_sequence_len
             self.inference_current_sequence_len += key_layer.size(0)
@@ -949,7 +957,6 @@ class CoreAttention(MegatronModule):
             return context_layer
 
     def torch_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode, return_scores=False):
-        # import ipdb; ipdb.set_trace()
         sq, b, np, hn = query_layer.shape
         sk = key_layer.shape[0]
 
@@ -1013,7 +1020,6 @@ class CoreAttention(MegatronModule):
         # print(f"b: {torch.max(torch.exp(torch.logsumexp(attention_bias, -1)))}")
         # # print(f"c: {torch.max(torch.exp(torch.logsumexp(attention_scores, -1)))}")
         # print(f"d: {torch.max(torch.sum(_attention_probs, -1))}")
-        # # import ipdb; ipdb.set_trace()
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
 

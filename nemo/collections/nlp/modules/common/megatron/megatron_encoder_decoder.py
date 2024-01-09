@@ -127,7 +127,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_get_key_value=False,
         enc_self_attention_relative_position_bias=None,
         batch_data=None,
-        set_inference_key_value_memory=False,
     ):
         """Encodes embedder input using encoder"""
         if self.encoder is None:
@@ -138,7 +137,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             layer_past=enc_layer_past,
             get_key_value=enc_get_key_value,
             enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
-            set_inference_key_value_memory=set_inference_key_value_memory,
         )
 
         # apply hidden transformations if needed
@@ -161,6 +159,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_cross_attention_relative_position_bias=None,
         return_all_crossattention_probs=False,
         set_inference_key_value_memory=False,
+        decoder_max_sequence_len=None,
+        encoder_max_sequence_len=None,
     ):
         if self.decoder is None:
             raise ValueError(f"Cannot call .decode(...) when self.decoder is None.")
@@ -176,6 +176,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
             return_all_crossattention_probs=return_all_crossattention_probs,
             set_inference_key_value_memory=set_inference_key_value_memory,
+            decoder_max_sequence_len=decoder_max_sequence_len,
+            encoder_max_sequence_len=encoder_max_sequence_len,
         )
 
         return dec_output
@@ -199,6 +201,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         batch_data=None,
         return_all_crossattention_probs=False,
         set_inference_key_value_memory=False,
+        decoder_max_sequence_len=None,
+        encoder_max_sequence_len=None,
     ):
         # encoder
         if enc_output is None:
@@ -210,8 +214,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                     enc_get_key_value=enc_get_key_value,
                     enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
                     batch_data=batch_data,
-                    set_inference_key_value_memory=set_inference_key_value_memory,
-                    # inference_max_sequence_len=inference_max_sequence_len,
                 )
             else:
                 assert self.encoder_hidden_state is not None
@@ -239,7 +241,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
             return_all_crossattention_probs=return_all_crossattention_probs,
             set_inference_key_value_memory=set_inference_key_value_memory,
-            # inference_max_sequence_len=inference_max_sequence_len,
+            decoder_max_sequence_len=decoder_max_sequence_len,
+            encoder_max_sequence_len=encoder_max_sequence_len,
         )
 
         # if self.hiddens_module is not None enc_output is a dict, else it is a torch.tensor
