@@ -16,7 +16,7 @@ engine:
         decoder_type: null # Used for hybrid CTC RNNT model only. Specify decoder_type *ctc* or *rnnt* for hybrid CTC RNNT model.
         beam_search:
             beam_size: 1
-            len_pen: 0.0
+            len_pen: 1.0
    
     test_ds:
         manifest_filepath: null
