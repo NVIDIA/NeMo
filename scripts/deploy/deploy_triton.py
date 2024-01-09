@@ -160,6 +160,15 @@ def get_args(argv):
         help="Disable fused Context MultiHeadedAttention (required for V100 support)."
     )
     parser.add_argument(
+        "-mbm",
+        '--multi_block_mode',
+        default=False,
+        action='store_true',
+        help=
+        'Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
+                        It is beneifical when batchxnum_heads cannot fully utilize GPU.'
+    )
+    parser.add_argument(
         "-dm",
         "--debug_mode",
         default="False",
@@ -267,7 +276,8 @@ def nemo_deploy(argv):
                 max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
                 paged_kv_cache=args.use_paged_kv_cache,
                 enable_context_fmha=not args.disable_context_fmha,
-                dtype=args.dtype
+                dtype=args.dtype,
+                enable_multi_block_mode=args.multi_block_mode,
             )
         except Exception as error:
             LOGGER.error("An error has occurred during the model export. Error message: " + str(error))

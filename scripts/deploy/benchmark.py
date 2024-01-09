@@ -121,7 +121,8 @@ def nemo_deploy(args):
                 max_output_token=args.max_output_len,
                 max_batch_size=args.max_batch_size,
                 max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
-                dtype=args.dtype
+                dtype=args.dtype,
+                enable_multi_block_mode=args.multi_block_mode,
             )
         except Exception as error:
             LOGGER.error("An error has occurred during the model export. Error message: " + str(error))
@@ -379,7 +380,6 @@ def get_args(argv):
         default=False,
         help='Enable warm_up before benchmark'
     )
-
     parser.add_argument(
         '-bs',
         '--batch_size',
@@ -387,6 +387,15 @@ def get_args(argv):
         default=["1", "2", "4", "8"],
         required=False,
         help='Specify batch size'
+    )
+    parser.add_argument(
+        "-mbm",
+        '--multi_block_mode',
+        default=False,
+        action='store_true',
+        help=
+        'Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
+                        It is beneifical when batchxnum_heads cannot fully utilize GPU.'
     )
     parser.add_argument(
         '-ol',
