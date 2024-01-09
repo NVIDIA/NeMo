@@ -31,6 +31,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import (
     T5SpeechLMDataset,
+    Lang
     # phoneme_tokenizer,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_tarred_dataset import T5SpeechLMTarredDataset
@@ -445,6 +446,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 _,
                 cross_attention_prior,
                 text_limits,
+                _,  # TODO: text limit and lang not in tarred dataset
             ) = batch
 
             if self.trainer.global_step % self.train_check_interval == 0 and not validation_step and self.is_rank_zero:
@@ -784,6 +786,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             _,
             cross_attention_prior,
             text_limits,
+            _,
         ) = batch
         # loss_mask (b, t)
         # does not use dataloader_iter due to device placement issues arising from PTL
@@ -1321,6 +1324,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 _,
                 cross_attention_prior,
                 text_limits,
+                lang,
             ) = batch
             dec_input = dec_input_raw * 1  # (B, 8, T)
             dec_input_mask = dec_input_mask_raw * 1  # (B, T)
@@ -1466,11 +1470,14 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             nemo_sv_model = nemo_sv_model.to(device)
             nemo_sv_model.eval()
 
-            asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(
-                model_name="stt_en_conformer_transducer_large"
-            )
+            asr_model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.from_pretrained(model_name="stt_multilingual_fastconformer_hybrid_large_pc_blend_eu")
             asr_model = asr_model.to(device)
             asr_model.eval()
+            asr_model_zh = None
+            if Lang.zh.value in lang:
+                asr_model_zh = nemo_asr.models.EncDecRNNTModel.from_pretrained(model_name="stt_zh_conformer_transducer_large")
+                asr_model_zh = asr_model_zh.to(device)
+                asr_model_zh.eval()
             _exp_dir_path = self.logger.log_dir
             _exp_dir_path = _exp_dir_path + '/Sample_Audios'
             if not os.path.exists(_exp_dir_path):
@@ -1511,6 +1518,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     )
 
                     # save predicted_wav and gt_wav to a wav files in dir_path
+                    asr_model_i = asr_model_zh if lang[i] == Lang.zh.value else asr_model
                     audio_fp_pred = os.path.join(_exp_dir_path, f'predicted_wav_{step}.wav')
                     sf.write(audio_fp_pred, predicted_wav.cpu().numpy(), self.sample_rate)
                     audio_fp_gt = os.path.join(_exp_dir_path, f'dec_input_wav_{step}.wav')
@@ -1528,8 +1536,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     similarity_list.append(similarity)
 
                     # transcribe predicted_wav and gt_wav using asr_model
-                    pred_transcript = asr_model.transcribe([audio_fp_pred])[0][0]
-                    gt_transcript = asr_model.transcribe([audio_fp_gt])[0][0]
+                    pred_transcript = asr_model_i.transcribe([audio_fp_pred])[0][0]
+                    gt_transcript = asr_model_i.transcribe([audio_fp_gt])[0][0]
                     self.logger.experiment.add_text("Inf Predicted Text", pred_transcript, step)
                     self.logger.experiment.add_text("Inf GT Text", gt_transcript, step)
                     hyp_pred_transcript_list.append(pred_transcript)

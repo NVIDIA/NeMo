@@ -20,6 +20,7 @@ from itertools import filterfalse
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 import math
+import enum
 
 import numpy as np
 import torch
@@ -82,6 +83,12 @@ def pad_text_to_speech_dims(text_tensor, pad_id, pad_size=7):
 
 # tokenizer_config = _get_default_text_tokenizer_conf()
 # phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
+
+class Lang(enum.Enum):
+    en = 1
+    es = 2
+    fr = 3
+    zh = 4
 
 class T5SpeechLMDataset(BasePromptLearningDataset):
     """
@@ -355,7 +362,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         # Format the input example according to the template
         # Get context, question and answer codes in a dict.
-        input_dict = self._insert_data_in_template(input_example, prompt_template_fields, doc, answer_field)
+        input_dict = self._insert_data_in_template(prompt_template_fields, doc, answer_field)
+        lang = Lang[doc.get("lang", "en")]
         context_tokens = input_dict['context']
         question_tokens = input_dict['question']
 
@@ -533,6 +541,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 dec_labels_len,
                 is_speech,
                 cross_attention_prior,
+                lang.value
             )
 
     def _truncate_input_speech(self, context_tokens, question_tokens, virtual_tokens):
@@ -802,7 +811,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         return field_tokens
 
 
-    def _insert_data_in_template(self, input_example, prompt_template_fields, doc, answer_field):
+    def _insert_data_in_template(self, prompt_template_fields, doc, answer_field):
         """ Format the input example according to the template """
         out_dict = {}
         for field in prompt_template_fields:
@@ -855,6 +864,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             data_dict['context_and_question_tokens_lens'],
             data_dict['cross_attention_prior'],
             data_dict['text_limits'],
+            data_dict['lang']
         )
 
     def pad_batch_and_build_loss_mask(self, batch):
@@ -870,6 +880,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             dec_input_len,
             _,
             dec_labels_len,
+            _,
             _,
             _,
         ) = zip(*batch)
@@ -902,6 +913,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             speech_mask_list,
             cross_attention_prior_list,
             text_limits,
+            lang_list,
         ) = (
             [],
             [],
@@ -911,7 +923,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             [],
             [],
             [],
-            []
+            [],
+            [],
         )
 
         for i, sample_tuple in enumerate(batch):
@@ -928,6 +941,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 dec_label_len,
                 is_speech,
                 cross_attention_prior,
+                lang,
             ) = sample_tuple
 
             virtual_tokens_list.append(
@@ -991,6 +1005,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 _start_of_text_id = virtual_token_len + context_token_len + 4
                 _end_of_text_id = _start_of_text_id + (context_and_question_token_len - context_token_len - 2 - 4) # -2 for some end tokens
                 text_limits.append(torch.tensor([_start_of_text_id.item(), _end_of_text_id.item()]))
+                lang_list.append(torch.tensor(lang))
 
         data_dict = {
             "taskname_id": taskname_ids,
@@ -1007,6 +1022,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             if len(cross_attention_prior_list) > 0
             else None,
             "text_limits": torch.stack(text_limits) if len(text_limits) > 0 else None,
+            "lang": torch.stack(lang_list)
         }
 
         return data_dict
@@ -1037,7 +1053,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
 
         # Format the input example according to the template
         # Get context, question and answer codes in a dict.
-        input_dict = self._insert_data_in_template(input_example, prompt_template_fields, doc, answer_field)
+        input_dict = self._insert_data_in_template(prompt_template_fields, doc, answer_field)
         context_tokens = input_dict['context']
         question_tokens = input_dict['question']
 
