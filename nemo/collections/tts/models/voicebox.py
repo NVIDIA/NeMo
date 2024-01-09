@@ -451,7 +451,7 @@ class VoiceboxModel(TextToWaveform):
             cond, cond_mask = outputs['vb']["cond"], outputs['vb']["cond_mask"]
             cond = cond * ~cond_mask
             σ = self.cfm_wrapper.sigma
-            pred_x1 = pred_dx + (1 - σ) * x0
+            pred_x1 = pred_dx + (1 - σ) * x0 if not self.voicebox.no_diffusion else pred_dx
             tb_writer.add_image("train_vb/x1", plot_spectrogram_to_numpy(x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
             tb_writer.add_image("train_vb/xt", plot_spectrogram_to_numpy(w[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
             tb_writer.add_image("train_vb/cond", plot_spectrogram_to_numpy(cond[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
