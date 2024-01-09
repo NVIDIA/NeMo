@@ -41,18 +41,12 @@ def get_audio_data(audio_path, device):
     audio_len = torch.tensor(audio.shape[1], device=device).unsqueeze(0)
     return audio, audio_len, orig_sr
 
-def get_textgrid_data(textgrid_path):
+def get_textgrid_data(textgrid_path, use_word_postfix=False, use_word_ghost_silence=False):
     tg = TextGrid()
     tg.read(textgrid_path)
     phn_dur = []
     word_dur = []
     for tier in tg.tiers:
-        if tier.name == "words":
-            for interval in tier.intervals:
-                minTime = interval.minTime
-                maxTime = interval.maxTime
-                word = interval.mark
-                word_dur.append((word, minTime, maxTime))
         if tier.name == "phones":
             for interval in tier.intervals:
                 minTime = interval.minTime
@@ -61,6 +55,63 @@ def get_textgrid_data(textgrid_path):
                 if phoneme == "":
                     phoneme = "sil"
                 phn_dur.append((phoneme, minTime, maxTime))
+
+    w2pids = []
+    phn_id = 0
+    for tier in tg.tiers:
+        if tier.name == "words":
+            for interval in tier.intervals:
+                minTime = interval.minTime
+                maxTime = interval.maxTime
+                word = interval.mark
+                word_dur.append((word, minTime, maxTime))
+
+                if use_word_postfix:
+                    wrd = word
+                    if wrd in ["", "sil", "<eps>"]:
+                        wrd = "<eps>"
+                    if wrd in ["spn", "<unk>"]:
+                        wrd = "<unk>"
+                    w2pids.append([wrd, []])
+                    wrd_st = minTime
+                    wrd_ed = maxTime
+
+                    phn_st = phn_dur[phn_id][1]
+                    phn_ed = phn_dur[phn_id][2]
+                    while phn_st >= wrd_st and phn_ed <= wrd_ed:
+                        w2pids[-1][-1].append(phn_id)
+                        phn_id += 1
+                        if phn_id < len(phn_dur):
+                            phn_st = phn_dur[phn_id][1]
+                            phn_ed = phn_dur[phn_id][2]
+                        else:
+                            break
+
+    if use_word_postfix or use_word_ghost_silence:
+        new_phn_dur = []
+        _wrd = "<eps>"
+        for wrd, phn_ids in w2pids:
+            if use_word_ghost_silence and len(new_phn_dur) > 0:
+                if wrd != "<eps>" and _wrd != "<eps>":
+                    if use_word_postfix:
+                        new_phn_dur.append(("sil_S", phn_dur[phn_ids[0]][1], phn_dur[phn_ids[0]][1]))
+                    else:
+                        new_phn_dur.append(("sil", phn_dur[phn_ids[0]][1], phn_dur[phn_ids[0]][1]))
+                _wrd = wrd
+
+            postfixs = [""] * len(phn_ids)
+            if use_word_postfix:
+                if len(phn_ids) == 1:
+                    postfixs = ["_S"]
+                else:
+                    postfixs = ["_B"] + ["_I"] * (len(phn_ids)-2) + ["_E"]
+
+            _dur = []
+            for phn_id, postfix in zip(phn_ids, postfixs):
+                _dur.append((phn_dur[phn_id][0] + postfix, phn_dur[phn_id][1], phn_dur[phn_id][2]))
+            new_phn_dur += _dur
+        phn_dur = new_phn_dur
+
     text = ' '.join([w for w, *_ in word_dur]).strip()
     return phn_dur, word_dur, text
 
@@ -196,8 +247,8 @@ def audio_frame_mask_by_phn(ori_audio, model, ori_phn_dur, ori_phn_mask, new_phn
 
 def get_edit_data(model, device, ori_audio_path, ori_textgrid_path, tgt_textgrid_path, ori_word_mask=None, tgt_word_mask=None):
     ori_audio, ori_audio_len, orig_sr = get_audio_data(ori_audio_path, device)
-    ori_phn_dur, ori_word_dur, ori_text = get_textgrid_data(ori_textgrid_path)
-    tgt_phn_dur, tgt_word_dur, tgt_text = get_textgrid_data(tgt_textgrid_path)
+    ori_phn_dur, ori_word_dur, ori_text = get_textgrid_data(ori_textgrid_path, getattr(model.tokenizer, "use_word_postfix", False), getattr(model.tokenizer, "use_word_ghost_sil", False))
+    tgt_phn_dur, tgt_word_dur, tgt_text = get_textgrid_data(tgt_textgrid_path, getattr(model.tokenizer, "use_word_postfix", False), getattr(model.tokenizer, "use_word_ghost_sil", False))
     if not ori_word_mask or not tgt_word_mask:
         ori_word_mask, tgt_word_mask = find_overlap(ori_word_dur=ori_word_dur, tgt_word_dur=tgt_word_dur)
         # new_word_dur, new_word_mask, _ = combine_masked_dur(ori_word_dur=ori_word_dur, tgt_word_dur=tgt_word_dur, ori_word_mask=ori_word_mask, tgt_word_mask=tgt_word_mask)
