@@ -27,7 +27,7 @@ from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
-from nemo.collections.common.data import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 

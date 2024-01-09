@@ -13,4 +13,3 @@
 # limitations under the License.
 
 from nemo.collections.common.data.dataset import CodeSwitchedDataset, ConcatDataset, ConcatMapDataset
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config, read_cutset_from_config
