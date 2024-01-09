@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .cutset import read_cutset_from_config
-from .dataloader import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
+from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config

@@ -90,7 +90,6 @@ RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-chec
 RUN pip install flash-attn
 # install numba for latest containers
 RUN pip install numba>=0.57.1
-RUN pip install pyloudnorm
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/

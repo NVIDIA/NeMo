@@ -15,7 +15,11 @@
 from typing import Dict, Optional, Tuple
 
 import torch.utils.data
+from lhotse.dataset import AudioSamples
+from lhotse.dataset.collation import collate_vectors
 
+from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 
 
@@ -40,15 +44,11 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
         }
 
     def __init__(self, tokenizer):
-        from lhotse.dataset import AudioSamples
-
         super().__init__()
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
 
     def __getitem__(self, cuts) -> Tuple[torch.Tensor, ...]:
-        from lhotse.dataset.collation import collate_vectors
-
         audio, audio_lens, cuts = self.load_audio(cuts)
         tokens = [torch.as_tensor(self.tokenizer(c.supervisions[0].text, c.supervisions[0].language)) for c in cuts]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
@@ -62,9 +62,6 @@ class TokenizerWrapper:
     """
 
     def __init__(self, tokenizer):
-        from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
-        from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-
         self._tokenizer = tokenizer
         if isinstance(tokenizer, AggregateTokenizer):
             self._impl = self._call_agg_tokenizer

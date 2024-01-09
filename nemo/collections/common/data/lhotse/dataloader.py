@@ -18,7 +18,15 @@ import warnings
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
-import torch.utils
+import torch
+from lhotse import CutSet
+from lhotse.dataset import (
+    CutConcatenate,
+    DynamicBucketingSampler,
+    DynamicCutSampler,
+    IterableDatasetWrapper,
+    make_worker_init_fn,
+)
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
@@ -87,7 +95,9 @@ class LhotseDataLoadingConfig:
     lang_field: str = "lang"  # key to read the language tag from
 
 
-def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int, dataset: torch.utils.data.Dataset):
+def get_lhotse_dataloader_from_config(
+    config, global_rank: int, world_size: int, dataset: torch.utils.data.Dataset
+) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
 
@@ -103,15 +113,6 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
     which is constructed from just a tokenizer and essentially loads and collates audio and tokenizes the transcript.
     """
     logging.info("We will be using a Lhotse DataLoader.")
-
-    from lhotse import CutSet
-    from lhotse.dataset import (
-        CutConcatenate,
-        DynamicBucketingSampler,
-        DynamicCutSampler,
-        IterableDatasetWrapper,
-        make_worker_init_fn,
-    )
 
     config = make_structured_with_schema_warnings(config)
 

@@ -15,14 +15,14 @@
 import logging
 import warnings
 from pathlib import Path
-from typing import Any, NewType, Sequence, Tuple
+from typing import Sequence, Tuple
+
+from lhotse import CutSet
 
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
 
-LhotseCutSet = NewType("LhotseCutSet", Any)  # Indicate return type without importing Lhotse.
 
-
-def read_cutset_from_config(config) -> Tuple[LhotseCutSet, bool]:
+def read_cutset_from_config(config) -> Tuple[CutSet, bool]:
     """
     Reads NeMo configuration and creates a CutSet either from Lhotse or NeMo manifests.
 
@@ -46,8 +46,7 @@ def read_cutset_from_config(config) -> Tuple[LhotseCutSet, bool]:
     return cuts, is_tarred
 
 
-def read_lhotse_manifest(config, is_tarred: bool) -> LhotseCutSet:
-    from lhotse import CutSet
+def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
 
     if is_tarred:
         # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
@@ -103,9 +102,7 @@ def read_lhotse_manifest(config, is_tarred: bool) -> LhotseCutSet:
     return cuts
 
 
-def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
-    from lhotse import CutSet
-
+def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
     common_kwargs = {
         "text_field": config.text_field,
         "lang_field": config.lang_field,

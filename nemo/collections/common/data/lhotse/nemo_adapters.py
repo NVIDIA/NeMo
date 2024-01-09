@@ -20,10 +20,12 @@ from io import BytesIO
 from pathlib import Path
 from typing import Iterable, List
 
-try:
-    from lhotse.lazy import ImitatesDict
-except ImportError:
-    ImitatesDict = object
+import soundfile
+from cytoolz import groupby
+from lhotse import AudioSource, Recording, SupervisionSegment
+from lhotse.lazy import ImitatesDict, LazyIteratorChain, LazyJsonlIterator
+from lhotse.serialization import open_best
+from lhotse.utils import compute_num_samples
 
 
 class LazyNeMoIterator(ImitatesDict):
@@ -50,8 +52,6 @@ class LazyNeMoIterator(ImitatesDict):
     def __init__(
         self, path: str | Path, sampling_rate: int | None = None, text_field: str = "text", lang_field: str = "lang"
     ) -> None:
-        from lhotse.lazy import LazyJsonlIterator
-
         self.source = LazyJsonlIterator(path)
         self.sampling_rate = sampling_rate
         self.text_field = text_field
@@ -62,10 +62,6 @@ class LazyNeMoIterator(ImitatesDict):
         return self.source.path
 
     def __iter__(self):
-        from lhotse import SupervisionSegment
-        from lhotse.audio import AudioSource, Recording
-        from lhotse.utils import compute_num_samples
-
         for data in self.source:
             audio_path = data.pop("audio_filepath")
             duration = data.pop("duration")
@@ -97,8 +93,6 @@ class LazyNeMoIterator(ImitatesDict):
         return len(self.source)
 
     def __add__(self, other):
-        from lhotse.lazy import LazyIteratorChain
-
         return LazyIteratorChain(self, other)
 
 
@@ -135,9 +129,6 @@ class LazyNeMoTarredIterator(ImitatesDict):
         text_field: str = "text",
         lang_field: str = "lang",
     ) -> None:
-        from cytoolz import groupby
-        from lhotse.lazy import LazyIteratorChain, LazyJsonlIterator
-
         def strip_pipe(p):
             if isinstance(p, str):
                 if p.startswith("pipe:"):
@@ -198,11 +189,6 @@ class LazyNeMoTarredIterator(ImitatesDict):
         return sorted(self.shard_id_to_manifest.keys())
 
     def __iter__(self):
-        import soundfile
-        from lhotse import SupervisionSegment
-        from lhotse.audio import AudioSource, Recording
-        from lhotse.serialization import open_best
-
         shard_ids = self.shard_ids
 
         if self.shuffle_shards:
@@ -249,8 +235,6 @@ class LazyNeMoTarredIterator(ImitatesDict):
         return len(self.source)
 
     def __add__(self, other):
-        from lhotse.lazy import LazyIteratorChain
-
         return LazyIteratorChain(self, other)
 
 

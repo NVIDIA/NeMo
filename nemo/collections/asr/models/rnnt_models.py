@@ -26,6 +26,7 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
@@ -33,6 +34,8 @@ from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
@@ -461,10 +464,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
 
         if config.get("use_lhotse"):
-            from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
-            from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-            from nemo.collections.common.parts.preprocessing.parsers import make_parser
-
             return get_lhotse_dataloader_from_config(
                 config,
                 global_rank=self.global_rank,

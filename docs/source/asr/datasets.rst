@@ -568,17 +568,17 @@ These options are::
     model.train_ds.shuffle=true                 # optional
 
     # Lhotse dataloading related arguments
-    +model.train_ds.use_lhotse=True
-    +model.train_ds.batch_duration=1100
-    +model.train_ds.quadratic_duration=30
-    +model.train_ds.num_buckets=30
-    +model.train_ds.num_cuts_for_bins_estimate=10000
-    +model.train_ds.bucket_buffer_size=10000
-    +model.train_ds.shuffle_buffer_size=10000
+    ++model.train_ds.use_lhotse=True
+    ++model.train_ds.batch_duration=1100
+    ++model.train_ds.quadratic_duration=30
+    ++model.train_ds.num_buckets=30
+    ++model.train_ds.num_cuts_for_bins_estimate=10000
+    ++model.train_ds.bucket_buffer_size=10000
+    ++model.train_ds.shuffle_buffer_size=10000
 
     # PyTorch Lightning related arguments
-    +trainer.use_distributed_sampler=false
-    +trainer.limit_train_batches=1000
+    ++trainer.use_distributed_sampler=false
+    ++trainer.limit_train_batches=1000
     trainer.val_check_interval=1000
     trainer.max_steps=300000
 
