@@ -13,12 +13,12 @@ defaults:
 seed: 12345
 
 model:
-  librilight_dir: ??? # LibriLight dir
-  libriheavy_dir: ??? # downloaded libriheavy manifests
+  # librilight_dir: ??? # LibriLight dir
+  # libriheavy_dir: ??? # downloaded libriheavy manifests
   manifests_dir: ???  # parsed manifests (e.g. filtering, add MFA alignments, etc.)
   textgrid_dir: ???   # MFA parsed textgrids
 
-  corpus_dir: ${.librilight_dir}
+  corpus_dir: ???
   
   cfm_wrapper:
     cond_drop_prob: 0.2
@@ -26,7 +26,6 @@ model:
   train_ds:
     max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
     min_duration: 0.1
-    manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
     num_workers: ${.ds_kwargs.num_workers}
 
   validation_ds:
@@ -40,7 +39,8 @@ model:
 
 trainer:
   devices: auto
-  max_epochs: 1000
+  max_epochs: null
+  max_steps: 500000 # audio model steps
 
 exp_manager:
   # save_dir = ${exp_dir}/${name}/${version}
@@ -50,7 +50,7 @@ exp_manager:
   name: ${task_name}
   version: null
 
-  resume_if_exists: False
+  resume_if_exists: True
   create_checkpoint_callback: True
 
 # task name, determines output directory path

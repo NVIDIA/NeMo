@@ -212,6 +212,11 @@ class DurationPredictor(_DP, LightningModule):
             self.align_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
 
+    def align_phoneme_ids_with_durations(self, phoneme_ids, durations):
+        repeat_mask = generate_mask_from_repeats(durations.clamp(min = 0))
+        aligned_phoneme_ids = einsum('b i, b i j -> b j', phoneme_ids.float(), repeat_mask.float()).long()
+        return aligned_phoneme_ids
+
     def forward_aligner(
         self,
         x: FloatTensor,     # (b, tx, c)
@@ -836,6 +841,7 @@ class VoiceBox(_VB, LightningModule):
         frac_lengths_mask: Tuple[float, float] = (0.7, 1.),
         condition_on_text = True,
         loss_masked = True,
+        no_diffusion = False,
         **kwargs
     ):
         """
@@ -892,12 +898,17 @@ class VoiceBox(_VB, LightningModule):
         )
         self.audio_enc_dec.freeze()
         self.loss_masked = loss_masked
+        self.no_diffusion = no_diffusion
+        if self.no_diffusion:
+            dim_in = default(dim_in, dim)
+            self.to_embed = nn.Linear(dim_in + self.dim_cond_emb, dim)
 
-    def create_cond_mask(self, batch, seq_len, cond_token_ids=None, training=True):
+    def create_cond_mask(self, batch, seq_len, cond_token_ids=None, self_attn_mask=None, training=True, frac_lengths_mask=None):
         if training:
-            frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*self.frac_lengths_mask)
+            frac_lengths_mask = default(frac_lengths_mask, self.frac_lengths_mask)
+            frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*frac_lengths_mask)
             # cond_mask = mask_from_frac_lengths(seq_len, frac_lengths)
-            cond_mask = self.phone_level_mask_from_frac_lengths(seq_len, frac_lengths, cond_token_ids)
+            cond_mask = self.phone_level_mask_from_frac_lengths(seq_len, frac_lengths, cond_token_ids, self_attn_mask)
         else:
             cond_mask = torch.zeros((batch, seq_len), device = self.device, dtype = torch.bool)
         return cond_mask
@@ -908,8 +919,13 @@ class VoiceBox(_VB, LightningModule):
         seq_len: int,
         frac_lengths: Tensor,
         cond_token_ids: Tensor,
+        self_attn_mask: None | Tensor = None,
     ):
         device = frac_lengths.device
+
+        if exists(self_attn_mask):
+            _seq_len = seq_len
+            seq_len = self_attn_mask.sum(-1)
 
         lengths = (frac_lengths * seq_len).long()
         max_start = seq_len - lengths
@@ -918,17 +934,26 @@ class VoiceBox(_VB, LightningModule):
         start = (max_start * rand).clamp(min = 0)
         end = start + lengths
 
-        start = torch.ceil(start).long()
-        start_of_start = self.find_start_of_phone(cond_token_ids, start)
-        end_of_start = self.find_end_of_phone(cond_token_ids, start, seq_len)
-        prob = (start - start_of_start + 1) / (end_of_start - start_of_start + 1)
-        start = torch.where(prob > 0.5, end_of_start + 1, start_of_start)
+        # start = torch.floor(start).long()
+        start_of_start = self.find_start_of_phone(cond_token_ids, torch.floor(start).long())
+        end_of_start = self.find_end_of_phone(cond_token_ids, torch.floor(start).long(), seq_len)
+        prob = (start - start_of_start) / (end_of_start - start_of_start + 1)
+        _start = torch.where(prob > 0.5, end_of_start + 1, start_of_start)
 
-        end = torch.ceil(end).long()
-        start_of_end = self.find_start_of_phone(cond_token_ids, end)
-        end_of_end = self.find_end_of_phone(cond_token_ids, end, seq_len)
-        prob = (end - start_of_end + 1) / (end_of_end - start_of_end + 1)
-        end = torch.where(prob > 0.5, end_of_end, start_of_end - 1)
+        # end = torch.floor(end).long()
+        if exists(self_attn_mask):
+            end = torch.minimum(end, seq_len-1)
+        start_of_end = self.find_start_of_phone(cond_token_ids, torch.floor(end).long())
+        end_of_end = self.find_end_of_phone(cond_token_ids, torch.floor(end).long(), seq_len)
+        prob = (end - start_of_end) / (end_of_end - start_of_end + 1)
+        _end = torch.where(prob > 0.5, end_of_end + 1, start_of_end)
+
+        start = torch.minimum(_start, _end)
+        end = torch.maximum(_start, _end)
+
+        if exists(self_attn_mask):
+            end = torch.minimum(end, seq_len)
+            seq_len = _seq_len
 
         return mask_from_start_end_indices(seq_len, start, end)
 
@@ -983,9 +1008,14 @@ class VoiceBox(_VB, LightningModule):
         """
         outputs = {}
 
-        # project in, in case codebook dim is not equal to model dimensions
-
-        x = self.proj_in(x)
+        if self.no_diffusion:
+            # ignore xt
+            x = None
+            # target: x1
+            target = cond if self.training else None
+        else:
+            # project in, in case codebook dim is not equal to model dimensions
+            x = self.proj_in(x)
 
         cond = default(cond, target)
         outputs["cond"] = cond
@@ -996,7 +1026,7 @@ class VoiceBox(_VB, LightningModule):
         # shapes
 
         batch, seq_len, cond_dim = cond.shape
-        assert cond_dim == x.shape[-1]
+        # assert cond_dim == x.shape[-1]
 
         # auto manage shape of times, for odeint times
 
@@ -1006,10 +1036,13 @@ class VoiceBox(_VB, LightningModule):
         if times.ndim == 1 and times.shape[0] == 1:
             times = repeat(times, '1 -> b', b = cond.shape[0])
 
+        if self.no_diffusion:
+            times = torch.zeros_like(times)
+
         # construct conditioning mask if not given
 
         if not exists(cond_mask):
-            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len, cond_token_ids=cond_token_ids, training=self.training)
+            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len, cond_token_ids=cond_token_ids, self_attn_mask=self_attn_mask, training=self.training)
 
         cond_mask_with_pad_dim = rearrange(cond_mask, '... -> ... 1')
         outputs["cond_mask"] = cond_mask_with_pad_dim
@@ -1022,7 +1055,7 @@ class VoiceBox(_VB, LightningModule):
 
         cond_ids = cond_token_ids
 
-        if cond_drop_prob > 0.:
+        if cond_drop_prob > 0. and not self.no_diffusion:
             cond_drop_mask = prob_mask_like(cond.shape[:1], cond_drop_prob, self.device)
 
             cond = torch.where(
@@ -1039,7 +1072,7 @@ class VoiceBox(_VB, LightningModule):
 
         # spectrogram dropout
 
-        if self.training:
+        if self.training and not self.no_diffusion:
             p_drop_mask = prob_mask_like(cond.shape[:1], self.p_drop_prob, self.device)
 
             cond = torch.where(
@@ -1184,6 +1217,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
         *_args,
         dp_cond = None,
         cond = None,
+        self_attn_mask = None,
         texts: Optional[List[str]] = None,
         text_token_ids: Optional[Tensor] = None,
         semantic_token_ids: Optional[Tensor] = None,
@@ -1230,7 +1264,6 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
         num_cond_inputs = sum([*map(exists, (texts, text_token_ids, semantic_token_ids, phoneme_ids, aligned_phoneme_ids))])
         assert num_cond_inputs <= 1
 
-        self_attn_mask = None
         cond_token_ids = None
 
         if self.condition_on_text:
@@ -1276,7 +1309,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
             if exists(packed_shape):
                 x = unpack_one(x, packed_shape, 'b *')
 
-            # print(x.shape, t.shape, cond_token_ids.shape, cond.shape, cond_mask.shape, self_attn_mask.shape)
+            # print(x.shape, t.shape, cond_token_ids.shape, cond.shape, cond_mask.shape)
             out = self.voicebox.forward_with_cond_scale(
                 x,
                 times = t,
@@ -1422,30 +1455,45 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
 
         # predict
 
-        self.voicebox.train()
+        # self.voicebox.train()
 
-        loss, vb_outputs = self.voicebox(
-            w,
-            cond = cond,
-            cond_mask = cond_mask,
-            times = times,
-            target = flow,
-            self_attn_mask = self_attn_mask,
-            cond_token_ids = cond_token_ids,
-            cond_drop_prob = self.cond_drop_prob
-        )
-        vb_outputs.update({
-            'x1': x1,
-            'x0': x0,
-            'w': w,
-            'flow': flow
-        })
+        if self.voicebox.no_diffusion and not self.voicebox.training:
+            # no_diffusion, eval
+            vb_pred = self.voicebox(
+                x=None,
+                cond = cond,
+                cond_mask = cond_mask,
+                times = times,
+                target = None,
+                self_attn_mask = self_attn_mask,
+                cond_token_ids = cond_token_ids,
+                cond_drop_prob = self.cond_drop_prob
+            )
+            return vb_pred
 
-        losses = {}
-        losses['vb'] = loss
+        else:
+            loss, vb_outputs = self.voicebox(
+                w,
+                cond = cond,
+                cond_mask = cond_mask,
+                times = times,
+                target = flow,
+                self_attn_mask = self_attn_mask,
+                cond_token_ids = cond_token_ids,
+                cond_drop_prob = self.cond_drop_prob
+            )
+            vb_outputs.update({
+                'x1': x1,
+                'x0': x0,
+                'w': w,
+                'flow': flow
+            })
 
-        outputs = {
-            "vb": vb_outputs,
-        }
+            losses = {}
+            losses['vb'] = loss
 
-        return loss, losses, outputs
+            outputs = {
+                "vb": vb_outputs,
+            }
+
+            return loss, losses, outputs

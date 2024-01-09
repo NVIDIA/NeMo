@@ -100,7 +100,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                 minTime = interval.minTime
                 maxTime = interval.maxTime
                 phoneme = interval.mark
-                if phoneme == "":
+                if phoneme in ["", "sp"]:
                     phoneme = "sil"
                 phn_dur.append((phoneme, round(maxTime - minTime, 2)))
         assert len(phn_dur)
@@ -171,7 +171,10 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         cuts = cuts.sort_by_duration()
         cuts = cuts.map(self.change_prefix)
         audio, audio_lens, _cuts = self.load_audio(cuts)
-        texts = [c.supervisions[0].custom["texts"][0] for c in _cuts]
+        if "texts" in _cuts[0].supervisions[0].custom:
+            texts = [c.supervisions[0].custom["texts"][0] for c in _cuts]
+        else:
+            texts = [c.supervisions[0].text for c in _cuts]
 
         audio_22050, audio_lens_22050, _ = self.load_audio(cuts.resample(22050))
         audio_24k, audio_lens_24k, _ = self.load_audio(cuts.resample(24000))
@@ -191,7 +194,10 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                     tokens = [self.tokenizer.text_to_ids(text)[0] for text in texts]
                 padding_value = 0
             elif isinstance(self.tokenizer, BaseTokenizer):
-                _texts = [c.supervisions[0].custom["texts"][1] for c in cuts]
+                if "texts" in _cuts[0].supervisions[0].custom:
+                    _texts = [c.supervisions[0].custom["texts"][1] for c in _cuts]
+                else:
+                    _texts = [c.supervisions[0].text for c in _cuts]
                 texts = [self.normalizer_call(text, **self.text_normalizer_call_kwargs) for text in _texts]
                 tokens = [self.tokenizer(text) for text in texts]
                 padding_value = self.tokenizer.pad

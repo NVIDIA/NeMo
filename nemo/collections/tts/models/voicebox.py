@@ -29,6 +29,8 @@ from einops import rearrange
 from hydra.utils import instantiate, get_class
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities import grad_norm
+
 
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
@@ -154,47 +156,35 @@ class VoiceboxModel(TextToWaveform):
         )
 
         self.maybe_init_from_pretrained_checkpoint(cfg=cfg, map_location='cpu')
-        
-    def prepare_data(self) -> None:
-        """ Pytorch Lightning hook.
 
-        https://lightning.ai/docs/pytorch/stable/common/lightning_module.html#prepare-data
-
-        The following code is basically for transcribed LibriLight.
-        """
-        from lhotse import CutSet
-        from lhotse.serialization import load_manifest_lazy_or_eager
+    def _download_libriheavy(self, target_dir, dataset_parts):
+        """ Download LibriHeavy manifests. """
         from lhotse.recipes.utils import manifests_exist
-
-        logging.info(f"mkdir -p {self._cfg.libriheavy_dir}")
-        os.makedirs(self._cfg.libriheavy_dir, exist_ok=True)
-        for subset in self._cfg.subsets:
-            if not manifests_exist(subset, self._cfg.libriheavy_dir, ["cuts"], "libriheavy"):
+        logging.info(f"mkdir -p {target_dir}")
+        os.makedirs(target_dir, exist_ok=True)
+        for subset in dataset_parts:
+            if not manifests_exist(subset, target_dir, ["cuts"], "libriheavy"):
                 logging.info(f"Downloading {subset} subset.")
-                os.system(f"wget -P {self._cfg.libriheavy_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
+                os.system(f"wget -P {target_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
             else:
                 logging.info(f"Skipping download, {subset} subset exists.")
 
-        # fix audio path prefix
-        old_prefix="download/librilight"
-        def change_prefix(cut):
-            old_path = cut.recording.sources[0].source
-            new_path = old_path.replace(old_prefix, self._cfg.librilight_dir)
-            cut.recording.sources[0].source = new_path
-            return cut
+    def _prepare_libriheavy(self, libriheavy_dir, output_dir, textgrid_dir, dataset_parts):
+        """ Filter LibriHeavy manifests, and integrate with MFA alignments from textgrids. """
+        from lhotse import CutSet
+        from lhotse.serialization import load_manifest_lazy_or_eager
         
-        def textgrid_exist(cut, subset=None):
+        def textgrid_filename(cut, subset=None):
             cut_id = cut.id
             spk = cut_id.split('/')[1]
-            f_id = f"{self._cfg.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
-            return os.path.exists(f_id)
+            f_id = f"{textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
+            return f_id
 
         def parse_cut_mfa_textgrid(seg, subset=None):
-            from textgrid import TextGrid, IntervalTier
-            from lhotse.supervision import AlignmentItem, SupervisionSet
-            seg_id = seg.id
-            spk = seg_id.split('/')[1]
-            f_id = f"{self._cfg.textgrid_dir}/{subset}/{spk}/{','.join(seg_id.split('/'))}.TextGrid"
+            from textgrid import TextGrid
+            from lhotse.supervision import AlignmentItem
+            f_id = textgrid_filename(seg, subset=subset)
+
             tg = TextGrid()
             tg.read(f_id)
             new_sup_seg = seg
@@ -213,11 +203,11 @@ class VoiceboxModel(TextToWaveform):
                     logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.5f}, ali_end: {maxTime:.5f}")
             return new_sup_seg
 
-        logging.info(f"mkdir -p {self._cfg.manifests_dir}")
-        os.makedirs(self._cfg.manifests_dir, exist_ok=True)
-        for subset in self._cfg.subsets:
-            manifest_path = os.path.join(self._cfg.manifests_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
-            ori_manifest_path = os.path.join(self._cfg.libriheavy_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
+        logging.info(f"mkdir -p {output_dir}")
+        os.makedirs(output_dir, exist_ok=True)
+        for subset in dataset_parts:
+            manifest_path = os.path.join(output_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
+            ori_manifest_path = os.path.join(libriheavy_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
             if manifest_path not in [self._cfg.train_ds.manifest_filepath, self._cfg.validation_ds.manifest_filepath, self._cfg.test_ds.manifest_filepath]:
                 continue
             if not os.path.exists(manifest_path):
@@ -225,7 +215,7 @@ class VoiceboxModel(TextToWaveform):
                 cuts = load_manifest_lazy_or_eager(ori_manifest_path, CutSet)
                 logging.info(f"Filtering {subset} subset.")
                 cuts = cuts.filter(lambda c: ',' not in c.id)
-                cuts = cuts.filter(lambda c: textgrid_exist(c, subset))
+                cuts = cuts.filter(lambda c: os.path.exists(textgrid_filename(c, subset)))
                 cuts = cuts.map_supervisions(lambda s: parse_cut_mfa_textgrid(s, subset))
                 logging.info(f"Writing {subset} subset.")
                 with CutSet.open_writer(
@@ -240,6 +230,101 @@ class VoiceboxModel(TextToWaveform):
                 del cuts
             else:
                 logging.info(f"Skipping fix, {subset} subset exists.")
+        
+    def _download_libritts(self, target_dir, dataset_parts):
+        """ Download LibriTTS corpus. """
+        from lhotse.recipes import download_libritts
+
+        target_dir = Path(target_dir).parent
+
+        download_libritts(target_dir=target_dir, dataset_parts=dataset_parts)
+
+    def _prepare_libritts(self, corpus_dir, output_dir, textgrid_dir, dataset_parts):
+        """ Prepare LibriTTS manifests, and integrate with MFA alignments from textgrids. """
+        from lhotse.recipes import prepare_libritts
+        from lhotse import CutSet
+        from lhotse.serialization import load_manifest_lazy_or_eager
+        
+        def textgrid_filename(cut, subset=None):
+            cut_id = cut.id
+            spk, chp = cut_id.split('_')[:2]
+            f_id = f"{textgrid_dir}/{subset}/{spk}/{chp}/{cut_id}.TextGrid"
+            # print(f_id, os.path.exists(f_id))
+            return f_id
+
+        def parse_cut_mfa_textgrid(seg, subset=None):
+            from textgrid import TextGrid
+            from lhotse.supervision import AlignmentItem
+            f_id = textgrid_filename(seg, subset=subset)
+
+            tg = TextGrid()
+            tg.read(f_id)
+            new_sup_seg = seg
+            for tier in tg.tiers:
+                _dur = []
+                for interval in tier.intervals:
+                    minTime = interval.minTime
+                    maxTime = interval.maxTime
+                    mark = interval.mark
+                    if mark == "" or (tier.name == "phones" and mark == "sp"):
+                        mark = "sil"
+                    _dur.append(AlignmentItem(symbol=mark, start=minTime, duration=maxTime - minTime))
+                assert len(_dur)
+                new_sup_seg = new_sup_seg.with_alignment(tier.name, _dur)
+                if f"{seg.duration:.2f}" != f"{maxTime:.2f}":
+                    logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.2f}, ali_end: {maxTime:.2f}")
+            return new_sup_seg
+
+        logging.info(f"mkdir -p {output_dir}")
+        os.makedirs(output_dir, exist_ok=True)
+        for subset in dataset_parts:
+            manifest_path = os.path.join(output_dir, f"libritts_cuts_{subset}.jsonl.gz")
+            if manifest_path not in [self._cfg.train_ds.manifest_filepath, self._cfg.validation_ds.manifest_filepath, self._cfg.test_ds.manifest_filepath]:
+                continue
+            if not os.path.exists(manifest_path):
+                manifest = prepare_libritts(corpus_dir=corpus_dir, dataset_parts=subset, output_dir=None, num_jobs=self._cfg.ds_kwargs.num_workers, link_previous_utt=True)
+                manifest = manifest[subset]
+                cuts = CutSet.from_manifests(
+                    recordings=manifest["recordings"],
+                    supervisions=manifest["supervisions"],
+                    output_path=None
+                )
+                cuts = cuts.modify_ids(lambda cid: cid.rsplit('-', 1)[0])
+
+                logging.info(f"Filtering {subset} subset.")
+                cuts = cuts.filter(lambda c: os.path.exists(textgrid_filename(c, subset)))
+                cuts = cuts.map_supervisions(lambda s: parse_cut_mfa_textgrid(s, subset))
+
+                logging.info(f"Writing {subset} subset.")
+                cuts.to_file(manifest_path)
+            
+            else:
+                logging.info(f"Skipping fix, {subset} subset exists.")
+
+    def prepare_data(self) -> None:
+        """ Pytorch Lightning hook.
+
+        https://lightning.ai/docs/pytorch/stable/common/lightning_module.html#prepare-data
+
+        The following code is basically for transcribed LibriLight.
+        """
+        if self._cfg.ds_name == "libriheavy":
+            self._download_libriheavy(target_dir=self._cfg.libriheavy_dir, dataset_parts=self._cfg.subsets)
+            self._prepare_libriheavy(libriheavy_dir=self._cfg.libriheavy_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=self._cfg.subsets)
+        elif self._cfg.ds_name == "libritts":
+            def get_subset(manifest_filepath):
+                return '_'.join(manifest_filepath.split('/')[-1].split('.')[0].split('_')[2:])
+
+            dataset_parts = [
+                subset for subset in self._cfg.subsets 
+                if subset in [
+                    get_subset(self._cfg.train_ds.manifest_filepath),
+                    get_subset(self._cfg.validation_ds.manifest_filepath),
+                    get_subset(self._cfg.test_ds.manifest_filepath)
+                ]
+            ]
+            self._download_libritts(target_dir=self._cfg.corpus_dir, dataset_parts=dataset_parts)
+            self._prepare_libritts(corpus_dir=self._cfg.corpus_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=dataset_parts)
 
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.
@@ -311,7 +396,7 @@ class VoiceboxModel(TextToWaveform):
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=LhotseTextToSpeechDataset(
-                corpus_dir=self.cfg.librilight_dir,
+                corpus_dir=self.cfg.corpus_dir,
                 **ds_kwargs
             ),
         )
@@ -380,7 +465,15 @@ class VoiceboxModel(TextToWaveform):
         )
         return audio
 
+    def on_before_optimizer_step(self, optimizer):
+        # Compute the 2-norm for each layer
+        # If using mixed precision, the gradients are already unscaled here
+        norms = grad_norm(self.voicebox, norm_type=2)
+        self.log_dict(norms)
+
     def train_dp(self, audio, audio_mask, tokens, token_lens, texts, durations, batch_idx):
+        self.duration_predictor.train()
+
         dp_inputs = self.duration_predictor.parse_dp_input(
             x1=audio,
             mask=audio_mask,
@@ -388,6 +481,7 @@ class VoiceboxModel(TextToWaveform):
             phoneme_len=token_lens,
             input_sampling_rate=None,
         )
+
         dp_loss, dp_losses, dp_outputs = self.duration_predictor.forward(
             cond=dp_inputs.get("dp_cond"),               # might be None
             texts=None,                 # converted to phoneme_ids by dataset
@@ -427,6 +521,81 @@ class VoiceboxModel(TextToWaveform):
             
         return dp_losses, dp_outputs
 
+    def val_vb(self, audio, audio_mask, tokens, batch_idx):
+        self.voicebox.train()
+
+        vb_inputs = self.cfm_wrapper.parse_vb_input(
+            x1=audio,
+            mask=audio_mask,
+            cond=audio,
+            input_sampling_rate=None
+        )
+
+        x1 = vb_inputs['x1']
+        cond = vb_inputs['cond']
+        self_attn_mask = vb_inputs['mask']
+
+        _, losses, outputs = self.cfm_wrapper.forward(
+            x1=x1,
+            mask=self_attn_mask,
+            phoneme_ids=tokens,
+            cond=cond,
+            cond_mask=None,
+            input_sampling_rate=None
+        )
+        
+        if batch_idx == 0:
+            # first batch of validation
+            self.voicebox.eval()
+            cond_mask = self.voicebox.create_cond_mask(
+                batch=cond.shape[0],
+                seq_len=cond.shape[1],
+                cond_token_ids=tokens,
+                self_attn_mask=self_attn_mask,
+                training=True,
+                frac_lengths_mask=(0.1, 0.5),
+            )
+            if self.voicebox.no_diffusion:
+                output_audio = self.cfm_wrapper.forward(
+                    x1=x1,
+                    mask=self_attn_mask,
+                    phoneme_ids=tokens,
+                    cond=cond,
+                    cond_mask=cond_mask,
+                    input_sampling_rate=None
+                )
+            else:
+                output_audio = self.cfm_wrapper.sample(
+                    cond=cond,
+                    self_attn_mask=self_attn_mask,
+                    aligned_phoneme_ids=tokens,
+                    cond_mask=cond_mask,
+                    steps=100,
+                    decode_to_audio=False
+                )
+            
+            audio_len = audio_mask.sum(-1)
+            mel_len = self_attn_mask.sum(-1)
+
+            cond = cond * ~rearrange(cond_mask, '... -> ... 1')
+            pred_x1 = output_audio
+
+            tb_writer = self.logger.experiment
+            
+            for plot_id in range(x1.shape[0]):
+                tb_writer.add_image(f"val_vb/{plot_id}/x1", plot_spectrogram_to_numpy(x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+                tb_writer.add_image(f"val_vb/{plot_id}/cond", plot_spectrogram_to_numpy(cond[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+                tb_writer.add_image(f"val_vb/{plot_id}/pred_x1", plot_spectrogram_to_numpy(pred_x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+
+                _pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1[None, plot_id, :mel_len[plot_id]]).detach().cpu().numpy()
+                _orig_audio = audio[plot_id, :audio_len[plot_id]].detach().cpu().numpy()
+                tb_writer.add_audio(f"val_vb/{plot_id}/pred_audio", _pred_audio / max(np.abs(_pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                tb_writer.add_audio(f"val_vb/{plot_id}/orig_audio", _orig_audio / max(np.abs(_orig_audio)), self.global_step, sample_rate=24000)
+                # tb_writer.add_audio(f"val_vb/{plot_id}/pred_audio", _pred_audio / np.sqrt(np.mean(_pred_audio ** 2)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                # tb_writer.add_audio(f"val_vb/{plot_id}/orig_audio", _orig_audio / np.sqrt(np.mean(_orig_audio ** 2)), self.global_step, sample_rate=24000)
+
+        return losses, outputs
+
     def train_vb(self, audio, audio_mask, tokens, batch_idx):
         vb_inputs = self.cfm_wrapper.parse_vb_input(
             x1=audio,
@@ -434,6 +603,9 @@ class VoiceboxModel(TextToWaveform):
             cond=audio,
             input_sampling_rate=None
         )
+
+        self.voicebox.train()
+
         _, losses, outputs = self.cfm_wrapper.forward(
             x1=vb_inputs['x1'],
             mask=vb_inputs['mask'],
@@ -451,7 +623,7 @@ class VoiceboxModel(TextToWaveform):
             cond, cond_mask = outputs['vb']["cond"], outputs['vb']["cond_mask"]
             cond = cond * ~cond_mask
             σ = self.cfm_wrapper.sigma
-            pred_x1 = pred_dx + (1 - σ) * x0
+            pred_x1 = pred_dx + (1 - σ) * x0 if not self.voicebox.no_diffusion else pred_dx
             tb_writer.add_image("train_vb/x1", plot_spectrogram_to_numpy(x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
             tb_writer.add_image("train_vb/xt", plot_spectrogram_to_numpy(w[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
             tb_writer.add_image("train_vb/cond", plot_spectrogram_to_numpy(cond[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
@@ -510,7 +682,8 @@ class VoiceboxModel(TextToWaveform):
 
         loss = align_loss + bin_loss + dp_loss + vb_loss
 
-        self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+        self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, sync_dist=True, batch_size=audio.shape[0])
+        self.log("train_loss_vb", vb_loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
 
         return loss
     
@@ -527,7 +700,6 @@ class VoiceboxModel(TextToWaveform):
 
         audio_mask = get_mask_from_lengths(audio_lens)
 
-        self.duration_predictor.train()
         # dp training
         dp_losses, dp_outputs = self.train_dp(
             audio=audio,
@@ -540,7 +712,8 @@ class VoiceboxModel(TextToWaveform):
         )
 
         # vb training
-        losses, outputs = self.train_vb(
+        losses, outputs = self.val_vb(
+        # losses, outputs = self.train_vb(
             audio=audio,
             audio_mask=audio_mask,
             tokens=dp_outputs.get("aligned_phoneme_ids"),
@@ -554,7 +727,7 @@ class VoiceboxModel(TextToWaveform):
         vb_loss = losses['vb']
 
         loss = align_loss + bin_loss + dp_loss + vb_loss
-        self.log_dict({f"val_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+        self.log_dict({f"val_loss/{k}": v for k, v in losses.items()}, sync_dist=True, batch_size=audio.shape[0])
         self.log("val_loss_total", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         return loss
 
