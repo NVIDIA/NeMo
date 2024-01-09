@@ -67,7 +67,7 @@ class AdapterName(str, enum.Enum):
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
-    MM_PROJECTOR_ADAPTER = "mm_projector_adapter"
+    MULTIMODAL_PROJECTOR_ADAPTER = "mm_projector_adapter"
     PARALLEL_LINEAR_ADAPTER = "parallel_linear_adapter"
 
 
