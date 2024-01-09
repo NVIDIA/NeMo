@@ -439,6 +439,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         use_inflight_batching: bool = False,
         paged_kv_cache: bool = False,
         enable_context_fmha: bool = True,
+        enable_multi_block_mode: bool = False,
     ):
         """Builds the model and generate the tensorrt_llm engine.
 
@@ -477,6 +478,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             use_inflight_batching=use_inflight_batching,
             paged_kv_cache=paged_kv_cache,
             enable_context_fmha=enable_context_fmha,
+            enable_multi_block_mode=enable_multi_block_mode,
         )
 
     def print(self):

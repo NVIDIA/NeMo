@@ -96,7 +96,7 @@ class TensorRTLLM(ITritonDeployable):
         paged_kv_cache: bool = False,
         dtype: str = "bfloat16",
         load_model: bool = True,
-        streaming: bool = False,
+        enable_multi_block_mode = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -117,6 +117,7 @@ class TensorRTLLM(ITritonDeployable):
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
             load_model (bool): load TensorRT-LLM model after the export.
+            enable_multi_block_mode (bool): enable faster decoding in multihead attention. Required for long context.
         """
 
         if not model_type in self.get_supported_models_list:
@@ -179,6 +180,7 @@ class TensorRTLLM(ITritonDeployable):
             use_inflight_batching=use_inflight_batching,
             paged_kv_cache=paged_kv_cache,
             enable_context_fmha=enable_context_fmha,
+            enable_multi_block_mode=enable_multi_block_mode,
         )
 
         tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
