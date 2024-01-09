@@ -38,6 +38,7 @@ class NemoQueryBase(ABC):
             top_k=1,
             top_p=0.0,
             temperature=1.0,
+            random_seed=None,
             task_id=None,
             init_timeout=60.0
     ):
@@ -79,6 +80,7 @@ class NemoQuery(NemoQueryBase):
             top_k=1,
             top_p=0.0,
             temperature=1.0,
+            random_seed=None,
             task_id=None,
             init_timeout=60.0
     ):
@@ -91,6 +93,7 @@ class NemoQuery(NemoQueryBase):
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            random_seed (int): Seed to condition sampling.
             stop_words_list (List(str)): list of stop words.
             bad_words_list (List(str)): list of bad words.
             no_repeat_ngram_size (int): no repeat ngram size.
@@ -111,6 +114,9 @@ class NemoQuery(NemoQueryBase):
 
         if not temperature is None:
             inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
+
+        if not random_seed is None:
+            inputs["random_seed"] = np.full(prompts.shape, random_seed, dtype=np.int_)
 
         if not stop_words_list is None:
             stop_words_list = np.char.encode(stop_words_list, "utf-8")
@@ -176,6 +182,7 @@ class NemoQueryTensorRTLLM(NemoQueryBase):
             top_k=1,
             top_p=0.0,
             temperature=1.0,
+            random_seed=None,
             task_id=None,
             init_timeout=60.0
     ):

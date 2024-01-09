@@ -337,6 +337,7 @@ class TensorRTLLM(ITritonDeployable):
             Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
+            Tensor(name="random_seed", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="stop_words_list", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="bad_words_list", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="no_repeat_ngram_size", shape=(-1,), dtype=np.single, optional=True),
@@ -361,6 +362,8 @@ class TensorRTLLM(ITritonDeployable):
                 infer_input["top_p"] = inputs.pop("top_p")[0][0]
             if "temperature" in inputs:
                 infer_input["temperature"] = inputs.pop("temperature")[0][0]
+            if "random_seed" in inputs:
+                infer_input["random_seed"] = inputs.pop("random_seed")[0][0]
             if "stop_words_list" in inputs:
                 swl = np.char.decode(inputs.pop("stop_words_list").astype("bytes"), encoding="utf-8")
                 infer_input["stop_words_list"] = swl[0]
