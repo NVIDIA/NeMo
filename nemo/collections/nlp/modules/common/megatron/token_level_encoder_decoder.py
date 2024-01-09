@@ -644,6 +644,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 else:
                     dec_position_ids = None
                 dec_input = self.get_decoder_embeddings(dec_input_ids, dec_position_ids, token_type_ids)
+                if decoder_max_sequence_len or encoder_max_sequence_len:
+                    # In inference, only need last input
+                    dec_input = dec_input[-1,:,:].unsqueeze(0)
             else:
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None

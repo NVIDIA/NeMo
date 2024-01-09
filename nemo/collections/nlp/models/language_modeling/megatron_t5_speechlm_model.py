@@ -1346,8 +1346,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     print("All ends detected")
                     break
                 # print(t)
-                # print(dec_input[:, :, : t + 1].shape)
-                # print(dec_input_mask[:, : t + 1].shape)
+                # print(dec_input[:, :, : t + 1])
                 # import ipdb; ipdb.set_trace()
                 if t == 0:
                     # Run first step manually
@@ -1373,7 +1372,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         enc_mask.size(1),
                         encoder_output,
                         enc_mask,
-                        dec_input[:, :, t].unsqueeze(-1),
+                        dec_input[:, :, : t + 1],
                         dec_input_mask[:, : t + 1],
                         position_ids,
                         taskname_ids,
@@ -1413,7 +1412,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 indices_to_remove = output_logits_currtimestep < output_logits_currtimestep_topk[:, -1].unsqueeze(1)
                 # (B*8, 1024) or (B, 1024)
 
-                output_logits_currtimestep_rescored = output_logits_currtimestep
+                output_logits_currtimestep_rescored = output_logits_currtimestep.clone()
                 output_logits_currtimestep_rescored[indices_to_remove] = -float('Inf')
 
                 temperature = self.cfg.get('temperature', 0.7)  # Set temp 0.01 for greedy decoding
@@ -1424,6 +1423,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 output_tokens_curr_timestep = torch.multinomial(
                     output_logits_currtimestep_rescored, num_samples=1
                 )  # (B*8, 1)
+                # import ipdb; ipdb.set_trace()
 
                 if torch.count_nonzero(speech_mask) > 0:
                     # Convert back to (B, 8)
