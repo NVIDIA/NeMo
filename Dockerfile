@@ -31,9 +31,7 @@ ARG REQUIRE_AIS_CLI=false
 
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
-# libavdevice-dev rerquired for latest torchaudio
-# libraries libtool, ... , libgts-dev are required for graphviz
-# graphviz is required for k2 and pynini visualization
+# libavdevice-dev required for latest torchaudio
 RUN apt-get update && \
   apt-get upgrade -y && \
   apt-get install -y \
@@ -41,7 +39,13 @@ RUN apt-get update && \
   libfreetype6 \
   swig \
   ffmpeg \
-  libavdevice-dev \
+  libavdevice-dev && \
+  rm -rf /var/lib/apt/lists/*
+
+# libtool, ... , libgts-dev are required for graphviz
+# graphviz is required for k2 and pynini visualization
+RUN apt-get update && \
+  apt-get install -y \
   libtool \
   libltdl-dev \
   automake \
