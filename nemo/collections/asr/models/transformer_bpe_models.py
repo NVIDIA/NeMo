@@ -249,7 +249,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             assert paths2audio_files.endswith('.json') or paths2audio_files.endswith(
                 '.jsonl'
             ), f"File {paths2audio_files} must be a json or jsonl file"
-            
+
             # load json lines
             manifest_path = paths2audio_files  # need to save this as we are overwriting paths2audio_files in nextline
             paths2audio_files = manifest_utils.read_manifest(paths2audio_files)
@@ -266,7 +266,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                         'taskname': 'asr',
                         'target_lang': 'en',
                         'pnc': 'no',
-                        'answer': 'nothing'
+                        'answer': 'nothing',
                     }
                 elif isinstance(item, dict):
                     entry = item
@@ -606,7 +606,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         Note that if any label/pred is of format <token>, it will be stripped
         """
         assert isinstance(text, str), f"Expected str, got {type(text)}"
-        text =  re.sub(r'<[^>]+>', '', text)
+        text = re.sub(r'<[^>]+>', '', text)
         # strip spaces at the beginning and end;
         # this is training data artifact, will be fixed in future (@kpuvvada)
         return text.strip()
