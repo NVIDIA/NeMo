@@ -836,6 +836,7 @@ class VoiceBox(_VB, LightningModule):
         frac_lengths_mask: Tuple[float, float] = (0.7, 1.),
         condition_on_text = True,
         loss_masked = True,
+        no_diffusion = False,
         **kwargs
     ):
         """
@@ -892,6 +893,10 @@ class VoiceBox(_VB, LightningModule):
         )
         self.audio_enc_dec.freeze()
         self.loss_masked = loss_masked
+        self.no_diffusion = no_diffusion
+        if self.no_diffusion:
+            dim_in = default(dim_in, dim)
+            self.to_embed = nn.Linear(dim_in + self.dim_cond_emb, dim)
 
     def create_cond_mask(self, batch, seq_len, cond_token_ids=None, training=True):
         if training:
@@ -983,9 +988,11 @@ class VoiceBox(_VB, LightningModule):
         """
         outputs = {}
 
+        target = cond if self.no_diffusion else target
+
         # project in, in case codebook dim is not equal to model dimensions
 
-        x = self.proj_in(x)
+        x = self.proj_in(x) if not self.no_diffusion else None
 
         cond = default(cond, target)
         outputs["cond"] = cond
@@ -1022,7 +1029,7 @@ class VoiceBox(_VB, LightningModule):
 
         cond_ids = cond_token_ids
 
-        if cond_drop_prob > 0.:
+        if cond_drop_prob > 0. and not self.no_diffusion:
             cond_drop_mask = prob_mask_like(cond.shape[:1], cond_drop_prob, self.device)
 
             cond = torch.where(
@@ -1039,7 +1046,7 @@ class VoiceBox(_VB, LightningModule):
 
         # spectrogram dropout
 
-        if self.training:
+        if self.training and not self.no_diffusion:
             p_drop_mask = prob_mask_like(cond.shape[:1], self.p_drop_prob, self.device)
 
             cond = torch.where(
