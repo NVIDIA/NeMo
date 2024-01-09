@@ -239,21 +239,44 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if return_hypotheses:
             logging.warning("return_hypotheses=True is currently not supported, returning text instead.")
 
-        assert isinstance(paths2audio_files, str), "Canary doesn't support list of paths at the moment"
-        assert os.path.exists(paths2audio_files), f"File {paths2audio_files} doesn't exist"
-        assert paths2audio_files.endswith('.json') or paths2audio_files.endswith(
-            '.jsonl'
-        ), f"File {paths2audio_files} must be a json or jsonl file"
+        if isinstance(paths2audio_files, list):
+            logging.info(f"Found paths2audio_files to be a list of {len(paths2audio_files)} items.")
+            logging.info(f"Assuming each item in paths2audio_files is a path to audio file.")
+            logging.info(f"Transcribing with default Canary setting of English without PnC.")
+        elif isinstance(paths2audio_files, str):
+            logging.info(f"Found paths2audio_files to be a string. Assuming it is a path to manifest file.")
+            assert os.path.exists(paths2audio_files), f"File {paths2audio_files} doesn't exist"
+            assert paths2audio_files.endswith('.json') or paths2audio_files.endswith(
+                '.jsonl'
+            ), f"File {paths2audio_files} must be a json or jsonl file"
 
-        def _may_be_fix_paths(json_items):
+            # load json lines
+            manifest_path = paths2audio_files  # need to save this as we are overwriting paths2audio_files in nextline
+            paths2audio_files = manifest_utils.read_manifest(paths2audio_files)
+
+        def _may_be_make_dict_and_fix_paths(json_items):
+            out_json_items = []
             for item in json_items:
-                item['audio_filepath'] = get_full_path(item['audio_filepath'], manifest_file=manifest_path)
-            return json_items
+                if isinstance(item, str):
+                    # assume it is a path to audio file
+                    entry = {
+                        'audio_filepath': item,
+                        'duration': 100000,
+                        'source_lang': 'en',
+                        'taskname': 'asr',
+                        'target_lang': 'en',
+                        'pnc': 'no',
+                        'answer': 'nothing',
+                    }
+                elif isinstance(item, dict):
+                    entry = item
+                    entry['audio_filepath'] = get_full_path(entry['audio_filepath'], manifest_file=manifest_path)
+                else:
+                    raise ValueError(f"Expected str or dict, got {type(item)}")
+                out_json_items.append(entry)
+            return out_json_items
 
-        # load json lines
-        manifest_path = paths2audio_files  # need this as we are overwriting paths2audio_files in nextline
-        paths2audio_files = manifest_utils.read_manifest(paths2audio_files)
-        paths2audio_files = _may_be_fix_paths(paths2audio_files)
+        paths2audio_files = _may_be_make_dict_and_fix_paths(paths2audio_files)
 
         if return_hypotheses and logprobs:
             raise ValueError(
@@ -287,11 +310,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
                     for audio_file in paths2audio_files:
-                        if isinstance(audio_file, dict):  # assume we provided manifest
-                            entry = audio_file
-                        elif isinstance(audio_file, str):  # if not manifest
-                            entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
-                        fp.write(json.dumps(entry) + '\n')
+                        # _may_be_make_dict_and_fix_paths has already fixed the path and added other fields if needed
+                        fp.write(json.dumps(audio_file) + '\n')
 
                 config = {
                     'paths2audio_files': paths2audio_files,
@@ -305,7 +325,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                     config['augmentor'] = augmentor
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in tqdm(temporary_datalayer, desc=f"Transcribing {manifest_path}", disable=not verbose):
+                for test_batch in tqdm(temporary_datalayer, desc=f"Transcribing ...", disable=not verbose):
                     log_probs, encoded_len, enc_states, enc_mask = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
@@ -586,7 +606,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         Note that if any label/pred is of format <token>, it will be stripped
         """
         assert isinstance(text, str), f"Expected str, got {type(text)}"
-        return re.sub(r'<[^>]+>', '', text)
+        text = re.sub(r'<[^>]+>', '', text)
+        # strip spaces at the beginning and end;
+        # this is training data artifact, will be fixed in future (@kpuvvada)
+        return text.strip()
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
         signal, signal_len, transcript, transcript_len = batch
