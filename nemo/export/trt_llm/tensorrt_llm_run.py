@@ -206,7 +206,7 @@ def _forward(
             sampling_config.top_k = top_k
             sampling_config.top_p = top_p
             sampling_config.temperature = temperature
-            for key, param in sampling_kwargs:
+            for key, param in sampling_kwargs.items():
                 # set any additional SamplingConfig kwargs
                 setattr(sampling_config, key, param)
 
