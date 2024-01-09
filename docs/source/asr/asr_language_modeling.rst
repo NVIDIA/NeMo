@@ -221,7 +221,7 @@ Flashlight (``flashlight``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Flashlight is a C++ library for ASR decoding provided at `https://github.com/flashlight/flashlight <https://github.com/flashlight/flashlight>`_. It is a CPU and CUDA-based beam search engine that is quite efficient and supports
-char and subword models. It an ARPA KenLM file.
+char and subword models. It requires an ARPA KenLM file.
 
 It supports several advanced features such as lexicon based / lexicon free decoding, beam pruning threshold, and more.
 
@@ -440,8 +440,7 @@ works in lexicon decoding mode, it does not work in lexicon-free mode. Word boos
 such that you can manually increase or decrease the probability of emitting certain words. This can be very helpful if you have certain
 uncommon or industry-specific words which you want to ensure transcribe correctly.
 
-For more information on word boosting, see `here <https://docs.nvidia.com/deeplearning/riva/user-guide/docs/tutorials/asr-python-advanced-wordboosting.html>`__
-and `here <https://docs.nvidia.com/deeplearning/riva/user-guide/docs/asr/asr-customizing.html#word-boosting>`__
+For more information on word boosting, `here <https://docs.nvidia.com/deeplearning/riva/user-guide/docs/asr/asr-customizing.html#word-boosting>`__
 
 In order to use word boosting in Nemo, you need to create a simple tab-separated text file which contains each word to be boosted, followed by
 tab, and then the boosted score for that word.

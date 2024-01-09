@@ -57,6 +57,7 @@ class GPTSFTDataset(Dataset):
         hf_dataset: bool = False,
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
+        is_test: bool = False,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -79,6 +80,7 @@ class GPTSFTDataset(Dataset):
         hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
         truncation_method: Truncation from which position. Options: ['left', 'right']
         special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+        is_test: Whether this dataset is the test split.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -99,6 +101,7 @@ class GPTSFTDataset(Dataset):
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
         self.truncation_method = truncation_method
+        self.is_test = is_test
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -317,7 +320,16 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
+        prompt_template_values = []
+        for c in self.prompt_template_keys:
+            try:
+                prompt_template_values.append(example[c].strip(' '))
+            except KeyError as e:
+                if c == self.label_key and self.is_test:
+                    # allow missing label during testing, if user only wants to do inference without calculating metrics
+                    prompt_template_values.append("")
+                else:
+                    raise e
 
         template_strings, template_strings_keys = self._separate_template(prompt_template_values)
         template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
@@ -420,7 +432,7 @@ class GPTSFTDataset(Dataset):
         if self.pad_to_max_length:
             max_length = self.max_seq_length
         else:
-            max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
+            max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
         assert max_length <= self.max_seq_length
 
         attention_mask = [self._create_attention_mask(max_length) for _ in batch]
@@ -445,6 +457,105 @@ class GPTSFTDataset(Dataset):
             'context_lengths': context_lengths,
             'answers': answers,
             'metadata': metadata,
+        }
+
+        return processed_batch
+
+
+class GPTSFTPackedDataset(GPTSFTDataset):
+    def __init__(self, file_path: str, tokenizer: TokenizerSpec, **kwargs):
+        super().__init__(file_path, tokenizer, **kwargs)
+
+        self._load_packed_dataset(file_path)
+
+    def __getitem__(self, idx):
+        input_ids = self.indexed_dataset[idx]['input_ids']
+        seq_boundaries = self.indexed_dataset[idx]['seq_start_id'] + [len(input_ids)]
+        loss_mask = self.indexed_dataset[idx]['loss_mask']
+        return {'input_ids': input_ids, 'seq_boundaries': seq_boundaries, 'loss_mask': loss_mask}
+
+    def __len__(self):
+        return len(self.indexed_dataset)
+
+    def _load_packed_dataset(self, file_path):
+        self.indexed_dataset = np.load(file_path, allow_pickle=True)
+
+    def _build_loss_mask(self, processed_example):
+        if self.answer_only_loss:
+            seq_boundaries = processed_example['seq_boundaries']
+            return np.concatenate(
+                [
+                    processed_example['loss_mask'][seq_boundaries[i] + 1 : seq_boundaries[i + 1]]
+                    for i in range(len(seq_boundaries) - 1)
+                ]
+            )
+        return [1.0] * (len(processed_example['input_ids']) - len(processed_example['seq_boundaries']) + 1)
+
+    def _maybe_cast_to_list(self, x):
+        return [item.tolist() if isinstance(item, np.ndarray) else item for item in x]
+
+    def collate_fn(self, batch):
+        input_ids = [
+            np.concatenate(
+                [
+                    item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]
+                    for i in range(len(item['seq_boundaries']) - 1)
+                ]
+            )
+            for item in batch
+        ]
+        labels = [
+            np.concatenate(
+                [
+                    item['input_ids'][item['seq_boundaries'][i] + 1 : item['seq_boundaries'][i + 1]]
+                    for i in range(len(item['seq_boundaries']) - 1)
+                ]
+            )
+            for item in batch
+        ]
+
+        loss_mask = [self._build_loss_mask(item) for item in batch]
+
+        if self.pad_to_max_length:
+            max_length = self.max_seq_length
+        else:
+            # pad to the nearest multiple of 16 for FP8 training
+            # for many datasets in practice, all packed sequence lengths are very close to the
+            # target length (2048, 4096, 8192), so there is very minimal padding
+            max_length = max(len(l) for l in input_ids)
+            max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
+        assert max_length <= self.max_seq_length
+
+        position_ids: List[List[int]] = []
+        cu_seqlens: List[List[int]] = []
+        for item in batch:
+            position_ids.append([])
+            cu_seqlens.append([0])
+            seqlens = np.array(item['seq_boundaries'][1:]) - np.array(item['seq_boundaries'][:-1])
+            for l in seqlens:
+                # length minus 1 because input_ids is truncated by 1 for labels
+                position_ids[-1].extend(list(range(l - 1)))
+                cu_seqlens[-1].append(cu_seqlens[-1][-1] + l - 1)
+            # set last seq to the max seq len because rope and attn kernels expect no padding
+            cu_seqlens[-1][-1] = max_length
+
+        assert len(input_ids[0]) == len(
+            position_ids[0]
+        ), "Dataset problem: input_ids and position_ids lengths don't match"
+
+        cu_seqlens = self._collate_item(cu_seqlens, max_length=max(len(l) for l in cu_seqlens) + 1, pad_id=-1)
+        input_ids = self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
+        labels = self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id)
+        loss_mask = self._collate_item(loss_mask, max_length=max_length, pad_id=0)
+        position_ids = self._collate_item(position_ids, max_length=max_length, pad_id=0)
+
+        processed_batch = {
+            'tokens': torch.LongTensor(input_ids),
+            'labels': torch.LongTensor(labels),
+            'attention_mask': torch.LongTensor([1] * len(input_ids)),  # no attention mask is needed for packed seq
+            'loss_mask': torch.LongTensor(loss_mask),
+            'position_ids': torch.LongTensor(position_ids),
+            'cu_seqlens': torch.IntTensor(cu_seqlens),  # cu_seqlens_q must be in dtype torch.int32
         }
 
         return processed_batch
