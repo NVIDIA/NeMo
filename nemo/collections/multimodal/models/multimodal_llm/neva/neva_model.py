@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import tempfile
 from functools import partial
 from itertools import chain
 from typing import Any, Optional
@@ -26,8 +25,6 @@ from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel
 
 from nemo.collections.multimodal.data.neva.conversation import (
-    DEFAULT_BOS_TOKEN,
-    DEFAULT_EOS_TOKEN,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
 )
@@ -41,28 +38,15 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
 )
 from nemo.collections.multimodal.parts.utils import extend_instance, load_nemo_model_weights
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import (
-    build_train_valid_test_datasets as build_text_train_valid_test_datasets,
-)
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel, post_language_model_processing
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import get_specs, MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     MultimodalProjectorAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
-from nemo.collections.nlp.modules.common.megatron.language_model import Embedding, get_language_model
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
-    get_all_params_for_weight_decay_optimization,
-    get_params_for_weight_decay_optimization,
-    init_method_normal,
-    parallel_lm_logits,
-    scaled_init_method_normal,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
@@ -73,13 +57,11 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
 from nemo.collections.nlp.parts.mixins.multimodal_adapter_mixins import MultimodalAdapterModelMixin
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomSampler
-from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -500,6 +482,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 media_end_id=media_end_id,
                 mcore_gpt=self.mcore_gpt,
                 config=self.transformer_config,
+                transformer_layer_spec=get_specs(self.spec_name),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
