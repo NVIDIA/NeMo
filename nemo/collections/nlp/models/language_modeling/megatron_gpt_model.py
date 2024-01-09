@@ -1548,6 +1548,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         bias_activation_fusion = self.cfg.get('bias_activation_fusion', True)
 
         bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
+        
+        apply_rope_fusion = self.cfg.get('apply_rope_fusion', True)
 
         # TODO: need to check if recompute APIs are matching up properly
         recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
@@ -1578,6 +1580,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'attention_softmax_in_fp32': attention_softmax_in_fp32,
             'bias_activation_fusion': bias_activation_fusion,
             'bias_dropout_fusion': bias_dropout_fusion,
+            'apply_rope_fusion': apply_rope_fusion,
             'recompute_granularity': recompute_granularity,
             'recompute_method': recompute_method,
             'recompute_num_layers': recompute_num_layers,
