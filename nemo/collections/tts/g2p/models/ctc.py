@@ -125,10 +125,14 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
                 punctuation_marks = string.punctuation.replace('"', "").replace("\\", "").replace("'", "")
                 chars += punctuation_marks
 
-            vocab_file = "/tmp/char_vocab.txt"
-            with open(vocab_file, "w") as f:
-                [f.write(f'"{ch}"\n') for ch in chars]
-                f.write('"\\""\n')  # add " to the vocab
+            if cfg.tokenizer_grapheme.vocab_file:
+                vocab_file = cfg.tokenizer_grapheme.vocab_file
+            else:
+                vocab_file = "/tmp/char_vocab.txt"
+            
+                with open(vocab_file, "w") as f:
+                    [f.write(f'"{ch}"\n') for ch in chars]
+                    f.write('"\\""\n')  # add " to the vocab
 
             self.register_artifact("tokenizer_grapheme.vocab_file", vocab_file)
             grapheme_tokenizer = instantiate(cfg.tokenizer_grapheme.dataset, vocab_file=vocab_file)
