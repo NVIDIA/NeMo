@@ -1073,3 +1073,29 @@ class MegatronBertModel(MegatronBaseModel):
         assert activation == 'gelu', "Only gelu activation is support for BERT at the moment."
         transformer_config = super().build_transformer_config()
         return transformer_config
+
+class MegatronBertTextEmbeddingModel(MegatronBertModel):
+    """
+    Megatron Bert Text Embedding.
+    Model returns [batch, hidden] shape
+    """
+
+    def average_pool(self, last_hidden_states, attention_mask):
+        last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
+        return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
+
+    def forward(
+        self,
+        input_ids,
+        attention_mask,
+        token_type_ids,
+        lm_labels=None,
+        checkpoint_activations_all_layers=None,
+        model=None,
+    ):
+        outputs = super().forward(input_ids, attention_mask, token_type_ids, lm_labels,
+                                  checkpoint_activations_all_layers, model)
+        embeddings = self.average_pool(outputs[0], attention_mask)
+        embeddings = F.normalize(embeddings, p=2, dim=1)
+
+        return embeddings
