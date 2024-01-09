@@ -129,7 +129,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
                 vocab_file = cfg.tokenizer_grapheme.vocab_file
             else:
                 vocab_file = "/tmp/char_vocab.txt"
-            
+
                 with open(vocab_file, "w") as f:
                     [f.write(f'"{ch}"\n') for ch in chars]
                     f.write('"\\""\n')  # add " to the vocab
