@@ -23,6 +23,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_bert_model import Me
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.utils import logging
 
+
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("--nemo_path", type=str, required=True)
@@ -33,7 +34,9 @@ def get_args():
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--onnx_path", type=str, default="bert.onnx", required=False, help="Path to output .nemo file.")
+    parser.add_argument(
+        "--onnx_path", type=str, default="bert.onnx", required=False, help="Path to output .nemo file."
+    )
     parser.add_argument(
         "--precision", type=str, default="32", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
@@ -70,12 +73,7 @@ def export(args):
     export_input = tuple([batch_dict_cuda[name] for name in input_names])
 
     torch.onnx.export(
-        model,
-        export_input,
-        args.onnx_path,
-        verbose=False,
-        input_names=input_names,
-        output_names=output_names,
+        model, export_input, args.onnx_path, verbose=False, input_names=input_names, output_names=output_names,
     )
     logging.info(f'NeMo model saved to: {args.onnx_path}')
 

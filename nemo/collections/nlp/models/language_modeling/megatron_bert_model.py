@@ -1074,6 +1074,7 @@ class MegatronBertModel(MegatronBaseModel):
         transformer_config = super().build_transformer_config()
         return transformer_config
 
+
 class MegatronBertTextEmbeddingModel(MegatronBertModel):
     """
     Megatron Bert Text Embedding.
@@ -1093,8 +1094,9 @@ class MegatronBertTextEmbeddingModel(MegatronBertModel):
         checkpoint_activations_all_layers=None,
         model=None,
     ):
-        outputs = super().forward(input_ids, attention_mask, token_type_ids, lm_labels,
-                                  checkpoint_activations_all_layers, model)
+        outputs = super().forward(
+            input_ids, attention_mask, token_type_ids, lm_labels, checkpoint_activations_all_layers, model
+        )
         embeddings = self.average_pool(outputs[0], attention_mask)
         embeddings = F.normalize(embeddings, p=2, dim=1)
 
