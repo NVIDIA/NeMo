@@ -381,7 +381,6 @@ def transcribe_partial_audio(
     """
     See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py and nemo/collections/asr/models/rnnt_models.py
     """
-
     if return_hypotheses and logprobs:
         raise ValueError(
             "Either `return_hypotheses` or `logprobs` can be True at any given time."
@@ -439,10 +438,8 @@ def transcribe_partial_audio(
             if isinstance(asr_model, EncDecHybridRNNTCTCModel) and decoder_type == "ctc":
                 logits = asr_model.ctc_decoder(encoder_output=logits)
 
-            logits = logits.cpu()
-
             if logprobs:
-                logits = logits.numpy()
+                logits = logits.cpu().numpy()
                 # dump log probs per file
                 for idx in range(logits.shape[0]):
                     lg = logits[idx][: logits_len[idx]]
