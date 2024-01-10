@@ -18,8 +18,9 @@ import queue
 import warnings
 from contextlib import nullcontext
 from dataclasses import fields
-from functools import partial
+from functools import partial, cache
 from typing import Any, Dict, Iterator, List, Optional, Union
+from pkg_resources import packaging
 
 import torch
 from omegaconf import OmegaConf
@@ -104,10 +105,18 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
+@cache
+def mcore_supports_moe() -> bool:
+    mcore_version = packaging.version.Version(version("megatron-core"))
+    return mcore_version >= packaging.version.Version("0.5.0")
 
 def get_specs(spec_name, num_experts=None):
     if spec_name == '':
-        return get_gpt_layer_with_transformer_engine_spec(num_experts)
+        if num_experts is not None:
+            assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
+            return get_gpt_layer_with_transformer_engine_spec(num_experts)
+        else:
+            return get_gpt_layer_with_transformer_engine_spec()
     elif spec_name == 'megatron_falcon_gpt':
         return get_falcon_layer_spec()
     else:
@@ -1610,6 +1619,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'num_moe_experts': self.cfg.get('num_moe_experts', None),
             'moe_router_type': self.cfg.get('moe_router_type', None),
         }
+        if model_specific_configs['num_moe_experts'] is not None or \
+            model_specific_configs['moe_router_type'] is not None:
+                assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
+        elif not mcore_supports_moe():
+            del model_specific_configs['num_moe_experts']
+            del model_specific_configs['moe_router_type']
 
         transformer_config = super().build_transformer_config()
 
