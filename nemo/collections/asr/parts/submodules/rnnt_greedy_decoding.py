@@ -38,7 +38,7 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, HypothesisType, LengthsType, NeuralType
+from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
 
 
@@ -672,14 +672,19 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         # init additional structs for hypotheses: last decoder state, alignments, frame_confidence
         last_decoder_state = [None for _ in range(batch_size)]
+
+        alignments: Optional[rnnt_utils.BatchedAlignments]
         if self.preserve_alignments:
-            alignments: List[List[List[tuple[torch.Tensor, torch.Tensor]]]] = [
-                [[] for _ in range(out_len[i].item())] for i in range(batch_size)
-            ]
-        if self.preserve_frame_confidence:
-            frame_confidence: List[List[List[torch.Tensor]]] = [
-                [[] for _ in range(out_len[i].item())] for i in range(batch_size)
-            ]
+            alignments = rnnt_utils.BatchedAlignments(
+                batch_size=batch_size,
+                logits_dim=self.joint.num_classes_with_blank,
+                init_length=max_time * 2,  # blank for each timestep + text tokens
+                device=x.device,
+                float_dtype=x.dtype,
+                with_frame_confidence=self.preserve_frame_confidence,
+            )
+        else:
+            alignments = None
 
         # loop while there are active indices
         while (current_batch_size := active_indices.shape[0]) > 0:
@@ -708,15 +713,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             blank_mask = labels == self._blank_index
             advance_mask = torch.logical_and(blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices]))
             if self.preserve_alignments:
-                for i, global_batch_idx in enumerate(active_indices.cpu().numpy()):
-                    alignments[global_batch_idx][time_indices[global_batch_idx]].append(
-                        (logits[i].cpu(), labels[i].cpu())
-                    )
-            if self.preserve_frame_confidence:
-                confidence = self._get_confidence(logits)
-                for i, global_batch_idx in enumerate(active_indices.cpu().numpy()):
-                    frame_confidence[global_batch_idx][time_indices[global_batch_idx]].append(confidence[i])
-            while advance_mask.any():  # .item()?
+                alignments.add_results_(
+                    active_indices=active_indices,
+                    logits=logits,
+                    labels=labels,
+                    confidence=self._get_confidence(logits) if self.preserve_frame_confidence else None,
+                )
+            while advance_mask.any():
                 advance_indices = active_indices[advance_mask]
                 time_indices[advance_indices] += 1
                 logits = (
@@ -732,14 +735,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 labels[advance_mask] = more_labels
                 scores[advance_mask] = more_scores
                 if self.preserve_alignments:
-                    for i, global_batch_idx in enumerate(advance_indices.cpu().numpy()):
-                        alignments[global_batch_idx][time_indices[global_batch_idx]].append(
-                            (logits[i].cpu(), more_labels[i].cpu())
-                        )
-                if self.preserve_frame_confidence:
-                    confidence = self._get_confidence(logits)
-                    for i, global_batch_idx in enumerate(advance_indices.cpu().numpy()):
-                        frame_confidence[global_batch_idx][time_indices[global_batch_idx]].append(confidence[i])
+                    alignments.add_results_(
+                        active_indices=advance_indices,
+                        logits=logits,
+                        labels=more_labels,
+                        confidence=self._get_confidence(logits) if self.preserve_frame_confidence else None,
+                    )
                 blank_mask = labels == self._blank_index
                 advance_mask = torch.logical_and(
                     blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices])
@@ -761,12 +762,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 # update active indices and state
                 active_indices = active_indices[non_blank_mask]
-                if isinstance(state, torch.Tensor):
-                    # GRU, pure RNN
-                    state = state[non_blank_mask]
-                elif isinstance(state, tuple):
+                if isinstance(state, tuple):
                     # LSTM
                     state = tuple(state_part[:, non_blank_mask] for state_part in state)
+                else:
+                    raise NotImplementedError("Unsupported state")
             # store hypotheses
             batched_hyps.add_results_(
                 active_indices, labels, time_indices[active_indices].clone(), scores,
@@ -781,7 +781,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     ),
                     batched_hyps.last_timestep[active_indices] == time_indices[active_indices],
                 )
-                if (self.preserve_alignments or self.preserve_frame_confidence) and force_blank_mask.any():
+                if self.preserve_alignments and force_blank_mask.any():
                     # we do not need output for forced blank in a general case, since hidden state will be the same
                     # but for preserving alignments/confidence we need a tensor with logits
                     force_blank_indices = active_indices[force_blank_mask]
@@ -795,14 +795,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         .squeeze(1)
                     )
                     if self.preserve_alignments:
-                        for i, global_batch_idx in enumerate(force_blank_indices.cpu().numpy()):
-                            alignments[global_batch_idx][time_indices[global_batch_idx]].append(
-                                (logits[i].cpu(), torch.tensor(self._blank_index, device=device))
-                            )
-                    if self.preserve_frame_confidence:
-                        confidence = self._get_confidence(logits)
-                        for i, global_batch_idx in enumerate(force_blank_indices.cpu().numpy()):
-                            frame_confidence[global_batch_idx][time_indices[global_batch_idx]].append(confidence[i])
+                        alignments.add_results_(
+                            active_indices=force_blank_indices,
+                            logits=logits,
+                            labels=torch.full_like(force_blank_indices, fill_value=self._blank_index),
+                            confidence=self._get_confidence(logits) if self.preserve_frame_confidence else None,
+                        )
+
                 if force_blank_mask.any():
                     time_indices[active_indices[force_blank_mask]] += 1
                     still_active_mask = time_indices[active_indices] < out_len[active_indices]
@@ -815,17 +814,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # LSTM
                         state = tuple(state_part[:, still_active_mask] for state_part in state)
 
-        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps)
+        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
         # preserve last decoder state (is it necessary?)
         for i, last_state in enumerate(last_decoder_state):
             # assert last_state is not None
             hyps[i].dec_state = last_state
-        if self.preserve_alignments:
-            for i, alignment in enumerate(alignments):
-                hyps[i].alignments = alignment
-        if self.preserve_frame_confidence:
-            for i, current_frame_confidence in enumerate(frame_confidence):
-                hyps[i].frame_confidence = current_frame_confidence
         return hyps
 
     def _greedy_decode_blank_as_pad_loop_frames(

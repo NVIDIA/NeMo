@@ -223,7 +223,7 @@ def select_k_expansions(
 
 
 class BatchedHyps:
-    """Class to store batched hypotheses for efficient RNNT decoding"""
+    """Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
 
     def __init__(
         self,
@@ -271,8 +271,9 @@ class BatchedHyps:
         if self.lengths.max().item() >= self._max_length:
             self._allocate_more()
         self.scores[active_indices] += scores
-        self.transcript.view(-1)[active_indices * self._max_length + self.lengths[active_indices]] = labels
-        self.timesteps.view(-1)[active_indices * self._max_length + self.lengths[active_indices]] = time_indices
+        indices_to_use = active_indices * self._max_length + self.lengths[active_indices]
+        self.transcript.view(-1)[indices_to_use] = labels
+        self.timesteps.view(-1)[indices_to_use] = time_indices
         self.last_timestep_lasts[active_indices] = torch.where(
             self.last_timestep[active_indices] == time_indices, self.last_timestep_lasts[active_indices] + 1, 1
         )
@@ -280,7 +281,78 @@ class BatchedHyps:
         self.lengths[active_indices] += 1
 
 
-def batched_hyps_to_hypotheses(batched_hyps: BatchedHyps) -> List[Hypothesis]:
+class BatchedAlignments:
+    """
+    Class to store batched alignments (logits, labels, frame_confidence).
+    Size is different from hypotheses, since blank outputs are preserved
+    """
+
+    def __init__(
+        self,
+        batch_size: int,
+        logits_dim: int,
+        init_length: int,
+        device: Optional[torch.device] = None,
+        float_dtype: Optional[torch.dtype] = None,
+        with_frame_confidence: bool = False,
+    ):
+        if init_length <= 0:
+            raise ValueError(f"init_length must be > 0, got {init_length}")
+        if batch_size <= 0:
+            raise ValueError(f"batch_size must be > 0, got {batch_size}")
+        self.with_frame_confidence = with_frame_confidence
+        self._max_length = init_length
+        self.logits = torch.zeros((batch_size, self._max_length, logits_dim), device=device, dtype=float_dtype)
+        self.labels = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
+        self.lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
+        if self.with_frame_confidence:
+            self.frame_confidence = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
+        else:
+            self.frame_confidence = None
+
+    def _allocate_more(self):
+        """
+        Allocate 2x space for tensors, similar to common C++ std::vector implementations
+        to maintain O(1) insertion time complexity
+        """
+        self.logits = torch.cat((self.logits, torch.zeros_like(self.logits)), dim=-1)
+        self.labels = torch.cat((self.labels, torch.zeros_like(self.labels)), dim=-1)
+        if self.with_frame_confidence:
+            self.frame_confidence = torch.cat((self.frame_confidence, torch.zeros_like(self.frame_confidence)), dim=-1)
+        self._max_length *= 2
+
+    def add_results_(
+        self,
+        active_indices: torch.Tensor,
+        logits: torch.Tensor,
+        labels: torch.Tensor,
+        confidence: Optional[torch.Tensor] = None,
+    ):
+        """
+        Add results (inplace) from a decoding step to the batched hypotheses
+        Args:
+            active_indices: tensor with indices of active hypotheses (indices should be within the original batch_size)
+            logits: tensor with raw network outputs
+            labels: tensor with decoded labels (can contain blank)
+            confidence: optional tensor with confidence for each item in batch
+        """
+        # we assume that all tensors have the same first dimension
+        if active_indices.shape[0] == 0:
+            return  # nothing to add
+        if self.lengths.max().item() >= self._max_length:
+            self._allocate_more()
+        logits_dim = self.logits.shape[-1]
+        indices_to_use = active_indices * self._max_length + self.lengths[active_indices]
+        self.logits.view(-1, logits_dim)[indices_to_use] = logits
+        self.labels.view(-1)[indices_to_use] = labels
+        if self.with_frame_confidence and confidence is not None:
+            self.frame_confidence.view(-1)[indices_to_use] = confidence
+        self.lengths[active_indices] += 1
+
+
+def batched_hyps_to_hypotheses(
+    batched_hyps: BatchedHyps, alignments: Optional[BatchedAlignments] = None
+) -> List[Hypothesis]:
     """
     Convert batched hypotheses to a list of Hypothesis objects.
     Keep this funcion separate to allow for jit compilation for BatchedHyps class (see tests)
@@ -291,12 +363,30 @@ def batched_hyps_to_hypotheses(batched_hyps: BatchedHyps) -> List[Hypothesis]:
     Returns:
         list of Hypothesis objects
     """
+    alignment_lengths = None
+    alignment_labels = None
+    frame_confidence = None
+    alignment_logits = None
+    if alignments is not None:
+        # move to CPU all tensors before saving to hypotheses
+        alignment_lengths = alignments.lengths.cpu().tolist()
+        alignment_labels = alignments.labels.cpu()
+        alignment_logits = alignments.logits.cpu()
+        if alignments.with_frame_confidence:
+            frame_confidence = alignments.frame_confidence.cpu()
     hypotheses = [
         Hypothesis(
             score=batched_hyps.scores[i].item(),
             y_sequence=batched_hyps.transcript[i, : batched_hyps.lengths[i]],
             timestep=batched_hyps.timesteps[i, : batched_hyps.lengths[i]],
-            alignments=None,
+            alignments=[
+                (alignment_labels[i, time_i], alignment_logits[i, time_i]) for time_i in range(alignment_lengths[i])
+            ]
+            if alignment_lengths is not None
+            else None,
+            frame_confidence=[frame_confidence[i, : alignment_lengths[i]].tolist()]
+            if frame_confidence is not None
+            else None,
             dec_state=None,
         )
         for i in range(batched_hyps.scores.shape[0])
