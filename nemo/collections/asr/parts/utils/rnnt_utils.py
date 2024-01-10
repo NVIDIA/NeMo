@@ -304,9 +304,10 @@ class BatchedAlignments:
         self._max_length = init_length
         self.logits = torch.zeros((batch_size, self._max_length, logits_dim), device=device, dtype=float_dtype)
         self.labels = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
+        self.timesteps = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
         self.lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
         if self.with_frame_confidence:
-            self.frame_confidence = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
+            self.frame_confidence = torch.zeros((batch_size, self._max_length), device=device, dtype=float_dtype)
         else:
             self.frame_confidence = None
 
@@ -317,6 +318,7 @@ class BatchedAlignments:
         """
         self.logits = torch.cat((self.logits, torch.zeros_like(self.logits)), dim=1)
         self.labels = torch.cat((self.labels, torch.zeros_like(self.labels)), dim=-1)
+        self.timesteps = torch.cat((self.timesteps, torch.zeros_like(self.timesteps)), dim=-1)
         if self.with_frame_confidence:
             self.frame_confidence = torch.cat((self.frame_confidence, torch.zeros_like(self.frame_confidence)), dim=-1)
         self._max_length *= 2
@@ -326,6 +328,7 @@ class BatchedAlignments:
         active_indices: torch.Tensor,
         logits: torch.Tensor,
         labels: torch.Tensor,
+        time_indices: torch.Tensor,
         confidence: Optional[torch.Tensor] = None,
     ):
         """
@@ -334,6 +337,7 @@ class BatchedAlignments:
             active_indices: tensor with indices of active hypotheses (indices should be within the original batch_size)
             logits: tensor with raw network outputs
             labels: tensor with decoded labels (can contain blank)
+            time_indices: tensor of time index for each label
             confidence: optional tensor with confidence for each item in batch
         """
         # we assume that all tensors have the same first dimension
@@ -345,6 +349,7 @@ class BatchedAlignments:
         indices_to_use = active_indices * self._max_length + self.lengths[active_indices]
         self.logits.view(-1, logits_dim)[indices_to_use] = logits
         self.labels.view(-1)[indices_to_use] = labels
+        self.timesteps.view(-1)[indices_to_use] = time_indices
         if self.with_frame_confidence and confidence is not None:
             self.frame_confidence.view(-1)[indices_to_use] = confidence
         self.lengths[active_indices] += 1
@@ -363,32 +368,38 @@ def batched_hyps_to_hypotheses(
     Returns:
         list of Hypothesis objects
     """
-    alignment_lengths = None
-    alignment_labels = None
-    frame_confidence = None
-    alignment_logits = None
-    if alignments is not None:
-        # move to CPU all tensors before saving to hypotheses
-        alignment_lengths = alignments.lengths.cpu().tolist()
-        alignment_labels = alignments.labels.cpu()
-        alignment_logits = alignments.logits.cpu()
-        if alignments.with_frame_confidence:
-            frame_confidence = alignments.frame_confidence.cpu()
     hypotheses = [
         Hypothesis(
             score=batched_hyps.scores[i].item(),
             y_sequence=batched_hyps.transcript[i, : batched_hyps.lengths[i]],
             timestep=batched_hyps.timesteps[i, : batched_hyps.lengths[i]],
-            alignments=[
-                (alignment_labels[i, time_i], alignment_logits[i, time_i]) for time_i in range(alignment_lengths[i])
-            ]
-            if alignment_lengths is not None
-            else None,
-            frame_confidence=[frame_confidence[i, : alignment_lengths[i]].tolist()]
-            if frame_confidence is not None
-            else None,
+            alignments=None,
             dec_state=None,
         )
         for i in range(batched_hyps.scores.shape[0])
     ]
+    if alignments is not None:
+        alignment_logits = alignments.logits.cpu()
+        alignment_labels = alignments.labels.cpu()
+        alignment_lengths = alignments.lengths.cpu().tolist()
+        if alignments.with_frame_confidence:
+            frame_confidence = alignments.frame_confidence.cpu()
+        for i in range(len(hypotheses)):
+            hypotheses[i].alignments = []
+            if alignments.with_frame_confidence:
+                hypotheses[i].frame_confidence = []
+            _, grouped_counts = torch.unique_consecutive(
+                alignments.timesteps[i, : alignment_lengths[i]], return_counts=True
+            )
+            start = 0
+            for timestep_cnt in grouped_counts.tolist():
+                hypotheses[i].alignments.append(
+                    [(alignment_logits[i, start + j], alignment_labels[i, start + j]) for j in range(timestep_cnt)]
+                )
+                if alignments.with_frame_confidence:
+                    hypotheses[i].frame_confidence.append(
+                        [frame_confidence[i, start + j] for j in range(timestep_cnt)]
+                    )
+                start += timestep_cnt
+            # for time_ind
     return hypotheses
