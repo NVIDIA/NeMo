@@ -25,7 +25,7 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
@@ -253,9 +253,9 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
                 predictions_lengths=pred_len,
                 targets_lengths=eos_semantics_len,
             )
-            wer, _, _ = self.wer.compute()
+            metrics = self.wer.compute(prefix='training_batch_', return_all_metrics=False)
             self.wer.reset()
-            tensorboard_logs.update({'training_batch_wer': wer})
+            tensorboard_logs.update(metrics)
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
@@ -311,6 +311,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         eos_semantics_len = semantics_len - 1  # subtract 1 for bos&eos tokens
 
         loss_value = self.loss(log_probs=log_probs, labels=eos_semantics, lengths=eos_semantics_len)
+        logs = {'val_loss': loss_value}
 
         self.wer.update(
             predictions=predictions,
@@ -318,15 +319,11 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             predictions_lengths=pred_len,
             targets_lengths=eos_semantics_len,
         )
-        wer, wer_num, wer_denom = self.wer.compute()
+        metrics = self.wer.compute(prefix='val_')
         self.wer.reset()
 
-        return {
-            'val_loss': loss_value,
-            'val_wer_num': wer_num,
-            'val_wer_denom': wer_denom,
-            'val_wer': wer,
-        }
+        logs.update(metrics)
+        return logs
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         metrics = self.validation_pass(batch, batch_idx, dataloader_idx)

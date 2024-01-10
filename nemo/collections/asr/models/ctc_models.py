@@ -26,7 +26,7 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics import WER, BLEU
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCMixin
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
@@ -94,12 +94,21 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         self.decoding = CTCDecoding(self.cfg.decoding, vocabulary=OmegaConf.to_container(self.decoder.vocabulary))
 
         # Setup metric with decoding strategy
-        self.wer = WER(
-            decoding=self.decoding,
-            use_cer=self._cfg.get('use_cer', False),
-            dist_sync_on_step=True,
-            log_prediction=self._cfg.get("log_prediction", False),
-        )
+        if self.cfg.get("use_bleu", False):
+            self.wer = BLEU(
+                decoding=self.decoding,
+                tokenize=self.cfg.get("bleu_tokenize", "13a"),
+                n_gram=self.cfg.get("bleu_ngram", 4),
+                dist_sync_on_step=True,
+                log_prediction=self.cfg.get("log_prediction", False),
+            )
+        else:
+            self.wer = WER(
+                decoding=self.decoding,
+                use_cer=self.cfg.get('use_cer', False),
+                dist_sync_on_step=True,
+                log_prediction=self.cfg.get("log_prediction", False),
+            )
 
         # Setup optional Optimization flags
         self.setup_optimization_flags()
@@ -287,12 +296,22 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 decoding_cfg=decoding_cfg, vocabulary=OmegaConf.to_container(self.decoder.vocabulary)
             )
 
-            self.wer = WER(
-                decoding=self.decoding,
-                use_cer=self._cfg.get('use_cer', False),
-                dist_sync_on_step=True,
-                log_prediction=self._cfg.get("log_prediction", False),
-            )
+            # Setup metric with decoding strategy
+            if self.cfg.get("use_bleu", False):
+                self.wer = BLEU(
+                    decoding=self.decoding,
+                    tokenize=self.cfg.get("bleu_tokenize", "13a"),
+                    n_gram=self.cfg.get("bleu_ngram", 4),
+                    dist_sync_on_step=True,
+                    log_prediction=self.cfg.get("log_prediction", False),
+                )
+            else:
+                self.wer = WER(
+                    decoding=self.decoding,
+                    use_cer=self.cfg.get('use_cer', False),
+                    dist_sync_on_step=True,
+                    log_prediction=self.cfg.get("log_prediction", False),
+                )
 
             # Update config
             with open_dict(self.cfg.decoder):
@@ -331,12 +350,22 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             decoding_cfg=decoding_cfg, vocabulary=OmegaConf.to_container(self.decoder.vocabulary)
         )
 
-        self.wer = WER(
-            decoding=self.decoding,
-            use_cer=self.wer.use_cer,
-            log_prediction=self.wer.log_prediction,
-            dist_sync_on_step=True,
-        )
+        # Setup metric with decoding strategy
+        if isinstance(self.wer, BLEU):
+            self.wer = BLEU(
+                decoding=self.decoding,
+                tokenize=self.wer.tokenize,
+                n_gram=self.wer.n_gram,
+                dist_sync_on_step=True,
+                log_prediction=self.wer.log_prediction
+            )
+        else:
+            self.wer = WER(
+                decoding=self.decoding,
+                use_cer=self.wer.use_cer,
+                dist_sync_on_step=True,
+                log_prediction=self.wer.log_prediction
+            )
 
         self.decoder.temperature = decoding_cfg.get('temperature', 1.0)
 
@@ -581,7 +610,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         # Add auxiliary losses, if registered
         loss_value = self.add_auxiliary_losses(loss_value)
-        # only computing WER when requested in the logs (same as done for final-layer WER below)
+        # only computing metric when requested in the logs (same as done for final-layer metric below)
         loss_value, tensorboard_logs = self.add_interctc_losses(
             loss_value, transcript, transcript_len, compute_wer=((batch_nb + 1) % log_every_n_steps == 0)
         )
@@ -605,10 +634,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 targets_lengths=transcript_len,
                 predictions_lengths=encoded_len,
             )
-            wer, _, _ = self.wer.compute()
+            metrics = self.wer.compute(return_all_metrics=False, prefix="training_batch_")
             self.wer.reset()
-            tensorboard_logs.update({'training_batch_wer': wer})
 
+            tensorboard_logs.update(metrics)
+            
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
@@ -642,17 +672,18 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        loss_value, metrics = self.add_interctc_losses(
+        loss_value, interctc_metrics = self.add_interctc_losses(
             loss_value, transcript, transcript_len, compute_wer=True, log_wer_num_denom=True, log_prefix="val_",
         )
+        interctc_metrics.update({'val_loss': loss_value})
 
         self.wer.update(
             predictions=log_probs, targets=transcript, targets_lengths=transcript_len, predictions_lengths=encoded_len,
         )
-        wer, wer_num, wer_denom = self.wer.compute()
+        metrics = self.wer.compute(prefix="val_")
         self.wer.reset()
-        metrics.update({'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom, 'val_wer': wer})
 
+        metrics.update(interctc_metrics)
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         # Reset access registry

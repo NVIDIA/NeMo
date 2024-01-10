@@ -22,7 +22,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics import WER, BLEU
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
@@ -82,12 +82,21 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
 
         # Setup metric with decoding strategy
-        self.wer = WER(
-            decoding=self.decoding,
-            use_cer=self._cfg.get('use_cer', False),
-            dist_sync_on_step=True,
-            log_prediction=self._cfg.get("log_prediction", False),
-        )
+        if self.cfg.get("use_bleu", False):
+            self.wer = BLEU(
+                decoding=self.decoding,
+                tokenize=self.cfg.get("bleu_tokenize", "13a"),
+                n_gram=self.cfg.get("bleu_ngram", 4),
+                dist_sync_on_step=True,
+                log_prediction=self.cfg.get("log_prediction", False),
+            )
+        else:
+            self.wer = WER(
+                decoding=self.decoding,
+                use_cer=self.cfg.get('use_cer', False),
+                dist_sync_on_step=True,
+                log_prediction=self.cfg.get("log_prediction", False),
+            )
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
@@ -263,13 +272,22 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer)
 
-        self.wer = WER(
-            decoding=self.decoding,
-            use_cer=self._cfg.get('use_cer', False),
-            log_prediction=self._cfg.get("log_prediction", False),
-            dist_sync_on_step=True,
-        )
-
+        # Setup metric with decoding strategy
+        if self.cfg.get("use_bleu", False):
+            self.wer = BLEU(
+                decoding=self.decoding,
+                tokenize=self.cfg.get("bleu_tokenize", "13a"),
+                n_gram=self.cfg.get("bleu_ngram", 4),
+                dist_sync_on_step=True,
+                log_prediction=self.cfg.get("log_prediction", False),
+            )
+        else:
+            self.wer = WER(
+                decoding=self.decoding,
+                use_cer=self.cfg.get('use_cer', False),
+                dist_sync_on_step=True,
+                log_prediction=self.cfg.get("log_prediction", False),
+            )
         # Update config
         with open_dict(self.cfg.decoder):
             self._cfg.decoder = decoder_config
@@ -299,12 +317,22 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer,)
 
-        self.wer = WER(
-            decoding=self.decoding,
-            use_cer=self.wer.use_cer,
-            log_prediction=self.wer.log_prediction,
-            dist_sync_on_step=True,
-        )
+        # Setup metric with decoding strategy
+        if isinstance(self.wer, BLEU):
+            self.wer = BLEU(
+                decoding=self.decoding,
+                tokenize=self.wer.tokenize,
+                n_gram=self.wer.n_gram,
+                dist_sync_on_step=True,
+                log_prediction=self.wer.log_prediction
+            )
+        else:
+            self.wer = WER(
+                decoding=self.decoding,
+                use_cer=self.wer.use_cer,
+                dist_sync_on_step=True,
+                log_prediction=self.wer.log_prediction
+            )
 
         self.decoder.temperature = decoding_cfg.get('temperature', 1.0)
 

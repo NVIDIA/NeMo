@@ -1247,6 +1247,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         transcripts: Optional[torch.Tensor] = None,
         transcript_lengths: Optional[torch.Tensor] = None,
         compute_wer: bool = False,
+        wer_prefix: str = "",
+        wer_suffix: str = "",
+        return_all_wer_metrics: bool = True
     ) -> Union[torch.Tensor, List[Optional[torch.Tensor]]]:
         # encoder = (B, D, T)
         # decoder = (B, D, U) if passed, else None
@@ -1373,14 +1376,12 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
             # Collect sub batch wer results
             if compute_wer:
                 # Sync and all_reduce on all processes, compute global WER
-                wer, wer_num, wer_denom = self.wer.compute()
+                metrics = self.wer.compute(prefix=wer_prefix, suffix=wer_suffix, return_all_metrics=return_all_wer_metrics)
                 self.wer.reset()
             else:
-                wer = None
-                wer_num = None
-                wer_denom = None
+                metrics = {}
 
-            return losses, wer, wer_num, wer_denom
+            return losses, metrics
 
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
         """
@@ -1863,14 +1864,12 @@ class SampledRNNTJoint(RNNTJoint):
         # Collect sub batch wer results
         if compute_wer:
             # Sync and all_reduce on all processes, compute global WER
-            wer, wer_num, wer_denom = self.wer.compute()
+            metrics = self.wer.compute()
             self.wer.reset()
         else:
-            wer = None
-            wer_num = None
-            wer_denom = None
+            metrics = None
 
-        return losses, wer, wer_num, wer_denom
+        return losses, metrics
 
     def sampled_joint(
         self, f: torch.Tensor, g: torch.Tensor, transcript: torch.Tensor, transcript_lengths: torch.Tensor,

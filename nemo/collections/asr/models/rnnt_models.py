@@ -27,7 +27,7 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
-from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics import WER, BLEU
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
@@ -93,14 +93,25 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         self.decoding = RNNTDecoding(
             decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
         )
-        # Setup WER calculation
-        self.wer = WER(
-            decoding=self.decoding,
-            batch_dim_index=0,
-            use_cer=self._cfg.get('use_cer', False),
-            log_prediction=self._cfg.get('log_prediction', True),
-            dist_sync_on_step=True,
-        )
+
+        # Setup metric with decoding strategy
+        if self.cfg.get("use_bleu", False):
+            self.wer = BLEU(
+                decoding=self.decoding,
+                batch_dim_index=0,
+                tokenize=self.cfg.get("bleu_tokenize", "13a"),
+                n_gram=self.cfg.get("bleu_ngram", 4),
+                log_prediction=self.cfg.get("log_prediction", False),
+                dist_sync_on_step=True,
+            )
+        else:
+            self.wer = WER(
+                decoding=self.decoding,
+                batch_dim_index=0,
+                use_cer=self.cfg.get('use_cer', False),
+                log_prediction=self.cfg.get("log_prediction", False),
+                dist_sync_on_step=True,
+            )
 
         # Whether to compute loss during evaluation
         if 'compute_eval_loss' in self.cfg:
@@ -378,13 +389,23 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
             )
 
-            self.wer = WER(
-                decoding=self.decoding,
-                batch_dim_index=self.wer.batch_dim_index,
-                use_cer=self.wer.use_cer,
-                log_prediction=self.wer.log_prediction,
-                dist_sync_on_step=True,
-            )
+            if isinstance(self.wer, BLEU):
+                self.wer = BLEU(
+                    decoding=self.decoding,
+                    batch_dim_index=self.wer.batch_dim_index,
+                    tokenize=self.wer.tokenize,
+                    n_gram=self.wer.n_gram,
+                    log_prediction=self.wer.log_prediction,
+                    dist_sync_on_step=True,
+                )
+            else:
+                self.wer = WER(
+                    decoding=self.decoding,
+                    batch_dim_index=self.wer.batch_dim_index,
+                    use_cer=self.wer.use_cer,
+                    log_prediction=self.wer.log_prediction,
+                    dist_sync_on_step=True,
+                )
 
             # Setup fused Joint step
             if self.joint.fuse_loss_wer or (
@@ -433,13 +454,23 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
         )
 
-        self.wer = WER(
-            decoding=self.decoding,
-            batch_dim_index=self.wer.batch_dim_index,
-            use_cer=self.wer.use_cer,
-            log_prediction=self.wer.log_prediction,
-            dist_sync_on_step=True,
-        )
+        if isinstance(self.wer, BLEU):
+            self.wer = BLEU(
+                decoding=self.decoding,
+                batch_dim_index=self.wer.batch_dim_index,
+                tokenize=self.wer.tokenize,
+                n_gram=self.wer.n_gram,
+                log_prediction=self.wer.log_prediction,
+                dist_sync_on_step=True,
+            )
+        else:
+            self.wer = WER(
+                decoding=self.decoding,
+                batch_dim_index=self.wer.batch_dim_index,
+                use_cer=self.wer.use_cer,
+                log_prediction=self.wer.log_prediction,
+                dist_sync_on_step=True,
+            )
 
         # Setup fused Joint step
         if self.joint.fuse_loss_wer or (
@@ -715,9 +746,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                     targets=transcript,
                     targets_lengths=transcript_len,
                 )
-                _, scores, words = self.wer.compute()
+                metrics = self.wer.compute(prefix="training_", return_all_metrics=False)
                 self.wer.reset()
-                tensorboard_logs.update({'training_batch_wer': scores.float() / words})
+
+                tensorboard_logs.update(metrics)
 
         else:
             # If experimental fused Joint-Loss-WER is used
@@ -727,13 +759,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 compute_wer = False
 
             # Fused joint step
-            loss_value, wer, _, _ = self.joint(
+            loss_value, metrics = self.joint(
                 encoder_outputs=encoded,
                 decoder_outputs=decoder,
                 encoder_lengths=encoded_len,
                 transcripts=transcript,
                 transcript_lengths=transcript_len,
                 compute_wer=compute_wer,
+                prefix="training_batch_",
+                return_all_wer_metrics=False
             )
 
             # Add auxiliary losses, if registered
@@ -748,9 +782,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 'learning_rate': self._optimizer.param_groups[0]['lr'],
                 'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
             }
-
-            if compute_wer:
-                tensorboard_logs.update({'training_batch_wer': wer})
+            tensorboard_logs.update(metrics)
 
         # Log items
         self.log_dict(tensorboard_logs)
@@ -808,12 +840,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 targets=transcript,
                 targets_lengths=transcript_len,
             )
-            wer, wer_num, wer_denom = self.wer.compute()
+            metrics = self.wer.compute(prefix="val_")
             self.wer.reset()
 
-            tensorboard_logs['val_wer_num'] = wer_num
-            tensorboard_logs['val_wer_denom'] = wer_denom
-            tensorboard_logs['val_wer'] = wer
+            tensorboard_logs.update(metrics)
 
         else:
             # If experimental fused Joint-Loss-WER is used
@@ -826,21 +856,21 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 target_len = transcript_len
 
             # Fused joint step
-            loss_value, wer, wer_num, wer_denom = self.joint(
+            loss_value, metrics = self.joint(
                 encoder_outputs=encoded,
                 decoder_outputs=decoded,
                 encoder_lengths=encoded_len,
                 transcripts=transcript,
                 transcript_lengths=target_len,
                 compute_wer=compute_wer,
+                prefix="val_",
+                return_all_wer_metrics=True
             )
 
+            tensorboard_logs = {}
             if loss_value is not None:
-                tensorboard_logs['val_loss'] = loss_value
-
-            tensorboard_logs['val_wer_num'] = wer_num
-            tensorboard_logs['val_wer_denom'] = wer_denom
-            tensorboard_logs['val_wer'] = wer
+                tensorboard_logs.update({'val_loss': loss_value})
+            tensorboard_logs.update(metrics)
 
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
@@ -862,28 +892,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         else:
             self.test_step_outputs.append(test_logs)
         return test_logs
-
-    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        if self.compute_eval_loss:
-            val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-            val_loss_log = {'val_loss': val_loss_mean}
-        else:
-            val_loss_log = {}
-        wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-        wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {**val_loss_log, 'val_wer': wer_num.float() / wer_denom}
-        return {**val_loss_log, 'log': tensorboard_logs}
-
-    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        if self.compute_eval_loss:
-            test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-            test_loss_log = {'test_loss': test_loss_mean}
-        else:
-            test_loss_log = {}
-        wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
-        wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {**test_loss_log, 'test_wer': wer_num.float() / wer_denom}
-        return {**test_loss_log, 'log': tensorboard_logs}
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """

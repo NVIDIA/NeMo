@@ -24,7 +24,7 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics import WER, BLEU
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
@@ -95,13 +95,23 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         )
 
         # Setup wer object
-        self.wer = WER(
-            decoding=self.decoding,
-            batch_dim_index=0,
-            use_cer=self.cfg.get('use_cer', False),
-            log_prediction=self.cfg.get('log_prediction', True),
-            dist_sync_on_step=True,
-        )
+        if self.cfg.get("use_bleu", False):
+            self.wer = BLEU(
+                decoding=self.decoding,
+                batch_dim_index=0,
+                tokenize=self.cfg.get("bleu_tokenize", "13a"),
+                n_gram=self.cfg.get("bleu_ngram", 4),
+                dist_sync_on_step=True,
+                log_prediction=self.cfg.get("log_prediction", False),
+            )
+        else:
+            self.wer = WER(
+                decoding=self.decoding,
+                batch_dim_index=0,
+                use_cer=self.cfg.wer.get('use_cer', False),
+                dist_sync_on_step=True,
+                log_prediction=self.cfg.get("log_prediction", False),
+            )
 
         # Setup fused Joint step if flag is set
         if self.joint.fuse_loss_wer:
@@ -117,12 +127,21 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         self.ctc_decoding = CTCBPEDecoding(self.cfg.aux_ctc.decoding, tokenizer=self.tokenizer)
 
         # Setup CTC WER
-        self.ctc_wer = WER(
-            decoding=self.ctc_decoding,
-            use_cer=self.cfg.aux_ctc.get('use_cer', False),
-            dist_sync_on_step=True,
-            log_prediction=self.cfg.get("log_prediction", False),
-        )
+        if self.cfg.get("use_bleu", False):
+            self.ctc_wer = BLEU(
+                decoding=self.decoding,
+                tokenize=self.cfg.get("bleu_tokenize", "13a"),
+                n_gram=self.cfg.get("bleu_ngram", 4),
+                dist_sync_on_step=True,
+                log_prediction=self.cfg.get("log_prediction", False),
+            )
+        else:
+            self.ctc_wer = WER(
+                decoding=self.ctc_decoding,
+                use_cer=self.cfg.aux_ctc.get('use_cer', False),
+                dist_sync_on_step=True,
+                log_prediction=self.cfg.get("log_prediction", False),
+            )
 
         # setting the RNNT decoder as the default one
         self.cur_decoder = "rnnt"
@@ -295,13 +314,23 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
 
-        self.wer = WER(
-            decoding=self.decoding,
-            batch_dim_index=self.wer.batch_dim_index,
-            use_cer=self.wer.use_cer,
-            log_prediction=self.wer.log_prediction,
-            dist_sync_on_step=True,
-        )
+        if isinstance(self.wer, BLEU):
+            self.wer = BLEU(
+                decoding=self.decoding,
+                batch_dim_index=self.wer.batch_dim_index,
+                tokenize=self.wer.tokenize,
+                n_gram=self.wer.n_gram,
+                log_prediction=self.wer.log_prediction,
+                dist_sync_on_step=True
+            )
+        else:
+            self.wer = WER(
+                decoding=self.decoding,
+                batch_dim_index=self.wer.batch_dim_index,
+                use_cer=self.wer.use_cer,
+                log_prediction=self.wer.log_prediction,
+                dist_sync_on_step=True,
+            )
 
         # Setup fused Joint step
         if self.joint.fuse_loss_wer or (
@@ -401,13 +430,23 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
             )
 
-            self.wer = WER(
-                decoding=self.decoding,
-                batch_dim_index=self.wer.batch_dim_index,
-                use_cer=self.wer.use_cer,
-                log_prediction=self.wer.log_prediction,
-                dist_sync_on_step=True,
-            )
+            if isinstance(self.wer, BLEU):
+                self.wer = BLEU(
+                    decoding=self.decoding,
+                    batch_dim_index=self.wer.batch_dim_index,
+                    tokenize=self.wer.tokenize,
+                    n_gram=self.wer.n_gram,
+                    log_prediction=self.wer.log_prediction,
+                    dist_sync_on_step=True
+                )
+            else:
+                self.wer = WER(
+                    decoding=self.decoding,
+                    batch_dim_index=self.wer.batch_dim_index,
+                    use_cer=self.wer.use_cer,
+                    log_prediction=self.wer.log_prediction,
+                    dist_sync_on_step=True,
+                )
 
             # Setup fused Joint step
             if self.joint.fuse_loss_wer or (
@@ -440,12 +479,22 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
             self.ctc_decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer)
 
-            self.ctc_wer = WER(
-                decoding=self.ctc_decoding,
-                use_cer=self.ctc_wer.use_cer,
-                log_prediction=self.ctc_wer.log_prediction,
-                dist_sync_on_step=True,
-            )
+            if isinstance(self.wer, BLEU):
+                self.wer = BLEU(
+                    decoding=self.ctc_decoding,
+                    batch_dim_index=self.ctc_wer.batch_dim_index,
+                    tokenize=self.ctc_wer.tokenize,
+                    n_gram=self.ctc_wer.n_gram,
+                    log_prediction=self.ctc_wer.log_prediction,
+                    dist_sync_on_step=True
+                )
+            else:
+                self.ctc_wer = WER(
+                    decoding=self.ctc_decoding,
+                    use_cer=self.ctc_wer.use_cer,
+                    log_prediction=self.ctc_wer.log_prediction,
+                    dist_sync_on_step=True,
+                )
 
             self.ctc_decoder.temperature = decoding_cfg.get('temperature', 1.0)
 
