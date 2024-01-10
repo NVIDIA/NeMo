@@ -76,7 +76,7 @@ def run_nvrtc(kernel_string, kernel_name):
 
 
 def create_outer_for_loop_kernel():
-    kernel_string = """\
+    kernel_string = r"""\
     typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
 
     extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
@@ -96,7 +96,7 @@ def create_outer_for_loop_kernel():
 
 
 def create_while_loop_kernel():
-    kernel_string = """\
+    kernel_string = r"""\
     typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
 
     extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
@@ -328,7 +328,7 @@ class RNNTGreedyDecodeFast:
                     hidden[0].copy_(hidden_prime[0])
                     hidden[1].copy_(hidden_prime[1])
 
-                    self.not_all_blank_t = ~self.blank_mask.all()
+                    self.not_all_blank_t.copy_(~self.blank_mask.all())
                     self.symbols_added_t += 1
                     self.seq_idx_t += 1
 

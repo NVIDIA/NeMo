@@ -18,16 +18,17 @@ from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBat
 
 
 @pytest.mark.parametrize(
-    ("model_name", "batch_size", "use_subset"),
+    ("model_name", "batch_size", "use_subset", "enable_bfloat16"),
     [
-        pytest.param("stt_en_fastconformer_transducer_large", 8, True),
+        pytest.param("stt_en_fastconformer_transducer_large", 8, True, True),
         # marks=pytest.mark.xfail(reason="Cannot instantiate graph with persistent RNN")),
-        ("stt_en_fastconformer_transducer_large", 7, False),
-        ("stt_en_fastconformer_transducer_xlarge", 16, False),
-        ("stt_en_fastconformer_transducer_xlarge", 16, True),
+        ("stt_en_fastconformer_transducer_large", 7, False, True),
+        ("stt_en_fastconformer_transducer_xlarge", 16, False, True),
+        ("stt_en_fastconformer_transducer_xlarge", 16, True, True),
+        ("stt_en_fastconformer_transducer_xlarge", 16, False, False),
     ],
 )
-def test_for_loop(model_name, batch_size, use_subset):
+def test_for_loop(model_name, batch_size, use_subset, enable_bfloat16):
     nemo_model = ASRModel.from_pretrained(model_name, map_location="cuda")
     conf = nemo_model.to_config_dict()
     with open_dict(conf):
@@ -76,23 +77,23 @@ def test_for_loop(model_name, batch_size, use_subset):
     fast_model.decoder.freeze()
     fast_model.joint.freeze()
 
-    with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+    with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
         fast_transcripts, _ = fast_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
 
-    # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-    #     actual_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+    with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
+        actual_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
 
-    # wer = jiwer.wer(actual_transcripts, fast_transcripts)
+    wer = jiwer.wer(actual_transcripts, fast_transcripts)
 
-    # assert wer <= 1e-3
+    assert wer <= 1e-3
 
-    # print("GALVEZ:wer=", wer)
+    print("GALVEZ:wer=", wer)
 
-    # for actual, fast in zip(actual_transcripts, fast_transcripts):
-    #     if actual != fast:
-    #         print("GALVEZ:erroneous!")
-    #         print(actual)
-    #         print(fast)
+    for actual, fast in zip(actual_transcripts, fast_transcripts):
+        if actual != fast:
+            print("GALVEZ:erroneous!")
+            print(actual)
+            print(fast)
 
     torch.cuda.cudart().cudaProfilerStop()
 
