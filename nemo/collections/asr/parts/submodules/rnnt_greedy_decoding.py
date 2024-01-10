@@ -31,11 +31,9 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from cuda import cuda, cudart
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.submodules.fast_rnnt_greedy_decoding import RNNTGreedyDecodeFast
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.collections.common.parts.rnn import label_collate
@@ -559,10 +557,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             confidence_method_cfg=confidence_method_cfg,
         )
 
-        # print("GALVEZ:go_very_fast", go_very_fast, self.decoder.blank_as_pad)
+        self.go_very_fast = go_very_fast
+
         # Depending on availability of `blank_as_pad` support
-        # switch between more efficient batch decoding technique
         if self.decoder.blank_as_pad and go_very_fast:
+            from nemo.collections.asr.parts.submodules.fast_rnnt_greedy_decoding import RNNTGreedyDecodeFast
             self._greedy_decode = RNNTGreedyDecodeFast(max_symbols_per_step, torch.device("cuda"), self)
         elif self.decoder.blank_as_pad:
             self._greedy_decode = self._greedy_decode_blank_as_pad
@@ -603,7 +602,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
-                if isinstance(self._greedy_decode, RNNTGreedyDecodeFast):
+
+                # TODO: There is probably a way to do this without the if statement. May I can pass in self to the constructor of RNNTGreedyDecodeFast?
+                if self.decoder.blank_as_pad and self.go_very_fast:
                     hypotheses = self._greedy_decode(
                         self, inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
                     )

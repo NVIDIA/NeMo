@@ -1,3 +1,21 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from nemo.core.utils.cuda_python_utils import check_cuda_python_cuda_graphs_conditional_nodes_supported
+
+check_cuda_python_cuda_graphs_conditional_nodes_supported()
+
 import contextlib
 import ctypes
 import time
@@ -17,7 +35,6 @@ from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
-
 
 def ASSERT_DRV(err):
     if isinstance(err, cuda.CUresult):
@@ -383,12 +400,17 @@ class RNNTGreedyDecodeFast:
 
         torch.cuda.nvtx.range_push("Copy data out")
 
+        torch.cuda.nvtx.range_push("GPU->CPU out_len copy")
         out_len_cpu = out_len.cpu()
+        torch.cuda.nvtx.range_pop()
 
         hypotheses = [
             rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batch_size)
         ]
 
+        # At batch size 16, this for loop takes 25-31 milliseconds... How can we speed it up?
+        # It is likely that most of the overhead is in memory loads...
+        # Let's profile just this block
         for i in range(batch_size):
             j = 0
             for t in range(out_len_cpu[i]):
@@ -405,3 +427,5 @@ class RNNTGreedyDecodeFast:
         torch.cuda.nvtx.range_pop()
 
         return hypotheses
+
+

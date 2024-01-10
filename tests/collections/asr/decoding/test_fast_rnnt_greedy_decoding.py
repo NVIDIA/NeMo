@@ -52,9 +52,7 @@ def test_for_loop(model_name, batch_size, use_subset, enable_bfloat16):
     audio_filepaths = glob.glob("/home/dgalvez/scratch/data/LibriSpeech/test-clean-processed/*.wav")
 
     if use_subset:
-        audio_filepaths = audio_filepaths[:batch_size]
-
-    torch.cuda.cudart().cudaProfilerStart()
+        audio_filepaths = audio_filepaths[:batch_size * 4]
 
     conf = nemo_model.to_config_dict()
 
@@ -76,6 +74,8 @@ def test_for_loop(model_name, batch_size, use_subset, enable_bfloat16):
     fast_model.encoder.freeze()
     fast_model.decoder.freeze()
     fast_model.joint.freeze()
+
+    torch.cuda.cudart().cudaProfilerStart()
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
         fast_transcripts, _ = fast_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
