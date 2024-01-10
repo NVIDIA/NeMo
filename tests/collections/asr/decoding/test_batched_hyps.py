@@ -17,7 +17,7 @@ from typing import List
 import pytest
 import torch
 
-from nemo.collections.asr.parts.utils.rnnt_utils import BatchedHyps
+from nemo.collections.asr.parts.utils.rnnt_utils import BatchedHyps, batched_hyps_to_hypotheses
 
 DEVICES: List[torch.device] = [torch.device("cpu")]
 
@@ -53,17 +53,70 @@ class TestBatchedHyps:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_add_results(self, device: torch.device):
-        pass  # TODO: implement
+        # batch of size 2, add label for first utterance
+        hyps = BatchedHyps(batch_size=2, init_length=1, device=device)
+        hyps.add_results_(
+            active_indices=torch.tensor([0], device=device),
+            labels=torch.tensor([5], device=device),
+            time_indices=torch.tensor([1], device=device),
+            scores=torch.tensor([0.5], device=device),
+        )
+        assert hyps.lengths.tolist() == [1, 0]
+        assert hyps.transcript.tolist()[0][:1] == [5]
+        assert hyps.timesteps.tolist()[0][:1] == [1]
+        assert hyps.scores.tolist() == pytest.approx([0.5, 0.0])
+        assert hyps.last_timestep.tolist() == [1, -1]
+        assert hyps.last_timestep_lasts.tolist() == [1, 0]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_add_multiple_results(self, device: torch.device):
-        pass  # TODO: implement
+        # batch of size 2, add label for first utterance, then add labels for both utterances
+        hyps = BatchedHyps(batch_size=2, init_length=1, device=device)
+        hyps.add_results_(
+            active_indices=torch.tensor([0], device=device),
+            labels=torch.tensor([5], device=device),
+            time_indices=torch.tensor([1], device=device),
+            scores=torch.tensor([0.5], device=device),
+        )
+        hyps.add_results_(
+            active_indices=torch.tensor([0, 1], device=device),
+            labels=torch.tensor([2, 4], device=device),
+            time_indices=torch.tensor([1, 2], device=device),
+            scores=torch.tensor([1.0, 1.0], device=device),
+        )
+        assert hyps.lengths.tolist() == [2, 1]
+        assert hyps.transcript.tolist()[0][:2] == [5, 2]
+        assert hyps.transcript.tolist()[1][:1] == [4]
+        assert hyps.timesteps.tolist()[0][:2] == [1, 1]
+        assert hyps.timesteps.tolist()[1][:1] == [2]
+        assert hyps.scores.tolist() == pytest.approx([1.5, 1.0])
+        assert hyps.last_timestep.tolist() == [1, 2]
+        assert hyps.last_timestep_lasts.tolist() == [2, 1]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_convert_to_hyps(self, device: torch.device):
-        pass  # TODO: implement
+        hyps = BatchedHyps(batch_size=2, init_length=1, device=device)
+        hyps.add_results_(
+            active_indices=torch.tensor([0], device=device),
+            labels=torch.tensor([5], device=device),
+            time_indices=torch.tensor([1], device=device),
+            scores=torch.tensor([0.5], device=device),
+        )
+        hyps.add_results_(
+            active_indices=torch.tensor([0, 1], device=device),
+            labels=torch.tensor([2, 4], device=device),
+            time_indices=torch.tensor([1, 2], device=device),
+            scores=torch.tensor([1.0, 1.0], device=device),
+        )
+        hypotheses = batched_hyps_to_hypotheses(hyps)
+        assert (hypotheses[0].y_sequence == torch.tensor([5, 2], device=device)).all()
+        assert (hypotheses[1].y_sequence == torch.tensor([4], device=device)).all()
+        assert hypotheses[0].score == pytest.approx(1.5)
+        assert hypotheses[1].score == pytest.approx(1.0)
+        assert (hypotheses[0].timestep == torch.tensor([1, 1], device=device)).all()
+        assert (hypotheses[1].timestep == torch.tensor([2], device=device)).all()
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
