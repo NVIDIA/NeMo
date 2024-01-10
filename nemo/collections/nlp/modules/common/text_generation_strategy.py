@@ -591,7 +591,7 @@ def model_inference_strategy_dispatcher(model, **args):
         MegatronGPTPromptLearningModel,
     )
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-    from nemo.collections.nlp.modules.common.retro_inference_strategies import (
+    from nemo.collections.nlp.modules.common.retro_inference_strategies_legacy import (
         RetroFileQAModelTextGenerationStrategy,
         RetroModelTextGenerationStrategy,
         RetroQAModelTextGenerationStrategy,
