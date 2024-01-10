@@ -93,10 +93,6 @@ class RETRODataset(Dataset):
         neighbor_tokens = torch.from_numpy(sample['neighbor_tokens'])
         neighbor_tokens = neighbor_tokens.long() # size should be [l, k, r]
 
-        # # DEBUGGING
-        # print("tokens_.shape: " + str(tokens_.shape))
-        # print("neighbor_tokens.shape: " + str(neighbor_tokens.shape))
-
         # note: [l, k, r]  => [l*k, r]
         # note: 2x == neighbor, continuation
         neighbor_tokens = neighbor_tokens \
@@ -136,7 +132,6 @@ class RETRODataset(Dataset):
         #         for j in range(k):
         #             print("GPT sample neighbor chunk: " + str(self.tokenizer.ids_to_text(one_gpt_neighbors_chunks[j][:64])).replace("\n", "") + "\n")
         #         print("------------")
-            
         #     print("========================================================== \n\n\n")
         #     # exit()
 
@@ -169,16 +164,6 @@ def build_train_valid_test_datasets(
         test=(test_ds, train_valid_test_num_samples[2]),
     )
 
-    # # DEBUGGING
-    # if torch.distributed.get_rank() == 0:
-    #     gpt_train_ds, gpt_valid_ds, gpt_test_ds = gpt_datasets.train, gpt_datasets.valid, gpt_datasets.test
-    #     print("GPT datasets (train): {}".format(str(len(gpt_train_ds))))
-    #     print("GPT datasets (valid): {}".format(str(len(gpt_valid_ds))))
-    #     print("GPT datasets (test): {}".format(str(len(gpt_test_ds))))
-    #     print("GPT datasets shape (train): {}".format(str(gpt_train_ds)))
-    #     print("GPT datasets shape (valid): {}".format(str(gpt_valid_ds)))
-    #     print("GPT datasets shape (test): {}".format(str(gpt_test_ds)))
-
     retro_train_ds, retro_valid_ds, retro_test_ds = get_retro_datasets(
         config=retro_config,
         gpt_datasets=gpt_datasets,
@@ -201,23 +186,6 @@ def build_train_valid_test_datasets(
         retro_config, 
         tokenizer, 
         retro_test_ds) if retro_test_ds else None
-
-    # # DEBUGGING
-    # if torch.distributed.get_rank() == 0:
-    #     print("mcore RETRO datasets: ")
-    #     print("mcore RETRO datasets (train): {}".format(str(len(retro_train_ds)) if retro_train_ds else None))
-    #     print("mcore RETRO datasets (valid): {}".format(str(len(retro_valid_ds)) if retro_valid_ds else None))
-    #     print("mcore RETRO datasets (test): {}".format(str(len(retro_test_ds)) if retro_test_ds else None))
-    #     print("mcore RETRO datasets (train) [0]: {}".format(str(retro_train_ds[0]) if retro_train_ds else None))
-
-    #     print("nemo RETRO datasets: ")
-    #     print("nemo RETRO datasets (train): {}".format(str(len(train_ds)) if train_ds else None))
-    #     print("nemo RETRO datasets (valid): {}".format(str(len(valid_ds)) if valid_ds else None))
-    #     print("nemo RETRO datasets (test): {}".format(str(len(test_ds)) if test_ds else None))
-    #     print("nemo RETRO datasets (train) [0]: {}".format(str(train_ds[0]) if train_ds else None))
-    # # exit()
-
-
 
     return train_ds, valid_ds, test_ds
 

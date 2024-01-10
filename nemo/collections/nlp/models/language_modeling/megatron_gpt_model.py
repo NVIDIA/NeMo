@@ -1122,21 +1122,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss
 
     def on_validation_epoch_end(self):
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss with their batch size
+            if self.cfg.data.get('validation_drop_last', True):
+                averaged_loss = torch.stack(self.validation_step_outputs).mean()
+            else:
+                # Compute the avg loss by total_loss across all samples / total number of samples
+                total_loss_and_total_samples = torch.vstack(self.validation_step_outputs).sum(axis=0)
+                avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
+                averaged_loss = avg_loss.type(torch.float32).cuda()
+        else:
+            averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
-        # # DEBUGGING
-        # if parallel_state.is_pipeline_last_stage():
-        #     # only the last pipeline parallel stages return loss with their batch size
-        #     if self.cfg.data.get('validation_drop_last', True):
-        #         averaged_loss = torch.stack(self.validation_step_outputs).mean()
-        #     else:
-        #         # Compute the avg loss by total_loss across all samples / total number of samples
-        #         total_loss_and_total_samples = torch.vstack(self.validation_step_outputs).sum(axis=0)
-        #         avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
-        #         averaged_loss = avg_loss.type(torch.float32).cuda()
-        # else:
-        #     averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
-
-        averaged_loss = torch.tensor(10.0, dtype=torch.float32).cuda()
+        # DEBUGGING
+        # averaged_loss = torch.tensor(10.0, dtype=torch.float32).cuda()
 
         # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
         # it should be casted to other pipeline stages for logging.
