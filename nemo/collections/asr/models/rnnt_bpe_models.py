@@ -309,8 +309,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             cfg.joint.jointnet.pred_hidden = cfg.model_defaults.pred_hidden
 
         super().__init__(cfg=cfg, trainer=trainer)
-
-        # Setup decoding object
+            
         self.decoding = RNNTBPEDecoding(
             decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
@@ -456,7 +455,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         decoding_cls = OmegaConf.structured(RNNTBPEDecodingConfig)
         decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
-
+        
+        loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get('loss', None))
+        if loss_name == 'tdt' and decoding_cfg.strategy != "greedy":
+            raise ValueError(f'You are using decoding strategy `{self.cfg.decoding.strategy}` for a TDT model, however it only support decoding strategy `greedy` now.')
+            
         self.decoding = RNNTBPEDecoding(
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )

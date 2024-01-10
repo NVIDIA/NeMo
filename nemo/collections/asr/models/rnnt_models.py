@@ -428,7 +428,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         decoding_cls = OmegaConf.structured(RNNTDecodingConfig)
         decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
-
+        
+        loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get('loss', None))
+        if loss_name == 'tdt' and decoding_cfg != "greedy":
+            raise ValueError(f'You are using {self.cfg.decoding.strategy} for a TDT model however it only support decoding strategy greedy now.')
+            
         self.decoding = RNNTDecoding(
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
         )
