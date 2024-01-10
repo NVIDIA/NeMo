@@ -129,21 +129,6 @@ class MegatronRetroModel(MegatronGPTModel):
         # Load retro config.
         with open(retro_config_path) as f:
 
-
-            # # DEBUGGING
-            # print("before override: ")
-            # print("cfg.global_batch_size: " + str(cfg.global_batch_size))
-            # print("cfg.max_position_embeddings: " + str(cfg.max_position_embeddings))
-            # print("cfg.seed: " + str(cfg.seed))
-            # print("cfg.data.data_prefix : " + str(cfg.data.data_prefix ))
-            # print("cfg.data.seq_length: " + str(cfg.data.seq_length))
-            # print("cfg.data.splits_string: " + str(cfg.data.splits_string))
-            # print("cfg.tokenizer.model: " + str(cfg.tokenizer.model))
-            # print("cfg.tokenizer.type: " + str(cfg.tokenizer.type))
-            # print("cfg.tokenizer.vocab_file: " + str(cfg.tokenizer.vocab_file))
-            # print("cfg.tokenizer.merge_file: " + str(cfg.tokenizer.merge_file))
-            # print("----------------")
-
             # Parse config.
             retro_preprocess_config = types.SimpleNamespace(**json.load(f))
 
@@ -176,20 +161,6 @@ class MegatronRetroModel(MegatronGPTModel):
 
             cfg.data.retro_data.retro_block_size = retro_preprocess_config.retro_block_size
             cfg.data.retro_data.retro_chunk_length = retro_preprocess_config.retro_gpt_chunk_length
-
-            # # DEBUGGING
-            # print("after override: ")
-            # print("cfg.global_batch_size: " + str(cfg.global_batch_size))
-            # print("cfg.max_position_embeddings: " + str(cfg.max_position_embeddings))
-            # print("cfg.seed: " + str(cfg.seed))
-            # print("cfg.data.data_prefix : " + str(cfg.data.data_prefix ))
-            # print("cfg.data.seq_length: " + str(cfg.data.seq_length))
-            # print("cfg.data.splits_string: " + str(cfg.data.splits_string))
-            # print("cfg.tokenizer.model: " + str(cfg.tokenizer.model))
-            # print("cfg.tokenizer.type: " + str(cfg.tokenizer.type))
-            # print("cfg.tokenizer.vocab_file: " + str(cfg.tokenizer.vocab_file))
-            # print("cfg.tokenizer.merge_file: " + str(cfg.tokenizer.merge_file))
-            # print("----------------")
 
         return cfg
 
@@ -227,35 +198,6 @@ class MegatronRetroModel(MegatronGPTModel):
             # if torch.distributed.get_rank() == 0:
             print("model: ")
             print(model)
-            
-            # # DEBUGGING 
-            # if torch.distributed.get_rank() == 0:
-            #     print("Args related to training details, to check for consistent with NeMo model.")
-            #     print("Retro args: ")
-            #     print("  args.data_path: " + str(args.data_path))
-            #     print("  args.eval_iters: " + str(args.eval_iters))
-            #     print("  args.global_batch_size: " + str(args.global_batch_size))
-            #     print("  args.max_position_embeddings: " + str(args.max_position_embeddings))
-            #     print("  args.merge_file: " + str(args.merge_file))
-            #     print("  args.seed: " + str(args.seed))
-            #     print("  args.seq_length: " + str(args.seq_length))
-            #     print("  args.split: " + str(args.split))
-            #     print("  args.tokenizer_model: " + str(args.tokenizer_model))
-            #     print("  args.seq_length: " + str(args.seq_length))
-            #     print("  args.tokenizer_type: " + str(args.tokenizer_type))
-            #     print("  args.train_samples: " + str(args.train_samples))
-            #     print("  args.vocab_file: " + str(args.vocab_file))
-            #     print("  args.retro_block_size: " + str(args.retro_block_size))
-            #     print("  args.retro_chunk_length: " + str(args.retro_chunk_length))
-            #     print("Training args: ")
-            #     print("  args.lr_decay_samples: " + str(args.lr_decay_samples))
-            #     print("  args.lr_warmup_samples: " + str(args.lr_warmup_samples))
-            #     print("  args.lr: " + str(args.lr))
-            #     print("  args.min_lr: " + str(args.min_lr))
-            #     print("  args.lr_decay_style: " + str(args.lr_decay_style))
-            #     print("  args.weight_decay: " + str(args.weight_decay))
-            #     print("All config: ")
-            #     print(self.cfg)
 
         else:
             assert self.mcore_gpt==True, "Currently only support mcore Retro."
@@ -293,54 +235,6 @@ class MegatronRetroModel(MegatronGPTModel):
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
-            # ## DEBUGGING
-            # if torch.distributed.get_rank() == 0:
-            #     print("-----------")
-            #     # Check position_id, all inputs, make sure similar to mcore
-            #     print('input_ids: ' + str(batch['tokens'].shape))
-            #     print('position_ids: ' + str(batch['position_ids'].shape))
-            #     print('attention_mask: ' + str(batch['attention_mask'].shape))
-            #     print('context_input_ids: ' + str(batch['context_input_ids'].shape))
-            #     print('context_position_ids: ' + str(batch['context_position_ids'].shape))
-            #     print('context_attention_mask: ' + str(batch['context_attention_mask'].shape))
-            #     print('labels: ' + str(batch['labels'].shape))
-            #     print('loss_mask: ' + str(batch['loss_mask'].shape))
-            #     print("**************")
-            #     print('input_ids: ' + str(batch['tokens']))
-            #     print('position_ids: ' + str(batch['position_ids']))
-            #     print('attention_mask: ' + str(batch['attention_mask']))
-            #     print('context_input_ids: ' + str(batch['context_input_ids']))
-            #     print('context_position_ids: ' + str(batch['context_position_ids']))
-            #     print('context_attention_mask: ' + str(batch['context_attention_mask']))
-            #     print('labels: ' + str(batch['labels']))
-            #     print('loss_mask: ' + str(batch['loss_mask']))
-            # exit()
-
-
-            # # DEBUGGING
-            # if torch.distributed.get_rank() == 0:
-            #     # print out sample and corresponding chunks, make sure match
-            #     print("==========================================================")
-            #     b = 0
-            #     print("GPT sample: " + str(self.tokenizer.ids_to_text(batch['tokens'][b])).replace("\n", ""))
-            #     one_gpt_sample = batch['tokens'][b]
-            #     one_gpt_neighbors = batch['context_input_ids'][b]
-            #     one_gpt_neighbors = one_gpt_neighbors.reshape(-1, self.retro_model_config.retro_num_neighbors, self.retro_model_config.retro_retrieved_length)
-            #     [l, k, r] = one_gpt_neighbors.shape # check here
-            #     print("[k, l, r]: " + str([k, l, r]))
-            #     print("------------")
-            #     for i in range(l): # iterating through the chunks within one GPT sample
-            #         one_gpt_sample_chunk = one_gpt_sample[i*64:i*64+64]
-            #         one_gpt_neighbors_chunks = one_gpt_neighbors[i]
-            #         print("GPT sample chunk: " + str(self.tokenizer.ids_to_text(one_gpt_sample_chunk)).replace("\n", "") + "\n")
-            #         for j in range(k):
-            #             print("GPT sample neighbor chunk: " + str(self.tokenizer.ids_to_text(one_gpt_neighbors_chunks[j][:64])).replace("\n", "") + "\n")
-            #         print("------------")
-
-            # # DEBUGGING
-            # if torch.distributed.get_rank() == 0:
-            #     print("--")
-
             # reshape context_input_ids and context_position_ids for RETRO from [bs, l*k, r] => [bs*l*k, r]
             context_input_ids = batch['context_input_ids']
             context_position_ids = batch['context_position_ids']
@@ -348,17 +242,6 @@ class MegatronRetroModel(MegatronGPTModel):
             context_position_ids = context_position_ids.view(-1, context_position_ids.shape[-1]).long()
             batch['context_input_ids'] = context_input_ids
             batch['context_position_ids'] = context_position_ids
-
-            # # must check input tensor order of context_input_ids
-            # ## DEBUGGING
-            # print('input_ids:' + str(batch['tokens'].shape))
-            # print('position_ids:' + str(context_input_ids.shape))
-            # print('attention_mask:' + str(context_input_ids.shape))
-            # print('context_input_ids:' + str(context_input_ids.shape))
-            # print('context_position_ids:' + str(context_input_ids.shape))
-            # print('labels:' + str(context_input_ids.shape))
-            # print('loss_mask:' + str(context_input_ids.shape))
-
 
             # Model forward pass
             forward_args = {
@@ -372,35 +255,13 @@ class MegatronRetroModel(MegatronGPTModel):
                 'loss_mask': batch['loss_mask'],
             }
 
-
             # ## DEBUGGING
             # if torch.distributed.get_rank() == 0:
-            #     print("-----------")
-            #     # Check position_id, all inputs, make sure similar to mcore
-            #     print('input_ids: ' + str(batch['tokens'].shape))
-            #     print('position_ids: ' + str(batch['position_ids'].shape))
-            #     print('attention_mask: ' + str(batch['attention_mask'].shape))
-            #     print('context_input_ids: ' + str(batch['context_input_ids'].shape))
-            #     print('context_position_ids: ' + str(batch['context_position_ids'].shape))
-            #     print('context_attention_mask: ' + str(batch['context_attention_mask'].shape))
-            #     print('labels: ' + str(batch['labels'].shape))
-            #     print('loss_mask: ' + str(batch['loss_mask'].shape))
-            #     print("**************")
-            #     print('input_ids: ' + str(batch['tokens']))
-            #     print('position_ids: ' + str(batch['position_ids']))
-            #     print('attention_mask: ' + str(batch['attention_mask']))
-            #     print('context_input_ids: ' + str(batch['context_input_ids']))
-            #     print('context_position_ids: ' + str(batch['context_position_ids']))
-            #     print('context_attention_mask: ' + str(batch['context_attention_mask']))
-            #     print('labels: ' + str(batch['labels']))
-            #     print('loss_mask: ' + str(batch['loss_mask']))
-
             #     # print out sample and corresponding chunks, make sure match
             #     [bs, sq] = batch['tokens'].shape
             #     _, r = batch['context_input_ids'].shape
             #     # reshape from [bs*(l*k), r] to [bs, l*k, r]
             #     batch['context_input_ids'] = batch['context_input_ids'].reshape(bs, -1 , r)
-
             #     print("==========================================================")
             #     b = 0
             #     print("GPT sample: " + str(self.tokenizer.ids_to_text(batch['tokens'][b])).replace("\n", ""))
@@ -428,21 +289,6 @@ class MegatronRetroModel(MegatronGPTModel):
                 # TODO: @eharper can we add this to mcore?
                 forward_args.pop('loss_mask')
             output_tensor = model(**forward_args)
-
-            # # DEBUGGING
-            # try:
-            #     print("Decoder forward sample: ")
-            #     print(self.tokenizer)
-            #     print("batch['tokens'].shape: " + str(batch['tokens'].shape))
-            #     print(batch['tokens'][0].tolist())
-            #     print(str(self.tokenizer.ids_to_text(batch['tokens'][0].tolist())))
-            # except:
-            #     print("Error happens. Keep running")
-
-
-            # # DEBUGGING
-            # print("output_tensor: " + str(output_tensor.shape))
-            # print(output_tensor)
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
@@ -559,53 +405,6 @@ class MegatronRetroModel(MegatronGPTModel):
 
         return retro_config
 
-    # def build_train_valid_test_datasets(self):
-    #     # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
-    #     self._reconfigure_val_batches()
-    #     logging.info('Building dummy RETRO datasets.')
-    #     if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
-    #         raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
-    #     global_batch_size = self.cfg.global_batch_size
-    #     max_train_steps = self.trainer.max_steps
-    #     eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches  
-    #     test_iters = self.trainer.limit_test_batches
-
-    #     train_valid_test_num_samples = [
-    #         max_train_steps * global_batch_size,
-    #         eval_iters * global_batch_size,
-    #         test_iters * global_batch_size,
-    #     ]
-
-    #     if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-    #         train_valid_test_num_samples[
-    #             1
-    #         ] = 1  # This is to make sure we only have one epoch on every validation iteration
-
-    #     data_path = ["/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_00_text_document"]
-    #     self.cfg.data.data_prefix = data_path
-
-    #     self._train_ds, self._validation_ds, self._test_ds = dummy_build_train_valid_test_datasets(
-    #         cfg=self.cfg,
-    #         trainer=self.trainer,
-    #         data_prefix=self.cfg.data.data_prefix,
-    #         data_impl=self.cfg.data.data_impl,
-    #         splits_string=self.cfg.data.splits_string,
-    #         train_valid_test_num_samples=train_valid_test_num_samples,
-    #         seq_length=self.cfg.data.seq_length,
-    #         seed=self.cfg.seed,
-    #         skip_warmup=self.cfg.data.get('skip_warmup', True),
-    #         tokenizer=self.tokenizer,
-    #     )
-    #     if self._train_ds is not None:
-    #         logging.info(f'Length of train dataset: {len(self._train_ds)}')
-    #     if self._validation_ds is not None:
-    #         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
-    #     if self._test_ds is not None:
-    #         logging.info(f'Length of test dataset: {len(self._test_ds)}')
-    #     logging.info(f'Finished building dummy RETRO datasets.')
-
-    #     return self._train_ds, self._validation_ds, self._test_ds
-
     def build_train_valid_test_datasets(self):
         # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
         self._reconfigure_val_batches()
@@ -623,23 +422,17 @@ class MegatronRetroModel(MegatronGPTModel):
         #     test_iters * global_batch_size,
         # ]
 
-        # quick fix
+        # DEBUGGING
         train_valid_test_num_samples = [
             65000,
             100 * global_batch_size,
             0 * global_batch_size,
         ]
 
-        # # quick fix
-        # train_valid_test_num_samples = [
-        #     cfg.data.train_samples,
-        #     cfg.data.eval_iters * global_batch_size,
-        #     0 * global_batch_size,
-        # ]
+        # DEBUGGING
         # compile helpers for megatron
         from megatron.core.datasets.utils import compile_helpers
         compile_helpers()
-
 
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
             train_valid_test_num_samples[
