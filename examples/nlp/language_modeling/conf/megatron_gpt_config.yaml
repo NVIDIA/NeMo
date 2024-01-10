@@ -31,7 +31,7 @@ exp_manager:
   create_wandb_logger: True
   wandb_logger_kwargs:
     project: mcore_ds_test
-    name: mcore_ds_new
+    name: mcore_ds_new3
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   resume_from_checkpoint: ${model.resume_from_checkpoint}
