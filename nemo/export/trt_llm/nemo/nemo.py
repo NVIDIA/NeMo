@@ -35,6 +35,8 @@ def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_ty
         "n_positions": "max_position_embeddings",
         "rotary_pct": "rotary_percentage",
         "rotary_base": "rotary_base",
+        "rotary_scaling": "seq_len_interpolation_factor",
+        "position_embedding_type": "position_embedding_type",
         "bias": "bias",
         "intermediate_size": "ffn_hidden_size",
         "num_kv_heads": "num_query_groups",

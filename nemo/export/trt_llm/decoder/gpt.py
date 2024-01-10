@@ -105,6 +105,13 @@ class GPTDecoderLayerBuilder(DecoderLayerBuilder):
 
         bias_qkv = layer.attention.qkv.bias is not None
 
+        rotary_scaling = None
+        if layer.rotary_scaling is not None:
+            rotary_scaling = {
+                "type": "linear",
+                "factor": float(layer.rotary_scaling)
+            }
+
         return GPTDecoderLayer(
             hidden_size=self.hidden_size,
             num_attention_heads=self.num_attention_heads,
@@ -117,7 +124,7 @@ class GPTDecoderLayerBuilder(DecoderLayerBuilder):
             position_embedding_type=position_embedding_type,
             rotary_embedding_percentage=rotary_pct,
             rotary_base=layer.rotary_base,
-            rotary_scaling=layer.rotary_scaling,
+            rotary_scaling=rotary_scaling,
             inter_size=layer.ffn_hidden_size_local * self.tensor_parallel,
             bias=bias_qkv,
             num_kv_heads=self.num_kv_heads,
