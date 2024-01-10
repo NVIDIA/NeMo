@@ -312,6 +312,8 @@ class DecoderLayerConfig:
     max_position_embeddings: int = 0
     rotary_pct: float = 0
     rotary_base: int = 10000
+    rotary_scaling: float = None
+    position_embedding_type: str = None
 
     @property
     def hidden_size(self):
@@ -338,8 +340,10 @@ class DecoderLayerConfig:
             num_attention_heads=llm_config.n_head,
             max_position_embeddings=llm_config.n_positions,
             rotary_pct=llm_config.rotary_pct if hasattr(llm_config, "rotary_pct") else 0,
-            num_kv_heads=(llm_config.num_kv_heads if hasattr(llm_config, "num_kv_heads") else 0),
             rotary_base=(llm_config.rotary_base if hasattr(llm_config, "rotary_base") else 10000),
+            rotary_scaling=(llm_config.rotary_scaling if hasattr(llm_config, "rotary_scaling") else None),
+            position_embedding_type=(llm_config.position_embedding_type if hasattr(llm_config, "position_embedding_type") else None),
+            num_kv_heads=(llm_config.num_kv_heads if hasattr(llm_config, "num_kv_heads") else 0),
         )
         layer_config.input_layernorm = LayernormConfig()
         layer_config.input_layernorm.layernorm_type = (

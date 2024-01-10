@@ -418,6 +418,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         # AMMO modification.
         tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
         tokenizer = build_tokenizer(tokenizer_config)
+
     llm_config = nemo_to_llm_config(
         nemo_model_config,
         vocab_size,
