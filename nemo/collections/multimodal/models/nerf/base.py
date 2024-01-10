@@ -29,8 +29,8 @@ class NerfModelBase(ModelPT, Serialization):
     def list_available_models(self):
         pass
 
-    def setup_training_data(self):
+    def setup_training_data(self, config):
         pass
 
-    def setup_validation_data(self):
+    def setup_validation_data(self, config):
         pass
