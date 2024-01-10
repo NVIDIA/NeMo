@@ -113,7 +113,7 @@ model:
       layer_selection:  null  # selects in which layers to add ia3 adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
     
     selective_tuning:
-      tunable_param_names: ["self_attention", "word_embeddings"]  # TODO: regex support @adithyre
+      tunable_base_param_names: ["self_attention", "word_embeddings"]  # TODO: regex support @adithyre
 
   data:
     train_ds:

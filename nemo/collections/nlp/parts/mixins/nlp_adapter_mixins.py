@@ -63,7 +63,7 @@ class NLPAdapterModelMixin:
 
     def __init__(self, *args, **kwargs):
         self.use_peft = False
-        self.tunable_param_names = []
+        self.tunable_base_param_names = []
         self.setup_complete = False
         self.use_ptuning_only = False
         super().__init__(*args, **kwargs)
@@ -193,19 +193,19 @@ class NLPAdapterModelMixin:
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
-        self.tunable_param_keys = set()
+        self.tunable_base_param_keys = set()
 
         for cfg in peft_cfgs:
             if cfg.weight_tying:
                 self.tie_weights(cfg)
 
-            if cfg.tunable_param_names:
+            if cfg.tunable_base_param_names:
                 for n, p in self.named_parameters():
-                    for tpn in cfg.tunable_param_names:
+                    for tpn in cfg.tunable_base_param_names:
                         if (
                             f".{tpn}." in n
                         ):  # TODO: simplistic param name matching, should support regex-like syntax @adithyare
-                            self.tunable_param_keys.add(n)
+                            self.tunable_base_param_keys.add(n)
                             p.requires_grad = True  # We set these to true to trigger setup_optimizer_param_groups
 
         self.use_peft = True
@@ -253,7 +253,7 @@ class NLPAdapterModelMixin:
                     opt_params += [p for p in module.parameters() if p.requires_grad]
 
             for name, param in self.named_parameters():
-                if name in self.tunable_param_keys:
+                if name in self.tunable_base_param_keys:
                     param.requires_grad = True
                     opt_params += [param]
 
@@ -300,7 +300,7 @@ class NLPAdapterModelMixin:
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         self.add_adapter(peft_cfgs)
-        assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_param_keys)
+        assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
         super().load_state_dict(state_dict, strict=False)
 
     def tie_weights(self, peft_cfg):
@@ -346,7 +346,7 @@ class NLPAdapterModelMixin:
         """
         state_dict = self.model.state_dict(prefix=self.model_prefix)
         peft_state_dict = {}
-        for k in self.adapter_keys.union(self.tunable_param_keys):
+        for k in self.adapter_keys.union(self.tunable_base_param_keys):
             # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
             new_k = k.replace("model.module.", "model.", 1)
             peft_state_dict[new_k] = state_dict[k]
@@ -378,7 +378,7 @@ class NLPAdapterModelMixin:
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
             # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
             # safety in strict=True anymore.
-            assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_param_keys)
+            assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
             super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)
