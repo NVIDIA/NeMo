@@ -18,9 +18,14 @@ import torch
 from PIL import Image
 from pytorch_lightning.utilities import rank_zero_only
 from torch.utils.data import Dataset
-from torchvision import transforms
 from tqdm import tqdm
 
+try:
+    from torchvision import transforms
+
+    TORCHVISION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TORCHVISION_AVAILABLE = False
 
 class DreamBoothDataset(Dataset):
     """
@@ -77,6 +82,7 @@ class DreamBoothDataset(Dataset):
         else:
             self.reg_data_root = None
 
+        assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
         self.image_transforms = transforms.Compose(
             [
                 transforms.Resize(size, interpolation=transforms.InterpolationMode.BILINEAR),

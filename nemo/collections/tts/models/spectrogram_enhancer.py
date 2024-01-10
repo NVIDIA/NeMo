@@ -41,7 +41,6 @@ from typing import List, Optional
 
 import torch
 import torch.nn.functional as F
-import torchvision
 from einops import rearrange
 from hydra.utils import instantiate
 from omegaconf import DictConfig
@@ -61,6 +60,12 @@ from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 from nemo.core.neural_types.elements import BoolType
 from nemo.utils import logging
 
+try:
+    import torchvision
+
+    TORCHVISION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TORCHVISION_AVAILABLE = False
 
 class SpectrogramEnhancerModel(ModelPT, Exportable):
     """
@@ -318,6 +323,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             dim=0,
         ).cpu()[:, idx, :, :, :length]
 
+        assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
         grid = torchvision.utils.make_grid(tensor, nrow=1).clamp(0.0, 1.0)
 
         for logger in self.loggers:

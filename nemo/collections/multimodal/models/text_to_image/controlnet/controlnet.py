@@ -22,7 +22,6 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
 from torch._inductor import config as inductor_config
-from torchvision.utils import make_grid
 
 from nemo.collections.multimodal.data.controlnet.controlnet_dataset import build_train_valid_datasets
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import LatentDiffusion
@@ -65,6 +64,12 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+try:
+    from torchvision.utils import make_grid
+
+    TORCHVISION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TORCHVISION_AVAILABLE = False
 
 class ControlledUnetModel(UNetModel):
     '''
@@ -210,6 +215,7 @@ class ControlLDM(LatentDiffusion):
             diffusion_row = torch.stack(diffusion_row)  # n_log_step, n_row, C, H, W
             diffusion_grid = rearrange(diffusion_row, 'n b c h w -> b n c h w')
             diffusion_grid = rearrange(diffusion_grid, 'b n c h w -> (b n) c h w')
+            assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
             diffusion_grid = make_grid(diffusion_grid, nrow=diffusion_row.shape[0])
             log["diffusion_row"] = diffusion_grid
 
