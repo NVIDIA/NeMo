@@ -78,6 +78,20 @@ class TranscribeConfig:
     _internal: Optional[InternalTranscribeConfig] = None
 
 
+def move_to_device(batch, device):
+    """
+    Recursively move all tensors in `batch` to `device`.
+    """
+    if isinstance(batch, torch.Tensor):
+        return batch.to(device)
+    elif isinstance(batch, (list, tuple)):
+        return [move_to_device(x, device) for x in batch]
+    elif isinstance(batch, dict):
+        return {k: move_to_device(v, device) for k, v in batch.items()}
+    else:
+        raise TypeError(f"Unsupported type: {type(batch)}")
+
+
 class TranscriptionMixin(ABC):
     """
     An abstract class for transcribe-able models.
@@ -153,7 +167,69 @@ class TranscriptionMixin(ABC):
                                  "its subclass")
 
         # Hold the results here
-        results = None
+        results = None  # type: TranscriptionType
+
+        try:
+            generator = self.transcribe_generator(audio, override_config=transcribe_cfg)
+
+            for processed_outputs in generator:
+                # Store results
+                if isinstance(processed_outputs, list):
+                    # Create a results of the same type as each element in processed_outputs
+                    if results is None:
+                        results = []
+
+                        # if list of inner list of results, copy structure
+                        if isinstance(processed_outputs[0], list):
+                            for _ in processed_outputs:
+                                results.append([])
+
+                    # If nested list structure
+                    if isinstance(processed_outputs[0], list):
+                        for i, processed_output in enumerate(processed_outputs):
+                            results[i].extend(processed_output)
+                    else:
+                        # If flat list structure
+                        results.extend(processed_outputs)
+
+                elif isinstance(processed_outputs, dict):
+                    # Create a results of the same type as each element in processed_outputs
+                    if results is None:
+                        results = processed_outputs
+                    else:
+                        for k, v in processed_outputs.items():
+                            results[k].extend(v)
+
+                elif isinstance(processed_outputs, tuple):
+                    # Create a results of the same type as each element in processed_outputs
+                    if results is None:
+                        results = tuple([[] for _ in processed_outputs])
+
+                    # If nested list structure
+                    if isinstance(processed_outputs[0], list):
+                        for i, processed_output in enumerate(processed_outputs):
+                            results[i].extend(processed_output)
+                    else:
+                        # If flat list structure
+                        results.extend(processed_outputs)
+
+                else:
+                    raise NotImplemented("Given output result for transcription is not supported. "
+                                         "Please return a list of results, list of list of results, "
+                                         "a dict of list of results, or "
+                                         "a tuple of list of results.")
+        except StopIteration:
+            pass
+
+        return results
+
+    def transcribe_generator(self, audio, override_config: Optional[TranscribeConfig]):
+        """
+        A generator version of `transcribe` function.
+        """
+
+        transcribe_cfg = override_config
+        transcribe_cfg.return_generator = True
 
         try:
             # Initialize and assert the transcription environment
@@ -167,10 +243,9 @@ class TranscriptionMixin(ABC):
 
                 for test_batch in tqdm(dataloader, desc="Transcribing", disable=not transcribe_cfg.verbose):
                     # Move batch to device
-                    for k, v in test_batch.items():
-                        if isinstance(v, torch.Tensor):
-                            test_batch[k] = v.to(transcribe_cfg._internal.device)
+                    test_batch = move_to_device(test_batch, transcribe_cfg._internal.device)
 
+                    # Run forward pass
                     model_outputs = self._transcribe_forward(test_batch, transcribe_cfg)
                     processed_outputs = self._transcribe_output_processing(model_outputs, transcribe_cfg)
 
@@ -178,61 +253,13 @@ class TranscriptionMixin(ABC):
                     del test_batch
 
                     # Yield results if generator
-                    if transcribe_cfg.return_generator:
-                        yield processed_outputs
+                    yield processed_outputs
 
-                    else:
-                        # Store results
-                        if isinstance(processed_outputs, list):
-                            # Create a results of the same type as each element in processed_outputs
-                            if results is None:
-                                results = []
-
-                                # if list of inner list of results, copy structure
-                                if isinstance(processed_outputs[0], list):
-                                    for _ in processed_outputs:
-                                        results.append([])
-
-                            # If nested list structure
-                            if isinstance(processed_outputs[0], list):
-                                for i, processed_output in enumerate(processed_outputs):
-                                    results[i].extend(processed_output)
-                            else:
-                                # If flat list structure
-                                results.extend(processed_outputs)
-
-                        elif isinstance(processed_outputs, dict):
-                            # Create a results of the same type as each element in processed_outputs
-                            if results is None:
-                                results = processed_outputs
-                            else:
-                                for k, v in processed_outputs.items():
-                                    results[k].extend(v)
-
-                        elif isinstance(processed_outputs, tuple):
-                            # Create a results of the same type as each element in processed_outputs
-                            if results is None:
-                                results = tuple([[] for _ in processed_outputs])
-
-                            # If nested list structure
-                            if isinstance(processed_outputs[0], list):
-                                for i, processed_output in enumerate(processed_outputs):
-                                    results[i].extend(processed_output)
-                            else:
-                                # If flat list structure
-                                results.extend(processed_outputs)
-
-                        else:
-                            raise NotImplemented("Given output result for transcription is not supported. "
-                                                 "Please return a list of results, list of list of results, "
-                                                 "a dict of list of results, or "
-                                                 "a tuple of list of results.")
+                    del model_outputs, processed_outputs
 
         finally:
             # set mode back to its original value
             self._transcribe_on_end(transcribe_cfg)
-
-        return results
 
     """
     Transcribe Execution Flow
@@ -254,8 +281,8 @@ class TranscriptionMixin(ABC):
         if trcfg._internal.dtype is None:
             trcfg._internal.dtype = next(self.parameters()).dtype
 
-        if trcfg._internal.num_workers is None:
-            trcfg._internal.num_workers = min(trcfg.batch_size, os.cpu_count() - 1)
+        if trcfg.num_workers is None:
+            trcfg.num_workers = min(trcfg.batch_size, os.cpu_count() - 1)
 
         # Model's mode and device
         trcfg._internal.training_mode = self.training
@@ -317,7 +344,8 @@ class TranscriptionMixin(ABC):
             if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'pad_to'):
                 self.preprocessor.featurizer.pad_to = trcfg._internal.pad_to_value
 
-        logging.set_verbosity(trcfg._internal.logging_level)
+        if trcfg._internal.logging_level is not None:
+            logging.set_verbosity(trcfg._internal.logging_level)
 
     """
     Utility Methods
