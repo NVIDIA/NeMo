@@ -169,6 +169,7 @@ class MegatronBaseModel(NLPModel):
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             virtual_pipeline_model_parallel_size=vp_size,
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
+            context_parallel_size=cfg.get('context_parallel_size', 1),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size', None),
@@ -230,6 +231,62 @@ class MegatronBaseModel(NLPModel):
                 if hasattr(child, "set_tensor_parallel_group"):
                     tp_group = parallel_state.get_tensor_model_parallel_group()
                     child.set_tensor_parallel_group(tp_group)
+
+    def setup_transformer_engine_cp_groups(self):
+        """ This should be called after context parallel groups have been initialized
+            and only needs to be called when using Transformer Engine.
+        """
+        cp_stream = torch.cuda.Stream()
+
+        for module in self.get_model_module_list():
+            """Set context parallel running
+               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
+            """
+            # Deep iterate but skip self to avoid infinite recursion.
+            for index, child in enumerate(module.modules()):
+                if index == 0:
+                    continue
+                if hasattr(child, "set_context_parallel_group"):
+                    child.set_context_parallel_group(
+                        parallel_state.get_context_parallel_group(),
+                        parallel_state.get_context_parallel_global_ranks(),
+                        cp_stream,
+                    )
+
+    def _wrap_model_for_O2(self):
+        """ Wraps self.model in a float16 wrapper if the model is using megatron amp O2.
+            Args:
+                model: The model to wrap. Can be a list of modules or a single module.
+            Returns:
+                The wrapped model. Returns a list of wrapped modules or a single wrapped module.
+        """
+        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+
+        Float16Wrapper = MCoreFloat16Module if is_mcore_model else Float16Module
+
+        nemo_args = {'config': self.model_parallel_config, 'precision': self.cfg.precision}
+
+        if type(self).__name__ == 'MegatronGPTModel':
+            nemo_args['share_token_embeddings'] = self.cfg.get('share_embeddings_and_output_weights', True)
+
+        mcore_args = {
+            'config': self.transformer_config,
+        }
+
+        args = mcore_args if is_mcore_model else nemo_args
+
+        # Model wrapper to convert both model and inputs to half precision
+        if isinstance(self.model, list):
+            converted_model = []
+            for module in self.model:
+                args['module'] = module
+                converted_model.append(Float16Wrapper(**args))
+            self.model = converted_model
+        else:
+            args['module'] = self.model
+            self.model = Float16Wrapper(**args)
+
+        args.pop('module')
 
     def get_model_module_list(self):
         if isinstance(self.model, list):
@@ -347,6 +404,7 @@ class MegatronBaseModel(NLPModel):
         add_bias_linear = self.cfg.get('bias', True)
 
         activation = self.cfg.get('activation', 'gelu')
+        gated_linear_unit = activation.endswith('glu')
         # TODO: need to check which activation functions are supported in mcore
         activation_func = activation_to_func(activation)
 
@@ -396,7 +454,7 @@ class MegatronBaseModel(NLPModel):
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': False,
             'add_bias_linear': add_bias_linear,
-            'gated_linear_unit': False,
+            'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,
             'normalization': normalization,
             'init_method': init_method,
@@ -520,8 +578,10 @@ class MegatronBaseModel(NLPModel):
             bucket = buckets[tp]
             grads = [param.grad.data for param in bucket]
             coalesced = torch._utils._flatten_dense_tensors(grads)
-            coalesced /= parallel_state.get_data_parallel_world_size()
-            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
+            coalesced /= parallel_state.get_data_parallel_world_size(with_context_parallel=True)
+            torch.distributed.all_reduce(
+                coalesced, group=parallel_state.get_data_parallel_group(with_context_parallel=True)
+            )
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
@@ -597,7 +657,6 @@ class MegatronBaseModel(NLPModel):
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
-
             # Allocate contiguous buffer to avoid extra copies
             optim_kwargs['contiguous_grad_buffer'] = True
 
@@ -793,12 +852,14 @@ class MegatronBaseModel(NLPModel):
                 ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         if self.cfg.get('ub_tp_comm_overlap', False):
-            if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):
+            if not self.cfg.get('sequence_parallel', False):
                 logging.info(
-                    "Userbuffer tensor-parallel communication overlap is available with both Transformer Engine and sequence-parallelism."
+                    "Pipelined tensor-parallel communication overlap is available with sequence-parallelism."
+                    "Setting `ub_tp_comm_overlap` to False."
                 )
                 with open_dict(self.cfg):
                     self.cfg.ub_tp_comm_overlap = False
+
             if self.cfg.get('fsdp', False):
                 logging.info(
                     "Userbuffer tensor-parallel communication overlap is not available with FSDP."
@@ -826,6 +887,7 @@ class MegatronBaseModel(NLPModel):
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
         """Returns the total number of parameters across all model parallel groups."""
+        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
         # log number of parameters
         if isinstance(model, list):
             num_parameters_on_device = sum(
@@ -838,7 +900,7 @@ class MegatronBaseModel(NLPModel):
             ):
                 word_embeddings_weight = (
                     model[-1].module.shared_embedding_or_output_weight()
-                    if getattr(self, 'mcore_gpt', False)
+                    if is_mcore_model
                     else model[-1].word_embeddings_weight()
                 )
                 # substract the embedding weights on the last virtual stage
@@ -853,7 +915,7 @@ class MegatronBaseModel(NLPModel):
             ):
                 word_embeddings_weight = (
                     model.module.shared_embedding_or_output_weight()
-                    if getattr(self, 'mcore_gpt', False)
+                    if is_mcore_model
                     else model.word_embeddings_weight()
                 )
                 # substract the embedding weights on the last stage
