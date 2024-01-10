@@ -315,7 +315,7 @@ class BatchedAlignments:
         Allocate 2x space for tensors, similar to common C++ std::vector implementations
         to maintain O(1) insertion time complexity
         """
-        self.logits = torch.cat((self.logits, torch.zeros_like(self.logits)), dim=-1)
+        self.logits = torch.cat((self.logits, torch.zeros_like(self.logits)), dim=1)
         self.labels = torch.cat((self.labels, torch.zeros_like(self.labels)), dim=-1)
         if self.with_frame_confidence:
             self.frame_confidence = torch.cat((self.frame_confidence, torch.zeros_like(self.frame_confidence)), dim=-1)
