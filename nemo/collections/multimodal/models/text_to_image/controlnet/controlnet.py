@@ -71,6 +71,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     TORCHVISION_AVAILABLE = False
 
+
 class ControlledUnetModel(UNetModel):
     '''
     Modified Unet class that combines the output of controlling copy and frozen copy during forward pass.

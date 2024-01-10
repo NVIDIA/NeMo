@@ -18,6 +18,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     TORCHVISION_AVAILABLE = False
 
+
 class ImagePyramidNoCorruptions:
     r"""
         Only downsample image without any additional corruption.

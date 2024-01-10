@@ -29,6 +29,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     TORCHVISION_AVAILABLE = False
 
+
 def has_file_allowed_extension(filename: str, extensions: Tuple[str, ...]) -> bool:
     """Checks if a file is an allowed extension.
     Args:
@@ -101,7 +102,9 @@ def make_dataset(
 
     return instances
 
+
 if TORCHVISION_AVAILABLE:
+
     class DatasetFolder(VisionDataset):
         """A generic data loader where the samples are arranged in this way: ::
             root/class_x/xxx.ext
@@ -145,7 +148,9 @@ if TORCHVISION_AVAILABLE:
             self.classes_fraction = classes_fraction
             self.data_per_class_fraction = data_per_class_fraction
             classes, class_to_idx = self._find_classes(self.root)
-            samples = self.make_dataset(self.root, class_to_idx, self.data_per_class_fraction, extensions, is_valid_file)
+            samples = self.make_dataset(
+                self.root, class_to_idx, self.data_per_class_fraction, extensions, is_valid_file
+            )
             if len(samples) == 0:
                 msg = "Found 0 files in subfolders of: {}\n".format(self.root)
                 if extensions is not None:
@@ -213,13 +218,14 @@ if TORCHVISION_AVAILABLE:
 
         def __len__(self) -> int:
             return len(self.samples)
+
+
 else:
+
     class DatasetFolder:
         def __init__(self):
             super().__init__()
-            logging.error(
-                "Torchvision not found but required."
-            )
+            logging.error("Torchvision not found but required.")
 
 
 IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')

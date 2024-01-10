@@ -67,6 +67,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     TORCHVISION_AVAILABLE = False
 
+
 class SpectrogramEnhancerModel(ModelPT, Exportable):
     """
     GAN-based model to add details to blurry spectrograms from TTS models like Tacotron or FastPitch. Based on StyleGAN 2 [1]

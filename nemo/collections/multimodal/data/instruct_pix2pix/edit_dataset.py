@@ -31,6 +31,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     TORCHVISION_AVAILABLE = False
 
+
 class EditDataset(Dataset):
     def __init__(
         self,

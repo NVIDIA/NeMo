@@ -30,6 +30,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     TORCHVISION_AVAILABLE = False
 
+
 def _to_torch_data_type(precision):
     if precision in ['bf16', 'bf16-mixed']:
         return torch.bfloat16
