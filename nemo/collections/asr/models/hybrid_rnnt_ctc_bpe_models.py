@@ -24,7 +24,7 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics import WER, BLEU
+from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
@@ -321,7 +321,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 tokenize=self.wer.tokenize,
                 n_gram=self.wer.n_gram,
                 log_prediction=self.wer.log_prediction,
-                dist_sync_on_step=True
+                dist_sync_on_step=True,
             )
         else:
             self.wer = WER(
@@ -437,7 +437,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                     tokenize=self.wer.tokenize,
                     n_gram=self.wer.n_gram,
                     log_prediction=self.wer.log_prediction,
-                    dist_sync_on_step=True
+                    dist_sync_on_step=True,
                 )
             else:
                 self.wer = WER(
@@ -486,7 +486,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                     tokenize=self.ctc_wer.tokenize,
                     n_gram=self.ctc_wer.n_gram,
                     log_prediction=self.ctc_wer.log_prediction,
-                    dist_sync_on_step=True
+                    dist_sync_on_step=True,
                 )
             else:
                 self.ctc_wer = WER(

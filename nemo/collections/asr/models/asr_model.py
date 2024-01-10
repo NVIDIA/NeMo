@@ -45,9 +45,9 @@ class ASRModel(ModelPT, ABC):
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss = {}
         tensorboard_logs = {}
-        
+
         if 'val_loss' in outputs[0]:
-            val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()            
+            val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
             val_loss = {'val_loss': val_loss_mean}
 
             tensorboard_logs.update(val_loss)

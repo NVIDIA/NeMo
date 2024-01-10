@@ -333,14 +333,14 @@ class WER(Metric):
         self.scores = torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)
         self.words = torch.tensor(words, device=self.words.device, dtype=self.words.dtype)
 
-    def compute(self, return_all_metrics= True, prefix="", suffix=""):
+    def compute(self, return_all_metrics=True, prefix="", suffix=""):
         scores = self.scores.detach().float()
         words = self.words.detach().float()
         if return_all_metrics:
             return {
                 f"{prefix}wer{suffix}": scores / words,
                 f"{prefix}num{suffix}": scores,
-                f"{prefix}denom{suffix}": words
+                f"{prefix}denom{suffix}": words,
             }
         return {
             f"{prefix}wer{suffix}": scores / words,

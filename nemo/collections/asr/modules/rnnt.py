@@ -1249,7 +1249,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         compute_wer: bool = False,
         wer_prefix: str = "",
         wer_suffix: str = "",
-        return_all_wer_metrics: bool = True
+        return_all_wer_metrics: bool = True,
     ) -> Union[torch.Tensor, List[Optional[torch.Tensor]]]:
         # encoder = (B, D, T)
         # decoder = (B, D, U) if passed, else None
@@ -1376,7 +1376,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
             # Collect sub batch wer results
             if compute_wer:
                 # Sync and all_reduce on all processes, compute global WER
-                metrics = self.wer.compute(prefix=wer_prefix, suffix=wer_suffix, return_all_metrics=return_all_wer_metrics)
+                metrics = self.wer.compute(
+                    prefix=wer_prefix, suffix=wer_suffix, return_all_metrics=return_all_wer_metrics
+                )
                 self.wer.reset()
             else:
                 metrics = {}

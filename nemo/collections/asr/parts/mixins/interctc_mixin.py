@@ -161,11 +161,17 @@ class InterCTCMixin:
                     metrics["log"][f"{prefix}inter_wer_l{layer_idx}"] = wer_num / wer_denom
 
                 if f"{prefix}inter_bleu_num_l{layer_idx}" in outputs[0]:
-                    bleu_pred_len = torch.stack([x[f"{prefix}inter_bleu_pred_len_l{layer_idx}"] for x in outputs]).sum()
-                    bleu_target_len = torch.stack([x[f"{prefix}inter_bleu_target_len_l{layer_idx}"] for x in outputs]).sum()
+                    bleu_pred_len = torch.stack(
+                        [x[f"{prefix}inter_bleu_pred_len_l{layer_idx}"] for x in outputs]
+                    ).sum()
+                    bleu_target_len = torch.stack(
+                        [x[f"{prefix}inter_bleu_target_len_l{layer_idx}"] for x in outputs]
+                    ).sum()
                     bleu_num = torch.stack([x[f"{prefix}inter_bleu_num_l{layer_idx}"] for x in outputs]).sum()
                     bleu_denom = torch.stack([x[f"{prefix}inter_bleu_denom_l{layer_idx}"] for x in outputs]).sum()
-                    metrics["log"][f"{prefix}inter_wer_l{layer_idx}"] = self.get_interctc_param('wer')._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)
+                    metrics["log"][f"{prefix}inter_wer_l{layer_idx}"] = self.get_interctc_param('wer')._compute_bleu(
+                        bleu_pred_len, bleu_target_len, bleu_num, bleu_denom
+                    )
 
             if f"{prefix}final_loss" in outputs[0]:
                 metrics["log"][f"{prefix}final_loss"] = torch.stack([x[f"{prefix}final_loss"] for x in outputs]).mean()
@@ -278,7 +284,9 @@ class InterCTCMixin:
                     predictions_lengths=intermediate_result[1],
                 )
 
-                wer_output = self.get_interctc_param('wer').compute(return_all_metrics = log_wer_num_denom, prefix=f'{log_prefix}inter_', suffix=f'_l{layer_idx}')
+                wer_output = self.get_interctc_param('wer').compute(
+                    return_all_metrics=log_wer_num_denom, prefix=f'{log_prefix}inter_', suffix=f'_l{layer_idx}'
+                )
                 self.get_interctc_param('wer').reset()
 
                 metrics.update(wer_output)

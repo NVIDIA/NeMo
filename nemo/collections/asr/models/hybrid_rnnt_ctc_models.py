@@ -25,7 +25,7 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics import WER, BLEU
+from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
@@ -465,7 +465,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 transcript_lengths=transcript_len,
                 compute_wer=compute_wer,
                 prefix="training_batch_",
-                return_all_wer_metrics=False
+                return_all_wer_metrics=False,
             )
 
             # Add auxiliary losses, if registered
@@ -593,7 +593,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 transcripts=transcript,
                 transcript_lengths=target_len,
                 compute_wer=compute_wer,
-                prefix='val_'
+                prefix='val_',
             )
             if loss_value is not None:
                 tensorboard_logs['val_loss'] = loss_value
@@ -661,7 +661,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         if self.ctc_loss_weight > 0:
             ctc_wer_num = torch.stack([x['val_wer_num_ctc'] for x in outputs]).sum()
             ctc_wer_denom = torch.stack([x['val_wer_denom_ctc'] for x in outputs]).sum()
-            val_wer_ctc = {'val_wer_ctc':  ctc_wer_num.float() / ctc_wer_denom}
+            val_wer_ctc = {'val_wer_ctc': ctc_wer_num.float() / ctc_wer_denom}
             metrics['log'].update(val_wer_ctc)
         self.finalize_interctc_metrics(metrics, outputs, prefix="val_")
         return metrics
@@ -671,7 +671,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         if self.ctc_loss_weight > 0:
             ctc_wer_num = torch.stack([x['test_wer_num_ctc'] for x in outputs]).sum()
             ctc_wer_denom = torch.stack([x['test_wer_denom_ctc'] for x in outputs]).sum()
-            val_wer_ctc = {'test_wer_ctc':  ctc_wer_num.float() / ctc_wer_denom}
+            val_wer_ctc = {'test_wer_ctc': ctc_wer_num.float() / ctc_wer_denom}
             metrics['log'].update(val_wer_ctc)
         self.finalize_interctc_metrics(metrics, outputs, prefix="test_")
         return metrics

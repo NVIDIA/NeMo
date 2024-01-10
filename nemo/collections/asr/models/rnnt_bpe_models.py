@@ -23,7 +23,7 @@ from pytorch_lightning import Trainer
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics import WER, BLEU
+from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTBPEDecodingConfig
@@ -498,7 +498,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 log_prediction=self.wer.log_prediction,
                 dist_sync_on_step=True,
             )
-            
+
         # Setup fused Joint step
         if self.joint.fuse_loss_wer or (
             self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0

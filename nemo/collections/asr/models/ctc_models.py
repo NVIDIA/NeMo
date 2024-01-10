@@ -26,7 +26,7 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics import WER, BLEU
+from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCMixin
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
@@ -357,14 +357,14 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 tokenize=self.wer.tokenize,
                 n_gram=self.wer.n_gram,
                 dist_sync_on_step=True,
-                log_prediction=self.wer.log_prediction
+                log_prediction=self.wer.log_prediction,
             )
         else:
             self.wer = WER(
                 decoding=self.decoding,
                 use_cer=self.wer.use_cer,
                 dist_sync_on_step=True,
-                log_prediction=self.wer.log_prediction
+                log_prediction=self.wer.log_prediction,
             )
 
         self.decoder.temperature = decoding_cfg.get('temperature', 1.0)
@@ -638,7 +638,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             self.wer.reset()
 
             tensorboard_logs.update(metrics)
-            
+
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):

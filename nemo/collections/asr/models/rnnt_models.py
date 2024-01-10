@@ -27,7 +27,7 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
-from nemo.collections.asr.metrics import WER, BLEU
+from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
@@ -767,7 +767,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 transcript_lengths=transcript_len,
                 compute_wer=compute_wer,
                 prefix="training_batch_",
-                return_all_wer_metrics=False
+                return_all_wer_metrics=False,
             )
 
             # Add auxiliary losses, if registered
@@ -864,7 +864,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                 transcript_lengths=target_len,
                 compute_wer=compute_wer,
                 prefix="val_",
-                return_all_wer_metrics=True
+                return_all_wer_metrics=True,
             )
 
             tensorboard_logs = {}

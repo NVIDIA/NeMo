@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from nemo.collections.asr.metrics.audio import *
+from nemo.collections.asr.metrics.bleu import *
 from nemo.collections.asr.metrics.der import *
 from nemo.collections.asr.metrics.multi_binary_acc import *
 from nemo.collections.asr.metrics.wer import *
-from nemo.collections.asr.metrics.bleu import *

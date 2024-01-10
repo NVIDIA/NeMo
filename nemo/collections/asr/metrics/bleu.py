@@ -15,9 +15,8 @@
 from typing import Literal, Optional, Sequence, Union
 
 import torch
-from torchmetrics.text import SacreBLEUScore
-
 from torchmetrics.functional.text.bleu import _bleu_score_compute
+from torchmetrics.text import SacreBLEUScore
 
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
 from nemo.collections.asr.parts.submodules.rnnt_decoding import AbstractRNNTDecoding
@@ -130,13 +129,11 @@ class BLEU(SacreBLEUScore):
         return {
             f"{prefix}bleu{suffix}": bleu,
         }
-        
+
     # Adding wrapper to avoid imports and extra variables over the namespace
     def _compute_bleu(
-            self,
-            predictions_lengths,
-            targets_lengths,
-            numerator,
-            denominator,
+        self, predictions_lengths, targets_lengths, numerator, denominator,
     ):
-        return _bleu_score_compute(predictions_lengths, targets_lengths, numerator, denominator, self.n_gram, self.weights, self.smooth)
+        return _bleu_score_compute(
+            predictions_lengths, targets_lengths, numerator, denominator, self.n_gram, self.weights, self.smooth
+        )
