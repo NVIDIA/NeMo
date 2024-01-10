@@ -27,7 +27,7 @@ The step below will download Wikipedia data (around 20GB) and can take some seve
 .. code-block:: bash
 
     pip install wikiextractor
-    python -m wikiextractor.WikiExtractor enwiki-latest-pages-articles.xml.bz2 --json
+    python -m wikiextractor.WikiExtractor enwiki-latest-pages-articles.xml.bz2 --json --processes $(nproc)
     find text -name 'wiki_*' -exec cat {} \; > train_data.jsonl
 
 Now, ``train_data.jsonl`` will contain our training data in the json line format. We are interested in the data under "text" field.
@@ -113,8 +113,8 @@ Let's go!!!
 
 .. code-block:: bash
 
-    python /home/okuchaiev/repos/NeMo/examples/nlp/language_modeling/megatron_gpt_pretraining.py  \
-	--config-path=/home/okuchaiev/repos/NeMo/examples/nlp/language_modeling/conf \
+    python <NeMo_ROOT_FOLDER>/examples/nlp/language_modeling/megatron_gpt_pretraining.py  \
+	--config-path=<NeMo_ROOT_FOLDER>/examples/nlp/language_modeling/conf \
 	--config-name=megatron_gpt_config \
 	trainer.devices=1 \
 	trainer.num_nodes=1 \
@@ -166,8 +166,8 @@ Let's go!!!
 
 .. code-block:: bash
 
-    python /home/okuchaiev/repos/NeMo/examples/nlp/language_modeling/megatron_gpt_pretraining.py  \
-	--config-path=/home/okuchaiev/repos/NeMo/examples/nlp/language_modeling/conf \
+    python <NeMo_ROOT_FOLDER>/examples/nlp/language_modeling/megatron_gpt_pretraining.py  \
+	--config-path=<NeMo_ROOT_FOLDER>/examples/nlp/language_modeling/conf \
 	--config-name=megatron_gpt_config \
 	trainer.devices=1 \
 	trainer.num_nodes=1 \
@@ -220,6 +220,8 @@ Next, simply launch Tensorboard to monitor training like so:
 .. code-block:: bash
 
     tensorboard --logdir nemo_experiments --bind_all
+
+For multi-node training, please refer to [NeMo Framwork User Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/pretraining.html)
 
 Next steps
 ~~~~~~~~~~
