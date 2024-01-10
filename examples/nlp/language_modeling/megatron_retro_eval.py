@@ -56,40 +56,11 @@ Usage:
             trainer.num_nodes=1 \
             tensor_model_parallel_size=-1 \
             pipeline_model_parallel_size=-1 \
-            prompts=[prompt1,prompt2]
-
-        To send a request to the server, here is one example code:
-        ```python
-        import json
-        import requests
-
-        batch_size = 8
-        port_num = 5555
-        headers = {"Content-Type": "application/json"}
+            prompts=[prompt1, prompt2] \
+            retro_inference.retro_num_neighbors=2 \
+            retro_inference.neighbors=[[prompt1_neighbor1, prompt1_neighbor2], [prompt2_neighbor1, prompt2_neighbor2]]
 
 
-        def request_data(data):
-            resp = requests.put('http://localhost:{}/generate'.format(port_num),
-                                data=json.dumps(data),
-                                headers=headers)
-            sentences = resp.json()['sentences']
-            return sentences
-
-
-        data = {
-            "sentences": [""] * batch_size,
-            "tokens_to_generate": 300,
-            "temperature": 1.0,
-            "add_BOS": True,
-            "top_k": 0,
-            "top_p": 0.9,
-            "greedy": False,
-            "all_probs": False,
-            "repetition_penalty": 1.2,
-            "min_tokens_to_generate": 2,
-        }
-
-        sentences = request_data(data)
         ```
 """
 
@@ -128,17 +99,17 @@ def main(cfg) -> None:
         callbacks=[CustomProgressBar()],
     )
 
-    if cfg.gpt_model_file is not None:
+    if cfg.retro_model_file is not None:
         if (
             cfg.tensor_model_parallel_size < 0
             or cfg.pipeline_model_parallel_size < 0
             or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
         ):
             save_restore_connector = NLPSaveRestoreConnector()
-            if os.path.isdir(cfg.gpt_model_file):
-                save_restore_connector.model_extracted_dir = cfg.gpt_model_file
+            if os.path.isdir(cfg.retro_model_file):
+                save_restore_connector.model_extracted_dir = cfg.retro_model_file
             model_config = MegatronRetroModel.restore_from(
-                restore_path=cfg.gpt_model_file,
+                restore_path=cfg.retro_model_file,
                 trainer=trainer,
                 return_config=True,
                 save_restore_connector=save_restore_connector,
@@ -156,13 +127,13 @@ def main(cfg) -> None:
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
-    if cfg.gpt_model_file:
+    if cfg.retro_model_file:
         save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.gpt_model_file):
-            save_restore_connector.model_extracted_dir = cfg.gpt_model_file
+        if os.path.isdir(cfg.retro_model_file):
+            save_restore_connector.model_extracted_dir = cfg.retro_model_file
 
         pretrained_cfg = MegatronRetroModel.restore_from(
-            restore_path=cfg.gpt_model_file,
+            restore_path=cfg.retro_model_file,
             trainer=trainer,
             return_config=True,
             save_restore_connector=save_restore_connector,
@@ -183,7 +154,7 @@ def main(cfg) -> None:
             elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
                 pretrained_cfg.megatron_amp_O2 = True
         model = MegatronRetroModel.restore_from(
-            restore_path=cfg.gpt_model_file,
+            restore_path=cfg.retro_model_file,
             trainer=trainer,
             override_config_path=pretrained_cfg,
             save_restore_connector=save_restore_connector,
@@ -218,6 +189,10 @@ def main(cfg) -> None:
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
+    # # DEBUGGING
+    # print("RETRO model loaded: ")
+    # print(model)
+
     model.freeze()
 
     # Have to turn off activations_checkpoint_method for inference
@@ -243,74 +218,28 @@ def main(cfg) -> None:
         "end_strings": cfg.inference.end_strings,
     }
 
-    fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
-    if fp8_enabled:
-        nb_paddings = 0
-        while len(cfg.prompts) % 8 != 0:
-            cfg.prompts.append("")
-            nb_paddings += 1
+    ## DEBUGGING
+    ## Turn off first method for now, because both use text_generation_utils.generate(), and first method is more complicated 
+    # # First method of running text generation, call model.generate method
+    # response = model.generate(
+    #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
+    # )
 
-    # First method of running text generation, call model.generate method
-    response = model.generate(
-        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
-    )
-
-    if fp8_enabled:
-        response = remove_padded_prompts(response, nb_paddings)
-    print("***************************")
-    print(response)
-    print("***************************")
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Second method of running text generation, call trainer.predict [recommended]
-    bs = 8 if fp8_enabled else 2
-    ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
+    bs = 2
+    ds = RequestDataSet(OmegaConf.to_container(cfg.prompts), OmegaConf.to_container(cfg.retro_inference.neighbors))
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
 
-    if fp8_enabled:
-        response[-1] = remove_padded_prompts(response[-1], nb_paddings)
     print("***************************")
     print(response)
     print("***************************")
-
-    # Third method of running text generation, use inference server
-    if cfg.server:
-        from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
-
-        if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
-            if cfg.web_server:
-                if cfg.chat:
-                    defaults = {
-                        'user': cfg.chatbot_config.user,
-                        'assistant': cfg.chatbot_config.assistant,
-                        'system': cfg.chatbot_config.system,
-                    }
-                    web_ui = partial(
-                        get_chatbot_demo,
-                        defaults=defaults,
-                        value=cfg.chatbot_config.value,
-                        attributes=cfg.chatbot_config.attributes,
-                    )
-                else:
-                    web_ui = get_demo
-                loop = asyncio.new_event_loop()
-                thread = threading.Thread(
-                    target=web_ui,
-                    daemon=True,
-                    args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
-                )
-                thread.start()
-            server = MegatronServer(model.cuda())
-            server.run("0.0.0.0", port=cfg.port)
-
-        while True:
-            choice = torch.cuda.LongTensor(1)
-            torch.distributed.broadcast(choice, 0)
-            if choice[0].item() == 0:
-                generate(model.cuda())
-
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter

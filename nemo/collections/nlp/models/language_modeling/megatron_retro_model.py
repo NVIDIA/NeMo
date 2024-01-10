@@ -205,7 +205,7 @@ class MegatronRetroModel(MegatronGPTModel):
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, context_input_ids, context_position_ids, context_mask):
         output_tensor = self.model(
-            # tokens,
+            tokens,
             text_position_ids,
             attention_mask,
             context_input_ids=context_input_ids,
@@ -214,6 +214,27 @@ class MegatronRetroModel(MegatronGPTModel):
             labels=labels,
         )
         return output_tensor
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        inference_config = self.get_inference_config()
+        if inference_config is None:
+            return None
+        else:
+            # need to overwrite some configuration, make it immutable
+            inference_config = inference_config.copy()
+            compute_logprob = inference_config['compute_logprob']
+            if compute_logprob:
+                inference_config['inputs'] = batch
+                inference_config['tokens_to_generate'] = 1
+                inference_config['all_probs'] = True
+                inference_config["add_BOS"] = False
+                inference_config['greedy'] = True
+                response = generate(self, **inference_config)
+                compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
+                return compute_prob_response
+            else:
+                inference_config['inputs'] = batch
+                return generate(self, **inference_config)
 
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
@@ -465,7 +486,6 @@ class MegatronRetroModel(MegatronGPTModel):
         # # exit()
 
         return self._train_ds, self._validation_ds, self._test_ds
-
 
     def build_pretraining_data_loader(
         self, dataset, consumed_samples, dataset_type=None, drop_last=True, pad_samples_to_global_batch_size=False
