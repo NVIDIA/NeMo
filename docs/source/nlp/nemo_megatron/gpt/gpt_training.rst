@@ -221,7 +221,7 @@ Next, simply launch Tensorboard to monitor training like so:
 
     tensorboard --logdir nemo_experiments --bind_all
 
-For multi-node training, please refer to [NeMo Framwork User Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/pretraining.html)
+For multi-node training, please refer to `NeMo Framwork User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/pretraining.html>`_
 
 Next steps
 ~~~~~~~~~~
