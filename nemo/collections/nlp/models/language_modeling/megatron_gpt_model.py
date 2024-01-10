@@ -76,8 +76,8 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import InferenceParams, mpu, parallel_state, tensor_parallel
-    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
+    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
@@ -112,11 +112,15 @@ def get_specs(spec_name):
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
 
+
 global is_dataset_built_on_rank
+
+
 def is_dataset_built_on_rank():
     return (
         mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
     ) and mpu.get_tensor_model_parallel_rank() == 0
+
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     """
@@ -941,7 +945,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         }
         # slice batch along sequence dimension for context parallelism
         batch = self.get_batch_on_this_context_parallel_rank(batch)
-        
+
         return batch
 
     def get_batch_on_this_context_parallel_rank(self, batch):
@@ -974,7 +978,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
-            #batch = next(dataloader_iter)
+            # batch = next(dataloader_iter)
             batch = self.get_batch(dataloader_iter)
 
             # Transfer needed data to GPU
