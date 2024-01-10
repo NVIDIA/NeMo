@@ -116,9 +116,12 @@ class GPTDecoderLayerBuilder(DecoderLayerBuilder):
             hidden_act=self.hidden_act,
             position_embedding_type=position_embedding_type,
             rotary_embedding_percentage=rotary_pct,
+            rotary_base=layer.rotary_base,
+            rotary_scaling=layer.rotary_scaling,
             inter_size=layer.ffn_hidden_size_local * self.tensor_parallel,
             bias=bias_qkv,
             num_kv_heads=self.num_kv_heads,
             tp_group=self.tp_group,
             tp_size=self.tensor_parallel,
         )
+
