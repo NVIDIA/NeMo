@@ -20,24 +20,17 @@ from tqdm import tqdm
 
 import types
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
-from collections import namedtuple, Iterable
+from collections.abc import Iterable
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, IterableDataset
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig
 from dataclasses import dataclass, field
 
-import nemo.collections.asr.models as asr_models
-from nemo.collections.asr.parts.mixins.asr_adapter_mixins import ASRAdapterModelMixin
-from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
-from nemo.collections.asr.parts.utils import asr_module_utils
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.collections.common import tokenizers
-from nemo.core.classes import typecheck
 from nemo.utils import logging
 
 try:
@@ -47,9 +40,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_REQUESTS = False
 
 
+TranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
+
+
 @dataclass
 class InternalTranscribeConfig:
     # Internal values
+    device: Optional[torch.device] = None
     dtype: Optional[torch.dtype] = None
     training_mode: bool = False
     logging_level: Optional[Any] = None
@@ -71,16 +68,19 @@ class TranscribeConfig:
     augmentor: Optional[DictConfig] = None
     verbose: bool = True
 
+    # Utility
     return_generator: bool = False
+    partial_hypothesis: Optional[List[Any]] = False
 
     # DEPRECATED?
     logprobs: bool = False
 
     _internal: Optional[InternalTranscribeConfig] = None
 
-class Transcribable(ABC):
+
+class TranscriptionMixin(ABC):
     """
-    An abstract class for transcribable models.
+    An abstract class for transcribe-able models.
     """
 
     @torch.no_grad()
@@ -94,7 +94,38 @@ class Transcribable(ABC):
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[TranscribeConfig] = None,
+        **config_kwargs,
     ) -> List[str]:
+        """
+        Template function that defines the execution strategy for transcribing audio.
+
+        Args:
+            audio: (a single or list) of paths to audio files or a np.ndarray audio array.
+                Recommended length per file is between 5 and 25 seconds.
+                But it is possible to pass a few hours long file if enough GPU memory is available.
+            batch_size: (int) batch size to use during inference.
+                Bigger will result in better throughput performance but would use more memory.
+            return_hypotheses: (bool) Either return hypotheses or text
+                With hypotheses can do some postprocessing like getting timestamp or rescoring
+            num_workers: (int) number of workers for DataLoader
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from
+                multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set
+                to `None`. Defaults to `None`. Uses zero-based indexing.
+            augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
+            verbose: (bool) whether to display tqdm progress bar
+            override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
+                **Note**: All other arguments in the function will be ignored if override_config is passed.
+                You should call this argument as `model.transcribe(audio, override_config=TranscribeConfig(...))`.
+
+        Returns:
+            Output is defined by the subclass implementation of `TranscriptionMixin._transcribe_output_processing()`.
+            It can be:
+            - List[str/Hypothesis]
+            - List[List[str/Hypothesis]]
+            - Tuple[str/Hypothesis]
+            - Tuple[List[str/Hypothesis]]
+            - Dict[str, List[str/Hypothesis]]
+        """
 
         if override_config is None:
             transcribe_cfg = TranscribeConfig(
@@ -104,12 +135,22 @@ class Transcribable(ABC):
                 channel_selector=channel_selector,
                 augmentor=augmentor,
                 verbose=verbose,
+                **config_kwargs
             )
         else:
+            if not isinstance(override_config, TranscribeConfig):
+                raise ValueError("`override_config` must be of an object of type TranscribeConfig or its subclass")
+
             transcribe_cfg = override_config
 
         # Add new internal config
-        transcribe_cfg._internal = InternalTranscribeConfig()
+        if transcribe_cfg._internal is None:
+            transcribe_cfg._internal = InternalTranscribeConfig()
+        else:
+            # Check if internal config is valid
+            if not isinstance(transcribe_cfg._internal, InternalTranscribeConfig):
+                raise ValueError("`transcribe_cfg._internal` must be of an object of type InternalTranscribeConfig or "
+                                 "its subclass")
 
         # Hold the results here
         results = None
@@ -125,8 +166,16 @@ class Transcribable(ABC):
                 dataloader = self._transcribe_input_processing(audio, transcribe_cfg)
 
                 for test_batch in tqdm(dataloader, desc="Transcribing", disable=not transcribe_cfg.verbose):
+                    # Move batch to device
+                    for k, v in test_batch.items():
+                        if isinstance(v, torch.Tensor):
+                            test_batch[k] = v.to(transcribe_cfg._internal.device)
+
                     model_outputs = self._transcribe_forward(test_batch, transcribe_cfg)
                     processed_outputs = self._transcribe_output_processing(model_outputs, transcribe_cfg)
+
+                    # clear up memory
+                    del test_batch
 
                     # Yield results if generator
                     if transcribe_cfg.return_generator:
@@ -179,7 +228,6 @@ class Transcribable(ABC):
                                                  "a dict of list of results, or "
                                                  "a tuple of list of results.")
 
-
         finally:
             # set mode back to its original value
             self._transcribe_on_end(transcribe_cfg)
@@ -200,25 +248,30 @@ class Transcribable(ABC):
         if isinstance(audio, list) and len(audio) == 0:
             return {}
 
-        if trcfg.num_workers is None:
-            trcfg.num_workers = min(trcfg.batch_size, os.cpu_count() - 1)
+        if trcfg._internal.device is None:
+            trcfg._internal.device = next(self.parameters()).device
 
-        if trcfg.dtype is None:
-            trcfg.dtype = next(self.parameters()).dtype
+        if trcfg._internal.dtype is None:
+            trcfg._internal.dtype = next(self.parameters()).dtype
+
+        if trcfg._internal.num_workers is None:
+            trcfg._internal.num_workers = min(trcfg.batch_size, os.cpu_count() - 1)
 
         # Model's mode and device
         trcfg._internal.training_mode = self.training
-        trcfg._internal.dither_value = self.preprocessor.featurizer.dither
-        trcfg._internal.pad_to_value = self.preprocessor.featurizer.pad_to
 
         # Switch model to evaluation mode
-        self.preprocessor.featurizer.dither = 0.0
-        self.preprocessor.featurizer.pad_to = 0
+        if hasattr(self, 'preprocessor'):
+            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'dither'):
+                trcfg._internal.dither_value = self.preprocessor.featurizer.dither
+                self.preprocessor.featurizer.dither = 0.0
+
+            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'pad_to'):
+                trcfg._internal.pad_to_value = self.preprocessor.featurizer.pad_to
+                self.preprocessor.featurizer.pad_to = 0
+
         # Switch model to evaluation mode
         self.eval()
-        # Freeze the encoder and decoure_exder modules
-        self.encoder.freeze()
-        self.decoder.freeze()
 
         # Disable logging
         trcfg._internal.logging_level = logging.get_verbosity()
@@ -228,21 +281,8 @@ class Transcribable(ABC):
         if isinstance(audio, (list, tuple, Iterable)):
             audio_files = list(audio)
 
-            with open(os.path.join(trcfg._internal.temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
-                for audio_file in audio_files:
-                    entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
-                    fp.write(json.dumps(entry) + '\n')
-
-            ds_config = {
-                'paths2audio_files': audio_files,
-                'batch_size': trcfg.batch_size,
-                'temp_dir': trcfg._internal.temp_dir,
-                'num_workers': trcfg.num_workers,
-                'channel_selector': trcfg.channel_selector,
-            }
-
-            if trcfg.augmentor:
-                ds_config['augmentor'] = trcfg.augmentor
+            tmp_dir = trcfg._internal.temp_dir
+            ds_config = self._transcribe_input_manifest_processing(audio_files, tmp_dir, trcfg)
 
             temp_dataloader = self._setup_transcribe_dataloader(ds_config)
             return temp_dataloader
@@ -251,28 +291,33 @@ class Transcribable(ABC):
             raise NotImplemented()
 
     @abstractmethod
+    def _transcribe_input_manifest_processing(self, audio_files: List[str], temp_dir: str, trcfg: TranscribeConfig):
+        pass
+
+    @abstractmethod
+    def _setup_transcribe_dataloader(self, config: Dict) -> DataLoader:
+        pass
+
+    @abstractmethod
     def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
         pass
 
     @abstractmethod
-    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig):
+    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> TranscriptionType:
         pass
 
     def _transcribe_on_end(self, trcfg: TranscribeConfig):
         # set mode back to its original value
         self.train(mode=trcfg._internal.training_mode)
-        self.preprocessor.featurizer.dither = trcfg._internal.dither_value
-        self.preprocessor.featurizer.pad_to = trcfg._internal.pad_to_value
-        if trcfg._internal.training_mode is True:
-            self.encoder.unfreeze()
-            self.decoder.unfreeze()
+
+        if hasattr(self, 'preprocessor'):
+            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'dither'):
+                self.preprocessor.featurizer.dither = trcfg._internal.dither_value
+
+            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'pad_to'):
+                self.preprocessor.featurizer.pad_to = trcfg._internal.pad_to_value
 
         logging.set_verbosity(trcfg._internal.logging_level)
-
-
-    @abstractmethod
-    def _setup_transcribe_dataloader(self, config: Dict) -> DataLoader:
-        pass
 
     """
     Utility Methods
@@ -281,6 +326,52 @@ class Transcribable(ABC):
         if inputs.ndim > 1 and isinstance(transcribe_cfg.channel_selector, int):
             inputs = inputs[transcribe_cfg.channel_selector, :]
 
-
-
         return inputs
+
+
+class ASRTranscriptionMixin(TranscriptionMixin):
+
+    def _transcribe_input_manifest_processing(self, audio_files: List[str], temp_dir: str, trcfg: TranscribeConfig) -> Dict[str, Any]:
+        with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+            for audio_file in audio_files:
+                entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
+                fp.write(json.dumps(entry) + '\n')
+
+        ds_config = {
+            'paths2audio_files': audio_files,
+            'batch_size': trcfg.batch_size,
+            'temp_dir': temp_dir,
+            'num_workers': trcfg.num_workers,
+            'channel_selector': trcfg.channel_selector,
+        }
+
+        if trcfg.augmentor:
+            ds_config['augmentor'] = trcfg.augmentor
+
+        return ds_config
+
+    def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
+        super()._transcribe_on_begin(audio, trcfg)
+
+        # Freeze the encoder and decoder modules
+        if hasattr(self, 'encoder'):
+            self.encoder.freeze()
+
+        if hasattr(self, 'decoder'):
+            self.decoder.freeze()
+
+        if hasattr(self, 'joint'):
+            self.joint.freeze()
+
+    def _transcribe_on_end(self, trcfg: TranscribeConfig):
+        super()._transcribe_on_end(trcfg)
+
+        # Unfreeze the encoder and decoder modules
+        if hasattr(self, 'encoder'):
+            self.encoder.unfreeze()
+
+        if hasattr(self, 'decoder'):
+            self.decoder.unfreeze()
+
+        if hasattr(self, 'joint'):
+            self.joint.unfreeze()

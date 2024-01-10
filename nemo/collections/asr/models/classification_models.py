@@ -18,7 +18,8 @@ import os
 import tempfile
 from abc import abstractmethod
 from math import ceil, floor
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
+from dataclasses import dataclass
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
@@ -30,6 +31,8 @@ from nemo.collections.asr.data import audio_to_label_dataset, feature_to_label_d
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.mixins import TranscriptionMixin, TranscribeConfig as _TranscribeConfig, \
+    TranscribeConfig
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -40,7 +43,13 @@ from nemo.utils.cast_utils import cast_all
 __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel']
 
 
-class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
+@dataclass
+class ClassificationTranscribeConfig(_TranscribeConfig):
+    batch_size: int = 4
+    logprobs: bool = False
+
+
+class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
     """Encoder decoder Classification models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -334,12 +343,13 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
         )
 
     @torch.no_grad()
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, logprobs=False) -> List[str]:
+    def transcribe(self, audio: List[str], batch_size: int = 4, logprobs=False,
+                   override_config: Optional[ClassificationTranscribeConfig] = None,) -> List[str]:
         """
         Generate class labels for provided audio files. Use this method for debugging and prototyping.
 
         Args:
-            paths2audio_files: (a list) of paths to audio files. \
+            audio: (a single or list) of paths to audio files or a np.ndarray audio sample. \
                 Recommended length per file is approximately 1 second.
             batch_size: (int) batch size to use during inference. \
                 Bigger will result in better throughput performance but would use more memory.
@@ -349,75 +359,62 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
 
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
-        if paths2audio_files is None or len(paths2audio_files) == 0:
-            return []
-        # We will store transcriptions here
+        if override_config is None:
+            trcfg = ClassificationTranscribeConfig(batch_size=batch_size, logprobs=logprobs)
+        else:
+            if not isinstance(override_config, ClassificationTranscribeConfig):
+                raise ValueError(
+                    f"override_config must be of type {ClassificationTranscribeConfig}, "
+                    f"but got {type(override_config)}"
+                )
+            trcfg = override_config
+
+        return super().transcribe(audio=audio, override_config=trcfg)
+
+    """ Transcription related methods """
+
+    def _transcribe_input_manifest_processing(self, audio_files: List[str], temp_dir: str, trcfg: TranscribeConfig):
+        with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+            for audio_file in audio_files:
+                label = 0.0 if self.is_regression_task else self.cfg.labels[0]
+                entry = {'audio_filepath': audio_file, 'duration': 100000.0, 'label': label}
+                fp.write(json.dumps(entry) + '\n')
+
+        config = {'paths2audio_files': audio_files, 'batch_size': trcfg.batch_size, 'temp_dir': temp_dir}
+        return config
+
+    def _transcribe_forward(self, batch: Any, trcfg: ClassificationTranscribeConfig):
+        logits = self.forward(input_signal=batch[0], input_signal_length=batch[1])
+        output = dict(logits=logits)
+        return output
+
+    def _transcribe_output_processing(self, outputs, trcfg: ClassificationTranscribeConfig) -> Union[List[str], List[torch.Tensor]]:
+        logits = outputs.pop('logits')
         labels = []
-        # Model's mode and device
-        mode = self.training
-        device = next(self.parameters()).device
 
-        if hasattr(self.preprocessor.featurizer, 'dither'):
-            dither_value = self.preprocessor.featurizer.dither
-        if hasattr(self.preprocessor.featurizer, 'pad_to'):
-            pad_to_value = self.preprocessor.featurizer.pad_to
+        if trcfg.logprobs:
+            # dump log probs per file
+            for idx in range(logits.shape[0]):
+                lg = logits[idx]
+                labels.append(lg.cpu().numpy())
+        else:
+            labels_k = []
+            top_ks = self._accuracy.top_k
+            for top_k_i in top_ks:
+                # replace top k value with current top k
+                self._accuracy.top_k = top_k_i
+                labels_k_i = self._accuracy.top_k_predicted_labels(logits)
+                labels_k_i = labels_k_i.cpu()
+                labels_k.append(labels_k_i)
 
-        try:
-            if hasattr(self.preprocessor.featurizer, 'dither'):
-                self.preprocessor.featurizer.dither = 0.0
-            if hasattr(self.preprocessor.featurizer, 'pad_to'):
-                self.preprocessor.featurizer.pad_to = 0
-            # Switch model to evaluation mode
-            self.eval()
-            logging_level = logging.get_verbosity()
-            logging.set_verbosity(logging.WARNING)
-            # Work in tmp directory - will store manifest file there
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
-                    for audio_file in paths2audio_files:
-                        label = 0.0 if self.is_regression_task else self.cfg.labels[0]
-                        entry = {'audio_filepath': audio_file, 'duration': 100000.0, 'label': label}
-                        fp.write(json.dumps(entry) + '\n')
+            # convenience: if only one top_k, pop out the nested list
+            if len(top_ks) == 1:
+                labels_k = labels_k[0]
 
-                config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
+            labels += labels_k
+            # reset top k to orignal value
+            self._accuracy.top_k = top_ks
 
-                temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in temporary_datalayer:
-                    logits = self.forward(
-                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
-                    )
-                    if logprobs:
-                        # dump log probs per file
-                        for idx in range(logits.shape[0]):
-                            lg = logits[idx]
-                            labels.append(lg.cpu().numpy())
-                    else:
-                        labels_k = []
-                        top_ks = self._accuracy.top_k
-                        for top_k_i in top_ks:
-                            # replace top k value with current top k
-                            self._accuracy.top_k = top_k_i
-                            labels_k_i = self._accuracy.top_k_predicted_labels(logits)
-                            labels_k_i = labels_k_i.cpu()
-                            labels_k.append(labels_k_i)
-
-                        # convenience: if only one top_k, pop out the nested list
-                        if len(top_ks) == 1:
-                            labels_k = labels_k[0]
-
-                        labels += labels_k
-                        # reset top k to orignal value
-                        self._accuracy.top_k = top_ks
-                    del test_batch
-        finally:
-            # set mode back to its original value
-            self.train(mode=mode)
-
-            if hasattr(self.preprocessor.featurizer, 'dither'):
-                self.preprocessor.featurizer.dither = dither_value
-            if hasattr(self.preprocessor.featurizer, 'pad_to'):
-                self.preprocessor.featurizer.pad_to = pad_to_value
-            logging.set_verbosity(logging_level)
         return labels
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
