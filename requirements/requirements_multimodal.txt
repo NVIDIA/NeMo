@@ -8,7 +8,6 @@ flash-attn>=2.0.1
 imageio-ffmpeg
 kornia
 nerfacc>=0.5.3
-nvdiffrast
 open_clip_torch
 opencv-python>=4.8.0.74
 PyMCubes
