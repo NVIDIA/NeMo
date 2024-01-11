@@ -16,6 +16,7 @@ from contextlib import contextmanager
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+
 try:
     from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
 except ImportError:
