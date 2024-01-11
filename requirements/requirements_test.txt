@@ -5,7 +5,6 @@ click==8.0.2
 clip
 diffusers>=0.19.3
 einops_exts
-flash-attn>=2.0.1
 imageio-ffmpeg
 isort>5.1.0,<6.0.0
 kornia
