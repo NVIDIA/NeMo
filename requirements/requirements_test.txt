@@ -10,3 +10,7 @@ sphinxcontrib-bibtex
 wandb
 wget
 wrapt
+imageio-ffmpeg
+taming-transformers@git+https://github.com/CompVis/taming-transformers.git@3ba01b241669f5ade541ce990f7650a3b8f65318#egg=taming-transformers
+clip@git+https://github.com/openai/CLIP.git@a1d071733d7111c9c014f024669f959182114e33#egg=clip
+open_clip_torch
