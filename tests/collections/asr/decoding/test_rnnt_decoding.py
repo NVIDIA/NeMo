@@ -182,6 +182,49 @@ class TestRNNTDecoding:
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
+    @pytest.mark.parametrize("loop_labels", [True, False])
+    def test_greedy_decoding_preserve_alignments(self, test_data_dir, loop_labels: bool):
+        model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'stt_en_conformer_transducer_small')
+
+        beam = greedy_decode.GreedyBatchedRNNTInfer(
+            model.decoder,
+            model.joint,
+            blank_index=model.joint.num_classes_with_blank - 1,
+            max_symbols_per_step=5,
+            preserve_alignments=True,
+            loop_labels=loop_labels,
+        )
+
+        enc_out = encoded
+        enc_len = encoded_len
+
+        with torch.no_grad():
+            hyps: list[rnnt_utils.Hypothesis] = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]
+            hyp = decode_text_from_greedy_hypotheses(hyps, model.decoding)
+            hyp = hyp[0]
+
+            assert hyp.alignments is not None
+
+            # Use the following commented print statements to check
+            # the alignment of other algorithms compared to the default
+            print("Text", hyp.text)
+            for t in range(len(hyp.alignments)):
+                t_u = []
+                for u in range(len(hyp.alignments[t])):
+                    logp, label = hyp.alignments[t][u]
+                    assert torch.is_tensor(logp)
+                    assert torch.is_tensor(label)
+
+                    t_u.append(int(label))
+
+                print(f"Tokens at timestep {t} = {t_u}")
+            print()
+
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
     @pytest.mark.parametrize(
         "beam_config",
         [
