@@ -92,7 +92,13 @@ def max_symbols_setup():
             return old_states
 
     class DummyRNNTJoint(AbstractRNNTJoint):
-        def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
+        def project_encoder(self, encoder_output: torch.Tensor) -> torch.Tensor:
+            return encoder_output
+
+        def project_prednet(self, prednet_output: torch.Tensor) -> torch.Tensor:
+            return prednet_output
+
+        def joint_after_projection(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
             return f.unsqueeze(dim=2) + g.unsqueeze(dim=1)
 
     setup = {}
