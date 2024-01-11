@@ -16,17 +16,14 @@
 from argparse import ArgumentParser
 
 import torch
+import torch.nn.functional as F
 from pytorch_lightning import Trainer
-
-from transformers import BertConfig, BertModel
+from torch import Tensor
+from transformers import AutoTokenizer, BertConfig, BertModel
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
-
-import torch.nn.functional as F
-from torch import Tensor
-from transformers import AutoTokenizer
 
 
 def average_pool(last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
@@ -183,6 +180,7 @@ def adjust_tensor_shapes(model_state_dict):
 
     return model_state_dict
 
+
 def convert_config(ref_config, hf_state_dict):
     vocab_size = hf_state_dict['embeddings.word_embeddings.weight'].shape[0]
     new_config = {
@@ -192,7 +190,7 @@ def convert_config(ref_config, hf_state_dict):
         "intermediate_size": ref_config["ffn_hidden_size"],
         "num_attention_heads": ref_config["num_attention_heads"],
         "layer_norm_eps": ref_config["layernorm_epsilon"],
-        "max_position_embeddings": ref_config["max_position_embeddings"]
+        "max_position_embeddings": ref_config["max_position_embeddings"],
     }
     hf_config = BertConfig(**new_config)
     return hf_config
@@ -204,10 +202,7 @@ def get_args():
         "--in-file", type=str, required=True, help="Path to .nemo file",
     )
     parser.add_argument(
-        "--hf-out-path",
-        type=str,
-        required=True,
-        help="Output HF model path" ,
+        "--hf-out-path", type=str, required=True, help="Output HF model path",
     )
 
     args = parser.parse_args()
