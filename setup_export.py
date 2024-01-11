@@ -12,22 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import codecs
-import importlib.util
-import os
-import subprocess
-from distutils import cmd as distutils_cmd
-from distutils import log as distutils_log
-from itertools import chain
+from pathlib import Path
+from pip.req import parse_requirements
 
 import setuptools
-
-def req_file(filename, folder="/opt/NeMo/requirements"):
-    with open(os.path.join(folder, filename), encoding='utf-8') as f:
-        content = f.readlines()
-    # you may also want to remove whitespace characters
-    # Example: `\n` at the end of each line
-    return [x.strip() for x in content]
 
 
 def setup_export():
@@ -51,7 +39,7 @@ def setup_export():
             "nemo.export.trt_llm.nemo",
             "nemo.deploy",
         ],
-        install_requires=req_file("requirements_export.txt"),
+        install_requires=[str(ir.req) for ir in parse_requirements(Path(__file__).parent / "requirements/requirements_export.txt")],
         # Add in any packaged data.
         include_package_data=True,
         exclude=['tools', 'tests'],
