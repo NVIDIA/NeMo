@@ -4835,7 +4835,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.global_batch_size=4 \
         model.data.synthetic_data=True \
         exp_manager.exp_dir=/home/TestData/multimodal/imagen_train \
-        model.inductor=False
+        model.inductor=False \
         "
         sh "rm -rf /home/TestData/multimodal/imagen_train"
       }
@@ -4869,7 +4869,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             ~model.cond_stage_config.freeze \
             ~model.cond_stage_config.layer \
             model.unet_config.from_pretrained=null \
-            model.first_stage_config.from_pretrained=null
+            model.first_stage_config.from_pretrained=null \
             "
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
       }
@@ -4898,7 +4898,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.image_logger.max_images=0 \
             model.control_stage_config.params.from_pretrained_unet=null \
             model.unet_config.from_pretrained=null \
-            model.first_stage_config.from_pretrained=null
+            model.first_stage_config.from_pretrained=null \
             "
         sh "rm -rf /home/TestData/multimodal/controlnet_train"
       }
@@ -4931,7 +4931,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             ~model.cond_stage_config.layer \
             model.unet_config.from_pretrained=null \
             model.first_stage_config.from_pretrained=null \
-            model.data.instance_dir=/home/TestData/multimodal/tiny-dreambooth
+            model.data.instance_dir=/home/TestData/multimodal/tiny-dreambooth \
             "
         sh "rm -rf /home/TestData/multimodal/dreambooth_train"
       }
