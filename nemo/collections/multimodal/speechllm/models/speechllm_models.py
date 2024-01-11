@@ -134,10 +134,11 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         # TODO(zhehuai): for AmFixQueryAudioPerceptionModel
         # self.unfreeze()
         known_groups = []
-        if self.cfg.get('freeze_llm', True):
-            for param in self.model.parameters():
-                param.requires_grad = False
+        freeze_llm = self.cfg.get('freeze_llm', True)
+        if freeze_llm:
             known_groups.append('model.')
+        for param in self.model.parameters():
+            param.requires_grad = not freeze_llm
 
         if self.cfg.get('freeze_audio_encoder', False):
             if self.cfg.perception.get("speaker_model", None) is not None:
