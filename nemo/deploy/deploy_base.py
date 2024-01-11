@@ -15,7 +15,11 @@
 import importlib
 from abc import ABC, abstractmethod
 
-from pytorch_lightning import Trainer
+try:
+    from pytorch_lightning import Trainer
+except Exception:
+    pass
+
 from nemo.deploy.triton_deployable import ITritonDeployable
 
 use_nemo = True

@@ -25,7 +25,10 @@ import torch
 import tempfile
 
 from nemo.deploy import ITritonDeployable
-from nemo.deploy.utils import cast_output, str_ndarray2list
+try:
+    from nemo.deploy.utils import cast_output, str_ndarray2list
+except:
+    pass
 import logging
 
 from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
@@ -37,7 +40,7 @@ use_pytriton = True
 try:
     from pytriton.decorators import batch
     from pytriton.model_config import Tensor
-except:
+except Exception:
     use_pytriton = False
 
 LOGGER = logging.getLogger("NeMo")
@@ -355,6 +358,7 @@ class TensorRTLLM(ITritonDeployable):
     def get_triton_output(self):
         outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
         return outputs
+
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
