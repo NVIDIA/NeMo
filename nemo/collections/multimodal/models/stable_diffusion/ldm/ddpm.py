@@ -102,7 +102,7 @@ __conditioning_keys__ = {'concat': 'c_concat', 'crossattn': 'c_crossattn', 'adm'
 
 def random_dropout(embeddings, drop_rate):
     r"""
-    Function to perform random dr"--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./opout for embeddings.
+    Function to perform random dropout for embeddings.
     When we drop embeddings, we zero them out.
     Args:
         embeddings (tensor): Input embeddings
