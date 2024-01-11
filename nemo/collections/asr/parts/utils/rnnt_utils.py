@@ -364,6 +364,7 @@ def batched_hyps_to_hypotheses(
 
     Args:
         batched_hyps: BatchedHyps object
+        alignments: BatchedAlignments object, optional; must correspond to BatchedHyps if present
 
     Returns:
         list of Hypothesis objects
@@ -379,11 +380,14 @@ def batched_hyps_to_hypotheses(
         for i in range(batched_hyps.scores.shape[0])
     ]
     if alignments is not None:
+        # move all data to cpu to avoid overhead with moving data by chunks
         alignment_logits = alignments.logits.cpu()
         alignment_labels = alignments.labels.cpu()
         alignment_lengths = alignments.lengths.cpu().tolist()
         if alignments.with_frame_confidence:
             frame_confidence = alignments.frame_confidence.cpu()
+
+        # for each hypothesis - aggregate alignment using unique_consecutive for time indices (~itertools.groupby)
         for i in range(len(hypotheses)):
             hypotheses[i].alignments = []
             if alignments.with_frame_confidence:
@@ -401,5 +405,4 @@ def batched_hyps_to_hypotheses(
                         [frame_confidence[i, start + j] for j in range(timestep_cnt)]
                     )
                 start += timestep_cnt
-            # for time_ind
     return hypotheses
