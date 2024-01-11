@@ -86,13 +86,14 @@ def main(cfg):
     # Generate images using the model and save them
     for i, prompt in enumerate(input):
         cfg.infer.prompt = [prompt]
+        seed = int(cfg.infer.seed + local_task_id * 10 + node_id_per_cfg * 100 + i * 1000)
         output = base.text_to_image(
             params=cfg.sampling.base,
             prompt=cfg.infer.prompt,
             negative_prompt=cfg.infer.negative_prompt,
             samples=cfg.infer.num_samples,
             return_latents=True if use_refiner else False,
-            seed=cfg.infer.seed,
+            seed=seed,
         )
 
         if use_refiner:

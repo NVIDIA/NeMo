@@ -41,13 +41,14 @@ def main(cfg):
 
     base = SamplingPipeline(model, use_fp16=cfg.use_fp16, is_legacy=cfg.model.is_legacy)
     use_refiner = cfg.get('use_refiner', False)
-    for prompt in cfg.infer.prompt:
+    for i, prompt in enumerate(cfg.infer.prompt):
         samples = base.text_to_image(
             params=cfg.sampling.base,
             prompt=[prompt],
             negative_prompt=cfg.infer.negative_prompt,
             samples=cfg.infer.num_samples,
             return_latents=True if use_refiner else False,
+            seed=int(cfg.infer.seed + i * 100)
         )
 
         perform_save_locally(cfg.out_path, samples)
