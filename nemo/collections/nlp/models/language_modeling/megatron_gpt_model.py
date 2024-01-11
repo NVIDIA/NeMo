@@ -115,10 +115,12 @@ def get_specs(spec_name):
 
 global is_dataset_built_on_rank
 
+
 def is_dataset_built_on_rank():
     return True
 
-#def is_dataset_built_on_rank():
+
+# def is_dataset_built_on_rank():
 #    return (
 #        mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
 #    ) and mpu.get_tensor_model_parallel_rank() == 0
@@ -1228,7 +1230,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building GPT datasets.')
-        
+
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(
