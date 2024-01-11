@@ -416,3 +416,20 @@ def batched_hyps_to_hypotheses(
                     )
                 start += timestep_cnt
     return hypotheses
+
+
+def return_empty_hypotheses(
+    encoder_lengths: torch.Tensor, with_alignments=False, with_frame_confidence=False
+) -> List[Hypothesis]:
+    hypotheses = [
+        Hypothesis(
+            score=0.0,
+            y_sequence=[],
+            timestep=[],
+            alignments=[[] for _ in range(encoder_lengths[i].item())] if with_alignments else None,
+            frame_confidence=[[] for _ in range(encoder_lengths[i].item())] if with_frame_confidence else None,
+            dec_state=None,
+        )
+        for i in range(encoder_lengths.shape[0])
+    ]
+    return hypotheses

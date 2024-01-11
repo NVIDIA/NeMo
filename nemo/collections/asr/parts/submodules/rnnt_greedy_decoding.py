@@ -659,6 +659,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         batch_size, max_time, _ = x.shape
 
+        if self.max_symbols == 0:
+            # this is for tests; do we really need decoding with zero max_symbols_per_step?
+            return rnnt_utils.return_empty_hypotheses(
+                out_len, with_alignments=self.preserve_alignments, with_frame_confidence=self.preserve_frame_confidence
+            )
+
         x = self.joint.project_encoder(x)  # do not recalculate joint projection, project only once
 
         # Initialize empty hypotheses and all necessary tensors
