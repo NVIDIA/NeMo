@@ -1228,8 +1228,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building GPT datasets.')
-        #if self._train_ds is None or self._validation_ds is None or self._test_ds is None:
-        print(f"DATASETS: {self._train_ds, self._validation_ds, self._test_ds}")
+        
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(
