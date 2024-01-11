@@ -5,10 +5,10 @@ diffusers>=0.19.3
 einops_exts
 # webdataset>=0.2.48 conflict with ASR models, manually pip install when using multimodal
 flash-attn>=2.0.1
-nvdiffrast@git+https://github.com/NVlabs/nvdiffrast.git@c5caf7bdb8a2448acc491a9faa47753972edd380
 imageio-ffmpeg
 kornia
 nerfacc>=0.5.3
+nvdiffrast@git+https://github.com/NVlabs/nvdiffrast.git@c5caf7bdb8a2448acc491a9faa47753972edd380
 open_clip_torch
 opencv-python>=4.8.0.74
 PyMCubes
