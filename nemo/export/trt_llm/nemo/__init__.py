@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .rest_model_api import app
+from .sentencepiece_tokenizer import SentencePieceTokenizer

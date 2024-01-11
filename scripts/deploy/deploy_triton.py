@@ -19,8 +19,6 @@ from pathlib import Path
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
 import logging
-from service.rest_model_api import app
-import uvicorn
 
 try:
     from contextlib import nullcontext
@@ -37,19 +35,18 @@ def get_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton",
     )
-
     parser.add_argument(
         "-nc",
         "--nemo_checkpoint",
         type=str,
-        help="Source .nemo file")
-
+        help="Source .nemo file"
+    )
     parser.add_argument(
         "-pnc",
         "--ptuning_nemo_checkpoint",
         type=str,
-        help="Source .nemo file for prompt embeddings table")
-
+        help="Source .nemo file for prompt embeddings table"
+    )
     parser.add_argument(
         "-mt",
         "--model_type",
@@ -59,7 +56,6 @@ def get_args(argv):
         help="Type of the model. gptnext, gpt, llama, falcon, and starcoder are only supported."
              " gptnext and gpt are the same and keeping it for backward compatibility"
     )
-
     parser.add_argument(
         "-tmn",
         "--triton_model_name",
@@ -67,7 +63,6 @@ def get_args(argv):
         type=str,
         help="Name for the service"
     )
-
     parser.add_argument(
         "-tmv",
         "--triton_model_version",
@@ -75,7 +70,6 @@ def get_args(argv):
         type=int,
         help="Version for the service"
     )
-
     parser.add_argument(
         "-tp",
         "--triton_port",
@@ -83,7 +77,6 @@ def get_args(argv):
         type=int,
         help="Port for the Triton server to listen for requests"
     )
-
     parser.add_argument(
         "-tha",
         "--triton_http_address",
@@ -91,7 +84,6 @@ def get_args(argv):
         type=str,
         help="HTTP address for the Triton server"
     )
-
     parser.add_argument(
         "-tmr",
         "--triton_model_repository",
@@ -99,7 +91,6 @@ def get_args(argv):
         type=str,
         help="Folder for the trt-llm conversion"
     )
-
     parser.add_argument(
         "-ng",
         "--num_gpus",
@@ -107,7 +98,18 @@ def get_args(argv):
         type=int,
         help="Number of GPUs for the deployment"
     )
-
+    parser.add_argument(
+        "-tps",
+        "--tensor_parallelism_size",
+        type=int,
+        help="Tensor parallelism size"
+    )
+    parser.add_argument(
+        "-pps",
+        "--pipeline_parallelism_size",
+        type=int,
+        help="Pipeline parallelism size"
+    )
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -116,7 +118,6 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
-
     parser.add_argument(
         "-mil",
         "--max_input_len",
@@ -124,7 +125,6 @@ def get_args(argv):
         type=int,
         help="Max input length of the model"
     )
-
     parser.add_argument(
         "-mol",
         "--max_output_len",
@@ -132,7 +132,6 @@ def get_args(argv):
         type=int,
         help="Max output length of the model"
     )
-
     parser.add_argument(
         "-mbs",
         "--max_batch_size",
@@ -140,38 +139,35 @@ def get_args(argv):
         type=int,
         help="Max batch size of the model"
     )
-
+    parser.add_argument(
+        "-mpet",
+        "--max_prompt_embedding_table_size",
+        default=None,
+        type=int,
+        help="Max prompt embedding table size"
+    )
+    parser.add_argument(
+        "-upkc",
+        "--use_paged_kv_cache",
+        default="False",
+        type=str,
+        help="Enable paged kv cache."
+    )
     parser.add_argument(
         "-dcf",
         "--disable_context_fmha",
         action="store_true",
         help="Disable fused Context MultiHeadedAttention (required for V100 support)."
     )
-
     parser.add_argument(
-        "-srs",
-        "--start_rest_service",
-        default="False",
-        type=str,
-        help="Starts the REST service for OpenAI API support"
+        "-mbm",
+        '--multi_block_mode',
+        default=False,
+        action='store_true',
+        help=
+        'Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
+                        It is beneifical when batchxnum_heads cannot fully utilize GPU.'
     )
-
-    parser.add_argument(
-        "-sha",
-        "--service_http_address",
-        default="0.0.0.0",
-        type=str,
-        help="HTTP address for the REST Service"
-    )
-
-    parser.add_argument(
-        "-sp",
-        "--service_port",
-        default=8000,
-        type=int,
-        help="Port for the Triton server to listen for requests"
-    )
-
     parser.add_argument(
         "-dm",
         "--debug_mode",
@@ -191,6 +187,16 @@ def nemo_deploy(argv):
         loglevel = logging.DEBUG
     else:
         loglevel = logging.INFO
+
+    if args.use_paged_kv_cache == "True":
+        args.use_paged_kv_cache = True
+    else:
+        args.use_paged_kv_cache = False
+
+    if args.disable_context_fmha == "True":
+        args.disable_context_fmha = True
+    else:
+        args.disable_context_fmha = False
 
     LOGGER.setLevel(loglevel)
     LOGGER.info("Logging level set to {}".format(loglevel))
@@ -227,10 +233,29 @@ def nemo_deploy(argv):
         )
         return
 
-    if args.start_rest_service == "True":
-        if args.service_port == args.triton_port:
+
+    ptuning_tables_files = []
+    if not args.ptuning_nemo_checkpoint is None:
+        if args.max_prompt_embedding_table_size is None:
             LOGGER.error(
-                "REST service port and Triton server port cannot use the same port."
+                "max_prompt_embedding_table_size parameter is needed for the prompt tuning table(s)."
+            )
+            return
+
+        ptuning_nemo_checkpoint_path = Path(args.ptuning_nemo_checkpoint)
+        if ptuning_nemo_checkpoint_path.exists():
+            if ptuning_nemo_checkpoint_path.is_file():
+                ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
+            elif ptuning_nemo_checkpoint_path.is_dir():
+                ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
+            else:
+                LOGGER.error(
+                    "Could not read the prompt tuning tables from {0}".format(args.ptuning_nemo_checkpoint)
+                )
+                return
+        else:
+            LOGGER.error(
+                "File or directory {0} does not exist.".format(args.ptuning_nemo_checkpoint)
             )
             return
 
@@ -242,17 +267,32 @@ def nemo_deploy(argv):
             trt_llm_exporter.export(
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
-                prompt_embeddings_checkpoint_path=args.ptuning_nemo_checkpoint,
                 n_gpus=args.num_gpus,
+                tensor_parallel_size=args.tensor_parallelism_size,
+                pipeline_parallel_size=args.pipeline_parallelism_size,
                 max_input_token=args.max_input_len,
                 max_output_token=args.max_output_len,
-                enable_context_fmha=not args.disable_context_fmha,
                 max_batch_size=args.max_batch_size,
-                dtype=args.dtype
+                max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
+                paged_kv_cache=args.use_paged_kv_cache,
+                enable_context_fmha=not args.disable_context_fmha,
+                dtype=args.dtype,
+                enable_multi_block_mode=args.multi_block_mode,
             )
         except Exception as error:
             LOGGER.error("An error has occurred during the model export. Error message: " + str(error))
             return
+
+    try:
+        for task, prompt_embeddings_checkpoint_path in enumerate(ptuning_tables_files):
+            LOGGER.info("Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task))
+            trt_llm_exporter.add_prompt_table(
+                task_name=str(task),
+                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+            )
+    except Exception as error:
+        LOGGER.error("An error has occurred during adding the prompt embedding table(s). Error message: " + str(error))
+        return
 
     try:
         nm = DeployPyTriton(
@@ -272,25 +312,10 @@ def nemo_deploy(argv):
 
     try:
         LOGGER.info("Model serving on Triton is will be started.")
-        if args.start_rest_service == "True":
-            nm.run()
-        else:
-            nm.serve()
+        nm.serve()
     except Exception as error:
         LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
-
-    if args.start_rest_service == "True":
-        try:
-            LOGGER.info("REST service is will be started.")
-            uvicorn.run(
-                'service.rest_model_api:app',
-                host=args.service_http_address,
-                port=args.service_port,
-                reload=True
-            )
-        except Exception as error:
-            LOGGER.error("Error message has occurred during REST service start. Error message: " + str(error))
 
     LOGGER.info("Model serving will be stopped.")
     nm.stop()

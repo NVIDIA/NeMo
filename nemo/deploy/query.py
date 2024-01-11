@@ -18,6 +18,8 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from .utils import str_list2numpy
+import concurrent.futures
+
 
 use_pytriton = True
 try:
@@ -37,14 +39,20 @@ class NemoQueryBase(ABC):
         self.url = url
         self.model_name = model_name
 
+    @abstractmethod
     def query_llm(
             self,
             prompts,
+            stop_words_list=None,
+            bad_words_list=None,
+            no_repeat_ngram_size=None,
             max_output_token=512,
             top_k=1,
             top_p=0.0,
             temperature=1.0,
-            init_timeout=600.0,
+            random_seed=None,
+            task_id=None,
+            init_timeout=60.0
     ):
         pass
 
@@ -77,11 +85,16 @@ class NemoQuery(NemoQueryBase):
     def query_llm(
             self,
             prompts,
+            stop_words_list=None,
+            bad_words_list=None,
+            no_repeat_ngram_size=None,
             max_output_token=512,
             top_k=1,
             top_p=0.0,
             temperature=1.0,
-            init_timeout=600.0,
+            random_seed=None,
+            task_id=None,
+            init_timeout=60.0
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -92,23 +105,48 @@ class NemoQuery(NemoQueryBase):
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            random_seed (int): Seed to condition sampling.
+            stop_words_list (List(str)): list of stop words.
+            bad_words_list (List(str)): list of bad words.
+            no_repeat_ngram_size (int): no repeat ngram size.
             init_timeout (flat): timeout for the connection.
         """
 
         prompts = str_list2numpy(prompts)
-        max_output_token = np.full(prompts.shape, max_output_token, dtype=np.int_)
-        top_k = np.full(prompts.shape, top_k, dtype=np.int_)
-        top_p = np.full(prompts.shape, top_p, dtype=np.single)
-        temperature = np.full(prompts.shape, temperature, dtype=np.single)
+        inputs = {"prompts": prompts}
+
+        if not max_output_token is None:
+            inputs["max_output_token"] = np.full(prompts.shape, max_output_token, dtype=np.int_)
+
+        if not top_k is None:
+            inputs["top_k"] = np.full(prompts.shape, top_k, dtype=np.int_)
+
+        if not top_p is None:
+            inputs["top_p"] = np.full(prompts.shape, top_p, dtype=np.single)
+
+        if not temperature is None:
+            inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
+
+        if not random_seed is None:
+            inputs["random_seed"] = np.full(prompts.shape, random_seed, dtype=np.int_)
+
+        if not stop_words_list is None:
+            stop_words_list = np.char.encode(stop_words_list, "utf-8")
+            inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
+
+        if not bad_words_list is None:
+            bad_words_list = np.char.encode(bad_words_list, "utf-8")
+            inputs["bad_words_list"] = np.full((prompts.shape[0], len(bad_words_list)), bad_words_list)
+
+        if not no_repeat_ngram_size is None:
+            inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
+
+        if not task_id is None:
+            task_id = np.char.encode(task_id, "utf-8")
+            inputs["task_id"] = np.full((prompts.shape[0], len([task_id])), task_id)
 
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
-            result_dict = client.infer_batch(
-                prompts=prompts,
-                max_output_token=max_output_token,
-                top_k=top_k,
-                top_p=top_p,
-                temperature=temperature,
-            )
+            result_dict = client.infer_batch(**inputs)
             output_type = client.model_config.outputs[0].dtype
 
         if output_type == np.bytes_:
@@ -126,28 +164,75 @@ class NemoQueryTensorRTLLM(NemoQueryBase):
             url=url,
             model_name=model_name,
         )
-
-    def query_llm(
-            self,
-            prompt,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            init_timeout=600.0,
-    ):
-
+        
+    def _single_query(self,
+                      prompt, max_output_token=512,
+                      top_k=1,
+                      top_p=0.0,
+                      temperature=1.0,):
+        client = HttpTritonClient(self.url)
         pload = {
-            'prompt':[[prompt]], 
-            'tokens':100,
-            'temperature':1.0,
-            'top_k':1,
-            'top_p':0,
+            'prompt': [[prompt]], 
+            'tokens': max_output_token,
+            'temperature':temperature,
+            'top_k': top_k,
+            'top_p': top_p,
             'beam_width':1,
             'repetition_penalty':1.0,
             'length_penalty':1.0
         }
-
-        client = HttpTritonClient(self.url) 
         result = client.request(self.model_name, **pload)
         return result
+
+    def query_llm(
+            self,
+            prompts,
+            stop_words_list=None,
+            bad_words_list=None,
+            no_repeat_ngram_size=None,
+            max_output_token=512,
+            top_k=1,
+            top_p=0.0,
+            temperature=1.0,
+            random_seed=None,
+            task_id=None,
+            init_timeout=60.0
+    ):
+
+        results = []
+        for prompt in prompts:
+            result = self._single_query(prompt, max_output_token,
+                                        top_k=1,
+                                        top_p=0.0,
+                                        temperature=1.0,)
+            results.append(result)
+        return results
+
+    def query_llm_async(
+            self,
+            prompts,
+            max_output_token=512,
+            top_k=1,
+            top_p=0.0,
+            temperature=1.0,
+            num_threads = 12
+    ):
+        results = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+            future_to_prompt = {executor.submit(self._single_query, prompt, max_output_token,
+                                             top_k,
+                                             top_p,
+                                             temperature): prompt for prompt in prompts}
+            for future in concurrent.futures.as_completed(future_to_prompt):
+                prompt = future_to_prompt[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    logging.error(
+                        f"Could not run inference for prompt: - {prompt}")
+                    results.append(None)
+
+                print(len(results))
+        return results
+            

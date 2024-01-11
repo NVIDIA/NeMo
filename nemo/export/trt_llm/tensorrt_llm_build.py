@@ -97,8 +97,8 @@ def build_rank_engine(
     if not ootb:
         if args.use_gemm_plugin:
             network.plugin_config.set_gemm_plugin(dtype=args.use_gemm_plugin)
-        if args.use_rmsnorm_plugin:
-            network.plugin_config.set_rmsnorm_plugin(dtype=args.use_rmsnorm_plugin)
+        #if args.use_rmsnorm_plugin:
+        #    network.plugin_config.set_rmsnorm_plugin(dtype=args.use_rmsnorm_plugin)
         if args.use_layernorm_plugin:
             network.plugin_config.set_layernorm_plugin(dtype=args.use_layernorm_plugin)
         assert not (args.enable_context_fmha and args.enable_context_fmha_fp32_acc)
@@ -114,6 +114,8 @@ def build_rank_engine(
             network.plugin_config.set_inflight_batching_gpt_attention_plugin(
                 dtype=args.use_ib_gpt_attention_plugin
             )
+        if args.enable_multi_block_mode:
+            network.plugin_config.enable_mmha_multi_block_mode()
 
         if args.use_lookup_plugin:
             # Use the plugin for the embedding parallelism and sharing
@@ -231,6 +233,7 @@ def build(
     use_inflight_batching=False,
     paged_kv_cache=False,
     enable_context_fmha: bool = True,
+    enable_multi_block_mode=False,
 ):
     """Builds the tensorrt_llm_model to engine."""
     args = argparse.Namespace()
@@ -244,9 +247,6 @@ def build(
     args.max_beam_width = max_beam_width
     args.use_gpt_attention_plugin = dtype
     args.use_gemm_plugin = dtype
-    # Only enable rmsnorm_plugin for INT8 and FP16 as FP8 performance has a regression.
-    # TODO: Understand why rmsnorm_plugin is not performing well in FP8
-    args.use_rmsnorm_plugin = dtype if "fp8" not in quantization else False
     args.use_layernorm_plugin = False
     args.parallel_build = parallel_build
     args.enable_context_fmha = enable_context_fmha
@@ -270,6 +270,7 @@ def build(
     args.use_lookup_plugin = False
     args.tokens_per_block = 64
     args.quantization = quantization
+    args.enable_multi_block_mode = enable_multi_block_mode
 
     logger.set_level(args.log_level)
 

@@ -24,22 +24,37 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-name: "postprocessing"
+name: "preprocessing"
 backend: "python"
-max_batch_size: 128
+max_batch_size: {{ max_batch_size }}
 input [
-  {
-    name: "TOKENS_BATCH"
-    data_type: TYPE_INT32
-    dims: [ -1, -1 ]
-  }
+    {
+        name: "QUERY"
+        data_type: TYPE_STRING
+        dims: [ -1 ]
+    },
+    {
+        name: "REQUEST_OUTPUT_LEN"
+        data_type: TYPE_UINT32
+        dims: [ -1 ]
+    }
 ]
 output [
-  {
-    name: "OUTPUT"
-    data_type: TYPE_STRING
-    dims: [ -1, -1 ]
-  }
+    {
+        name: "INPUT_ID"
+        data_type: TYPE_INT32
+        dims: [ -1 ]
+    },
+    {
+        name: "REQUEST_INPUT_LEN"
+        data_type: TYPE_INT32
+        dims: [ 1 ]
+    },
+    {
+        name: "REQUEST_OUTPUT_LEN"
+        data_type: TYPE_UINT32
+        dims: [ -1 ]
+    }
 ]
 
 instance_group [

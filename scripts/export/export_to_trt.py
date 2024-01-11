@@ -35,7 +35,6 @@ def get_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Exports nemo models stored in nemo checkpoints to TensorRT-LLM",
     )
-
     parser.add_argument(
         "-nc",
         "--nemo_checkpoint",
@@ -43,13 +42,6 @@ def get_args(argv):
         type=str,
         help="Source .nemo file"
     )
-
-    parser.add_argument(
-        "-pnc",
-        "--ptuning_nemo_checkpoint",
-        type=str,
-        help="Source .nemo file for prompt embeddings table")
-
     parser.add_argument(
         "-mt",
         "--model_type",
@@ -59,7 +51,6 @@ def get_args(argv):
         help="Type of the model. gptnext, gpt, llama, falcon, and starcoder are only supported."
              " gptnext and gpt are the same and keeping it for backward compatibility"
     )
-
     parser.add_argument(
         "-mr",
         "--model_repository",
@@ -68,7 +59,6 @@ def get_args(argv):
         type=str,
         help="Folder for the trt-llm model files"
     )
-
     parser.add_argument(
         "-ng",
         "--num_gpus",
@@ -76,7 +66,18 @@ def get_args(argv):
         type=int,
         help="Number of GPUs for the deployment"
     )
-
+    parser.add_argument(
+        "-tps",
+        "--tensor_parallelism_size",
+        type=int,
+        help="Tensor parallelism size"
+    )
+    parser.add_argument(
+        "-pps",
+        "--pipeline_parallelism_size",
+        type=int,
+        help="Pipeline parallelism size"
+    )
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -85,7 +86,6 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
-
     parser.add_argument(
         "-mil",
         "--max_input_len",
@@ -93,7 +93,6 @@ def get_args(argv):
         type=int,
         help="Max input length of the model"
     )
-
     parser.add_argument(
         "-mol",
         "--max_output_len",
@@ -101,7 +100,6 @@ def get_args(argv):
         type=int,
         help="Max output length of the model"
     )
-
     parser.add_argument(
         "-mbs",
         "--max_batch_size",
@@ -109,7 +107,13 @@ def get_args(argv):
         type=int,
         help="Max batch size of the model"
     )
-
+    parser.add_argument(
+        "-mpet",
+        "--max_prompt_embedding_table_size",
+        default=None,
+        type=int,
+        help="Max prompt embedding table size"
+    )
     parser.add_argument(
         "-uib",
         "--use_inflight_batching",
@@ -117,7 +121,22 @@ def get_args(argv):
         type=str,
         help="Enable inflight batching for TensorRT-LLM Triton backend."
     )
-
+    parser.add_argument(
+        "-upkc",
+        "--use_paged_kv_cache",
+        default="False",
+        type=str,
+        help="Enable paged kv cache."
+    )
+    parser.add_argument(
+        "-mbm",
+        '--multi_block_mode',
+        default=False,
+        action='store_true',
+        help=
+        'Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
+                        It is beneifical when batchxnum_heads cannot fully utilize GPU.'
+    )
     parser.add_argument(
         "-dm",
         "--debug_mode",
@@ -147,6 +166,11 @@ def nemo_export(argv):
     else:
         args.use_inflight_batching = False
 
+    if args.use_paged_kv_cache == "True":
+        args.use_paged_kv_cache = True
+    else:
+        args.use_paged_kv_cache = False
+
     if args.dtype != "bf16":
         LOGGER.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
                       "Support for the other precisions will be added in the coming releases.")
@@ -159,12 +183,16 @@ def nemo_export(argv):
         trt_llm_exporter.export(
             nemo_checkpoint_path=args.nemo_checkpoint,
             model_type=args.model_type,
-            prompt_embeddings_checkpoint_path=args.ptuning_nemo_checkpoint,
             n_gpus=args.num_gpus,
+            tensor_parallel_size=args.tensor_parallelism_size,
+            pipeline_parallel_size=args.pipeline_parallelism_size,
             max_input_token=args.max_input_len,
             max_output_token=args.max_output_len,
             max_batch_size=args.max_batch_size,
+            max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
             use_inflight_batching=args.use_inflight_batching,
+            paged_kv_cache=args.use_paged_kv_cache,
+            enable_multi_block_mode=args.multi_block_mode,
         )
 
         LOGGER.info("Export is successful.")

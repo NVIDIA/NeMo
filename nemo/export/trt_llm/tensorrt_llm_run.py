@@ -153,6 +153,7 @@ def _forward(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        task_ids: List[int]=None,
         stop_words_list=None,
         bad_words_list=None,
         no_repeat_ngram_size=None,
@@ -199,21 +200,15 @@ def _forward(
                 raise Exception("task_vocab_size cannot be None")
 
             task_vocab_size = torch.tensor([task_vocab_size], dtype=torch.int32, device="cuda")
-
-            if isinstance(line_encoded, list):
-                le_size = len(line_encoded)
-            else:
-                le_size = line_encoded.size(0)
-            tasks = torch.zeros(le_size).cuda()
-
+            task_ids = torch.tensor(task_ids, dtype=torch.int32, device="cuda")
             prompt_table = prompt_table.cuda()
-            ptuning_args = [prompt_table, tasks, task_vocab_size]
+            ptuning_args = [prompt_table, task_ids, task_vocab_size]
 
         with torch.no_grad():
             sampling_config.top_k = top_k
             sampling_config.top_p = top_p
             sampling_config.temperature = temperature
-            for key, param in sampling_kwargs:
+            for key, param in sampling_kwargs.items():
                 # set any additional SamplingConfig kwargs
                 setattr(sampling_config, key, param)
 
@@ -302,6 +297,7 @@ def forward(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        task_ids: List[int]=None,
         stop_words_list=None,
         bad_words_list=None,
         no_repeat_ngram_size=None,
@@ -330,6 +326,7 @@ def forward(
             temperature=temperature,
             prompt_table=prompt_table,
             task_vocab_size=task_vocab_size,
+            task_ids=task_ids,
             stop_words_list=stop_words_list,
             bad_words_list=bad_words_list,
             no_repeat_ngram_size=no_repeat_ngram_size,
@@ -349,6 +346,7 @@ def forward(
                 temperature=temperature,
                 prompt_table=prompt_table,
                 task_vocab_size=task_vocab_size,
+                task_ids=task_ids,
                 stop_words_list=stop_words_list,
                 bad_words_list=bad_words_list,
                 no_repeat_ngram_size=no_repeat_ngram_size,
@@ -373,6 +371,7 @@ def generate(
         temperature: float = 1.0,
         prompt_table=None,
         task_vocab_size=None,
+        task_ids: List[int]=None,
         stop_words_list=None,
         bad_words_list=None,
         no_repeat_ngram_size=None,
@@ -385,14 +384,15 @@ def generate(
     """
     tokenizer = host_context.tokenizer
     input_tensors = [
-        torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
+        torch.IntTensor(tokenizer.encode(t)) for t in input_texts
     ]
 
     batch_size = len(input_texts)
+
     stop_words_list_tensors = None
     if stop_words_list is not None:
         stop_words_list_tensors = [
-            tokenizer.encode(t, add_special_tokens=False) for t in stop_words_list
+            tokenizer.encode(t) for t in stop_words_list
         ]
         stop_words_list_tensors = torch.IntTensor(stop_words_list_tensors)
         stop_words_list_tensors = stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
@@ -401,7 +401,7 @@ def generate(
     bad_words_list_tensors = None
     if bad_words_list is not None:
         bad_words_list_tensors = [
-            tokenizer.encode(t, add_special_tokens=False) for t in bad_words_list
+            tokenizer.encode(t) for t in bad_words_list
         ]
         bad_words_list_tensors = torch.IntTensor(bad_words_list_tensors)
         bad_words_list_tensors = bad_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
@@ -411,7 +411,7 @@ def generate(
         no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
             torch.cuda.current_device())
 
-    output_tensor = forward(
+    outputs = forward(
         input_tensors=input_tensors,
         max_output_len=max_output_len,
         host_context=host_context,
@@ -420,19 +420,30 @@ def generate(
         temperature=temperature,
         prompt_table=prompt_table,
         task_vocab_size=task_vocab_size,
+        task_ids=task_ids,
         stop_words_list=stop_words_list_tensors,
         bad_words_list=bad_words_list_tensors,
         no_repeat_ngram_size=no_repeat_ngram_size,
         streaming=streaming,
         **sampling_kwargs
     )
-    assert output_tensor is not None
+    assert outputs is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]
-    output_lines_list = [
-        tokenizer.batch_decode(output_tensor[b, :, input_lengths[b] :], skip_special_tokens=True)
-        for b in range(output_tensor.shape[0])
-    ]
+    
+    if streaming:
+        #TODO: outputs is a generator, how to enable the streaming for triton
+        final_outputs = [ cur_outputs for cur_outputs in outputs ]
+        output_lines_list = [
+            tokenizer.batch_decode(final_outputs[-1][b, :, input_lengths[b] :])
+            for b in range(len(final_outputs[-1]))
+       ]
+    else:
+        output_lines_list = [
+            tokenizer.batch_decode(outputs[b, :, input_lengths[b] :])
+            for b in range(outputs.shape[0])
+       ] 
+
     return output_lines_list
 
 

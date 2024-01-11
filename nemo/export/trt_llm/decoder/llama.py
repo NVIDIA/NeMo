@@ -108,6 +108,13 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
 
     @override
     def build_decoder(self, layer):
+        rotary_scaling = None
+        if layer.rotary_scaling is not None:
+            rotary_scaling = {
+                "type": "linear",
+                "factor": float(layer.rotary_scaling)
+            }
+
         return LLaMADecoderLayer(
             layer_id=self.layer_id,
             hidden_size=self.hidden_size,
@@ -122,4 +129,5 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
             tp_group=self.tp_group,
             tp_size=self.tensor_parallel,
             rotary_base=layer.rotary_base,
+            rotary_scaling=rotary_scaling,
         )

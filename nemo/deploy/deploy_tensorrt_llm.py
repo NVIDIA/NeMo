@@ -67,6 +67,7 @@ class DeployTensorRTLLM(DeployBase):
         max_batch_size: int = 128,
         port: int = 8000,
         http_address="0.0.0.0",
+        model_repo_dir=None,
     ):
 
         """
@@ -93,6 +94,8 @@ class DeployTensorRTLLM(DeployBase):
             http_address=http_address,
         )
 
+        self.model_repo_dir=model_repo_dir
+
     def deploy(self):
 
         """
@@ -103,7 +106,7 @@ class DeployTensorRTLLM(DeployBase):
         ## create config here
 
         try:
-            self.triton=ModelServer(self.model, http=True)
+            self.triton=ModelServer(self.model, http=True, max_batch_size=self.max_batch_size, model_repo_dir=self.model_repo_dir)
         except Exception as e:
             self.triton = None
             print(e)
