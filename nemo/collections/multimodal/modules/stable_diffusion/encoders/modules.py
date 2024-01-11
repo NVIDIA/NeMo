@@ -31,6 +31,7 @@ from nemo.collections.multimodal.models.clip.megatron_clip_models import CLIPMod
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import (
     TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 )
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import Timestep
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     count_params,

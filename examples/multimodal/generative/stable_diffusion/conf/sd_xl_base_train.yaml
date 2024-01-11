@@ -184,7 +184,7 @@ model:
 
     webdataset:
       infinite_sampler: False
-      local_root_path: DATASET_MOUNT_PATH
+      local_root_path: /datasets/coyo
 
   seed: 1234
   resume_from_checkpoint: null # manually set the checkpoint file to load from
