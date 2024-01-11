@@ -26,7 +26,7 @@ from nemo.collections.vision.models.megatron_vit_classification_models import Me
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state
+    from megatron.core import ModelParallelConfig
 
     HAVE_MEGATRON_CORE = True
 

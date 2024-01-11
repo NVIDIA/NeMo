@@ -302,16 +302,6 @@ class TestMegatronDreamBooth:
     def test_forward(self, dreambooth_trainer_and_model, test_data_dir, precision=None):
         trainer, dreambooth_model = dreambooth_trainer_and_model
 
-        dtype = None
-        if dreambooth_model.cfg['precision'] in [32, '32', '32-true']:
-            dtype = torch.float
-        elif dreambooth_model.cfg['precision'] in [16, '16', '16-mixed']:
-            dtype = torch.float16
-        elif dreambooth_model.cfg['precision'] in ['bf16', 'bf16-mixed']:
-            dtype = torch.bfloat16
-        else:
-            raise ValueError(f"precision: {dreambooth_model.cfg['precision']} is not supported.")
-
         dreambooth_model = dreambooth_model.cuda()
         dreambooth_model.eval()
 
