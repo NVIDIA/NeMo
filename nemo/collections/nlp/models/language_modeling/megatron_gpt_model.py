@@ -225,6 +225,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
         self.spec_name = cfg.get('name', '')
+        if cfg.get('fp8', False):
+            self.prev_step_training = True
 
         self.rampup_batch_size = self.cfg.get('rampup_batch_size', None)
         if self.rampup_batch_size:
@@ -496,7 +498,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -526,6 +528,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             forward_only=forward_only,
             seq_length=self.cfg.encoder_seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
+            first_val_step=first_val_step,
         )
 
         # only the last stages of the pipeline return losses
@@ -1035,9 +1038,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.eval()
+        first_val_step = self.prev_step_training and not self.training
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True, first_val_step)
 
+        self.prev_step_training = self.training
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
