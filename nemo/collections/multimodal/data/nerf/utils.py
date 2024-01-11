@@ -80,7 +80,6 @@ def compute_look_at_vectors(centers: torch.Tensor, jitter_up: Optional[float] = 
     up_vector = torch.FloatTensor([0, 1, 0]).to(device).unsqueeze(0).repeat(len(centers), 1)
     right_vector = F.normalize(torch.cross(forward_vector, up_vector, dim=-1))
     up_noise = torch.randn_like(up_vector) * jitter_up if jitter_up is not None else 0
-    up_vector = F.normalize(torch.cross(right_vector, forward_vector, dim=-1))
     up_vector = F.normalize(torch.cross(right_vector, forward_vector, dim=-1) + up_noise)
 
     return forward_vector, up_vector, right_vector

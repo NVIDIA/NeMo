@@ -142,7 +142,6 @@ def timestep_embedding(timesteps, dim, max_period=10000, dtype=th.float32):
         device=timesteps.device
     )
     args = timesteps[:, None].float() * freqs[None]
-    freqs = freqs.to(dtype=dtype)
     args = args.to(dtype=dtype)
     embedding = th.cat([th.cos(args), th.sin(args)], dim=-1)
     if dim % 2:

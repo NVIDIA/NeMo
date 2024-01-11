@@ -105,6 +105,7 @@ class ImagenPipeline(Callable):
             model.unet.cuda().eval()
         return model
 
+    @staticmethod
     def _load_customized_model(cfg: ImagenPipelineConfig, trainer=None, megatron_loading=False, megatron_cfg=None):
         if megatron_loading:
             assert megatron_cfg

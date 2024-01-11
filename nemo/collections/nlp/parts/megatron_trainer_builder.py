@@ -76,6 +76,7 @@ class MegatronTrainerBuilder:
             gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
             find_unused_parameters=False,
             nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
+            sharp=self.cfg.model.get('sharp', False),
         )
 
     def _grad_scaler(self) -> GradScaler:
@@ -117,10 +118,12 @@ class MegatronTrainerBuilder:
 
         return plugins
 
-    def create_trainer(self) -> Trainer:
+    def create_trainer(self, callbacks=None) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=[CustomProgressBar()])
+        if callbacks is None:
+            callbacks = [CustomProgressBar()]
+        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
 
 
 class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
