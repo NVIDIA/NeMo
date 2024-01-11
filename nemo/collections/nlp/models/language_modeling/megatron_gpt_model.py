@@ -622,6 +622,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         param.data_ptr()
 
         loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        
+        if self.cfg.get('fp8', False):
+            self.prev_step_training = self.training
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -1038,11 +1041,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.eval()
-        first_val_step = self.prev_step_training and not self.training
 
+        if self.cfg.get('fp8', False):
+            first_val_step = self.prev_step_training and not self.training
+            self.prev_step_training = self.training
+        else:
+            first_val_step = None
+        
         loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True, first_val_step)
 
-        self.prev_step_training = self.training
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
