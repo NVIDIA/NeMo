@@ -38,7 +38,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     _cast_if_autocast_enabled,
     attention_mask_func,
 )
-from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 
 try:
@@ -145,7 +144,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         precision=16,
         apply_query_key_layer_scaling=False,
         kv_channels=None,
-        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         layer_type=None,
@@ -167,7 +165,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.use_flash_attention = use_flash_attention
 
         self.megatron_legacy = megatron_legacy
-        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
         self.set_accepted_adapter_types(
             [
@@ -605,7 +602,6 @@ class ParallelChunkedCrossAttention(MegatronModule):
         precision=16,
         apply_query_key_layer_scaling=False,
         kv_channels=None,
-        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         megatron_legacy=False,
@@ -627,7 +623,6 @@ class ParallelChunkedCrossAttention(MegatronModule):
             precision=precision,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
-            megatron_amp_O2=megatron_amp_O2,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             megatron_legacy=megatron_legacy,

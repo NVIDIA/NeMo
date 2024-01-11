@@ -146,10 +146,8 @@ class NLPAdapterModelMixin:
                         layers = self.model.module.language_model.encoder.layers
                     else:
                         layers = self.model.language_model.encoder.layers
-                if layer_selection is None:
-                    layer_selection = list(range(1, self.cfg.num_layers + 1))
                 for layer in layers:
-                    if layer.layer_number in layer_selection:
+                    if layer.layer_number in (layer_selection or list(range(1, self.cfg.num_layers + 1))):
                         for name, module in layer.named_modules():
                             self._check_and_add_adapter(
                                 name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
@@ -376,7 +374,7 @@ class NLPAdapterModelMixin:
                 # same as super().on_load_checkpoint() but strict=False and only check unexpected keys
                 # mcore uses distributed checkpointing
                 if hasattr(self, 'mcore_gpt') and self.mcore_gpt:
-                    for index, module in enumerate(self.get_gpt_module_list()):
+                    for index, module in enumerate(self.get_model_module_list()):
                         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                             checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
                         else:
