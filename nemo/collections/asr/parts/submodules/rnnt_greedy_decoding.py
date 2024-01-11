@@ -785,31 +785,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     batched_hyps.last_timestep[active_indices] == time_indices[active_indices],
                 )
                 if force_blank_mask.any():
-                    if alignments is not None:
-                        # we do not need output for forced blank in a general case, since hidden state will be the same
-                        # but for preserving alignments/confidence we need a tensor with logits
-                        force_blank_indices = active_indices[force_blank_mask]
-                        logits = (
-                            self._joint_step_after_projection(
-                                x[force_blank_indices, time_indices[force_blank_indices]].unsqueeze(1),
-                                decoder_output,
-                                log_normalize=True if self.preserve_frame_confidence else None,
-                            )
-                            .squeeze(1)
-                            .squeeze(1)
-                        )
-                        alignments.add_results_(
-                            active_indices=force_blank_indices,
-                            time_indices=time_indices[force_blank_indices],
-                            logits=logits if self.preserve_alignments else None,
-                            labels=torch.full_like(force_blank_indices, fill_value=self._blank_index)
-                            if self.preserve_alignments
-                            else None,
-                            confidence=torch.tensor(self._get_confidence(logits), device=device)
-                            if self.preserve_frame_confidence
-                            else None,
-                        )
-
+                    # forced blank is not stored in the alignments following the original implementation
                     time_indices[active_indices[force_blank_mask]] += 1
                     still_active_mask = time_indices[active_indices] < out_len[active_indices]
                     active_indices = active_indices[still_active_mask]
