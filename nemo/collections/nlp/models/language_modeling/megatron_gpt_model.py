@@ -20,7 +20,6 @@ from contextlib import nullcontext
 from dataclasses import fields
 from functools import partial, cache
 from typing import Any, Dict, Iterator, List, Optional, Union
-from pkg_resources import packaging
 
 import torch
 from omegaconf import OmegaConf
@@ -107,8 +106,15 @@ except (ImportError, ModuleNotFoundError):
 
 @cache
 def mcore_supports_moe() -> bool:
-    mcore_version = packaging.version.Version(version("megatron-core"))
-    return mcore_version >= packaging.version.Version("0.5.0")
+    global HAVE_MEGATRON_CORE
+    if not HAVE_MEGATRON_CORE:
+        return False
+    try:
+        from megatron.core.transformer.moe.base_moe_layer import MoETokenDispatcher
+        return True
+    except ImportError:
+        return False
+    return False
 
 def get_specs(spec_name, num_experts=None):
     if spec_name == '':
