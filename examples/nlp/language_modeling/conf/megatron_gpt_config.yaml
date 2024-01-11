@@ -28,10 +28,10 @@ exp_manager:
   explicit_log_dir: null
   exp_dir: null
   name: megatron_gpt
-  create_wandb_logger: True
+  create_wandb_logger: False
   wandb_logger_kwargs:
     project: mcore_ds_test
-    name: mcore_ds_new3
+    name: mcore_ds_tp1pp1_new
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   resume_from_checkpoint: ${model.resume_from_checkpoint}

@@ -115,11 +115,13 @@ def get_specs(spec_name):
 
 global is_dataset_built_on_rank
 
-
 def is_dataset_built_on_rank():
-    return (
-        mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
-    ) and mpu.get_tensor_model_parallel_rank() == 0
+    return True
+
+#def is_dataset_built_on_rank():
+#    return (
+#        mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
+#    ) and mpu.get_tensor_model_parallel_rank() == 0
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -1206,8 +1208,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 1
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
+        is_built_on_rank = lambda: True
         dataset_config = GPTDatasetConfig(
-            is_built_on_rank=is_dataset_built_on_rank,
+            is_built_on_rank=is_built_on_rank,
             random_seed=self.cfg.seed,
             sequence_length=self.cfg.data.seq_length,
             blend=self.cfg.data.data_prefix,
@@ -1226,7 +1229,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building GPT datasets.')
-
+        #if self._train_ds is None or self._validation_ds is None or self._test_ds is None:
+        print(f"DATASETS: {self._train_ds, self._validation_ds, self._test_ds}")
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(
