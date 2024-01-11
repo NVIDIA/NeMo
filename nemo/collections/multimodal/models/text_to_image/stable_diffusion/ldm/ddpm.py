@@ -1270,7 +1270,6 @@ class LatentDiffusion(DDPM, Serialization):
         )
         if return_codebook_ids:
             raise DeprecationWarning("Support dropped.")
-            model_mean, _, model_log_variance, logits = outputs
         elif return_x0:
             model_mean, _, model_log_variance, x0 = outputs
         else:

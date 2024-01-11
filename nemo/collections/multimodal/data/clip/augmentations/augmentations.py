@@ -21,16 +21,22 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-import torchvision.transforms.functional as F
-from torchvision.transforms import (
-    CenterCrop,
-    Compose,
-    InterpolationMode,
-    Normalize,
-    RandomResizedCrop,
-    Resize,
-    ToTensor,
-)
+
+try:
+    import torchvision.transforms.functional as F
+    from torchvision.transforms import (
+        CenterCrop,
+        Compose,
+        InterpolationMode,
+        Normalize,
+        RandomResizedCrop,
+        Resize,
+        ToTensor,
+    )
+
+    TORCHVISION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TORCHVISION_AVAILABLE = False
 
 from nemo.utils import logging
 
@@ -66,6 +72,7 @@ class ResizeMaxSize(nn.Module):
             width, height = img.size
         scale = self.max_size / float(max(height, width))
         if scale != 1.0:
+            assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
             new_size = tuple(round(dim * scale) for dim in (height, width))
             img = F.resize(img, new_size, self.interpolation)
             pad_h = self.max_size - new_size[0]
@@ -87,6 +94,7 @@ def image_transform(
     fill_color: int = 0,
     aug_cfg: Optional[Union[Dict[str, Any], AugmentationCfg]] = None,
 ):
+    assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
     mean = mean or OPENAI_DATASET_MEAN
     if not isinstance(mean, (list, tuple)):
         mean = (mean,) * 3

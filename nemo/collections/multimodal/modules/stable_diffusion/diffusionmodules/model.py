@@ -137,7 +137,9 @@ class ResnetBlock(nn.Module):
 
 
 class LinAttnBlock(LinearAttention):
-    """to match AttnBlock usage"""
+    """
+    to match AttnBlock usage
+    """
 
     def __init__(self, in_channels):
         super().__init__(dim=in_channels, heads=1, dim_head=in_channels)

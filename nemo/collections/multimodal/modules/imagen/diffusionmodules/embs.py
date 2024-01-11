@@ -62,7 +62,6 @@ class UnLearnedSinusoidalPosEmb(nn.Module):
             device=timesteps.device
         )
         args = timesteps[:, None].float() * freqs[None]
-        freqs = freqs.to(dtype=dtype)
         args = args.to(dtype=dtype)
         embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
         if dim % 2:
