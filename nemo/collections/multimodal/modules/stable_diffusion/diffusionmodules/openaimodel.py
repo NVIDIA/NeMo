@@ -22,6 +22,7 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 from nemo.utils import logging
+from collections.abc import Iterable
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
