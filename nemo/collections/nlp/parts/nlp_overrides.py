@@ -321,8 +321,7 @@ class NLPDDPStrategy(DDPStrategy):
                 logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
                 return
 
-            if is_global_rank_zero():
-                fs.makedirs(checkpoint_dir, exist_ok=True)
+            fs.makedirs(checkpoint_dir, exist_ok=True)  # mkdir on all ranks to avoid NFS consistency issues
 
             # remove device state_dict
             checkpoint['state_dict'] = OrderedDict([])
@@ -804,8 +803,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 if fs.isdir(dist_ckpt_dir) and dist_checkpointing.check_is_distributed_checkpoint(dist_ckpt_dir):
                     logging.info(f'Distributed checkpoint at path {dist_ckpt_dir} already exists, skipping saving')
                 else:
-                    if is_global_rank_zero():
-                        fs.makedirs(dist_ckpt_dir, exist_ok=True)
+                    fs.makedirs(dist_ckpt_dir, exist_ok=True)  # mkdir on all ranks to avoid NFS consistency issues
 
                     sharded_state_dict = model.sharded_state_dict()
                     # dist checkpoint needs torch.distributed to save the checkpoint
