@@ -91,7 +91,20 @@ def max_symbols_setup():
 
             return old_states
 
+        def mask_select_states(self, states: Optional[List[torch.Tensor]], mask: torch.Tensor):
+            if states is None:
+                return None
+            return [states[0][mask]]
+
     class DummyRNNTJoint(AbstractRNNTJoint):
+        def __init__(self, num_outputs: int):
+            super().__init__()
+            self.num_outputs = num_outputs
+
+        @property
+        def num_classes_with_blank(self):
+            return self.num_outputs
+
         def project_encoder(self, encoder_output: torch.Tensor) -> torch.Tensor:
             return encoder_output
 
@@ -104,7 +117,7 @@ def max_symbols_setup():
     setup = {}
     setup["decoder"] = DummyRNNTDecoder(vocab_size=2, blank_idx=2, blank_as_pad=True)
     setup["decoder_masked"] = DummyRNNTDecoder(vocab_size=2, blank_idx=2, blank_as_pad=False)
-    setup["joint"] = DummyRNNTJoint()
+    setup["joint"] = DummyRNNTJoint(num_outputs=3)
     # expected timesteps for max_symbols_per_step=5 are [[0, 0, 0, 0, 0, 1, 1], [1, 1, 1, 1, 1]],
     # so we have both looped and regular iteration on the second frame
     setup["encoder_output"] = torch.tensor(

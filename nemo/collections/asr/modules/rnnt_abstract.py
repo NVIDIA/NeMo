@@ -315,3 +315,15 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
                 (L x B x H, L x B x H)
         """
         raise NotImplementedError()
+
+    def mask_select_states(self, states, mask: torch.Tensor):
+        """
+        Return states by mask selection
+        Args:
+            states: states for the batch
+            mask: boolean mask for selecting states; batch dimension should be the same as for states
+
+        Returns:
+            states filtered by mask
+        """
+        raise NotImplementedError()

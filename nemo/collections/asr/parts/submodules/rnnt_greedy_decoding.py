@@ -674,14 +674,15 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         last_decoder_state = [None for _ in range(batch_size)]
 
         alignments: Optional[rnnt_utils.BatchedAlignments]
-        if self.preserve_alignments:
+        if self.preserve_alignments or self.preserve_frame_confidence:
             alignments = rnnt_utils.BatchedAlignments(
                 batch_size=batch_size,
                 logits_dim=self.joint.num_classes_with_blank,
                 init_length=max_time * 2,  # blank for each timestep + text tokens
                 device=x.device,
                 float_dtype=x.dtype,
-                with_frame_confidence=self.preserve_frame_confidence,
+                store_alignments=self.preserve_alignments,
+                store_frame_confidence=self.preserve_frame_confidence,
             )
         else:
             alignments = None
@@ -711,12 +712,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
             blank_mask = labels == self._blank_index
-            if self.preserve_alignments:
+            if alignments is not None:
                 alignments.add_results_(
                     active_indices=active_indices,
-                    logits=logits,
-                    labels=labels,
                     time_indices=time_indices[active_indices],
+                    logits=logits if self.preserve_alignments else None,
+                    labels=labels if self.preserve_alignments else None,
                     confidence=torch.tensor(self._get_confidence(logits), device=device)
                     if self.preserve_frame_confidence
                     else None,
@@ -737,12 +738,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 more_scores, more_labels = logits.max(-1)
                 labels[advance_mask] = more_labels
                 scores[advance_mask] = more_scores
-                if self.preserve_alignments:
+                if alignments is not None:
                     alignments.add_results_(
                         active_indices=advance_indices,
-                        logits=logits,
-                        labels=more_labels,
                         time_indices=time_indices[advance_indices],
+                        logits=logits if self.preserve_alignments else None,
+                        labels=more_labels if self.preserve_alignments else None,
                         confidence=torch.tensor(self._get_confidence(logits), device=device)
                         if self.preserve_frame_confidence
                         else None,
@@ -768,17 +769,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 # update active indices and state
                 active_indices = active_indices[non_blank_mask]
-                if isinstance(state, tuple):
-                    # LSTM
-                    state = tuple(state_part[:, non_blank_mask] for state_part in state)
-                elif isinstance(state, list) and len(state) == 1:
-                    # Stateless Network
-                    state = [state[0][non_blank_mask]]
-                elif state is None:
-                    # stateless, no prefix
-                    pass
-                else:
-                    raise NotImplementedError("Unsupported state")
+                state = self.decoder.mask_select_states(state, non_blank_mask)
             # store hypotheses
             batched_hyps.add_results_(
                 active_indices, labels, time_indices[active_indices].clone(), scores,
@@ -794,7 +785,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     batched_hyps.last_timestep[active_indices] == time_indices[active_indices],
                 )
                 if force_blank_mask.any():
-                    if self.preserve_alignments:
+                    if alignments is not None:
                         # we do not need output for forced blank in a general case, since hidden state will be the same
                         # but for preserving alignments/confidence we need a tensor with logits
                         force_blank_indices = active_indices[force_blank_mask]
@@ -809,9 +800,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         )
                         alignments.add_results_(
                             active_indices=force_blank_indices,
-                            logits=logits,
                             time_indices=time_indices[force_blank_indices],
-                            labels=torch.full_like(force_blank_indices, fill_value=self._blank_index),
+                            logits=logits if self.preserve_alignments else None,
+                            labels=torch.full_like(force_blank_indices, fill_value=self._blank_index)
+                            if self.preserve_alignments
+                            else None,
                             confidence=torch.tensor(self._get_confidence(logits), device=device)
                             if self.preserve_frame_confidence
                             else None,
@@ -821,17 +814,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     still_active_mask = time_indices[active_indices] < out_len[active_indices]
                     active_indices = active_indices[still_active_mask]
                     labels = labels[still_active_mask]
-                    if isinstance(state, tuple):
-                        # LSTM
-                        state = tuple(state_part[:, still_active_mask] for state_part in state)
-                    elif isinstance(state, list) and len(state) == 1:
-                        # Stateless Network
-                        state = [state[0][still_active_mask]]
-                    elif state is None:
-                        # stateless, no prefix
-                        pass
-                    else:
-                        raise NotImplementedError("Unsupported state")
+                    state = self.decoder.mask_select_states(state, still_active_mask)
 
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
         # preserve last decoder state (is it necessary?)

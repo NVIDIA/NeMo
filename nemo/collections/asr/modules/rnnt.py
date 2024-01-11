@@ -398,6 +398,20 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         return old_states
 
+    def mask_select_states(self, states: Optional[List[torch.Tensor]], mask: torch.Tensor):
+        """
+        Return states by mask selection
+        Args:
+            states: states for the batch
+            mask: boolean mask for selecting states; batch dimension should be the same as for states
+
+        Returns:
+            states filtered by mask
+        """
+        if states is None:
+            return None
+        return [states[0][mask]]
+
     def batch_score_hypothesis(
         self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
     ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
@@ -1046,6 +1060,19 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
                 old_states[state_id][:, ids, :] += value
 
         return old_states
+
+    def mask_select_states(self, states: Tuple[torch.Tensor, torch.Tensor], mask: torch.Tensor):
+        """
+        Return states by mask selection
+        Args:
+            states: states for the batch
+            mask: boolean mask for selecting states; batch dimension should be the same as for states
+
+        Returns:
+            states filtered by mask
+        """
+        # LSTM in PyTorch returns a tuple of 2 tensors as a state
+        return tuple(states_part[:, mask] for states_part in states)
 
     # Adapter method overrides
     def add_adapter(self, name: str, cfg: DictConfig):
