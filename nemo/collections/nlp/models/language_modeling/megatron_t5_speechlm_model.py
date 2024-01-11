@@ -1344,7 +1344,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             fwd_bwd_function = get_forward_backward_func()
             encoder_output = None
             for t in range(dec_input.shape[2] - 1):
-                if t % 50 == 0:
+                if t % 100 == 0:
                     logging.info("Timestep {}".format(t))
                 if t == end_inference_loop_at:
                     print("All ends detected")
@@ -1482,18 +1482,20 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             _exp_dir_path = _exp_dir_path + '/Sample_Audios'
             if not os.path.exists(_exp_dir_path):
                 os.mkdir(_exp_dir_path)
-            hyp_pred_transcript_list = []
-            gt_transcript_list = []
+            # hyp_pred_transcript_list = []
+            # gt_transcript_list = []
             similarity_list = []
             question_type = []
-            dataset_names = []
+            # dataset_names = []
 
             # predicting audio
             batch_size = output_tokens_combined.shape[0]
             wer_score = 0
+            audio_to_pred = []
+            audio_to_pred_zh = []
             for i in range(batch_size):
                 audio_len = (labels[i][0] != 0).sum().item()
-                step = batch_idx * batch_size + i
+                step = batch_idx * self.test_dataloader().batch_size + i
                 if torch.count_nonzero(speech_mask) > 0:
                     dec_input_to_1024 = self.convert_tokens_to_range(dec_input_raw[i, :, 0:audio_len])
                     dec_input_wav = self.decode_wav_from_codec_model(dec_input_to_1024)
@@ -1518,7 +1520,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     )
 
                     # save predicted_wav and gt_wav to a wav files in dir_path
-                    asr_model_i = asr_model_zh if lang[i] == Lang.zh.value else asr_model
+                    # asr_model_i = asr_model_zh if lang[i] == Lang.zh.value else asr_model
                     audio_fp_pred = os.path.join(_exp_dir_path, f'predicted_wav_{step}.wav')
                     sf.write(audio_fp_pred, predicted_wav.cpu().numpy(), self.sample_rate)
                     audio_fp_gt = os.path.join(_exp_dir_path, f'dec_input_wav_{step}.wav')
@@ -1535,13 +1537,20 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     self.logger.experiment.add_scalar(f'Inf SV Cossim Individual Sample', similarity, step)
                     similarity_list.append(similarity)
 
+                    if lang[i] == Lang.zh.value:
+                        audio_to_pred_zh.append({"step":i, "audio":audio_fp_pred})
+                        audio_to_pred_zh.append({"step":i, "audio":audio_fp_gt})
+                    else:
+                        audio_to_pred.append({"step":i, "audio":audio_fp_pred})
+                        audio_to_pred.append({"step":i, "audio":audio_fp_gt})
+
                     # transcribe predicted_wav and gt_wav using asr_model
-                    pred_transcript = asr_model_i.transcribe([audio_fp_pred])[0][0]
-                    gt_transcript = asr_model_i.transcribe([audio_fp_gt])[0][0]
-                    self.logger.experiment.add_text("Inf Predicted Text", pred_transcript, step)
-                    self.logger.experiment.add_text("Inf GT Text", gt_transcript, step)
-                    hyp_pred_transcript_list.append(pred_transcript)
-                    gt_transcript_list.append(gt_transcript)
+                    # pred_transcript = asr_model_i.transcribe([audio_fp_pred])[0][0]
+                    # gt_transcript = asr_model_i.transcribe([audio_fp_gt])[0][0]
+                    # self.logger.experiment.add_text("Inf Predicted Text", pred_transcript, step)
+                    # self.logger.experiment.add_text("Inf GT Text", gt_transcript, step)
+                    # hyp_pred_transcript_list.append(pred_transcript)
+                    # gt_transcript_list.append(gt_transcript)
 
                     input_token_list = [
                         context_and_question_tokens[i, 0, j].item()
@@ -1601,33 +1610,71 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 wer = word_error_rate(ter_dict[layer_idx]['hypothesis'], ter_dict[layer_idx]['gt'], use_cer=True)
                 self.logger.experiment.add_scalar(f'Inf TER Layer {layer_idx}', wer, 0)
 
-            # compute character/word error rate for predicted transcript and gt transcript
-            cer_glob = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=True)
-            self.logger.experiment.add_scalar(f'Inf CER Transcript', cer_glob, batch_idx)
-            wer_glob = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=False)
-            self.logger.experiment.add_scalar(f'Inf WER Transcript', wer_glob, batch_idx)
+            greedy_transcripts = []
+            if len(audio_to_pred) > 0:
+                greedy_transcripts.extend(asr_model.transcribe([i["audio"] for i in audio_to_pred])[0])
+            if len(audio_to_pred_zh) > 0:
+                greedy_transcripts.extend(asr_model_zh.transcribe([i["audio"] for i in audio_to_pred_zh])[0])
 
-            phoneme_task_pred_transcript_list = [ t for t, q in zip(hyp_pred_transcript_list, question_type) if q == "Phoneme TTS"]
-            phoneme_task_gt_transcript_list = [ t for t, q in zip(gt_transcript_list, question_type) if q == "Phoneme TTS"]
+            all_audio_to_pred = audio_to_pred + audio_to_pred_zh
+            # Note WER over the batch is not equal to WER(sample) / batch_size, but approx. here
+            wer_batch = []
+            cer_batch = []
+            cer_phoneme = []
+            wer_phoneme = []
+            cer_tts = []
+            wer_tts = []
+            # import ipdb; ipdb.set_trace()
+            for i in range(0, len(greedy_transcripts)-1, 2):
+                assert all_audio_to_pred[i]["step"] == all_audio_to_pred[i+1]["step"]
+                step = batch_idx * self.test_dataloader().batch_size + all_audio_to_pred[i]["step"]
+                cer_sample = word_error_rate([greedy_transcripts[i]], [greedy_transcripts[i+1]], use_cer=True)
+                wer_sample = word_error_rate([greedy_transcripts[i]], [greedy_transcripts[i+1]], use_cer=False)
+                self.logger.experiment.add_text("Inf Predicted Text", greedy_transcripts[i], step)
+                self.logger.experiment.add_text("Inf GT Text", greedy_transcripts[i+1], step)
+                self.logger.experiment.add_scalar(f'Inf CER Transcript', cer_sample, step)
+                self.logger.experiment.add_scalar(f'Inf WER Transcript', wer_sample, step)
+                cer_batch.append(cer_sample)
+                wer_batch.append(wer_sample)
+                if question_type[all_audio_to_pred[i]["step"]] == "Phoneme TTS":
+                    self.logger.experiment.add_scalar(f'Inf CER Phoneme Task', cer_sample, step)
+                    self.logger.experiment.add_scalar(f'Inf WER Phoneme Task', wer_sample, step)
+                    cer_phoneme.append(cer_sample)
+                    wer_phoneme.append(wer_sample)
+                elif question_type[all_audio_to_pred[i]["step"]] == "Text to speech this":
+                    self.logger.experiment.add_scalar(f'Inf CER TTS Task', cer_sample, step)
+                    self.logger.experiment.add_scalar(f'Inf WER TTS Task', wer_sample, step)
+                    cer_tts.append(cer_sample)
+                    wer_tts.append(wer_sample)
+            # all_audio_to_pred = sorted(all_audio_to_pred, key=lambda x: x["step"])
 
-            tts_task_pred_transcript_list = [ t for t, q in zip(hyp_pred_transcript_list, question_type) if q == "Text to speech this"]
-            tts_task_gt_transcript_list = [ t for t, q in zip(gt_transcript_list, question_type) if q == "Text to speech this"]
+            # # compute character/word error rate for predicted transcript and gt transcript
+            # cer_glob = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=True)
+            # self.logger.experiment.add_scalar(f'Inf CER Transcript', cer_glob, batch_idx)
+            # wer_glob = word_error_rate(hyp_pred_transcript_list, gt_transcript_list, use_cer=False)
+            # self.logger.experiment.add_scalar(f'Inf WER Transcript', wer_glob, batch_idx)
 
-            cer_phoneme = None
-            wer_phoneme = None
-            cer_tts = None
-            wer_tts = None
-            if len(phoneme_task_pred_transcript_list) > 0:
-                cer_phoneme = word_error_rate(phoneme_task_pred_transcript_list, phoneme_task_gt_transcript_list, use_cer=True)
-                wer_phoneme = word_error_rate(phoneme_task_pred_transcript_list, phoneme_task_gt_transcript_list, use_cer=False)
-                self.logger.experiment.add_scalar(f'Inf CER Phoneme Task', cer_phoneme, batch_idx)
-                self.logger.experiment.add_scalar(f'Inf WER Phoneme Task', wer_phoneme, batch_idx)
+            # phoneme_task_pred_transcript_list = [ t for t, q in zip(hyp_pred_transcript_list, question_type) if q == "Phoneme TTS"]
+            # phoneme_task_gt_transcript_list = [ t for t, q in zip(gt_transcript_list, question_type) if q == "Phoneme TTS"]
 
-            if len(tts_task_pred_transcript_list) > 0:
-                cer_tts = word_error_rate(tts_task_pred_transcript_list, tts_task_gt_transcript_list, use_cer=True)
-                wer_tts = word_error_rate(tts_task_pred_transcript_list, tts_task_gt_transcript_list, use_cer=False)
-                self.logger.experiment.add_scalar(f'Inf CER TTS Task', cer_tts, batch_idx)
-                self.logger.experiment.add_scalar(f'Inf WER TTS Task', wer_tts, batch_idx)
+            # tts_task_pred_transcript_list = [ t for t, q in zip(hyp_pred_transcript_list, question_type) if q == "Text to speech this"]
+            # tts_task_gt_transcript_list = [ t for t, q in zip(gt_transcript_list, question_type) if q == "Text to speech this"]
+
+            # cer_phoneme = None
+            # wer_phoneme = None
+            # cer_tts = None
+            # wer_tts = None
+            # if len(phoneme_task_pred_transcript_list) > 0:
+            #     cer_phoneme = word_error_rate(phoneme_task_pred_transcript_list, phoneme_task_gt_transcript_list, use_cer=True)
+            #     wer_phoneme = word_error_rate(phoneme_task_pred_transcript_list, phoneme_task_gt_transcript_list, use_cer=False)
+            #     self.logger.experiment.add_scalar(f'Inf CER Phoneme Task', cer_phoneme, batch_idx)
+            #     self.logger.experiment.add_scalar(f'Inf WER Phoneme Task', wer_phoneme, batch_idx)
+
+            # if len(tts_task_pred_transcript_list) > 0:
+            #     cer_tts = word_error_rate(tts_task_pred_transcript_list, tts_task_gt_transcript_list, use_cer=True)
+            #     wer_tts = word_error_rate(tts_task_pred_transcript_list, tts_task_gt_transcript_list, use_cer=False)
+            #     self.logger.experiment.add_scalar(f'Inf CER TTS Task', cer_tts, batch_idx)
+            #     self.logger.experiment.add_scalar(f'Inf WER TTS Task', wer_tts, batch_idx)
 
 
             # compute average similarity
@@ -1635,12 +1682,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             self.logger.experiment.add_scalar(f'Inf SV Avg Cossim', similarity_avg, batch_idx)
             self.predict_step_outputs.append({
                 'sv_avg_cossim': similarity_avg,
-                'cer_transcript': cer_glob,
-                'wer_transcript': wer_glob,
-                'cer_phoneme': cer_phoneme,
-                'wer_phoneme': wer_phoneme,
-                'cer_tts': cer_tts,
-                'wer_tts': wer_tts,
+                'cer_transcript': np.mean(cer_batch),
+                'wer_transcript': np.mean(wer_batch),
+                'cer_phoneme': np.mean(cer_phoneme) if len(cer_phoneme) > 0 else None,
+                'wer_phoneme': np.mean(wer_phoneme) if len(wer_phoneme) > 0 else None,
+                'cer_tts': np.mean(cer_tts) if len(cer_tts) > 0 else None,
+                'wer_tts': np.mean(wer_tts) if len(wer_tts) > 0 else None,
             })
 
     def predict_step_old(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
