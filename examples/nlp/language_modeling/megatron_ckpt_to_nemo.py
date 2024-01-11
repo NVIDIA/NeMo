@@ -21,7 +21,24 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
      --checkpoint_name <checkpoint_name> \
      --nemo_file_path <path_to_output_nemo_file> \
      --tensor_model_parallel_size <tensor_model_parallel_size> \
-     --pipeline_model_parallel_size <pipeline_model_parallel_size>
+     --pipeline_model_parallel_size <pipeline_model_parallel_size> \
+     --gpus_per_node <gpus_per_node> \
+     --model_type <model_type>
+
+If you want to convert a checkpoint that was created from training, you will need to provide
+`hparams.yaml` that was used during training. You will also need to update the `hparams.yaml`.
+
+In `hparams.yaml`, replace "nemo:..." with the full paths to the tokenizer files (*.model). 
+You can find the tokenizer files by untarring the original .nemo checkpoint. 
+
+```
+-    model: nemo:***************************************************.model
++    model: <full path to model>
+-    tokenizer_model: nemo:***************************************************.model
++    tokenizer_model: <full path to tokenizer_model>
+```
+
+Add `--hparams_file <path to hparams.yaml>` option when running the conversion script.
 """
 
 import dis
@@ -95,7 +112,7 @@ def get_args():
         default="gpt",
         choices=["gpt", "sft", "t5", "bert", "nmt", "bart", "retro"],
     )
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument("--local-rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
     parser.add_argument(
         "--precision",
