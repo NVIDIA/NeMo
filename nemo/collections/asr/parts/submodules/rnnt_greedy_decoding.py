@@ -771,6 +771,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 if isinstance(state, tuple):
                     # LSTM
                     state = tuple(state_part[:, non_blank_mask] for state_part in state)
+                elif isinstance(state, list) and len(state) == 1:
+                    # Stateless Network
+                    state = [state[0][non_blank_mask]]
+                elif state is None:
+                    # stateless, no prefix
+                    pass
                 else:
                     raise NotImplementedError("Unsupported state")
             # store hypotheses
@@ -818,6 +824,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     if isinstance(state, tuple):
                         # LSTM
                         state = tuple(state_part[:, still_active_mask] for state_part in state)
+                    elif isinstance(state, list) and len(state) == 1:
+                        # Stateless Network
+                        state = [state[0][still_active_mask]]
+                    elif state is None:
+                        # stateless, no prefix
+                        pass
                     else:
                         raise NotImplementedError("Unsupported state")
 
