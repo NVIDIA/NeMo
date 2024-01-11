@@ -25,7 +25,10 @@ import torch
 import tempfile
 
 from nemo.deploy import ITritonDeployable
-from nemo.deploy.utils import cast_output, str_ndarray2list
+try:
+    from nemo.deploy.utils import cast_output, str_ndarray2list
+except:
+    pass
 import logging
 
 from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
@@ -356,7 +359,7 @@ class TensorRTLLM(ITritonDeployable):
         outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
         return outputs
 
-    @batch
+
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
