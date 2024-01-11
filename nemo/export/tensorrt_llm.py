@@ -37,7 +37,7 @@ use_pytriton = True
 try:
     from pytriton.decorators import batch
     from pytriton.model_config import Tensor
-except:
+except Exception:
     use_pytriton = False
 
 LOGGER = logging.getLogger("NeMo")

@@ -13,8 +13,11 @@
 # limitations under the License.
 
 
-from pytriton.model_config import ModelConfig, Tensor
-from pytriton.triton import Triton, TritonConfig
+try:
+    from pytriton.model_config import ModelConfig, Tensor
+    from pytriton.triton import Triton, TritonConfig
+except:
+    pass
 from .deploy_base import DeployBase
 
 
