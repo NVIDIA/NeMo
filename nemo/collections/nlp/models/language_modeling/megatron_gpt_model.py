@@ -18,7 +18,7 @@ import queue
 import warnings
 from contextlib import nullcontext
 from dataclasses import fields
-from functools import partial, cache
+from functools import cache, partial
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
@@ -104,6 +104,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
+
 @cache
 def mcore_supports_moe() -> bool:
     global HAVE_MEGATRON_CORE
@@ -111,10 +112,12 @@ def mcore_supports_moe() -> bool:
         return False
     try:
         from megatron.core.transformer.moe.base_moe_layer import MoETokenDispatcher
+
         return True
     except ImportError:
         return False
     return False
+
 
 def get_specs(spec_name, num_experts=None):
     if spec_name == '':
@@ -1625,9 +1628,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'num_moe_experts': self.cfg.get('num_moe_experts', None),
             'moe_router_type': self.cfg.get('moe_router_type', None),
         }
-        if model_specific_configs['num_moe_experts'] is not None or \
-            model_specific_configs['moe_router_type'] is not None:
-                assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
+        if (
+            model_specific_configs['num_moe_experts'] is not None
+            or model_specific_configs['moe_router_type'] is not None
+        ):
+            assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
         elif not mcore_supports_moe():
             del model_specific_configs['num_moe_experts']
             del model_specific_configs['moe_router_type']

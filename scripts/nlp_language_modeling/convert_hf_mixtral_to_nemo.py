@@ -25,7 +25,6 @@ import json
 import os
 from argparse import ArgumentParser
 from collections import OrderedDict
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 import torch
 import torch.nn
@@ -225,8 +224,6 @@ def convert(args):
         assert head_num % num_query_groups == 0, 'head_num must be divisible by num_query_groups'
     if mcore_gpt:
         assert nemo_config.activation.startswith('fast-'), 'mcore only supports fast version of gated linear unit.'
-
-
 
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
