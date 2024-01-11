@@ -18,7 +18,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
-from nemo.utils import logging
+import logging
 
 import tensorrt_llm
 import torch
@@ -28,6 +28,8 @@ from transformers import PreTrainedTokenizer
 from tensorrt_llm.logger import logger
 
 from .tensorrt_llm_build import get_engine_name, MODEL_NAME  # isort:skip
+
+LOGGER = logging.getLogger("NeMo")
 
 
 @dataclass
@@ -214,15 +216,15 @@ def _forward(
 
             if decoder.remove_input_padding:
                 if stop_words_list is not None:
-                    logging.warning("stop_words_list should be set to None with remove_input_padding=True "
+                    LOGGER.warning("stop_words_list should be set to None with remove_input_padding=True "
                                   "and it will be ignored.")
 
                 if bad_words_list is not None:
-                    logging.warning("bad_words_list should be set to None with remove_input_padding=True "
+                    LOGGER.warning("bad_words_list should be set to None with remove_input_padding=True "
                                   "and it will be ignored.")
 
                 if no_repeat_ngram_size is not None:
-                    logging.warning("no_repeat_ngram_size should be set to None with remove_input_padding=True "
+                    LOGGER.warning("no_repeat_ngram_size should be set to None with remove_input_padding=True "
                                   "and it will be ignored.")
 
                 output_ids = decoder.decode_batch(line_encoded, sampling_config)

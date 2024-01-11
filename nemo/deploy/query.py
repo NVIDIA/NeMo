@@ -17,10 +17,22 @@ import typing
 from abc import ABC, abstractmethod
 
 import numpy as np
-from pytriton.client import ModelClient
-from .tensorrt_llm_backend.client import HttpTritonClient
 from .utils import str_list2numpy
 import concurrent.futures
+
+
+use_pytriton = True
+try:
+    from pytriton.client import ModelClient
+except:
+    use_pytriton = False
+
+use_trtllm_backend = False
+try:
+    from .tensorrt_llm_backend.client import HttpTritonClient
+except:
+    use_trtllm_backend = False
+
 
 class NemoQueryBase(ABC):
     def __init__(self, url, model_name):

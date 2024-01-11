@@ -22,8 +22,6 @@ import numpy as np
 import pickle
 import tensorrt_llm
 import torch
-from pytriton.decorators import batch
-from pytriton.model_config import Tensor
 import tempfile
 
 from nemo.deploy import ITritonDeployable
@@ -35,6 +33,12 @@ from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
 from .trt_llm.tensorrt_llm_run import generate, load
 from .utils import is_nemo_file, unpack_nemo_ckpt
 
+use_pytriton = True
+try:
+    from pytriton.decorators import batch
+    from pytriton.model_config import Tensor
+except:
+    use_pytriton = False
 
 LOGGER = logging.getLogger("NeMo")
 

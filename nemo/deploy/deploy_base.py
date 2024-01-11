@@ -16,10 +16,13 @@ import importlib
 from abc import ABC, abstractmethod
 
 from pytorch_lightning import Trainer
-
-from nemo.core.classes.modelPT import ModelPT
 from nemo.deploy.triton_deployable import ITritonDeployable
 
+use_nemo = True
+try:
+    from nemo.core.classes.modelPT import ModelPT
+except:
+    use_nemo = False
 
 class DeployBase(ABC):
     def __init__(
