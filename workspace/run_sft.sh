@@ -29,7 +29,7 @@ VAL_MANIFESTS=[/media/data/datasets/LibriSpeech/dev_clean_10_text.json,/media/da
 
 #python \
 python -m pdb -c continue \
-run_sft_audio_lm.py --config-path="../examples/multimodel/conf/speechllm/" --config-name "modularized_speech_gpt_config" \
+run_sft_audio_lm.py --config-path="../examples/multimodal/conf/speechllm/" --config-name "modularized_speech_gpt_config" \
     model.pretrained_audio_model=$ASR_MODEL \
     model.restore_from_path=$MEGATRON_CKPT \
     model.global_batch_size=$GLOBAL_BATCH \

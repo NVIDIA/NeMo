@@ -64,7 +64,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
             if lora_kqv_adapter:
                 lora_mixed_qkv = lora_kqv_adapter(layernorm_output)
-                mixed_qkv = mixed_qkv + lora_mixed_qkv
+                mixed_qkv = mixed_qkv + 0.8 * lora_mixed_qkv  # TODO: make this a hyperparam in yaml
 
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
         new_tensor_shape = mixed_qkv.size()[:-1] + (

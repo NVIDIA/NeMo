@@ -48,7 +48,7 @@ python eval_audio_gpt_lora.py \
 """
 
 
-@hydra_runner(config_path="../examples/multimodel/conf/speechllm/", config_name="modularized_speech_gpt_config_eval")
+@hydra_runner(config_path="../examples/multimodal/conf/speechllm/", config_name="modularized_speech_gpt_config_eval")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")

@@ -37,7 +37,7 @@ from nemo.utils.exp_manager import exp_manager
 mp.set_start_method("spawn", force=True)
 
 
-@hydra_runner(config_path="../examples/multimodel/conf/speechllm", config_name="modularized_speech_gpt_config_tuning")
+@hydra_runner(config_path="../examples/multimodal/conf/speechllm", config_name="modularized_speech_gpt_config_tuning")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")

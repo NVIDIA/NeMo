@@ -24,7 +24,7 @@ VAL_NAMES="[dev-clean,dev-other]"
 # VAL_MANIFESTS="[/media/data/datasets/LibriSpeech/dev_small.json]"
 
 
-python run_sft_audio_lm.py --config-path="../examples/multimodel/conf/speechllm/" --config-name "modularized_speech_gpt_config" \
+python run_sft_audio_lm.py --config-path="../examples/multimodal/conf/speechllm/" --config-name "modularized_speech_gpt_config" \
     name=$EXP_NAME \
     ++exp_manager.create_wandb_logger=false \
     ++exp_manager.name=$EXP_NAME \
