@@ -25,7 +25,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 def average_pool(last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
-    last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
+    last_hidden = last_hidden_states.masked_fill(
+        ~attention_mask[..., None].bool(), 0.0)
     return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
 
 
@@ -105,11 +106,16 @@ def create_rename_keys(num_hidden_layers):
     # Non-layer dependent keys
     rename_keys.extend(
         [
-            ("embeddings.word_embeddings.weight", "model.language_model.embedding.word_embeddings.weight"),
-            ("embeddings.position_embeddings.weight", "model.language_model.embedding.position_embeddings.weight"),
-            ("embeddings.token_type_embeddings.weight", "model.language_model.embedding.tokentype_embeddings.weight"),
-            ("embeddings.LayerNorm.weight", "model.language_model.encoder.initial_layernorm.weight"),
-            ("embeddings.LayerNorm.bias", "model.language_model.encoder.initial_layernorm.bias"),
+            ("embeddings.word_embeddings.weight",
+             "model.language_model.embedding.word_embeddings.weight"),
+            ("embeddings.position_embeddings.weight",
+             "model.language_model.embedding.position_embeddings.weight"),
+            ("embeddings.token_type_embeddings.weight",
+             "model.language_model.embedding.tokentype_embeddings.weight"),
+            ("embeddings.LayerNorm.weight",
+             "model.language_model.encoder.initial_layernorm.weight"),
+            ("embeddings.LayerNorm.bias",
+             "model.language_model.encoder.initial_layernorm.bias"),
             ("pooler.dense.weight", "model.language_model.pooler.dense.weight"),
             ("pooler.dense.bias", "model.language_model.pooler.dense.bias"),
         ]
@@ -127,8 +133,10 @@ def convert_state_dict(state_dict, amp=False):
         else:
             p1 = old_key.replace('blocks.', 'language_model.encoder.layers.')
             p2 = p1.replace('norm_1.weight', 'input_layernorm.weight')
-            p3 = p2.replace('attn.Wqkv.weight', 'self_attention.query_key_value.weight')
-            p4 = p3.replace('attn.out_proj.weight', 'self_attention.dense.weight')
+            p3 = p2.replace('attn.Wqkv.weight',
+                            'self_attention.query_key_value.weight')
+            p4 = p3.replace('attn.out_proj.weight',
+                            'self_attention.dense.weight')
             p5 = p4.replace('norm_2.weight', 'post_attention_layernorm.weight')
             p6 = p5.replace('ffn.up_proj.weight', 'mlp.dense_h_to_4h.weight')
             p7 = p6.replace('ffn.down_proj.weight', 'mlp.dense_4h_to_h.weight')
@@ -163,9 +171,12 @@ def adjust_tensor_shapes(model, nemo_state_dict):
         if "self_attention.query" in key_:
             key_q = key_
             key_k = key_.replace('self_attention.query', 'self_attention.key')
-            key_v = key_.replace('self_attention.query', 'self_attention.value')
-            key_new = key_.replace('self_attention.query', 'self_attention.query_key_value')
-            value_new = torch.concat((nemo_state_dict[key_q], nemo_state_dict[key_k], nemo_state_dict[key_v]), dim=0)
+            key_v = key_.replace('self_attention.query',
+                                 'self_attention.value')
+            key_new = key_.replace(
+                'self_attention.query', 'self_attention.query_key_value')
+            value_new = torch.concat(
+                (nemo_state_dict[key_q], nemo_state_dict[key_k], nemo_state_dict[key_v]), dim=0)
             nemo_state_dict[key_new] = value_new
             del nemo_state_dict[key_q], nemo_state_dict[key_k], nemo_state_dict[key_v]
 
@@ -220,7 +231,8 @@ def adjust_nemo_config(model_config, ref_config):
         'bias_dropout_add_fusion': False,
         'bias_activation_fusion': False,
         'transformer_block_type': 'pre_ln',
-        'normalization': 'layernorm',  # TODO (Ethan He): verify low_precision_layernorm vs layernorm
+        # TODO (Ethan He): verify low_precision_layernorm vs layernorm
+        'normalization': 'layernorm',
         'fp32_residual_connection': False,
         'hidden_dropout': 0,
         'attention_dropout': 0,
@@ -241,7 +253,8 @@ def adjust_nemo_config(model_config, ref_config):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--name_or_path", type=str, default="intfloat/e5-large-unsupervised")
+    parser.add_argument("--name_or_path", type=str,
+                        default="intfloat/e5-large-unsupervised")
     parser.add_argument(
         "--hparams_file",
         type=str,
@@ -249,7 +262,8 @@ def get_args():
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--save_path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--save_path", type=str, default=None,
+                        required=True, help="Path to output .nemo file.")
     parser.add_argument(
         "--precision", type=str, default="32", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
@@ -265,19 +279,23 @@ def convert(args):
     hf_model = AutoModelForCausalLM.from_pretrained(args.name_or_path)
 
     nemo_config = OmegaConf.load(args.hparams_file)
-    nemo_config.model = adjust_nemo_config(nemo_config.model, hf_model.config.to_dict())
+    nemo_config.model = adjust_nemo_config(
+        nemo_config.model, hf_model.config.to_dict())
 
     nemo_config.trainer["precision"] = args.precision
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
     model = MegatronGPTModel(nemo_config.model, trainer)
 
     old_state_dict = hf_model.state_dict()
-    nemo_state_dict = convert_state_dict(old_state_dict, amp=nemo_config.model.megatron_amp_O2)
+    nemo_state_dict = convert_state_dict(
+        old_state_dict, amp=nemo_config.model.megatron_amp_O2)
     # nemo_state_dict = adjust_tensor_shapes(model, new_state_dict)
     if nemo_config.model.megatron_amp_O2:
-        missing_keys, unexpected_keys = model.model.load_state_dict(nemo_state_dict, strict=False)
+        missing_keys, unexpected_keys = model.model.load_state_dict(
+            nemo_state_dict, strict=False)
     else:
-        missing_keys, unexpected_keys = super(GPTModel, model.model).load_state_dict(nemo_state_dict, strict=True)
+        missing_keys, unexpected_keys = super(
+            GPTModel, model.model).load_state_dict(nemo_state_dict, strict=True)
     # model.load_state_dict(nemo_state_dict, strict=True)
     logging.info(f'=' * 50)
     # Verifications
@@ -290,21 +308,25 @@ def convert(args):
 
     # Tokenize the input texts
     hf_tokenizer.pad_token = hf_tokenizer.eos_token
-    batch_dict = hf_tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
+    batch_dict = hf_tokenizer(
+        input_texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
     batch_dict_cuda = {k: v.cuda() for k, v in batch_dict.items()}
     hf_model = hf_model.cuda().eval()
     model = model.eval()
 
     hf_outputs = hf_model(**batch_dict_cuda, output_hidden_states=True)
-    embeddings_hf = average_pool(hf_outputs.logits, batch_dict_cuda['attention_mask'])
+    embeddings_hf = average_pool(
+        hf_outputs.logits, batch_dict_cuda['attention_mask'])
     embeddings_hf = F.normalize(embeddings_hf, p=2, dim=1)
 
     ids = batch_dict_cuda['input_ids']
 
-    id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids.cpu()]
+    id_tensors = [torch.unsqueeze(torch.LongTensor(
+        id_list), dim=0) for id_list in ids.cpu()]
 
     masks_and_position_ids = [
-        get_ltor_masks_and_position_ids(id_tensor, hf_tokenizer.eos_token, False, False, False)
+        get_ltor_masks_and_position_ids(
+            id_tensor, hf_tokenizer.eos_token, False, False, False)
         for id_tensor in id_tensors
     ]
 
@@ -312,7 +334,8 @@ def convert(args):
     for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
         attn_mask, _, pos_ids = attn_mask_and_pos_ids
 
-        outputs = model(tokens=tokens, text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None)
+        outputs = model(tokens=tokens, text_position_ids=pos_ids.cuda(
+        ), attention_mask=attn_mask.cuda(), labels=None)
         output_tensors.append(outputs)
 
     output_tensors = torch.concat(output_tensors, dim=0)
@@ -320,6 +343,8 @@ def convert(args):
     embeddings = F.normalize(embeddings, p=2, dim=1)
     # print(embeddings)
     print(embeddings - embeddings_hf)
+    print('max abs err:', (embeddings - embeddings_hf).abs().max())
+
 
     model.save_to(args.save_path)
     logging.info(f'NeMo model saved to: {args.save_path}')
