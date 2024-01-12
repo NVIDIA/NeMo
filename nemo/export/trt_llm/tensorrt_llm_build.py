@@ -96,9 +96,7 @@ def build_rank_engine(
 
     if not ootb:
         if args.use_gemm_plugin:
-            network.plugin_config.set_gemm_plugin(dtype=args.use_gemm_plugin)
-        #if args.use_rmsnorm_plugin:
-        #    network.plugin_config.set_rmsnorm_plugin(dtype=args.use_rmsnorm_plugin)
+            network.plugin_config.set_gemm_plugin(dtype=args.use_gemm_plugin)        
         if args.use_layernorm_plugin:
             network.plugin_config.set_layernorm_plugin(dtype=args.use_layernorm_plugin)
         assert not (args.enable_context_fmha and args.enable_context_fmha_fp32_acc)
