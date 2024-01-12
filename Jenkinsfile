@@ -4825,6 +4825,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/imagen_train"
+        sh "pip install webdataset==0.2.48"
         sh "python examples/multimodal/text_to_image/imagen/imagen_training.py \
         trainer.precision=16 \
         trainer.num_nodes=1 \
@@ -4837,6 +4838,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         exp_manager.exp_dir=/home/TestData/multimodal/imagen_train \
         model.inductor=False \
         "
+        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/imagen_train"
       }
     }
@@ -4851,6 +4853,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
+        sh "pip install webdataset==0.2.48"
         sh "python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
             trainer.precision=16 \
             trainer.num_nodes=1 \
@@ -4871,6 +4874,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.unet_config.from_pretrained=null \
             model.first_stage_config.from_pretrained=null \
             "
+        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
       }
     }
@@ -4884,6 +4888,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/controlnet_train"
+        sh "pip install webdataset==0.2.48"
         sh "python examples/multimodal/text_to_image/controlnet/controlnet_train.py \
             trainer.precision=16 \
             trainer.num_nodes=1 \
@@ -4900,6 +4905,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.unet_config.from_pretrained=null \
             model.first_stage_config.from_pretrained=null \
             "
+        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/controlnet_train"
       }
     }
@@ -4913,6 +4919,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/dreambooth_train"
+        sh "pip install webdataset==0.2.48"
         sh "python examples/multimodal/text_to_image/dreambooth/dreambooth.py \
             trainer.precision=16 \
             trainer.num_nodes=1 \
@@ -4933,6 +4940,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.first_stage_config.from_pretrained=null \
             model.data.instance_dir=/home/TestData/multimodal/tiny-dreambooth \
             "
+        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/dreambooth_train"
       }
     }
@@ -4946,6 +4954,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/vision/vit_pretrain_tp1"
+        sh "pip install webdataset==0.2.48"
         sh "python examples/vision/vision_transformer/megatron_vit_classification_pretrain.py \
             trainer.precision=16 \
             model.megatron_amp_O2=False \
@@ -4962,6 +4971,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             exp_manager.create_checkpoint_callback=False \
             model.data.data_path=[/home/TestData/multimodal/tiny-imagenet/train,/home/TestData/multimodal/tiny-imagenet/val] \
             exp_manager.exp_dir=/home/TestData/vision/vit_pretrain_tp1 "
+        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/vision/vit_pretrain_tp1"
       }
     }
@@ -4976,6 +4986,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/clip_pretrain_tp1"
+        sh "pip install webdataset==0.2.48"
         sh "python examples/multimodal/vision_language_foundation/clip/megatron_clip_pretrain.py  \
             trainer.precision=16 \
             model.megatron_amp_O2=False \
@@ -4999,6 +5010,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.data.validation.dataset_path=[/home/TestData/multimodal/tiny-clip/00000.tar] \
             model.data.webdataset.local_root_path=/ \
             exp_manager.exp_dir=/home/TestData/multimodal/clip_pretrain_tp1 "
+        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/clip_pretrain_tp1"
       }
     }
@@ -5013,6 +5025,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps {
         sh "rm -rf /home/TestData/multimodal/neva_pretrain_tp1"
+        sh "pip install webdataset==0.2.48"
         sh "python examples/multimodal/multimodal_llm/neva/neva_pretrain.py \
             trainer.precision=bf16 \
             model.megatron_amp_O2=False \
@@ -5042,6 +5055,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.mm_cfg.vision_encoder.from_pretrained='openai/clip-vit-large-patch14' \
             model.mm_cfg.llm.from_pretrained=null \
             exp_manager.exp_dir=/home/TestData/multimodal/neva_pretrain_tp1 "
+        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/neva_pretrain_tp1"
       }
     }
