@@ -1,3 +1,4 @@
+"nemo/collections/nlp/models/language_modeling/megatron_bert_model.py" 1048L, 50478B                                                  1,1           Top
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -199,7 +200,7 @@ class MegatronBertModel(MegatronBaseModel):
             Here we try to catch them and raise an error.
         """
         if self.trainer.accumulate_grad_batches > 1:
-            raise ValueError(
+            raise ValueErr3rr(
                 f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
             )
 
@@ -228,11 +229,14 @@ class MegatronBertModel(MegatronBaseModel):
                     lm_labels = batch['labels'].cuda(non_blocking=True)
                     sentence_order = batch['is_random'].cuda(non_blocking=True)
                     padding_mask = batch['padding_mask'].cuda(non_blocking=True)
-                    tokens, types = None, None
+                    tokens = batch['text'].cuda(non_blocking=True)
+                    types = batch['types'].cuda(non_blocking=True)
                 else:
                     padding_mask = batch['padding_mask'].cuda(non_blocking=True)
                     sentence_order = batch['is_random'].cuda(non_blocking=True)
-                    tokens, types, loss_mask, lm_labels = None, None, None, None
+                    tokens = batch['text'].cuda(non_blocking=True)
+                    types = batch['types'].cuda(non_blocking=True)
+                    loss_mask, lm_labels = None, None
 
             if not self.cfg.bert_binary_head:
                 types = None
@@ -413,17 +417,15 @@ class MegatronBertModel(MegatronBaseModel):
             parallel_state.is_pipeline_first_stage(ignore_virtual=True)
             or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
         ):
+            module_list = self.get_model_module_list()
             if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                if isinstance(self.model, list):
-                    module = self.model[0]  # only the first virtual rank has the embeddings
-                else:
-                    module = self.model
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                if isinstance(self.model, list):
-                    module = self.model[-1]  # only the last virtual rank has the embeddings
-                else:
-                    module = self.model
-            if module.share_token_embeddings:
+                module = module_list[0]  # only the first virtual rank has the embeddings
+            elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                module = module_list[-1]  # only the last virtual rank has the embeddings
+            share_embeddings = (
+                module.share_embeddings_and_output_weights if self.mcore_bert else module.share_token_embeddings
+            )
+            if share_embeddings:
                 word_embeddings_weight = (
                     module.shared_embedding_or_output_weight() if self.mcore_bert else module.word_embeddings_weight()
                 )
@@ -736,7 +738,7 @@ class MegatronBertModel(MegatronBaseModel):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
                 sync_embeddings = (
-                    self.model.initialize_last_stage_with_word_embeddings
+                    self.model.module.initialize_last_stage_with_word_embeddings
                     if self.mcore_bert
                     else self.model.sync_initial_word_embeddings
                 )
@@ -815,13 +817,9 @@ class MegatronBertModel(MegatronBaseModel):
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=self.cfg.get('drop_last', True),
-                )
-            else:
                 raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
         else:
             raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
-
-        # Torch dataloader.
         return torch.utils.data.DataLoader(
             dataset,
             batch_sampler=batch_sampler,
@@ -842,7 +840,6 @@ class MegatronBertModel(MegatronBaseModel):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0
             logging.info(
-                f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
             )
             self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
 
@@ -853,34 +850,17 @@ class MegatronBertModel(MegatronBaseModel):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
-
-    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
         """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
             When using pipeline parallelism, we need the global batch to remain on the CPU,
             since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline.
-        """
         return batch
 
     def parameters(self):
-        if isinstance(self.model, list):
-            return itertools.chain.from_iterable(module.parameters() for module in self.model)
-        else:
-            return self.model.parameters()
 
-    @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
-        """
-        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
         Returns:
-            List of available pre-trained models.
-        """
         result = []
         for vocab in ['cased', 'uncased']:
             result.append(
-                PretrainedModelInfo(
-                    pretrained_model_name=f"megatron_bert_345m_{vocab}",
-                    location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_bert_345m_{vocab}/versions/1/files/megatron_bert_345m_{vocab}.nemo",
                     description=f"345M parameter BERT Megatron model with {vocab} vocab.",
                 )
             )
@@ -889,15 +869,12 @@ class MegatronBertModel(MegatronBaseModel):
                 result.append(
                     PretrainedModelInfo(
                         pretrained_model_name=f"biomegatron345m_biovocab_{vocab_size}_{vocab}",
-                        location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m_biovocab_{vocab_size}_{vocab}/versions/1/files/BioMegatron345m-biovocab-{vocab_size}-{vocab}.nemo",
-                        description="Megatron 345m parameters model with biomedical vocabulary ({vocab_size} size) {vocab}, pre-trained on PubMed biomedical text corpus.",
                     )
                 )
         for vocab in ['cased', 'uncased']:
             result.append(
                 PretrainedModelInfo(
                     pretrained_model_name=f"biomegatron-bert-345m-{vocab}",
-                    location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m{vocab}/versions/1/files/BioMegatron345m{vocab.capitalize()}.nemo",
                     description=f"Megatron pretrained on {vocab} biomedical dataset PubMed with 345 million parameters.",
                 )
             )
@@ -914,22 +891,31 @@ class MegatronBertModel(MegatronBaseModel):
             # Disable overlapped grad sync for embedding grad when
             # pipeline parallelism is enabled
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                modules = self.get_model_module_list()
                 if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                    if isinstance(self.model, list):
-                        module = self.model[0]  # only the first virtual rank has the embeddings
+                    if len(modules) > 1:
+                        module = modules[0]  # only the first virtual rank has the embeddings
                     else:
-                        module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
+                        module = modules[0]
+                    if self.cfg.get('share_embeddings_and_output_weights', True):
+                        param = (
+                            module.shared_embedding_or_output_weight()
+                            if self.mcore_bert
+                            else module.word_embeddings_weight()
+                        )
                         param._disable_greedy_grad_copy = not self.megatron_amp_O2
                         param._disable_overlap_grad_sync = True
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                    if isinstance(self.model, list):
-                        module = self.model[-1]  # only the last virtual rank has the embeddings
+                    if len(modules) > 1:
+                        module = modules[-1]  # only the last virtual rank has the embeddings
                     else:
-                        module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
+                        module = modules[0]
+                    if self.cfg.get('share_embeddings_and_output_weights', True):
+                        param = (
+                            module.shared_embedding_or_output_weight()
+                            if self.mcore_bert
+                            else module.word_embeddings_weight()
+                        )
                         param._disable_greedy_grad_copy = not self.megatron_amp_O2
                         param._disable_overlap_grad_sync = True
 
