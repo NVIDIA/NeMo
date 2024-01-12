@@ -1,0 +1,20 @@
+addict
+basicsr
+clip
+diffusers>=0.19.3
+einops_exts
+# webdataset>=0.2.48 conflict with ASR models, manually pip install when using multimodal
+# flash-attn>=2.0.1
+imageio-ffmpeg
+kornia
+nerfacc>=0.5.3
+open_clip_torch
+opencv-python>=4.8.0.74
+PyMCubes
+pymeshlab
+taming-transformers
+torchdiffeq
+torchsde
+trimesh
+xatlas
+yapf
