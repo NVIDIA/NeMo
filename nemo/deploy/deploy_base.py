@@ -37,7 +37,7 @@ class DeployBase(ABC):
         model=None,
         max_batch_size: int = 128,
         port: int = 8000,
-        http_address="0.0.0.0",
+        address="0.0.0.0",
     ):
         self.checkpoint_path = checkpoint_path
         self.triton_model_name = triton_model_name
@@ -45,7 +45,7 @@ class DeployBase(ABC):
         self.max_batch_size = max_batch_size
         self.model = model
         self.port = port
-        self.http_address = http_address
+        self.address = address
         self.triton = None
 
         if checkpoint_path is None and model is None:

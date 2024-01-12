@@ -393,6 +393,40 @@ class TensorRTLLM(ITritonDeployable):
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
             return {"outputs": output}
+    @batch
+    def triton_infer_fn_streaming(self, **inputs: np.ndarray):
+        try:
+            infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
+            if "max_output_token" in inputs:
+                infer_input["max_output_token"] = inputs.pop("max_output_token")[0][0]
+            if "top_k" in inputs:
+                infer_input["top_k"] = inputs.pop("top_k")[0][0]
+            if "top_p" in inputs:
+                infer_input["top_p"] = inputs.pop("top_p")[0][0]
+            if "temperature" in inputs:
+                infer_input["temperature"] = inputs.pop("temperature")[0][0]
+            if "random_seed" in inputs:
+                infer_input["random_seed"] = inputs.pop("random_seed")[0][0]
+            if "stop_words_list" in inputs:
+                swl = np.char.decode(inputs.pop("stop_words_list").astype("bytes"), encoding="utf-8")
+                infer_input["stop_words_list"] = swl[0]
+            if "bad_words_list" in inputs:
+                swl = np.char.decode(inputs.pop("bad_words_list").astype("bytes"), encoding="utf-8")
+                infer_input["bad_words_list"] = swl[0]
+            if "no_repeat_ngram_size" in inputs:
+                infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
+            if "task_id" in inputs:
+                task_id = np.char.decode(inputs.pop("task_id").astype("bytes"), encoding="utf-8")
+                infer_input["task_ids"] = task_id[0]
+
+            outputs = self.forward(**infer_input, streaming=True)
+ 
+            for request_output in outputs:
+                yield {"outputs": cast_output(request_output,  np.bytes_)}
+        except Exception as error:
+            err_msg = "An error occurred: {0}".format(str(error))
+            output = cast_output([err_msg], np.bytes_)
+            return {"outputs": output}
 
     def _prep_ptuning_table(self):
         self.task_vocab_size = 0

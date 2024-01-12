@@ -17,6 +17,9 @@ import typing
 from abc import ABC, abstractmethod
 
 import numpy as np
+from pytriton.client import ModelClient
+from pytriton.client import DecoupledModelClient
+from .tensorrt_llm_backend.client import HttpTritonClient
 from .utils import str_list2numpy
 import concurrent.futures
 
@@ -35,9 +38,10 @@ except:
 
 
 class NemoQueryBase(ABC):
-    def __init__(self, url, model_name):
+    def __init__(self, url, model_name, streaming):
         self.url = url
         self.model_name = model_name
+        self.streaming = streaming
 
     @abstractmethod
     def query_llm(
@@ -76,10 +80,11 @@ class NemoQuery(NemoQueryBase):
         print("prompts: ", prompts)
     """
 
-    def __init__(self, url, model_name):
+    def __init__(self, url, model_name, streaming=False):
         super().__init__(
             url=url,
             model_name=model_name,
+            streaming=streaming,
         )
 
     def query_llm(
@@ -94,7 +99,7 @@ class NemoQuery(NemoQueryBase):
             temperature=1.0,
             random_seed=None,
             task_id=None,
-            init_timeout=60.0
+            init_timeout=60.0,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -145,16 +150,25 @@ class NemoQuery(NemoQueryBase):
             task_id = np.char.encode(task_id, "utf-8")
             inputs["task_id"] = np.full((prompts.shape[0], len([task_id])), task_id)
 
-        with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
-            result_dict = client.infer_batch(**inputs)
-            output_type = client.model_config.outputs[0].dtype
-
-        if output_type == np.bytes_:
-            sentences = np.char.decode(result_dict["outputs"].astype("bytes"), "utf-8")
-            return sentences
+        if not self.streaming:
+            with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
+                result_dict = client.infer_batch(**inputs)
+                output_type = client.model_config.outputs[0].dtype
+            
+            if output_type == np.bytes_:
+                sentences = np.char.decode(result_dict["outputs"].astype("bytes"), "utf-8")
+                return sentences
+            else:
+                return result_dict["outputs"]
         else:
-            return result_dict["outputs"]
-
+            with DecoupledModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
+                for partial_result_dict in client.infer_batch(**inputs):
+                    output_type = client.model_config.outputs[0].dtype
+                    if output_type == np.bytes_:
+                        sentences = np.char.decode(partial_result_dict["outputs"].astype("bytes"), "utf-8")
+                        yield sentences
+                    else:
+                        yield partial_result_dict["outputs"]
 
 
 class NemoQueryTensorRTLLM(NemoQueryBase):
@@ -169,7 +183,7 @@ class NemoQueryTensorRTLLM(NemoQueryBase):
                       prompt, max_output_token=512,
                       top_k=1,
                       top_p=0.0,
-                      temperature=1.0,):
+                      temperature=1.0):
         client = HttpTritonClient(self.url)
         pload = {
             'prompt': [[prompt]], 
