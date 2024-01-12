@@ -20,7 +20,7 @@ from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronBertTrai
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 
 @hydra_runner(config_path="conf", config_name="megatron_bert_config")
 def main(cfg) -> None:
@@ -33,7 +33,27 @@ def main(cfg) -> None:
     trainer = MegatronBertTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    model = MegatronBertModel(cfg.model, trainer)
+    model_cfg = MegatronBertModel.restore_from(
+        restore_path=cfg.restore_from_path,
+        trainer=trainer,
+        save_restore_connector=NLPSaveRestoreConnector(),
+        return_config=True,
+    )
+    model_cfg.data.data_prefix = cfg.model.data.data_prefix
+
+    OmegaConf.set_struct(model_cfg, True)
+    with open_dict(model_cfg):
+        model_cfg.precision = trainer.precision
+
+    model = MegatronBertModel.restore_from(
+        restore_path=cfg.restore_from_path,
+        trainer=trainer,
+        save_restore_connector=NLPSaveRestoreConnector(),
+        override_config_path=model_cfg,
+        strict=True
+    )
+
+    # model = MegatronBertModel(cfg.model, trainer)
 
     trainer.fit(model)
 
