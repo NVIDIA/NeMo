@@ -132,9 +132,10 @@ class TensorRTLLM(ITritonDeployable):
                             "Supported model types are llama, gptnext, falcon, and starcoder".format(model_type))
 
         if model_type == "gpt" or model_type == "starcoder":
-            # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
-            # gpt and starcoder use the similar model architecture. So, gpt can be used for starcoder.
             model_type = "gptnext"
+
+        if model_type == "mixtral":
+            model_type = "llama"
 
         if pipeline_parallel_size is None:
             tensor_parallel_size = n_gpus
@@ -329,7 +330,7 @@ class TensorRTLLM(ITritonDeployable):
     @property
     def get_supported_models_list(self):
         # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
-        return ["gpt", "gptnext", "llama", "falcon", "starcoder"]
+        return ["gpt", "gptnext", "llama", "falcon", "starcoder", "mixtral"]
 
     @property
     def get_hidden_size(self):
