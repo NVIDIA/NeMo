@@ -114,6 +114,8 @@ def get_specs(spec_name):
 
 
 global is_dataset_built_on_rank
+
+
 def is_dataset_built_on_rank():
     return True
 
