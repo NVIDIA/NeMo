@@ -292,9 +292,9 @@ class BatchedHyps:
         self.scores[active_indices] += scores
 
         # store transcript and timesteps
-        indices_to_use = active_indices * self._max_length + self.current_lengths[active_indices]
-        self.transcript.view(-1)[indices_to_use] = labels
-        self.timesteps.view(-1)[indices_to_use] = time_indices
+        active_lengths = self.current_lengths[active_indices]
+        self.transcript[active_indices, active_lengths] = labels
+        self.timesteps[active_indices, active_lengths] = time_indices
         # store last observed timestep + number of observation for the current timestep
         self.last_timestep_lasts[active_indices] = torch.where(
             self.last_timestep[active_indices] == time_indices, self.last_timestep_lasts[active_indices] + 1, 1
@@ -396,17 +396,16 @@ class BatchedAlignments:
         if self.current_lengths.max().item() >= self._max_length:
             self._allocate_more()
 
-        indices_to_use = active_indices * self._max_length + self.current_lengths[active_indices]
+        active_lengths = self.current_lengths[active_indices]
         # store timesteps - same for alignments / confidence
-        self.timesteps.view(-1)[indices_to_use] = time_indices
+        self.timesteps[active_indices, active_lengths] = time_indices
 
         if self.with_alignments and logits is not None and labels is not None:
-            logits_dim = self.logits.shape[-1]
-            self.logits.view(-1, logits_dim)[indices_to_use] = logits
-            self.labels.view(-1)[indices_to_use] = labels
+            self.logits[active_indices, active_lengths] = logits
+            self.labels[active_indices, active_lengths] = labels
 
         if self.with_frame_confidence and confidence is not None:
-            self.frame_confidence.view(-1)[indices_to_use] = confidence
+            self.frame_confidence[active_indices, active_lengths] = confidence
         # increase lengths
         self.current_lengths[active_indices] += 1
 
