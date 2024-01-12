@@ -304,6 +304,7 @@ class ResBlock(TimestepBlock):
             h = self.out_layers(h)
         return self.skip_connection(x) + h
 
+
 class AttentionBlock(nn.Module):
     """
     An attention block that allows spatial positions to attend to each other.
@@ -315,8 +316,11 @@ class AttentionBlock(nn.Module):
         self, channels, num_heads=1, num_head_channels=-1, use_checkpoint=False, use_new_attention_order=False,
     ):
         super().__init__()
-        logging("This option is deprecated, please set use_spatial_transformer=True in unet_config to build attention blocks")
+        logging(
+            "This option is deprecated, please set use_spatial_transformer=True in unet_config to build attention blocks"
+        )
         raise NotImplementedError
+
 
 def count_flops_attn(model, _x, y):
     """
