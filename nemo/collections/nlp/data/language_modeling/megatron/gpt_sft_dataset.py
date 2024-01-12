@@ -25,7 +25,7 @@ from datasets import load_dataset
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, OnlineSampleMapping
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -57,6 +57,7 @@ class GPTSFTDataset(Dataset):
         hf_dataset: bool = False,
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
+        is_test: bool = False,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -79,6 +80,7 @@ class GPTSFTDataset(Dataset):
         hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
         truncation_method: Truncation from which position. Options: ['left', 'right']
         special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+        is_test: Whether this dataset is the test split.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -99,6 +101,7 @@ class GPTSFTDataset(Dataset):
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
         self.truncation_method = truncation_method
+        self.is_test = is_test
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -152,6 +155,7 @@ class GPTSFTDataset(Dataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
+            osm = OnlineSampleMapping(dataset_size=len(self.indexed_dataset), num_samples=self.max_num_samples)
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
@@ -163,6 +167,7 @@ class GPTSFTDataset(Dataset):
                 name=self.file_path.split('/')[-1],
                 binary_head=False,
                 index_mapping_dir=self.index_mapping_dir,
+                samples_mapping=osm,
             )
         else:
             self.samples_mapping = None
@@ -317,7 +322,16 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
+        prompt_template_values = []
+        for c in self.prompt_template_keys:
+            try:
+                prompt_template_values.append(example[c].strip(' '))
+            except KeyError as e:
+                if c == self.label_key and self.is_test:
+                    # allow missing label during testing, if user only wants to do inference without calculating metrics
+                    prompt_template_values.append("")
+                else:
+                    raise e
 
         template_strings, template_strings_keys = self._separate_template(prompt_template_values)
         template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
