@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 import torch
+import torch.nn.functional as F
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.models import EncDecRNNTModel
@@ -41,40 +42,67 @@ def max_symbols_setup():
         def predict(
             self,
             y: Optional[torch.Tensor] = None,
-            state: Optional[torch.Tensor] = None,
+            state: Optional[List[torch.Tensor]] = None,
             add_sos: bool = False,
             batch_size: Optional[int] = None,
         ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
             if batch_size is None:
                 batch_size = 1
             if y is not None:
-                y = y + torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat(y.size())
+                assert len(y.shape) == 2
+                assert list(y.shape) == [batch_size, 1]
+            if state is not None:
+                assert len(state) == 1
+                assert len(state[0].shape) == 3
+                assert list(state[0].shape) == [1, batch_size, self.vocab_size + 1]
+            if y is not None:
+                # boost blank
+                output = F.one_hot(y, num_classes=self.vocab_size + 1) + torch.tensor(
+                    [0] * self.vocab_size + [1], dtype=torch.float32
+                )[None, None, :].expand([batch_size, 1, -1])
             if y is not None and state is not None:
-                return (y + state) / 2, y * state
+                return (output + state[0].transpose(0, 1)) / 2, [output.transpose(0, 1) * state[0]]
             elif state is not None:
-                return torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat(state.size()), state
+                return (
+                    torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[None, None, :].expand(
+                        [batch_size, 1, -1]
+                    ),
+                    state,
+                )
             elif y is not None:
-                return y, torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat(y.size())
+                return (
+                    output,
+                    [
+                        torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[None, None, :].exand(
+                            [1, batch_size, -1]
+                        )
+                    ],
+                )
+            # y, state - None (initial call)
             return (
-                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat([1, batch_size, 1]),
-                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32).repeat([1, batch_size, 1]),
+                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[None, None, :].expand(
+                    [batch_size, 1, -1]
+                ),
+                [
+                    torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[None, None, :].expand(
+                        [1, batch_size, -1]
+                    )
+                ],
             )
 
-        def initialize_state(self, y: torch.Tensor) -> List[torch.Tensor]:
-            return [torch.tensor()]
+        def initialize_state(self, y: torch.Tensor) -> Optional[List[torch.Tensor]]:
+            return None
 
         def score_hypothesis(
             self, hypothesis: Hypothesis, cache: Dict[Tuple[int], Any]
         ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
             return torch.tensor(), [torch.tensor()], torch.tensor()
 
-        def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
+        def batch_select_state(
+            self, batch_states: Optional[List[torch.Tensor]], idx: int
+        ) -> Optional[List[List[torch.Tensor]]]:
             if batch_states is not None:
-                try:
-                    states = batch_states[0][idx]
-                    states = states.long()
-                except Exception as e:
-                    raise Exception(batch_states, idx)
+                states = [batch_states[0][:, idx]]
                 return [states]
             else:
                 return None
@@ -87,14 +115,16 @@ def max_symbols_setup():
             value: Optional[float] = None,
         ) -> List[torch.Tensor]:
             if value is None:
-                old_states[0][ids, :] = new_states[0][ids, :]
+                old_states[0][:, ids] = new_states[0][:, ids]
 
             return old_states
 
-        def mask_select_states(self, states: Optional[List[torch.Tensor]], mask: torch.Tensor):
+        def mask_select_states(
+            self, states: Optional[torch.Tensor], mask: torch.Tensor
+        ) -> Optional[List[torch.Tensor]]:
             if states is None:
                 return None
-            return [states[0][mask]]
+            return [states[0][:, mask]]
 
     class DummyRNNTJoint(AbstractRNNTJoint):
         def __init__(self, num_outputs: int):

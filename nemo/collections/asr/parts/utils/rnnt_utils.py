@@ -368,7 +368,7 @@ def batched_hyps_to_hypotheses(
 ) -> List[Hypothesis]:
     """
     Convert batched hypotheses to a list of Hypothesis objects.
-    Keep this funcion separate to allow for jit compilation for BatchedHyps class (see tests)
+    Keep this function separate to allow for jit compilation for BatchedHyps class (see tests)
 
     Args:
         batched_hyps: BatchedHyps object
@@ -421,6 +421,17 @@ def batched_hyps_to_hypotheses(
 def return_empty_hypotheses(
     encoder_lengths: torch.Tensor, with_alignments=False, with_frame_confidence=False
 ) -> List[Hypothesis]:
+    """
+    Return empty hypotheses list. If alignments/confidence needed, use empty lists of lists of required sizes
+
+    Args:
+        encoder_lengths: lengths of the encoder output
+        with_alignments: make corresponding empty alignments
+        with_frame_confidence: make corresponding empty confidence items
+
+    Returns:
+        list of Hypothesis objects with empty transcription and empty alignments/confidence
+    """
     hypotheses = [
         Hypothesis(
             score=0.0,
