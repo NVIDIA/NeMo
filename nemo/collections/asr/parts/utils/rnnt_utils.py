@@ -247,7 +247,7 @@ class BatchedHyps:
         self._max_length = init_length
 
         # batch of current lengths of hypotheses and correspoinding timesteps
-        self.lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
+        self.current_lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
         # tensor for storing transcripts
         self.transcript = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
         # tensor for storing timesteps corresponding to transcripts
@@ -285,14 +285,14 @@ class BatchedHyps:
         if active_indices.shape[0] == 0:
             return  # nothing to add
         # if needed - increase storage
-        if self.lengths.max().item() >= self._max_length:
+        if self.current_lengths.max().item() >= self._max_length:
             self._allocate_more()
 
         # accumulate scores
         self.scores[active_indices] += scores
 
         # store transcript and timesteps
-        indices_to_use = active_indices * self._max_length + self.lengths[active_indices]
+        indices_to_use = active_indices * self._max_length + self.current_lengths[active_indices]
         self.transcript.view(-1)[indices_to_use] = labels
         self.timesteps.view(-1)[indices_to_use] = time_indices
         # store last observed timestep + number of observation for the current timestep
@@ -301,7 +301,7 @@ class BatchedHyps:
         )
         self.last_timestep[active_indices] = time_indices
         # increase lengths
-        self.lengths[active_indices] += 1
+        self.current_lengths[active_indices] += 1
 
 
 class BatchedAlignments:
@@ -341,8 +341,8 @@ class BatchedAlignments:
 
         # tensor to store observed timesteps (for alignments / confidence scores)
         self.timesteps = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
-        # lengths of the utterances (alignments)
-        self.lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
+        # current lengths of the utterances (alignments)
+        self.current_lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
 
         if self.with_alignments:
             # logits and labels; labels can contain <blank>, different from BatchedHyps
@@ -393,10 +393,10 @@ class BatchedAlignments:
             return  # nothing to add
 
         # if needed - increase storage
-        if self.lengths.max().item() >= self._max_length:
+        if self.current_lengths.max().item() >= self._max_length:
             self._allocate_more()
 
-        indices_to_use = active_indices * self._max_length + self.lengths[active_indices]
+        indices_to_use = active_indices * self._max_length + self.current_lengths[active_indices]
         # store timesteps - same for alignments / confidence
         self.timesteps.view(-1)[indices_to_use] = time_indices
 
@@ -408,7 +408,7 @@ class BatchedAlignments:
         if self.with_frame_confidence and confidence is not None:
             self.frame_confidence.view(-1)[indices_to_use] = confidence
         # increase lengths
-        self.lengths[active_indices] += 1
+        self.current_lengths[active_indices] += 1
 
 
 def batched_hyps_to_hypotheses(
@@ -428,8 +428,8 @@ def batched_hyps_to_hypotheses(
     hypotheses = [
         Hypothesis(
             score=batched_hyps.scores[i].item(),
-            y_sequence=batched_hyps.transcript[i, : batched_hyps.lengths[i]],
-            timestep=batched_hyps.timesteps[i, : batched_hyps.lengths[i]],
+            y_sequence=batched_hyps.transcript[i, : batched_hyps.current_lengths[i]],
+            timestep=batched_hyps.timesteps[i, : batched_hyps.current_lengths[i]],
             alignments=None,
             dec_state=None,
         )
@@ -437,7 +437,7 @@ def batched_hyps_to_hypotheses(
     ]
     if alignments is not None:
         # move all data to cpu to avoid overhead with moving data by chunks
-        alignment_lengths = alignments.lengths.cpu().tolist()
+        alignment_lengths = alignments.current_lengths.cpu().tolist()
         if alignments.with_alignments:
             alignment_logits = alignments.logits.cpu()
             alignment_labels = alignments.labels.cpu()

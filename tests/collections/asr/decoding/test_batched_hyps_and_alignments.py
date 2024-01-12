@@ -61,7 +61,7 @@ class TestBatchedHyps:
             time_indices=torch.tensor([1], device=device),
             scores=torch.tensor([0.5], device=device),
         )
-        assert hyps.lengths.tolist() == [1, 0]
+        assert hyps.current_lengths.tolist() == [1, 0]
         assert hyps.transcript.tolist()[0][:1] == [5]
         assert hyps.timesteps.tolist()[0][:1] == [1]
         assert hyps.scores.tolist() == pytest.approx([0.5, 0.0])
@@ -85,7 +85,7 @@ class TestBatchedHyps:
             time_indices=torch.tensor([1, 2], device=device),
             scores=torch.tensor([1.0, 1.0], device=device),
         )
-        assert hyps.lengths.tolist() == [2, 1]
+        assert hyps.current_lengths.tolist() == [2, 1]
         assert hyps.transcript.tolist()[0][:2] == [5, 2]
         assert hyps.transcript.tolist()[1][:1] == [4]
         assert hyps.timesteps.tolist()[0][:2] == [1, 1]
@@ -151,7 +151,7 @@ class TestBatchedAlignments:
             labels=torch.argmax(sample_logits[:, 0], dim=-1),
             time_indices=torch.tensor([0, 0], device=device),
         )
-        assert alignments.lengths.tolist() == [1, 1]
+        assert alignments.current_lengths.tolist() == [1, 1]
         assert torch.allclose(alignments.logits[:, 0], sample_logits[:, 0])
         assert alignments.timesteps[:, 0].tolist() == [0, 0]
 
@@ -173,9 +173,11 @@ class TestBatchedAlignments:
                 time_indices=torch.tensor([0, 0], device=device)[add_logits_mask[:, t]],
             )
 
-        assert (alignments.lengths == add_logits_mask.sum(dim=-1)).all()
+        assert (alignments.current_lengths == add_logits_mask.sum(dim=-1)).all()
         for i in range(batch_size):
-            assert (alignments.logits[i, : alignments.lengths[i]] == sample_logits[i, add_logits_mask[i]]).all()
+            assert (
+                alignments.logits[i, : alignments.current_lengths[i]] == sample_logits[i, add_logits_mask[i]]
+            ).all()
 
 
 class TestConvertToHypotheses:
