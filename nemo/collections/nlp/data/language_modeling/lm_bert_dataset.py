@@ -244,7 +244,7 @@ class BertPretrainingDataset(Dataset):
         input_mask = np.zeros(self.max_seq_length, dtype=np.longlong)
         input_mask[: len(input_ids)] = 1
 
-        input_type_ids = np.zeros(self.max_seq_length, dtype=np.int)
+        input_type_ids = np.zeros(self.max_seq_length, dtype=np.int64)
         input_type_ids[len(a_document) + 2 : len(output_ids) + 1] = 1
 
         padding_length = max(0, self.max_seq_length - len(input_ids))
