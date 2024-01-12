@@ -138,6 +138,7 @@ pipeline {
         model.data.synthetic_data=True \
         exp_manager.exp_dir=/home/TestData/multimodal/imagen_train \
         model.inductor=False \
+        model.use_flash_attention=False \
         "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/imagen_train"
@@ -174,6 +175,7 @@ pipeline {
             ~model.cond_stage_config.layer \
             model.unet_config.from_pretrained=null \
             model.first_stage_config.from_pretrained=null \
+            model.use_flash_attention=False \
             "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
@@ -205,6 +207,7 @@ pipeline {
             model.control_stage_config.params.from_pretrained_unet=null \
             model.unet_config.from_pretrained=null \
             model.first_stage_config.from_pretrained=null \
+            model.use_flash_attention=False \
             "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/controlnet_train"
@@ -240,6 +243,7 @@ pipeline {
             model.unet_config.from_pretrained=null \
             model.first_stage_config.from_pretrained=null \
             model.data.instance_dir=/home/TestData/multimodal/tiny-dreambooth \
+                        model.use_flash_attention=False \
             "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/dreambooth_train"
