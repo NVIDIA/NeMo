@@ -114,8 +114,6 @@ def get_specs(spec_name):
 
 
 global is_dataset_built_on_rank
-
-
 def is_dataset_built_on_rank():
     return True
 
@@ -1211,7 +1209,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
         dataset_config = GPTDatasetConfig(
-            is_built_on_rank=is_built_on_rank,
+            is_built_on_rank=is_dataset_built_on_rank,
             random_seed=self.cfg.seed,
             sequence_length=self.cfg.data.seq_length,
             blend=self.cfg.data.data_prefix,
