@@ -432,12 +432,12 @@ def generate(
     input_lengths = [t.shape[0] for t in input_tensors]
     
     if streaming:
-        #TODO: outputs is a generator, how to enable the streaming for triton
-        final_outputs = [ cur_outputs for cur_outputs in outputs ]
-        output_lines_list = [
-            tokenizer.batch_decode(final_outputs[-1][b, :, input_lengths[b] :])
-            for b in range(len(final_outputs[-1]))
-       ]
+        for cur_outputs in outputs:
+            output_lines_list = [
+                tokenizer.batch_decode(cur_outputs[b, :, input_lengths[b] :])
+                for b in range(len(cur_outputs))
+            ]
+            yield output_lines_list
     else:
         output_lines_list = [
             tokenizer.batch_decode(outputs[b, :, input_lengths[b] :])
