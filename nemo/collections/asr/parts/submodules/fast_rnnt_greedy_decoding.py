@@ -147,7 +147,7 @@ def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditi
     driver_params.conditional.type = cuda.CUgraphConditionalNodeType.CU_GRAPH_COND_TYPE_WHILE
     driver_params.conditional.size = 1
     # Work around until https://github.com/NVIDIA/cuda-python/issues/55 is fixed
-    driver_params.conditional.phGraph_out = [None]
+    driver_params.conditional.phGraph_out = [cuda.CUgraph()]
     (ctx,) = cu_call(cuda.cuCtxGetCurrent())
     driver_params.conditional.ctx = ctx
 

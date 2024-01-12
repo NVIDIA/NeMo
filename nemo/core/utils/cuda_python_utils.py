@@ -24,7 +24,7 @@ def check_cuda_python_cuda_graphs_conditional_nodes_supported():
 
     from cuda import __version__ as cuda_python_version
     if Version(cuda_python_version) < Version("12.3.0"):
-        raise ImportError("Found cuda-python {cuda.__version__}, but at least version 12.3.0 is needed.")
+        raise ImportError(f"Found cuda-python {cuda_python_version}, but at least version 12.3.0 is needed.")
 
     error, driver_version = cuda.cuDriverGetVersion()
     if error != cuda.CUresult.CUDA_SUCCESS:
