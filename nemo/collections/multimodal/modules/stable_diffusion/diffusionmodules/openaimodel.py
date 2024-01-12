@@ -316,7 +316,7 @@ class AttentionBlock(nn.Module):
         self, channels, num_heads=1, num_head_channels=-1, use_checkpoint=False, use_new_attention_order=False,
     ):
         super().__init__()
-        logging(
+        logging.info(
             "This option is deprecated, please set use_spatial_transformer=True in unet_config to build attention blocks"
         )
         raise NotImplementedError
