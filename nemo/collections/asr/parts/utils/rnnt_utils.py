@@ -232,18 +232,34 @@ class BatchedHyps:
         device: Optional[torch.device] = None,
         float_dtype: Optional[torch.dtype] = None,
     ):
+        """
+
+        Args:
+            batch_size: batch size for hypotheses
+            init_length: initial estimate for the length of hypotheses (if the real length is higher, tensors will be reallocated)
+            device: device for storing hypotheses
+            float_dtype: float type for scores
+        """
         if init_length <= 0:
             raise ValueError(f"init_length must be > 0, got {init_length}")
         if batch_size <= 0:
             raise ValueError(f"batch_size must be > 0, got {batch_size}")
         self._max_length = init_length
+
+        # batch of current lengths of hypotheses and correspoinding timesteps
         self.lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
+        # tensor for storing transcripts
         self.transcript = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
+        # tensor for storing timesteps corresponding to transcripts
         self.timesteps = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
+        # accumulated scores for hypotheses
         self.scores = torch.zeros(batch_size, device=device, dtype=float_dtype)
+
         # tracking last timestep of each hyp to avoid infinite looping (when max symbols per frame is restricted)
-        self.last_timestep_lasts = torch.zeros(batch_size, device=device, dtype=torch.long)
+        # last observed timestep (with label) for each hypothesis
         self.last_timestep = torch.full((batch_size,), -1, device=device, dtype=torch.long)
+        # number of labels for the last timestep
+        self.last_timestep_lasts = torch.zeros(batch_size, device=device, dtype=torch.long)
 
     def _allocate_more(self):
         """
@@ -268,16 +284,23 @@ class BatchedHyps:
         # we assume that all tensors have the same first dimension, and labels are non-blanks
         if active_indices.shape[0] == 0:
             return  # nothing to add
+        # if needed - increase storage
         if self.lengths.max().item() >= self._max_length:
             self._allocate_more()
+
+        # accumulate scores
         self.scores[active_indices] += scores
+
+        # store transcript and timesteps
         indices_to_use = active_indices * self._max_length + self.lengths[active_indices]
         self.transcript.view(-1)[indices_to_use] = labels
         self.timesteps.view(-1)[indices_to_use] = time_indices
+        # store last observed timestep + number of observation for the current timestep
         self.last_timestep_lasts[active_indices] = torch.where(
             self.last_timestep[active_indices] == time_indices, self.last_timestep_lasts[active_indices] + 1, 1
         )
         self.last_timestep[active_indices] = time_indices
+        # increase lengths
         self.lengths[active_indices] += 1
 
 
@@ -297,6 +320,17 @@ class BatchedAlignments:
         store_alignments: bool = True,
         store_frame_confidence: bool = False,
     ):
+        """
+
+        Args:
+            batch_size: batch size for hypotheses
+            logits_dim: dimension for logits
+            init_length: initial estimate for the lengths of flatten alignments
+            device: device for storing data
+            float_dtype: expected logits/confidence data type
+            store_alignments: if alignments should be stored
+            store_frame_confidence: if frame confidence should be stored
+        """
         if init_length <= 0:
             raise ValueError(f"init_length must be > 0, got {init_length}")
         if batch_size <= 0:
@@ -304,15 +338,22 @@ class BatchedAlignments:
         self.with_frame_confidence = store_frame_confidence
         self.with_alignments = store_alignments
         self._max_length = init_length
+
+        # tensor to store observed timesteps (for alignments / confidence scores)
         self.timesteps = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
+        # lengths of the utterances (alignments)
         self.lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
+
         if self.with_alignments:
+            # logits and labels; labels can contain <blank>, different from BatchedHyps
             self.logits = torch.zeros((batch_size, self._max_length, logits_dim), device=device, dtype=float_dtype)
             self.labels = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
         else:
             self.logits = None
             self.labels = None
+
         if self.with_frame_confidence:
+            # tensor to store frame confidence
             self.frame_confidence = torch.zeros((batch_size, self._max_length), device=device, dtype=float_dtype)
         else:
             self.frame_confidence = None
@@ -350,16 +391,23 @@ class BatchedAlignments:
         # we assume that all tensors have the same first dimension
         if active_indices.shape[0] == 0:
             return  # nothing to add
+
+        # if needed - increase storage
         if self.lengths.max().item() >= self._max_length:
             self._allocate_more()
+
         indices_to_use = active_indices * self._max_length + self.lengths[active_indices]
+        # store timesteps - same for alignments / confidence
         self.timesteps.view(-1)[indices_to_use] = time_indices
+
         if self.with_alignments and logits is not None and labels is not None:
             logits_dim = self.logits.shape[-1]
             self.logits.view(-1, logits_dim)[indices_to_use] = logits
             self.labels.view(-1)[indices_to_use] = labels
+
         if self.with_frame_confidence and confidence is not None:
             self.frame_confidence.view(-1)[indices_to_use] = confidence
+        # increase lengths
         self.lengths[active_indices] += 1
 
 
