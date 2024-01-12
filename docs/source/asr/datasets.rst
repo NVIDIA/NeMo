@@ -556,6 +556,8 @@ Lhotse dataloading supports the following types of inputs:
 Enabling Lhotse via configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. note:: Using Lhotse with tarred datasets will make the dataloader infinite, ditching the notion of an "epoch". "Epoch" may still be logged in W&B/TensorBoard, but it will correspond to the number of executed training loops between validation loops.
+
 Start with an existing NeMo experiment YAML configuration. Typically, you'll only need to add a few options to enable Lhotse.
 These options are::
 

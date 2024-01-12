@@ -27,7 +27,7 @@ from lhotse.dataset import (
     IterableDatasetWrapper,
     make_worker_init_fn,
 )
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
 
@@ -96,7 +96,7 @@ class LhotseDataLoadingConfig:
 
 
 def get_lhotse_dataloader_from_config(
-    config, global_rank: int, world_size: int, dataset: torch.utils.data.Dataset
+    config: DictConfig, global_rank: int, world_size: int, dataset: torch.utils.data.Dataset
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -244,7 +244,7 @@ def create_id_randomizer(seed: int = 0) -> Callable[[str], str]:
     return add_random_suffix
 
 
-def make_structured_with_schema_warnings(config):
+def make_structured_with_schema_warnings(config: DictConfig) -> DictConfig:
     """
     Checks the schema and fills missing default option values.
     Warns the user if any of the fields are not supported by the current schema

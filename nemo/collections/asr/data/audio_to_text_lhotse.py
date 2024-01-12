@@ -82,7 +82,3 @@ class TokenizerWrapper:
 
     def _call_parser(self, text: str, lang: str | None = None):
         return self._tokenizer(text)
-
-
-def _identity(x):
-    return x
