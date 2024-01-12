@@ -12,26 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import json
 import os
-import re
-import threading
 import torch
-from omegaconf import OmegaConf, open_dict
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.trainer import Trainer
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 
-from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
-from nemo.utils.app_state import AppState
-from nemo.utils.model_utils import inject_model_parallel_rank
 
 
 try:
@@ -42,104 +30,6 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_AMMO = False
-
-"""
-This is the script to run GPT text generation.
-
-Usage:
-    Assume the model has TP=1, PP=1 in the following use cases.
-    a. run greedy inference from a nemo file:
-        python neva_evaluation.py \
-            neva_model_file=PATH_TO_MODEL \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[prompt1,prompt2]
-
-    b. run greedy inference from a PTL checkpoint file:
-        python neva_evaluation.py \
-            checkpoint_dir=PATH_TO_CHECKPOINT_FILE \
-            checkpoint_name=CHECKPOINT_FILE_NAME \
-            hparams_file=HPARAMS_FILE \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[prompt1,prompt2]
-
-    c. run top_p inference from a nemo file:
-        python neva_evaluation.py \
-            neva_model_file=PATH_TO_MODEL \
-            inference.greedy=False \
-            inference.top_k=0 \
-            inference.top_p=0.9 \
-            inference.repetition_penalty=1.2 \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[prompt1,prompt2]
-
-    d. If you don't need to generate tokens and need model to compute logprobs:
-         python neva_evaluation.py \
-            neva_model_file=PATH_TO_MODEL \
-            inference.compute_logprob=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            prompts=[text to get logprob]
-
-    e. Launch the inference server
-         python neva_evaluation.py \
-            neva_model_file=PATH_TO_MODEL \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=-1 \
-            pipeline_model_parallel_size=-1 \
-            server=True
-        
-        To send a request to the server, here is one example code:
-        ```python
-        import json
-        import requests
-
-        batch_size = 8
-        port_num = 5555
-        headers = {"Content-Type": "application/json"}
-
-
-        def request_data(data):
-            resp = requests.put('http://localhost:{}/generate'.format(port_num),
-                                data=json.dumps(data),
-                                headers=headers)
-            sentences = resp.json()['sentences']
-            return sentences
-
-
-        data = {
-            "sentences": [""] * batch_size,
-            "images" : [] * batch_size,
-            "tokens_to_generate": 300,
-            "temperature": 1.0,
-            "add_BOS": True,
-            "top_k": 0,
-            "top_p": 0.9,
-            "greedy": False,
-            "all_probs": False,
-            "repetition_penalty": 1.2,
-            "min_tokens_to_generate": 2,
-        }
-
-        sentences = request_data(data)
-        ```
-"""
 
 if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
@@ -246,19 +136,6 @@ def main(cfg) -> None:
     with open(cfg.output_file, 'w') as f:
         for result in results:
             f.write(json.dumps(result) + '\n')
-
-    """ 
-    # Second method of running text generation, call trainer.predict
-    ds = RequestDataSet(final_prompts)
-    request_dl = DataLoader(dataset=ds, batch_size=1)
-    config = OmegaConf.to_container(cfg.inference)
-    model.set_inference_config(config)
-    response = trainer.predict(model, request_dl)
-
-    print("***************************")
-    print(response)
-    print("***************************")
-    """
 
 
 if __name__ == '__main__':

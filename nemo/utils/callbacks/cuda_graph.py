@@ -16,7 +16,7 @@ import os
 import time
 from dataclasses import dataclass
 from types import MethodType
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict
 
 import pytorch_lightning as pl
 import torch
