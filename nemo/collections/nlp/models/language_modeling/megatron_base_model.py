@@ -41,7 +41,7 @@ from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
 from nemo.collections.nlp.parts.utils_funcs import activation_to_func
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, logging, str_to_dtype
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
@@ -169,6 +169,7 @@ class MegatronBaseModel(NLPModel):
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             virtual_pipeline_model_parallel_size=vp_size,
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
+            context_parallel_size=cfg.get('context_parallel_size', 1),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size', None),
@@ -230,6 +231,27 @@ class MegatronBaseModel(NLPModel):
                 if hasattr(child, "set_tensor_parallel_group"):
                     tp_group = parallel_state.get_tensor_model_parallel_group()
                     child.set_tensor_parallel_group(tp_group)
+
+    def setup_transformer_engine_cp_groups(self):
+        """ This should be called after context parallel groups have been initialized
+            and only needs to be called when using Transformer Engine.
+        """
+        cp_stream = torch.cuda.Stream()
+
+        for module in self.get_model_module_list():
+            """Set context parallel running
+               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
+            """
+            # Deep iterate but skip self to avoid infinite recursion.
+            for index, child in enumerate(module.modules()):
+                if index == 0:
+                    continue
+                if hasattr(child, "set_context_parallel_group"):
+                    child.set_context_parallel_group(
+                        parallel_state.get_context_parallel_group(),
+                        parallel_state.get_context_parallel_global_ranks(),
+                        cp_stream,
+                    )
 
     def _wrap_model_for_O2(self):
         """ Wraps self.model in a float16 wrapper if the model is using megatron amp O2.
@@ -556,8 +578,10 @@ class MegatronBaseModel(NLPModel):
             bucket = buckets[tp]
             grads = [param.grad.data for param in bucket]
             coalesced = torch._utils._flatten_dense_tensors(grads)
-            coalesced /= parallel_state.get_data_parallel_world_size()
-            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
+            coalesced /= parallel_state.get_data_parallel_world_size(with_context_parallel=True)
+            torch.distributed.all_reduce(
+                coalesced, group=parallel_state.get_data_parallel_group(with_context_parallel=True)
+            )
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
@@ -632,19 +656,38 @@ class MegatronBaseModel(NLPModel):
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+
+        def get_config_arg(key: str, default_value: Optional[Any] = None) -> Any:
+            """Get keyword argument from config"""
+            val = None
+            if val is None and optim_kwargs:
+                val = optim_kwargs.get(key, None)
+            if val is None and optim_config:
+                val = optim_config.get(key, None)
+            if val is None and self._cfg.optim:
+                val = self._cfg.optim.get(key, None)
+            if val is None:
+                val = default_value
+            return val
+
         if self.with_distributed_adam:
+            # Allocate contiguous grad buffer to avoid extra copies
+            optim_kwargs['contiguous_grad_buffer'] = get_config_arg('contiguous_grad_buffer', True)
+            if self.megatron_amp_O2 and not optim_kwargs['contiguous_grad_buffer']:
+                raise ValueError(
+                    "Distributed Adam optimizer requires contiguous param buffer for O2. "
+                    "Either enable contiguous_grad_buffer or disable megatron_amp_O2."
+                )
 
-            # Allocate contiguous buffer to avoid extra copies
-            optim_kwargs['contiguous_grad_buffer'] = True
-
-            # Make sure optimizer state is in FP32
-            optim_dtype = torch.float32
+            # Optimizer dtype
+            optim_dtype = str_to_dtype(get_config_arg('dtype', torch.float32))
             optim_kwargs['dtype'] = optim_dtype
 
             # Make sure embedding grad reductions are in FP32
-            for name, param in self.named_parameters():
-                if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
-                    param._with_fp32_optimizer = True
+            if optim_dtype == torch.float32:
+                for name, param in self.named_parameters():
+                    if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
+                        param._with_fp32_optimizer = True
 
             # Match param allgather with model dtype
             model_dtype = torch.float32
@@ -653,7 +696,9 @@ class MegatronBaseModel(NLPModel):
             optim_kwargs['param_sync_dtype'] = model_dtype
 
             # Determine whether to store master params in optimizer
-            if optim_dtype == model_dtype:
+            if self.cfg.get('fp8_params', False):
+                optim_kwargs['store_params'] = True
+            elif optim_dtype == model_dtype:
                 optim_kwargs['store_params'] = False
             elif optim_dtype == torch.float32 and model_dtype == torch.bfloat16:
                 optim_kwargs['store_params'] = False
@@ -720,9 +765,11 @@ class MegatronBaseModel(NLPModel):
         if self.with_distributed_adam:
 
             # Initialize param buckets if explicitly provided
-            if hasattr(self, 'distributed_adam_buckets'):
+            if getattr(self, 'distributed_adam_buckets', None):
                 for bucket in self.distributed_adam_buckets:
                     self._optimizer.init_params_bucket(bucket)
+                self._optimizer.init_params_bucket(self.parameters())
+            if hasattr(self, 'distributed_adam_buckets'):
                 del self.distributed_adam_buckets
 
             # Make sure all params are initialized so main grads are
@@ -829,12 +876,14 @@ class MegatronBaseModel(NLPModel):
                 ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         if self.cfg.get('ub_tp_comm_overlap', False):
-            if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):
+            if not self.cfg.get('sequence_parallel', False):
                 logging.info(
-                    "Userbuffer tensor-parallel communication overlap is available with both Transformer Engine and sequence-parallelism."
+                    "Pipelined tensor-parallel communication overlap is available with sequence-parallelism."
+                    "Setting `ub_tp_comm_overlap` to False."
                 )
                 with open_dict(self.cfg):
                     self.cfg.ub_tp_comm_overlap = False
+
             if self.cfg.get('fsdp', False):
                 logging.info(
                     "Userbuffer tensor-parallel communication overlap is not available with FSDP."
