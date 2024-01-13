@@ -116,16 +116,13 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
             }
 
         moe_config = MoeConfig()
-        if (not layer.moe_num_experts is None and
-                not layer.moe_top_k is None and
-                not layer.moe_tp_mode is None and
-                not layer.moe_renorm_mode is None
-        ):
-            moe_top_k = layer.moe_top_k
-            if layer.moe_num_experts and layer.moe_top_k == 0:
-                moe_top_k = 1
+        if not layer.moe_num_experts is None:
+            if layer.moe_top_k is None:
+                layer.moe_top_k = 1
 
-            moe_config = MoeConfig(layer.moe_num_experts, moe_top_k,
+            layer.moe_tp_mode = MoeConfig.ParallelismMode.TENSOR_PARALLEL if layer.moe_tp_mode is None else None
+            layer.moe_renorm_mode = MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
+            moe_config = MoeConfig(layer.moe_num_experts, layer.moe_top_k,
                                    layer.moe_tp_mode, layer.moe_renorm_mode).validate()
 
         return LLaMADecoderLayer(
