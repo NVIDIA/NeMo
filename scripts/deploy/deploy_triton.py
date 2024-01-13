@@ -16,7 +16,7 @@ import argparse
 import sys, os
 from pathlib import Path
 
-from nemo.deploy import DeployPyTriton, DeployPyTritonStreaming, NemoQuery
+from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
 import logging
 
@@ -302,24 +302,15 @@ def nemo_deploy(argv):
         return
 
     try:
-        if args.enable_streaming:
-            nm = DeployPyTritonStreaming(
-                model=trt_llm_exporter,
-                triton_model_name=args.triton_model_name,
-                triton_model_version=args.triton_model_version,
-                max_batch_size=args.max_batch_size,
-                port=args.triton_port,
-                grpc_address=args.triton_http_address,
-            )
-        else:
-            nm = DeployPyTriton(
-                model=trt_llm_exporter,
-                triton_model_name=args.triton_model_name,
-                triton_model_version=args.triton_model_version,
-                max_batch_size=args.max_batch_size,
-                port=args.triton_port,
-                address=args.triton_http_address,
-            )
+        nm = DeployPyTriton(
+            model=trt_llm_exporter,
+            triton_model_name=args.triton_model_name,
+            triton_model_version=args.triton_model_version,
+            max_batch_size=args.max_batch_size,
+            port=args.triton_port,
+            address=args.triton_http_address,
+            streaming=args.enable_streaming
+        )
 
         LOGGER.info("Triton deploy function will be called.")
         nm.deploy()

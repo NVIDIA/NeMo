@@ -67,8 +67,11 @@ class DeployPyTriton(DeployBase):
         max_batch_size: int = 128,
         port: int = 8000,
         address="0.0.0.0",
+        allow_grpc=True,
+        allow_http=True,
+        streaming=False,
+        pytriton_log_verbose=0,
     ):
-
         """
         A nemo checkpoint or model is expected for serving on Triton Inference Server.
 
@@ -90,6 +93,10 @@ class DeployPyTriton(DeployBase):
             max_batch_size=max_batch_size,
             port=port,
             address=address,
+            allow_grpc=allow_grpc,
+            allow_http=allow_http,
+            streaming=streaming,
+            pytriton_log_verbose=pytriton_log_verbose,
         )
 
     def deploy(self):
@@ -101,118 +108,39 @@ class DeployPyTriton(DeployBase):
         self._init_nemo_model()
 
         try:
-            triton_config = TritonConfig(http_address=self.address, http_port=self.port)
-            self.triton = Triton(config=triton_config)
-            self.triton.bind(
-                model_name=self.triton_model_name,
-                model_version=self.triton_model_version,
-                infer_func=self.model.triton_infer_fn,
-                inputs=self.model.get_triton_input,
-                outputs=self.model.get_triton_output,
-                config=ModelConfig(max_batch_size=self.max_batch_size),
-            )
-        except Exception as e:
-            self.triton = None
-            print(e)
-
-    def serve(self):
-
-        """
-        Starts serving the model and waits for the requests
-        """
-
-        if self.triton is None:
-            raise Exception("deploy should be called first.")
-
-        try:
-            self.triton.serve()
-        except Exception as e:
-            self.triton = None
-            print(e)
-
-    def run(self):
-
-        """
-        Starts serving the model asynchronously.
-        """
-
-        if self.triton is None:
-            raise Exception("deploy should be called first.")
-
-        self.triton.run()
-
-    def stop(self):
-        """
-        Stops serving the model.
-        """
-
-        if self.triton is None:
-            raise Exception("deploy should be called first.")
-
-        self.triton.stop()
-
-
-class DeployPyTritonStreaming(DeployBase):
-
-    def __init__(
-        self,
-        triton_model_name: str,
-        triton_model_version: int = 1,
-        checkpoint_path: str = None,
-        model=None,
-        max_batch_size: int = 128,
-        port: int = 8000,
-        grpc_address="0.0.0.0",
-    ):
-
-        """
-        A nemo checkpoint or model is expected for serving on Triton Inference Server.
-
-        Args:
-            triton_model_name (str): Name for the service
-            triton_model_version(int): Version for the service
-            checkpoint_path (str): path of the nemo file
-            model (ITritonDeployable): A model that implements the ITritonDeployable from nemo.deploy import ITritonDeployable
-            max_batch_size (int): max batch size
-            port (int) : port for the Triton server
-            grpc_address (str): grpc address for Triton server to bind.
-        """
-
-        super().__init__(
-            triton_model_name=triton_model_name,
-            triton_model_version=triton_model_version,
-            checkpoint_path=checkpoint_path,
-            model=model,
-            max_batch_size=max_batch_size,
-            port=port,
-            address=grpc_address,
-        )
-
-    def deploy(self):
-
-        """
-        Deploys any models to Triton Inference Server.
-        """
-
-        self._init_nemo_model()
-
-        try:
-            # TODO: can't set allow_http=True due to a bug in pytriton, will fix in latest pytriton
-            triton_config = TritonConfig(
-                log_verbose=0,
-                allow_grpc=True,
-                allow_http=True,
-                grpc_address=self.address
-            )
-            self.triton = Triton(config=triton_config)
-            self.triton.bind(
-                model_name=self.triton_model_name,
-                model_version=self.triton_model_version,
-                infer_func=self.model.triton_infer_fn_streaming,
-                inputs=self.model.get_triton_input,
-                outputs=self.model.get_triton_output,
-                config=ModelConfig(decoupled=True),
-            )
+            if self.streaming:
+                # TODO: can't set allow_http=True due to a bug in pytriton, will fix in latest pytriton
+                triton_config = TritonConfig(
+                    log_verbose=self.pytriton_log_verbose,
+                    allow_grpc=self.allow_grpc,
+                    allow_http=self.allow_http,
+                    grpc_address=self.address
+                )
+                self.triton = Triton(config=triton_config)
+                self.triton.bind(
+                    model_name=self.triton_model_name,
+                    model_version=self.triton_model_version,
+                    infer_func=self.model.triton_infer_fn_streaming,
+                    inputs=self.model.get_triton_input,
+                    outputs=self.model.get_triton_output,
+                    config=ModelConfig(decoupled=True),
+                )
+            else:
+                triton_config = TritonConfig(
+                    http_address=self.address,
+                    http_port=self.port,
+                    allow_grpc=self.allow_grpc,
+                    allow_http=self.allow_http,
+                )
+                self.triton = Triton(config=triton_config)
+                self.triton.bind(
+                    model_name=self.triton_model_name,
+                    model_version=self.triton_model_version,
+                    infer_func=self.model.triton_infer_fn,
+                    inputs=self.model.get_triton_input,
+                    outputs=self.model.get_triton_output,
+                    config=ModelConfig(max_batch_size=self.max_batch_size),
+                )
         except Exception as e:
             self.triton = None
             print(e)

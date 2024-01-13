@@ -38,6 +38,10 @@ class DeployBase(ABC):
         max_batch_size: int = 128,
         port: int = 8000,
         address="0.0.0.0",
+        allow_grpc=True,
+        allow_http=True,
+        streaming=False,
+        pytriton_log_verbose=0,
     ):
         self.checkpoint_path = checkpoint_path
         self.triton_model_name = triton_model_name
@@ -47,6 +51,10 @@ class DeployBase(ABC):
         self.port = port
         self.address = address
         self.triton = None
+        self.allow_grpc = allow_grpc
+        self.allow_http = allow_http
+        self.streaming = streaming
+        self.pytriton_log_verbose = pytriton_log_verbose
 
         if checkpoint_path is None and model is None:
             raise Exception("Either checkpoint_path or model should be provided.")
