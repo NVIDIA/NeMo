@@ -13,15 +13,13 @@
 # limitations under the License.
 
 
-import copy
 import json
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pytest
 import torch
-from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.asr.parts.mixins import TranscribeConfig, TranscriptionMixin
@@ -168,7 +166,7 @@ class TestTranscriptionMixin:
         audio = [1.0, 2.0, 3.0]
         override_cfg = OverrideConfig(batch_size=1, output_type='dict')
         with pytest.raises(ValueError):
-            outputs = dummy_model.transcribe(audio, override_config=override_cfg)
+            _ = dummy_model.transcribe(audio, override_config=override_cfg)
 
     @pytest.mark.unit
     def test_transribe_override_config_correct(self, dummy_model):

@@ -14,12 +14,10 @@
 
 import json
 import os
-import subprocess
 import tempfile
-import types
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -30,13 +28,6 @@ from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.utils import logging
-
-try:
-    import requests
-
-    HAVE_REQUESTS = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_REQUESTS = False
 
 
 TranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
@@ -71,7 +62,7 @@ class TranscribeConfig:
     return_generator: bool = False
     partial_hypothesis: Optional[List[Any]] = False
 
-    # DEPRECATED?
+    # TODO(@titu1994): DEPRECATED?
     logprobs: bool = False
 
     _internal: Optional[InternalTranscribeConfig] = None
@@ -222,7 +213,7 @@ class TranscriptionMixin(ABC):
                             results[i].append(processed_output)
 
                 else:
-                    raise NotImplemented(
+                    raise NotImplementedError(
                         "Given output result for transcription is not supported. "
                         "Please return a list of results, list of list of results, "
                         "a dict of list of results, or "

@@ -22,7 +22,7 @@ from nemo.collections.asr.models.classification_models import (
 )
 from nemo.collections.asr.models.clustering_diarizer import ClusteringDiarizer
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel, TranscribeConfig
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.models.enhancement_models import EncMaskDecAudioToAudioModel
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
@@ -39,3 +39,4 @@ from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.models.slu_models import SLUIntentSlotBPEModel
 from nemo.collections.asr.models.ssl_models import SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.models.transformer_bpe_models import EncDecTransfModelBPE
+from nemo.collections.asr.parts.mixins import TranscribeConfig

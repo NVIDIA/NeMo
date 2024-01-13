@@ -16,7 +16,7 @@ import copy
 import json
 import os
 import tempfile
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
