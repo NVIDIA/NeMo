@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from .deploy_base import DeployBase
-from .deploy_pytriton import DeployPyTriton, DeployPyTritonStreaming
 from .deploy_pytriton import DeployPyTriton
 try:
     from .deploy_tensorrt_llm import DeployTensorRTLLM

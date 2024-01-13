@@ -169,6 +169,13 @@ def get_args(argv):
                         It is beneifical when batchxnum_heads cannot fully utilize GPU.'
     )
     parser.add_argument(
+        "-es",
+        '--enable_streaming',
+        default=False,
+        action='store_true',
+        help="Enables streaming sentences."
+    )
+    parser.add_argument(
         "-dm",
         "--debug_mode",
         default="False",
@@ -301,7 +308,8 @@ def nemo_deploy(argv):
             triton_model_version=args.triton_model_version,
             max_batch_size=args.max_batch_size,
             port=args.triton_port,
-            http_address=args.triton_http_address,
+            address=args.triton_http_address,
+            streaming=args.enable_streaming
         )
 
         LOGGER.info("Triton deploy function will be called.")
