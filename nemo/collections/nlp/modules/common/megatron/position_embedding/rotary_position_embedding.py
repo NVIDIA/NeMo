@@ -65,16 +65,28 @@ class RotaryEmbedding(nn.Module):
         """
     def augment(self, seq, max_seq_len):
         current_range = max_seq_len
-        if self.augment_seq['stretch']:
-            max_stretch_factor  = self.base_len * self.seq_len_interpolation_factor / current_range
+
+        target_augmented_length = self.augment_seq.get('target', None)
+
+        if self.augment_seq.get('stretch', False):
+            if target_augmented_length:
+                max_stretch_factor  = target_augmented_length / current_range
+            else:
+                max_stretch_factor  = self.base_len * self.seq_len_interpolation_factor / current_range
+
             stretch_factor = random.random() * max_stretch_factor
             if self.augment_seq.get('discrete', False):
                 stretch_factor = int(stretch_factor)
             seq *= stretch_factor
             current_range *= stretch_factor
         
-        num_shifts = int(self.augment_seq['shift_fraction'] * max_seq_len)
-        total_shift = self.base_len * self.seq_len_interpolation_factor - current_range
+        num_shifts = self.augment_seq.get('num_shifts', None)
+        if num_shifts:
+            if target_augmented_length:
+                total_shift = target_augmented_length - current_range
+            else:
+                total_shift = self.base_len * self.seq_len_interpolation_factor - current_range
+
         shifts = torch.rand(num_shifts)
         shifts = shifts / shifts.sum() * total_shift
         if self.augment_seq.get('discrete', False):
@@ -95,7 +107,7 @@ class RotaryEmbedding(nn.Module):
         else:
             seq = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype) + offset
 
-        if maybe_augment and self.augment_seq and self.augment_seq['add_noise']:
+        if maybe_augment and self.augment_seq and self.augment_seq.get('add_noise', False):
             seq += torch.rand_like(seq) 
 
         if not maybe_interpolate:
