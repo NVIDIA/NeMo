@@ -44,7 +44,9 @@ class PEFTConfig:
         self.name_key_to_cfg = name_key_to_cfg
 
         self.layer_selection = peft_cfg.get("layer_selection", None)
-        self.weight_tying = peft_cfg.get("weight_tying", False) #TODO: move this attr to LoraPEFTConfig and AdapterPEFTConfig classes 
+        self.weight_tying = peft_cfg.get(
+            "weight_tying", False
+        )  # TODO: move this attr to LoraPEFTConfig and AdapterPEFTConfig classes
 
     def get_config_dict(self):
         return self.name_key_to_cfg

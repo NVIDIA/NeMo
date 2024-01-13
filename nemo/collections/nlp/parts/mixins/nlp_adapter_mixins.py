@@ -300,12 +300,10 @@ class NLPAdapterModelMixin:
         for n, p in self.named_parameters():
             for tpn in peft_cfg.tunable_base_param_names:
                 # TODO: simplistic param name matching, should support regex-like syntax @adithyare
-                if (f".{tpn}." in n):  
+                if f".{tpn}." in n:
                     self.tunable_base_param_keys.add(n)
                     p.requires_grad = True  # We set these to true to trigger setup_optimizer_param_groups
-                
 
- 
     def tie_weights(self, peft_cfg):
         pos_idx = 0
 
