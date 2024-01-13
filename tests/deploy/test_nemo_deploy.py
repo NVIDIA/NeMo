@@ -20,7 +20,7 @@ import pytest
 import numpy as np
 import time
 
-from nemo.deploy import DeployPyTriton, DeployPyTritonStreaming, DeployTensorRTLLM, NemoQuery, NemoQueryTensorRTLLM
+from nemo.deploy import DeployPyTriton, DeployTensorRTLLM, NemoQuery, NemoQueryTensorRTLLM
 from nemo.export import TensorRTLLM
 from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
 import torch
@@ -130,7 +130,11 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
         prompts = model_info["prompt_template"]
         if use_pytriton:
             if not use_streaming:
-                nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
+                nm = DeployPyTriton(
+                    model=trt_llm_exporter,
+                    triton_model_name=model_name,
+                    port=8000,
+                )
                 nm.deploy()
                 nm.run()
                 nq = NemoQuery(url="http://localhost:8000", model_name=model_name)
@@ -142,7 +146,13 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
                         temperature=1.0,
                 )
             else:
-                nm = DeployPyTritonStreaming(model=trt_llm_exporter, triton_model_name=model_name, port=8001)
+                nm = DeployPyTriton(
+                    model=trt_llm_exporter,
+                    triton_model_name=model_name,
+                    port=8001,
+                    streaming=True,
+                )
+
                 nm.deploy()
                 nm.run()
                 nq = NemoQuery(url="grpc://localhost:8001", model_name=model_name)
@@ -248,6 +258,8 @@ def test_LLAMA2_7B_base_1gpu_ifb(n_gpus):
 
     run_trt_llm_export("LLAMA2-7B-base", n_gpus, use_pytriton=False, skip_accuracy=False)
 
+
+
 @pytest.mark.parametrize("n_gpus", [1])
 def test_LLAMA2_7B_base_1gpu_streaming(n_gpus):
     """Here we test the trt-llm transfer and infer function with IFB and c++ backend"""
@@ -255,6 +267,7 @@ def test_LLAMA2_7B_base_1gpu_streaming(n_gpus):
         pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
 
     run_trt_llm_export("LLAMA2-7B-base", n_gpus, use_pytriton=True, skip_accuracy=True, use_streaming=True)
+
 
 @pytest.mark.parametrize("n_gpus", [1])
 def test_LLAMA2_13B_base_1gpu(n_gpus):
