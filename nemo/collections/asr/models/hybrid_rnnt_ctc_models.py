@@ -174,7 +174,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         del encoded
         return output
 
-    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> Tuple[List['Hypothesis'], List['Hypothesis']]:
+    def _transcribe_output_processing(
+        self, outputs, trcfg: TranscribeConfig
+    ) -> Tuple[List['Hypothesis'], List['Hypothesis']]:
         if self.cur_decoder == "rnnt":
             return super()._transcribe_output_processing(outputs, trcfg)
 

@@ -17,7 +17,7 @@ import json
 import os
 import tempfile
 from math import ceil
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict

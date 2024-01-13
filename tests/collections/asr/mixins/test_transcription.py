@@ -16,22 +16,19 @@
 import copy
 import json
 import os
-
-import pytest
-import torch
-from torch.utils.data import Dataset, DataLoader
-
-from omegaconf import DictConfig
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+import pytest
+import torch
+from omegaconf import DictConfig
+from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.asr.parts.mixins import TranscriptionMixin, TranscribeConfig
+from nemo.collections.asr.parts.mixins import TranscribeConfig, TranscriptionMixin
 from nemo.collections.asr.parts.mixins.transcription import TranscriptionType
 
 
 class DummyModel(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
         self.encoder = torch.nn.Linear(1, 1)
@@ -47,7 +44,6 @@ class DummyModel(torch.nn.Module):
 
 
 class TranscribableDummy(DummyModel, TranscriptionMixin):
-
     def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
         super()._transcribe_on_begin(audio, trcfg)
         self.flag_begin = True

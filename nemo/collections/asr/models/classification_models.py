@@ -17,9 +17,9 @@ import json
 import os
 import tempfile
 from abc import abstractmethod
+from dataclasses import dataclass
 from math import ceil, floor
 from typing import Any, Dict, List, Optional, Union
-from dataclasses import dataclass
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
@@ -29,10 +29,11 @@ from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError
 
 from nemo.collections.asr.data import audio_to_label_dataset, feature_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.parts.mixins import TranscribeConfig
+from nemo.collections.asr.parts.mixins import TranscribeConfig as _TranscribeConfig
+from nemo.collections.asr.parts.mixins import TranscriptionMixin
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.asr.parts.mixins import TranscriptionMixin, TranscribeConfig as _TranscribeConfig, \
-    TranscribeConfig
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -343,8 +344,13 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         )
 
     @torch.no_grad()
-    def transcribe(self, audio: List[str], batch_size: int = 4, logprobs=False,
-                   override_config: Optional[ClassificationTranscribeConfig] = None,) -> List[str]:
+    def transcribe(
+        self,
+        audio: List[str],
+        batch_size: int = 4,
+        logprobs=False,
+        override_config: Optional[ClassificationTranscribeConfig] = None,
+    ) -> List[str]:
         """
         Generate class labels for provided audio files. Use this method for debugging and prototyping.
 
@@ -388,7 +394,9 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         output = dict(logits=logits)
         return output
 
-    def _transcribe_output_processing(self, outputs, trcfg: ClassificationTranscribeConfig) -> Union[List[str], List[torch.Tensor]]:
+    def _transcribe_output_processing(
+        self, outputs, trcfg: ClassificationTranscribeConfig
+    ) -> Union[List[str], List[torch.Tensor]]:
         logits = outputs.pop('logits')
         labels = []
 

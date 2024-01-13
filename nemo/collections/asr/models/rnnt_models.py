@@ -31,7 +31,7 @@ from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
-from nemo.collections.asr.parts.mixins import ASRTranscriptionMixin, ASRModuleMixin, TranscribeConfig
+from nemo.collections.asr.parts.mixins import ASRModuleMixin, ASRTranscriptionMixin, TranscribeConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
@@ -270,7 +270,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             # Additional arguments
             partial_hypothesis=partial_hypothesis,
         )
-
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
         """
@@ -857,7 +856,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         output = dict(encoded=encoded, encoded_len=encoded_len)
         return output
 
-    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> Tuple[List['Hypothesis'], List['Hypothesis']]:
+    def _transcribe_output_processing(
+        self, outputs, trcfg: TranscribeConfig
+    ) -> Tuple[List['Hypothesis'], List['Hypothesis']]:
         encoded = outputs.pop('encoded')
         encoded_len = outputs.pop('encoded_len')
 

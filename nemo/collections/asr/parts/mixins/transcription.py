@@ -12,29 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import json
-import tempfile
+import os
 import subprocess
-from tqdm import tqdm
-
+import tempfile
 import types
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from typing import Any, Dict, List, Optional, Union, Tuple
-
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, IterableDataset
 from omegaconf import DictConfig
-from dataclasses import dataclass, field
+from torch.utils.data import DataLoader, IterableDataset
+from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.utils import logging
 
 try:
     import requests
+
     HAVE_REQUESTS = True
 except (ImportError, ModuleNotFoundError):
     HAVE_REQUESTS = False
@@ -214,8 +213,10 @@ class TranscriptionMixin(ABC):
                     else:
                         # If flat list structure
                         if len(processed_outputs) != len(results):
-                            raise RuntimeError(f"The number of elements in the result ({len(results)}) does not "
-                                               f"match the results of the current batch ({len(processed_outputs)}).")
+                            raise RuntimeError(
+                                f"The number of elements in the result ({len(results)}) does not "
+                                f"match the results of the current batch ({len(processed_outputs)})."
+                            )
 
                         for i, processed_output in enumerate(processed_outputs):
                             results[i].append(processed_output)

@@ -16,7 +16,7 @@ import json
 import os
 import tempfile
 from math import ceil
-from typing import Dict, List, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -30,7 +30,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpe
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRTranscriptionMixin, ASRModuleMixin, InterCTCMixin, TranscribeConfig
+from nemo.collections.asr.parts.mixins import ASRModuleMixin, ASRTranscriptionMixin, InterCTCMixin, TranscribeConfig
 from nemo.collections.asr.parts.mixins.transcription import TranscriptionType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType

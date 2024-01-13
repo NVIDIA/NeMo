@@ -29,7 +29,6 @@ __all__ = ['ASRModel']
 
 
 class ASRModel(ModelPT, ABC):
-
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
