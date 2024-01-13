@@ -1,5 +1,4 @@
 addict
-basicsr
 clip
 diffusers>=0.19.3
 einops_exts
@@ -16,5 +15,3 @@ taming-transformers
 torchdiffeq
 torchsde
 trimesh
-xatlas
-yapf
