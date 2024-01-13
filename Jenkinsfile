@@ -133,12 +133,12 @@ pipeline {
         trainer.devices=1 \
         ++exp_manager.max_time_per_run=00:00:03:00 \
         trainer.max_steps=20 \
-        model.micro_batch_size=4 \
-        model.global_batch_size=4 \
+        model.micro_batch_size=1 \
+        model.global_batch_size=1 \
         model.data.synthetic_data=True \
         exp_manager.exp_dir=/home/TestData/multimodal/imagen_train \
         model.inductor=False \
-        model.use_flash_attention=False \
+        model.unet.flash_attention=False \
         "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/imagen_train"
@@ -175,7 +175,7 @@ pipeline {
             ~model.cond_stage_config.layer \
             model.unet_config.from_pretrained=null \
             model.first_stage_config.from_pretrained=null \
-            model.use_flash_attention=False \
+            model.unet_config.use_flash_attention=False \
             "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
@@ -207,7 +207,7 @@ pipeline {
             model.control_stage_config.params.from_pretrained_unet=null \
             model.unet_config.from_pretrained=null \
             model.first_stage_config.from_pretrained=null \
-            model.use_flash_attention=False \
+            model.unet_config.use_flash_attention=False \
             "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/controlnet_train"
@@ -243,7 +243,7 @@ pipeline {
             model.unet_config.from_pretrained=null \
             model.first_stage_config.from_pretrained=null \
             model.data.instance_dir=/home/TestData/multimodal/tiny-dreambooth \
-                        model.use_flash_attention=False \
+            model.unet_config.use_flash_attention=False \
             "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/dreambooth_train"
@@ -359,6 +359,7 @@ pipeline {
             model.data.conv_template=llama_2 \
             model.mm_cfg.vision_encoder.from_pretrained='openai/clip-vit-large-patch14' \
             model.mm_cfg.llm.from_pretrained=null \
+            model.use_flash_attention=false \
             exp_manager.exp_dir=/home/TestData/multimodal/neva_pretrain_tp1 "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/neva_pretrain_tp1"
