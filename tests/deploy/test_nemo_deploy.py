@@ -133,7 +133,7 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
                 nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
                 nm.deploy()
                 nm.run()
-                nq = NemoQuery(url="http://localhost", model_name=model_name)
+                nq = NemoQuery(url="http://localhost:8000", model_name=model_name)
                 output = nq.query_llm(
                         prompts=prompts,
                         max_output_token=model_info["max_output_token"],
@@ -145,8 +145,8 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
                 nm = DeployPyTritonStreaming(model=trt_llm_exporter, triton_model_name=model_name, port=8001)
                 nm.deploy()
                 nm.run()
-                nq = NemoQuery(url="grpc://localhost:8001", model_name=model_name, streaming=True)
-                output_gen = nq.query_llm(
+                nq = NemoQuery(url="grpc://localhost:8001", model_name=model_name)
+                output_gen = nq.query_llm_streaming(
                         prompts=prompts,
                         max_output_token=model_info["max_output_token"],
                         top_k=1,
