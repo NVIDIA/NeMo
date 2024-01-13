@@ -44,8 +44,7 @@ class PEFTConfig:
         self.name_key_to_cfg = name_key_to_cfg
 
         self.layer_selection = peft_cfg.get("layer_selection", None)
-        self.weight_tying = peft_cfg.get("weight_tying", False)
-        self.tunable_param_names = peft_cfg.get("tunable_param_names", [])
+        self.weight_tying = peft_cfg.get("weight_tying", False) #TODO: move this attr to LoraPEFTConfig and AdapterPEFTConfig classes 
 
     def get_config_dict(self):
         return self.name_key_to_cfg
@@ -55,6 +54,7 @@ class SelectivePEFTConfig(PEFTConfig):
     def __init__(self, cfg):
         selective_cfg = cfg.peft.selective_tuning
         super().__init__(selective_cfg, name_key_to_cfg={})
+        self.tunable_base_param_names = selective_cfg.get("tunable_base_param_names", [])
 
 
 class LoraPEFTConfig(PEFTConfig):
