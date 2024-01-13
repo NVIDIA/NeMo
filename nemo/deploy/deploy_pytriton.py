@@ -198,7 +198,12 @@ class DeployPyTritonStreaming(DeployBase):
 
         try:
             # TODO: can't set allow_http=True due to a bug in pytriton, will fix in latest pytriton
-            triton_config = TritonConfig(log_verbose=0, allow_grpc=True, allow_http=True, grpc_address=self.address)
+            triton_config = TritonConfig(
+                log_verbose=0,
+                allow_grpc=True,
+                allow_http=True,
+                grpc_address=self.address
+            )
             self.triton = Triton(config=triton_config)
             self.triton.bind(
                 model_name=self.triton_model_name,
