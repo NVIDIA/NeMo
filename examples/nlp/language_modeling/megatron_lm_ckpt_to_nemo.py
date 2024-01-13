@@ -34,6 +34,7 @@ so the learning rate scheduler will follow the same curve.
 """
 
 import importlib
+import io
 import os
 import pathlib
 import sys
@@ -149,25 +150,42 @@ def get_args():
     parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
 
     parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert"])
+    parser.add_argument("--mcore_input", action='store_true', help="input model is trained with Megatron Core")
 
     args = parser.parse_args()
     return args
 
 
-def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, converted: OrderedDict, translator: dict):
+def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, converted: OrderedDict, translator: dict,
+                  mcore_translator: Optional[dict]=None):
     for key in weight_dict:
+        if key.endswith('_extra_state'):
+            if weight_dict[key].read() == b'':
+                continue
+            else:
+                raise RuntimeError("encountered _extra_state that is non empty. I don't know what to do!!")
+
         new_key = key
         name_translate = translator
 
         for replace_key in name_translate:
             if key.find(replace_key) >= 0:
                 new_key = key.replace(replace_key, name_translate[replace_key])
+
+        if mcore_translator:
+            # convert to mcore key names
+            mcore_key = mcore_translator.get(f'model{parent_key}.{new_key}', new_key)
+            if mcore_key != new_key:
+                logging.info(f'successfully mapped model{parent_key}.{new_key} to {mcore_key}')
+            elif not (isinstance(weight_dict[key], OrderedDict) or isinstance(weight_dict[key], dict)):
+                logging.warning(f'cannot find nemo -> mcore mapping for: {new_key}')
+
         if isinstance(weight_dict[key], OrderedDict) or isinstance(weight_dict[key], dict):
-            parse_weights(weight_dict[key], parent_key + '.' + new_key, total, converted, translator)
+            parse_weights(weight_dict[key], parent_key + '.' + new_key, total, converted, translator, mcore_translator)
         else:
             num_parameters = torch.prod(torch.tensor(weight_dict[key].cpu().size())).item()
             total[0] += num_parameters
-            final_key = 'model' + parent_key + '.' + new_key
+            final_key = mcore_key if mcore_translator else 'model' + parent_key + '.' + new_key
             converted[final_key] = weight_dict[key]
 
 
@@ -228,11 +246,26 @@ def load_model(cls, checkpoint, strict, **kwargs):
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
         else:
-            model = ptl_load_state(
-                cls, checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg, **kwargs
-            )
-            # register the artifacts
             cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
+
+            model = cls(cfg=cfg, **kwargs)
+            for name, module in model.named_parameters():
+                if name in checkpoint['state_dict']:
+                    module.data = checkpoint['state_dict'][name]
+                    checkpoint['state_dict'].pop(name)
+                else:
+                    print(f"Unexpected key: {name} not in checkpoint but in model.")
+
+            for name, buffer in model.named_buffers():
+                if name in checkpoint['state_dict']:
+                    buffer.data = checkpoint['state_dict'][name]
+                    checkpoint['state_dict'].pop(name)
+
+            if len(checkpoint['state_dict'].keys()) != 0:
+                raise RuntimeError(
+                    f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model."
+                )
+            # register the artifacts
             if cfg.tokenizer.model is not None:
                 model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
             if cfg.tokenizer.vocab_file is not None:
@@ -271,7 +304,8 @@ def load_from_checkpoint(
         checkpoint = OrderedDict()
         checkpoint['state_dict'] = OrderedDict()
         parse_weights(
-            old_checkpoint['model'], "", total_params, checkpoint['state_dict'], translator=kwargs['translator']
+            old_checkpoint['model'], "", total_params, checkpoint['state_dict'], translator=kwargs['translator'],
+            mcore_translator=kwargs.get('mcore_translator', None)
         )
         print('converted {:.2f}M parameters'.format(total_params[0] / 1e6))
 
@@ -412,6 +446,14 @@ def convert(local_rank, rank, world_size, args):
         name_translate['.attention.'] = '.self_attention.'
         # nemo megatron doesn't have _for_head key
         name_translate['word_embeddings_for_head'] = 'word_embeddings'
+
+        mcore_translate = None
+        model_cfg = load_hparams_from_yaml(args.hparams_file).cfg
+        if model_cfg.get("mcore_gpt", False) and not args.mcore_input:
+            # initialize an mcore translation dict only if converting from legacy-m-lm to mcore-nemo
+            from scripts.nlp_language_modeling.convert_nemo_gpt_to_mcore import build_key_mapping
+            mcore_translate = {v:k for k, v in build_key_mapping(model_cfg).items()}
+
         checkpoint, consumed, steps, version = load_from_checkpoint(
             MegatronGPTModel,
             checkpoint_path,
@@ -419,6 +461,7 @@ def convert(local_rank, rank, world_size, args):
             trainer=trainer,
             translator=name_translate,
             strict=False,
+            mcore_translator=mcore_translate
         )
     elif args.model_type == 'bert':
         # this dictionary is used to rename the model parameters
@@ -462,6 +505,13 @@ def convert(local_rank, rank, world_size, args):
 
     if args.nemo_file_path:
         if args.model_type == 'gpt':
+            if model_cfg.get("mcore_gpt", False) and parallel_state.is_unitialized():
+                parallel_state.initialize_model_parallel(
+                        tensor_model_parallel_size=args.tensor_model_parallel_size,
+                        pipeline_model_parallel_size=args.pipeline_model_parallel_size,
+                        virtual_pipeline_model_parallel_size=None,
+                        pipeline_model_parallel_split_rank=0,
+                )
             model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
         elif args.model_type == 'bert':
             model = load_model(MegatronBertModel, checkpoint, strict=False, trainer=trainer)
