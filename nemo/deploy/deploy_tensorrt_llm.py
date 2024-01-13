@@ -80,7 +80,7 @@ class DeployTensorRTLLM(DeployBase):
             model (ITritonDeployable): A model that implements the ITritonDeployable from nemo.deploy import ITritonDeployable
             max_batch_size (int): max batch size
             port (int) : port for the Triton server
-            http_address (str): http address for Triton server to bind.
+            address (str): http address for Triton server to bind.
 
         """
 
@@ -91,7 +91,7 @@ class DeployTensorRTLLM(DeployBase):
             model=model,
             max_batch_size=max_batch_size,
             port=port,
-            http_address=http_address,
+            address=http_address,
         )
 
         self.model_repo_dir=model_repo_dir

@@ -33,7 +33,7 @@ import logging
 
 from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
-from .trt_llm.tensorrt_llm_run import generate, load
+from .trt_llm.tensorrt_llm_run import generate, generate_streaming, load
 from .utils import is_nemo_file, unpack_nemo_ckpt
 
 use_pytriton = True
@@ -272,23 +272,39 @@ class TensorRTLLM(ITritonDeployable):
                         for i in range(len(input_texts)):
                             assert task_ids[i] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(task_ids[i])
                             input_task_ids.append(self.task_ids[task_ids[i]])
+            if not streaming:
+                return generate(
+                    input_texts=input_texts,
+                    max_output_len=max_output_token,
+                    host_context=self.model,
+                    top_k=top_k,
+                    top_p=top_p,
+                    temperature=temperature,
+                    prompt_table=prompt_table,
+                    task_vocab_size=tv_size,
+                    task_ids=input_task_ids,
+                    stop_words_list=stop_words_list,
+                    bad_words_list=bad_words_list,
+                    no_repeat_ngram_size=no_repeat_ngram_size,
+                    **sampling_kwargs,
+                )
 
-            return generate(
-                input_texts=input_texts,
-                max_output_len=max_output_token,
-                host_context=self.model,
-                top_k=top_k,
-                top_p=top_p,
-                temperature=temperature,
-                prompt_table=prompt_table,
-                task_vocab_size=tv_size,
-                task_ids=input_task_ids,
-                stop_words_list=stop_words_list,
-                bad_words_list=bad_words_list,
-                no_repeat_ngram_size=no_repeat_ngram_size,
-                streaming=streaming,
-                **sampling_kwargs,
-            )
+            else:
+                return generate_streaming(
+                    input_texts=input_texts,
+                    max_output_len=max_output_token,
+                    host_context=self.model,
+                    top_k=top_k,
+                    top_p=top_p,
+                    temperature=temperature,
+                    prompt_table=prompt_table,
+                    task_vocab_size=tv_size,
+                    task_ids=input_task_ids,
+                    stop_words_list=stop_words_list,
+                    bad_words_list=bad_words_list,
+                    no_repeat_ngram_size=no_repeat_ngram_size,
+                    **sampling_kwargs,
+                )
 
     def add_prompt_table(self, task_name: str, prompt_embeddings_checkpoint_path: str):
         # TODO: check if the added table's size is larger than the max_prompt_embedding_table_size

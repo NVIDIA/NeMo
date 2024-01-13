@@ -66,7 +66,7 @@ class DeployPyTriton(DeployBase):
         model=None,
         max_batch_size: int = 128,
         port: int = 8000,
-        http_address="0.0.0.0",
+        address="0.0.0.0",
     ):
 
         """
@@ -79,7 +79,7 @@ class DeployPyTriton(DeployBase):
             model (ITritonDeployable): A model that implements the ITritonDeployable from nemo.deploy import ITritonDeployable
             max_batch_size (int): max batch size
             port (int) : port for the Triton server
-            http_address (str): http address for Triton server to bind.
+            address (str): http address for Triton server to bind.
         """
 
         super().__init__(
@@ -89,7 +89,7 @@ class DeployPyTriton(DeployBase):
             model=model,
             max_batch_size=max_batch_size,
             port=port,
-            http_address=http_address,
+            address=address,
         )
 
     def deploy(self):
@@ -106,7 +106,7 @@ class DeployPyTriton(DeployBase):
             self.triton.bind(
                 model_name=self.triton_model_name,
                 model_version=self.triton_model_version,
-                infer_func=self.model.triton_infer_fn_streaming,
+                infer_func=self.model.triton_infer_fn,
                 inputs=self.model.get_triton_input,
                 outputs=self.model.get_triton_output,
                 config=ModelConfig(max_batch_size=self.max_batch_size),

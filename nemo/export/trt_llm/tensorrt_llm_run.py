@@ -375,7 +375,6 @@ def generate(
         stop_words_list=None,
         bad_words_list=None,
         no_repeat_ngram_size=None,
-        streaming: bool = False,
         **sampling_kwargs,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
@@ -424,28 +423,94 @@ def generate(
         stop_words_list=stop_words_list_tensors,
         bad_words_list=bad_words_list_tensors,
         no_repeat_ngram_size=no_repeat_ngram_size,
-        streaming=streaming,
+        streaming=False,
         **sampling_kwargs
     )
     assert outputs is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]
-    
-    if streaming:
-        for cur_outputs in outputs:
-            output_lines_list = [
-                tokenizer.batch_decode(cur_outputs[b, :, input_lengths[b] :])
-                for b in range(len(cur_outputs))
-            ]
-            yield output_lines_list
-    else:
-        output_lines_list = [
-            tokenizer.batch_decode(outputs[b, :, input_lengths[b] :])
-            for b in range(outputs.shape[0])
-       ] 
 
+    output_lines_list = [
+        tokenizer.batch_decode(outputs[b, :, input_lengths[b] :])
+        for b in range(outputs.shape[0])
+    ]
     return output_lines_list
 
+
+def generate_streaming(
+        input_texts: List[str],
+        max_output_len: int,
+        host_context: TensorrtLLMHostContext,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        temperature: float = 1.0,
+        prompt_table=None,
+        task_vocab_size=None,
+        task_ids: List[int]=None,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        **sampling_kwargs,
+) -> Optional[List[List[str]]]:
+    """Generate the output sequence from the input sequence.
+
+    Returns a 2D string list with shape [batch_size, num_beams].
+    """
+    tokenizer = host_context.tokenizer
+    input_tensors = [
+        torch.IntTensor(tokenizer.encode(t)) for t in input_texts
+    ]
+
+    batch_size = len(input_texts)
+
+    stop_words_list_tensors = None
+    if stop_words_list is not None:
+        stop_words_list_tensors = [
+            tokenizer.encode(t) for t in stop_words_list
+        ]
+        stop_words_list_tensors = torch.IntTensor(stop_words_list_tensors)
+        stop_words_list_tensors = stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
+            torch.cuda.current_device())
+
+    bad_words_list_tensors = None
+    if bad_words_list is not None:
+        bad_words_list_tensors = [
+            tokenizer.encode(t) for t in bad_words_list
+        ]
+        bad_words_list_tensors = torch.IntTensor(bad_words_list_tensors)
+        bad_words_list_tensors = bad_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
+            torch.cuda.current_device())
+
+    if no_repeat_ngram_size is not None:
+        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
+            torch.cuda.current_device())
+
+    outputs = forward(
+        input_tensors=input_tensors,
+        max_output_len=max_output_len,
+        host_context=host_context,
+        top_k=top_k,
+        top_p=top_p,
+        temperature=temperature,
+        prompt_table=prompt_table,
+        task_vocab_size=task_vocab_size,
+        task_ids=task_ids,
+        stop_words_list=stop_words_list_tensors,
+        bad_words_list=bad_words_list_tensors,
+        no_repeat_ngram_size=no_repeat_ngram_size,
+        streaming=True,
+        **sampling_kwargs
+    )
+    assert outputs is not None
+
+    input_lengths = [t.shape[0] for t in input_tensors]
+
+    for cur_outputs in outputs:
+        output_lines_list = [
+            tokenizer.batch_decode(cur_outputs[b, :, input_lengths[b] :])
+            for b in range(len(cur_outputs))
+        ]
+        yield output_lines_list
 
 def unload(host_context: TensorrtLLMHostContext):
     """Frees the GPU resource from the TensorrtLLMHostContext and reset the host_context."""
