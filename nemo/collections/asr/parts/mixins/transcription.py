@@ -149,7 +149,7 @@ class TranscriptionMixin(ABC):
                 channel_selector=channel_selector,
                 augmentor=augmentor,
                 verbose=verbose,
-                **config_kwargs
+                **config_kwargs,
             )
         else:
             if not isinstance(override_config, TranscribeConfig):
@@ -163,8 +163,10 @@ class TranscriptionMixin(ABC):
         else:
             # Check if internal config is valid
             if not isinstance(transcribe_cfg._internal, InternalTranscribeConfig):
-                raise ValueError("`transcribe_cfg._internal` must be of an object of type InternalTranscribeConfig or "
-                                 "its subclass")
+                raise ValueError(
+                    "`transcribe_cfg._internal` must be of an object of type InternalTranscribeConfig or "
+                    "its subclass"
+                )
 
         # Hold the results here
         results = None  # type: TranscriptionType
@@ -211,13 +213,20 @@ class TranscriptionMixin(ABC):
                             results[i].extend(processed_output)
                     else:
                         # If flat list structure
-                        results.extend(processed_outputs)
+                        if len(processed_outputs) != len(results):
+                            raise RuntimeError(f"The number of elements in the result ({len(results)}) does not "
+                                               f"match the results of the current batch ({len(processed_outputs)}).")
+
+                        for i, processed_output in enumerate(processed_outputs):
+                            results[i].append(processed_output)
 
                 else:
-                    raise NotImplemented("Given output result for transcription is not supported. "
-                                         "Please return a list of results, list of list of results, "
-                                         "a dict of list of results, or "
-                                         "a tuple of list of results.")
+                    raise NotImplemented(
+                        "Given output result for transcription is not supported. "
+                        "Please return a list of results, list of list of results, "
+                        "a dict of list of results, or "
+                        "a tuple of list of results."
+                    )
         except StopIteration:
             pass
 
@@ -318,7 +327,9 @@ class TranscriptionMixin(ABC):
             raise NotImplemented()
 
     @abstractmethod
-    def _transcribe_input_manifest_processing(self, audio_files: List[str], temp_dir: str, trcfg: TranscribeConfig):
+    def _transcribe_input_manifest_processing(
+        self, audio_files: List[str], temp_dir: str, trcfg: TranscribeConfig
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
@@ -350,6 +361,7 @@ class TranscriptionMixin(ABC):
     """
     Utility Methods
     """
+
     def _transcribe_preprocess_array(self, inputs, transcribe_cfg: TranscribeConfig):
         if inputs.ndim > 1 and isinstance(transcribe_cfg.channel_selector, int):
             inputs = inputs[transcribe_cfg.channel_selector, :]
@@ -358,8 +370,9 @@ class TranscriptionMixin(ABC):
 
 
 class ASRTranscriptionMixin(TranscriptionMixin):
-
-    def _transcribe_input_manifest_processing(self, audio_files: List[str], temp_dir: str, trcfg: TranscribeConfig) -> Dict[str, Any]:
+    def _transcribe_input_manifest_processing(
+        self, audio_files: List[str], temp_dir: str, trcfg: TranscribeConfig
+    ) -> Dict[str, Any]:
         with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_files:
                 entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
