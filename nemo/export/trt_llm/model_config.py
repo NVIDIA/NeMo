@@ -315,6 +315,11 @@ class DecoderLayerConfig:
     rotary_scaling: float = None
     position_embedding_type: str = None
 
+    moe_num_experts: int = None
+    moe_top_k: int = None
+    moe_tp_mode: int = None
+    moe_renorm_mode: int = None
+
     @property
     def hidden_size(self):
         """Returns the hidden size of the transformer model."""
@@ -344,6 +349,10 @@ class DecoderLayerConfig:
             rotary_scaling=(llm_config.rotary_scaling if hasattr(llm_config, "rotary_scaling") else None),
             position_embedding_type=(llm_config.position_embedding_type if hasattr(llm_config, "position_embedding_type") else None),
             num_kv_heads=(llm_config.num_kv_heads if hasattr(llm_config, "num_kv_heads") else 0),
+            moe_num_experts=(llm_config.moe_num_experts if hasattr(llm_config, "moe_num_experts") else None),
+            moe_top_k=(llm_config.moe_top_k if hasattr(llm_config, "moe_top_k") else None),
+            moe_tp_mode=(llm_config.moe_tp_mode if hasattr(llm_config, "moe_tp_mode") else None),
+            moe_renorm_mode=(llm_config.moe_renorm_mode if hasattr(llm_config, "moe_renorm_mode") else None),
         )
         layer_config.input_layernorm = LayernormConfig()
         layer_config.input_layernorm.layernorm_type = (

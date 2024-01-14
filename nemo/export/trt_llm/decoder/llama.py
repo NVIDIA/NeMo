@@ -13,7 +13,7 @@
 from typing import Optional
 
 from tensorrt_llm.functional import non_gated_version
-from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType
+from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType, MoeConfig
 from tensorrt_llm.models.llama.model import LLaMADecoderLayer
 from typing_extensions import override
 
@@ -115,6 +115,16 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                 "factor": float(layer.rotary_scaling)
             }
 
+        moe_config = MoeConfig()
+        if not layer.moe_num_experts is None:
+            if layer.moe_top_k is None:
+                layer.moe_top_k = 1
+
+            layer.moe_tp_mode = MoeConfig.ParallelismMode.TENSOR_PARALLEL if layer.moe_tp_mode is None else None
+            layer.moe_renorm_mode = MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
+            moe_config = MoeConfig(layer.moe_num_experts, layer.moe_top_k,
+                                   layer.moe_tp_mode, layer.moe_renorm_mode).validate()
+
         return LLaMADecoderLayer(
             layer_id=self.layer_id,
             hidden_size=self.hidden_size,
@@ -130,4 +140,5 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
             tp_size=self.tensor_parallel,
             rotary_base=layer.rotary_base,
             rotary_scaling=rotary_scaling,
+            moe_config=moe_config,
         )

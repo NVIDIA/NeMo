@@ -52,7 +52,7 @@ def get_args(argv):
         "--model_type",
         type=str,
         required=False,
-        choices=["gptnext", "gpt", "llama", "falcon", "starcoder"],
+        choices=["gptnext", "gpt", "llama", "falcon", "starcoder", "mixtral"],
         help="Type of the model. gptnext, gpt, llama, falcon, and starcoder are only supported."
              " gptnext and gpt are the same and keeping it for backward compatibility"
     )
