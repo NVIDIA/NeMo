@@ -26,6 +26,7 @@ from transformers import AutoConfig, AutoModel, AutoTokenizer
 from nemo.collections.tts.g2p.data.ctc import CTCG2PBPEDataset
 from nemo.collections.tts.models.base import G2PModel
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.exportable import Exportable
 from nemo.utils import logging
 
 try:
@@ -49,7 +50,7 @@ class CTCG2PConfig:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-class CTCG2PModel(G2PModel, ASRBPEMixin):
+class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
     """
     CTC-based grapheme-to-phoneme model.
     """
@@ -437,3 +438,57 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
     @per.setter
     def per(self, per):
         self._per = per
+
+
+        # Methods for model exportability
+    def _prepare_for_export(self, **kwargs):
+        super()._prepare_for_export(**kwargs)
+
+        tensor_shape = ('B', 'T')
+
+        # Define input_types and output_types as required by export()
+        self._input_types = {
+            "input_ids": NeuralType(tensor_shape),
+            "input_len": NeuralType(tensor_shape),
+        }
+        self._output_types = {
+            "preds_str": NeuralType(('B', 'T')),
+        }
+
+    def _export_teardown(self):
+        self._input_types = self._output_types = None
+
+    @property
+    def input_types(self):
+        return self._input_types
+
+    @property
+    def output_types(self):
+        return self._output_types
+
+    def input_example(self, max_batch=1, max_dim=44):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.fastpitch.parameters())
+        sentence = "Kupil sem si bicikel in mu zamenjal stol."
+        input_ids = [tokenizer_grapheme.text_to_ids(sentence)]
+        input_len = [len(entry) for entry in input_ids]
+        max_len = max(input_len)
+        input_ids = [entry + [0] * (max_len - entry_len) for entry, entry_len in zip(input_ids, input_len)]
+        inputs = (torch.tensor(input_ids), torch.tensor(input_len))
+        return (inputs,)
+
+    def forward_for_export(self, input_ids, input_len):
+        log_probs, greedy_predictions, encoded_len = model.forward(
+            input_ids=input_ids.to(map_location),
+            attention_mask=None,
+            input_len=input_len.to(map_location),
+        )
+
+        preds_str, _ = model.decoding.ctc_decoder_predictions_tensor(
+            log_probs, decoder_lengths=encoded_len, return_hypotheses=False
+        )
+        return preds_str
