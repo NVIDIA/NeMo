@@ -165,11 +165,13 @@ class ModelBuilder(Module):
                 kv_cache_params=KeyValueCacheParams(
                     past_key_value=[past],
                     host_past_key_value_lengths=kv_cache_params.host_past_key_value_lengths,
-                    host_max_attention_window_sizes=max_attention_window_size,
                     kv_cache_block_pointers=[pointer],
-                    host_kv_cache_block_pointers=[host_pointer],
-                    cache_indirection=kv_cache_params.cache_indirection),
-                attention_params=attention_params
+                    host_max_attention_window_sizes=max_attention_window_size,
+                    cache_indirection=kv_cache_params.cache_indirection,
+                    host_sink_token_length=kv_cache_params.host_sink_token_length,
+                    host_kv_cache_block_pointers=kv_cache_params.host_kv_cache_block_pointers,
+                ),
+                attention_params=attention_params,
             )
 
             if use_cache:
@@ -420,6 +422,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 host_kv_cache_block_pointers=model_inputs[
                     'host_kv_cache_block_pointers_list'],
                 cache_indirection=model_inputs['cache_indirection'],
+                host_sink_token_length=model_inputs['host_sink_token_length'],
+                host_kv_cache_block_pointers=model_inputs['host_kv_cache_block_pointers_list'],
             ),
             AttentionParams(
                 sequence_length=model_inputs['sequence_length'],
