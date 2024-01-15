@@ -1013,6 +1013,9 @@ class VoiceBox(_VB, LightningModule):
         if times.ndim == 1 and times.shape[0] == 1:
             times = repeat(times, '1 -> b', b = cond.shape[0])
 
+        if self.no_diffusion:
+            times = torch.zeros_like(times)
+
         # construct conditioning mask if not given
 
         if not exists(cond_mask):
