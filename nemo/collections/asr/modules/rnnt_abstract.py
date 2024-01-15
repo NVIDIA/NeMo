@@ -28,7 +28,7 @@ class AbstractRNNTJoint(NeuralModule, ABC):
     """
 
     @abstractmethod
-    def joint_after_projection(self, f: torch.Tensor, g: torch.Tensor):
+    def joint_after_projection(self, f: torch.Tensor, g: torch.Tensor) -> Any:
         """
         Compute the joint step of the network after the projection step.
         Args:
@@ -37,6 +37,7 @@ class AbstractRNNTJoint(NeuralModule, ABC):
 
         Returns:
             Logits / log softmaxed tensor of shape (B, T, U, V + 1).
+            Arbitrary return type, preferably torch.Tensor, but not limited to (e.g., see HatJoint)
         """
         raise NotImplementedError()
 
@@ -316,14 +317,14 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
-    def mask_select_states(self, states, mask: torch.Tensor):
+    def mask_select_states(self, states: Any, mask: torch.Tensor) -> Any:
         """
         Return states by mask selection
         Args:
-            states: states for the batch
+            states: states for the batch (preferably a list of tensors, but not limited to)
             mask: boolean mask for selecting states; batch dimension should be the same as for states
 
         Returns:
-            states filtered by mask
+            states filtered by mask (same type as `states`)
         """
         raise NotImplementedError()

@@ -398,7 +398,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         return old_states
 
-    def mask_select_states(self, states: Optional[List[torch.Tensor]], mask: torch.Tensor):
+    def mask_select_states(
+        self, states: Optional[List[torch.Tensor]], mask: torch.Tensor
+    ) -> Optional[List[torch.Tensor]]:
         """
         Return states by mask selection
         Args:
@@ -1061,7 +1063,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         return old_states
 
-    def mask_select_states(self, states: Tuple[torch.Tensor, torch.Tensor], mask: torch.Tensor):
+    def mask_select_states(
+        self, states: Tuple[torch.Tensor, torch.Tensor], mask: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Return states by mask selection
         Args:
@@ -1072,7 +1076,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             states filtered by mask
         """
         # LSTM in PyTorch returns a tuple of 2 tensors as a state
-        return tuple(states_part[:, mask] for states_part in states)
+        return states[0][:, mask], states[1][:, mask]
 
     # Adapter method overrides
     def add_adapter(self, name: str, cfg: DictConfig):

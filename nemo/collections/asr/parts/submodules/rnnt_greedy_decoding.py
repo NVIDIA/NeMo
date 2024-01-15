@@ -239,7 +239,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
 
         return logits
 
-    def _joint_step_after_projection(self, enc, pred, log_normalize: Optional[bool] = None):
+    def _joint_step_after_projection(self, enc, pred, log_normalize: Optional[bool] = None) -> torch.Tensor:
         """
         Common joint step based on AbstractRNNTJoint implementation.
 
@@ -647,8 +647,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         x: torch.Tensor,
         out_len: torch.Tensor,
         device: torch.device,
-        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
-    ):
+        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
+    ) -> list[rnnt_utils.Hypothesis]:
         """
         Optimized batched greedy decoding.
         The main idea: search for next labels for the whole batch (evaluating Joint)
