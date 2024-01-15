@@ -1,9 +1,10 @@
-from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
-from megatron.core.datasets.indexed_dataset import MMapIndexedDataset
-from megatron.core.datasets.utils import Split
 from typing import Tuple
 
 import numpy as np
+from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
+from megatron.core.datasets.indexed_dataset import MMapIndexedDataset
+from megatron.core.datasets.utils import Split
+
 
 class GPTFIMDatasetConfig(GPTDatasetConfig):
     """Configuration object for Megatron Core GPT FIM datasets
@@ -17,6 +18,7 @@ class GPTFIMDatasetConfig(GPTDatasetConfig):
         super().__init__(**kwargs)
         self.tokenizer = tokenizer
         self.fim = fim
+
 
 class GPTFIMDataset(GPTDataset):
     """The base GPT dataset
@@ -43,10 +45,8 @@ class GPTFIMDataset(GPTDataset):
         config: GPTFIMDatasetConfig,
     ) -> None:
         super().__init__(indexed_dataset, indexed_indices, num_samples, index_split, config)
-    
-    def _query_document_sample_shuffle_indices(
-        self, idx: int
-    ) -> Tuple[np.ndarray, np.ndarray]:
+
+    def _query_document_sample_shuffle_indices(self, idx: int) -> Tuple[np.ndarray, np.ndarray]:
         """Get the text (token ids) and document ids for a given index
 
         Args:
@@ -88,9 +88,7 @@ class GPTFIMDataset(GPTDataset):
                 # Add the sample part
                 offset = 0 if i > doc_index_beg else doc_index_beg_offset
                 length = None if i < doc_index_end else doc_index_end_offset + 1
-                sample_parts.append(
-                    self.indexed_dataset.get(self.document_index[i], offset=offset, length=length)
-                )
+                sample_parts.append(self.indexed_dataset.get(self.document_index[i], offset=offset, length=length))
 
         sample = np.concatenate(sample_parts)
 
@@ -135,7 +133,7 @@ class GPTFIMDataset(GPTDataset):
             sample = np.concatenate(new_samples)
         else:
             sample = self._fim_split_and_permute_sequence(sample, np_rng)
-        
+
         diff = sample.shape[0] - sample_len
         if diff > 0:  # too long
             sample = sample[:sample_len]
@@ -186,7 +184,9 @@ class GPTFIMDataset(GPTDataset):
         new_samples = []
         for loc in np.nditer(fragment_breaks):
             if loc - curr_start_position > 0:
-                permuted = self._fim_permute_sequence(sequence[curr_start_position:loc], np_rng, self.fragment_fim_rate)
+                permuted = self._fim_permute_sequence(
+                    sequence[curr_start_position:loc], np_rng, self.fragment_fim_rate
+                )
                 new_samples += [permuted, [self.fim_split_sample]]
             curr_start_position = loc + 1  # Jump over the split token
         # Permute the segment after the last split token
@@ -261,10 +261,12 @@ class GPTFIMDataset(GPTDataset):
                 new_sample = np.concatenate([[prefix_tok_id, suffix_tok_id], suffix, [middle_tok_id], prefix, middle])
             else:
                 # PSM
-                new_sample = np.concatenate([[prefix_tok_id], prefix, [suffix_tok_id], suffix, [middle_tok_id], middle])
+                new_sample = np.concatenate(
+                    [[prefix_tok_id], prefix, [suffix_tok_id], suffix, [middle_tok_id], middle]
+                )
 
         else:
             # don't do FIM preproc
             new_sample = sample
 
-        return new_sample   
+        return new_sample
