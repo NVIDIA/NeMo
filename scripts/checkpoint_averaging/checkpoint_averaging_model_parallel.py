@@ -27,7 +27,7 @@
 # limitations under the License.
 
 """
-Example: python scripts/checkpoint_averaging/average_model_checkpoints.py \
+Example: python scripts/checkpoint_averaging/checkpoint_averaging_model_parallel.py \
              --name_prefix=<checkpoint name> \
              --checkpoint_dir=<folder with mp_rank_X subfolders containing checkpoints>
 
