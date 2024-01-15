@@ -112,39 +112,40 @@ class NemoQuery(NemoQueryBase):
             stop_words_list (List(str)): list of stop words.
             bad_words_list (List(str)): list of bad words.
             no_repeat_ngram_size (int): no repeat ngram size.
+            task_id (str): downstream task id if virtual tokens are used.
             init_timeout (flat): timeout for the connection.
         """
 
         prompts = str_list2numpy(prompts)
         inputs = {"prompts": prompts}
 
-        if not max_output_token is None:
+        if max_output_token is not None:
             inputs["max_output_token"] = np.full(prompts.shape, max_output_token, dtype=np.int_)
 
-        if not top_k is None:
+        if top_k is not None:
             inputs["top_k"] = np.full(prompts.shape, top_k, dtype=np.int_)
 
-        if not top_p is None:
+        if top_p is not None:
             inputs["top_p"] = np.full(prompts.shape, top_p, dtype=np.single)
 
-        if not temperature is None:
+        if temperature is not None:
             inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
 
-        if not random_seed is None:
+        if random_seed is not None:
             inputs["random_seed"] = np.full(prompts.shape, random_seed, dtype=np.int_)
 
-        if not stop_words_list is None:
+        if stop_words_list is not None:
             stop_words_list = np.char.encode(stop_words_list, "utf-8")
             inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
 
-        if not bad_words_list is None:
+        if bad_words_list is not None:
             bad_words_list = np.char.encode(bad_words_list, "utf-8")
             inputs["bad_words_list"] = np.full((prompts.shape[0], len(bad_words_list)), bad_words_list)
 
-        if not no_repeat_ngram_size is None:
+        if no_repeat_ngram_size is not None:
             inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
 
-        if not task_id is None:
+        if task_id is not None:
             task_id = np.char.encode(task_id, "utf-8")
             inputs["task_id"] = np.full((prompts.shape[0], len([task_id])), task_id)
 
@@ -157,7 +158,6 @@ class NemoQuery(NemoQueryBase):
                 return sentences
             else:
                 return result_dict["outputs"]
-
 
     def query_llm_streaming(
             self,
@@ -186,39 +186,40 @@ class NemoQuery(NemoQueryBase):
             stop_words_list (List(str)): list of stop words.
             bad_words_list (List(str)): list of bad words.
             no_repeat_ngram_size (int): no repeat ngram size.
+            task_id (str): downstream task id if virtual tokens are used.
             init_timeout (flat): timeout for the connection.
         """
 
         prompts = str_list2numpy(prompts)
         inputs = {"prompts": prompts}
 
-        if not max_output_token is None:
+        if max_output_token is not None:
             inputs["max_output_token"] = np.full(prompts.shape, max_output_token, dtype=np.int_)
 
-        if not top_k is None:
+        if top_k is not None:
             inputs["top_k"] = np.full(prompts.shape, top_k, dtype=np.int_)
 
-        if not top_p is None:
+        if top_p is not None:
             inputs["top_p"] = np.full(prompts.shape, top_p, dtype=np.single)
 
-        if not temperature is None:
+        if temperature is not None:
             inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
 
-        if not random_seed is None:
+        if random_seed is not None:
             inputs["random_seed"] = np.full(prompts.shape, random_seed, dtype=np.int_)
 
-        if not stop_words_list is None:
+        if stop_words_list is not None:
             stop_words_list = np.char.encode(stop_words_list, "utf-8")
             inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
 
-        if not bad_words_list is None:
+        if bad_words_list is not None:
             bad_words_list = np.char.encode(bad_words_list, "utf-8")
             inputs["bad_words_list"] = np.full((prompts.shape[0], len(bad_words_list)), bad_words_list)
 
-        if not no_repeat_ngram_size is None:
+        if no_repeat_ngram_size is not None:
             inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
 
-        if not task_id is None:
+        if task_id is not None:
             task_id = np.char.encode(task_id, "utf-8")
             inputs["task_id"] = np.full((prompts.shape[0], len([task_id])), task_id)
 
