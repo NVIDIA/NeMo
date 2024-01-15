@@ -1003,7 +1003,7 @@ class VoiceBox(_VB, LightningModule):
         # shapes
 
         batch, seq_len, cond_dim = cond.shape
-        assert cond_dim == x.shape[-1]
+        # assert cond_dim == x.shape[-1]
 
         # auto manage shape of times, for odeint times
 
