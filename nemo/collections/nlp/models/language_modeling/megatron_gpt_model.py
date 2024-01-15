@@ -31,7 +31,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import GPTFIMDataset, GPTFIMDatasetConfig
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -1198,6 +1198,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
 
+        # Add extra FIM tokens to tokenizer
+        if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
+            fim_tokens = self.cfg.data.fim.extra_tokens
+            fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
+            self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
+
         train_valid_test_num_samples = [
             max_train_steps * global_batch_size,
             eval_iters * global_batch_size,
@@ -1209,18 +1215,27 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 1
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
-        dataset_config = GPTDatasetConfig(
-            is_built_on_rank=is_dataset_built_on_rank,
-            random_seed=self.cfg.seed,
-            sequence_length=self.cfg.data.seq_length,
-            blend=self.cfg.data.data_prefix,
-            split=self.cfg.data.splits_string,
-            path_to_cache=self.cfg.data.index_mapping_dir,
-        )
+        kwargs = {
+            "is_built_on_rank": is_dataset_built_on_rank,
+            "random_seed": self.cfg.seed,
+            "sequence_length": self.cfg.data.seq_length,
+            "blend": self.cfg.data.data_prefix,
+            "split": self.cfg.data.splits_string,
+            "path_to_cache": self.cfg.data.index_mapping_dir,
+        }
 
-        self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-            GPTDataset, train_valid_test_num_samples, dataset_config,
-        ).build()
+        if self.cfg.data.add_fim:
+            dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
+
+            self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
+                GPTFIMDataset, train_valid_test_num_samples, dataset_config,
+            ).build()
+        else:
+            dataset_config = GPTDatasetConfig(**kwargs)
+
+            self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
+                GPTDataset, train_valid_test_num_samples, dataset_config,
+            ).build()
 
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')

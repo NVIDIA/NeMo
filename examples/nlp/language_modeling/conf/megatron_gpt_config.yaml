@@ -28,10 +28,10 @@ exp_manager:
   explicit_log_dir: null
   exp_dir: null
   name: megatron_gpt
-  create_wandb_logger: False
+  create_wandb_logger: True
   wandb_logger_kwargs:
     project: mcore_ds_test
-    name: mcore_ds_tp1pp1_new
+    name: mcore_ds_fim
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   resume_from_checkpoint: ${model.resume_from_checkpoint}
@@ -226,6 +226,20 @@ model:
     pad_samples_to_global_batch_size: False # Set to True if you want to pad the last partial batch with -1's to equal global batch size
     shuffle_documents: True # Set to False to disable documents shuffling. Sample index will still be shuffled
     exchange_indices_distributed: False # Set to True to exchange indices via torch.distributed instead of filesystem
+    add_fim: True # Set to True to use FIM
+    fim:
+      # fill in the middle
+      rate: 0.5 # Probability to convert a training sample into a "Fill-in-the-Middle" format. Must be between 0 and 1
+      spm_rate: 0.5 # Probability that the a FIM sample uses the SPM format over the PSM format
+      split_sample: null # String around which to split the sample for FIM. If None (default), FIM is applied on the sample-level
+      fragment_rate: 0.5 # Rate of FIM on each fragment when fim_split_sample is not None
+      no_prefix: null # Do not apply FIM to fragments that start with this prefix
+      extra_tokens:
+        prefix: "<fim_prefix>"
+        middle: "<fim_middle>"
+        suffix: "<fim_suffix>"
+        pad: "<fim_pad>"
+        eod: "<|endoftext|>"
 
   # Nsys profiling options
   nsys_profile:
