@@ -25,7 +25,7 @@ from datasets import load_dataset
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, OnlineSampleMapping
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -155,7 +155,6 @@ class GPTSFTDataset(Dataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
-            osm = OnlineSampleMapping(dataset_size=len(self.indexed_dataset), num_samples=self.max_num_samples)
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
@@ -167,7 +166,6 @@ class GPTSFTDataset(Dataset):
                 name=self.file_path.split('/')[-1],
                 binary_head=False,
                 index_mapping_dir=self.index_mapping_dir,
-                samples_mapping=osm,
             )
         else:
             self.samples_mapping = None
@@ -378,6 +376,7 @@ class GPTSFTDataset(Dataset):
             'context_length': len(context_ids),
             'answer_ids': answer_ids,
             'metadata': metadata,
+            'token_count': len(input_ids),
         }
 
         return processed_example
@@ -428,6 +427,7 @@ class GPTSFTDataset(Dataset):
         answers = [item['answer_ids'] for item in batch]
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
         metadata = [item['metadata'] for item in batch]
+        token_count = [item['token_count'] for item in batch]
 
         max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
         # increase max length to nearest multiple of 4 or 8
@@ -459,6 +459,7 @@ class GPTSFTDataset(Dataset):
             'context_lengths': context_lengths,
             'answers': answers,
             'metadata': metadata,
+            'token_count': token_count,
         }
 
         return processed_batch
@@ -518,6 +519,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         loss_mask = [self._build_loss_mask(item) for item in batch]
 
+        token_count = [item.shape[0] for item in input_ids]
+
         if self.pad_to_max_length:
             max_length = self.max_seq_length
         else:
@@ -558,6 +561,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             'loss_mask': torch.LongTensor(loss_mask),
             'position_ids': torch.LongTensor(position_ids),
             'cu_seqlens': torch.IntTensor(cu_seqlens),  # cu_seqlens_q must be in dtype torch.int32
+            'token_count': token_count,
         }
 
         return processed_batch
