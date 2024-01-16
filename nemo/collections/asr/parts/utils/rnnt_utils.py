@@ -463,31 +463,3 @@ def batched_hyps_to_hypotheses(
                     )
                 start += timestep_cnt
     return hypotheses
-
-
-def return_empty_hypotheses(
-    encoder_lengths: torch.Tensor, with_alignments=False, with_frame_confidence=False
-) -> List[Hypothesis]:
-    """
-    Return empty hypotheses list. If alignments/confidence needed, use empty lists of lists of required sizes
-
-    Args:
-        encoder_lengths: lengths of the encoder output
-        with_alignments: make corresponding empty alignments
-        with_frame_confidence: make corresponding empty confidence items
-
-    Returns:
-        list of Hypothesis objects with empty transcription and empty alignments/confidence
-    """
-    hypotheses = [
-        Hypothesis(
-            score=0.0,
-            y_sequence=[],
-            timestep=[],
-            alignments=[[] for _ in range(encoder_lengths[i].item())] if with_alignments else None,
-            frame_confidence=[[] for _ in range(encoder_lengths[i].item())] if with_frame_confidence else None,
-            dec_state=None,
-        )
-        for i in range(encoder_lengths.shape[0])
-    ]
-    return hypotheses

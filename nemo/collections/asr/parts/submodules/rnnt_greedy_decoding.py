@@ -166,6 +166,9 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
 
         self._blank_index = blank_index
         self._SOS = blank_index  # Start of single index
+
+        if max_symbols_per_step is not None and max_symbols_per_step <= 0:
+            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {max_symbols_per_step}")
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
@@ -668,12 +671,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
         batch_size, max_time, _ = x.shape
-
-        if self.max_symbols == 0:
-            # this is for tests; do we really need decoding with zero max_symbols_per_step?
-            return rnnt_utils.return_empty_hypotheses(
-                out_len, with_alignments=self.preserve_alignments, with_frame_confidence=self.preserve_frame_confidence
-            )
 
         x = self.joint.project_encoder(x)  # do not recalculate joint projection, project only once
 

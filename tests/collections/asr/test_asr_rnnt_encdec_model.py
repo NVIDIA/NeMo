@@ -871,7 +871,32 @@ class TestEncDecRNNTModel:
     @pytest.mark.parametrize(
         "greedy_class", [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
     )
-    @pytest.mark.parametrize("max_symbols_per_step", [0, 1, 5])
+    @pytest.mark.parametrize("max_symbols_per_step", [-1, 0])
+    def test_greedy_decoding_max_symbols_confidence(self, max_symbols_setup, greedy_class, max_symbols_per_step):
+        """Test ValueError for max_symbols_per_step <= 0"""
+        decoders = [max_symbols_setup["decoder"]]
+        if greedy_class is greedy_decode.GreedyBatchedRNNTInfer:
+            decoders.append(max_symbols_setup["decoder_masked"])
+        joint = max_symbols_setup["joint"]
+
+        for decoder in decoders:
+            with pytest.raises(ValueError):
+                _ = greedy_class(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=decoder.blank_idx,
+                    max_symbols_per_step=max_symbols_per_step,
+                    preserve_frame_confidence=True,
+                )
+
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "greedy_class", [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
+    )
+    @pytest.mark.parametrize("max_symbols_per_step", [1, 5])
     def test_greedy_decoding_max_symbols_confidence(self, max_symbols_setup, greedy_class, max_symbols_per_step):
         decoders = [max_symbols_setup["decoder"]]
         if greedy_class is greedy_decode.GreedyBatchedRNNTInfer:
