@@ -440,19 +440,19 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
         self._per = per
 
 
-        # Methods for model exportability
+    # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
         super()._prepare_for_export(**kwargs)
 
-        tensor_shape = ('B', 'T')
+        tensor_shape = ('B', 'D')
 
         # Define input_types and output_types as required by export()
         self._input_types = {
             "input_ids": NeuralType(tensor_shape),
-            "input_len": NeuralType(tensor_shape),
+            "input_len": NeuralType(("B")),
         }
         self._output_types = {
-            "preds_str": NeuralType(('B', 'T')),
+            "preds_str": NeuralType(('B')),
         }
 
     def _export_teardown(self):
@@ -472,23 +472,22 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
         Returns:
             A tuple of input examples.
         """
-        par = next(self.fastpitch.parameters())
+        # par = next(self.fastpitch.parameters())
         sentence = "Kupil sem si bicikel in mu zamenjal stol."
-        input_ids = [tokenizer_grapheme.text_to_ids(sentence)]
+        input_ids = [self.tokenizer_grapheme.text_to_ids(sentence)]
         input_len = [len(entry) for entry in input_ids]
         max_len = max(input_len)
         input_ids = [entry + [0] * (max_len - entry_len) for entry, entry_len in zip(input_ids, input_len)]
-        inputs = (torch.tensor(input_ids), torch.tensor(input_len))
-        return (inputs,)
+        inputs = (torch.tensor(input_ids).to(self.device), torch.tensor(input_len).to(self.device))
+        return inputs
 
     def forward_for_export(self, input_ids, input_len):
-        log_probs, greedy_predictions, encoded_len = model.forward(
-            input_ids=input_ids.to(map_location),
-            attention_mask=None,
-            input_len=input_len.to(map_location),
-        )
+        input_embedding = self.embedding(input_ids)
+        input_embedding = input_embedding.transpose(1, 2)
+        encoded_input, encoded_len = self.encoder(audio_signal=input_embedding, length=input_len)
 
-        preds_str, _ = model.decoding.ctc_decoder_predictions_tensor(
+        log_probs = self.decoder(encoder_output=encoded_input)
+        preds_str, _ = self.decoding.ctc_decoder_predictions_tensor(
             log_probs, decoder_lengths=encoded_len, return_hypotheses=False
         )
         return preds_str
