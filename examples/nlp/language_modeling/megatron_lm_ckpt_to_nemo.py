@@ -461,8 +461,10 @@ def convert(local_rank, rank, world_size, args):
         model_cfg = load_hparams_from_yaml(args.hparams_file).cfg
         mcore_output = model_cfg.get("mcore_gpt", False)
         if not mcore_output and args.mcore_input:
-            raise RuntimeError("Cannot convert from MCore Megatron-LM to legacy NeMo. "
-                               "Please specify `mcore_gpt: true` in the hparams.yaml file.")
+            raise RuntimeError(
+                "Cannot convert from MCore Megatron-LM to legacy NeMo. "
+                "Please specify `mcore_gpt: true` in the hparams.yaml file."
+            )
         if mcore_output and not args.mcore_input:
             # convert from legacy Megatron-LM to MCore NeMo. Initialize an mcore translation dict
             from scripts.nlp_language_modeling.convert_nemo_gpt_to_mcore import build_key_mapping
