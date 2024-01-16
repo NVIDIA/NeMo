@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-import functools
 import json
 import multiprocessing as mp
 import os
@@ -537,7 +536,6 @@ def build_index_files(
         f"Time building {sum(build_status)} / {len(build_status)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}"
     )
 
-
 def handle_index(dataset, idx):
     """
     Remaps negative indices and handles numpy int indices.
@@ -741,3 +739,4 @@ class OnlineSampleMapping:
         sample_block = sample_block % self.dataset_size
 
         return sample_block
+
