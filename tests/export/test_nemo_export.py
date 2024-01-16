@@ -379,7 +379,7 @@ def run_inference_tests(args):
                 max_input_token=args.max_input_token,
                 max_output_token=args.max_output_token,
                 ptuning=args.ptuning,
-                p_tuning_checkpoint=args.ptuning_checkpoint_dir,
+                p_tuning_checkpoint=args.ptuning_checkpoint,
                 tp_size=args.tp_size,
                 pp_size=args.pp_size,
                 top_k=args.top_k,
