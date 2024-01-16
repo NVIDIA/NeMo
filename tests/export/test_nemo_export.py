@@ -239,7 +239,6 @@ def get_args():
     )
     parser.add_argument(
         "--existing_test_models",
-        type=str,
         required=True,
         default=False,
         action='store_true',
@@ -247,6 +246,7 @@ def get_args():
     parser.add_argument(
         "--model_type",
         type=str,
+        required=True,
     )
     parser.add_argument(
         "--min_gpus",
@@ -262,6 +262,7 @@ def get_args():
         "--checkpoint_dir",
         type=str,
         default="/tmp/nemo_checkpoint/",
+        required=True,
     )
     parser.add_argument(
         "--trt_llm_model_dir",
@@ -290,11 +291,6 @@ def get_args():
         "--ptuning",
         default=False,
         action='store_true',
-    )
-    parser.add_argument(
-        "--ptuning_checkpoint_dir",
-        type=str,
-        default="False",
     )
     parser.add_argument(
         "--tp_size",
@@ -332,6 +328,7 @@ def get_args():
 
     parser.add_argument(
         "--streaming",
+        default=False,
         action="store_true"
     )
 
