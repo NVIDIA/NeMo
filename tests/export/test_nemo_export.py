@@ -240,13 +240,14 @@ def get_args():
     )
     parser.add_argument(
         "--existing_test_models",
-        type=str,
         required=True,
-        default="False",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
         "--model_type",
         type=str,
+        required=True,
     )
     parser.add_argument(
         "--min_gpus",
@@ -262,6 +263,7 @@ def get_args():
         "--checkpoint_dir",
         type=str,
         default="/tmp/nemo_checkpoint/",
+        required=True,
     )
     parser.add_argument(
         "--trt_llm_model_dir",
@@ -288,13 +290,8 @@ def get_args():
     )
     parser.add_argument(
         "--ptuning",
-        type=str,
-        default="False",
-    )
-    parser.add_argument(
-        "--ptuning_checkpoint_dir",
-        type=str,
-        default="False",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
         "--tp_size",
@@ -321,17 +318,18 @@ def get_args():
     )
     parser.add_argument(
         "--run_accuracy",
-        type=str,
-        default="True",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
         "--debug",
-        type=str,
-        default="True",
+        default=False,
+        action='store_true',
     )
 
     parser.add_argument(
         "--streaming",
+        default=False,
         action="store_true"
     )
 
@@ -341,34 +339,7 @@ def get_args():
         default="False",
     )
 
-    args = parser.parse_args()
-
-    if args.debug == "True":
-        args.debug = True
-    else:
-        args.debug = False
-
-    if args.run_accuracy == "True":
-        args.run_accuracy = True
-    else:
-        args.run_accuracy = False
-
-    if args.ptuning == "True":
-        args.ptuning = True
-    else:
-        args.ptuning = False
-
-    if args.existing_test_models == "True":
-        args.existing_test_models = True
-    else:
-        args.existing_test_models = False
-
-    if args.ci_upload_test_results_to_cloud == "True":
-        args.ci_upload_test_results_to_cloud = True
-    else:
-        args.ci_upload_test_results_to_cloud = False
-
-    return args
+    return parser.parse_args()
 
 
 def run_inference_tests(args):
@@ -403,7 +374,7 @@ def run_inference_tests(args):
                     postToNVDataFlow({"n_gpus": n_gpus, "trtllm_accuracy": trtllm_accuracy})
                 n_gpus = n_gpus * 2
     else:
-        prompt_template=["The capital of France is", "Largest animal in the sea is"]
+        prompt_template = ["The capital of France is", "Largest animal in the sea is"]
         n_gpus = args.min_gpus
 
         while n_gpus <= args.max_gpus:
@@ -418,7 +389,7 @@ def run_inference_tests(args):
                 max_input_token=args.max_input_token,
                 max_output_token=args.max_output_token,
                 ptuning=args.ptuning,
-                p_tuning_checkpoint=args.ptuning_checkpoint_dir,
+                p_tuning_checkpoint=args.ptuning_checkpoint,
                 tp_size=args.tp_size,
                 pp_size=args.pp_size,
                 top_k=args.top_k,

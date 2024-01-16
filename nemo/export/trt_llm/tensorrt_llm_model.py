@@ -145,24 +145,29 @@ class ModelBuilder(Module):
         if attention_mask is not None:
             attention_mask = expand_mask(attention_mask, shape(input_ids, -1))
 
+        for layer_idx, (
+                layer, past, pointer, host_pointer,
+                max_attention_window_size) in enumerate(
+            zip(self.layers, kv_cache_params.past_key_value,
+                kv_cache_params.kv_cache_block_pointers,
+                kv_cache_params.host_kv_cache_block_pointers,
+                kv_cache_params.host_max_attention_window_sizes)):
+            #lora_layer_params = None
+            #if lora_params.lora_ranks is not None:
+            #    lora_layer_params = lora_params.get_layer_params(layer_idx)
 
-        for idx, (layer, past, pointers,
-                  max_kv_cache_length) in enumerate(
-                    zip(self.layers, kv_cache_params.past_key_value,
-                        kv_cache_params.kv_cache_block_pointers,
-                        kv_cache_params.host_max_attention_window_sizes)):
             hidden_states = layer(
                 hidden_states,
-                attention_mask=attention_mask,
                 use_cache=use_cache,
+                attention_mask=attention_mask,
                 kv_cache_params=KeyValueCacheParams(
                     past_key_value=[past],
                     host_past_key_value_lengths=kv_cache_params.host_past_key_value_lengths,
-                    kv_cache_block_pointers=[pointers],
-                    host_max_attention_window_sizes=max_kv_cache_length,
-                    cache_indirection=kv_cache_params.cache_indirection
-                ),
-                attention_params=attention_params,
+                    host_max_attention_window_sizes=max_attention_window_size,
+                    kv_cache_block_pointers=[pointer],
+                    host_kv_cache_block_pointers=[host_pointer],
+                    cache_indirection=kv_cache_params.cache_indirection),
+                attention_params=attention_params
             )
 
             if use_cache:
@@ -256,9 +261,10 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             hidden_states.mark_output('hidden_states_output', self._dtype)
 
         if use_cache:
-            for i, present in zip(
-                    self._mapping.pp_layers(self._num_layers), presents):
-                present.mark_output(f'present_key_value_{i}', self._kv_dtype)
+            if default_net().plugin_config.paged_kv_cache == False:
+                for i, present in zip(
+                        self._mapping.pp_layers(self._num_layers), presents):
+                    present.mark_output(f'present_key_value_{i}', self._kv_dtype)
             if self._mapping.is_last_pp_rank():
                 return (lm_logits, presents)
             return (hidden_states, presents)
@@ -409,6 +415,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     'host_max_attention_window_sizes'],
                 kv_cache_block_pointers=model_inputs[
                     'kv_cache_block_pointers_list'],
+                host_kv_cache_block_pointers=model_inputs[
+                    'host_kv_cache_block_pointers_list'],
                 cache_indirection=model_inputs['cache_indirection'],
             ),
             AttentionParams(

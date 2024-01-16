@@ -117,15 +117,15 @@ def get_args(argv):
     parser.add_argument(
         "-uib",
         "--use_inflight_batching",
-        default="False",
-        type=str,
+        default=False,
+        action='store_true',
         help="Enable inflight batching for TensorRT-LLM Triton backend."
     )
     parser.add_argument(
         "-upkc",
         "--use_paged_kv_cache",
-        default="False",
-        type=str,
+        default=False,
+        action='store_true',
         help="Enable paged kv cache."
     )
     parser.add_argument(
@@ -140,8 +140,8 @@ def get_args(argv):
     parser.add_argument(
         "-dm",
         "--debug_mode",
-        default="False",
-        type=str,
+        default=False,
+        action='store_true',
         help="Enable debug mode"
     )
 
@@ -152,24 +152,9 @@ def get_args(argv):
 def nemo_export(argv):
     args = get_args(argv)
 
-    if args.debug_mode == "True":
-        loglevel = logging.DEBUG
-    else:
-        loglevel = logging.INFO
-
     LOGGER.setLevel(loglevel)
     LOGGER.info("Logging level set to {}".format(loglevel))
     LOGGER.info(args)
-
-    if args.use_inflight_batching == "True":
-        args.use_inflight_batching = True
-    else:
-        args.use_inflight_batching = False
-
-    if args.use_paged_kv_cache == "True":
-        args.use_paged_kv_cache = True
-    else:
-        args.use_paged_kv_cache = False
 
     if args.dtype != "bf16":
         LOGGER.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
