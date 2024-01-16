@@ -27,8 +27,8 @@ from nemo.collections.tts.g2p.data.ctc import CTCG2PBPEDataset
 from nemo.collections.tts.models.base import G2PModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
-from nemo.utils import logging
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
 
 try:
     from nemo.collections.asr.losses.ctc import CTCLoss
