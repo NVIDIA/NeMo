@@ -121,12 +121,6 @@ def is_dataset_built_on_rank():
     return True
 
 
-# def is_dataset_built_on_rank():
-#    return (
-#        mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
-#    ) and mpu.get_tensor_model_parallel_rank() == 0
-
-
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     """
     Megatron GPT Wrapper for ONNX export
