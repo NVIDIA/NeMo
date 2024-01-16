@@ -156,8 +156,14 @@ def get_args():
     return args
 
 
-def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, converted: OrderedDict, translator: dict,
-                  mcore_translator: Optional[dict]=None):
+def parse_weights(
+    weight_dict: OrderedDict,
+    parent_key: str,
+    total: list,
+    converted: OrderedDict,
+    translator: dict,
+    mcore_translator: Optional[dict] = None,
+):
     for key in weight_dict:
         if key.endswith('_extra_state'):
             if weight_dict[key].read() == b'':
@@ -304,8 +310,12 @@ def load_from_checkpoint(
         checkpoint = OrderedDict()
         checkpoint['state_dict'] = OrderedDict()
         parse_weights(
-            old_checkpoint['model'], "", total_params, checkpoint['state_dict'], translator=kwargs['translator'],
-            mcore_translator=kwargs.get('mcore_translator', None)
+            old_checkpoint['model'],
+            "",
+            total_params,
+            checkpoint['state_dict'],
+            translator=kwargs['translator'],
+            mcore_translator=kwargs.get('mcore_translator', None),
         )
         print('converted {:.2f}M parameters'.format(total_params[0] / 1e6))
 
@@ -452,7 +462,8 @@ def convert(local_rank, rank, world_size, args):
         if model_cfg.get("mcore_gpt", False) and not args.mcore_input:
             # initialize an mcore translation dict only if converting from legacy-m-lm to mcore-nemo
             from scripts.nlp_language_modeling.convert_nemo_gpt_to_mcore import build_key_mapping
-            mcore_translate = {v:k for k, v in build_key_mapping(model_cfg).items()}
+
+            mcore_translate = {v: k for k, v in build_key_mapping(model_cfg).items()}
 
         checkpoint, consumed, steps, version = load_from_checkpoint(
             MegatronGPTModel,
@@ -461,7 +472,7 @@ def convert(local_rank, rank, world_size, args):
             trainer=trainer,
             translator=name_translate,
             strict=False,
-            mcore_translator=mcore_translate
+            mcore_translator=mcore_translate,
         )
     elif args.model_type == 'bert':
         # this dictionary is used to rename the model parameters
@@ -507,10 +518,10 @@ def convert(local_rank, rank, world_size, args):
         if args.model_type == 'gpt':
             if model_cfg.get("mcore_gpt", False) and parallel_state.is_unitialized():
                 parallel_state.initialize_model_parallel(
-                        tensor_model_parallel_size=args.tensor_model_parallel_size,
-                        pipeline_model_parallel_size=args.pipeline_model_parallel_size,
-                        virtual_pipeline_model_parallel_size=None,
-                        pipeline_model_parallel_split_rank=0,
+                    tensor_model_parallel_size=args.tensor_model_parallel_size,
+                    pipeline_model_parallel_size=args.pipeline_model_parallel_size,
+                    virtual_pipeline_model_parallel_size=None,
+                    pipeline_model_parallel_split_rank=0,
                 )
             model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
         elif args.model_type == 'bert':
