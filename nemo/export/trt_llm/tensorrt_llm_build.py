@@ -37,6 +37,7 @@ def get_engine_name(model, dtype, tp_size, pp_size, rank):
     return '{}_{}_tp{}_pp{}_rank{}.engine'.format(model, dtype, tp_size,
                                                   pp_size, rank)
 
+
 def serialize_engine(engine, path):
     """Serializes the engine to path."""
     logger.info(f"Serializing engine to {path}...")
@@ -49,11 +50,11 @@ def serialize_engine(engine, path):
 
 
 def build_rank_engine(
-    tensorrt_llm_gpt,
-    builder: Builder,
-    builder_config: tensorrt_llm.builder.BuilderConfig,
-    engine_name,
-    args,
+        tensorrt_llm_gpt,
+        builder: Builder,
+        builder_config: tensorrt_llm.builder.BuilderConfig,
+        engine_name,
+        args,
 ):
     """@brief: Build the engine on the given rank.
 
@@ -96,7 +97,7 @@ def build_rank_engine(
 
     if not ootb:
         if args.use_gemm_plugin:
-            network.plugin_config.set_gemm_plugin(dtype=args.use_gemm_plugin)        
+            network.plugin_config.set_gemm_plugin(dtype=args.use_gemm_plugin)
         if args.use_layernorm_plugin:
             network.plugin_config.set_layernorm_plugin(dtype=args.use_layernorm_plugin)
         assert not (args.enable_context_fmha and args.enable_context_fmha_fp32_acc)
@@ -121,11 +122,10 @@ def build_rank_engine(
     else:
         print("Build engine in OOTB mode, disable all plugins except nccl.")
 
-
     if args.mapping.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
 
-    use_cache = not args.paged_kv_cache
+    use_cache = args.paged_kv_cache
 
     with net_guard(network):
         # Prepare
@@ -170,7 +170,7 @@ def _build_impl(tensorrt_llm_model, args):
         timing_cache=timing_cache,
         tensor_parallel=args.mapping.tp_size,
         pipeline_parallel=args.mapping.pp_size,
-        world_size=args.mapping.tp_size*args.mapping.pp_size,
+        world_size=args.mapping.tp_size * args.mapping.pp_size,
         parallel_build=args.parallel_build,
         num_layers=tensorrt_llm_model._num_layers,
         num_heads=tensorrt_llm_model._num_heads,
@@ -191,7 +191,7 @@ def _build_impl(tensorrt_llm_model, args):
         use_parallel_embedding=args.use_parallel_embedding,
         fp8="fp8" in args.quantization,
     )
-    
+
     tp_size = args.mapping.tp_size
     pp_size = args.mapping.pp_size
     rank = args.mapping.rank
@@ -214,24 +214,24 @@ def _build_impl(tensorrt_llm_model, args):
 
 
 def build(
-    tensorrt_llm_model,
-    output_dir: Path,
-    mapping=None,
-    dtype="float16",
-    timing_cache="",
-    log_level="info",
-    max_batch_size=1,
-    max_input_len=200,
-    max_output_len=200,
-    max_beam_width=1,
-    max_prompt_embedding_table_size=0,
-    parallel_build=False,
-    gpus_per_node=1,
-    quantization=None,
-    use_inflight_batching=False,
-    paged_kv_cache=False,
-    enable_context_fmha: bool = True,
-    enable_multi_block_mode=False,
+        tensorrt_llm_model,
+        output_dir: Path,
+        mapping=None,
+        dtype="float16",
+        timing_cache="",
+        log_level="info",
+        max_batch_size=1,
+        max_input_len=200,
+        max_output_len=200,
+        max_beam_width=1,
+        max_prompt_embedding_table_size=0,
+        parallel_build=False,
+        gpus_per_node=1,
+        quantization=None,
+        use_inflight_batching=False,
+        paged_kv_cache=False,
+        enable_context_fmha: bool = True,
+        enable_multi_block_mode=False,
 ):
     """Builds the tensorrt_llm_model to engine."""
     args = argparse.Namespace()
@@ -273,11 +273,11 @@ def build(
     logger.set_level(args.log_level)
 
     assert not (
-        args.use_smooth_quant and args.use_weight_only
+            args.use_smooth_quant and args.use_weight_only
     ), "You cannot enable both SmoothQuant and INT8 weight-only together."
 
     assert not (
-        args.use_smooth_quant and args.use_weight_only
+            args.use_smooth_quant and args.use_weight_only
     ), "You cannot enable both SmoothQuant and INT8 weight-only together."
 
     if args.use_ib_gpt_attention_plugin:

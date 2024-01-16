@@ -163,6 +163,7 @@ def nemo_export(argv):
 
     if args.use_inflight_batching == "True":
         args.use_inflight_batching = True
+        args.use_paged_kv_cache = True
     else:
         args.use_inflight_batching = False
 
