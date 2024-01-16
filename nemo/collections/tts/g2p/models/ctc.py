@@ -439,7 +439,6 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
     def per(self, per):
         self._per = per
 
-
     # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
         super()._prepare_for_export(**kwargs)
