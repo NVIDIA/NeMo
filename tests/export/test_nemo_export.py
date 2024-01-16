@@ -335,6 +335,12 @@ def get_args():
         action="store_true"
     )
 
+    parser.add_argument(
+        "--ci_upload_test_results_to_cloud",
+        type=str,
+        default="False",
+    )
+
     args = parser.parse_args()
 
     if args.debug == "True":
@@ -356,6 +362,11 @@ def get_args():
         args.existing_test_models = True
     else:
         args.existing_test_models = False
+
+    if args.ci_upload_test_results_to_cloud == "True":
+        args.ci_upload_test_results_to_cloud = True
+    else:
+        args.ci_upload_test_results_to_cloud = False
 
     return args
 
@@ -388,7 +399,7 @@ def run_inference_tests(args):
                 )
                 result_dic[n_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
 
-                if ci_upload_test_results_to_cloud:
+                if args.ci_upload_test_results_to_cloud:
                     postToNVDataFlow({"n_gpus": n_gpus, "trtllm_accuracy": trtllm_accuracy})
                 n_gpus = n_gpus * 2
     else:
