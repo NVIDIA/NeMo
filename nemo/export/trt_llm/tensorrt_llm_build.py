@@ -125,7 +125,7 @@ def build_rank_engine(
     if args.mapping.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
 
-    use_cache = args.paged_kv_cache
+    use_cache = True #args.paged_kv_cache
 
     with net_guard(network):
         # Prepare
