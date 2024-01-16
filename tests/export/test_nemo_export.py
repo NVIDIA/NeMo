@@ -388,7 +388,8 @@ def run_inference_tests(args):
                 )
                 result_dic[n_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
 
-                postToNVDataFlow({"n_gpus": n_gpus, "trtllm_accuracy": trtllm_accuracy})
+                if ci_upload_test_results_to_cloud:
+                    postToNVDataFlow({"n_gpus": n_gpus, "trtllm_accuracy": trtllm_accuracy})
                 n_gpus = n_gpus * 2
     else:
         prompt_template=["The capital of France is", "Largest animal in the sea is"]

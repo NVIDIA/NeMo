@@ -229,7 +229,8 @@ def perform_benchmark(args):
                                     "prompt len: {2}, output len: {3}, and batch size: "
                                     "{4}.".format(latency, throughput, prompt_len, out_len, batch_size))
 
-                        postToNVDataFlow({"latency": latency})
+                        if ci_upload_test_results_to_cloud:
+                            postToNVDataFlow({"latency": latency})
                     else:
                         latency = None
 
