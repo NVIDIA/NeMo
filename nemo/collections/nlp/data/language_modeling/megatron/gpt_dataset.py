@@ -510,7 +510,7 @@ def _create_ltor_masks_and_position_ids(
     reset_position_ids: bool,
     reset_attention_mask: bool,
     eod_mask_loss: bool,
-    get_attention_mask_from_fusion: bool
+    get_attention_mask_from_fusion: bool,
 ):
     """Create `attention_mask`, `loss_mask`, and `position_ids`.
 
