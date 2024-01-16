@@ -505,7 +505,12 @@ class MockGPTDataset(Dataset):
 
 @torch.no_grad()
 def _create_ltor_masks_and_position_ids(
-    tokens: torch.Tensor, eod_token: int, reset_position_ids: bool, reset_attention_mask: bool, eod_mask_loss: bool,
+    tokens: torch.Tensor,
+    eod_token: int,
+    reset_position_ids: bool,
+    reset_attention_mask: bool,
+    eod_mask_loss: bool,
+    get_attention_mask_from_fusion: bool
 ):
     """Create `attention_mask`, `loss_mask`, and `position_ids`.
 
@@ -519,12 +524,14 @@ def _create_ltor_masks_and_position_ids(
         reset_position_ids:
         reset_attention_mask:
         eod_mask_loss
-
+        get_attention_mask_from_fusion: if True, the attention mask is not materialized.
     """
     assert tokens.ndim == 1
     seq_length = tokens.numel()
-    # `attention_mask` has the shape of [1, seq_length, seq_length]
-    attention_mask = torch.tril(torch.ones((seq_length, seq_length))).unsqueeze(0)
+    attention_mask = None
+    if not get_attention_mask_from_fusion:
+        # `attention_mask` has the shape of [1, seq_length, seq_length]
+        attention_mask = torch.tril(torch.ones((seq_length, seq_length))).unsqueeze(0)
     loss_mask = torch.ones(seq_length, dtype=torch.float)
     if eod_mask_loss:
         loss_mask[tokens == eod_token] = 0.0
@@ -542,13 +549,14 @@ def _create_ltor_masks_and_position_ids(
         prev_index = 0
         for j in range(eod_index.numel()):
             i = eod_index[j]
-            if reset_attention_mask:
+            if not get_attention_mask_from_fusion and reset_attention_mask:
                 attention_mask[0, (i + 1) :, : (i + 1)] = 0
             if reset_position_ids:
                 position_ids[(i + 1) :] -= i + 1 - prev_index
                 prev_index = i + 1
     # Convert attention mask to binary.
-    attention_mask = attention_mask < 0.5
+    if not get_attention_mask_from_fusion:
+        attention_mask = attention_mask < 0.5
     return attention_mask, loss_mask, position_ids
 
 
