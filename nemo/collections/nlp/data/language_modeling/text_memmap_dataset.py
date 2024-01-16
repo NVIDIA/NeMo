@@ -694,7 +694,7 @@ class OnlineSampleMapping:
             local_idx = idx - self.block_bins[block_idx]
             sample_idx = sample_block[local_idx]
 
-            return sample_idx, None, None # for comtability with NeMo's get_samples_mapping
+            return sample_idx, None, None  # for comtability with NeMo's get_samples_mapping
 
     def __len__(self) -> int:
         return self.num_samples
