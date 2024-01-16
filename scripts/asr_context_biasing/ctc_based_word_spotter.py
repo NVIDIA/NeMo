@@ -1,19 +1,65 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import copy
 import numpy as np
 from nemo.utils import logging
 from collections import deque
+from typing import List, Optional, Dict
+from context_graph_ctc import ContextState
 
 
 class Token:
-    def __init__(self, state, dist=0.0, start_frame=None, non_blank_score=0.0):
-        self.state = state
-        self.dist = dist     
-        self.alive = True
-        self.start_frame = start_frame
-        self.non_blank_score = non_blank_score
+    """
+    Class of alignment tracking according to the Token Passing Algoritm
 
-class WBHyp:
-    def __init__(self, word, score, start_frame, end_frame, tokenization):
+    Args:
+        state: state of Context-Biasing graph
+        dist: accumulative score (or distance) of the token in log semiring
+        start_frame: index of acoustic frame from which the token was created 
+    """
+    def __init__(
+            self,
+            state: ContextState,
+            dist: float = 0.0,
+            start_frame: Optional[int] = None
+        ):
+        self.state = state
+        self.dist = dist    
+        self.start_frame = start_frame 
+        self.alive = True
+
+
+class WSHyp:
+    """
+    Hypotheis for Word Spotter
+
+    Args:
+        word: spotter word
+        score: accumulative score (distance) of best token
+        start_frame: index of acoustic frame from which the best token was created
+        end_frame: index of acoustic frame from which the final state of ContextGraph was reached
+        tokenization: tokenization of spotted word
+    """
+    def __init__(
+            self,
+            word: str,
+            score: float,
+            start_frame: int,
+            end_frame: int,
+            tokenization: List[int]
+        ):
         self.word = word
         self.score = score
         self.start_frame = start_frame
@@ -21,16 +67,17 @@ class WBHyp:
         self.tokenization = tokenization
         
 
-def beam_pruning(next_tokens, threshold):
+def beam_pruning(next_tokens: List[Token], beam_threshold: float) -> List[Token]:
+    """ Prun all tokens whose dist is worse than best_token.dist - beam_threshold """
     if not next_tokens:
         return []   
-    # alive_tokens = [token for token in next_tokens if token.alive]
     best_token = next_tokens[np.argmax([token.dist for token in next_tokens])]
-    next_tokens = [token for token in next_tokens if token.dist > best_token.dist - threshold]
+    next_tokens = [token for token in next_tokens if token.dist > best_token.dist - beam_threshold]
     return next_tokens
 
 
-def state_pruning(next_tokens):
+def state_pruning(next_tokens: List[Token]) -> List[Token]:
+    """ If there are several tokens on one state, then leave only the best of them by distance"""
     if not next_tokens:
         return []
     # hyps pruning
@@ -44,45 +91,51 @@ def state_pruning(next_tokens):
                 token.state.best_token.alive = False
                 token.state.best_token = token
     next_tokens_pruned = [token for token in next_tokens if token.alive]
-
     # clean best_tokens in context_graph
     for token in next_tokens:
         token.state.best_token = None
-    
     return next_tokens_pruned
 
 
-def find_best_hyp(spotted_words):
+def find_best_hyp(spotted_words: List[WSHyp], intersection_thershold: int = 10) -> List[WSHyp]:
+    """
+    Some spotted hypotheses may have overlap.
+    If hypotheses intersection is greater than intersection_thershold,
+    then the function leaves only the best hypothesis according to the score.
+    """
 
-    clusters_dict = {}
+    hyp_intervals_dict = {}
     for hyp in spotted_words:
-        # hl, hr = hyp.start_frame, hyp.end_frame
         hyp_interval = set(range(hyp.start_frame, hyp.end_frame+1))
-        h_cluster_name = f"{hyp.start_frame}_{hyp.end_frame}"
-        insert_cluster = True
+        h_interval_name = f"{hyp.start_frame}_{hyp.end_frame}"
+        insert_new_hyp = True
 
-        for cluster in clusters_dict:
-            cl, cr = int(cluster.split("_")[0]), int(cluster.split("_")[1])
+        for h_interval_key in hyp_intervals_dict:
+            cl, cr = int(h_interval_key.split("_")[0]), int(h_interval_key.split("_")[1])
             cluster_interval = set(range(cl, cr+1))
             intersection_part = 100/len(cluster_interval) * len(hyp_interval & cluster_interval)
             # in case of intersection:
-            # TODO -- check if it the same word?
-            if intersection_part >= 20:
-                if hyp.score > clusters_dict[cluster].score:
-                    clusters_dict.pop(cluster)
-                    insert_cluster = True
+            if intersection_part >= intersection_thershold:
+                if hyp.score > hyp_intervals_dict[h_interval_key].score:
+                    hyp_intervals_dict.pop(h_interval_key)
+                    insert_new_hyp = True
                     break
                 else:
-                    insert_cluster = False         
-        if insert_cluster:
-            clusters_dict[h_cluster_name] = hyp
+                    insert_new_hyp = False         
+        if insert_new_hyp:
+            hyp_intervals_dict[h_interval_name] = hyp
     
-    best_hyp_list = [clusters_dict[cluster] for cluster in clusters_dict]        
+    best_hyp_list = [hyp_intervals_dict[h_interval_key] for h_interval_key in hyp_intervals_dict]        
     
     return best_hyp_list
 
 
-def get_ctc_word_alignment(logprob, model, token_weight=1.0):
+def get_ctc_word_alignment(logprob: np.ndarray, asr_model, token_weight: float = 1.0) -> List[tuple]:
+    """ 
+    Get word level alignment (with start and end frames) based on argmax ctc predictions.
+    The word score is a sum of non-blank token logprobs with additional token_weight.
+    token_weight is used to prevent false accepts during context biasing
+    """
     
     alignment_ctc = np.argmax(logprob, axis=1)
 
@@ -91,8 +144,8 @@ def get_ctc_word_alignment(logprob, model, token_weight=1.0):
     prev_idx = None
     for i, idx in enumerate(alignment_ctc):
         token_logprob = 0
-        if idx != model.decoder.blank_idx:
-            token = model.tokenizer.ids_to_tokens([int(idx)])[0]
+        if idx != asr_model.decoder.blank_idx:
+            token = asr_model.tokenizer.ids_to_tokens([int(idx)])[0]
             if idx == prev_idx:
                 prev_repited_token = token_alignment.pop()
                 token_logprob += prev_repited_token[2]
@@ -105,7 +158,6 @@ def get_ctc_word_alignment(logprob, model, token_weight=1.0):
     word_alignment = []
     word = ""
     l, r, score = None, None, None
-    token_boost = token_weight
     for item in token_alignment:
         if not word:
             if word.startswith(slash):
@@ -114,18 +166,18 @@ def get_ctc_word_alignment(logprob, model, token_weight=1.0):
                 word = item[0][:]
             l = item[1]
             r = item[1]
-            score = item[2]+token_boost
+            score = item[2]+token_weight
         else:
             if item[0].startswith(slash):
                 word_alignment.append((word, l, r, score))
                 word = item[0][1:]
                 l = item[1]
                 r = item[1]
-                score = item[2]+token_boost
+                score = item[2]+token_weight
             else:
                 word += item[0]
                 r = item[1]
-                score += item[2]+token_boost
+                score += item[2]+token_weight
     if word:
         word_alignment.append((word, l, r, score))
     
@@ -135,24 +187,24 @@ def get_ctc_word_alignment(logprob, model, token_weight=1.0):
     return word_alignment
 
 
-
-def filter_wb_hyps(best_hyp_list, word_alignment):
+def filter_wb_hyps(best_hyp_list: List[WSHyp], word_alignment: List[tuple]) -> List[WSHyp]:
+    """
+    Compare scores of spotted words with overlapping words from ctc alignment.
+    If score of spotted word is less than overalapping words from ctc alignment,
+    the spotted word will removed as false positive.
+    A spotted word may overlap with several words from ctc alignment ("gpu" -> "g p u").
+    Here we use overall_spot_score variable to accomulate scores of several words.
+    """
     
-    # logging.warning("---------------------")
-    # logging.warning(f"word_alignment is: {word_alignment}")
     if not word_alignment:
         return best_hyp_list
 
-    best_hyp_list_new = []
+    best_hyp_list_filtered = []
     current_word_in_ali = 0
     for hyp in best_hyp_list:
-        # print("--------- wb candidat words: --------")
-        # print(f"{hyp.word}: [{hyp.start_frame};{hyp.end_frame}], score:{hyp.score:-.2f}")
         overall_spot_score = 0
-        overall_spot_word = ""
         word_spotted = False
         hyp_interval = set(range(hyp.start_frame, hyp.end_frame+1))
-        # print("--------- spot information: --------")
         for i in range(current_word_in_ali, len(word_alignment)):
             item = word_alignment[i]
             item_interval = set(range(item[1], item[2]+1))
@@ -160,83 +212,29 @@ def filter_wb_hyps(best_hyp_list, word_alignment):
             if intersection_part:
                 if not word_spotted:
                     overall_spot_score = item[3]
-                    # current_word_in_ali = i
                 else:
                     overall_spot_score += intersection_part/100 * item[3]
-                    # overall_spot_score += 0
-                overall_spot_word += f"{item[0]} "
                 word_spotted = True
-                # print(item)
             elif word_spotted:
                 if hyp.score >= overall_spot_score:
-                    best_hyp_list_new.append(hyp)
+                    best_hyp_list_filtered.append(hyp)
                     current_word_in_ali = i
                     word_spotted = False
                     break
         if word_spotted and hyp.score >= overall_spot_score:
-            best_hyp_list_new.append(hyp)
+            best_hyp_list_filtered.append(hyp)
+
+    return best_hyp_list_filtered
 
 
-        # print(f"overal spot score: {overall_spot_score:.2f}")
-        # print(f"overal spot word : {overall_spot_word}")
-
-    return best_hyp_list_new
-
-
-# def filter_wb_hyps(best_hyp_list, word_alignment):
-    
-#     # logging.warning("---------------------")
-#     # logging.warning(f"word_alignment is: {word_alignment}")
-#     if not word_alignment:
-#         return best_hyp_list
-
-#     best_hyp_list_new = []
-#     current_frame = 0
-#     for hyp in best_hyp_list:
-#         lh, rh = hyp.start_frame, hyp.end_frame
-#         for i in range(current_frame, len(word_alignment)):
-#             item = word_alignment[i]
-#             li, ri = item[1], item[2]
-#             if li <= lh <= ri or li <= rh <= ri or lh <= li <= rh or lh <= ri <= rh:
-#                 if hyp.score >= item[3]:
-#                 # if hyp.score >= item[3] and not item[0].startswith(hyp.word):
-#                     best_hyp_list_new.append(hyp)
-#                 current_frame = i
-#                 break
-    
-#     return best_hyp_list_new
-
-
-# def filter_wb_hyps(best_hyp_list, word_alignment):
-    
-#     best_hyp_list_new = []
-#     current_spot = 0
-#     for hyp in best_hyp_list:
-#         lh, rh = hyp.start_frame, hyp.end_frame
-#         overall_spot_score = 0
-#         spotted = False
-#         for i in range(current_spot, len(word_alignment)):
-#             item = word_alignment[i]
-#             li, ri = item[1], item[2]
-#             if li <= lh <= ri or li <= rh <= ri or lh <= li <= rh or lh <= ri <= rh:
-#                 overall_spot_score += item[3]
-#                 spotted = True
-#             elif spotted and hyp.score >= overall_spot_score:
-#                 best_hyp_list_new.append(hyp)
-#                 current_spot = i-1
-#                 break
-    
-#     return best_hyp_list_new
-
-
-def recognize_wb(
-        logprobs,
+def evaluate_word_spotter(
+        logprobs: List[float],
         context_graph,
         asr_model,
         beam_threshold=None,
-        context_score=0.0,
-        keyword_thr=-3,
-        ctc_ali_token_weight=2.0,
+        context_score=3.0,
+        ctc_ali_token_weight=0.5,
+        keyword_thr=-5,
         print_results=False
     ):
 
@@ -276,7 +274,7 @@ def recognize_wb(
                         best_dist = current_dist
                 ### running beam (end)
 
-                new_token = Token(token.state.next[transition_state], current_dist, token.start_frame, token.non_blank_score)
+                new_token = Token(token.state.next[transition_state], current_dist, token.start_frame)
                 # if transition_state != asr_model.decoder.blank_idx:
                 #     new_token.non_blank_score += logprob_frame[int(transition_state)].item() + context_score
 
@@ -287,7 +285,7 @@ def recognize_wb(
                 if new_token.state.is_end and new_token.dist > keyword_thr:
                     # word = asr_model.tokenizer.ids_to_text(new_token.state.word)
                     word = new_token.state.word
-                    spotted_words.append(WBHyp(word, new_token.dist, new_token.start_frame, frame, asr_model.tokenizer.text_to_ids(new_token.state.word)))
+                    spotted_words.append(WSHyp(word, new_token.dist, new_token.start_frame, frame, asr_model.tokenizer.text_to_ids(new_token.state.word)))
                     # spotted_words.append(WBHyp(word, new_token.non_blank_score, new_token.start_frame, frame, new_token.state.word))
                     if len(new_token.state.next) == 1:
                         if current_dist is best_dist:
