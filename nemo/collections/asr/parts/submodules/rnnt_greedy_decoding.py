@@ -704,8 +704,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         while (current_batch_size := active_indices.shape[0]) > 0:
             # stage 1: get decoder (prediction network) output
             if state is None:
+                # start of the loop, SOS symbol is passed into prediction network
                 decoder_output, state, *_ = self._pred_step(self._SOS, state, batch_size=current_batch_size)
             else:
+                # pass the labels (found in the inner loop) to the prediction network
                 decoder_output, state, *_ = self._pred_step(labels.unsqueeze(1), state, batch_size=current_batch_size)
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
 
@@ -735,6 +737,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     if self.preserve_frame_confidence
                     else None,
                 )
+            # advance_mask is a mask for current batch for searching non-blank labels;
+            # each element is True if non-blank symbol is not yet found AND we can increase the time index
             advance_mask = torch.logical_and(blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices]))
             while advance_mask.any():
                 advance_indices = active_indices[advance_mask]
@@ -748,6 +752,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     .squeeze(1)
                     .squeeze(1)
                 )
+                # get labels (greedy) and scores from current logits, replace labels/scores with new
+                # labels[advance_mask] are blank, and we are looking for non-blank labels
                 more_scores, more_labels = logits.max(-1)
                 labels[advance_mask] = more_labels
                 scores[advance_mask] = more_scores
@@ -790,6 +796,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # stage 4: to avoid looping, go to next frame after max_symbols emission
             if self.max_symbols is not None:
+                # if labels are non-blank (not end-of-utterance), check that last observed timestep with label:
+                # if it is equal to the current time index, and number of observations is >= max_symbols, force blank
                 force_blank_mask = torch.logical_and(
                     torch.logical_and(
                         labels != self._blank_index,
@@ -799,7 +807,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 )
                 if force_blank_mask.any():
                     # forced blank is not stored in the alignments following the original implementation
-                    time_indices[active_indices[force_blank_mask]] += 1
+                    time_indices[active_indices[force_blank_mask]] += 1  # emit blank => advance time indices
+                    # elements with time indices >= out_len become inactive, remove them from batch
                     still_active_mask = time_indices[active_indices] < out_len[active_indices]
                     active_indices = active_indices[still_active_mask]
                     labels = labels[still_active_mask]
