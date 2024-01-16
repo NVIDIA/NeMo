@@ -50,11 +50,11 @@ def serialize_engine(engine, path):
 
 
 def build_rank_engine(
-        tensorrt_llm_gpt,
-        builder: Builder,
-        builder_config: tensorrt_llm.builder.BuilderConfig,
-        engine_name,
-        args,
+    tensorrt_llm_gpt,
+    builder: Builder,
+    builder_config: tensorrt_llm.builder.BuilderConfig,
+    engine_name,
+    args,
 ):
     """@brief: Build the engine on the given rank.
 
@@ -214,24 +214,24 @@ def _build_impl(tensorrt_llm_model, args):
 
 
 def build(
-        tensorrt_llm_model,
-        output_dir: Path,
-        mapping=None,
-        dtype="float16",
-        timing_cache="",
-        log_level="info",
-        max_batch_size=1,
-        max_input_len=200,
-        max_output_len=200,
-        max_beam_width=1,
-        max_prompt_embedding_table_size=0,
-        parallel_build=False,
-        gpus_per_node=1,
-        quantization=None,
-        use_inflight_batching=False,
-        paged_kv_cache=False,
-        enable_context_fmha: bool = True,
-        enable_multi_block_mode=False,
+    tensorrt_llm_model,
+    output_dir: Path,
+    mapping=None,
+    dtype="float16",
+    timing_cache="",
+    log_level="info",
+    max_batch_size=1,
+    max_input_len=200,
+    max_output_len=200,
+    max_beam_width=1,
+    max_prompt_embedding_table_size=0,
+    parallel_build=False,
+    gpus_per_node=1,
+    quantization=None,
+    use_inflight_batching=False,
+    paged_kv_cache=False,
+    enable_context_fmha: bool = True,
+    enable_multi_block_mode=False,
 ):
     """Builds the tensorrt_llm_model to engine."""
     args = argparse.Namespace()
