@@ -309,8 +309,8 @@ class T5G2PModel(G2PModel, Exportable):
         input_encoding = self._tokenizer(
             input_ids, padding='longest', max_length=self.max_source_len, truncation=True, return_tensors='pt',
         )
-        return input_encoding.input_ids,
+        return (input_encoding.input_ids,)
 
     def forward_for_export(self, input_ids):
         preds_str, _, _ = self._generate_predictions(input_ids=input_ids.to(self.device))
-        return preds_str,
+        return (preds_str,)
