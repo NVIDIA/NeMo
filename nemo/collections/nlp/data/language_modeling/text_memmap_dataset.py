@@ -569,7 +569,6 @@ def handle_index(dataset, idx):
         raise IndexError(f'Index out of range: {idx}')
     return idx
 
-
 class OnlineSampleMapping:
     """
     This class replaces NeMo's get_samples_mapping function which pre-computes.
@@ -695,15 +694,35 @@ class OnlineSampleMapping:
             local_idx = idx - self.block_bins[block_idx]
             sample_idx = sample_block[local_idx]
 
-            return sample_idx, None, None  # for comtability with NeMo's get_samples_mapping
+            return sample_idx
 
     def __len__(self) -> int:
         return self.num_samples
 
+    def __reduce__(self):
+        """Add support for pickling. Needed due to functools.lru_cache."""
+        # Return a tuple with a callable and arguments to recreate the object
+        return (
+            self.__class__,
+            (
+                self.dataset_size,
+                self.num_samples,
+                self.block_size,
+                self.cache_maxsize,
+                self.seed,
+                self.shuffle,
+                self.truncate_to_block_boundary,
+            ),
+        )
+
+    def __reduce_ex__(self, protocol):
+        # Optional method that defines the protocol version
+        return self.__reduce__()
+
     def get_sample_block(self, block_idx: int) -> np.ndarray:
         """
         Returns a block of samples of size self.block_size, shuffled if needed.
-        This method will be cached using functools.lru_cache for efficiency during construction.
+        NOTE: This method will be cached using functools.lru_cache for efficiency during construction.
         """
         if block_idx >= self.num_blocks:
             raise IndexError(f"block_idx {block_idx} is out of range. Maximum block_idx is {self.num_blocks-1}")
