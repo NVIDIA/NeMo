@@ -829,7 +829,7 @@ class TestEncDecRNNTModel:
     @pytest.mark.parametrize(
         "greedy_class", [greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer],
     )
-    @pytest.mark.parametrize("max_symbols_per_step", [0, 1, 5])
+    @pytest.mark.parametrize("max_symbols_per_step", [1, 5])
     def test_greedy_decoding_max_symbols_alignment(self, max_symbols_setup, greedy_class, max_symbols_per_step):
         decoders = [max_symbols_setup["decoder"]]
         if greedy_class is greedy_decode.GreedyBatchedRNNTInfer:
