@@ -141,7 +141,7 @@ class TextProcessing:
         answer_text = text[len(context) :]
         # if input_text_mask_ratio, only do it on the input but not label
         answer_ids = pre_pad + self.tokenizer.text_to_ids(
-            answer_text  # , self.sample_alpha if self.input_text_mask_ratio is None else None
+            answer_text, self.sample_alpha if self.input_text_mask_ratio is None else None
         )
         if self.end_string:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
