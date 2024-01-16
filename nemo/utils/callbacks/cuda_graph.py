@@ -20,11 +20,19 @@ from typing import Any, Dict
 
 import pytorch_lightning as pl
 import torch
+from pytorch_lightning import LightningModule
+from pytorch_lightning.trainer.connectors.logger_connector.result import(
+    _ResultMetric,
+    _ResultCollection,
+)
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.loops.optimization.automatic import ClosureResult
-from pytorch_lightning.utilities.rank_zero import rank_zero_info
 from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
 from pytorch_lightning.utilities.types import STEP_OUTPUT
+from pytorch_lightning.utilities import (
+    rank_zero_info,
+    CombinedLoader,
+)
 from torch.nn.parallel import DistributedDataParallel
 
 __all__ = ["CUDAGraphCallback"]
@@ -104,6 +112,43 @@ def zero_grad(optimizer, *args, **kwargs):
         optimizer.__orig_zero_grad__(*args, **kwargs)
 
 
+def to_tensor(self, value, name):
+    # Log metrics in PyTorch Lightning often invokes CPU & GPU synchronizations. Here
+    # we implement smart metrics to avoid those synchronizations.
+    # Refer to: https://github.com/Lightning-AI/pytorch-lightning/blob/2.0.7/src/lightning/pytorch/core/module.py#L615
+    value = (
+        value.clone().detach()
+        if isinstance(value, torch.Tensor)
+        else torch.tensor(value)
+    )
+    if not torch.numel(value) == 1:
+        raise ValueError(
+            f"`self.log({name}, {value})` was called, but the tensor must have a single element."
+            f" You can try doing `self.log({name}, {value}.mean())`"
+        )
+    value = value.squeeze()
+    return value
+
+
+def register_key(self, key, meta, value):
+    # PyTorch Lightning creates all metrics on GPU, but creating the metric on
+    # its input device is prefered.
+    # Refer to: https://github.com/Lightning-AI/pytorch-lightning/blob/2.0.7/src/lightning/pytorch/trainer/connectors/logger_connector/result.py#L409
+    metric = _ResultMetric(meta, isinstance(value, torch.Tensor))
+    device = value.device if isinstance(value, torch.Tensor) else self.device
+    metric = metric.to(device)
+    self[key] = metric
+
+
+def update_metrics(self, key, value, batch_size):
+    # PyTorch Lightning always move all metrics to GPU, but moving the metric to
+    # its input device is prefered.
+    result_metric = self[key]
+    device = value.device if isinstance(value, torch.Tensor) else self.device
+    result_metric.forward(value.to(device), batch_size)
+    result_metric.has_reset = False
+
+
 def get_optimizer_step(state):
     def optimizer_step(self, epoch, batch_idx, optimizer, optimizer_closure=None,) -> None:
         # Not all optimizer supports set_to_none.
@@ -131,7 +176,7 @@ def get_optimizer_step(state):
             # Sleep for one second to let environment stable
             time.sleep(1)
             rank_zero_info("CUDAGraphCallback: capturing CUDA graph for module %s.", self.__class__.__name__)
-            with torch.cuda.graph(state.graph, stream=state.stream):
+            with torch.cuda.graph(state.graph, stream=state.stream, capture_error_mode="global"):
                 self.__orig_optimizer_step__(
                     epoch, batch_idx, optimizer, optimizer_closure=optimizer_closure,
                 )
@@ -270,13 +315,15 @@ class CUDAGraphCallback(Callback):
             return
 
         # Ensure training dataloader loads data to static buffer
-        dataloader = trainer.train_dataloader
+        dataloader = trainer.fit_loop._combined_loader._iterables
         assert isinstance(
             dataloader, torch.utils.data.dataloader.DataLoader
         ), f"Expect Dataloader type but got {type(dataloader)}"
-        trainer.train_dataloader.__orig_dataloader__ = dataloader
         static_loader = StaticBufferLoader(dataloader)
-        trainer.train_dataloader.loaders = static_loader
+        _mode = trainer.fit_loop._combined_loader._mode
+        combined_loader = CombinedLoader(static_loader, mode=_mode)
+        trainer.fit_loop.__orig_combined_loader__ = trainer.fit_loop._combined_loader
+        trainer.fit_loop._combined_loader = combined_loader
 
         # Warn if `optimizer.zero_grad()` invoked during graph capturing
         for optimizer in trainer.optimizers:
@@ -294,6 +341,14 @@ class CUDAGraphCallback(Callback):
             config.scheduler.__orig_get_lr__ = config.scheduler.get_lr
             config.scheduler.get_lr = MethodType(get_lr, config.scheduler)
 
+        # Use smart metrics to avoid syncs
+        LightningModule.__orig_to_tensor__ = LightningModule._LightningModule__to_tensor
+        LightningModule._LightningModule__to_tensor = to_tensor
+        _ResultCollection.__orig_register_key__ = _ResultCollection.register_key
+        _ResultCollection.register_key = register_key
+        _ResultCollection.__orig_update_metrics__ = _ResultCollection.update_metrics
+        _ResultCollection.update_metrics = update_metrics
+
         # Save model outputs to static buffer for PL states reconstruct
         pl_module.__orig_training_step__ = pl_module.training_step
         training_step = get_training_step(self.state)
@@ -309,9 +364,8 @@ class CUDAGraphCallback(Callback):
         if self.state.capture_iteration < 0:
             return
 
-        dataloader = trainer.train_dataloader.__orig_dataloader__
-        trainer.train_dataloader.loaders = dataloader
-        del trainer.train_dataloader.__orig_dataloader__
+        trainer.fit_loop._combined_loader = trainer.fit_loop.__orig_combined_loader__
+        del trainer.fit_loop.__orig_combined_loader__
 
         for optimizer in trainer.optimizers:
             optimizer.zero_grad = optimizer.__orig_zero_grad__
@@ -320,6 +374,13 @@ class CUDAGraphCallback(Callback):
         for config in trainer.lr_scheduler_configs:
             config.scheduler.get_lr = config.scheduler.__orig_get_lr__
             del config.scheduler.__orig_get_lr__
+
+        LightningModule._LightningModule__to_tensor = LightningModule.__orig_to_tensor__
+        del LightningModule.__orig_to_tensor__
+        _ResultCollection.register_key = _ResultCollection.__orig_register_key__
+        del _ResultCollection.__orig_register_key__
+        _ResultCollection.update_metrics = _ResultCollection.__orig_update_metrics__
+        del _ResultCollection.__orig_update_metrics__
 
         pl_module.training_step = pl_module.__orig_training_step__
         del pl_module.__orig_training_step__
