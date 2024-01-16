@@ -149,14 +149,15 @@ def get_args(argv):
     parser.add_argument(
         "-upkc",
         "--use_paged_kv_cache",
-        default="False",
-        type=str,
+        default=False,
+        action='store_true',
         help="Enable paged kv cache."
     )
     parser.add_argument(
         "-dcf",
         "--disable_context_fmha",
-        action="store_true",
+        default=False,
+        action='store_true',
         help="Disable fused Context MultiHeadedAttention (required for V100 support)."
     )
     parser.add_argument(
@@ -178,8 +179,8 @@ def get_args(argv):
     parser.add_argument(
         "-dm",
         "--debug_mode",
-        default="False",
-        type=str,
+        default=False,
+        action='store_true',
         help="Enable debug mode"
     )
 
@@ -190,20 +191,10 @@ def get_args(argv):
 def nemo_deploy(argv):
     args = get_args(argv)
 
-    if args.debug_mode == "True":
+    if args.debug_mode:
         loglevel = logging.DEBUG
     else:
         loglevel = logging.INFO
-
-    if args.use_paged_kv_cache == "True":
-        args.use_paged_kv_cache = True
-    else:
-        args.use_paged_kv_cache = False
-
-    if args.disable_context_fmha == "True":
-        args.disable_context_fmha = True
-    else:
-        args.disable_context_fmha = False
 
     LOGGER.setLevel(loglevel)
     LOGGER.info("Logging level set to {}".format(loglevel))

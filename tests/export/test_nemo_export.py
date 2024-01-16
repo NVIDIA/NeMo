@@ -241,7 +241,8 @@ def get_args():
         "--existing_test_models",
         type=str,
         required=True,
-        default="False",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
         "--model_type",
@@ -287,8 +288,8 @@ def get_args():
     )
     parser.add_argument(
         "--ptuning",
-        type=str,
-        default="False",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
         "--ptuning_checkpoint_dir",
@@ -320,13 +321,13 @@ def get_args():
     )
     parser.add_argument(
         "--run_accuracy",
-        type=str,
-        default="True",
+        default=False,
+        action='store_true',
     )
     parser.add_argument(
         "--debug",
-        type=str,
-        default="True",
+        default=False,
+        action='store_true',
     )
 
     parser.add_argument(
@@ -334,29 +335,7 @@ def get_args():
         action="store_true"
     )
 
-    args = parser.parse_args()
-
-    if args.debug == "True":
-        args.debug = True
-    else:
-        args.debug = False
-
-    if args.run_accuracy == "True":
-        args.run_accuracy = True
-    else:
-        args.run_accuracy = False
-
-    if args.ptuning == "True":
-        args.ptuning = True
-    else:
-        args.ptuning = False
-
-    if args.existing_test_models == "True":
-        args.existing_test_models = True
-    else:
-        args.existing_test_models = False
-
-    return args
+    return parser.parse_args()
 
 
 def run_inference_tests(args):
@@ -388,7 +367,7 @@ def run_inference_tests(args):
                 result_dic[n_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
                 n_gpus = n_gpus * 2
     else:
-        prompt_template=["The capital of France is", "Largest animal in the sea is"]
+        prompt_template = ["The capital of France is", "Largest animal in the sea is"]
         n_gpus = args.min_gpus
 
         while n_gpus <= args.max_gpus:
