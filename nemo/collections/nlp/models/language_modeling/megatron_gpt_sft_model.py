@@ -339,7 +339,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
-        for module in self.get_gpt_module_list():
+        for module in self.get_model_module_list():
             module.config.no_sync_func = no_sync_func
             module.config.grad_sync_func = grad_sync_func
             module.config.param_sync_func = param_sync_func
