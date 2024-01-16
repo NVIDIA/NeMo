@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'nvcr.io/nvidia/pytorch:23.09-py3'
+          image 'nvcr.io/nvidia/pytorch:23.11-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1'
         }
   }
@@ -57,25 +57,38 @@ pipeline {
       }
     }
 
+    // Transformer Engine 1.2.0
     stage('Transformer Engine installation') {
       steps {
          sh 'git clone https://github.com/NVIDIA/TransformerEngine.git && \
              cd TransformerEngine && \
-             git fetch origin e6676c53f26f6ef072943c909d136cf2a39c1d90 && \
+             git fetch origin 4f9662fbe621671f5f905e772fc1138953af77f6 && \
              git checkout FETCH_HEAD && \
              git submodule init && git submodule update && \
              NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .'
       }
     }
 
-    stage('Megatron Core installation') {
+    // Apex bugfix for PyTorch 23.11 container: https://github.com/NVIDIA/apex/pull/1760
+    stage('Apex installation') {
       steps {
-        sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
-            cd Megatron-LM && \
-            git checkout 38879f8b3f0edc4ed4f50ac2f3271010b12c549f && \
-            pip install -e .'
+         sh 'git clone https://github.com/NVIDIA/apex.git && \
+             cd apex && \
+             git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227 && \
+             cp -R apex /usr/local/lib/python3.10/dist-packages'
       }
     }
+
+    // pip package should be working with main, if not we can update the commit here
+    // until the pip package is updated
+    // stage('Megatron Core installation') {
+    //   steps {
+    //      sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
+    //          cd Megatron-LM && \
+    //          git checkout 973330e9c3681604703bf1eb6b5a265d1b9b9b38 && \
+    //          pip install .'
+    //   }
+    // }
 
     stage('PyTorch Lightning version') {
       steps {
@@ -2983,7 +2996,7 @@ pipeline {
         sh "rm -rf examples/nlp/language_modeling/bert_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/bert_index_mappings"
       }
-    }    
+    }
     stage('L2: Megatron RETRO Pretraining and Resume Training') {
       when {
         anyOf {

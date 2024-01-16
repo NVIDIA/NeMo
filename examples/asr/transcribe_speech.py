@@ -21,10 +21,10 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
-from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import (
@@ -174,6 +174,9 @@ class TranscriptionConfig:
 
     # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
     return_hypotheses: bool = True
+
+    # key for groundtruth text in manifest
+    gt_text_attr_name: str = "text"
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -370,6 +373,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if cfg.calculate_wer:
         output_manifest_w_wer, total_res, _ = cal_write_wer(
             pred_manifest=output_filename,
+            gt_text_attr_name=cfg.gt_text_attr_name,
             pred_text_attr_name=pred_text_attr_name,
             clean_groundtruth_text=cfg.clean_groundtruth_text,
             langid=cfg.langid,

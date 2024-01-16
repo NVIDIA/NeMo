@@ -93,10 +93,11 @@ except (ImportError, ModuleNotFoundError):
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
-def init_model_parallel(nccl_communicator_config_path: str = None) -> None:
+def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) -> None:
     """ Initializes Megatron-LM model parallel if using model parallelism.
 
     Args:
+        sharp: Apply SHARP to NCCL data-parallel communication.
         nccl_communicator_config_path: Path to the yaml NCCL communication process group config file.
     """
     app_state = AppState()
@@ -113,7 +114,9 @@ def init_model_parallel(nccl_communicator_config_path: str = None) -> None:
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                context_parallel_size=app_state.context_parallel_size,
                 nccl_communicator_config_path=nccl_communicator_config_path,
+                use_sharp=sharp,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -138,6 +141,7 @@ class NLPDDPStrategy(DDPStrategy):
         no_ddp_communication_hook: Disable DDP communication hook when using AMP-O2
         with FP32 gradient accumulation.
         nccl_communicator_config_path: Path to the yaml file with NCCL communicator options
+        sharp: Apply SHARP to NCCL data-parallel communication.
     """
 
     def __init__(
@@ -147,6 +151,7 @@ class NLPDDPStrategy(DDPStrategy):
         checkpoint_io: Optional[CheckpointIO] = None,
         no_ddp_communication_hook: bool = False,
         nccl_communicator_config_path: Optional[str] = None,
+        sharp: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -162,6 +167,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.nccl_communicator_config_path = nccl_communicator_config_path
+        self.sharp = sharp
 
     def setup(self, trainer: "pl.Trainer") -> None:
         """
@@ -189,7 +195,7 @@ class NLPDDPStrategy(DDPStrategy):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
-                init_model_parallel(self.nccl_communicator_config_path)
+                init_model_parallel(self.sharp, self.nccl_communicator_config_path)
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
@@ -218,7 +224,7 @@ class NLPDDPStrategy(DDPStrategy):
                 # device_ids = self.determine_ddp_device_ids()
                 self._model = DistributedDataParallel(
                     _LightningModuleWrapperBase(self.model),
-                    process_group=parallel_state.get_data_parallel_group(),
+                    process_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
                     **self._ddp_kwargs,
                 )
 
@@ -421,7 +427,7 @@ class NLPDDPStrategy(DDPStrategy):
             and self.lightning_module.sharded_state_dict() is not None
         ):
             if self.is_global_zero:
-                shutil.rmtree(ckpt_to_dir(filepath))
+                shutil.rmtree(ckpt_to_dir(filepath), ignore_errors=True)
 
         # legacy checkpoint logic, does not use megatron core
         else:
@@ -595,7 +601,7 @@ class NLPFSDPStrategy(FSDPStrategy):
                 assert (
                     app_state.tensor_model_parallel_size == 1
                 ), "FSDP hybrid sharding cannot be used when tensor_model_parallel_size > 1."
-            init_model_parallel(self.nccl_communicator_config_path)
+            init_model_parallel(self.sharp, self.nccl_communicator_config_path)
             # Set the FSDP process group as DP process group
             self._process_group = parallel_state.get_data_parallel_group()
 
