@@ -27,7 +27,7 @@ from nemo.collections.tts.g2p.data.ctc import CTCG2PBPEDataset
 from nemo.collections.tts.models.base import G2PModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import NeuralType, LabelsType, LengthsType, TokenIndex
+from nemo.core.neural_types import LabelsType, LengthsType, NeuralType, TokenIndex
 from nemo.utils import logging
 
 try:
@@ -490,4 +490,4 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
         )
         results = [h.y_sequence for h in preds_str]
 
-        return tuple(results),
+        return (tuple(results),)
