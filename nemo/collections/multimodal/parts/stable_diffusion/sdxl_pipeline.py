@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 from PIL import Image
 from tqdm import tqdm
 
-from nemo.collections.multimodal.models.stable_diffusion.diffusion_engine import DiffusionEngine
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import DiffusionEngine
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling import (
     DPMPP2MSampler,
     DPMPP2SAncestralSampler,

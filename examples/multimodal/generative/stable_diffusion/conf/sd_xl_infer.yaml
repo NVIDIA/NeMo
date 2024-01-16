@@ -17,9 +17,13 @@ trainer:
 
 
 infer:
-  num_samples: 1
+  num_samples: 4
   prompt:
     - "A professional photograph of an astronaut riding a pig"
+    - 'A photo of a Shiba Inu dog with a backpack riding a bike. It is wearing sunglasses and a beach hat.'
+    - 'A cute corgi lives in a house made out of sushi.'
+    - 'A high contrast portrait of a very happy fuzzy panda dressed as a chef in a high end kitchen making dough. There is a painting of flowers on the wall behind him.'
+    - 'A brain riding a rocketship heading towards the moon.'
   negative_prompt: ""
   seed: 123
 
