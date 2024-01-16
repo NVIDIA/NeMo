@@ -113,7 +113,7 @@ class ModelBuilder(Module):
         self,
         input_ids,
         position_ids,
-        use_cache=True,
+        use_cache=False,
         attention_mask=None,
         kv_cache_params=None,
         attention_params=None,
