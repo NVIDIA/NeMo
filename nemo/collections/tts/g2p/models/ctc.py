@@ -450,7 +450,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
             "input_len": NeuralType(tuple('B'), LengthsType()),
         }
         self._output_types = {
-            #"preds_str": NeuralType(('B', 'T'), LabelsType()),
+            # "preds_str": NeuralType(('B', 'T'), LabelsType()),
             "log_probs": NeuralType(('B', 'T'), LossType()),
             "encoded_len": NeuralType(('B', 'T'), LengthsType()),
         }
@@ -488,9 +488,9 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
 
         log_probs = self.decoder(encoder_output=encoded_input)
         return (log_probs, encoded_len)
-        #preds_str, _ = self.decoding.ctc_decoder_predictions_tensor(
+        # preds_str, _ = self.decoding.ctc_decoder_predictions_tensor(
         #    log_probs, decoder_lengths=encoded_len, return_hypotheses=True
-        #)
-        #results = [h.y_sequence for h in preds_str]
+        # )
+        # results = [h.y_sequence for h in preds_str]
 
-        #return tuple(results)
+        # return tuple(results)
