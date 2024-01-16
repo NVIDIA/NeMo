@@ -276,14 +276,14 @@ class T5G2PModel(G2PModel, Exportable):
     def _prepare_for_export(self, **kwargs):
         super()._prepare_for_export(**kwargs)
 
-        tensor_shape = ('B', 'D')
+        tensor_shape = ('B', 'T')
 
         # Define input_types and output_types as required by export()
         self._input_types = {
-            "input_ids": NeuralType(tensor_shape),
+            "input_ids": NeuralType(tensor_shape, TokenIndex()),
         }
         self._output_types = {
-            "preds_str": NeuralType(('B')),
+            "preds_str": NeuralType(tensor_shape, LabelsType()),
         }
 
     def _export_teardown(self):
@@ -312,5 +312,8 @@ class T5G2PModel(G2PModel, Exportable):
         return (input_encoding.input_ids,)
 
     def forward_for_export(self, input_ids):
-        preds_str, _, _ = self._generate_predictions(input_ids=input_ids.to(self.device))
-        return (preds_str,)
+        outputs = self.model.generate(
+            input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_target_len
+        )
+        generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
+        return tuple(generated_ids)

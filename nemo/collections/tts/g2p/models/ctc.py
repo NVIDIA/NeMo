@@ -27,7 +27,7 @@ from nemo.collections.tts.g2p.data.ctc import CTCG2PBPEDataset
 from nemo.collections.tts.models.base import G2PModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.neural_types import NeuralType, LabelsType, LengthsType, TokenIndex
 from nemo.utils import logging
 
 try:
@@ -444,15 +444,13 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
     def _prepare_for_export(self, **kwargs):
         super()._prepare_for_export(**kwargs)
 
-        tensor_shape = ('B', 'D')
-
         # Define input_types and output_types as required by export()
         self._input_types = {
-            "input_ids": NeuralType(tensor_shape),
-            "input_len": NeuralType(("B")),
+            "input_ids": NeuralType(('B', 'T'), TokenIndex()),
+            "input_len": NeuralType(tuple('B'), LengthsType()),
         }
         self._output_types = {
-            "preds_str": NeuralType(('B')),
+            "preds_str": NeuralType(('B', 'T'), LabelsType()),
         }
 
     def _export_teardown(self):
@@ -488,6 +486,8 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
 
         log_probs = self.decoder(encoder_output=encoded_input)
         preds_str, _ = self.decoding.ctc_decoder_predictions_tensor(
-            log_probs, decoder_lengths=encoded_len, return_hypotheses=False
+            log_probs, decoder_lengths=encoded_len, return_hypotheses=True
         )
-        return (preds_str,)
+        results = [h.y_sequence for h in preds_str]
+
+        return tuple(results),
