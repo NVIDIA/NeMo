@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-import functools
 import json
 import multiprocessing as mp
 import os
@@ -568,6 +567,7 @@ def handle_index(dataset, idx):
     elif idx < 0:
         raise IndexError(f'Index out of range: {idx}')
     return idx
+
 
 class OnlineSampleMapping:
     """
