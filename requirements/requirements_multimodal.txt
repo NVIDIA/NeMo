@@ -10,7 +10,6 @@ nerfacc>=0.5.3
 open_clip_torch
 opencv-python>=4.8.0.74
 PyMCubes
-pymeshlab
 taming-transformers
 torchdiffeq
 torchsde
