@@ -93,11 +93,12 @@ class GPTFIMDataset(GPTDataset):
         sample = np.concatenate(sample_parts)
 
         # get FIM params
-        self.fim_rate = self.config.fim.rate
-        self.fim_spm_rate = self.config.fim.spm_rate
-        self.fim_split_sample = self.config.tokenizer.tokens_to_ids(self.config.fim.split_sample)
-        self.fragment_fim_rate = self.config.fim.fragment_rate
-        self.no_fim_prefix = self.config.fim.no_prefix
+        self.fim_rate = self.config.fim.get('rate', 0.5)
+        self.fim_spm_rate = self.config.fim.get('spm_rate', 0.5)
+        self.fragment_fim_rate = self.config.fim.get('fragment_rate', 0.5)
+        split_sample = self.config.fim.get('split_sample', None)
+        self.fim_split_sample = self.config.tokenizer.tokens_to_ids(split_sample) if split_sample else None
+        self.no_fim_prefix = self.config.fim.get('no_prefix', None)
 
         # get extra tokens ids
         fim_tokens = self.config.fim.extra_tokens
