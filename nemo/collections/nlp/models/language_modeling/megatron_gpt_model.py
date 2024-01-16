@@ -1224,7 +1224,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             "path_to_cache": self.cfg.data.index_mapping_dir,
         }
 
-        if self.cfg.data.add_fim:
+        if self.cfg.data.get('add_fim', False):
             dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
 
             self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
