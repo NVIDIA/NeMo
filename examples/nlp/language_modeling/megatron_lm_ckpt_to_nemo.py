@@ -459,8 +459,12 @@ def convert(local_rank, rank, world_size, args):
 
         mcore_translate = None
         model_cfg = load_hparams_from_yaml(args.hparams_file).cfg
-        if model_cfg.get("mcore_gpt", False) and not args.mcore_input:
-            # initialize an mcore translation dict only if converting from legacy-m-lm to mcore-nemo
+        mcore_output = model_cfg.get("mcore_gpt", False)
+        if not mcore_output and args.mcore_input:
+            raise RuntimeError("Cannot convert from MCore Megatron-LM to legacy NeMo. "
+                               "Please specify `mcore_gpt: true` in the hparams.yaml file.")
+        if mcore_output and not args.mcore_input:
+            # convert from legacy Megatron-LM to MCore NeMo. Initialize an mcore translation dict
             from scripts.nlp_language_modeling.convert_nemo_gpt_to_mcore import build_key_mapping
 
             mcore_translate = {v: k for k, v in build_key_mapping(model_cfg).items()}
@@ -516,7 +520,7 @@ def convert(local_rank, rank, world_size, args):
 
     if args.nemo_file_path:
         if args.model_type == 'gpt':
-            if model_cfg.get("mcore_gpt", False) and parallel_state.is_unitialized():
+            if mcore_output and parallel_state.is_unitialized():
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size=args.tensor_model_parallel_size,
                     pipeline_model_parallel_size=args.pipeline_model_parallel_size,
