@@ -146,7 +146,7 @@ def nemo_deploy(args):
             triton_model_version=args.triton_model_version,
             max_batch_size=args.max_batch_size,
             port=args.triton_port,
-            http_address=args.triton_http_address,
+            address=args.triton_http_address,
         )
 
         LOGGER.info("Triton deploy function will be called.")
