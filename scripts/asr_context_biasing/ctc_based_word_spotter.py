@@ -17,7 +17,7 @@ import numpy as np
 from nemo.utils import logging
 from collections import deque
 from typing import List, Optional, Dict
-from context_graph_ctc import ContextState
+from context_graph_ctc import ContextState, ContextGraphCTC
 
 
 class Token:
@@ -227,42 +227,56 @@ def filter_wb_hyps(best_hyp_list: List[WSHyp], word_alignment: List[tuple]) -> L
     return best_hyp_list_filtered
 
 
-def evaluate_word_spotter(
-        logprobs: List[float],
-        context_graph,
+def run_word_spotter(
+        logprobs: np.ndarray,
+        context_graph: ContextGraphCTC,
         asr_model,
-        beam_threshold=None,
-        context_score=3.0,
-        ctc_ali_token_weight=0.5,
-        keyword_thr=-5,
-        print_results=False
+        beam_threshold: float = 5.0,
+        cb_weight: float = 3.0,
+        ctc_ali_token_weight: float = 0.5,
+        keyword_threshold: float = -5.0,
+        blank_threshold: float = 0.8,
+        print_results: bool = False
     ):
+    """
+    CTC-based Word Spotter for recognition of words from context biasing graph (paper link) 
+    
+    Args:
+       logprobs: CTC logprobs
+       context_graph: Context-Biasing graph
+       asr_model: ASR model (ctc or hybrid-transducer-ctc)
+       beam_threshold: threshold for beam pruning
+       cb_weight: context biasing weight
+       ctc_ali_token_weight: additional token weight for word-level ctc alignment
+       keyword_threshold: auxiliary weight for pruning final hypotheses
+       blank_threshold: blank threshold (probability) for preliminary hypotheses pruning
+       print_results: print spotted words if True
+    """
+
 
     start_state = context_graph.root
     active_tokens = []
     next_tokens = []
     spotted_words = []
 
-    blank_thr = np.log(0.80)
+    # move probability to log space
+    blank_threshold = np.log(blank_threshold)
+    blank_idx = asr_model.decoder.blank_idx
 
     for frame in range(logprobs.shape[0]):
+        # add an empty token (located in the graph root) at each new frame to start new word spotting
         active_tokens.append(Token(start_state, start_frame=frame))
         logprob_frame = logprobs[frame]
         best_dist = None
         for token in active_tokens:
-            ## skip blank for first token if root:
-            if token.state is context_graph.root and logprobs[frame][asr_model.decoder.blank_idx] > blank_thr:
+            # skip token by the blank threshold if empty token
+            if token.state is context_graph.root and logprobs[frame][blank_idx] > blank_threshold:
                 continue
-            ## end skip blank
             for transition_state in token.state.next:
-
-                ### running beam (start):
-                if transition_state != asr_model.decoder.blank_idx:
-                    # final_context_score = context_score / (token.state.next[transition_state].token_index+1)
-                    final_context_score = context_score
-                    current_dist = token.dist + \
-                                   logprob_frame[int(transition_state)].item() + \
-                                   final_context_score
+                # running beam pruning -- allows to skip the number of Token class creations
+                if transition_state != blank_idx:
+                    # add cb_weight only for non-blank tokens
+                    current_dist = token.dist + logprob_frame[int(transition_state)].item() + cb_weight
                 else:
                     current_dist = token.dist + logprob_frame[int(transition_state)].item()
                 if not best_dist:
@@ -272,7 +286,6 @@ def evaluate_word_spotter(
                         continue
                     elif current_dist > best_dist:
                         best_dist = current_dist
-                ### running beam (end)
 
                 new_token = Token(token.state.next[transition_state], current_dist, token.start_frame)
                 # if transition_state != asr_model.decoder.blank_idx:
@@ -282,7 +295,7 @@ def evaluate_word_spotter(
                 #     new_token.start_frame = frame
 
                 # if end of word:
-                if new_token.state.is_end and new_token.dist > keyword_thr:
+                if new_token.state.is_end and new_token.dist > keyword_threshold:
                     # word = asr_model.tokenizer.ids_to_text(new_token.state.word)
                     word = new_token.state.word
                     spotted_words.append(WSHyp(word, new_token.dist, new_token.start_frame, frame, asr_model.tokenizer.text_to_ids(new_token.state.word)))

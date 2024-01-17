@@ -73,7 +73,7 @@ from nemo.utils import logging
 from context_graph_ctc import ContextGraphCTC
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 
-from ctc_based_word_spotter import evaluate_word_spotter
+from ctc_based_word_spotter import run_word_spotter
 from context_biasing_utils import merge_alignment_with_wb_hyps
 from compute_key_words_fscore import compute_fscore
 
@@ -130,12 +130,12 @@ def decoding_step(
     if cfg.apply_context_biasing:
         ws_results = {}
         for idx, logits in tqdm(enumerate(ctc_logprobs), desc=f"CTC based word boosting...", ncols=120, total=len(ctc_logprobs)):
-            ws_results[audio_file_paths[idx]] = evaluate_word_spotter(
+            ws_results[audio_file_paths[idx]] = run_word_spotter(
                 logits.numpy(),
                 context_graph,
                 asr_model,
                 beam_threshold=hp['beam_threshold'],
-                context_score=hp['context_score'],       
+                cb_weight=hp['context_score'],       
                 ctc_ali_token_weight=hp['ctc_ali_token_weight'],
             )
     
