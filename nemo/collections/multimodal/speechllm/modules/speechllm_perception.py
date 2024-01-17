@@ -133,9 +133,15 @@ class AudioPerceptionModel(NeuralModule, Exportable):
             if cfg.multi_layer_feat.aggregator.mode == "cat":
                 with open_dict(cfg.modality_adapter):
                     if "feat_in" in cfg.modality_adapter:
-                        cfg.modality_adapter.feat_in = cfg.modality_adapter.feat_in * len(
-                            cfg.multi_layer_feat.layer_idx_list
-                        )
+                        if -1 in cfg.multi_layer_feat.layer_idx_list:
+                            cfg.modality_adapter.feat_in = (
+                                cfg.modality_adapter.feat_in * (len(cfg.multi_layer_feat.layer_idx_list) - 1)
+                                + cfg.encoder.feat_in
+                            )
+                        else:
+                            cfg.modality_adapter.feat_in = cfg.modality_adapter.feat_in * len(
+                                cfg.multi_layer_feat.layer_idx_list
+                            )
                     if "input_dim" in cfg.modality_adapter:
                         cfg.modality_adapter.input_dim = cfg.modality_adapter.input_dim * len(
                             cfg.multi_layer_feat.layer_idx_list
