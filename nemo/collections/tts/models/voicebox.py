@@ -154,18 +154,9 @@ class VoiceboxModel(TextToWaveform):
         )
 
         self.maybe_init_from_pretrained_checkpoint(cfg=cfg, map_location='cpu')
-        
-    def prepare_data(self) -> None:
-        """ Pytorch Lightning hook.
 
-        https://lightning.ai/docs/pytorch/stable/common/lightning_module.html#prepare-data
-
-        The following code is basically for transcribed LibriLight.
-        """
-        from lhotse import CutSet
-        from lhotse.serialization import load_manifest_lazy_or_eager
+    def _download_libriheavy(self):
         from lhotse.recipes.utils import manifests_exist
-
         logging.info(f"mkdir -p {self._cfg.libriheavy_dir}")
         os.makedirs(self._cfg.libriheavy_dir, exist_ok=True)
         for subset in self._cfg.subsets:
@@ -174,6 +165,10 @@ class VoiceboxModel(TextToWaveform):
                 os.system(f"wget -P {self._cfg.libriheavy_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
             else:
                 logging.info(f"Skipping download, {subset} subset exists.")
+
+    def _prepare_libriheavy(self):
+        from lhotse import CutSet
+        from lhotse.serialization import load_manifest_lazy_or_eager
 
         # fix audio path prefix
         old_prefix="download/librilight"
@@ -240,6 +235,16 @@ class VoiceboxModel(TextToWaveform):
                 del cuts
             else:
                 logging.info(f"Skipping fix, {subset} subset exists.")
+        
+    def prepare_data(self) -> None:
+        """ Pytorch Lightning hook.
+
+        https://lightning.ai/docs/pytorch/stable/common/lightning_module.html#prepare-data
+
+        The following code is basically for transcribed LibriLight.
+        """
+        self._download_libriheavy()
+        self._prepare_libriheavy()
 
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.
