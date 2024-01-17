@@ -391,8 +391,8 @@ def get_args():
     )
     parser.add_argument(
         "--test_deployment",
-        default=False,
-        action="store_true"
+        type=str,
+        default="False",
     )
     parser.add_argument(
         "--debug",
@@ -409,6 +409,11 @@ def get_args():
 
 
 def run_inference_tests(args):
+    if args.test_deployment == "False":
+        args.test_deployment = False
+    else:
+        args.test_deployment = True
+        
     result_dic = {}
 
     if args.existing_test_models:
