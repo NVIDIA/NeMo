@@ -112,6 +112,7 @@ def mcore_supports_moe() -> bool:
         return False
     try:
         from megatron.core.transformer.moe.router import MoETokenDispatcher
+
         return True
     except ImportError:
         return False
