@@ -1,4 +1,9 @@
+#%%
 import os
+
+os.environ['NVTE_FLASH_ATTN'] = '0'
+os.environ['NVTE_FUSED_ATTN'] = '0'
+
 from argparse import ArgumentParser
 
 import torch
@@ -62,7 +67,7 @@ override_model_dict = {
     'hidden_dropout': 0,
     'attention_dropout': 0,
     'ffn_dropout': 0,
-    'share_embeddings_and_output_weights': False,
+    'share_embeddings_and_output_weights': True,
     'sequence_parallel': False,
     'normalize_attention_scores': True,
     'use_flash_attention': False,
@@ -70,7 +75,7 @@ override_model_dict = {
 }
 
 def rel_err(a, b):
-    return 2 * (a - b).abs() / (a.abs() + b.abs())
+    return 2 * (a - b).abs() / (a.abs() + b.abs() + 1e-8)
 
 
 def average_pool(last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
@@ -92,7 +97,6 @@ def convert_state_dict(state_dict, amp=False):
             .replace('ffn.down_proj', 'mlp.linear_fc2')
             .replace('wte.weight', 'embedding.word_embeddings.weight')
             .replace('norm_f.weight', 'decoder.final_layernorm.weight')
-            .replace('lm_head', 'output_layer')
         )
 
     new_dict = {}
@@ -139,7 +143,9 @@ with torch.no_grad():
     args = get_args()
     logging.info(f"Loading checkpoint from HF: `{args.name_or_path}`")
     hf_tokenizer = AutoTokenizer.from_pretrained(args.name_or_path)
-    hf_model = AutoModelForCausalLM.from_pretrained(args.name_or_path)
+    hf_model = AutoModelForCausalLM.from_pretrained(args.name_or_path,
+                                                    torch_dtype=torch.bfloat16,
+                                                    trust_remote_code=True)
 
     nemo_config = OmegaConf.load(args.hparams_file)
     nemo_config.model = adjust_nemo_config(
@@ -235,7 +241,16 @@ with torch.no_grad():
         for id_tensor in id_tensors
     ]
 
+    for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
+        attn_mask, _, pos_ids = attn_mask_and_pos_ids
 
+        outputs = model(tokens=tokens, text_position_ids=pos_ids.cuda(
+        ), attention_mask=attn_mask.cuda(), labels=None)
+
+    hf_output_token = hf_outputs.logits[0, -1].argmax()
+    print(hf_output_token, hf_tokenizer.decode(hf_output_token))
+    output_token = outputs[0, -1].argmax()
+    print(output_token, hf_tokenizer.decode(output_token))
 
     model.model.module.post_process = False
 
@@ -263,7 +278,8 @@ with torch.no_grad():
             print('max diff', diff.abs().max())
             relative_diff = rel_err(activations[k[3:]], activations[k])
             print('relative diff mean&max', relative_diff.mean(), relative_diff.max())
-            print(diff)
+            # print(diff)
+
         else:
             pass
 
@@ -274,4 +290,19 @@ with torch.no_grad():
     print('rel_err:', rel_err(embeddings, embeddings_hf).mean())
     # from IPython import embed; embed()
 
+
+
+# %%
+inp = activations['norm_f_inp'].clone()
+hf_inp = activations['hf_norm_f_inp'].clone()
+out = activations['norm_f'].clone()
+hf_out = activations['hf_norm_f'].clone()
+
+# %%
+print(rel_err(inp, hf_inp).mean())
+print(rel_err(out, hf_out).mean())
+print(rel_err(hf_out, hf_model.transformer.norm_f(inp)).mean())
+print(rel_err(hf_out, model.model.module.decoder.final_layernorm(hf_inp)).mean())
+
+hf_model.transformer.lm_head
 # %%
