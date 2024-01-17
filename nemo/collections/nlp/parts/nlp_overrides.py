@@ -901,12 +901,14 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             state_dict = new_state_dict
 
         # No need for below for peft models but required for base gpt models
-        if conf.get('megatron_amp_O2', False) and conf.get("target") == "nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel":
-            new_state_dict = {}
-            for key in state_dict.keys():
-                new_key = key.replace('model.', 'model.module.', 1)
-                new_state_dict[new_key] = state_dict[key]
-            state_dict = new_state_dict
+        if conf.get('megatron_amp_O2', False):
+            # Check if extra module already exists. Temporary workaround
+            if not any(key.startswith('model.module.') for key in state_dict.keys()):
+                new_state_dict = {}
+                for key in state_dict.keys():
+                    new_key = key.replace('model.', 'model.module.', 1)
+                    new_state_dict[new_key] = state_dict[key]
+                state_dict = new_state_dict
 
 
         new_state_dict = {}

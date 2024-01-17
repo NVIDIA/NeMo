@@ -62,10 +62,6 @@ def main(cfg) -> None:
 
     model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
 
-    # Otherwise, the target remains the same as the base model (MegatronGPTModel) and therfore can't be distinguished during restore.
-    with open_dict(model_cfg):
-            model_cfg.target = f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
-
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
 
