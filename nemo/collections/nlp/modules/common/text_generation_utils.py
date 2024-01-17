@@ -149,9 +149,6 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
     conv_template = model.cfg.data.get("conv_template", "nvgpt")
     final_response = []
     for idx, prompt_dict in enumerate(prompt_dict_list):
-        import pdb
-
-        pdb.set_trace()
         response = generate(
             model,
             inputs=prompt_dict.get('prompt'),
