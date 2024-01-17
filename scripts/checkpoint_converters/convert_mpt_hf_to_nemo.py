@@ -74,7 +74,9 @@ if __name__ == '__main__':
     parser.add_argument(
         "--hparams_file",
         type=str,
-        default=os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_gpt_config.yaml'),
+        default=os.path.join(
+            os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_gpt_config.yaml'
+        ),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
