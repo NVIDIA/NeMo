@@ -1319,10 +1319,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
             self.build_train_valid_test_datasets()
-            if is_dataset_built_on_rank():
-                self.setup_training_data(self.cfg.data)
-                self.setup_validation_data(self.cfg.data)
-                self.setup_test_data(self.cfg.data)
+            self.setup_training_data(self.cfg.data)
+            self.setup_validation_data(self.cfg.data)
+            self.setup_test_data(self.cfg.data)
 
         if stage == 'fit':
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
