@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from omegaconf import open_dict
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 
@@ -60,6 +61,11 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+
+    # Otherwise, the target remains the same as the base model (MegatronGPTModel) and therfore can't be distinguished during restore.
+    with open_dict(model_cfg):
+            model_cfg.target = f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
+
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
 
