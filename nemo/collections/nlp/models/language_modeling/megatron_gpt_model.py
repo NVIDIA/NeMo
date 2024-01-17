@@ -76,7 +76,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import InferenceParams, mpu, parallel_state, tensor_parallel
+    from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
@@ -908,10 +908,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def get_batch(self, data_iterator):
         """Generate a batch."""
 
-        # TODO: this is pretty hacky, find a better way
-        if (not mpu.is_pipeline_first_stage()) and (not mpu.is_pipeline_last_stage()):
-            return None, None, None, None, None
-
         # Items and their type.
         keys = ['text']
         datatype = torch.int64
@@ -940,8 +936,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'attention_mask': attention_mask,
             'position_ids': position_ids,
         }
-        # slice batch along sequence dimension for context parallelism
-        batch = self.get_batch_on_this_context_parallel_rank(batch)
 
         return batch
 
@@ -975,7 +969,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
-            # batch = next(dataloader_iter)
             batch = self.get_batch(dataloader_iter)
 
             # Transfer needed data to GPU
@@ -994,6 +987,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
+            # slice batch along sequence dimension for context parallelism
             batch = self.get_batch_on_this_context_parallel_rank(batch)
 
             # Model forward pass
@@ -1325,9 +1319,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
             self.build_train_valid_test_datasets()
-            self.setup_training_data(self.cfg.data)
-            self.setup_validation_data(self.cfg.data)
-            self.setup_test_data(self.cfg.data)
+            if is_dataset_built_on_rank():
+                self.setup_training_data(self.cfg.data)
+                self.setup_validation_data(self.cfg.data)
+                self.setup_test_data(self.cfg.data)
 
         if stage == 'fit':
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
