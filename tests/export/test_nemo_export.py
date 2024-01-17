@@ -14,6 +14,7 @@
 
 from pathlib import Path
 from nemo.export import TensorRTLLM
+from scripts.deploy.cloud_telemetry_service import postToNVDataFlow
 from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
 import torch
 import shutil
@@ -332,6 +333,12 @@ def get_args():
         action="store_true"
     )
 
+    parser.add_argument(
+        "--ci_upload_test_results_to_cloud",
+        type=str,
+        default="False",
+    )
+
     return parser.parse_args()
 
 
@@ -362,6 +369,9 @@ def run_inference_tests(args):
                     streaming=args.streaming,
                 )
                 result_dic[n_gpus] = (trtllm_accuracy, trtllm_accuracy_relaxed)
+
+                if args.ci_upload_test_results_to_cloud:
+                    postToNVDataFlow({"n_gpus": n_gpus, "trtllm_accuracy": trtllm_accuracy})
                 n_gpus = n_gpus * 2
     else:
         prompt_template = ["The capital of France is", "Largest animal in the sea is"]

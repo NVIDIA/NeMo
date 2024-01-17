@@ -21,6 +21,7 @@ from pathlib import Path
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
+from scripts.deploy.cloud_telemetry_service import postToNVDataFlow
 
 from builtins import range
 from datetime import datetime
@@ -227,6 +228,9 @@ def perform_benchmark(args):
                         LOGGER.info("Latency: {0} ms, and throughput: {1} prompts/sec, for "
                                     "prompt len: {2}, output len: {3}, and batch size: "
                                     "{4}.".format(latency, throughput, prompt_len, out_len, batch_size))
+
+                        if args.ci_upload_test_results_to_cloud:
+                            postToNVDataFlow({"latency": latency})
                     else:
                         latency = None
 
@@ -427,6 +431,14 @@ def get_args(argv):
         '--out_jsonl',
         type=argparse.FileType('w'),
         required=False
+    )
+    parser.add_argument(
+        '-ci',
+        '--ci_upload_test_results_to_cloud',
+        action="store_true",
+        required=False,
+        default=False,
+        help='Post telemetry service data for ci runs'
     )
 
     args = parser.parse_args(argv)
