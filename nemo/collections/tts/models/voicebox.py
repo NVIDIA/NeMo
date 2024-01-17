@@ -155,41 +155,34 @@ class VoiceboxModel(TextToWaveform):
 
         self.maybe_init_from_pretrained_checkpoint(cfg=cfg, map_location='cpu')
 
-    def _download_libriheavy(self):
+    def _download_libriheavy(self, target_dir, dataset_parts):
+        """ Download LibriHeavy manifests. """
         from lhotse.recipes.utils import manifests_exist
-        logging.info(f"mkdir -p {self._cfg.libriheavy_dir}")
-        os.makedirs(self._cfg.libriheavy_dir, exist_ok=True)
-        for subset in self._cfg.subsets:
-            if not manifests_exist(subset, self._cfg.libriheavy_dir, ["cuts"], "libriheavy"):
+        logging.info(f"mkdir -p {target_dir}")
+        os.makedirs(target_dir, exist_ok=True)
+        for subset in dataset_parts:
+            if not manifests_exist(subset, target_dir, ["cuts"], "libriheavy"):
                 logging.info(f"Downloading {subset} subset.")
-                os.system(f"wget -P {self._cfg.libriheavy_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
+                os.system(f"wget -P {target_dir} -c https://huggingface.co/datasets/pkufool/libriheavy/resolve/main/libriheavy_cuts_{subset}.jsonl.gz")
             else:
                 logging.info(f"Skipping download, {subset} subset exists.")
 
-    def _prepare_libriheavy(self):
+    def _prepare_libriheavy(self, libriheavy_dir, output_dir, textgrid_dir, dataset_parts):
+        """ Filter LibriHeavy manifests, and integrate with MFA alignments from textgrids. """
         from lhotse import CutSet
         from lhotse.serialization import load_manifest_lazy_or_eager
-
-        # fix audio path prefix
-        old_prefix="download/librilight"
-        def change_prefix(cut):
-            old_path = cut.recording.sources[0].source
-            new_path = old_path.replace(old_prefix, self._cfg.librilight_dir)
-            cut.recording.sources[0].source = new_path
-            return cut
         
-        def textgrid_exist(cut, subset=None):
+        def textgrid_filename(cut, subset=None):
             cut_id = cut.id
             spk = cut_id.split('/')[1]
-            f_id = f"{self._cfg.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
-            return os.path.exists(f_id)
+            f_id = f"{textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
+            return f_id
 
         def parse_cut_mfa_textgrid(seg, subset=None):
-            from textgrid import TextGrid, IntervalTier
-            from lhotse.supervision import AlignmentItem, SupervisionSet
-            seg_id = seg.id
-            spk = seg_id.split('/')[1]
-            f_id = f"{self._cfg.textgrid_dir}/{subset}/{spk}/{','.join(seg_id.split('/'))}.TextGrid"
+            from textgrid import TextGrid
+            from lhotse.supervision import AlignmentItem
+            f_id = textgrid_filename(seg, subset=subset)
+
             tg = TextGrid()
             tg.read(f_id)
             new_sup_seg = seg
@@ -208,11 +201,11 @@ class VoiceboxModel(TextToWaveform):
                     logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.5f}, ali_end: {maxTime:.5f}")
             return new_sup_seg
 
-        logging.info(f"mkdir -p {self._cfg.manifests_dir}")
-        os.makedirs(self._cfg.manifests_dir, exist_ok=True)
-        for subset in self._cfg.subsets:
-            manifest_path = os.path.join(self._cfg.manifests_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
-            ori_manifest_path = os.path.join(self._cfg.libriheavy_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
+        logging.info(f"mkdir -p {output_dir}")
+        os.makedirs(output_dir, exist_ok=True)
+        for subset in dataset_parts:
+            manifest_path = os.path.join(output_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
+            ori_manifest_path = os.path.join(libriheavy_dir, f"libriheavy_cuts_{subset}.jsonl.gz")
             if manifest_path not in [self._cfg.train_ds.manifest_filepath, self._cfg.validation_ds.manifest_filepath, self._cfg.test_ds.manifest_filepath]:
                 continue
             if not os.path.exists(manifest_path):
@@ -220,7 +213,7 @@ class VoiceboxModel(TextToWaveform):
                 cuts = load_manifest_lazy_or_eager(ori_manifest_path, CutSet)
                 logging.info(f"Filtering {subset} subset.")
                 cuts = cuts.filter(lambda c: ',' not in c.id)
-                cuts = cuts.filter(lambda c: textgrid_exist(c, subset))
+                cuts = cuts.filter(lambda c: os.path.exists(textgrid_filename(c, subset)))
                 cuts = cuts.map_supervisions(lambda s: parse_cut_mfa_textgrid(s, subset))
                 logging.info(f"Writing {subset} subset.")
                 with CutSet.open_writer(
@@ -236,6 +229,19 @@ class VoiceboxModel(TextToWaveform):
             else:
                 logging.info(f"Skipping fix, {subset} subset exists.")
         
+    def _download_libritts(self, target_dir, dataset_parts):
+        """ Download LibriTTS corpus. """
+        from lhotse.recipes import download_libritts
+        download_libritts(target_dir=target_dir, dataset_parts=dataset_parts)
+
+    def _prepare_libritts(self, corpus_dir, output_dir, textgrid_dir, dataset_parts):
+        """ Prepare LibriTTS manifests, and integrate with MFA alignments from textgrids. """
+        from lhotse.recipes import prepare_libritts
+        manifests = prepare_libritts(corpus_dir=corpus_dir, dataset_parts=dataset_parts, output_dir=None, num_jobs=self._cfg.ds_kwargs.num_workers, link_previous_utt=True)
+        for subset in manifests:
+            #parse mfa
+            pass
+
     def prepare_data(self) -> None:
         """ Pytorch Lightning hook.
 
@@ -243,8 +249,12 @@ class VoiceboxModel(TextToWaveform):
 
         The following code is basically for transcribed LibriLight.
         """
-        self._download_libriheavy()
-        self._prepare_libriheavy()
+        if self._cfg.ds_name == "libriheavy":
+            self._download_libriheavy(target_dir=self._cfg.libriheavy_dir, dataset_parts=self._cfg.subsets)
+            self._prepare_libriheavy(libriheavy_dir=self._cfg.libriheavy_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=self._cfg.subsets)
+        elif self._cfg.ds_name == "libritts":
+            self._download_libritts(target_dir=self._cfg.corpus_dir, dataset_parts=self._cfg.subsets)
+            self._prepare_libritts(corpus_dir=self._cfg.corpus_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=self._cfg.subsets)
 
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.

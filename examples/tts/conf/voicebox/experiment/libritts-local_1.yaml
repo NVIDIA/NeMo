@@ -5,17 +5,16 @@
 
 defaults:
   - default
+  - /dataset@model: libritts
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
 model:
-  librilight_dir: /datasets/LibriLight/
-  libriheavy_dir: data/download/LibriHeavy
-  manifests_dir: data/parsed/LibriHeavy
-  textgrid_dir: data/aligned/textgrids
+  manifests_dir: data/parsed/LibriTTS
+  textgrid_dir: /datasets/LibriTTS_R/LibriTTSCorpusLable/textgrid
   
-  corpus_dir: ${.librilight_dir}
+  corpus_dir: /datasets/LibriTTS_R/LibriTTS
 
   duration_predictor:
     depth: 2

@@ -1,25 +1,23 @@
 # data_dir: ${paths.data_dir}
-ds_name: libriheavy
 
-corpus_dir: ${.librilight_dir}
-librilight_dir: ???
+ds_name: libritts
+
+corpus_dir: ???
 manifests_dir: ???  # parsed manifests (e.g. filtering, add alignments, etc.)
-libriheavy_dir: ??? # downloaded manifests
 subsets:
-  - small
-  - medium
-  - large
-  - dev
+  - train-clean-100
+  - train-clean-360
+  - train-other-500
+  - dev-clean
+  - dev-other
   - test_clean
   - test_other
-  - test_clean_large
-  - test_other_large
 
 sample_rate: 16000
 
 train_ds:
   defer_setup: true
-  manifest_filepath: ${..manifests_dir}/libriheavy_cuts_medium.jsonl.gz
+  manifest_filepath: ${..manifests_dir}/libritts_cuts_train-clean-100.jsonl.gz
   sample_rate: ${..sample_rate}
   batch_size: 16 # you may increase batch_size if your memory allows
   shuffle: true
@@ -47,7 +45,7 @@ train_ds:
 
 validation_ds:
   defer_setup: true
-  manifest_filepath: ${..manifests_dir}/libriheavy_cuts_dev.jsonl.gz
+  manifest_filepath: ${..manifests_dir}/libritts_cuts_dev-clean.jsonl.gz
   sample_rate: ${..sample_rate}
   batch_size: 16
   shuffle: false
@@ -75,7 +73,7 @@ validation_ds:
 
 test_ds:
   defer_setup: true
-  manifest_filepath: ${..manifests_dir}/libriheavy_cuts_test_clean.jsonl.gz
+  manifest_filepath: ${..manifests_dir}/libritts_cuts_test-clean.jsonl.gz
   sample_rate: ${..sample_rate}
   batch_size: 16
   shuffle: false
