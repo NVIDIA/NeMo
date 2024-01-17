@@ -21,7 +21,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecTransfModelBPE
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
@@ -108,6 +108,13 @@ class ModelChangeConfig:
 
 
 @dataclass
+class BeamSearchConfig:
+    beam_size: int = 1
+    len_pen: float = 0.0
+    max_generation_delta: int = 20
+
+
+@dataclass
 class TranscriptionConfig:
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
@@ -174,6 +181,8 @@ class TranscriptionConfig:
 
     # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
     return_hypotheses: bool = True
+
+    beam_search: BeamSearchConfig = BeamSearchConfig()
 
     # key for groundtruth text in manifest
     gt_text_attr_name: str = "text"
@@ -257,7 +266,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
-        if cfg.decoder_type is not None:
+        if isinstance(asr_model, EncDecTransfModelBPE):
+            asr_model.change_decoding_strategy(cfg.beam_search)
+        elif cfg.decoder_type is not None:
             # TODO: Support compute_langs in CTC eventually
             if cfg.compute_langs and cfg.decoder_type == 'ctc':
                 raise ValueError("CTC models do not support `compute_langs` at the moment")
@@ -300,6 +311,10 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     # prepare audio filepaths and decide wether it's partial audio
     filepaths, partial_audio = prepare_audio_data(cfg)
+    if isinstance(asr_model, EncDecTransfModelBPE):
+        # EncDecTransfModelBPE currently only supports manifest input to the transcribe() function
+        filepaths = cfg.dataset_manifest
+        partial_audio = False
 
     # setup AMP (optional)
     if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):

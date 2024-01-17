@@ -214,7 +214,12 @@ class ASRBPEMixin(ABC):
                         self.AGGREGATE_TOKENIZERS_DICT_PREFIX
                     ][lang]['type']
 
-        self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
+        if tokenizer_cfg.get('is_canary', False):
+            # CanaryTokenizer easy access to spl_tokens which aggegatate
+            # doesn't have for now; TODO: merge both later
+            self.tokenizer = tokenizers.CanaryTokenizer(tokenizers_dict)
+        else:
+            self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
 
     def _make_tokenizer(self, tokenizer_cfg: DictConfig, lang=None):
 

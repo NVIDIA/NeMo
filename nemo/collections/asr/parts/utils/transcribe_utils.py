@@ -313,6 +313,7 @@ def write_transcription(
     else:
         raise TypeError
 
+    os.makedirs(os.path.dirname(cfg.output_filename), exist_ok=True)
     with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
         if cfg.audio_dir is not None:
             for idx, transcription in enumerate(best_hyps):  # type: rnnt_utils.Hypothesis or str
