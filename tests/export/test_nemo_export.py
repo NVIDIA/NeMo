@@ -16,6 +16,7 @@ from pathlib import Path
 from nemo.export import TensorRTLLM
 from nemo.deploy import DeployPyTriton, NemoQuery
 from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
+from scripts.deploy.cloud_telemetry_service import postToNVDataFlow
 import torch
 import shutil
 import json
@@ -398,6 +399,11 @@ def get_args():
         default=False,
         action='store_true',
     )
+    parser.add_argument(
+        "--ci_upload_test_results_to_cloud",
+        default=False,
+        action='store_true',
+    )
 
     return parser.parse_args()
 
@@ -423,6 +429,10 @@ def run_inference_tests(args):
             )
             result_dic[n_gpus] = (
                 trtllm_accuracy, trtllm_accuracy_relaxed, trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed)
+
+            if args.ci_upload_test_results_to_cloud:
+                postToNVDataFlow({"n_gpus": n_gpus, "trtllm_accuracy": trtllm_accuracy})
+
             n_gpus = n_gpus * 2
     else:
         prompt_template = ["The capital of France is", "Largest animal in the sea is"]
@@ -455,6 +465,10 @@ def run_inference_tests(args):
             )
             result_dic[n_gpus] = (
                 trtllm_accuracy, trtllm_accuracy_relaxed, trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed)
+
+            if args.ci_upload_test_results_to_cloud:
+                postToNVDataFlow({"n_gpus": n_gpus, "trtllm_accuracy": trtllm_accuracy})
+
             n_gpus = n_gpus * 2
 
     test_result = "PASS"
