@@ -50,7 +50,6 @@ class WSHyp:
         score: accumulative score (distance) of best token
         start_frame: index of acoustic frame from which the best token was created
         end_frame: index of acoustic frame from which the final state of ContextGraph was reached
-        tokenization: tokenization of spotted word
     """
     def __init__(
             self,
@@ -58,13 +57,11 @@ class WSHyp:
             score: float,
             start_frame: int,
             end_frame: int,
-            tokenization: List[int]
         ):
         self.word = word
         self.score = score
         self.start_frame = start_frame
         self.end_frame = end_frame
-        self.tokenization = tokenization
         
 
 def beam_pruning(next_tokens: List[Token], beam_threshold: float) -> List[Token]:
@@ -236,6 +233,7 @@ def run_word_spotter(
         ctc_ali_token_weight: float = 0.5,
         keyword_threshold: float = -5.0,
         blank_threshold: float = 0.8,
+        non_blank_threshold: float = 0.001,
         print_results: bool = False
     ):
     """
@@ -250,6 +248,7 @@ def run_word_spotter(
        ctc_ali_token_weight: additional token weight for word-level ctc alignment
        keyword_threshold: auxiliary weight for pruning final hypotheses
        blank_threshold: blank threshold (probability) for preliminary hypotheses pruning
+       non_blank_threshold: non-blank threshold (probability) for preliminary hypotheses pruning
        print_results: print spotted words if True
     """
 
@@ -263,22 +262,32 @@ def run_word_spotter(
     blank_threshold = np.log(blank_threshold)
     blank_idx = asr_model.decoder.blank_idx
 
+    non_blank_threshold = np.log(non_blank_threshold)
+    # logging.warning(f"****** logprobs.shape is: {logprobs.shape}")
+    # logprobs_sorted = -np.argsort(logprobs, axis=-1) + logprobs.shape[1]-1
+    # logging.warning(f"****** logprobs_sorted[0] is: {logprobs_sorted[0]}")
+    # raise KeyError
+
     for frame in range(logprobs.shape[0]):
         # add an empty token (located in the graph root) at each new frame to start new word spotting
         active_tokens.append(Token(start_state, start_frame=frame))
-        logprob_frame = logprobs[frame]
         best_dist = None
         for token in active_tokens:
             # skip token by the blank threshold if empty token
             if token.state is context_graph.root and logprobs[frame][blank_idx] > blank_threshold:
                 continue
             for transition_state in token.state.next:
-                # running beam pruning -- allows to skip the number of Token class creations
+                # skip non-blank token by the threshold if empty token
+                if token.state is context_graph.root and logprobs[frame][int(transition_state)] < non_blank_threshold:
+                    continue
+                # if token.state is context_graph.root and logprobs_sorted[frame][int(transition_state)] > 500:
+                #     continue
+                # running beam pruning -- allows to skip the big number of Token class creations
                 if transition_state != blank_idx:
                     # add cb_weight only for non-blank tokens
-                    current_dist = token.dist + logprob_frame[int(transition_state)].item() + cb_weight
+                    current_dist = token.dist + logprobs[frame][int(transition_state)].item() + cb_weight
                 else:
-                    current_dist = token.dist + logprob_frame[int(transition_state)].item()
+                    current_dist = token.dist + logprobs[frame][int(transition_state)].item()
                 if not best_dist:
                     best_dist = current_dist
                 else:
@@ -288,48 +297,36 @@ def run_word_spotter(
                         best_dist = current_dist
 
                 new_token = Token(token.state.next[transition_state], current_dist, token.start_frame)
-                # if transition_state != asr_model.decoder.blank_idx:
-                #     new_token.non_blank_score += logprob_frame[int(transition_state)].item() + context_score
-
-                # if not new_token.start_frame:
-                #     new_token.start_frame = frame
-
-                # if end of word:
+                # add a word as spotted if token reached the end of word state in context graph:
                 if new_token.state.is_end and new_token.dist > keyword_threshold:
-                    # word = asr_model.tokenizer.ids_to_text(new_token.state.word)
                     word = new_token.state.word
-                    spotted_words.append(WSHyp(word, new_token.dist, new_token.start_frame, frame, asr_model.tokenizer.text_to_ids(new_token.state.word)))
-                    # spotted_words.append(WBHyp(word, new_token.non_blank_score, new_token.start_frame, frame, new_token.state.word))
+                    spotted_words.append(WSHyp(word, new_token.dist, new_token.start_frame, frame))
+                    # check case when the current state is the last in the branch (only one self-loop transition)
                     if len(new_token.state.next) == 1:
                         if current_dist is best_dist:
                             best_dist = None
                         continue
                 next_tokens.append(new_token)
-                # else:
-                #     next_tokens.append(new_token)
         # state and beam prunings:
         next_tokens = beam_pruning(next_tokens, beam_threshold)
         next_tokens = state_pruning(next_tokens)
-        # print(f"frame step is: {frame}")
-        # print(f"number of active_tokens is: {len(next_tokens)}")
 
         active_tokens = next_tokens
         next_tokens = []
 
-    # find best hyp for spotted keywords:
+    # find best hyps for spotted keywords (in case of hyps overlapping):
     best_hyp_list = find_best_hyp(spotted_words)
     if print_results:
-        print(f"---spotted words:")
+        print(f"[INFO]: spotted words:")
         for hyp in best_hyp_list:
             print(f"{hyp.word}: [{hyp.start_frame};{hyp.end_frame}], score:{hyp.score:-.2f}")
     
-    # filter wb hyps according to greedy ctc predictions
+    # filter hyps according to word-level ctc predictions to avoid a high false accept rate
     ctc_word_alignment = get_ctc_word_alignment(logprobs, asr_model, token_weight=ctc_ali_token_weight)
-    best_hyp_list_new = filter_wb_hyps(best_hyp_list, ctc_word_alignment)
+    best_hyp_list = filter_wb_hyps(best_hyp_list, ctc_word_alignment)
     if print_results:
-        print("---final result is:")
-        for hyp in best_hyp_list_new:
+        print("[INFO]: result is:")
+        for hyp in best_hyp_list:
             print(f"{hyp.word}: [{hyp.start_frame};{hyp.end_frame}], score:{hyp.score:-.2f}")
 
-
-    return best_hyp_list_new
+    return best_hyp_list

@@ -36,46 +36,12 @@ def merge_alignment_with_wb_hyps(
                 else:
                     alignment_tokens.append([idx, asr_model.tokenizer.ids_to_tokens([int(token)])[0]])
             prev_token = token
-
-        # if not alignment_tokens:
-        #     for wb_hyp in cb_results:
-        #         print(f"wb_hyp: {wb_hyp.word}")
-        #     return " ".join([wb_hyp.word for wb_hyp in cb_results])
         
     elif decoder_type == "rnnt":
         alignment_tokens = []
         tokens = asr_model.tokenizer.ids_to_tokens(candidate.y_sequence.tolist())
         for idx, token in enumerate(tokens):
             alignment_tokens.append([candidate.timestep[idx], token])
-    # for idx, items in enumerate(alignment):
-    #     for item in items:
-    #         token = item[1].item()
-    #         if token != model.decoder.blank_idx:
-    #             alignment_per_frame.append([idx, model.tokenizer.ids_to_tokens([token])[0]])
-
-    
-    # logging.warning("**********************")
-    # logging.warning(f"candidate.timestep is: {candidate.timestep}")
-    # logging.warning(f"candidate.y_sequence is: {tokens}")
-    # logging.warning(f"alignment_tokens is: {alignment_tokens}")
-    # logging.warning(f"len(candidate.timestep) is: {len(candidate.timestep)}")
-    # logging.warning(f"len(alignment_tokens) is: {len(alignment_tokens)}")
-    # raise KeyError
-
-
-    # alignment_per_frame = []
-    # for items in alignment:
-    #     current_frame_ali = [x[1].item() for x in items]
-    #     # logging.warning("-----"*10)
-    #     # logging.warning(current_frame_ali)
-    #     alignment_per_frame.append(current_frame_ali)
-
-    # # get words borders
-    # alignment_tokens = []
-    # for idx, frame_ali in enumerate(alignment_per_frame):
-    #     for idy, token in enumerate(frame_ali):
-    #         if token != model.decoder.blank_idx:
-    #             alignment_tokens.append([idx, model.tokenizer.ids_to_tokens([token])[0]])
 
     if not alignment_tokens:
         for wb_hyp in cb_results:
