@@ -63,16 +63,32 @@ class ContextState:
 
 class ContextGraphCTC:
     """
-    Build Context-biasing graph (based on prefix tree) according to the CTC transition topology (with blank nodes)
+    Context-biasing graph (based on prefix tree) according to the CTC transition topology (with blank nodes)
     """
 
     def __init__(self, blank_id=1024):
+        """
+        Initialize the ContextGraphCTC based on given blank_id.
+
+        Args:
+            blank_id: the id of blank token
+        """
 
         self.num_nodes = 0
         self.root = ContextState(index=self.num_nodes, is_end=False, token_index=0)
         self.blank_token = blank_id
 
     def build(self, word_items: List[Union[str, List[List[int]]]]):
+        """
+        Build the context graph based on given word_items.
+
+        Args:
+            word_items: a list of word items, each word item is a tuple of (word, tokenizations)
+                        word: the word to be inserted into the context graph
+                        tokenizations: a list of BPE word tokenizations
+                        (each word can have several tokenizations to improve the accuracy of context biasing)
+
+        """
         # process context biasing words with tokenizations
         for word_item in word_items:
             for tokens in word_item[1]:

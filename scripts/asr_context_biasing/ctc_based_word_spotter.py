@@ -22,12 +22,12 @@ from context_graph_ctc import ContextState, ContextGraphCTC
 
 class Token:
     """
-    Class of alignment tracking according to the Token Passing Algoritm
+    Class of alignment tracking according to the Token Passing Algoritm (TPA).
 
     Args:
         state: state of Context-Biasing graph
-        score: accumulative token score in log semiring
-        start_frame: index of acoustic frame from which the token was created 
+        score: accumulated token score in log semiring
+        start_frame: index of acoustic frame from which the token was created
     """
     def __init__(
             self,
@@ -124,7 +124,7 @@ def find_best_hyps(spotted_words: List[WSHyp], intersection_threshold: int = 10)
         intersection_threshold: minimal intersection threshold (in percentages)
 
     Returns:
-        list of best hyps without intersections
+        list of best hyps without intersection
     """
 
     hyp_intervals_dict = {}
@@ -279,7 +279,10 @@ def run_word_spotter(
         non_blank_threshold: float = 0.001,
     ):
     """
-    CTC-based Word Spotter for recognition of words from context biasing graph (paper link) 
+    CTC-based Word Spotter for recognition of words from context biasing graph (paper link)
+    The algorithm is based on the Token Passing Algorithm (TPA) and uses run, beam and state prunings.
+    Blank and non-blank thresholds are used for preliminary hypotheses pruning.
+    The algorithm is implemented in log semiring. 
     
     Args:
         logprobs: CTC logprobs
@@ -313,11 +316,11 @@ def run_word_spotter(
         active_tokens.append(Token(start_state, start_frame=frame))
         best_score = None
         for token in active_tokens:
-            # skip token by the blank threshold if empty token
+            # skip token by the blank_threshold if empty token
             if token.state is context_graph.root and logprobs[frame][blank_idx] > blank_threshold:
                 continue
             for transition_state in token.state.next:
-                # skip non-blank token by the threshold if empty token
+                # skip non-blank token by the non_blank_threshold if empty token
                 if token.state is context_graph.root and logprobs[frame][int(transition_state)] < non_blank_threshold:
                     continue
                 # running beam pruning (start) -- allows to skip current token before Token class creations
