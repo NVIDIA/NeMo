@@ -183,6 +183,7 @@ def nemo_export(argv):
         LOGGER.info("Export is successful.")
     except Exception as error:
         LOGGER.error("Error message: " + str(error))
+        raise error
 
 
 if __name__ == '__main__':
