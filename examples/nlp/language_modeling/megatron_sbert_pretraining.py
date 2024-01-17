@@ -17,10 +17,11 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_sbert_model import MegatronSBertModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronBertTrainerBuilder
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+
 
 @hydra_runner(config_path="conf", config_name="megatron_bert_config")
 def main(cfg) -> None:
@@ -40,9 +41,11 @@ def main(cfg) -> None:
         return_config=True,
     )
     model_cfg.data.data_prefix = cfg.model.data.data_prefix
-    model_cfg.micro_batch_size  = cfg.model.micro_batch_size
+    model_cfg.micro_batch_size = cfg.model.micro_batch_size
     model_cfg.global_batch_size = cfg.model.global_batch_size
-    assert model_cfg.micro_batch_size * cfg.trainer.devices == model_cfg.global_batch_size, "Gradiant accumulation is not supported for contrastive learning yet"
+    assert (
+        model_cfg.micro_batch_size * cfg.trainer.devices == model_cfg.global_batch_size
+    ), "Gradiant accumulation is not supported for contrastive learning yet"
 
     OmegaConf.set_struct(model_cfg, True)
     with open_dict(model_cfg):
@@ -53,7 +56,7 @@ def main(cfg) -> None:
         trainer=trainer,
         save_restore_connector=NLPSaveRestoreConnector(),
         override_config_path=model_cfg,
-        strict=True
+        strict=True,
     )
 
     # model = MegatronBertModel(cfg.model, trainer)
