@@ -48,7 +48,11 @@ python convert_gpt_nemo_to_mcore.py \
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--name_or_path", type=str, default=None, required=True, help="Path to extracted, TP1 PP1 NeMo GPT checkpoint.",
+        "--name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to extracted, TP1 PP1 NeMo GPT checkpoint.",
     )
     parser.add_argument(
         "--save_path", type=str, default=None, required=True, help="Path to output mcore weights file (ends in .nemo)."
