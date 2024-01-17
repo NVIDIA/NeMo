@@ -111,12 +111,10 @@ def mcore_supports_moe() -> bool:
     if not HAVE_MEGATRON_CORE:
         return False
     try:
-        from megatron.core.transformer.moe.base_moe_layer import MoETokenDispatcher
-
+        from megatron.core.transformer.moe.router import MoETokenDispatcher
         return True
     except ImportError:
         return False
-    return False
 
 
 def get_specs(spec_name, num_experts=None):
