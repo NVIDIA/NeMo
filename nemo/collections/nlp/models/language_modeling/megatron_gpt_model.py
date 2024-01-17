@@ -612,7 +612,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
             self.allreduce_sequence_parallel_gradients()
 
-
         if self.cfg.get('expert_model_parallel_size', 1) > 1:
             self.allreduce_expert_parallel_gradients()
 
@@ -731,7 +730,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
             buf.copy_(synced)
 
-
     def _append_expert_parallel_module_grads(self, module, grads):
         """ Helper method for allreduce_expert_parallel_gradients"""
 
@@ -762,8 +760,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._append_expert_parallel_module_grads(self.model, grads)
 
         coalesced = torch._utils._flatten_dense_tensors(grads)
+        # TODO(akoumparouli): switch to ReduceOp.AVG https://github.com/pytorch/pytorch/blob/d0fc268918236d8a56cc0ad82ace001160281a17/torch/_C/_distributed_c10d.pyi#L110C5-L110C8
+        # once it's available to avoid dividing grads manually later.
         torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_modulo_expert_parallel_group())
+        data_modulo_expert_parallel_group_size = torch.distributed.get_world_size(
+            group=parallel_state.get_data_modulo_expert_parallel_group()
+        )
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+            synced /= data_modulo_expert_parallel_group_size
             buf.copy_(synced)
 
     def allreduce_fsdp_sharding_omitted_gradients(self):
