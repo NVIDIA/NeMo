@@ -17,7 +17,6 @@ import itertools
 import os
 import re
 from dataclasses import fields
-from datetime import datetime
 from typing import Any, Dict, Optional, Union
 
 import omegaconf
@@ -315,11 +314,6 @@ class MegatronBaseModel(NLPModel):
 
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
-
-        # Support DLFW master container
-        if nvidia_torch_version == 'master':
-            nvidia_torch_version = datetime.now().strftime('%y.%m')
-
         if nvidia_torch_version is not None:
             try:
                 NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
@@ -784,11 +778,10 @@ class MegatronBaseModel(NLPModel):
             overlap_params = []
             no_overlap_params = []
             for p in self.parameters():
-                if p.requires_grad:
-                    if getattr(p, '_disable_overlap_grad_sync', False):
-                        no_overlap_params.append(p)
-                    else:
-                        overlap_params.append(p)
+                if getattr(p, '_disable_overlap_grad_sync', False):
+                    no_overlap_params.append(p)
+                else:
+                    overlap_params.append(p)
             self._optimizer.init_params(reversed(overlap_params))
             self._optimizer.init_params(reversed(no_overlap_params))
 
