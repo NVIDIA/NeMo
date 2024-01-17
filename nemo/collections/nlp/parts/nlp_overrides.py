@@ -900,12 +900,12 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
 
-        if conf.get('megatron_amp_O2', False):
-            new_state_dict = {}
-            for key in state_dict.keys():
-                new_key = key.replace('model.', 'model.module.', 1)
-                new_state_dict[new_key] = state_dict[key]
-            state_dict = new_state_dict
+        # if conf.get('megatron_amp_O2', False):
+        #     new_state_dict = {}
+        #     for key in state_dict.keys():
+        #         new_key = key.replace('model.', 'model.module.', 1)
+        #         new_state_dict[new_key] = state_dict[key]
+        #     state_dict = new_state_dict
 
         new_state_dict = {}
         for key in state_dict.keys():
