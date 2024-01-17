@@ -391,8 +391,8 @@ pipeline {
         stage('Llama') {
           steps {
             sh 'CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py \
-            --in-file=/home/TestData/nlp/megatron_llama/llama-ci-hf \
-            --out-file=/home/TestData/nlp/megatron_llama/ci.nemo \
+            --name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf \
+            --save_path=/home/TestData/nlp/megatron_llama/ci.nemo \
             --precision=16'
             sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
           }
@@ -400,18 +400,16 @@ pipeline {
         stage('StarCoder') {
           steps {
             sh 'python scripts/nlp_language_modeling/convert_starcoder_hf_to_nemo.py \
-            --config examples/nlp/language_modeling/conf/megatron_gpt_config.yaml \
-            --input /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
-            --output /home/TestData/nlp/megatron_gpt/starcoder-ci-hf'
+            --name_or_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
+            --save_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/megatron_starcoder_tp1_pp1.nemo'
           }
         }
         stage('Falcon') {
           steps {
             sh 'python scripts/nlp_language_modeling/convert_hf_falcon_to_nemo.py \
-            --config examples/nlp/language_modeling/conf/megatron_falcon_config.yaml \
-            --input /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
-            --output /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
+            --name_or_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
+            --save_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
           }
         }
