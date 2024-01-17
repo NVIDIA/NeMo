@@ -5,14 +5,14 @@
 
 defaults:
   - default
-  - /dataset@model: libritts
+  - override /dataset@model: libritts
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
 model:
   manifests_dir: data/parsed/LibriTTS
-  textgrid_dir: /datasets/LibriTTS_R/LibriTTSCorpusLable/textgrid
+  textgrid_dir: /datasets/LibriTTS_R/LibriTTSCorpusLabel/textgrid
   
   corpus_dir: /datasets/LibriTTS_R/LibriTTS
 
@@ -43,4 +43,4 @@ model:
     num_workers: 8
 
 # task name, determines output directory path
-task_name: "local_1"
+task_name: "libritts-local_1"

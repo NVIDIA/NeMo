@@ -232,15 +232,78 @@ class VoiceboxModel(TextToWaveform):
     def _download_libritts(self, target_dir, dataset_parts):
         """ Download LibriTTS corpus. """
         from lhotse.recipes import download_libritts
-        download_libritts(target_dir=target_dir, dataset_parts=dataset_parts)
+        def get_subset(manifest_filepath):
+            return '_'.join(manifest_filepath.split('/')[-1].split('.')[0].split('_')[2:])
+
+        target_dir = Path(target_dir).parent
+        for subset in dataset_parts:
+            if subset not in [
+                get_subset(self._cfg.train_ds.manifest_filepath),
+                get_subset(self._cfg.validation_ds.manifest_filepath),
+                get_subset(self._cfg.test_ds.manifest_filepath)
+            ]:
+                continue
+            download_libritts(target_dir=target_dir, dataset_parts=subset)
 
     def _prepare_libritts(self, corpus_dir, output_dir, textgrid_dir, dataset_parts):
         """ Prepare LibriTTS manifests, and integrate with MFA alignments from textgrids. """
         from lhotse.recipes import prepare_libritts
-        manifests = prepare_libritts(corpus_dir=corpus_dir, dataset_parts=dataset_parts, output_dir=None, num_jobs=self._cfg.ds_kwargs.num_workers, link_previous_utt=True)
-        for subset in manifests:
-            #parse mfa
-            pass
+        from lhotse import CutSet
+        from lhotse.serialization import load_manifest_lazy_or_eager
+        
+        def textgrid_filename(cut, subset=None):
+            cut_id = cut.id
+            spk, chp = cut_id.split('_')[:2]
+            f_id = f"{textgrid_dir}/{subset}/{spk}/{chp}/{cut_id}.TextGrid"
+            # print(f_id, os.path.exists(f_id))
+            return f_id
+
+        def parse_cut_mfa_textgrid(seg, subset=None):
+            from textgrid import TextGrid
+            from lhotse.supervision import AlignmentItem
+            f_id = textgrid_filename(seg, subset=subset)
+
+            tg = TextGrid()
+            tg.read(f_id)
+            new_sup_seg = seg
+            for tier in tg.tiers:
+                _dur = []
+                for interval in tier.intervals:
+                    minTime = interval.minTime
+                    maxTime = interval.maxTime
+                    mark = interval.mark
+                    if mark == "":
+                        mark = "sil"
+                    _dur.append(AlignmentItem(symbol=mark, start=minTime, duration=maxTime - minTime))
+                assert len(_dur)
+                new_sup_seg = new_sup_seg.with_alignment(tier.name, _dur)
+                if f"{seg.duration:.2f}" != f"{maxTime:.2f}":
+                    logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.2f}, ali_end: {maxTime:.2f}")
+            return new_sup_seg
+
+        for subset in dataset_parts:
+            manifest_path = os.path.join(output_dir, f"libritts_cuts_{subset}.jsonl.gz")
+            if manifest_path not in [self._cfg.train_ds.manifest_filepath, self._cfg.validation_ds.manifest_filepath, self._cfg.test_ds.manifest_filepath]:
+                continue
+            if not os.path.exists(manifest_path):
+                manifest = prepare_libritts(corpus_dir=corpus_dir, dataset_parts=subset, output_dir=None, num_jobs=self._cfg.ds_kwargs.num_workers, link_previous_utt=True)
+                manifest = manifest[subset]
+                cuts = CutSet.from_manifests(
+                    recordings=manifest["recordings"],
+                    supervisions=manifest["supervisions"],
+                    output_path=None
+                )
+                cuts = cuts.modify_ids(lambda cid: cid.rsplit('-', 1)[0])
+
+                logging.info(f"Filtering {subset} subset.")
+                cuts = cuts.filter(lambda c: os.path.exists(textgrid_filename(c, subset)))
+                cuts = cuts.map_supervisions(lambda s: parse_cut_mfa_textgrid(s, subset))
+
+                logging.info(f"Writing {subset} subset.")
+                cuts.to_file(manifest_path)
+            
+            else:
+                logging.info(f"Skipping fix, {subset} subset exists.")
 
     def prepare_data(self) -> None:
         """ Pytorch Lightning hook.
@@ -326,7 +389,7 @@ class VoiceboxModel(TextToWaveform):
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=LhotseTextToSpeechDataset(
-                corpus_dir=self.cfg.librilight_dir,
+                corpus_dir=self.cfg.corpus_dir,
                 **ds_kwargs
             ),
         )

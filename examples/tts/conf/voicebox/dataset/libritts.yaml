@@ -10,8 +10,8 @@ subsets:
   - train-other-500
   - dev-clean
   - dev-other
-  - test_clean
-  - test_other
+  - test-clean
+  - test-other
 
 sample_rate: 16000
 
