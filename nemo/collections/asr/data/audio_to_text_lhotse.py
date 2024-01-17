@@ -59,7 +59,12 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
                     c.supervisions[0].text.replace(".", "").replace(",", "").replace("?", "").lower()
                 )
 
-        tokens = [self.tokenizer(c.supervisions[0].text, c.supervisions[0].language) for c in cuts]
+        tokens = [
+            self.tokenizer(
+                c.supervisions[0].text, 'en' if c.supervisions[0].language is None else c.supervisions[0].language
+            )
+            for c in cuts
+        ]
         if self.token_sequence_format == 'canary':
             tokens = self._canary_format(tokens, cuts)
         tokens = [torch.as_tensor(t) for t in tokens]
@@ -96,11 +101,11 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
                 c_t.append(self.tokenizer._tokenizer.nospeech_id)
             else:
                 # src_lang_id/no_speech
-                src_lang_id = self.tokenizer._tokenizer.to_language_id(c.custom['source_lang'])
+                src_lang_id = self.tokenizer._tokenizer.to_language_id(c.custom.get('source_lang', 'en'))
                 c_t.append(src_lang_id)
 
                 # task
-                task = c.custom['taskname']
+                task = c.custom.get('taskname', 'asr')
                 if task == 'asr':
                     c_t.append(self.tokenizer._tokenizer.transcribe_id)
                 elif task == 's2t_translation':
@@ -109,11 +114,11 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
                     raise ValueError(f"Unknown task: {task}")
 
                 # tgt_lang_id
-                tgt_lang_id = self.tokenizer._tokenizer.to_language_id(c.custom['target_lang'])
+                tgt_lang_id = self.tokenizer._tokenizer.to_language_id(c.custom.get('target_lang', 'en'))
                 c_t.append(tgt_lang_id)
 
                 # PnC
-                pnc = f"{c.custom['pnc']}".lower().strip()  # to account for bool or str
+                pnc = f"{c.custom.get('pnc', 'no')}".lower().strip()  # to account for bool or str
                 if pnc in set(['yes', 'true']):
                     c_t.append(self.tokenizer._tokenizer.pnc_id)
                 elif pnc in set(['no', 'false']):

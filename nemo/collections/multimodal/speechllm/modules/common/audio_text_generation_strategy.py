@@ -59,6 +59,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         compute_attention_mask: bool,
         num_audios: Optional[torch.Tensor] = None,
         context_start_idx: Optional[List[List[int]]] = None,
+        canary_tokens: Optional[torch.Tensor] = None,
     ):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
@@ -76,6 +77,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             lm_embedding=base_module.language_model.embedding
             if hasattr(base_module, 'language_model')
             else base_module.embedding,
+            canary_tokens=canary_tokens,
         )
 
         if num_audios is not None:

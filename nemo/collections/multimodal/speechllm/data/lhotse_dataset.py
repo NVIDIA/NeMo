@@ -6,8 +6,14 @@ import torch.utils.data
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
 
-def collate_vectors(items, padding_value):
-    return collate_vectors_lhotse(items, padding_value=padding_value)
+def collate_vectors(items, max_length: int, padding_value):
+    vectors = collate_vectors_lhotse(items, padding_value=padding_value)
+    if max_length > vectors.size(1):
+        vectors = torch.cat(
+            [vectors, padding_value * torch.ones(vectors.size(0), max_length - vectors.size(1), dtype=vectors.dtype)],
+            dim=1,
+        )
+    return vectors
 
 
 def ceil_to_nearest(n, m):
@@ -72,17 +78,12 @@ class TextProcessing:
         else:
             self.eos_id = None
 
-        if hasattr(tokenizer, "pad_id"):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             self.pad_id = tokenizer.pad_id
         else:
             self.pad_id = self.eos_id if self.eos_id is not None else 0
 
         self.sep_id = sep_id if add_sep else None
-
-        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
-            self.pad_id = tokenizer.pad_id
-        else:
-            self.pad_id = 0
 
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
@@ -220,6 +221,18 @@ class TextProcessing:
         return processed_example
 
 
+import re
+
+
+def _keep_special_tokens(text):
+    """
+    assuming all special tokens are of format <token>
+    """
+    assert isinstance(text, str), f"Expected str, got {type(text)}"
+    strip_text = re.sub(r'<[^>]+>', '', text)
+    return text.replace(strip_text, '')
+
+
 class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
     """
     This dataset is based on Lhotse ASR dataset from ``audio_to_text_lhotse.py``
@@ -240,6 +253,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         pad_to_max_length: bool,
         max_seq_length: int,
         noise_cuts: Optional = None,
+        canary_processor: Optional = None,
     ):
         from lhotse.dataset import AudioSamples, CutMix
 
@@ -254,12 +268,24 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.max_seq_length = max_seq_length
 
         self.question = default_question
+        self.canary_processor = canary_processor
 
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         cuts = cuts.sort_by_duration()
         cuts = self.maybe_mix_noise(cuts)
 
         audio, audio_lens, cuts = self.load_audio(cuts)
+
+        return_batch = {}
+        if self.canary_processor != None:
+            _, _, canary_tokens, canary_token_lens = self.canary_processor.__getitem__(cuts)
+            return_batch['canary_tokens'] = canary_tokens
+            return_batch['canary_token_lengths'] = canary_token_lens
+
+        if self.canary_processor != None:
+            for id, cut in enumerate(cuts):
+                canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(canary_tokens[id].tolist())
+                cut.question = self.question + ' ' + _keep_special_tokens(canary_text)
 
         collated_text_data = collate_text_data(
             cuts=cuts,
@@ -269,14 +295,17 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             pad_to_max_length=self.pad_to_max_length,
             max_seq_length=self.max_seq_length,
         )
+        return_batch.update(
+            {
+                "sample_ids": list(cuts.ids),
+                "audio_signal": audio,
+                "audio_signal_length": audio_lens,
+                "audio_ratio": torch.ones(audio.shape[0], dtype=torch.float32),
+                **collated_text_data,
+            }
+        )
 
-        return {
-            "sample_ids": list(cuts.ids),
-            "audio_signal": audio,
-            "audio_signal_length": audio_lens,
-            "audio_ratio": torch.ones(audio.shape[0], dtype=torch.float32),
-            **collated_text_data,
-        }
+        return return_batch
 
 
 def collate_text_data(
@@ -300,18 +329,21 @@ def collate_text_data(
     ]
     fields = as_dict(examples)
 
-    all_tokens = collate_vectors(fields["input_ids"], padding_value=pad_id)
-    full_lengths = torch.LongTensor([len(item) for item in fields["input_ids"]])
+    def get_max_len(input_list):
+        return max([len(x) for x in input_list])
 
-    max_length = max(
-        len(x) + len(y) + len(z) + tokens_to_generate
-        for x, y, z in zip(fields["input_ids"], fields["context_ids"], fields["answer_ids"])
+    max_length = tokens_to_generate + max(
+        get_max_len(fields["input_ids"]), get_max_len(fields["context_ids"]), get_max_len(fields["answer_ids"])
     )
     # increase max length to nearest multiple of 4 or 8
     if pad_to_max_length:
         max_length = max_seq_length
     else:
         max_length = min(max_seq_length, ceil_to_nearest(max_length, 8))
+
+    all_tokens = collate_vectors(fields["input_ids"], max_length=max_length, padding_value=pad_id)
+    full_lengths = torch.LongTensor([len(item) for item in fields["input_ids"]])
+
     assert max_length <= max_seq_length, f"{max_length=} <= {max_seq_length=}"
 
     return {
@@ -319,12 +351,12 @@ def collate_text_data(
         "tokens_length": full_lengths - 1,
         "labels": all_tokens[:, 1:],
         "loss_mask": collate_vectors(
-            [torch.as_tensor(_build_loss_mask(item)[1:]) for item in examples], padding_value=0
+            [torch.as_tensor(_build_loss_mask(item)[1:]) for item in examples], max_length=max_length, padding_value=0
         ),
         "position_ids": torch.arange(max_length, dtype=torch.long).repeat(batch_size, 1),
-        "contexts": collate_vectors(fields["context_ids"], padding_value=pad_id),
+        "contexts": collate_vectors(fields["context_ids"], max_length=max_length, padding_value=pad_id),
         "context_lengths": torch.LongTensor([len(seq) for seq in fields["context_ids"]]),
-        "answers": collate_vectors(fields["answer_ids"], padding_value=pad_id),
+        "answers": collate_vectors(fields["answer_ids"], max_length=max_length, padding_value=pad_id),
         "max_length": torch.LongTensor([max_length]),
     }
 

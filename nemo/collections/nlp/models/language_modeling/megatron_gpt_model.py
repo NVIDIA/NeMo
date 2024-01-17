@@ -966,7 +966,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 model_module.train()
 
         if mode == 'val':
-            if len(self._validation_dl) > 1:
+            if type(self._validation_dl) == list and len(self._validation_dl) > 1:
                 self.validation_step_outputs[dataloader_idx].append(loss)
             else:
                 self.validation_step_outputs.append(loss)

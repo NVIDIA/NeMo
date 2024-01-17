@@ -742,8 +742,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-            lengths = [len(x) for x in self._validation_ds]
-            logging.info(f'Length of val datasets: {lengths}, total: {sum(lengths)}')
+            # lengths = [len(x) for x in self._validation_ds]
+            # logging.info(f'Length of val datasets: {lengths}, total: {sum(lengths)}')
 
         if stage != 'validate':
             if hasattr(self.cfg.data, 'test_ds'):

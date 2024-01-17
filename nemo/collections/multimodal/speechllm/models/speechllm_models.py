@@ -362,6 +362,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             processed_signal=None,
             processed_signal_length=None,
             lm_embedding=lm_embedding,
+            canary_tokens=audio_batch.get('canary_tokens', None),
         )
 
         if num_audios is not None:
@@ -592,12 +593,21 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 sample_alpha=data_cfg.get('sample_alpha', None),
                 input_text_mask_ratio=data_cfg.get('input_text_mask_ratio', None),
             )
+            if self.cfg.perception.get("is_canary", False):
+                from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+
+                canary_processer = LhotseSpeechToTextBpeDataset(
+                    tokenizer=self.perception.asr_model.tokenizer, token_sequence_format='canary',
+                )
+            else:
+                canary_processer = None
             return LhotseAudioQuestionAnswerDataset(
                 tp,
-                default_question="to be added",
+                default_question="answer the question according to the previous audio",
                 tokens_to_generate=data_cfg.get('tokens_to_generate', 0),
-                pad_to_max_length=True,
+                pad_to_max_length=data_cfg.get('pad_to_max_length', False),
                 max_seq_length=data_cfg["max_seq_length"],
+                canary_processor=canary_processer,
             )
 
         if data_cfg.get('is_tarred', False):
@@ -1172,12 +1182,14 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                     batch['context_start_idx'],
                 )
             else:
+                canary_tokens = batch.get('canary_tokens', None)
                 # peft_eval.py
                 inference_config['inputs'] = (
                     batch['contexts'].cuda(),
                     batch['context_lengths'].cuda(),
                     batch['audio_signal'].cuda(),
                     batch['audio_signal_length'].cuda(),
+                    canary_tokens.cuda() if canary_tokens is not None else None,
                 )
             response = generate(self, **inference_config)
 

@@ -42,6 +42,12 @@ from nemo.utils import logging
 __all__ = ["AudioPerceptionModel", "MultiAudioPerceptionModel"]
 
 
+def lens_to_mask(lens, max_length):
+    batch_size = lens.shape[0]
+    mask = torch.arange(max_length).repeat(batch_size, 1).to(lens.device) < lens[:, None]
+    return mask
+
+
 class AudioPerceptionModel(NeuralModule, Exportable):
     """Audio perception model with basic modality_adapter (some fc layers)."""
 
@@ -511,7 +517,8 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
                 with open_dict(cfg.modality_adapter):
                     if -1 in cfg.multi_layer_feat.layer_idx_list:
                         cfg.modality_adapter.feat_in = (
-                            cfg.modality_adapter.feat_in * (len(cfg.multi_layer_feat.layer_idx_list) - 1) + 80
+                            cfg.modality_adapter.feat_in * (len(cfg.multi_layer_feat.layer_idx_list) - 1)
+                            + cfg.encoder.feat_in
                         )
                     else:
                         cfg.modality_adapter.feat_in = cfg.modality_adapter.feat_in * len(
@@ -547,7 +554,7 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
         if self.cfg.get('consistency_loss_weight', 0.0) > 0.0:
             self.reconstruction_layer = MLP(cfg.output_dim, cfg.output_dim, num_layers, "relu", log_softmax=False)
 
-    def get_am_text_output(self, encoded, logits_len):
+    def get_am_text_output(self, encoded, logits_len, canary_tokens=None):
         with torch.no_grad():
             is_ctc = self.cfg.get('is_ctc', True)
             if is_ctc:
@@ -562,6 +569,30 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
                 current_hypotheses, _ = decoding_instance.ctc_decoder_predictions_tensor(
                     logits, decoder_lengths=logits_len, return_hypotheses=False,
                 )
+            elif self.cfg.get('is_canary', False):
+                assert canary_tokens is not None
+                encoded = encoded.transpose(1, 2)
+                enc_mask = lens_to_mask(logits_len, encoded.shape[1]).to(encoded.dtype)
+                device = encoded.device
+                beam_hypotheses = (
+                    self.asr_model.beam_search(
+                        encoder_hidden_states=encoded,
+                        encoder_input_mask=enc_mask,
+                        return_beam_scores=False,
+                        decoder_input_ids=canary_tokens[:, : self.asr_model.context_len_for_AR_decoding].to(device)
+                        if self.asr_model.context_len_for_AR_decoding > 0
+                        else None,
+                    )
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+                beam_hypotheses = [
+                    self.asr_model._strip_special_tokens(self.asr_model.tokenizer.ids_to_text(hyp))
+                    for hyp in beam_hypotheses
+                ]
+                current_hypotheses = beam_hypotheses
+                logits = None
             else:
                 decoding_instance = self.asr_model.decoding
                 current_hypotheses, _ = decoding_instance.rnnt_decoder_predictions_tensor(
@@ -621,6 +652,7 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
         labels=None,
         labels_len=None,
         pad_id=0,
+        canary_tokens=None,
     ):
         processed_signal, processed_signal_length = self.maybe_preprocess_audio(
             input_signal, input_signal_length, processed_signal, processed_signal_length
@@ -641,7 +673,7 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
             )
         else:
             am_encoded_asr = am_encoded
-        am_hyps_text, log_probs = self.get_am_text_output(am_encoded_asr, am_encoded_len)
+        am_hyps_text, log_probs = self.get_am_text_output(am_encoded_asr, am_encoded_len, canary_tokens=canary_tokens)
         llm_encoded, llm_encoded_len = self.get_text_embed(am_hyps_text, lm_embedding, pad_id=pad_id)
         attend_encoded, encoded_len, aux_loss = self.cross_attend(encoded, encoded_len, llm_encoded, llm_encoded_len)
 
