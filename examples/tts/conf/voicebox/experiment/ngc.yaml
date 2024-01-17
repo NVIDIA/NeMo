@@ -36,6 +36,7 @@ model:
 
   train_ds:
     max_duration: 16
+    manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
       batch_duration: 48
 

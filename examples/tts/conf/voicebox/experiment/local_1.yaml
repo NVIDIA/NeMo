@@ -29,6 +29,7 @@ model:
   #   cond_drop_prob: 0.0
 
   train_ds:
+    manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
       batch_duration: 300
 

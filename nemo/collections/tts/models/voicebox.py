@@ -232,18 +232,21 @@ class VoiceboxModel(TextToWaveform):
     def _download_libritts(self, target_dir, dataset_parts):
         """ Download LibriTTS corpus. """
         from lhotse.recipes import download_libritts
+
+        target_dir = Path(target_dir).parent
+
         def get_subset(manifest_filepath):
             return '_'.join(manifest_filepath.split('/')[-1].split('.')[0].split('_')[2:])
 
-        target_dir = Path(target_dir).parent
-        for subset in dataset_parts:
-            if subset not in [
+        dataset_parts = [
+            subset for subset in dataset_parts 
+            if subset in [
                 get_subset(self._cfg.train_ds.manifest_filepath),
                 get_subset(self._cfg.validation_ds.manifest_filepath),
                 get_subset(self._cfg.test_ds.manifest_filepath)
-            ]:
-                continue
-            download_libritts(target_dir=target_dir, dataset_parts=subset)
+            ]
+        ]
+        download_libritts(target_dir=target_dir, dataset_parts=dataset_parts)
 
     def _prepare_libritts(self, corpus_dir, output_dir, textgrid_dir, dataset_parts):
         """ Prepare LibriTTS manifests, and integrate with MFA alignments from textgrids. """
