@@ -905,8 +905,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return attention_mask, loss_mask, position_ids
 
-    def get_batch(self, data_iterator):
+    def get_batch(self, data_iterator, tuning):
         """Generate a batch."""
+
+        # return batch for GPT SFT
+        if tuning:
+            return next(data_iterator)
 
         # Items and their type.
         keys = ['text']
@@ -965,11 +969,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return batch
 
-    def get_forward_output_and_loss_func(self, validation_step=False):
+    def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
-            batch = self.get_batch(dataloader_iter)
+            batch = self.get_batch(dataloader_iter, tuning)
 
             # Transfer needed data to GPU
             required_keys = set()
