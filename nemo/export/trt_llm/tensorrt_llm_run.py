@@ -392,25 +392,14 @@ def generate(
 
     stop_words_list_tensors = None
     if stop_words_list is not None:
-        # stop_words_list_tensors = [
-        #     tokenizer.encode(t) for t in stop_words_list
-        # ]
-        breakpoint()
-        #stop_words_list_tensors = torch.IntTensor(stop_words_list_tensors)
-        #stop_words_list_tensors = stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(torch.cuda.current_device())
-
         stop_words_arrays = to_word_list_format(stop_words_list, tokenizer)
         stop_words_list_tensors = torch.Tensor(stop_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
     
     bad_words_list_tensors = None
     if bad_words_list is not None:
-        bad_words_list_tensors = [
-            tokenizer.encode(t) for t in bad_words_list
-        ]
-        bad_words_list_tensors = torch.IntTensor(bad_words_list_tensors)
-        bad_words_list_tensors = bad_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
-            torch.cuda.current_device())
-
+        bad_words_arrays = to_word_list_format(bad_words_list, tokenizer)
+        bad_words_list_tensors = torch.Tensor(bad_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
+    
     if no_repeat_ngram_size is not None:
         no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
             torch.cuda.current_device())
