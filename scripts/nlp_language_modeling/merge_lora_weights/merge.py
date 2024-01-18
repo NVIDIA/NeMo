@@ -202,6 +202,7 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
+            pretrained_cfg.use_cpu_initialization = cfg.trainer.accelerator == 'cpu'
             if pretrained_cfg.mcore_gpt == True:
                 pretrained_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
                 pretrained_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
@@ -209,7 +210,7 @@ def main(cfg) -> None:
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
             override_config_path=pretrained_cfg,
-            map_location=torch.device("cpu"),
+            map_location=torch.device("cpu") if cfg.trainer.accelerator == 'cpu' else None,
             save_restore_connector=save_restore_connector,
         )
     elif cfg.checkpoint_dir:
@@ -255,19 +256,22 @@ def main(cfg) -> None:
         merged_weights = fix_for_O2(merged_weights)
     model.load_state_dict(merged_weights)
 
-    # Going to go through the motions of inference to force PTL to run subprocess for loading all base model's ranks.
-    input = "Context: In 2004, philosopher and psychologist Michel ter Hark (Groningen, The Netherlands) published a book, called Popper, Otto Selz and the rise of evolutionary epistemology, in which he claimed that Popper took some of his ideas from his tutor, the German psychologist Otto Selz. Selz never published his ideas, partly because of the rise of Nazism, which forced him to quit his work in 1933, and the prohibition of referring to Selz' work. Popper, the historian of ideas and his scholarship, is criticised in some academic quarters for his rejection of Plato, Hegel and Marx. Question: Who claimed Otto Selz deserved credit for ideas published by Popper? Answer:"
-    ds = RequestDataSet([input])
-    request_dl = DataLoader(dataset=ds, batch_size=1)
-    config = {'greedy': True, 'compute_logprob': False, 'tokens_to_generate': 5, 'add_BOS': False}
-    model.set_inference_config(config)
-    response = trainer.predict(model, request_dl)
-    print(response)
+    if cfg.trainer.accelerator != 'cpu' and model.global_rank == 0:
+        # Going to go through the motions of inference to force PTL to run subprocess for loading all base model's ranks.
+        input = "Context: In 2004, philosopher and psychologist Michel ter Hark (Groningen, The Netherlands) published a book, called Popper, Otto Selz and the rise of evolutionary epistemology, in which he claimed that Popper took some of his ideas from his tutor, the German psychologist Otto Selz. Selz never published his ideas, partly because of the rise of Nazism, which forced him to quit his work in 1933, and the prohibition of referring to Selz' work. Popper, the historian of ideas and his scholarship, is criticised in some academic quarters for his rejection of Plato, Hegel and Marx. Question: Who claimed Otto Selz deserved credit for ideas published by Popper? Answer:"
+        ds = RequestDataSet([input])
+        request_dl = DataLoader(dataset=ds, batch_size=1)
+        config = {'greedy': True, 'compute_logprob': False, 'tokens_to_generate': 5, 'add_BOS': False}
+        model.set_inference_config(config)
+        response = trainer.predict(model, request_dl)
+        print(response)
 
-    with open_dict(model.cfg):
-        model.cfg.restore_from_path = cfg.merged_model_path
-        model.cfg.data = lora_model_cfg.data
-        model.cfg.target = f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
+        with open_dict(model.cfg):
+            model.cfg.restore_from_path = cfg.merged_model_path
+            model.cfg.data = lora_model_cfg.data
+            model.cfg.target = f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
+    else:
+        logging.info("Skipping inference validation of merged model since device is 'cpu'.")
 
     model.save_to(cfg.merged_model_path)
     logging.info(f"saved merged model to {cfg.merged_model_path}")
