@@ -299,7 +299,6 @@ class Embedding(MegatronModule):
         noise_positonal_embedding=False,
     ):
         super(Embedding, self).__init__(config=config)
-        print(f"Embedding noise: {self.embedding_noise}")
 
         self.hidden_size = hidden_size
         self.init_method = init_method
@@ -313,6 +312,9 @@ class Embedding(MegatronModule):
         self.neft = neft
         self.neft_alpha = neft_alpha
         self.noise_positonal_embedding = noise_positonal_embedding
+
+        print(f"Embedding noise: {self.embedding_noise}")
+        print(f"NEFT: {self.neft}")
 
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
