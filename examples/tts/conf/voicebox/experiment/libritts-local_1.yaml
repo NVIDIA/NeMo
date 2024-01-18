@@ -17,14 +17,15 @@ model:
   corpus_dir: /datasets/LibriTTS_R/LibriTTS
 
   duration_predictor:
-    depth: 2
+    depth: 4
     heads: 2
 
   voicebox:
-    depth: 2
+    depth: 4
     heads: 2
-    # no_diffusion: True
-    # loss_masked: False
+    no_diffusion: True
+    loss_masked: False
+    frac_lengths_mask: [0.3, 0.5]
 
   # cfm_wrapper:
   #   cond_drop_prob: 0.0
@@ -43,6 +44,14 @@ model:
 
   ds_kwargs:
     num_workers: 8
+
+# trainer:
+#   val_check_interval: 300
+  # check_val_every_n_epoch: null
+
+exp_manager:
+#   name: local_1
+  version: ${model.voicebox.depth}-${model.voicebox.heads}-${model.voicebox.no_diffusion}-${model.voicebox.loss_masked}-${model.voicebox.frac_lengths_mask}
 
 # task name, determines output directory path
 task_name: "libritts-local_1"

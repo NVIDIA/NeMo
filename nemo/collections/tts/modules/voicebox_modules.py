@@ -941,6 +941,8 @@ class VoiceBox(_VB, LightningModule):
         _start = torch.where(prob > 0.5, end_of_start + 1, start_of_start)
 
         # end = torch.floor(end).long()
+        if exists(self_attn_mask):
+            end = torch.minimum(end, seq_len-1)
         start_of_end = self.find_start_of_phone(cond_token_ids, torch.floor(end).long())
         end_of_end = self.find_end_of_phone(cond_token_ids, torch.floor(end).long(), seq_len)
         prob = (end - start_of_end) / (end_of_end - start_of_end + 1)

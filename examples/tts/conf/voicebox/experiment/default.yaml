@@ -39,7 +39,8 @@ model:
 
 trainer:
   devices: auto
-  max_epochs: 1000
+  max_epochs: null
+  max_steps: 500000 # audio model steps
 
 exp_manager:
   # save_dir = ${exp_dir}/${name}/${version}
@@ -49,7 +50,7 @@ exp_manager:
   name: ${task_name}
   version: null
 
-  resume_if_exists: False
+  resume_if_exists: True
   create_checkpoint_callback: True
 
 # task name, determines output directory path
