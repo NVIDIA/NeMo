@@ -89,10 +89,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             if hasattr(self.cfg.data.test_ds, "metric"):
                 self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
 
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
+        if self.use_peft and self.cfg.get('virtual_pipeline_model_parallel_size', None):
+            raise ValueError('Virtual pipeline model parallel is not supported when using PEFT')
 
         # Set the profile start and end steps in the unit of global batach
         if hasattr(self, '_nsys_profile_enabled'):
@@ -197,17 +195,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
-        if not self.cfg.get('mcore_gpt', False):
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                if isinstance(self.model, list):
-                    for i, module in enumerate(self.model):
-                        parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                        module.sync_initial_word_embeddings()
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-                else:
-                    self.model.sync_initial_word_embeddings()
+        self.initialize_last_rank_embeddings()
 
-        if self.cfg.get('transformer_engine', False):
+        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.setup_transformer_engine_tp_groups()
         self.setup_complete = True
 
@@ -335,10 +325,19 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         batch = next(dataloader_iter)
+
+        log_token_counts = self.cfg.get('log_token_counts', False)
+        if log_token_counts:
+            token_count_avg = sum(batch['token_count']) / len(batch['token_count'])
+
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         _, seq_length = batch['tokens'].shape
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
+
+        if log_token_counts:
+            self.log('seq_length_padded', seq_length, prog_bar=True, batch_size=1)
+            self.log('tokens_avg', token_count_avg, prog_bar=True, sync_dist=True, batch_size=1)
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -349,16 +348,17 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
-        self.model.config.no_sync_func = no_sync_func
-        self.model.config.grad_sync_func = grad_sync_func
-        self.model.config.param_sync_func = param_sync_func
+        for module in self.get_model_module_list():
+            module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
+            module.config.param_sync_func = param_sync_func
 
         fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=data_iter,
-            model=[self.model],
+            data_iterator=self._make_data_iterator_list(data_iter),
+            model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
             seq_length=seq_length,
