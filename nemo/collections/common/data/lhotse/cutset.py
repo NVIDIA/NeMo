@@ -213,6 +213,6 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
         if (max_open_streams := config.lhotse.get("max_open_streams", None)) is not None:
             cuts = CutSet.infinite_mux(*cutsets, max_open_streams=max_open_streams, seed="trng")
         else:
-            cuts = CutSet.mux(*[cs.repeat() for cs in cutsets], seed="trng")
+            cuts = CutSet.mux(*[cs for cs in cutsets], seed="trng")
 
     return cuts
