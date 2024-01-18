@@ -34,7 +34,6 @@ so the learning rate scheduler will follow the same curve.
 """
 
 import importlib
-import io
 import os
 import pathlib
 import sys
@@ -468,8 +467,11 @@ def convert(local_rank, rank, world_size, args):
         if mcore_output and not args.mcore_input:
             # convert from legacy Megatron-LM to MCore NeMo. Initialize an mcore translation dict
             from scripts.nlp_language_modeling.convert_nemo_gpt_to_mcore import build_key_mapping
-
-            mcore_translate = {v: k for k, v in build_key_mapping(model_cfg).items()}
+            mcore_translate = {}
+            for k, v in build_key_mapping(model_cfg).items():
+                mcore_translate[v] = k
+                # take into account layer norm key names in the unfused case
+                mcore_translate[v.replace('_layernorm.', '_norm.')] = k
 
         checkpoint, consumed, steps, version = load_from_checkpoint(
             MegatronGPTModel,
