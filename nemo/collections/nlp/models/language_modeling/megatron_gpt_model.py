@@ -118,13 +118,6 @@ def get_specs(spec_name):
     return name_spec_dict[spec_name]
 
 
-# global is_dataset_built_on_rank
-
-
-# def is_dataset_built_on_rank():
-#    return True
-
-
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     """
     Megatron GPT Wrapper for ONNX export
