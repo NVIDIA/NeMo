@@ -53,11 +53,13 @@ Usage:
 Please see lora.ipynb for a step-by-step guide.
 """
 
-banner = '\n'.join([''"*" * 80]*5)
+banner = '\n'.join(['' "*" * 80] * 5)
+
+
 @deprecated(
     wait_seconds=20,
     explanation=f"\n{banner}\nmegatron_gpt_peft_tuning.py is renamed to megatron_gpt_finetuning.py with the "
-                f"same functionality. \nPlease switch to the new name.\n{banner}\n"
+    f"same functionality. \nPlease switch to the new name.\n{banner}\n",
 )
 @hydra_runner(config_path="conf", config_name="megatron_gpt_finetuning_config")
 def main(cfg) -> None:

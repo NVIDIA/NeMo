@@ -37,11 +37,13 @@ This script is exactly the same as the peft tuning script for GPT. For more deta
 please refer to the GPT script and docs.
 """
 
-banner = '\n'.join([''"*" * 80]*5)
+banner = '\n'.join(['' "*" * 80] * 5)
+
+
 @deprecated(
     wait_seconds=20,
     explanation=f"\n{banner}\nmegatron_t5_peft_tuning.py is renamed to megatron_t5_finetuning.py with the "
-                f"same functionality. \nPlease switch to the new name.\n{banner}\n"
+    f"same functionality. \nPlease switch to the new name.\n{banner}\n",
 )
 @hydra_runner(config_path="conf", config_name="megatron_t5_finetuning_config")
 def main(cfg) -> None:

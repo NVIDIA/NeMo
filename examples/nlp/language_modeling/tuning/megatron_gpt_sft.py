@@ -160,11 +160,14 @@ def validate_checkpoint_loading_args(cfg):
     if cfg.hparams_file is None or not os.path.isfile(cfg.hparams_file):
         raise ValueError(f'Hparams file {cfg.hparams_file} does not exist or is not a file.')
 
-banner = '\n'.join([''"*" * 80]*5)
+
+banner = '\n'.join(['' "*" * 80] * 5)
+
+
 @deprecated(
     wait_seconds=20,
     explanation=f"\n{banner}\n{__file__} is deprecated. PEFT and SFT scripts are now consolidated"
-    f"See updated scripts `megatron_gpt_finetuning.py` and `megatron_gpt_finetune_generate.py` for examples.\n{banner}\n"
+    f"See updated scripts `megatron_gpt_finetuning.py` and `megatron_gpt_finetune_generate.py` for examples.\n{banner}\n",
 )
 @hydra_runner(config_path="conf", config_name="megatron_gpt_sft")
 def main(cfg) -> None:
