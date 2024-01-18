@@ -376,6 +376,7 @@ class GPTSFTDataset(Dataset):
             'context_length': len(context_ids),
             'answer_ids': answer_ids,
             'metadata': metadata,
+            'token_count': len(input_ids),
         }
 
         return processed_example
@@ -426,6 +427,7 @@ class GPTSFTDataset(Dataset):
         answers = [item['answer_ids'] for item in batch]
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
         metadata = [item['metadata'] for item in batch]
+        token_count = [item['token_count'] for item in batch]
 
         max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
         # increase max length to nearest multiple of 4 or 8
@@ -457,6 +459,7 @@ class GPTSFTDataset(Dataset):
             'context_lengths': context_lengths,
             'answers': answers,
             'metadata': metadata,
+            'token_count': token_count,
         }
 
         return processed_batch
@@ -516,6 +519,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         loss_mask = [self._build_loss_mask(item) for item in batch]
 
+        token_count = [item.shape[0] for item in input_ids]
+
         if self.pad_to_max_length:
             max_length = self.max_seq_length
         else:
@@ -549,6 +554,12 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         loss_mask = self._collate_item(loss_mask, max_length=max_length, pad_id=0)
         position_ids = self._collate_item(position_ids, max_length=max_length, pad_id=0)
 
+        # Pre-generate `cu_seqlens_argmin` and `max_seqlen` as CPU tensor to avoid device-to-host copies.
+        cu_seqlens = torch.IntTensor(cu_seqlens)
+        cu_seqlens_argmin = torch.argmin(cu_seqlens, dim=1, keepdim=True)
+        seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
+        max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
+
         processed_batch = {
             'tokens': torch.LongTensor(input_ids),
             'labels': torch.LongTensor(labels),
@@ -556,6 +567,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             'loss_mask': torch.LongTensor(loss_mask),
             'position_ids': torch.LongTensor(position_ids),
             'cu_seqlens': torch.IntTensor(cu_seqlens),  # cu_seqlens_q must be in dtype torch.int32
+            'token_count': token_count,
+            'cu_seqlens_argmin': cu_seqlens_argmin,
+            'max_seqlen': max_seqlen,
         }
 
         return processed_batch
