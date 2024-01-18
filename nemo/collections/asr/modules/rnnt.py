@@ -79,7 +79,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         """
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
-            "target_length": NeuralType(tuple('B'), LengthsType()),
+            "target_length": NeuralType(('B',), LengthsType()),
             "states": [NeuralType(('B', 'T'), LabelsType(), optional=True)],
         }
 
@@ -89,7 +89,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         """
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
-            "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
+            "prednet_lengths": NeuralType(('B',), LengthsType()),
             "states": [NeuralType(('B', 'T'), LabelsType(), optional=True)],
         }
 
@@ -144,7 +144,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         self._rnnt_export = False
 
     @typecheck()
-    def forward(self, targets, target_length, states=None):
+    def forward(self, targets, target_length, states: Optional[List[torch.Tensor]] = None):
         # y: (B, U)
         y = rnn.label_collate(targets)
 
@@ -163,10 +163,10 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
     def predict(
         self,
         y: Optional[torch.Tensor] = None,
-        state: Optional[torch.Tensor] = None,
+        state: Optional[List[torch.Tensor]] = None,
         add_sos: bool = True,
         batch_size: Optional[int] = None,
-    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, Optional[List[torch.Tensor]]]:
         """
         Stateful prediction of scores and state for a tokenset.
 
@@ -202,7 +202,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         """
         # Get device and dtype of current module
-        _p = next(self.parameters())
+        # for torch.jit.script we should use a real weight, the `.parameters()` method is unsupported
+        # _p = next(self.parameters())
+        _p = self.prediction.embeds[0].weight
         device = _p.device
         dtype = _p.dtype
 
@@ -634,11 +636,12 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         else:
             add_sos = True
 
-        g, states = self.predict(y, state=states, add_sos=add_sos)  # (B, U, D)
+        g, states = self.predict(y, state=states, add_sos=add_sos, batch_size=None)  # (B, U, D)
         g = g.transpose(1, 2)  # (B, D, U)
 
         return g, target_length, states
 
+    @torch.jit.export
     def predict(
         self,
         y: Optional[torch.Tensor] = None,

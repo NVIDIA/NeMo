@@ -17,7 +17,7 @@ from typing import List
 import pytest
 import torch
 
-from nemo.collections.asr.modules.rnnt import RNNTDecoder, RNNTJoint
+from nemo.collections.asr.modules.rnnt import RNNTDecoder, RNNTJoint, StatelessTransducerDecoder
 from nemo.collections.common.parts.rnn import label_collate
 
 DEVICES: List[torch.device] = [torch.device("cpu")]
@@ -79,13 +79,7 @@ class TestJointTorchScript:
 #         return torch.rand([1, 2]), [], torch.rand([1, 2])
 
 
-class TestPredictionNetworkTorchScript:
-    # @pytest.mark.unit
-    # @pytest.mark.parametrize("device", DEVICES)
-    # def test_compilable_dummy(self, device):
-    #     prednet = RNNTDecoderDummy(blank_idx=32, blank_as_pad=True, vocab_size=32)
-    #     prednet_jit = torch.jit.script(prednet)
-
+class TestRNNTDecoderTorchScript:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_compilable_simple(self, device):
@@ -115,3 +109,21 @@ class TestPredictionNetworkTorchScript:
             return y
 
         print(label_collate_wrapper(device))
+
+
+class TestStatelessDecoderTorchScript:
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_compilable_simple(self, device):
+        prednet = StatelessTransducerDecoder(prednet={"pred_hidden": 16, "dropout": 0.2}, vocab_size=32)
+        prednet = prednet.to(device).eval()
+        prednet_jit = torch.jit.script(prednet)
+        prednet_jit = prednet_jit.to(device).eval()
+
+        targets = torch.tensor([[0, 1], [3, 5]], device=device)
+        targets_lengths = torch.tensor([2, 1], device=device)
+
+        etalon_output, _, etalon_state = prednet(targets=targets, target_length=targets_lengths, states=None)
+        jit_output, _, jit_state = prednet_jit(targets=targets, target_length=targets_lengths, states=None)
+        assert torch.allclose(etalon_output, jit_output)
+        assert torch.allclose(etalon_state[0], jit_state[0])
