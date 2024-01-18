@@ -676,9 +676,9 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
         if "mlp" in target_modules:
             # Build the adapter config
             fast_glu_activation = cfg.activation in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
-            assert (
-                fast_glu_activation
-            ), "Only fast_glu_activations are supported: ['fast-geglu', 'fast-swiglu', 'fast-reglu']"
+            #assert (
+            #    fast_glu_activation
+            #), f"Only fast_glu_activations are supported: ['fast-geglu', 'fast-swiglu', 'fast-reglu'] {cfg.activation}"
             intermediate_size = cfg.ffn_hidden_size * 2 if fast_glu_activation else cfg.ffn_hidden_size
             adapter_hto4h_cfg = LoraHto4HAdapterConfig(
                 in_features=cfg.hidden_size,
