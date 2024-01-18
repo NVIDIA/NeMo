@@ -537,6 +537,7 @@ class VoiceboxModel(TextToWaveform):
                 batch=vb_inputs['cond'].shape[0],
                 seq_len=vb_inputs['cond'].shape[1],
                 cond_token_ids=tokens,
+                self_attn_mask=vb_inputs['mask'],
                 training=True,
                 frac_lengths_mask=(0.1, 0.5),
             )
@@ -686,8 +687,8 @@ class VoiceboxModel(TextToWaveform):
         )
 
         # vb training
-        # losses, outputs = self.val_vb(
-        losses, outputs = self.train_vb(
+        losses, outputs = self.val_vb(
+        # losses, outputs = self.train_vb(
             audio=audio,
             audio_mask=audio_mask,
             tokens=dp_outputs.get("aligned_phoneme_ids"),
