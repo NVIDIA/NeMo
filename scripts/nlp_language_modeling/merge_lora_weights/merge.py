@@ -88,7 +88,6 @@ def merge(
     lora_state_dict: Dict[int, Any],
     tp: int,
     num_layers: int,
-    curr_rank: int,
     mcore: bool,
 ):
     """ 
@@ -114,11 +113,11 @@ def merge(
             key_lora_in = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
             key_lora_out = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
         wt_lora_in = torch.cat([lora_state_dict[_tp][key_lora_in] for _tp in range(tp)], dim=0)
-        wt_lora_out = lora_state_dict[curr_rank][key_lora_out]
+        wt_lora_out = torch.cat([lora_state_dict[_tp][key_lora_out] for _tp in range(tp)], dim=0)
         wt_self_attn = base_model_state_dict[key_self_attn_kqv]
         wt_lora = wt_lora_out @ wt_lora_in
         base_model_state_dict[key_self_attn_kqv] = wt_self_attn + wt_lora.type_as(wt_self_attn)
-        print("mergeing for weight", key_self_attn_kqv)
+        print("merging for weight", key_self_attn_kqv)
     return base_model_state_dict
 
 
@@ -141,11 +140,6 @@ def main(cfg) -> None:
             cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
             cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
             cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
-
-    assert (
-        cfg.trainer.devices * cfg.trainer.num_nodes
-        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
-    ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     if cfg.gpt_model_file:
         save_restore_connector = NLPSaveRestoreConnector()
@@ -198,15 +192,14 @@ def main(cfg) -> None:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
     # load the lora weights on cpu for all ranks of the lora model
-    lora_weights, lora_model_cfg = load_lora(cfg.lora_model_path, model.cfg.tensor_model_parallel_size)
+    lora_weights, lora_model_cfg = load_lora(cfg.lora_model_path, cfg.tensor_model_parallel_size)
 
     # merge the lora weights with the base model, for this current rank.
     merged_weights = merge(
         model.state_dict(),
         lora_weights,
-        tp=model.cfg.tensor_model_parallel_size,
+        tp=cfg.tensor_model_parallel_size,
         num_layers=model.cfg.num_layers,
-        curr_rank=model.global_rank,
         mcore=model.mcore_gpt,
     )
 
