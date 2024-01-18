@@ -48,6 +48,7 @@ from nemo.core.neural_types import (
     LossType,
     NeuralType,
     SpectrogramType,
+    VoidType,
 )
 from nemo.utils import logging
 
@@ -547,8 +548,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         """
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
-            "target_length": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType(('D', 'B', 'D'), ElementType(), optional=True)],  # must always be last
+            "target_length": NeuralType(('B',), LengthsType()),
+            "states": [NeuralType(('D', 'B', 'D'), VoidType(), optional=True)],  # must always be last
         }
 
     @property
@@ -557,8 +558,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         """
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
-            "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType((('D', 'B', 'D')), ElementType(), optional=True)],  # must always be last
+            "prednet_lengths": NeuralType(('B',), LengthsType()),
+            "states": [NeuralType(('D', 'B', 'D'), VoidType(), optional=True)],  # must always be last
         }
 
     def input_example(self, max_batch=1, max_dim=1):
@@ -620,7 +621,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         self._rnnt_export = False
 
     @typecheck()
-    def forward(self, targets, target_length, states=None):
+    def forward(
+        self, targets, target_length, states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         # y: (B, U)
         y = rnn.label_collate(targets)
 
@@ -639,10 +642,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
     def predict(
         self,
         y: Optional[torch.Tensor] = None,
-        state: Optional[List[torch.Tensor]] = None,
+        state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         add_sos: bool = True,
         batch_size: Optional[int] = None,
-    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Stateful prediction of scores and state for a (possibly null) tokenset.
         This method takes various cases into consideration :
@@ -688,7 +691,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         """
         # Get device and dtype of current module
-        _p = next(self.parameters())
+        # torch.jit cannot use .parameters(), need to use the pre-defined weight for device/dtype
+        # _p = list(self.parameters())[0]
+        _p = self.prediction["embed"].weight
         device = _p.device
         dtype = _p.dtype
 
@@ -790,7 +795,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         )
         return layers
 
-    def initialize_state(self, y: torch.Tensor) -> List[torch.Tensor]:
+    def initialize_state(self, y: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Initialize the state of the RNN layers, with same dtype and device as input `y`.
 
@@ -805,16 +810,16 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         """
         batch = y.size(0)
         if self.random_state_sampling and self.training:
-            state = [
+            state = (
                 torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
                 torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
-            ]
+            )
 
         else:
-            state = [
+            state = (
                 torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
                 torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
-            ]
+            )
         return state
 
     def score_hypothesis(
@@ -1157,9 +1162,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         return {
             "encoder_outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "decoder_outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
-            "encoder_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "encoder_lengths": NeuralType(('B',), LengthsType(), optional=True),
             "transcripts": NeuralType(('B', 'T'), LabelsType(), optional=True),
-            "transcript_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "transcript_lengths": NeuralType(('B',), LengthsType(), optional=True),
             "compute_wer": NeuralType(optional=True),
         }
 
@@ -1175,9 +1180,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         else:
             return {
                 "loss": NeuralType(elements_type=LossType(), optional=True),
-                "wer": NeuralType(elements_type=ElementType(), optional=True),
-                "wer_numer": NeuralType(elements_type=ElementType(), optional=True),
-                "wer_denom": NeuralType(elements_type=ElementType(), optional=True),
+                "wer": NeuralType(elements_type=VoidType(), optional=True),
+                "wer_numer": NeuralType(elements_type=VoidType(), optional=True),
+                "wer_denom": NeuralType(elements_type=VoidType(), optional=True),
             }
 
     def _prepare_for_export(self, **kwargs):
@@ -1197,9 +1202,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         return (encoder_outputs, decoder_outputs)
 
     @property
-    def disabled_deployment_input_names(self):
+    def disabled_deployment_input_names(self) -> list[str]:
         """Implement this method to return a set of input names disabled for export"""
-        return set(["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"])
+        return ["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"]
 
     def __init__(
         self,
@@ -1481,7 +1486,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
         del inp
 
-        if self.preserve_memory:
+        if self.preserve_memory and not torch.jit.is_scripting():
             torch.cuda.empty_cache()
 
         # If log_softmax is automatic
