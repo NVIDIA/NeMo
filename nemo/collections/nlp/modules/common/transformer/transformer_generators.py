@@ -151,12 +151,12 @@ class GreedySequenceGenerator:
         # everything after <eos> with <pad> token
         decoder_parameter = next(self.decoder.parameters())
         pad_profile = torch.zeros(batch_size, 1).long().to(decoder_parameter.device)
-
         decoder_mems_list = None
+        if decoder_input_ids is not None:
+            _, decoder_mems_list = self._one_step_forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
         for i in range(max_generation_length):
-
             log_probs, decoder_mems_list = self._one_step_forward(
-                tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
+                tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i + 1
             )
 
             next_tokens = torch.argmax(log_probs[:, -1], dim=-1, keepdim=True)

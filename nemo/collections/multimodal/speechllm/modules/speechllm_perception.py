@@ -533,6 +533,19 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
         else:
             self.encoder = self.encoder
         self.spec_augmentation = self.asr_model.spec_augmentation
+        if cfg.get("greedy_decoding_overwrite", False):
+            from nemo.collections.nlp.modules.common.transformer import GreedySequenceGenerator
+
+            self.asr_model.greedy_search = GreedySequenceGenerator(
+                embedding=self.asr_model.transf_decoder.embedding,
+                decoder=self.asr_model.transf_decoder.decoder,
+                log_softmax=self.asr_model.log_softmax,
+                max_sequence_length=self.asr_model.transf_decoder.max_sequence_length,
+                bos=self.asr_model.tokenizer.bos_id,
+                pad=self.asr_model.tokenizer.pad_id,
+                eos=self.asr_model.tokenizer.eos_id,
+                max_delta_length=self.asr_model.cfg.beam_search.max_generation_delta,
+            )
 
         self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
         self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
@@ -580,8 +593,12 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
                 encoded = encoded.transpose(1, 2)
                 enc_mask = lens_to_mask(logits_len, encoded.shape[1]).to(encoded.dtype)
                 device = encoded.device
+                if self.cfg.get("greedy_decoding_overwrite", False):
+                    decoding_instance = self.asr_model.greedy_search
+                else:
+                    decoding_instance = self.asr_model.beam_search
                 beam_hypotheses = (
-                    self.asr_model.beam_search(
+                    decoding_instance(
                         encoder_hidden_states=encoded,
                         encoder_input_mask=enc_mask,
                         return_beam_scores=False,
