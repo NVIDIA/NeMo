@@ -230,7 +230,7 @@ def _keep_special_tokens(text):
     """
     assert isinstance(text, str), f"Expected str, got {type(text)}"
     strip_text = re.sub(r'<[^>]+>', '', text)
-    return text.replace(strip_text, '')
+    return text.replace(strip_text, '').replace("<pad>", '')
 
 
 class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
