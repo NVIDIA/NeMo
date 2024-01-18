@@ -58,7 +58,7 @@ class GPTSFTDataset(Dataset):
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         is_test: bool = False,
-        include_text: bool = False,
+        output_original_text: bool = False,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -82,7 +82,7 @@ class GPTSFTDataset(Dataset):
         truncation_method: Truncation from which position. Options: ['left', 'right']
         special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
         is_test: Whether this dataset is the test split.
-        include_text (bool): if true, will keep the original text in the output alongside the tokenized ids.
+        output_original_text (bool): if true, will keep the original text in the output alongside the tokenized ids.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -104,7 +104,7 @@ class GPTSFTDataset(Dataset):
         self.tokens_to_generate = tokens_to_generate
         self.truncation_method = truncation_method
         self.is_test = is_test
-        self.include_text = include_text
+        self.output_original_text = output_original_text
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -371,7 +371,7 @@ class GPTSFTDataset(Dataset):
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
-        if self.include_text:
+        if self.output_original_text:
             for orig_text, text_key in zip(template_strings, template_strings_keys):
                 metadata[text_key] = orig_text
 
