@@ -229,7 +229,7 @@ class LSTMDropout(torch.nn.Module):
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         x, h = self.lstm(x, h)
 
-        if self.dropout:
+        if self.dropout is not None:
             x = self.dropout(x)
 
         return x, h
@@ -533,7 +533,7 @@ class StackedLSTM(torch.nn.Module):
         return output, output_states
 
 
-def label_collate(labels, device=None):
+def label_collate(labels, device: Optional[Union[torch.device, str]] = None):
     """Collates the label inputs for the rnn-t prediction network.
     If `labels` is already in torch.Tensor form this is a no-op.
 
