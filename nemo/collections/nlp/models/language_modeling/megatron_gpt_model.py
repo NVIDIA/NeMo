@@ -31,7 +31,11 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import GPTFIMDataset, GPTFIMDatasetConfig, is_dataset_built_on_rank
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import (
+    GPTFIMDataset,
+    GPTFIMDatasetConfig,
+    is_dataset_built_on_rank,
+)
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -114,10 +118,10 @@ def get_specs(spec_name):
     return name_spec_dict[spec_name]
 
 
-#global is_dataset_built_on_rank
+# global is_dataset_built_on_rank
 
 
-#def is_dataset_built_on_rank():
+# def is_dataset_built_on_rank():
 #    return True
 
 
