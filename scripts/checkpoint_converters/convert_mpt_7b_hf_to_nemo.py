@@ -1,16 +1,25 @@
-#%%
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 
-os.environ['NVTE_FLASH_ATTN'] = '0'
-os.environ['NVTE_FUSED_ATTN'] = '0'
-
-from argparse import ArgumentParser
-
 import torch
+from argparse import ArgumentParser
 from omegaconf import OmegaConf
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.utils import logging
 
@@ -23,9 +32,9 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
-import torch.nn.functional as F
 from torch import Tensor
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 tokeniser_dict = {
     'library': 'huggingface',
     'type': 'EleutherAI/gpt-neox-20b',
@@ -135,11 +144,12 @@ def get_args():
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
-    args = parser.parse_args([])
+    args = parser.parse_args()
     return args
 
 
-with torch.no_grad():
+@torch.no_grad()
+def main():
     args = get_args()
     logging.info(f"Loading checkpoint from HF: `{args.name_or_path}`")
     hf_tokenizer = AutoTokenizer.from_pretrained(args.name_or_path)
@@ -158,10 +168,6 @@ with torch.no_grad():
     old_state_dict = hf_model.state_dict()
     nemo_state_dict = convert_state_dict(
         old_state_dict, amp=nemo_config.model.megatron_amp_O2)
-    # nemo_state_dict = adjust_tensor_shapes(model, new_state_dict)
-    # from IPython import embed; embed(header="here")
-    # for param in model.model.parameters():
-    #     param.zero_()
 
     model.model.load_state_dict(nemo_state_dict, strict=False)
 
@@ -169,9 +175,6 @@ with torch.no_grad():
     # Verifications
     input_texts = [
         'query: how much protein should a female eat',
-        # 'query: summit define',
-        # "passage: As a general guideline, the CDC's average requirement of protein for women ages 19 to 70 is 46 grams per day. But, as you can see from this chart, you'll need to increase that if you're expecting or training for a marathon. Check out the chart below to see how much protein you should be eating each day.",
-        # "passage: Definition of summit for English Language Learners. : 1  the highest point of a mountain : the top of a mountain. : 2  the highest level. : 3  a meeting or series of meetings between the leaders of two or more governments.",
     ]
 
     # Tokenize the input texts
@@ -182,54 +185,7 @@ with torch.no_grad():
     hf_model = hf_model.cuda().eval()
     model = model.eval()
 
-    model.save_to(args.save_path)
-    logging.info(f'NeMo model saved to: {args.save_path}')
-
-    activations = {}
-    def get_activation(name):
-        def hook(model, input, output):
-            if isinstance(output, tuple):
-                activations[name] = output[0].detach()
-            else:
-                activations[name] = output.detach()
-            if len(input):
-                if isinstance(input, tuple):
-                    activations[name + '_inp'] = input[0].detach()
-                else:
-                    activations[name + '_inp'] = input.detach()
-            # for i, o in enumerate(output):
-            #     if o is not None:
-            #         activations[name + str(i)] = o.detach()
-        return hook
-
-    # for name, layer in model.model.named_modules():
-    #     print(name)
-    #     if 'module.decoder.layers.0' in name:
-    #         layer.register_forward_hook(get_activation(name))
-
-    model.model.module.decoder.layers[0].self_attention.register_forward_hook(get_activation('self_attention'))
-    model.model.module.decoder.layers[0].self_attention.core_attention.register_forward_hook(get_activation('DotProductAttention'))
-    model.model.module.decoder.layers[0].self_attention.linear_qkv.register_forward_hook(get_activation('Wqkv'))
-    model.model.module.decoder.layers[0].self_attention.linear_proj.register_forward_hook(get_activation('out_proj'))
-    model.model.module.decoder.layers[0].mlp.register_forward_hook(get_activation('mlp'))
-    model.model.module.decoder.layers[0].mlp.linear_fc1.register_forward_hook(get_activation('mlp_fc1'))
-    model.model.module.decoder.layers[0].mlp.linear_fc2.register_forward_hook(get_activation('mlp_fc2'))
-    model.model.module.decoder.final_layernorm.register_forward_hook(get_activation('norm_f'))
-    # model.model.module.decoder.layers[1].register_forward_hook(get_activation('block1'))
-    hf_model.transformer.blocks[0].attn.register_forward_hook(get_activation('hf_self_attention'))
-    hf_model.transformer.blocks[0].attn.Wqkv.register_forward_hook(get_activation('hf_Wqkv'))
-    hf_model.transformer.blocks[0].attn.out_proj.register_forward_hook(get_activation('hf_out_proj'))
-    hf_model.transformer.blocks[0].ffn.register_forward_hook(get_activation('hf_mlp'))
-    hf_model.transformer.blocks[0].ffn.up_proj.register_forward_hook(get_activation('hf_mlp_fc1'))
-    hf_model.transformer.blocks[0].ffn.down_proj.register_forward_hook(get_activation('hf_mlp_fc2'))
-    hf_model.transformer.norm_f.register_forward_hook(get_activation('hf_norm_f'))
-    # hf_model.transformer.blocks[1].register_forward_hook(get_activation('hf_block1'))
-
     hf_outputs = hf_model(**batch_dict_cuda, output_hidden_states=True)
-    embeddings_hf = average_pool(
-        hf_outputs.hidden_states[-1], batch_dict_cuda['attention_mask'])
-    embeddings_hf = F.normalize(embeddings_hf, p=2, dim=1)
-
     ids = batch_dict_cuda['input_ids']
 
     id_tensors = [torch.unsqueeze(torch.LongTensor(
@@ -239,70 +195,20 @@ with torch.no_grad():
         get_ltor_masks_and_position_ids(
             id_tensor, hf_tokenizer.eos_token, False, False, False)
         for id_tensor in id_tensors
-    ]
-
+    ]    
     for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
         attn_mask, _, pos_ids = attn_mask_and_pos_ids
 
         outputs = model(tokens=tokens, text_position_ids=pos_ids.cuda(
         ), attention_mask=attn_mask.cuda(), labels=None)
 
-    hf_output_token = hf_outputs.logits[0, -1].argmax()
-    print(hf_output_token, hf_tokenizer.decode(hf_output_token))
-    output_token = outputs[0, -1].argmax()
-    print(output_token, hf_tokenizer.decode(output_token))
+    hf_next_token = hf_outputs.logits[0, -1].argmax()
+    next_token = outputs.squeeze()[-1].argmax()
+    
+    assert hf_next_token == next_token, f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
 
-    model.model.module.post_process = False
+    model.save_to(args.save_path)
+    logging.info(f'NeMo model saved to: {args.save_path}')
 
-    output_tensors = []
-    for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
-        attn_mask, _, pos_ids = attn_mask_and_pos_ids
-
-        outputs = model(tokens=tokens, text_position_ids=pos_ids.cuda(
-        ), attention_mask=attn_mask.cuda(), labels=None)
-        output_tensors.append(outputs.squeeze())
-
-    output_tensors = torch.stack(output_tensors, dim=0)
-    embeddings = average_pool(output_tensors, batch_dict_cuda['attention_mask'])
-    embeddings = F.normalize(embeddings, p=2, dim=1)
-
-    for k, v in activations.items():
-        activations[k].squeeze_()
-
-    for k, v in activations.items():
-        if k.startswith('hf_'):
-            print(k[3:])
-            diff = activations[k[3:]] - activations[k]
-            print('mean', activations[k[3:]].mean(), activations[k].mean())
-            print('std', activations[k[3:]].std(), activations[k].std())
-            print('max diff', diff.abs().max())
-            relative_diff = rel_err(activations[k[3:]], activations[k])
-            print('relative diff mean&max', relative_diff.mean(), relative_diff.max())
-            # print(diff)
-
-        else:
-            pass
-
-    print(embeddings - embeddings_hf)
-    print('std', torch.std(embeddings), torch.std(embeddings_hf))
-    print('mean', torch.mean(embeddings), torch.mean(embeddings_hf))
-    print('max abs err:', (embeddings - embeddings_hf).abs().max())
-    print('rel_err:', rel_err(embeddings, embeddings_hf).mean())
-    # from IPython import embed; embed()
-
-
-
-# %%
-inp = activations['norm_f_inp'].clone()
-hf_inp = activations['hf_norm_f_inp'].clone()
-out = activations['norm_f'].clone()
-hf_out = activations['hf_norm_f'].clone()
-
-# %%
-print(rel_err(inp, hf_inp).mean())
-print(rel_err(out, hf_out).mean())
-print(rel_err(hf_out, hf_model.transformer.norm_f(inp)).mean())
-print(rel_err(hf_out, model.model.module.decoder.final_layernorm(hf_inp)).mean())
-
-hf_model.transformer.lm_head
-# %%
+if __name__ == '__main__':
+    main()
