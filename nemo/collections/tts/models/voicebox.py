@@ -560,7 +560,7 @@ class VoiceboxModel(TextToWaveform):
                     self_attn_mask=self_attn_mask,
                     aligned_phoneme_ids=tokens,
                     cond_mask=cond_mask,
-                    steps=32,
+                    steps=100,
                     decode_to_audio=False
                 )
             
