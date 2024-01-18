@@ -14,32 +14,25 @@
 
 import argparse
 import json
-import os
 from kaldialign import align
+from typing import List, Optional, Dict, Union
 
 
-def load_data(manifest):
+def load_data(manifest: str) -> List[Dict]:
+    """
+    Load data from manifest file.
+
+    Args:
+        manifest: path to nemo manifest file.
+    Returns:
+        List of dicts with keys: audio_filepath, text, pred_text.
+    """
     data = []
     with open(manifest, 'r') as f:
         for line in f:
             item = json.loads(line)
             data.append(item)
     return data
-
-
-def print_alignment(audio_filepath, ali, key_words):
-    ref, hyp = [], []
-    for pair in ali:
-        if pair[1] in key_words:
-            ref.append(pair[0].upper()) 
-            hyp.append(pair[1].upper()) 
-        else:
-            ref.append(pair[0])
-            hyp.append(pair[1])
-    print(" ")
-    print(f"ID: {os.path.basename(audio_filepath)}")
-    print(f"REF: {' '.join(ref)}")
-    print(f"HYP: {' '.join(hyp)}")
     
 
 def update_stats(item_ref, item_hyp, key_words_stat):
@@ -51,22 +44,35 @@ def update_stats(item_ref, item_hyp, key_words_stat):
             key_words_stat[item_hyp][2] += 1 # add to fp
 
 
-def compute_fscore(recognition_results_manifest, key_words_list, print_ali=False, return_scores=False):
+def compute_fscore(recognition_results_manifest: str, key_words_list: List, return_scores: bool = False) -> Optional[tuple]:
+    """
+    Compute fscore for list of context biasing words/phrases.
+    The idea is to get a word-level alignment for ground truth text and prediction results from manifest file.
+    Then compute f-score for each word/phrase from key_words_list according to obtained word alignment.
 
+    Args:
+        recognition_results_manifest: path to nemo manifest file with recognition results in pred_text field.
+        key_words_list: list of context biasing words/phrases.
+        return_scores: if True, return precision, recall and fscore (not only print).
+    Returns:
+        If return_scores is True, return tuple of precision, recall and fscore.
+    """
+
+    # get data from manifest
     data = load_data(recognition_results_manifest)
+    # compute max number of words in one context biasing phrase
     max_ngram_order = max([len(item.split()) for item in key_words_list])
     key_words_stat = {} # a word here can be single word or phareses 
     for word in key_words_list:
-        key_words_stat[word] = [0, 0, 0] # [tp, totall, fp]
+        key_words_stat[word] = [0, 0, 0] # [true positive (tp), groud truth (gt), false positive (fp)]
 
+    # auxiliary variable for epsilon token during alignment 
     eps = '***'
 
     for item in data:
-        audio_filepath = item['audio_filepath']
         ref = item['text'].split()
         hyp = item['pred_text'].split()
         ali = align(ref, hyp, eps)
-        false_positive_words = []
 
         for idx, pair in enumerate(ali):
 
@@ -88,10 +94,6 @@ def compute_fscore(recognition_results_manifest, key_words_list, print_ali=False
     tp = sum([key_words_stat[x][0] for x in key_words_stat])
     gt = sum([key_words_stat[x][1] for x in key_words_stat])
     fp = sum([key_words_stat[x][2] for x in key_words_stat])
-                    
-        # if recognized_words and print_ali:
-        #     # print_alignment(audio_filepath, ali, recognized_words)
-        #     print_alignment(audio_filepath, ali, false_positive_words)
 
     precision = tp / (tp + fp + 1e-8)
     recall = tp / (gt + 1e-8)
@@ -106,7 +108,7 @@ def compute_fscore(recognition_results_manifest, key_words_list, print_ali=False
             if key_words_stat[word][2] > 0:
                 false_positive = key_words_stat[word][2]
             print(f"{word:>{max_len}}: {key_words_stat[word][0]:3}/{key_words_stat[word][1]:<3} |{false_positive:>3}")
-    print("***"*15)
+    print("***"*20)
     print(" ")
     print("***"*10)
     print(f"Precision: {precision:.4f} ({tp}/{tp + fp}) fp:{fp}")
@@ -122,18 +124,17 @@ def compute_fscore(recognition_results_manifest, key_words_list, print_ali=False
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--input_manifest", type=str, required=True, help="manifest with recognition results",
+        "--input_manifest", type=str, required=True, help="nemo manifest with recognition results in pred_text field",
     )
     parser.add_argument(
-        "--key_words_file", type=str, required=True, help="file of key words for fscore calculation"
+        "--context_biasing_file", type=str, required=True, help="file of context biasing words/phrases with their spellings"
     )
 
     args = parser.parse_args()
-    #key_words_list = [x for x in args.key_words_list.split('_')]
+    # use list instead of dict to preserve key words order during printing word-level statistics
     key_words_list = []
-    for line in open(args.key_words_file).readlines():
+    for line in open(args.context_biasing_file).readlines():
         item = line.strip().split("-")[0].lower()
-        # item = line.strip().lower()
         if item not in key_words_list:
             key_words_list.append(item)
     compute_fscore(args.input_manifest, key_words_list)

@@ -41,7 +41,6 @@ class ContextState:
         self,
         index: int,
         is_end: bool,
-        token_index: int,
     ):
         """Create a ContextState.
         Args:
@@ -50,15 +49,15 @@ class ContextState:
             The index of the root node is always 0.
           is_end:
             True if current token is the end of a context.
-          token_index:
-            The token index.  
         """
         self.index = index
-        self.next = {}
         self.is_end = False
+        # dict of next token transitions to next state (key: token, value: next state)
+        self.next = {}
+        # the word of coresponding transcription (true only for end states)
         self.word = None
+        # the best token on current state (needed for state pruning during word spotter work)
         self.best_token = None
-        self.token_index = token_index
 
 
 class ContextGraphCTC:
@@ -71,11 +70,11 @@ class ContextGraphCTC:
         Initialize the ContextGraphCTC based on given blank_id.
 
         Args:
-            blank_id: the id of blank token
+            blank_id: the id of blank token in ASR model
         """
 
         self.num_nodes = 0
-        self.root = ContextState(index=self.num_nodes, is_end=False, token_index=0)
+        self.root = ContextState(index=self.num_nodes, is_end=False)
         self.blank_token = blank_id
 
     def build(self, word_items: List[Union[str, List[List[int]]]]):
@@ -98,7 +97,7 @@ class ContextGraphCTC:
                     if token not in prev_node.next:
                         self.num_nodes += 1
                         is_end = i == len(tokens) - 1
-                        node = ContextState(index=self.num_nodes, is_end=is_end, token_index=i)
+                        node = ContextState(index=self.num_nodes, is_end=is_end)
                         node.next[token] = node
                         prev_node.next[token] = node
 
@@ -110,7 +109,7 @@ class ContextGraphCTC:
                             else:
                                 # create new blank node
                                 self.num_nodes += 1
-                                blank_node = ContextState(index=self.num_nodes, is_end=False, token_index=i)    
+                                blank_node = ContextState(index=self.num_nodes, is_end=False)    
                                 blank_node.next[self.blank_token] = blank_node
                                 blank_node.next[token] = node
                                 prev_node.next[self.blank_token] = blank_node
@@ -125,7 +124,7 @@ class ContextGraphCTC:
                         # create new token
                         self.num_nodes += 1
                         is_end = i == len(tokens) - 1
-                        node = ContextState(index=self.num_nodes, is_end=is_end, token_index=i)
+                        node = ContextState(index=self.num_nodes, is_end=is_end)
                         # add blank
                         if self.blank_token in prev_node.next:
                             prev_node.next[self.blank_token].next[token] = node
@@ -133,7 +132,7 @@ class ContextGraphCTC:
                         else:
                             # create new blank node
                             self.num_nodes += 1
-                            blank_node = ContextState(index=self.num_nodes, is_end=False, token_index=i)    
+                            blank_node = ContextState(index=self.num_nodes, is_end=False)    
                             blank_node.next[self.blank_token] = blank_node
                             blank_node.next[token] = node
                             prev_node.next[self.blank_token] = blank_node
