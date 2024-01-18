@@ -390,7 +390,7 @@ pipeline {
       parallel {
         stage('Llama') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_hf_llama_to_nemo.py \
+            sh 'CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
             --name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf \
             --save_path=/home/TestData/nlp/megatron_llama/ci.nemo \
             --precision=16'
@@ -407,7 +407,7 @@ pipeline {
         }
         stage('Falcon') {
           steps {
-            sh 'python scripts/checkpoint_converters/convert_hf_falcon_to_nemo.py \
+            sh 'python scripts/checkpoint_converters/convert_falcon_hf_to_nemo.py \
             --name_or_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
             --save_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
