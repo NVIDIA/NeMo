@@ -94,11 +94,7 @@ def fix_for_O2(state_dict):
 
 
 def merge(
-    base_model_state_dict: Dict[str, Any],
-    lora_state_dict: Dict[int, Any],
-    tp: int,
-    num_layers: int,
-    mcore: bool,
+    base_model_state_dict: Dict[str, Any], lora_state_dict: Dict[int, Any], tp: int, num_layers: int, mcore: bool,
 ):
     """ 
     Iterate through all the self_attention.query_key_value projection feedforward weights in all the layers.
