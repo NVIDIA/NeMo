@@ -442,7 +442,7 @@ pipeline {
 
         stage('Speech to Text WPE - CitriNet') {
           steps {
-            sh 'python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
+            sh 'gdb -ex "set confirm off" -ex "set pagination off" -ex r -ex bt -ex q --args python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/citrinet/" --config-name="config_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
@@ -458,7 +458,7 @@ pipeline {
 
         stage('Speech Pre-training - CitriNet') {
           steps {
-            sh 'python examples/asr/speech_pretraining/speech_pre_training.py \
+            sh 'gdb -ex "set confirm off" -ex "set pagination off" -ex r -ex bt -ex q --args python examples/asr/speech_pretraining/speech_pre_training.py \
             --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
@@ -472,7 +472,7 @@ pipeline {
 
         stage('Speech To Text Finetuning') {
           steps {
-            sh 'python examples/asr/speech_to_text_finetune.py \
+            sh 'gdb -ex "set confirm off" -ex "set pagination off" -ex r -ex bt -ex q --args python examples/asr/speech_to_text_finetune.py \
             --config-path="conf/asr_finetune" --config-name="speech_to_text_finetune" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
@@ -488,7 +488,7 @@ pipeline {
 
         stage('Speech To Text HF Finetuning') {
           steps {
-            sh 'python examples/asr/speech_to_text_finetune.py \
+            sh 'gdb -ex "set confirm off" -ex "set pagination off" -ex r -ex bt -ex q --args python examples/asr/speech_to_text_finetune.py \
             --config-path="conf/asr_finetune" --config-name="speech_to_text_hf_finetune" \
             ~model.train_ds.hf_data_cfg \
             model.train_ds.num_workers=1 \
@@ -536,7 +536,7 @@ pipeline {
 
         stage('L2: Speech to Text WPE - Conformer') {
           steps {
-            sh 'python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
+            sh 'gdb -ex "set confirm off" -ex "set pagination off" -ex r -ex bt -ex q --args python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/conformer" --config-name="conformer_ctc_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
