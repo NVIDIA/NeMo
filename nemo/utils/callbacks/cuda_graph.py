@@ -12,6 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# CUDAGraphCallback is a full iteration CUDA graph callback designed for
+# models with PyTorch Lightning first, this has been tested with Stable
+# Diffusion right now.
+#
+# Prerequisites for this callback:
+# 1. Capturable: user has to make sure (almost) all the host & device
+#    synchronizations are removed, some of the syncs regarding logging
+#    of metrics introduced by PyTorch Lightning itself have been removed
+#    by this callback. This ensures the graph can be captured.
+# 2. Topology: user has to make sure there's no dynamic control flow
+#    within the iteration. Please use APEX alternatives for building
+#    blocks that contain dynamic control flow, e.g. gradient clipping.
+#    Otherwise the captured graph can run, but may raise silent failure,
+#    e.g. NaN loss.
+# 3. Parameters: user has to make sure pointers involved in the graph
+#    capturing range don't change across iterations. In this case users
+#    have to ensure that data is copied to static tensors. Otherwise this
+#    can also lead to silent failure.
+
 import os
 import time
 from dataclasses import dataclass
