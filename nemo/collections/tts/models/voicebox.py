@@ -541,15 +541,16 @@ class VoiceboxModel(TextToWaveform):
                 training=True,
                 frac_lengths_mask=(0.1, 0.5),
             )
-            output_audio = self.cfm_wrapper.sample(
-                cond=vb_inputs['cond'],
-                self_attn_mask=vb_inputs['mask'],
-                # phoneme_ids=torch.tensor(new_phoneme_ids).to(new_cond.device),
-                aligned_phoneme_ids=tokens,
-                cond_mask=cond_mask,
-                steps=32,
-                decode_to_audio=False
-            )
+            if not self.voicebox.no_diffusion:
+                output_audio = self.cfm_wrapper.sample(
+                    cond=vb_inputs['cond'],
+                    self_attn_mask=vb_inputs['mask'],
+                    # phoneme_ids=torch.tensor(new_phoneme_ids).to(new_cond.device),
+                    aligned_phoneme_ids=tokens,
+                    cond_mask=cond_mask,
+                    steps=32,
+                    decode_to_audio=False
+                )
             
             x1 = vb_inputs['x1']
             cond = vb_inputs['cond']
@@ -659,6 +660,7 @@ class VoiceboxModel(TextToWaveform):
         loss = align_loss + bin_loss + dp_loss + vb_loss
 
         self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, sync_dist=True, batch_size=audio.shape[0])
+        self.log("train_loss_vb", vb_loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
 
         return loss
     
