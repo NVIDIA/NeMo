@@ -16,6 +16,7 @@ import itertools
 import os
 import queue
 import warnings
+from contextlib import nullcontext
 from dataclasses import fields
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
@@ -243,12 +244,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
             )
         else:
-            self.model = build_model(
-                model_provider_func=self.model_provider_func,
-                wrap_with_ddp=False,
-                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-                on_cpu=cfg.get('fsdp', False) and cfg.get('use_cpu_initialization', False),
-            )
+            build_model_context = nullcontext
+            if HAVE_TE and self.cfg.get('fp8', False) and self.cfg.get('fp8_params', False):
+                build_model_context = transformer_engine.pytorch.fp8_model_init
+            with build_model_context():
+                self.model = build_model(
+                    model_provider_func=self.model_provider_func,
+                    wrap_with_ddp=False,
+                    virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                    on_cpu=cfg.get('fsdp', False) and cfg.get('use_cpu_initialization', False),
+                )
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
@@ -471,12 +476,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                             [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
                         )
             buckets.reverse()
-            used_params = set()
-            for bucket in buckets:
-                used_params.update(bucket)
-            remaining_params = [p for p in self.parameters() if p not in used_params]
-            if remaining_params:
-                buckets.append(remaining_params)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
@@ -1205,19 +1204,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.setup_test_data(self.cfg.data)
 
         if stage == 'fit':
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                if self.cfg.get('share_embeddings_and_output_weights', True):
-                    for index, module in enumerate(self.get_model_module_list()):
-                        if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                            parallel_state.set_virtual_pipeline_model_parallel_rank(index)
-                        sync_embeddings = (
-                            module.initialize_last_stage_with_word_embeddings
-                            if self.mcore_gpt
-                            else module.sync_initial_word_embeddings
-                        )
-                        sync_embeddings()
-                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                        parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+            self.initialize_last_rank_embeddings()
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.setup_transformer_engine_tp_groups()
@@ -1446,6 +1433,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def list_export_subnets(self):
         return ['mgpt_wrapper']
+
+    def initialize_last_rank_embeddings(self):
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if self.cfg.get('share_embeddings_and_output_weights', True):
+                for index, module in enumerate(self.get_model_module_list()):
+                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                        parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                    sync_embeddings = (
+                        module.initialize_last_stage_with_word_embeddings
+                        if self.mcore_gpt
+                        else module.sync_initial_word_embeddings
+                    )
+                    sync_embeddings()
+                if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def _reset_activation_checkpointing_args(self):
         """ Disables activation checkpointing completely and saves the values so that
