@@ -20,6 +20,11 @@ from megatron.core.datasets.indexed_dataset import MMapIndexedDataset
 from megatron.core.datasets.utils import Split
 
 
+# is_dataset_built_on_rank function is needed for mcore GPTDatasetConfig
+def is_dataset_built_on_rank():
+    return True
+
+
 class GPTFIMDatasetConfig(GPTDatasetConfig):
     """Configuration object for Megatron Core GPT FIM datasets
 
