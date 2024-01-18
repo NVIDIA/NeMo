@@ -344,19 +344,19 @@ class BatchedAlignments:
         # current lengths of the utterances (alignments)
         self.current_lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
 
+        # empty tensors instead of None to make torch.jit.script happy
+        self.logits = torch.zeros(0, device=device, dtype=float_dtype)
+        self.labels = torch.zeros(0, device=device, dtype=torch.long)
         if self.with_alignments:
             # logits and labels; labels can contain <blank>, different from BatchedHyps
             self.logits = torch.zeros((batch_size, self._max_length, logits_dim), device=device, dtype=float_dtype)
             self.labels = torch.zeros((batch_size, self._max_length), device=device, dtype=torch.long)
-        else:
-            self.logits = None
-            self.labels = None
 
+        # empty tensor instead of None to make torch.jit.script happy
+        self.frame_confidence = torch.zeros(0, device=device, dtype=float_dtype)
         if self.with_frame_confidence:
             # tensor to store frame confidence
             self.frame_confidence = torch.zeros((batch_size, self._max_length), device=device, dtype=float_dtype)
-        else:
-            self.frame_confidence = None
 
     def _allocate_more(self):
         """
