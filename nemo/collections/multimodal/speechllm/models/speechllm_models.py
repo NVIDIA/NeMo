@@ -153,6 +153,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             else:
                 self.perception.encoder.freeze()
                 known_groups.append('perception.encoder.')
+            if hasattr(self.perception, "asr_model"):
+                self.perception.asr_model.freeze()
+                known_groups.append('perception.asr_model.')
 
         if self.cfg.get('freeze_modality_adapter', False):
             self.perception.modality_adapter.freeze()
