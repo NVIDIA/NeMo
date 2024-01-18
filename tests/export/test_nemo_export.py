@@ -159,17 +159,17 @@ def run_trt_llm_inference(
 
         trt_llm_exporter = TensorRTLLM(trt_llm_model_dir)
 
-        # trt_llm_exporter.export(
-        #     nemo_checkpoint_path=checkpoint_path,
-        #     model_type=model_type,
-        #     n_gpus=n_gpu,
-        #     tensor_parallel_size=tp_size,
-        #     pipeline_parallel_size=pp_size,
-        #     max_input_token=max_input_token,
-        #     max_output_token=max_output_token,
-        #     max_batch_size=max_batch_size,
-        #     max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-        # )
+        trt_llm_exporter.export(
+            nemo_checkpoint_path=checkpoint_path,
+            model_type=model_type,
+            n_gpus=n_gpu,
+            tensor_parallel_size=tp_size,
+            pipeline_parallel_size=pp_size,
+            max_input_token=max_input_token,
+            max_output_token=max_output_token,
+            max_batch_size=max_batch_size,
+            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+        )
 
         if ptuning:
             trt_llm_exporter.add_prompt_table(
@@ -218,8 +218,6 @@ def run_trt_llm_inference(
             print("--- Output deployed: ", output_deployed)
             print("")
 
-        print("********")
-        breakpoint()
         if run_accuracy:
             print("Start model accuracy testing ...")
             (trtllm_accuracy, trtllm_accuracy_relaxed,
