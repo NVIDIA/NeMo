@@ -29,6 +29,8 @@ from tensorrt_llm.logger import logger
 
 from .tensorrt_llm_build import get_engine_name, MODEL_NAME  # isort:skip
 
+from .nemo_utils import to_word_list_format # isort:skip
+
 LOGGER = logging.getLogger("NeMo")
 
 
@@ -390,13 +392,16 @@ def generate(
 
     stop_words_list_tensors = None
     if stop_words_list is not None:
-        stop_words_list_tensors = [
-            tokenizer.encode(t) for t in stop_words_list
-        ]
-        stop_words_list_tensors = torch.IntTensor(stop_words_list_tensors)
-        stop_words_list_tensors = stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
-            torch.cuda.current_device())
+        # stop_words_list_tensors = [
+        #     tokenizer.encode(t) for t in stop_words_list
+        # ]
+        breakpoint()
+        #stop_words_list_tensors = torch.IntTensor(stop_words_list_tensors)
+        #stop_words_list_tensors = stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(torch.cuda.current_device())
 
+        stop_words_arrays = to_word_list_format(stop_words_list, tokenizer)
+        stop_words_list_tensors = torch.Tensor(stop_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
+    
     bad_words_list_tensors = None
     if bad_words_list is not None:
         bad_words_list_tensors = [

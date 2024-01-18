@@ -87,6 +87,7 @@ def run_trt_llm_inference(
         run_accuracy=True,
         debug=True,
         streaming=False,
+        stop_words_list=None,
 ):
 
     if Path(checkpoint_path).exists():
@@ -128,17 +129,18 @@ def run_trt_llm_inference(
                 return None, None
 
         trt_llm_exporter = TensorRTLLM(trt_llm_model_dir)
-        trt_llm_exporter.export(
-            nemo_checkpoint_path=checkpoint_path,
-            model_type=model_type,
-            n_gpus=n_gpu,
-            tensor_parallel_size=tp_size,
-            pipeline_parallel_size=pp_size,
-            max_input_token=max_input_token,
-            max_output_token=max_output_token,
-            max_batch_size=max_batch_size,
-            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-        )
+
+        # trt_llm_exporter.export(
+        #     nemo_checkpoint_path=checkpoint_path,
+        #     model_type=model_type,
+        #     n_gpus=n_gpu,
+        #     tensor_parallel_size=tp_size,
+        #     pipeline_parallel_size=pp_size,
+        #     max_input_token=max_input_token,
+        #     max_output_token=max_output_token,
+        #     max_batch_size=max_batch_size,
+        #     max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+        # )
 
         
         if ptuning:
@@ -154,7 +156,8 @@ def run_trt_llm_inference(
             top_p=top_p,
             temperature=temperature,
             task_ids=task_ids,
-            streaming=streaming
+            streaming=streaming,
+            stop_words_list=stop_words_list
         )
 
         if debug:
@@ -163,9 +166,9 @@ def run_trt_llm_inference(
             print("")
             print("--- Output: ", output)
             print("")
-            print("Start model accuracy testing ...")
 
         if run_accuracy:
+            print("Start model accuracy testing ...")
             trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs = get_accuracy_with_lambada(
                 trt_llm_exporter,
                 prompt_embeddings_checkpoint_path,
@@ -173,15 +176,16 @@ def run_trt_llm_inference(
             )
 
             return trtllm_accuracy, trtllm_accuracy_relaxed
-        else:
-            return None, None
 
+        if stop_words_list is not None :
+                return output, None
+        return None, None
         shutil.rmtree(trt_llm_model_dir)
     else:
         raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
 
 
-def run_existing_checkpoints(model_name, n_gpus, tp_size=None, pp_size=None, ptuning=False, streaming=False):
+def run_existing_checkpoints(model_name, n_gpus, tp_size=None, pp_size=None, ptuning=False, streaming=False, stop_words_list=None):
 
     if n_gpus > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
@@ -224,6 +228,7 @@ def run_existing_checkpoints(model_name, n_gpus, tp_size=None, pp_size=None, ptu
         run_accuracy=True,
         debug=True,
         streaming=streaming,
+        stop_words_list=stop_words_list,
     )
 
 
@@ -247,7 +252,7 @@ def get_args():
     parser.add_argument(
         "--model_type",
         type=str,
-        required=True,
+        required=False,
     )
     parser.add_argument(
         "--min_gpus",
@@ -263,7 +268,7 @@ def get_args():
         "--checkpoint_dir",
         type=str,
         default="/tmp/nemo_checkpoint/",
-        required=True,
+        required=False,
     )
     parser.add_argument(
         "--trt_llm_model_dir",
@@ -285,7 +290,7 @@ def get_args():
         default=128,
     )
     parser.add_argument(
-        "--p_tuning_checkpoint",
+        "--ptuning_checkpoint",
         type=str,
     )
     parser.add_argument(
@@ -342,10 +347,25 @@ def get_args():
     return parser.parse_args()
 
 
+def test_stops_list(args):
+    prompt_template = ["The capital of France is", "Largest animal in the sea is"]
+    n_gpus = args.min_gpus
+
+    stop_words_list = [["Paris"], ["whale"], ["falcon"]]
+    run_existing_checkpoints(model_name=args.model_name,
+                             n_gpus=args.min_gpus,
+                             ptuning=args.ptuning,
+                             tp_size=args.tp_size,
+                             pp_size=args.pp_size,
+                             stop_words_list=stop_words_list)
+    print(output)
+    breakpoint()
+
 def run_inference_tests(args):
 
     result_dic = {}
 
+    breakpoint()
     if args.existing_test_models:
         if args.max_gpus is None:
             trtllm_accuracy, trtllm_accuracy_relaxed = run_existing_checkpoints(
@@ -418,4 +438,5 @@ def run_inference_tests(args):
 
 if __name__ == '__main__':
     args = get_args()
-    run_inference_tests(args)
+    #run_inference_tests(args)
+    test_stops_list(args)
