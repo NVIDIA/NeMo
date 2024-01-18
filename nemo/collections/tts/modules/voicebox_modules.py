@@ -212,6 +212,11 @@ class DurationPredictor(_DP, LightningModule):
             self.align_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
 
+    def align_phoneme_ids_with_durations(self, phoneme_ids, durations):
+        repeat_mask = generate_mask_from_repeats(durations.clamp(min = 0))
+        aligned_phoneme_ids = einsum('b i, b i j -> b j', phoneme_ids.float(), repeat_mask.float()).long()
+        return aligned_phoneme_ids
+
     def forward_aligner(
         self,
         x: FloatTensor,     # (b, tx, c)
@@ -1001,12 +1006,14 @@ class VoiceBox(_VB, LightningModule):
         """
         outputs = {}
 
-        if self.training:
-            target = cond if self.no_diffusion else target
-
-        # project in, in case codebook dim is not equal to model dimensions
-
-        x = self.proj_in(x) if not self.no_diffusion else None
+        if self.no_diffusion:
+            # ignore xt
+            x = None
+            # target: x1
+            target = cond if self.training else None
+        else:
+            # project in, in case codebook dim is not equal to model dimensions
+            x = self.proj_in(x)
 
         cond = default(cond, target)
         outputs["cond"] = cond
@@ -1446,30 +1453,45 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
 
         # predict
 
-        self.voicebox.train()
+        # self.voicebox.train()
 
-        loss, vb_outputs = self.voicebox(
-            w,
-            cond = cond,
-            cond_mask = cond_mask,
-            times = times,
-            target = flow,
-            self_attn_mask = self_attn_mask,
-            cond_token_ids = cond_token_ids,
-            cond_drop_prob = self.cond_drop_prob
-        )
-        vb_outputs.update({
-            'x1': x1,
-            'x0': x0,
-            'w': w,
-            'flow': flow
-        })
+        if self.voicebox.no_diffusion and not self.voicebox.training:
+            # no_diffusion, eval
+            vb_pred = self.voicebox(
+                x=None,
+                cond = cond,
+                cond_mask = cond_mask,
+                times = times,
+                target = None,
+                self_attn_mask = self_attn_mask,
+                cond_token_ids = cond_token_ids,
+                cond_drop_prob = self.cond_drop_prob
+            )
+            return vb_pred
 
-        losses = {}
-        losses['vb'] = loss
+        else:
+            loss, vb_outputs = self.voicebox(
+                w,
+                cond = cond,
+                cond_mask = cond_mask,
+                times = times,
+                target = flow,
+                self_attn_mask = self_attn_mask,
+                cond_token_ids = cond_token_ids,
+                cond_drop_prob = self.cond_drop_prob
+            )
+            vb_outputs.update({
+                'x1': x1,
+                'x0': x0,
+                'w': w,
+                'flow': flow
+            })
 
-        outputs = {
-            "vb": vb_outputs,
-        }
+            losses = {}
+            losses['vb'] = loss
 
-        return loss, losses, outputs
+            outputs = {
+                "vb": vb_outputs,
+            }
+
+            return loss, losses, outputs

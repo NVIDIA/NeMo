@@ -512,6 +512,8 @@ class VoiceboxModel(TextToWaveform):
         return dp_losses, dp_outputs
 
     def val_vb(self, audio, audio_mask, tokens, batch_idx):
+        self.voicebox.train()
+
         vb_inputs = self.cfm_wrapper.parse_vb_input(
             x1=audio,
             mask=audio_mask,
@@ -519,13 +521,15 @@ class VoiceboxModel(TextToWaveform):
             input_sampling_rate=None
         )
 
-        self.voicebox.train()
+        x1 = vb_inputs['x1']
+        cond = vb_inputs['cond']
+        self_attn_mask = vb_inputs['mask']
 
         _, losses, outputs = self.cfm_wrapper.forward(
-            x1=vb_inputs['x1'],
-            mask=vb_inputs['mask'],
+            x1=x1,
+            mask=self_attn_mask,
             phoneme_ids=tokens,
-            cond=vb_inputs['cond'],
+            cond=cond,
             cond_mask=None,
             input_sampling_rate=None
         )
@@ -534,42 +538,51 @@ class VoiceboxModel(TextToWaveform):
             # first batch of validation
             self.voicebox.eval()
             cond_mask = self.voicebox.create_cond_mask(
-                batch=vb_inputs['cond'].shape[0],
-                seq_len=vb_inputs['cond'].shape[1],
+                batch=cond.shape[0],
+                seq_len=cond.shape[1],
                 cond_token_ids=tokens,
-                self_attn_mask=vb_inputs['mask'],
+                self_attn_mask=self_attn_mask,
                 training=True,
                 frac_lengths_mask=(0.1, 0.5),
             )
-            if not self.voicebox.no_diffusion:
+            if self.voicebox.no_diffusion:
+                output_audio = self.cfm_wrapper.forward(
+                    x1=x1,
+                    mask=self_attn_mask,
+                    phoneme_ids=tokens,
+                    cond=cond,
+                    cond_mask=cond_mask,
+                    input_sampling_rate=None
+                )
+            else:
                 output_audio = self.cfm_wrapper.sample(
-                    cond=vb_inputs['cond'],
-                    self_attn_mask=vb_inputs['mask'],
-                    # phoneme_ids=torch.tensor(new_phoneme_ids).to(new_cond.device),
+                    cond=cond,
+                    self_attn_mask=self_attn_mask,
                     aligned_phoneme_ids=tokens,
                     cond_mask=cond_mask,
                     steps=32,
                     decode_to_audio=False
                 )
             
-            x1 = vb_inputs['x1']
-            cond = vb_inputs['cond']
+            audio_len = audio_mask.sum(-1)
+            mel_len = self_attn_mask.sum(-1)
+
             cond = cond * ~rearrange(cond_mask, '... -> ... 1')
             pred_x1 = output_audio
-            pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1)
-            orig_audio = audio
 
             tb_writer = self.logger.experiment
             
             for plot_id in range(x1.shape[0]):
-                tb_writer.add_image(f"val_vb/x1/{plot_id}", plot_spectrogram_to_numpy(x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
-                tb_writer.add_image(f"val_vb/cond/{plot_id}", plot_spectrogram_to_numpy(cond[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
-                tb_writer.add_image(f"val_vb/pred_x1/{plot_id}", plot_spectrogram_to_numpy(pred_x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+                tb_writer.add_image(f"val_vb/{plot_id}/x1", plot_spectrogram_to_numpy(x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+                tb_writer.add_image(f"val_vb/{plot_id}/cond", plot_spectrogram_to_numpy(cond[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+                tb_writer.add_image(f"val_vb/{plot_id}/pred_x1", plot_spectrogram_to_numpy(pred_x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
 
-                _pred_audio = pred_audio[plot_id].detach().cpu().numpy()
-                _orig_audio = orig_audio[plot_id].detach().cpu().numpy()
-                tb_writer.add_audio(f"val_vb/pred_audio/{plot_id}", _pred_audio / max(np.abs(_pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
-                tb_writer.add_audio(f"val_vb/orig_audio/{plot_id}", _orig_audio / max(np.abs(_orig_audio)), self.global_step, sample_rate=24000)
+                _pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1[None, plot_id, :mel_len[plot_id]]).detach().cpu().numpy()
+                _orig_audio = audio[plot_id, :audio_len[plot_id]].detach().cpu().numpy()
+                tb_writer.add_audio(f"val_vb/{plot_id}/pred_audio", _pred_audio / max(np.abs(_pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                tb_writer.add_audio(f"val_vb/{plot_id}/orig_audio", _orig_audio / max(np.abs(_orig_audio)), self.global_step, sample_rate=24000)
+                # tb_writer.add_audio(f"val_vb/{plot_id}/pred_audio", _pred_audio / np.sqrt(np.mean(_pred_audio ** 2)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                # tb_writer.add_audio(f"val_vb/{plot_id}/orig_audio", _orig_audio / np.sqrt(np.mean(_orig_audio ** 2)), self.global_step, sample_rate=24000)
 
         return losses, outputs
 
