@@ -898,9 +898,10 @@ class VoiceBox(_VB, LightningModule):
             dim_in = default(dim_in, dim)
             self.to_embed = nn.Linear(dim_in + self.dim_cond_emb, dim)
 
-    def create_cond_mask(self, batch, seq_len, cond_token_ids=None, training=True):
+    def create_cond_mask(self, batch, seq_len, cond_token_ids=None, training=True, frac_lengths_mask=None):
         if training:
-            frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*self.frac_lengths_mask)
+            frac_lengths_mask = default(frac_lengths_mask, self.frac_lengths_mask)
+            frac_lengths = torch.zeros((batch,), device = self.device).float().uniform_(*frac_lengths_mask)
             # cond_mask = mask_from_frac_lengths(seq_len, frac_lengths)
             cond_mask = self.phone_level_mask_from_frac_lengths(seq_len, frac_lengths, cond_token_ids)
         else:
@@ -988,7 +989,8 @@ class VoiceBox(_VB, LightningModule):
         """
         outputs = {}
 
-        target = cond if self.no_diffusion else target
+        if self.training:
+            target = cond if self.no_diffusion else target
 
         # project in, in case codebook dim is not equal to model dimensions
 
@@ -1194,6 +1196,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
         *_args,
         dp_cond = None,
         cond = None,
+        self_attn_mask = None,
         texts: Optional[List[str]] = None,
         text_token_ids: Optional[Tensor] = None,
         semantic_token_ids: Optional[Tensor] = None,
@@ -1240,7 +1243,6 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
         num_cond_inputs = sum([*map(exists, (texts, text_token_ids, semantic_token_ids, phoneme_ids, aligned_phoneme_ids))])
         assert num_cond_inputs <= 1
 
-        self_attn_mask = None
         cond_token_ids = None
 
         if self.condition_on_text:
@@ -1286,7 +1288,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
             if exists(packed_shape):
                 x = unpack_one(x, packed_shape, 'b *')
 
-            # print(x.shape, t.shape, cond_token_ids.shape, cond.shape, cond_mask.shape, self_attn_mask.shape)
+            # print(x.shape, t.shape, cond_token_ids.shape, cond.shape, cond_mask.shape)
             out = self.voicebox.forward_with_cond_scale(
                 x,
                 times = t,

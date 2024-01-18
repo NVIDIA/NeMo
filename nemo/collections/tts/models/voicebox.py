@@ -235,17 +235,6 @@ class VoiceboxModel(TextToWaveform):
 
         target_dir = Path(target_dir).parent
 
-        def get_subset(manifest_filepath):
-            return '_'.join(manifest_filepath.split('/')[-1].split('.')[0].split('_')[2:])
-
-        dataset_parts = [
-            subset for subset in dataset_parts 
-            if subset in [
-                get_subset(self._cfg.train_ds.manifest_filepath),
-                get_subset(self._cfg.validation_ds.manifest_filepath),
-                get_subset(self._cfg.test_ds.manifest_filepath)
-            ]
-        ]
         download_libritts(target_dir=target_dir, dataset_parts=dataset_parts)
 
     def _prepare_libritts(self, corpus_dir, output_dir, textgrid_dir, dataset_parts):
@@ -275,7 +264,7 @@ class VoiceboxModel(TextToWaveform):
                     minTime = interval.minTime
                     maxTime = interval.maxTime
                     mark = interval.mark
-                    if mark == "":
+                    if mark == "" or (tier.name == "phones" and mark == "sp"):
                         mark = "sil"
                     _dur.append(AlignmentItem(symbol=mark, start=minTime, duration=maxTime - minTime))
                 assert len(_dur)
@@ -319,8 +308,19 @@ class VoiceboxModel(TextToWaveform):
             self._download_libriheavy(target_dir=self._cfg.libriheavy_dir, dataset_parts=self._cfg.subsets)
             self._prepare_libriheavy(libriheavy_dir=self._cfg.libriheavy_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=self._cfg.subsets)
         elif self._cfg.ds_name == "libritts":
-            self._download_libritts(target_dir=self._cfg.corpus_dir, dataset_parts=self._cfg.subsets)
-            self._prepare_libritts(corpus_dir=self._cfg.corpus_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=self._cfg.subsets)
+            def get_subset(manifest_filepath):
+                return '_'.join(manifest_filepath.split('/')[-1].split('.')[0].split('_')[2:])
+
+            dataset_parts = [
+                subset for subset in self._cfg.subsets 
+                if subset in [
+                    get_subset(self._cfg.train_ds.manifest_filepath),
+                    get_subset(self._cfg.validation_ds.manifest_filepath),
+                    get_subset(self._cfg.test_ds.manifest_filepath)
+                ]
+            ]
+            self._download_libritts(target_dir=self._cfg.corpus_dir, dataset_parts=dataset_parts)
+            self._prepare_libritts(corpus_dir=self._cfg.corpus_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=dataset_parts)
 
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.
@@ -462,6 +462,8 @@ class VoiceboxModel(TextToWaveform):
         return audio
 
     def train_dp(self, audio, audio_mask, tokens, token_lens, texts, durations, batch_idx):
+        self.duration_predictor.train()
+
         dp_inputs = self.duration_predictor.parse_dp_input(
             x1=audio,
             mask=audio_mask,
@@ -469,6 +471,7 @@ class VoiceboxModel(TextToWaveform):
             phoneme_len=token_lens,
             input_sampling_rate=None,
         )
+
         dp_loss, dp_losses, dp_outputs = self.duration_predictor.forward(
             cond=dp_inputs.get("dp_cond"),               # might be None
             texts=None,                 # converted to phoneme_ids by dataset
@@ -508,6 +511,66 @@ class VoiceboxModel(TextToWaveform):
             
         return dp_losses, dp_outputs
 
+    def val_vb(self, audio, audio_mask, tokens, batch_idx):
+        vb_inputs = self.cfm_wrapper.parse_vb_input(
+            x1=audio,
+            mask=audio_mask,
+            cond=audio,
+            input_sampling_rate=None
+        )
+
+        self.voicebox.train()
+
+        _, losses, outputs = self.cfm_wrapper.forward(
+            x1=vb_inputs['x1'],
+            mask=vb_inputs['mask'],
+            phoneme_ids=tokens,
+            cond=vb_inputs['cond'],
+            cond_mask=None,
+            input_sampling_rate=None
+        )
+        
+        if batch_idx == 0:
+            # first batch of validation
+            self.voicebox.eval()
+            cond_mask = self.voicebox.create_cond_mask(
+                batch=vb_inputs['cond'].shape[0],
+                seq_len=vb_inputs['cond'].shape[1],
+                cond_token_ids=tokens,
+                training=True,
+                frac_lengths_mask=(0.1, 0.5),
+            )
+            output_audio = self.cfm_wrapper.sample(
+                cond=vb_inputs['cond'],
+                self_attn_mask=vb_inputs['mask'],
+                # phoneme_ids=torch.tensor(new_phoneme_ids).to(new_cond.device),
+                aligned_phoneme_ids=tokens,
+                cond_mask=cond_mask,
+                steps=32,
+                decode_to_audio=False
+            )
+            
+            x1 = vb_inputs['x1']
+            cond = vb_inputs['cond']
+            cond = cond * ~rearrange(cond_mask, '... -> ... 1')
+            pred_x1 = output_audio
+            pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1)
+            orig_audio = audio
+
+            tb_writer = self.logger.experiment
+            
+            for plot_id in range(x1.shape[0]):
+                tb_writer.add_image(f"val_vb/x1/{plot_id}", plot_spectrogram_to_numpy(x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+                tb_writer.add_image(f"val_vb/cond/{plot_id}", plot_spectrogram_to_numpy(cond[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+                tb_writer.add_image(f"val_vb/pred_x1/{plot_id}", plot_spectrogram_to_numpy(pred_x1[plot_id].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
+
+                _pred_audio = pred_audio[plot_id].detach().cpu().numpy()
+                _orig_audio = orig_audio[plot_id].detach().cpu().numpy()
+                tb_writer.add_audio(f"val_vb/pred_audio/{plot_id}", _pred_audio / max(np.abs(_pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                tb_writer.add_audio(f"val_vb/orig_audio/{plot_id}", _orig_audio / max(np.abs(_orig_audio)), self.global_step, sample_rate=24000)
+
+        return losses, outputs
+
     def train_vb(self, audio, audio_mask, tokens, batch_idx):
         vb_inputs = self.cfm_wrapper.parse_vb_input(
             x1=audio,
@@ -515,6 +578,9 @@ class VoiceboxModel(TextToWaveform):
             cond=audio,
             input_sampling_rate=None
         )
+
+        self.voicebox.train()
+
         _, losses, outputs = self.cfm_wrapper.forward(
             x1=vb_inputs['x1'],
             mask=vb_inputs['mask'],
@@ -591,7 +657,7 @@ class VoiceboxModel(TextToWaveform):
 
         loss = align_loss + bin_loss + dp_loss + vb_loss
 
-        self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+        self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, sync_dist=True, batch_size=audio.shape[0])
 
         return loss
     
@@ -608,7 +674,6 @@ class VoiceboxModel(TextToWaveform):
 
         audio_mask = get_mask_from_lengths(audio_lens)
 
-        self.duration_predictor.train()
         # dp training
         dp_losses, dp_outputs = self.train_dp(
             audio=audio,
@@ -621,6 +686,7 @@ class VoiceboxModel(TextToWaveform):
         )
 
         # vb training
+        # losses, outputs = self.val_vb(
         losses, outputs = self.train_vb(
             audio=audio,
             audio_mask=audio_mask,
@@ -635,7 +701,7 @@ class VoiceboxModel(TextToWaveform):
         vb_loss = losses['vb']
 
         loss = align_loss + bin_loss + dp_loss + vb_loss
-        self.log_dict({f"val_loss/{k}": v for k, v in losses.items()}, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
+        self.log_dict({f"val_loss/{k}": v for k, v in losses.items()}, sync_dist=True, batch_size=audio.shape[0])
         self.log("val_loss_total", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         return loss
 

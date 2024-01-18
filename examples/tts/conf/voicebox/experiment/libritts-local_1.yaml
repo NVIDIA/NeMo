@@ -23,6 +23,8 @@ model:
   voicebox:
     depth: 2
     heads: 2
+    # no_diffusion: True
+    # loss_masked: False
 
   # cfm_wrapper:
   #   cond_drop_prob: 0.0
