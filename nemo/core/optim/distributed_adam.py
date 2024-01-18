@@ -424,45 +424,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             super()._check_params_shard_dtypes(params_buckets)
             return
 
-        # FP8 scaling factors
-        amaxes = []
-        scales = []
-        scale_invs = []
-        i = -1
-        for param in self.parameters():
-            if not _is_fp8_tensor(param):
-                continue
-            i += 1
-            fp8_meta = param._fp8_meta["scaling_fwd"]
-            fp8_meta_index = param._fp8_meta_index
-            amaxes.append(fp8_meta.amax_history[0][fp8_meta_index].view(1))
-            scales.append(fp8_meta.scale[fp8_meta_index].view(1))
-            scale_invs.append(param._scale_inv.view(1))
-
-        # Update cached scale-inverses
-        packed_scales = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device)
-        packed_scale_views = [packed_scales[i].view(1) for i in range(num_fp8_params)]
-        _multi_tensor_copy(
-            scales, packed_scale_views, dummy_overflow_buf=self._dummy_overflow_buf,
-        )
-        torch.reciprocal(packed_scales, out=packed_scales)
-        _multi_tensor_copy(
-            packed_scale_views, scale_invs, dummy_overflow_buf=self._dummy_overflow_buf,
-        )
-
         # Cast local data to FP8
         fp8_params_shards = dict()
-        for param in self.parameters():
-            if not _is_fp8_tensor(param):
-                continue
-
-            # FP8 metadata
-            fp8_meta = param._fp8_meta["scaling_fwd"]
-            fp8_meta_index = param._fp8_meta_index
-            fp8_dtype = param._fp8_dtype
-
-            # Iterate through fragments with local data
-            for fragment in self.state[param]["fragments"]:
+        for bucket_id, param_bucket in params_buckets.items():
+            for fragment in self.state["buckets"][bucket_id].fragments:
+                param = self.parameter(fragment)
+                if not _is_fp8_tensor(param):
+                    continue
                 if not fragment.in_local_shard:
                     continue
                 shard_start, shard_end = fragment.shard_range
@@ -470,12 +438,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     continue
                 shard_range = slice(shard_start, shard_end)
 
+                # FP8 metadata
+                fp8_meta = param._fp8_meta["scaling_fwd"]
+                fp8_meta_index = param._fp8_meta_index
+                fp8_dtype = param._fp8_dtype
+
                 # Get bucket containing fragment
-                bucket_id = fragment.bucket_id
-                if bucket_id not in params_buckets:
-                    continue
                 state_bucket = self.state["buckets"][bucket_id]
-                param_bucket = params_buckets[bucket_id]
                 if state_bucket.param_sync_dtype != torch.uint8:
                     continue
 
@@ -494,19 +463,57 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         for bucket_id, params_shard in fp8_params_shards.items():
             params_buckets[bucket_id].params_shard = params_shard
 
-        # Reduce amaxes
-        # Note: Assume each param has a separate amax
-        packed_amaxes = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device)
-        packed_amax_views = [packed_amaxes[i].view(1) for i in range(num_fp8_params)]
-        _multi_tensor_copy(
-            amaxes, packed_amax_views, dummy_overflow_buf=self._dummy_overflow_buf,
-        )
-        torch.distributed.all_reduce(
-            packed_amaxes, op=torch.distributed.ReduceOp.MAX, group=self.distributed_process_group,
-        )
-        _multi_tensor_copy(
-            packed_amax_views, amaxes, dummy_overflow_buf=self._dummy_overflow_buf,
-        )
+        # Update FP8 scaling factors when all buckets have processed
+        if getattr(self, "_check_params_shard_dtypes_progress", None) is None:
+            self._check_params_shard_dtypes_progress = []
+        self._check_params_shard_dtypes_progress.extend(params_buckets.keys())
+        if len(self._check_params_shard_dtypes_progress) == len(self.state["buckets"]):
+            assert (
+                len(set(self._check_params_shard_dtypes_progress)) == len(self.state["buckets"])
+            )
+
+            # FP8 scaling factors
+            amaxes = []
+            scales = []
+            scale_invs = []
+            i = -1
+            for param in self.parameters():
+                if not _is_fp8_tensor(param):
+                    continue
+                i += 1
+                fp8_meta = param._fp8_meta["scaling_fwd"]
+                fp8_meta_index = param._fp8_meta_index
+                amaxes.append(fp8_meta.amax_history[0][fp8_meta_index].view(1))
+                scales.append(fp8_meta.scale[fp8_meta_index].view(1))
+                scale_invs.append(param._scale_inv.view(1))
+
+            # Update cached scale-inverses
+            packed_scales = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device)
+            packed_scale_views = [packed_scales[i].view(1) for i in range(num_fp8_params)]
+            _multi_tensor_copy(
+                scales, packed_scale_views, dummy_overflow_buf=self._dummy_overflow_buf,
+            )
+            torch.reciprocal(packed_scales, out=packed_scales)
+            _multi_tensor_copy(
+                packed_scale_views, scale_invs, dummy_overflow_buf=self._dummy_overflow_buf,
+            )
+
+            # Reduce amaxes
+            # Note: Assume each param has a separate amax
+            packed_amaxes = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device)
+            packed_amax_views = [packed_amaxes[i].view(1) for i in range(num_fp8_params)]
+            _multi_tensor_copy(
+                amaxes, packed_amax_views, dummy_overflow_buf=self._dummy_overflow_buf,
+            )
+            torch.distributed.all_reduce(
+                packed_amaxes, op=torch.distributed.ReduceOp.MAX, group=self.distributed_process_group,
+            )
+            _multi_tensor_copy(
+                packed_amax_views, amaxes, dummy_overflow_buf=self._dummy_overflow_buf,
+            )
+
+            # Reset
+            self._check_params_shard_dtypes_progress = None
 
         # Handle any remaining dtype conversions
         super()._check_params_shard_dtypes(params_buckets)
