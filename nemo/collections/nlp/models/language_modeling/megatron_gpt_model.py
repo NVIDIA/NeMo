@@ -392,6 +392,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 megatron_legacy=self.cfg.get('megatron_legacy', False),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
+                embedding_noise=self.cfg.get('embedding_noise', False),
+                embedding_noise_mean=self.cfg.get('embedding_noise_mean', 0.0),
+                embedding_noise_std=self.cfg.get('embedding_noise_std', 0.001),
+                embedding_noise_type=self.cfg.get('embedding_noise_type', 'uniform'),
+                neft=self.cfg.get('neft', False),
+                neft_alpha=self.cfg.get('neft_alpha', 5.0),
+                noise_positonal_embedding=self.cfg.get('noise_positonal_embedding', False),
             )
         return model
 
