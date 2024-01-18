@@ -736,7 +736,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         del y, start, state
 
         # Adapter module forward step
-        if self.is_adapter_available():
+        # TODO: fix jit compatibility
+        if not torch.jit.is_scripting() and self.is_adapter_available():
             g = self.forward_enabled_adapters(g)
 
         return g, hid
@@ -1479,7 +1480,8 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         del f, g
 
         # Forward adapter modules on joint hidden
-        if self.is_adapter_available():
+        # TODO: fix jit compatibility
+        if not torch.jit.is_scripting() and self.is_adapter_available():
             inp = self.forward_enabled_adapters(inp)
 
         res = self.joint_net(inp)  # [B, T, U, V + 1]
