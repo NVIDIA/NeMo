@@ -72,6 +72,7 @@ def audio_and_texts(test_data_dir):
 
 
 class TestASRConfidenceBenchmark:
+
     @pytest.mark.integration
     @pytest.mark.with_downloads
     @pytest.mark.parametrize('model_name', ("ctc", "rnnt"))
