@@ -65,6 +65,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.enforce_fp32_pos_idx = cfg.model.get('enforce_fp32_pos_idx', False)
         gpt_cfg.rotary_augment_seq = cfg.model.get('rotary_augment_seq', False)
         gpt_cfg.rotary_base = cfg.model.get('rotary_base', False)
+        gpt_cfg.rotary_base_len = cfg.model.get('rotary_base_len', False)
         # D.R. nope, gpt_cfg.max_position_embeddings * gpt_cfg.seq_len_interpolation_factor should match the desired max future inference seq len
         # assert (
         #     gpt_cfg.encoder_seq_length == gpt_cfg.max_position_embeddings * gpt_cfg.seq_len_interpolation_factor
