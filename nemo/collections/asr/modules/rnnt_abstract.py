@@ -67,6 +67,7 @@ class AbstractRNNTJoint(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
+    @torch.jit.export
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
         """
         Compute the joint step of the network.

@@ -1283,6 +1283,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self.temperature = 1.0
 
     @typecheck()
+    @torch.jit.ignore
     def forward(
         self,
         encoder_outputs: torch.Tensor,
