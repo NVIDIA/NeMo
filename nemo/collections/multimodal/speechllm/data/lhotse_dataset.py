@@ -221,6 +221,12 @@ class TextProcessing:
         return processed_example
 
 
+# TODO(zhehuai)
+def update_to_asr_task(canary_tokens):
+    canary_tokens[:, 3] = canary_tokens[:, 1]
+    canary_tokens[:, 2] = 8
+
+
 def convert_canary_prompt_to_text(prompt):
     ps = prompt.split('>')
 
@@ -288,6 +294,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         canary_processor: Optional = None,
         context_len_for_AR_decoding: Optional = 5,
         convert_canary_prompt_to_text: bool = False,
+        canary_tokens_augment_ratio: float = 0.0,
     ):
         from lhotse.dataset import AudioSamples, CutMix
 
@@ -305,6 +312,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.canary_processor = canary_processor
         self.context_len_for_AR_decoding = context_len_for_AR_decoding
         self.convert_canary_prompt_to_text = convert_canary_prompt_to_text
+        self.canary_tokens_augment_ratio = canary_tokens_augment_ratio
 
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         cuts = cuts.sort_by_duration()
@@ -315,7 +323,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         return_batch = {}
         if self.canary_processor != None:
             _, _, canary_tokens, canary_token_lens = self.canary_processor.__getitem__(cuts)
-            return_batch['canary_tokens'] = canary_tokens
+            if torch.rand(1) < self.canary_tokens_augment_ratio:
+                return_batch['canary_tokens'] = update_to_asr_task(canary_tokens)
+            else:
+                return_batch['canary_tokens'] = canary_tokens
             return_batch['canary_token_lengths'] = canary_token_lens
 
         if self.canary_processor != None:

@@ -625,6 +625,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 canary_processor=canary_processer,
                 context_len_for_AR_decoding=context_len_for_AR_decoding,
                 convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
+                canary_tokens_augment_ratio=data_cfg.get('canary_tokens_augment_ratio', 0.0),
             )
 
         if data_cfg.get('is_tarred', False):
