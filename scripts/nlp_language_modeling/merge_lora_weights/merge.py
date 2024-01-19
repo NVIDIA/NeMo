@@ -21,6 +21,7 @@ python scripts/nlp_language_modeling/merge_lora_weights/merge.py \
     trainer.accelerator=gpu \  # use 'cpu' if model cannot fit in memory
     tensor_model_parallel_size=1 \  # TP of lora checkpoint
     pipeline_model_parallel_size=1 \  # only PP=1 is supported
+    pipeline_model_parallel_split_rank=0 \
     gpt_model_file=<path to base model nemo file or extracted folder> \
     lora_model_path=<path to megatron_gpt_peft_lora_tuning.nemo> \
     merged_model_path=<output nemo file>
@@ -140,27 +141,28 @@ def merge(
                 if key_lora_in in lora_state_dict[0] and key_lora_out in lora_state_dict[0]:
                     if key in ["attention_qkv", 'mlp_fc1']:
                         wt_lora_in = torch.cat([lora_state_dict[_tp][key_lora_in] for _tp in range(tp)], dim=0)
-                        wt_lora_out = lora_state_dict[curr_rank][key_lora_out]
                     else:
-                        wt_lora_in = lora_state_dict[curr_rank][key_lora_in]
-                        wt_lora_out = torch.cat([lora_state_dict[_tp][key_lora_out] for _tp in range(tp)], dim=0)
+                        wt_lora_in = torch.cat([lora_state_dict[_tp][key_lora_in] for _tp in range(tp)], dim=1)
 
+                    wt_lora_out = torch.cat([lora_state_dict[_tp][key_lora_out] for _tp in range(tp)], dim=0)
                     wt_base = base_model_state_dict[key_base]
                     wt_lora = wt_lora_out @ wt_lora_in
                     base_model_state_dict[key_base] = wt_base + wt_lora.type_as(wt_base)
-                    print(f'mergeing for weight {key_base}')
+                    print(f'merging for weight {key_base}')
     else:
         logging.warning("Non-mcore model only supports merging lora weights for attention_qkv layers")
         for nl in range(num_layers):
             key_self_attn_kqv = f'model.language_model.encoder.layers.{nl}.self_attention.query_key_value.weight'
             key_lora_in = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
             key_lora_out = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
-        wt_lora_in = torch.cat([lora_state_dict[_tp][key_lora_in] for _tp in range(tp)], dim=0)
-        wt_lora_out = torch.cat([lora_state_dict[_tp][key_lora_out] for _tp in range(tp)], dim=0)
-        wt_self_attn = base_model_state_dict[key_self_attn_kqv]
-        wt_lora = wt_lora_out @ wt_lora_in
-        base_model_state_dict[key_self_attn_kqv] = wt_self_attn + wt_lora.type_as(wt_self_attn)
-        print("merging for weight", key_self_attn_kqv)
+
+            wt_lora_in = torch.cat([lora_state_dict[_tp][key_lora_in] for _tp in range(tp)], dim=0)
+            wt_lora_out = torch.cat([lora_state_dict[_tp][key_lora_out] for _tp in range(tp)], dim=0)
+            wt_self_attn = base_model_state_dict[key_self_attn_kqv]
+            wt_lora = wt_lora_out @ wt_lora_in
+            base_model_state_dict[key_self_attn_kqv] = wt_self_attn + wt_lora.type_as(wt_self_attn)
+            print("merging for weight", key_self_attn_kqv)
+
     return base_model_state_dict
 
 
@@ -202,9 +204,7 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
             pretrained_cfg.use_cpu_initialization = cfg.trainer.accelerator == 'cpu'
-            if pretrained_cfg.mcore_gpt == True:
-                pretrained_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
-                pretrained_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
+
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
