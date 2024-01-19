@@ -427,6 +427,29 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Cast local data to FP8
         fp8_params_shards = dict()
         for bucket_id, param_bucket in params_buckets.items():
+            state_bucket = self.state["buckets"][bucket_id]
+            if state_bucket.param_sync_dtype != torch.uint8:
+                continue
+            if not all(
+                _is_fp8_tensor(self.parameter(fragment))
+                for fragment in state_bucket.fragments
+            ):
+                continue
+
+            # Initialize FP8 buffer for param sync
+            params_shard = param_bucket.params_shard
+            if self.contiguous_param_buffer:
+                shard_size = state_bucket.shard_size
+                buffer_offset = state_bucket.contiguous_buffer_offset
+                buffer_start = buffer_offset + self.distributed_rank * shard_size
+                buffer_end = buffer_start + shard_size
+                param_buffer = self._param_buffers[state_bucket.dtypes()]
+                fp8_params_shard = param_buffer[buffer_start:buffer_end]
+            else:
+                fp8_params_shard = torch.empty_like(params_shard, dtype=torch.uint8)
+            param_bucket.params_shard = fp8_params_shard
+
+            # Cast param fragments to FP8
             for fragment in self.state["buckets"][bucket_id].fragments:
                 param = self.parameter(fragment)
                 if not _is_fp8_tensor(param):
@@ -437,31 +460,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 if shard_end <= shard_start:
                     continue
                 shard_range = slice(shard_start, shard_end)
-
-                # FP8 metadata
-                fp8_meta = param._fp8_meta["scaling_fwd"]
-                fp8_meta_index = param._fp8_meta_index
-                fp8_dtype = param._fp8_dtype
-
-                # Get bucket containing fragment
-                state_bucket = self.state["buckets"][bucket_id]
-                if state_bucket.param_sync_dtype != torch.uint8:
-                    continue
-
-                # Allocate FP8 buffer if needed
-                if bucket_id not in fp8_params_shards:
-                    fp8_params_shards[bucket_id] = torch.empty_like(param_bucket.params_shard, dtype=torch.uint8)
-
-                # FP8 cast and amax
-                fp32_fragment = param_bucket.params_shard[shard_range].view(1, -1)
-                fp8_fragment = fp8_params_shards[bucket_id][shard_range].view(1, -1)
                 cast_to_fp8(
-                    fp32_fragment, fp8_meta, fp8_meta_index, fp8_dtype, out=fp8_fragment,
+                    params_shard[shard_range].view(1, -1),
+                    param._fp8_meta["scaling_fwd"],
+                    param._fp8_meta_index,
+                    param._fp8_dtype,
+                    out=fp8_params_shard[shard_range].view(1, -1),
                 )
-
-        # Update param shards with FP8 buffers
-        for bucket_id, params_shard in fp8_params_shards.items():
-            params_buckets[bucket_id].params_shard = params_shard
 
         # Update FP8 scaling factors when all buckets have processed
         if getattr(self, "_check_params_shard_dtypes_progress", None) is None:
