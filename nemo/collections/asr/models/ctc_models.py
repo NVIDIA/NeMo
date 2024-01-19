@@ -113,6 +113,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()
 
+        print("Init finished")
+
     @torch.no_grad()
     def transcribe(
         self,
@@ -147,6 +149,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
+        print("Transcribe start")
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
 
@@ -239,6 +242,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 self.decoder.unfreeze()
             logging.set_verbosity(logging_level)
 
+        print("Transcribe end")
         return hypotheses
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
@@ -553,19 +557,26 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 " with ``processed_signal`` and ``processed_signal_len`` arguments."
             )
 
+        print("FORWARD >>>\n")
         if not has_processed_signal:
+            print("Preprocessor start")
             processed_signal, processed_signal_length = self.preprocessor(
                 input_signal=input_signal, length=input_signal_length,
             )
+            print("Preprocessor end")
 
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
+        print("Encoder start")
         encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        print("Encoder end")
         encoded = encoder_output[0]
         encoded_len = encoder_output[1]
+        print("Decoder start")
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+        print("Decoder end")
 
         return (
             log_probs,
@@ -576,11 +587,14 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         # Reset access registry
+        print("TRAINING STEP >>>")
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
+            print("reset access mixin registry")
 
         if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True)
+            print("enabled access mixin registry for interctc")
 
         signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
@@ -590,14 +604,18 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         else:
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
+        print("Finished forward pass")
+
         if hasattr(self, '_trainer') and self._trainer is not None:
             log_every_n_steps = self._trainer.log_every_n_steps
         else:
             log_every_n_steps = 1
 
+        print("Loss start")
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
+        print("Loss end")
 
         # Add auxiliary losses, if registered
         loss_value = self.add_auxiliary_losses(loss_value)
@@ -619,6 +637,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         )
 
         if (batch_nb + 1) % log_every_n_steps == 0:
+            print("WER start")
             self.wer.update(
                 predictions=log_probs,
                 targets=transcript,
@@ -627,8 +646,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             )
             wer, _, _ = self.wer.compute()
             self.wer.reset()
+            print("WER end")
             tensorboard_logs.update({'training_batch_wer': wer})
 
+        print("Training step end\n")
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
@@ -648,6 +669,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         return list(zip(sample_id, transcribed_texts))
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0):
+        print("VALIDATION PASS >>>\n")
         if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True)
 
@@ -659,25 +681,33 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         else:
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
+        print("Finished forward pass")
+
+        print("Loss start")
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
         loss_value, metrics = self.add_interctc_losses(
             loss_value, transcript, transcript_len, compute_wer=True, log_wer_num_denom=True, log_prefix="val_",
         )
+        print("Loss end")
 
+        print("WER start")
         self.wer.update(
             predictions=log_probs, targets=transcript, targets_lengths=transcript_len, predictions_lengths=encoded_len,
         )
         wer, wer_num, wer_denom = self.wer.compute()
         self.wer.reset()
         metrics.update({'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom, 'val_wer': wer})
+        print("WER end")
 
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         # Reset access registry
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
+
+        print("Validation pass end\n")
 
         return metrics
 
