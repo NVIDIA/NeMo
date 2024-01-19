@@ -179,8 +179,7 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
         clean_text = re.sub(combined_pattern, '<image>', response['sentences'][0])
 
         clean_response = clean_text
-        # for string in sampling_params['end_strings']:
-        #     clean_response = clean_response.rstrip(string)
+
         if conv_template == "nvgpt":
             labels_str_regexp = re.compile(f"<extra_id_2>quality:.*\n")
             last_match_end_position = None
