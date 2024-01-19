@@ -316,6 +316,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+                rotary_base=self.cfg.get('rotary_base', 10000),
             )
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
@@ -390,6 +391,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 limited_context_decoding=self.cfg.get('limited_context_decoding', None),
                 enforce_fp32_pos_idx=self.cfg.get('enforce_fp32_pos_idx', False),
                 rotary_augment_seq=self.cfg.get('rotary_augment_seq', None),
+                rotary_base=self.cfg.get('rotary_base', 10000),
             )
         return model
 
