@@ -56,7 +56,7 @@ class RotaryEmbedding(nn.Module):
         self.augment_seq = augment_seq
         self.logging_freq = logging_freq
 
-        logging.info(f'base_len: {base_len}, seq_len_interpolation_factor: {seq_len_interpolation_factor}, enforce_fp32_pos_idx: {enforce_fp32_pos_idx}, augment_seq: {augment_seq}')
+        logging.info(f'base_len: {base_len}, rotary_base: {rotary_base}, seq_len_interpolation_factor: {seq_len_interpolation_factor}, enforce_fp32_pos_idx: {enforce_fp32_pos_idx}, augment_seq: {augment_seq}')
 
     """
         Augments the seq and adjusts its range to base_len
