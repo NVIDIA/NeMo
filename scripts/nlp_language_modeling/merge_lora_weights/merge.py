@@ -18,13 +18,15 @@ Merge lora weights into a base GPT LM. Only PP=1 supported so far.
 
 Example usage:
 python scripts/nlp_language_modeling/merge_lora_weights/merge.py \
-    trainer.accelerator=gpu \  # use 'cpu' if model cannot fit in memory
-    tensor_model_parallel_size=1 \  # TP of lora checkpoint
-    pipeline_model_parallel_size=1 \  # only PP=1 is supported
+    trainer.accelerator=gpu \   (use 'cpu' if model cannot fit in memory)
+    tensor_model_parallel_size=<TP of lora checkpoint> \
+    pipeline_model_parallel_size=1 \
     gpt_model_file=<path to base model nemo file or extracted folder> \
     lora_model_path=<path to megatron_gpt_peft_lora_tuning.nemo> \
     merged_model_path=<output nemo file>
 
+TP of lora checkpoint can be found by visually examining the output of
+`tar -tvf /path/to/lora.nemo`
 """
 
 
