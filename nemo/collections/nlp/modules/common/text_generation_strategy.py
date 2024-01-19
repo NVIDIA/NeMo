@@ -337,13 +337,7 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
     if multimodal_cfg["conv_template"] == "nvgpt":
         record = {
             'system': 'A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user\'s questions.\n\n',
-            'conversations': [
-                {'from': 'User', 'value': prompt},
-                {
-                    'from': 'Assistant',
-                    'value': '',
-                },
-            ],
+            'conversations': [{'from': 'User', 'value': prompt}, {'from': 'Assistant', 'value': '',},],
         }
 
         for turn in record['conversations']:  #
