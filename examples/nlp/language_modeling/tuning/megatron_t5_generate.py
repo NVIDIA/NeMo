@@ -45,7 +45,7 @@ This is the script to run inference with a PEFT model or an SFT Model.
 
 If you want to evaluate an SFT .nemo file:
 
-python examples/nlp/language_modeling/tuning/megatron_t5_finetune_generate.py \
+python examples/nlp/language_modeling/tuning/megatron_t5_generate.py \
 	model.restore_from_path=<path_to_sft_nemo_file> \
 	model.peft.restore_from_path=null \
 	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
@@ -58,7 +58,7 @@ python examples/nlp/language_modeling/tuning/megatron_t5_finetune_generate.py \
 
 If you want to evaluate a PEFT Model, you should provide a base T5 model and a PEFT model .nemo file
 
-python examples/nlp/language_modeling/tuning/megatron_t5_finetune_generate.py \
+python examples/nlp/language_modeling/tuning/megatron_t5_generate.py \
 	model.restore_from_path=<path_to_sft_nemo_file> \
 	model.peft.restore_from_path=<path_to_peft_nemo_file> \ # this will be created if you use `megatron_t5_finetuning.py`
 	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
@@ -116,10 +116,10 @@ banner = '\n'.join(['' "*" * 80] * 5)
 
 @deprecated(
     wait_seconds=20,
-    explanation=f"\n{banner}\nmegatron_t5_peft_eval.py is renamed to megatron_t5_finetune_generate.py with the "
+    explanation=f"\n{banner}\nmegatron_t5_peft_eval.py is renamed to megatron_t5_generate.py with the "
     f"same functionality. \nPlease switch to the new name.\n{banner}\n",
 )
-@hydra_runner(config_path="conf", config_name="megatron_t5_finetune_generate_config")
+@hydra_runner(config_path="conf", config_name="megatron_t5_generate_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")

@@ -43,7 +43,7 @@ This is the script to run inference with a PEFT model or an SFT Model.
 
 If you want to evaluate an SFT .nemo file:
 
-python examples/nlp/language_modeling/tuning/megatron_gpt_finetune_generate.py \
+python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
 	model.restore_from_path=<path_to_sft_nemo_file> \
 	model.peft.restore_from_path=null \
 	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
@@ -56,7 +56,7 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_finetune_generate.py \
 
 If you want to evaluate a PEFT Model, you should provide a base GPT model and a PEFT model .nemo file
 
-python examples/nlp/language_modeling/tuning/megatron_gpt_finetune_generate.py \
+python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
 	model.restore_from_path=<path_to_sft_nemo_file> \
 	model.peft.restore_from_path=<path_to_peft_nemo_file> \ # this will be created if you use `megatron_gpt_finetuning.py`
 	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
@@ -109,7 +109,7 @@ def use_inference_server(cfg, model, trainer):
             generate(model.cuda())
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_finetune_generate_config")
+@hydra_runner(config_path="conf", config_name="megatron_gpt_generate_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
