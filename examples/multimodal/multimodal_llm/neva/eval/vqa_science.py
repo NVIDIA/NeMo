@@ -16,17 +16,14 @@ import argparse
 import json
 import math
 import os
-import shortuuid
-import torch
 
-from omegaconf import OmegaConf, open_dict
+import shortuuid
+from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
+from nemo.utils.get_rank import is_global_rank_zero
 from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 
 CFG_STRING = """
 trainer:
@@ -106,7 +103,7 @@ def eval_model(args):
     answers_file = os.path.expanduser(args.answers_file)
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
-    for i, line in enumerate(tqdm(questions)):
+    for i, line in enumerate(tqdm(questions, disable=(not is_global_rank_zero()))):
         idx = line["id"]
         question = line['conversations'][0]
         qs = question['value'].replace('<image>', '').strip()

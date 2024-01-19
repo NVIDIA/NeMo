@@ -1021,12 +1021,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if length_params is None:
             length_params = get_default_length_params()
 
-        import time
-
-        start = time.time()
         # Supports only one prompt at a time
         result = megatron_neva_generate(self.cuda(), input_prompts, length_params, sampling_params, inference_config)
-        end = time.time()
-        print(f'Time taken {end - start}')
 
         return result
