@@ -67,7 +67,7 @@ class ContextGraphCTC:
     A ContextGraph contains some words / phrases that we expect to boost their recognition accuracy.
     """
 
-    def __init__(self, blank_id=1024):
+    def __init__(self, blank_id: int = 1024):
         """
         Initialize the ContextGraphCTC based on given blank_id.
 
@@ -79,7 +79,7 @@ class ContextGraphCTC:
         self.root = ContextState(index=self.num_nodes, is_end=False)
         self.blank_token = blank_id
 
-    def build(self, word_items: List[Union[str, List[List[int]]]]):
+    def build(self, word_items: List[Union[str, List[List[Union[str, int]]]]]):
         """
         Build the context graph based on given word_items.
 
