@@ -34,6 +34,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
+from nemo.collections.asr.parts.submodules.rnnt_greedy_computer import GreedyBatchedRNNTComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.collections.common.parts.rnn import label_collate
@@ -604,6 +605,19 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             if loop_labels:
                 # default (faster) algo: loop over labels
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
+                if not preserve_frame_confidence:
+                    computer = GreedyBatchedRNNTComputer(
+                        decoder=self.decoder,
+                        joint=self.joint,
+                        blank_index=self._blank_index,
+                        max_symbols_per_step=self.max_symbols,
+                        preserve_alignments=preserve_alignments,
+                        preserve_frame_confidence=preserve_frame_confidence,
+                    )
+                    try:
+                        self._computer = torch.jit.script(computer)
+                    except (OSError, RuntimeError):
+                        self._computer = computer
             else:
                 # previous algo: loop over frames
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
@@ -669,6 +683,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         """
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
+
+        if not self.preserve_frame_confidence:
+            self._computer.eval()
+            self._computer.to(x.device)
+            batched_hyps, alignments = self._computer(x=x, out_len=out_len)
+            return rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
 
         batch_size, max_time, _ = x.shape
 
