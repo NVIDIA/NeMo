@@ -221,18 +221,6 @@ class TextProcessing:
         return processed_example
 
 
-import re
-
-
-def _keep_special_tokens(text):
-    """
-    assuming all special tokens are of format <token>
-    """
-    assert isinstance(text, str), f"Expected str, got {type(text)}"
-    strip_text = re.sub(r'<[^>]+>', '', text)
-    return text.replace(strip_text, '').replace("<pad>", '')
-
-
 class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
     """
     This dataset is based on Lhotse ASR dataset from ``audio_to_text_lhotse.py``
@@ -254,6 +242,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         max_seq_length: int,
         noise_cuts: Optional = None,
         canary_processor: Optional = None,
+        context_len_for_AR_decoding: Optional = 5,
     ):
         from lhotse.dataset import AudioSamples, CutMix
 
@@ -269,6 +258,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         self.question = default_question
         self.canary_processor = canary_processor
+        self.context_len_for_AR_decoding = context_len_for_AR_decoding
 
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         cuts = cuts.sort_by_duration()
@@ -284,8 +274,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         if self.canary_processor != None:
             for id, cut in enumerate(cuts):
-                canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(canary_tokens[id].tolist())
-                cut.question = self.question + ' ' + _keep_special_tokens(canary_text)
+                canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(
+                    canary_tokens[id][: self.context_len_for_AR_decoding].tolist()
+                )
+                cut.question = self.question + ' ' + canary_text
 
         collated_text_data = collate_text_data(
             cuts=cuts,

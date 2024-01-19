@@ -611,6 +611,11 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 )
             else:
                 canary_processer = None
+            context_len_for_AR_decoding = (
+                self.perception.asr_model.context_len_for_AR_decoding
+                if hasattr(self.perception, "asr_model")
+                else data_cfg.get('context_len_for_AR_decoding', 5)
+            )
             return LhotseAudioQuestionAnswerDataset(
                 tp,
                 default_question="answer the question according to the previous audio",
@@ -618,6 +623,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 pad_to_max_length=data_cfg.get('pad_to_max_length', False),
                 max_seq_length=data_cfg["max_seq_length"],
                 canary_processor=canary_processer,
+                context_len_for_AR_decoding=context_len_for_AR_decoding,
             )
 
         if data_cfg.get('is_tarred', False):
