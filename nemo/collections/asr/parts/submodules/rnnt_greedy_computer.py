@@ -8,7 +8,7 @@ import torch.nn as nn
 from nemo.collections.asr.parts.utils import rnnt_utils
 
 
-class GreedyBatchedRNNTComputer(nn.Module):
+class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
     def __init__(
         self,
         decoder,

@@ -19,7 +19,7 @@ import torch
 
 # from nemo.collections.asr.modules.hybrid_autoregressive_transducer import HATJoint
 from nemo.collections.asr.modules.rnnt import RNNTDecoder, RNNTJoint, StatelessTransducerDecoder
-from nemo.collections.asr.parts.submodules.rnnt_greedy_computer import GreedyBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.rnnt_greedy_computer import GreedyBatchedRNNTLoopLabelsComputer
 from nemo.collections.common.parts.rnn import label_collate
 
 DEVICES: List[torch.device] = [torch.device("cpu")]
@@ -160,7 +160,7 @@ class TestGreedyComputer:
         )
 
         computer = torch.jit.script(
-            GreedyBatchedRNNTComputer(joint=joint, decoder=prednet, blank_index=32, max_symbols_per_step=1)
+            GreedyBatchedRNNTLoopLabelsComputer(joint=joint, decoder=prednet, blank_index=32, max_symbols_per_step=1)
         )
         _ = computer.to(device).eval()
 
@@ -180,6 +180,6 @@ class TestGreedyComputer:
         )
 
         computer = torch.jit.script(
-            GreedyBatchedRNNTComputer(joint=joint, decoder=prednet, blank_index=32, max_symbols_per_step=1)
+            GreedyBatchedRNNTLoopLabelsComputer(joint=joint, decoder=prednet, blank_index=32, max_symbols_per_step=1)
         )
         _ = computer.to(device).eval()

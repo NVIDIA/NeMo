@@ -34,7 +34,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.submodules.rnnt_greedy_computer import GreedyBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.rnnt_greedy_computer import GreedyBatchedRNNTLoopLabelsComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.collections.common.parts.rnn import label_collate
@@ -609,7 +609,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 self.joint.set_loss(None)
                 self.joint.set_wer(None)
                 if not preserve_frame_confidence:
-                    computer = GreedyBatchedRNNTComputer(
+                    computer = GreedyBatchedRNNTLoopLabelsComputer(
                         decoder=self.decoder,
                         joint=self.joint,
                         blank_index=self._blank_index,
