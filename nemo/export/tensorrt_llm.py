@@ -236,6 +236,10 @@ class TensorRTLLM(ITritonDeployable):
             sampling_kwargs: Additional kwargs to set in the SamplingConfig.
         """
 
+        print("forward...")
+        print(stop_words_list)
+        breakpoint()
+        
         if self.model is None:
             raise Exception(
                 "A nemo checkpoint should be exported to TensorRT-LLM and "
@@ -392,8 +396,9 @@ class TensorRTLLM(ITritonDeployable):
             if "random_seed" in inputs:
                 infer_input["random_seed"] = inputs.pop("random_seed")[0][0]
             if "stop_words_list" in inputs:
-                swl = np.char.decode(inputs.pop("stop_words_list").astype("bytes"), encoding="utf-8")
-                infer_input["stop_words_list"] = swl[0]
+                #swl = np.char.decode(inputs.pop("stop_words_list").astype("bytes"), encoding="utf-8")
+                #infer_input["stop_words_list"] = swl[0]
+                infer_input["stop_words_list"] = str_ndarray2list(inputs.pop("stop_words_list"))
             if "bad_words_list" in inputs:
                 swl = np.char.decode(inputs.pop("bad_words_list").astype("bytes"), encoding="utf-8")
                 infer_input["bad_words_list"] = swl[0]
@@ -403,6 +408,9 @@ class TensorRTLLM(ITritonDeployable):
                 task_id = np.char.decode(inputs.pop("task_id").astype("bytes"), encoding="utf-8")
                 infer_input["task_ids"] = task_id[0]
 
+            print(infer_input["stop_words_list"])
+            # todo need to convert to list of list
+            breakpoint()
             output_texts = self.forward(**infer_input)
             output = cast_output(output_texts, np.bytes_)
             return {"outputs": output}
