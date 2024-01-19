@@ -13,23 +13,38 @@
 # limitations under the License.
 #
 
-from nemo.utils import logging
+from typing import List, Union
+from nemo.collections.asr.parts.utils import rnnt_utils
+from ctc_based_word_spotter import WSHyp
+import numpy as np
 
 
-def merge_alignment_with_wb_hyps(
-    candidate,
+def merge_alignment_with_ws_hyps(
+    candidate: Union[np.ndarray, rnnt_utils.Hypothesis],
     asr_model,
-    cb_results,
-    decoder_type="ctc"
-):
-    
+    cb_results: List[WSHyp],
+    decoder_type: str = "ctc",
+    intersection_threshold: float = 30.0,
+) -> str:
+    """
+    Merge context biasing predictions with ctc/rnnt word-level alignment.
+    Words from alignment will be replaced by spotted words if intersection between them is greater than threshold.
 
+    Args:
+        candidate: argmax predictions per frame (for ctc) or rnnt hypothesis (for rnnt)
+        asr_model: ctc or hybrid transducer-ctc model
+        cb_results: list of context biasing predictions (spotted words)
+        decoder_type: ctc or rnnt
+        intersection_threshold: threshold for intersection between spotted word and word from alignment (in percentage)
+    Returns:
+        boosted_text: final text with context biasing predictions
+    """
+
+    # step 1: get token-level alignment [frame, token]
     if decoder_type == "ctc":
-        alignment_per_frame = candidate
-        # get words borders
         alignment_tokens = []
         prev_token = None
-        for idx, token in enumerate(alignment_per_frame):
+        for idx, token in enumerate(candidate):
             if token != asr_model.decoder.blank_idx:
                 if token == prev_token:
                     alignment_tokens[-1] = [idx, asr_model.tokenizer.ids_to_tokens([int(token)])[0]]
@@ -44,71 +59,63 @@ def merge_alignment_with_wb_hyps(
             alignment_tokens.append([candidate.timestep[idx], token])
 
     if not alignment_tokens:
-        for wb_hyp in cb_results:
-            pass
-            # print(f"wb_hyp: {wb_hyp.word}")
-        return " ".join([wb_hyp.word for wb_hyp in cb_results])
+        # ctc/rnnt decoding results are empty, return context biasing results only
+        return " ".join([ws_hyp.word for ws_hyp in cb_results])
 
-
-    slash = "▁"
+    # step 2: get word-level alignment [word, start_frame, end_frame]
+    bow = "▁" # symbol for begin of word (bow) in BPE tokenizer
     word_alignment = []
     word = ""
     l, r, = None, None
     for item in alignment_tokens:
         if not word:
             word = item[1][1:]
-            l = item[0]
-            r = item[0]
+            l = r = item[0]
         else:
-            if item[1].startswith(slash):
+            if item[1].startswith(bow):
                 word_alignment.append((word, l, r))
                 word = item[1][1:]
-                l = item[0]
-                r = item[0]
+                l = r = item[0]
             else:
                 word += item[1]
                 r = item[0]
     word_alignment.append((word, l, r))
     ref_text = [item[0] for item in word_alignment]
     ref_text = " ".join(ref_text)
-    # print(f"rnnt_word_alignment: {word_alignment}")
 
-    # merge wb_hyps and word alignment:
-
-    for wb_hyp in cb_results:
-
-        # extend wb_hyp:
-        if wb_hyp.start_frame > 0:
-            wb_hyp.start_frame -= 1
-
+    # step 3: merge spotted words with word alignment
+    for ws_hyp in cb_results:
+        # extend ws_hyp start frame in case of rnnt (rnnt tends to predict labels one frame earlier sometimes)
+        if ws_hyp.start_frame > 0 and decoder_type == "rnnt":
+            ws_hyp.start_frame -= 1
         new_word_alignment = []
         already_inserted = False
-        # lh, rh = wb_hyp.start_frame, wb_hyp.end_frame
-        wb_interval = set(range(wb_hyp.start_frame, wb_hyp.end_frame+1))
+        # get interval of spotted word
+        ws_interval = set(range(ws_hyp.start_frame, ws_hyp.end_frame+1))
         for item in word_alignment:
+            # get interval if word from alignment
             li, ri = item[1], item[2]
-            item_interval = set(range(item[1], item[2]+1))
-            if wb_hyp.start_frame < li:
+            item_interval = set(range(li, ri+1))
+            if ws_hyp.start_frame < li:
+                # spotted word starts before first word from alignment
                 if not already_inserted:
-                    new_word_alignment.append((wb_hyp.word, wb_hyp.start_frame, wb_hyp.end_frame))
+                    new_word_alignment.append((ws_hyp.word, ws_hyp.start_frame, ws_hyp.end_frame))
                     already_inserted = True
-
-            intersection_part = 100/len(item_interval) * len(wb_interval & item_interval)
-            if intersection_part <= 50:
+            # compute intersection between spotted word and word from alignment in percentage
+            intersection_part = 100/len(item_interval) * len(ws_interval & item_interval)
+            if intersection_part <= intersection_threshold:
                 new_word_alignment.append(item)
             elif not already_inserted:
-                new_word_alignment.append((wb_hyp.word, wb_hyp.start_frame, wb_hyp.end_frame))
+                # word from alignment will be replaced by spotted word
+                new_word_alignment.append((ws_hyp.word, ws_hyp.start_frame, ws_hyp.end_frame))
                 already_inserted = True
-        # insert last wb word:
+        # insert last spotted word if not yet
         if not already_inserted:
-            new_word_alignment.append((wb_hyp.word, wb_hyp.start_frame, wb_hyp.end_frame))
+            new_word_alignment.append((ws_hyp.word, ws_hyp.start_frame, ws_hyp.end_frame))
 
         word_alignment = new_word_alignment
-        # print(f"wb_hyp: {wb_hyp.word:<10} -- ({wb_hyp.start_frame}, {wb_hyp.end_frame})")
 
     boosted_text_list = [item[0] for item in new_word_alignment]
     boosted_text = " ".join(boosted_text_list)
-    # print(f"before: {ref_text}")
-    # print(f"after : {boosted_text}")
     
     return boosted_text

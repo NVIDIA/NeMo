@@ -31,8 +31,6 @@
 from collections import deque
 from typing import Dict, List, Optional, Union
 
-# add copy rights description?
-
 
 class ContextState:
     """The state in ContextGraph"""
@@ -62,7 +60,8 @@ class ContextState:
 
 class ContextGraphCTC:
     """
-    Context-biasing graph (based on prefix tree) according to the CTC transition topology (with blank nodes)
+    Context-biasing graph (based on prefix tree) according to the CTC transition topology (with blank nodes).
+    A ContextGraph contains some words / phrases that we expect to boost their recognition accuracy.
     """
 
     def __init__(self, blank_id=1024):
@@ -153,7 +152,22 @@ class ContextGraphCTC:
         title: Optional[str] = None,
         symbol_table: Optional[Dict[int, str]] = None,
     ) -> "Digraph":  # noqa
+        """Visualize a ContextGraph via graphviz.
 
+        Render ContextGraph as an image via graphviz, and return the Digraph object
+
+        Note:
+          You need to install graphviz to use this function:
+            pip install graphviz
+
+        Args:
+           title:
+              Title to be displayed in image, e.g. 'A simple FSA example'
+           symbol_table:
+              Map the token ids to symbols.
+        Returns:
+          A Diagraph from grahpviz.
+        """
         try:
             import graphviz
         except Exception:

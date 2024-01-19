@@ -33,15 +33,6 @@ def load_data(manifest: str) -> List[Dict]:
             item = json.loads(line)
             data.append(item)
     return data
-    
-
-def update_stats(item_ref, item_hyp, key_words_stat):
-        if item_ref in key_words_stat:
-            key_words_stat[item_ref][1] += 1 # add to totall
-            if item_ref == item_hyp:
-                key_words_stat[item_ref][0] += 1 # add to tp
-        elif item_hyp in key_words_stat:
-            key_words_stat[item_hyp][2] += 1 # add to fp
 
 
 def compute_fscore(recognition_results_manifest: str, key_words_list: List, return_scores: bool = False) -> Optional[tuple]:
@@ -75,9 +66,8 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List, retu
         ali = align(ref, hyp, eps)
 
         for idx, pair in enumerate(ali):
-
             # check all the ngrams:
-            # TODO -- add epsilon skipping to ge more accurate results for phrases...
+            # TODO: add epsilon skipping to ge more accurate results for phrases...
             for ngram_order in range(1, max_ngram_order+1):
                 if (idx+ngram_order-1) < len(ali):
                     item_ref, item_hyp = [], []
@@ -86,11 +76,16 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List, retu
                         item_hyp.append(ali[idx+order-1][1])
                     item_ref = " ".join(item_ref)
                     item_hyp = " ".join(item_hyp)
-                    update_stats(item_ref, item_hyp, key_words_stat)
+                    # update key_words_stat
+                    if item_ref in key_words_stat:
+                        key_words_stat[item_ref][1] += 1 # add to gt
+                        if item_ref == item_hyp:
+                            key_words_stat[item_ref][0] += 1 # add to tp
+                    elif item_hyp in key_words_stat:
+                        key_words_stat[item_hyp][2] += 1 # add to fp
                 else:
                     break
     
-
     tp = sum([key_words_stat[x][0] for x in key_words_stat])
     gt = sum([key_words_stat[x][1] for x in key_words_stat])
     fp = sum([key_words_stat[x][2] for x in key_words_stat])

@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import numpy as np
-from nemo.utils import logging
-from collections import deque
-from typing import List, Optional, Dict
+from typing import List, Optional
 from context_graph_ctc import ContextState, ContextGraphCTC
 
 

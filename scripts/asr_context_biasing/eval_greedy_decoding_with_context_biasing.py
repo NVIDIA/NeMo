@@ -27,11 +27,12 @@ python eval_greedy_decoding_with_context_biasing.py --cfg job
 
 python eval_greedy_decoding_with_context_biasing.py nemo_model_file=<path to the .nemo file of the model> \
            input_manifest=<path to the evaluation JSON manifest file \
-           kenlm_model_file=<path to the binary KenLM model> \
-           beam_width=[<list of the beam widths, separated with commas>] \
-           beam_alpha=[<list of the beam alphas, separated with commas>] \
            preds_output_folder=<optional folder to store the predictions> \
-           probs_cache_file=null \
+           decoder_type=<ctc or rnnt> \
+           acoustic_batch_size=<batch size to calculate log probabilities> \
+           apply_context_biasing=<True or False to apply context biasing> \
+           context_file=
+
            decoding_strategy=<greedy_batch or maes decoding>
            ...
 
@@ -67,14 +68,13 @@ from sklearn.model_selection import ParameterGrid
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from context_graph_ctc import ContextGraphCTC
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 
 from ctc_based_word_spotter import run_word_spotter
-from context_biasing_utils import merge_alignment_with_wb_hyps
+from context_biasing_utils import merge_alignment_with_ws_hyps
 from compute_key_words_fscore import compute_fscore
 
 
@@ -167,13 +167,12 @@ def decoding_step(
             # do CTC based word boosting
             if cfg.apply_context_biasing and ws_results[audio_file_paths[batch_idx]]:
                 # make new text by mearging alignment with ctc-wb predictions:
-                boosted_text = merge_alignment_with_wb_hyps(
+                pred_text = merge_alignment_with_ws_hyps(
                     preds.numpy(),
                     asr_model,
                     ws_results[audio_file_paths[batch_idx]],
                     decoder_type="ctc",
                 )
-                pred_text = boosted_text
             else:
                 preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
@@ -237,13 +236,12 @@ def decoding_step(
                     
                     if cfg.apply_context_biasing and ws_results[audio_file_paths[sample_idx + beams_idx]]:
                         # make new text by mearging alignment with ctc-ws predictions:
-                        boosted_text = merge_alignment_with_wb_hyps(
+                        pred_text = merge_alignment_with_ws_hyps(
                             candidate,
                             asr_model,
                             ws_results[audio_file_paths[sample_idx + beams_idx]],
                             decoder_type="rnnt",
                         )
-                        pred_text = boosted_text
                         beams[0].text = pred_text
                     else:
                         pred_text = candidate.text
@@ -437,11 +435,9 @@ def main(cfg: EvalContextBiasingConfig):
         print(f"[INFO]: Params: b_thr={hp['beam_threshold']}, cs={hp['context_score']}, ctc_ali_weight = {hp['ctc_ali_token_weight']}")
         print(f"[INFO]: Decoding only time (without encoder) is: {int(time.time() - start_dec_time)} sec")
     
-    logging.info(
-        f'Best WER = {best_wer:.2%}, '
-        f'Precision/Recall/Fscore = {best_fscore_stats[0]:.4f}/{best_fscore_stats[1]:.4f}/{best_fscore_stats[2]:.4f}, '
-        f'beam_threshold = {best_beam_threshold}, context_score = {best_context_score}, ctc_ali_token_weight = {best_ctc_ali_token_weight}'
-    )
+    logging.info(f'Best WER = {best_wer:.2%}')
+    logging.info(f'Best Precision/Recall/Fscore = {best_fscore_stats[0]:.4f}/{best_fscore_stats[1]:.4f}/{best_fscore_stats[2]:.4f}')
+    logging.info(f'Best beam_threshold = {best_beam_threshold}, context_score = {best_context_score}, ctc_ali_token_weight = {best_ctc_ali_token_weight}')
 
 
 if __name__ == '__main__':
