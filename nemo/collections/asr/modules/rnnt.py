@@ -303,7 +303,11 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         return y, new_state, lm_token
 
-    def initialize_state(self, y: torch.Tensor) -> List[torch.Tensor]:
+    def initialize_state(self, y: torch.Tensor) -> Optional[List[torch.Tensor]]:
+        """
+        Initialize state. Return type is Optional, since the state can be None in some cases (in other functions),
+        and this is important to torch.jit.script (cannot assign None to List[torch.Tensor])
+        """
         batch = y.size(0)
         state = [torch.ones([batch, self.context_size], dtype=torch.long, device=y.device) * self.blank_idx]
         return state
