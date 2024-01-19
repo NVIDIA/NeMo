@@ -32,6 +32,7 @@ class RotaryEmbedding(nn.Module):
         self,
         dim: int,
         seq_len_interpolation_factor: int = None,
+        rotary_base: int = 10000,
         base_len: int = None,
         enforce_fp32_pos_idx: bool = False,
         augment_seq: Dict[Any,Any] = None,
@@ -47,7 +48,8 @@ class RotaryEmbedding(nn.Module):
         """
         super().__init__()
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
-        inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+        self.rotary_base = rotary_base
+        inv_freq = 1.0 / (self.rotary_base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
         self.base_len = base_len
         self.enforce_fp32_pos_idx = enforce_fp32_pos_idx
@@ -67,6 +69,11 @@ class RotaryEmbedding(nn.Module):
         current_range = max_seq_len
 
         target_augmented_length = self.augment_seq.get('target', None)
+        augmented_length_range = self.augment_seq.get('range', None)
+        if target_augmented_length and augmented_length_range:
+            logging.warning(f'target_augmented_length setting of {target_augmented_length} supercedes augmented_length_range of {augmented_length_range}')
+        elif augmented_length_range:
+            target_augmented_length = random.randint(augmented_length_range[0],augmented_length_range[1])
 
         if self.augment_seq.get('stretch', False):
             if target_augmented_length:
