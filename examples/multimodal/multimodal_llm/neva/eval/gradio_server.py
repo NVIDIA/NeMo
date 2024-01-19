@@ -15,8 +15,8 @@
 import base64
 import io
 
-import PIL.Image
 import gradio as gr
+import PIL.Image
 from omegaconf import OmegaConf
 
 from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
