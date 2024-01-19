@@ -91,6 +91,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
         else:
             self.spec_augmentation = None
 
+        if loss_name == 'tdt':
+            self.cfg.decoding.durations = loss_kwargs.durations
+        elif loss_name == 'multiblank_rnnt':
+            self.cfg.decoding.big_blank_durations = loss_kwargs.big_blank_durations
+
         # Setup decoding objects
         self.decoding = RNNTDecoding(
             decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
