@@ -43,7 +43,7 @@ retrieval_service:
   pad_tokens: False # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
   store_retrieved: False # whether store the retrieved documents, so it can be checked
   peft: False
-  add_top_1: False
+  add_top_1: True
   combo_service:
     service_ip: '0.0.0.0'
     service_port: 17181 

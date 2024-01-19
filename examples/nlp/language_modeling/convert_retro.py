@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
     if args.model == "800m":
         # 800m retro
-        lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/iter_0195312'
+        lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting'
         result_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/converted/'
         P = [8, 11, 14, 17, 20, 23]
     elif args.model == "2b":
@@ -160,14 +160,14 @@ if __name__ == "__main__":
         P = [8, 11, 14, 17, 20, 23]
     elif args.model == "22b":
         # 22b retro
-        lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-22b-pretraining-retro-fitting-noseqpar/iter_0097656'
-        result_path = '/home/aficek/software/playground/retro_convert/gpt3-22b-pretraining-retro-fitting-noseqpar/converted/'
-        P = [8, 11, 14, 17, 20, 23]
+        lm_ckpt_path = '/raid/aficek/retro_paper/models/gpt3-22b-pretraining-retro-fitting-noseqpar/iter_0048828'
+        result_path = '/raid/aficek/retro_paper/models/gpt3-22b-pretraining-retro-fitting-noseqpar/converted/'
+        P = [8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38]
     elif args.model == "43b":
         # 43b retro        
         lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-'
         result_path = '/home/aficek/software/playground/retro_convert/gpt3-'
-        P = [8, 11, 14, 17, 20, 23]
+        P = [8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47]
     else:
         print("Model type not selected, used some other result_path and lm_ckpt_path")
         # result_path = '/raid/users/aficek/gpt/gpt3-2b-pretraining-retro-fitting/converted'
@@ -187,7 +187,7 @@ if __name__ == "__main__":
         # P = [8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 39]
 
         # install_megatron_dependence()
-        old_checkpoint = torch.load(lm_ckpt, 'cuda:3')
+        old_checkpoint = torch.load(lm_ckpt, map_location=torch.device('cpu'))
         args_dict = vars(old_checkpoint["args"])
         with open(result_path + "adlr_model_config.yaml", 'w') as file:
             for key, value in args_dict.items():
@@ -205,10 +205,10 @@ if __name__ == "__main__":
         set_weights(P, checkpoint, new_checkpoint)
         os.makedirs(result_path + subdir, exist_ok=True)
         vocab_size = new_checkpoint['model.encoder_embedding.word_embeddings.weight'].shape[0]
-        new_checkpoint['model.tokens_head.bias'] = torch.zeros(256000, dtype=torch.float32, device='cuda:3')
-        new_checkpoint['model.encoder.rotary_pos_emb.inv_freq'] = torch.zeros(16, dtype=torch.float32, device='cuda:3')
-        new_checkpoint['model.pre_decoder.rotary_pos_emb.inv_freq'] = torch.zeros(16, dtype=torch.float32, device='cuda:3')
-        new_checkpoint['model.post_decoder.rotary_pos_emb.inv_freq'] =torch.zeros(16, dtype=torch.float32, device='cuda:3')
+        new_checkpoint['model.tokens_head.bias'] = torch.zeros(256000, dtype=torch.float32)
+        new_checkpoint['model.encoder.rotary_pos_emb.inv_freq'] = torch.zeros(16, dtype=torch.float32)
+        new_checkpoint['model.pre_decoder.rotary_pos_emb.inv_freq'] = torch.zeros(16, dtype=torch.float32)
+        new_checkpoint['model.post_decoder.rotary_pos_emb.inv_freq'] =torch.zeros(16, dtype=torch.float32)
         output_path = result_path + subdir + '/model_weights.ckpt'
         torch.save(new_checkpoint, output_path)
         print("Output to path: ", output_path)
