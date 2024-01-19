@@ -486,11 +486,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             state_bucket = self.state["buckets"][bucket_id]
             if state_bucket.param_sync_dtype != torch.uint8:
                 continue
-            if not all(
-                _is_fp8_tensor(self.parameter(fragment))
-                for fragment in state_bucket.fragments
-            ):
-                continue
 
             # Initialize FP8 buffer for param sync
             params_shard = param_bucket.params_shard
