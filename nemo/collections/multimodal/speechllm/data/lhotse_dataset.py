@@ -240,7 +240,7 @@ def convert_canary_prompt_to_text(prompt):
         elif text == "<|en|":
             lang = 'English'
         else:
-            assert 'Unknown language {}'.format(text)
+            assert False, 'Unknown language {}'.format(text)
         return lang
 
     def get_task_template(text):
@@ -249,7 +249,7 @@ def convert_canary_prompt_to_text(prompt):
         elif text == "<|translate|":
             template = 'Translate the spoken <|SLANG|> content to written <|TLANG|> text, <|PNC|>'
         else:
-            assert 'Unknown task {}'.format(text)
+            assert False, 'Unknown task {}'.format(text)
         return template
 
     def get_pnc(text):
@@ -258,7 +258,7 @@ def convert_canary_prompt_to_text(prompt):
         elif text == "<|pnc|":
             pnc = 'with punctuations and capitalizations'
         else:
-            assert 'Unknown pnc {}'.format(text)
+            assert False, 'Unknown pnc {}'.format(text)
         return pnc
 
     source_lang = get_lang(ps[1])
