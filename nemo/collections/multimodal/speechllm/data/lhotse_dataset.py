@@ -1,3 +1,4 @@
+import copy
 import random
 from typing import Optional
 
@@ -223,8 +224,11 @@ class TextProcessing:
 
 # TODO(zhehuai)
 def update_to_asr_task(canary_tokens):
-    canary_tokens[:, 3] = canary_tokens[:, 1]
-    canary_tokens[:, 2] = 8
+    if canary_tokens.shape[1] > 5:
+        canary_tokens = copy.deepcopy(canary_tokens)
+        canary_tokens[:, 3] = canary_tokens[:, 1]
+        canary_tokens[:, 2] = 8
+    return canary_tokens
 
 
 def convert_canary_prompt_to_text(prompt):
@@ -240,7 +244,7 @@ def convert_canary_prompt_to_text(prompt):
         elif text == "<|en|":
             lang = 'English'
         else:
-            assert False, 'Unknown language {}'.format(text)
+            assert False, 'Unknown language {}'.format(prompt)
         return lang
 
     def get_task_template(text):
@@ -249,7 +253,7 @@ def convert_canary_prompt_to_text(prompt):
         elif text == "<|translate|":
             template = 'Translate the spoken <|SLANG|> content to written <|TLANG|> text, <|PNC|>'
         else:
-            assert False, 'Unknown task {}'.format(text)
+            assert False, 'Unknown task {}'.format(prompt)
         return template
 
     def get_pnc(text):
@@ -258,16 +262,19 @@ def convert_canary_prompt_to_text(prompt):
         elif text == "<|pnc|":
             pnc = 'with punctuations and capitalizations'
         else:
-            assert False, 'Unknown pnc {}'.format(text)
+            assert False, 'Unknown pnc {}'.format(prompt)
         return pnc
 
-    source_lang = get_lang(ps[1])
-    target_lang = get_lang(ps[3])
-    pnc = get_pnc(ps[4])
-    task = get_task_template(ps[2])
-    task = task.replace('<|SLANG|>', source_lang)
-    task = task.replace('<|TLANG|>', target_lang)
-    task = task.replace('<|PNC|>', pnc)
+    if len(ps) == 5:
+        source_lang = get_lang(ps[1])
+        target_lang = get_lang(ps[3])
+        pnc = get_pnc(ps[4])
+        task = get_task_template(ps[2])
+        task = task.replace('<|SLANG|>', source_lang)
+        task = task.replace('<|TLANG|>', target_lang)
+        task = task.replace('<|PNC|>', pnc)
+    else:
+        task = 'Above is not speech.'
     return task
 
 
