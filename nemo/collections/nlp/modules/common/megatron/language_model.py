@@ -132,6 +132,7 @@ def get_language_model(
     limited_context_decoding=None,
     enforce_fp32_pos_idx=False,
     rotary_augment_seq=None,
+    rotary_base=10000,
 ):
     """Build language model and return along with the key to save."""
 
@@ -214,6 +215,7 @@ def get_language_model(
         limited_context_decoding=limited_context_decoding,
         enforce_fp32_pos_idx=enforce_fp32_pos_idx,
         rotary_augment_seq=rotary_augment_seq,
+        rotary_base=rotary_base,
 
     )
     # key used for checkpoints.
@@ -521,6 +523,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         limited_context_decoding=None,
         enforce_fp32_pos_idx=False,
         rotary_augment_seq=None,
+        rotary_base=10000,
     ):
         super(TransformerLanguageModel, self).__init__(
             config=config, share_token_embeddings=share_embeddings_and_output_weights
@@ -580,6 +583,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 rotary_dim = int(rotary_dim * rotary_percentage)
             self.rotary_pos_emb = RotaryEmbedding(
                 rotary_dim,
+                rotary_base=rotary_base,
                 seq_len_interpolation_factor=seq_len_interpolation_factor,
                 base_len=rotary_base_len,
                 enforce_fp32_pos_idx=enforce_fp32_pos_idx,

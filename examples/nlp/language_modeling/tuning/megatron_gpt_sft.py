@@ -69,6 +69,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.use_flash_attention = cfg.model.get('use_flash_attention', False)
         gpt_cfg.enforce_fp32_pos_idx = cfg.model.get('enforce_fp32_pos_idx', False)
         gpt_cfg.rotary_augment_seq = cfg.model.get('rotary_augment_seq', False)
+        gpt_cfg.rotary_base = cfg.model.get('rotary_base', False)
         gpt_cfg.tensor_model_parallel_size = cfg.model.get('tensor_model_parallel_size', 1)
         gpt_cfg.pipeline_model_parallel_size = cfg.model.get('pipeline_model_parallel_size', 1)
         gpt_cfg.pipeline_model_parallel_split_rank = cfg.model.get('pipeline_model_parallel_split_rank', 0)
