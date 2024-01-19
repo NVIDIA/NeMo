@@ -605,6 +605,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             if loop_labels:
                 # default (faster) algo: loop over labels
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
+                # TODO: fix jit compatibility
+                self.joint.set_loss(None)
+                self.joint.set_wer(None)
                 if not preserve_frame_confidence:
                     computer = GreedyBatchedRNNTComputer(
                         decoder=self.decoder,
@@ -616,7 +619,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     )
                     try:
                         self._computer = torch.jit.script(computer)
+                        logging.warning("Using greedy decoding with torch.jit.script")
                     except (OSError, RuntimeError):
+                        logging.warning("torch.jit.script failed to compile, using greedy decoding without jit")
                         self._computer = computer
             else:
                 # previous algo: loop over frames
