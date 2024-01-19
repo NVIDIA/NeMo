@@ -323,8 +323,7 @@ class VitBackbone(MegatronModule):
         scale_factor = (gs_new / gs_input[0], gs_new / gs_input[1])
 
         embed_grid = F.interpolate(embed_grid, scale_factor=scale_factor, mode="bicubic")
-        # import pdb; pdb.set_trace()
-        # embed_grid = embed_grid.half()
+
         embed_grid = embed_grid.reshape((-1, num_tok_output))
         embed_grid = embed_grid.transpose(0, 1).contiguous()
 

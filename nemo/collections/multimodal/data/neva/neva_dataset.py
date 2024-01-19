@@ -139,6 +139,24 @@ def tokenize(
 
 
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
+    """
+    Preprocesses multimodal sources based on the provided configuration.
+
+    This function modifies the sources for multimodal data processing. It checks if the data is multimodal and
+    adjusts the token lengths accordingly. It also handles the start and end tokens for images and replaces
+    image tokens in conversations.
+
+    Parameters:
+    - sources (dict): A dictionary containing the multimodal sources to be processed.
+    - multimodal_cfg (dict): A configuration dictionary specifying various options for multimodal processing.
+      It includes keys like 'is_multimodal', 'use_im_start_end', and 'sep_image_conv_front'.
+    - cur_token_len (int): The current length of tokens to be considered for image processing.
+    - use_plain (bool, optional): A boolean flag to use plain image token replacement without additional processing.
+      Defaults to False.
+
+    Returns:
+    - dict: The processed sources dictionary after applying multimodal preprocessing steps.
+    """
     is_multimodal = multimodal_cfg['is_multimodal']
     image_token_len = cur_token_len
     if not is_multimodal:
@@ -172,6 +190,21 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
 
 def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
+    """
+    Preprocesses sources for the LLaMA 2 model configuration.
+
+    The function applies prompt templates and tokenizes the conversations according to the LLaMA 2 model specifications.
+    It involves special handling of tokens, masking of labels, and adjustments based on configuration settings.
+
+    Parameters:
+    - sources (dict): A dictionary of sources containing conversations to be processed.
+    - tokenizer: The tokenizer to be used for processing the text.
+    - cfg: Configuration settings for preprocessing, including context length and additional tokens.
+
+    Returns:
+    - Dict: A dictionary containing tokenized and labeled data suitable for the LLaMA 2 model.
+      This includes tokens, labels, and any special processing as defined in the configuration.
+    """
     conv = conversation_lib.conv_llava_llama_2.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
@@ -244,6 +277,20 @@ def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
 
 
 def preprocess_v1(sources: dict, tokenizer, cfg,) -> Dict:
+    """
+    Preprocesses sources for the Vicuna V1 model configuration.
+
+    Similar to `preprocess_llama_2`, this function applies prompt templates and performs tokenization, but it is tailored
+    for the Vicuna V1 model. It includes specific handling for token translations, label masking, and tokenizer configuration.
+
+    Parameters:
+    - sources (dict): A dictionary of sources containing conversations to be processed.
+    - tokenizer: The tokenizer to be used for processing the text.
+    - cfg: Configuration settings for preprocessing, which may include context length and additional tokens.
+
+    Returns:
+    - Dict: A dictionary containing the processed data, including tokens and labels, formatted for the Vicuna V1 model.
+    """
     conv = conversation_lib.conv_vicuna_v1.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
@@ -411,6 +458,24 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg,) -> Dict:
 
 
 def preprocess_plain(sources, tokenizer, cfg,) -> Dict:
+    """
+    Preprocesses plain text sources (no template) for tokenization and label generation.
+
+    This function concatenates conversations with an end signal, tokenizes them, and prepares labels for training.
+    It handles sources with a specific structure (expecting two elements in 'conversations') and includes the
+    option to add an extra token as specified in the configuration. The function also applies masking to the labels.
+
+    Parameters:
+    - sources: A list of source dictionaries. Each source dictionary should have a key 'conversations'
+      containing a list of conversation parts.
+    - tokenizer: The tokenizer to be used for converting text to tokens.
+    - cfg: Configuration dictionary which may include 'context_length' and 'add_extra_token' settings.
+
+    Returns:
+    - Dict: A dictionary containing tokenized data and corresponding labels. This includes 'tokens' which are the
+      tokenized representations of the conversations, and 'labels' which are used for training the model. The labels
+      have specific indices masked with IGNORE_INDEX as per the preprocessing logic.
+    """
     # add end signal and concatenate together
     conversations = []
     for source in sources:
@@ -684,5 +749,5 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             context_length=model_cfg.encoder_seq_length,
         ),
     )
-    # data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
+
     return dict(train_dataset=train_dataset, eval_dataset=train_dataset)
