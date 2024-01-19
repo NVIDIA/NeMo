@@ -69,12 +69,12 @@ from tqdm.auto import tqdm
 import nemo.collections.asr as nemo_asr
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from context_graph_ctc import ContextGraphCTC
 from nemo.collections.asr.models import EncDecCTCModelBPE, EncDecHybridRNNTCTCModel
 
-from ctc_based_word_spotter import run_word_spotter
-from context_biasing_utils import merge_alignment_with_ws_hyps
-from compute_key_words_fscore import compute_fscore
+from nemo.collections.asr.parts.context_biasing import ContextGraphCTC
+from nemo.collections.asr.parts.context_biasing import run_word_spotter
+from nemo.collections.asr.parts.context_biasing import merge_alignment_with_ws_hyps
+from nemo.collections.asr.parts.context_biasing import compute_fscore
 
 
 @dataclass
@@ -284,7 +284,7 @@ def decoding_step(
 @hydra_runner(config_path=None, config_name='EvalContextBiasingConfig', schema=EvalContextBiasingConfig)
 def main(cfg: EvalContextBiasingConfig):
     if is_dataclass(cfg):
-        cfg = OmegaConf.structured(cfg)  # type: EvalContextBiasingConfig
+        cfg = OmegaConf.structured(cfg)
 
     if cfg.nemo_model_file.endswith('.nemo'):
         asr_model = nemo_asr.models.ASRModel.restore_from(cfg.nemo_model_file, map_location=torch.device(cfg.device))
@@ -296,7 +296,7 @@ def main(cfg: EvalContextBiasingConfig):
             cfg.nemo_model_file, map_location=torch.device(cfg.device)
         )
 
-    assert isinstance(asr_model, EncDecCTCModelBPE) or isinstance(asr_model, EncDecHybridRNNTCTCModel), \
+    assert isinstance(asr_model, (EncDecCTCModelBPE, EncDecHybridRNNTCTCModel)), \
         "ASR model must be CTC BPE or Hybrid Transducer-CTC"
 
 
@@ -336,7 +336,7 @@ def main(cfg: EvalContextBiasingConfig):
             ctc_logprobs = []
             if isinstance(asr_model, EncDecCTCModelBPE):
                         ctc_logprobs = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
-                        blank_idx = asr_model.tokenizer.tokenizer.vocab_size
+                        blank_idx = asr_model.decoding.blank_id
             else:
                 # in case of EncDecHybridRNNTCTCModel
                 with tempfile.TemporaryDirectory() as tmpdir:
@@ -415,7 +415,7 @@ def main(cfg: EvalContextBiasingConfig):
     logging.info(f"=========================Starting the decoding========================")
     logging.info(f"Grid search size: {len(hp_grid)}")
     logging.info(f"It may take some time...")
-    logging.info(f"==============================================================================================")
+    logging.info(f"======================================================================")
 
     asr_model = asr_model.to('cpu')
     best_wer = 1e6
@@ -449,13 +449,14 @@ def main(cfg: EvalContextBiasingConfig):
             best_wer = candidate_wer
             best_fscore_stats = fscore_stats
 
-        print("***"*15)
-        print(f"[INFO]: Greedy batch WER/CER = {candidate_wer:.2%}/{candidate_cer:.2%}")
-        print(f"[INFO]: Params: b_thr={hp['beam_threshold']}, cs={hp['context_score']}, ctc_ali_weight = {hp['ctc_ali_token_weight']}")
+        logging.info(f"=============================================================================================================")
+        logging.info(f"Greedy batch WER/CER = {candidate_wer:.2%}/{candidate_cer:.2%}")
+        logging.info(f"Params: b_thr={hp['beam_threshold']}, cs={hp['context_score']}, ctc_ali_weight = {hp['ctc_ali_token_weight']}")
+        logging.info(f"=============================================================================================================")
     
-    logging.info(f'Best WER = {best_wer:.2%}')
-    logging.info(f'Best Precision/Recall/Fscore = {best_fscore_stats[0]:.4f}/{best_fscore_stats[1]:.4f}/{best_fscore_stats[2]:.4f}')
-    logging.info(f'Best beam_threshold = {best_beam_threshold}, context_score = {best_context_score}, ctc_ali_token_weight = {best_ctc_ali_token_weight}')
+    logging.info(f"Best WER = {best_wer:.2%}")
+    logging.info(f"Best Precision/Recall/Fscore = {best_fscore_stats[0]:.4f}/{best_fscore_stats[1]:.4f}/{best_fscore_stats[2]:.4f}")
+    logging.info(f"Best beam_threshold = {best_beam_threshold}, context_score = {best_context_score}, ctc_ali_token_weight = {best_ctc_ali_token_weight}")
 
 
 if __name__ == '__main__':
