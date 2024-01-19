@@ -196,23 +196,31 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
             else:
                 cuts = CutSet.mux(*[cs.repeat() for cs in cutsets], weights=weights, seed="trng")
     else:
-        question_file_set = (
-            config["question_file_set"]
-            if "question_file_set" in config
-            else [None for i in range(len(config["manifest_filepath"]))]
-        )
-        cutsets = []
-        for manifest_info, question_file in zip(config["manifest_filepath"], question_file_set):
-            cs = CutSet(LazyNeMoIterator(manifest_info, **common_kwargs))
-            if question_file is not None:
-                logging.info(f"Use random questions from {question_file} for {manifest_info}")
-                questions = get_random_questions(question_file)
-                cs = cs.map(partial(sample_and_attach_question, questions=questions))
-
-            cutsets.append(cs)
-        if (max_open_streams := config.lhotse.get("max_open_streams", None)) is not None:
-            cuts = CutSet.infinite_mux(*cutsets, max_open_streams=max_open_streams, seed="trng")
+        if isinstance(config.manifest_filepath, (str, Path)):
+            logging.info(
+                f"Initializing Lhotse CutSet from a single NeMo manifest (non-tarred): '{config.manifest_filepath}'"
+            )
+            cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **common_kwargs))
         else:
-            cuts = CutSet.mux(*[cs for cs in cutsets], seed="trng")
+            logging.info(
+                f"Initializing Lhotse CutSet from multiple NeMo manifests (non-tarred): '{config.manifest_filepath}'"
+            )
+            question_file_set = (
+                config["question_file_set"]
+                if "question_file_set" in config
+                else [None for i in range(len(config["manifest_filepath"]))]
+            )
+            cutsets = []
+            for manifest_info, question_file in zip(config["manifest_filepath"], question_file_set):
+                cs = CutSet(LazyNeMoIterator(manifest_info, **common_kwargs))
+                if question_file is not None:
+                    logging.info(f"Use random questions from {question_file} for {manifest_info}")
+                    questions = get_random_questions(question_file)
+                    cs = cs.map(partial(sample_and_attach_question, questions=questions))
 
+                cutsets.append(cs)
+            if (max_open_streams := config.lhotse.get("max_open_streams", None)) is not None:
+                cuts = CutSet.infinite_mux(*cutsets, max_open_streams=max_open_streams, seed="trng")
+            else:
+                cuts = CutSet.mux(*[cs for cs in cutsets], seed="trng")
     return cuts

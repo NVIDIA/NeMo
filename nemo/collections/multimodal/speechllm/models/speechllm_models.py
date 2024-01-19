@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import itertools
 import json
 import os
+from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import sacrebleu
@@ -599,8 +601,13 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             if self.cfg.perception.get("is_canary", False):
                 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 
+                perception_tokenizer = (
+                    self.perception.tokenizer
+                    if hasattr(self.perception, "tokenizer")
+                    else self.perception.asr_model.tokenizer
+                )
                 canary_processer = LhotseSpeechToTextBpeDataset(
-                    tokenizer=self.perception.asr_model.tokenizer, token_sequence_format='canary',
+                    tokenizer=perception_tokenizer, token_sequence_format='canary',
                 )
             else:
                 canary_processer = None
@@ -636,17 +643,41 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 virtual_tokens=self.virtual_tokens,
             )
 
-    def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
+    def build_data_loader(self, dataset, data_cfg, consumed_samples=0, is_eval=False):
         """Buld dataloader given an input dataset."""
         if data_cfg.get("use_lhotse"):
             from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 
-            return get_lhotse_dataloader_from_config(
-                data_cfg,
-                global_rank=parallel_state.get_data_parallel_rank(),
-                world_size=parallel_state.get_data_parallel_world_size(),
-                dataset=dataset,
-            )
+            if data_cfg.get('is_tarred', False) or not is_eval:
+                return get_lhotse_dataloader_from_config(
+                    data_cfg,
+                    global_rank=parallel_state.get_data_parallel_rank(),
+                    world_size=parallel_state.get_data_parallel_world_size(),
+                    dataset=dataset,
+                )
+            else:
+                dls = []
+                for dataset_idx, (cur_manifest_filepath) in enumerate(data_cfg.manifest_filepath):
+                    conf = copy.deepcopy(data_cfg)
+                    conf['manifest_filepath'] = cur_manifest_filepath
+                    question_file_set = data_cfg.get('question_file_set', None)
+                    if question_file_set is not None:
+                        conf['question_file_set'] = [question_file_set[dataset_idx]]
+                    dls.append(
+                        get_lhotse_dataloader_from_config(
+                            conf,
+                            global_rank=parallel_state.get_data_parallel_rank(),
+                            world_size=parallel_state.get_data_parallel_world_size(),
+                            dataset=dataset,
+                        )
+                    )
+                if 'names' not in data_cfg:
+                    names = []
+                    for cur_manifest_filepath in data_cfg.manifest_filepath:
+                        names.append(Path(cur_manifest_filepath).stem)
+                    OmegaConf.update(data_cfg, 'names', names, force_add=True)
+                    logging.info(f'Update dataset names as {names}')
+                return dls
 
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         if isinstance(dataset, BlendableDataset):
@@ -849,6 +880,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     def _load_pretrained_audio_weights(
         cls, cfg, model, audio_model, speaker_model: Optional[EncDecSpeakerLabelModel] = None
     ):
+        # keep the tokenizer
+        # TODO: decide a way to load tokenizer for inference
+        model.perception.tokenizer = audio_model.tokenizer
         use_multi_encoder = cfg.model.perception.get("encoders", None) is not None
         strict = 'overwrite_cfgs' not in cfg.model.perception and 'adapter' not in cfg.model.perception
         if not use_multi_encoder:
@@ -1408,9 +1442,10 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     def setup_eval_dataloader(self, datasets, data_cfg):
         dataloaders = []
         if not isinstance(datasets, list):
-            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0,)
+            dataloaders = self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0, is_eval=True)
+            return dataloaders
         for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0, is_eval=True)
             dataloaders.append(eval_dl)
         return dataloaders
 
@@ -1418,9 +1453,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         datasets = self._build_dataset(data_cfg, False)
         dataloaders = []
         if not isinstance(datasets, list):
-            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0,)
+            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0, is_eval=True)
         for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0, is_eval=True)
             dataloaders.append(eval_dl)
         return dataloaders
 
