@@ -590,26 +590,30 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
                 )
             elif self.cfg.get('is_canary', False):
                 assert canary_tokens is not None
-                encoded = encoded.transpose(1, 2)
-                enc_mask = lens_to_mask(logits_len, encoded.shape[1]).to(encoded.dtype)
-                device = encoded.device
-                if self.cfg.get("greedy_decoding_overwrite", False):
-                    decoding_instance = self.asr_model.greedy_search
-                else:
-                    decoding_instance = self.asr_model.beam_search
-                beam_hypotheses = (
-                    decoding_instance(
-                        encoder_hidden_states=encoded,
-                        encoder_input_mask=enc_mask,
-                        return_beam_scores=False,
-                        decoder_input_ids=canary_tokens[:, : self.asr_model.context_len_for_AR_decoding].to(device)
-                        if self.asr_model.context_len_for_AR_decoding > 0
-                        else None,
+                decoding_ratio = self.cfg.get('decoding_ratio', 1.0)
+                if not self.training or decoding_ratio >= 1.0 or decoding_ratio > torch.rand(1):
+                    encoded = encoded.transpose(1, 2)
+                    enc_mask = lens_to_mask(logits_len, encoded.shape[1]).to(encoded.dtype)
+                    device = encoded.device
+                    if self.cfg.get("greedy_decoding_overwrite", False):
+                        decoding_instance = self.asr_model.greedy_search
+                    else:
+                        decoding_instance = self.asr_model.beam_search
+                    beam_hypotheses = (
+                        decoding_instance(
+                            encoder_hidden_states=encoded,
+                            encoder_input_mask=enc_mask,
+                            return_beam_scores=False,
+                            decoder_input_ids=canary_tokens[:, : self.asr_model.context_len_for_AR_decoding].to(device)
+                            if self.asr_model.context_len_for_AR_decoding > 0
+                            else None,
+                        )
+                        .detach()
+                        .cpu()
+                        .numpy()
                     )
-                    .detach()
-                    .cpu()
-                    .numpy()
-                )
+                else:
+                    beam_hypotheses = canary_tokens.tolist()
                 beam_hypotheses = [
                     self.asr_model._strip_special_tokens(self.asr_model.tokenizer.ids_to_text(hyp))
                     for hyp in beam_hypotheses

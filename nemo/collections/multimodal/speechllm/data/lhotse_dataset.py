@@ -221,6 +221,50 @@ class TextProcessing:
         return processed_example
 
 
+def convert_canary_prompt_to_text(prompt):
+    ps = prompt.split('>')
+
+    def get_lang(text):
+        if text == "<|fr|":
+            lang = 'French'
+        elif text == "<|es|":
+            lang = 'Spanish'
+        elif text == "<|de|":
+            lang = 'German'
+        elif text == "<|en|":
+            lang = 'English'
+        else:
+            assert 'Unknown language {}'.format(text)
+        return lang
+
+    def get_task_template(text):
+        if text == "<|transcribe|":
+            template = 'Provide the <|SLANG|> transcription of the audio, <|PNC|>.'
+        elif text == "<|translate|":
+            template = 'Translate the spoken <|SLANG|> content to written <|TLANG|> text, <|PNC|>'
+        else:
+            assert 'Unknown task {}'.format(text)
+        return template
+
+    def get_pnc(text):
+        if text == "<|nopnc|":
+            pnc = 'ignoring punctuations and capitalization'
+        elif text == "<|pnc|":
+            pnc = 'with punctuations and capitalizations'
+        else:
+            assert 'Unknown pnc {}'.format(text)
+        return pnc
+
+    source_lang = get_lang(ps[1])
+    target_lang = get_lang(ps[3])
+    pnc = get_pnc(ps[4])
+    task = get_task_template(ps[2])
+    task = task.replace('<|SLANG|>', source_lang)
+    task = task.replace('<|TLANG|>', target_lang)
+    task = task.replace('<|PNC|>', pnc)
+    return task
+
+
 class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
     """
     This dataset is based on Lhotse ASR dataset from ``audio_to_text_lhotse.py``
@@ -243,6 +287,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         noise_cuts: Optional = None,
         canary_processor: Optional = None,
         context_len_for_AR_decoding: Optional = 5,
+        convert_canary_prompt_to_text: bool = False,
     ):
         from lhotse.dataset import AudioSamples, CutMix
 
@@ -259,6 +304,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.question = default_question
         self.canary_processor = canary_processor
         self.context_len_for_AR_decoding = context_len_for_AR_decoding
+        self.convert_canary_prompt_to_text = convert_canary_prompt_to_text
 
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         cuts = cuts.sort_by_duration()
@@ -277,7 +323,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(
                     canary_tokens[id][: self.context_len_for_AR_decoding].tolist()
                 )
-                cut.question = self.question + ' ' + canary_text
+                if self.convert_canary_prompt_to_text:
+                    cut.question = convert_canary_prompt_to_text(canary_text)
+                else:
+                    cut.question = self.question + ' ' + canary_text
 
         collated_text_data = collate_text_data(
             cuts=cuts,

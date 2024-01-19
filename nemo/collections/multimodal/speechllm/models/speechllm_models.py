@@ -624,6 +624,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 max_seq_length=data_cfg["max_seq_length"],
                 canary_processor=canary_processer,
                 context_len_for_AR_decoding=context_len_for_AR_decoding,
+                convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
             )
 
         if data_cfg.get('is_tarred', False):
