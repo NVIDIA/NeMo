@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import collections
+import itertools
 from typing import Callable, Dict, Iterable, Optional, Union
 
 import torch
@@ -92,21 +93,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Construct distributed optimizer
         super().__init__(param_groups, **kwargs)
 
-        # Initialize weights that require FP32 grads
-        if self.dtype != torch.float32 or self.grad_sync_dtype != torch.float32:
-            fp32_params = []
-            for param_group in param_groups:
-                fp32_params.extend(
-                    filter(lambda param: getattr(param, '_with_fp32_optimizer', False), param_group['params'])
-                )
-            if fp32_params:
-                assert (
-                    self.dtype == torch.float32
-                ), f'Param requires FP32 state but optimizer is initialized with {self.dtype}'
-                self.init_params_bucket(
-                    fp32_params, grad_sync_dtype=torch.float32,
-                )
-
     def _broadcast_params(self) -> None:
         # Assume params have already been synchronized
         pass
@@ -167,16 +153,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         )
 
     def init_params_bucket(
-        self, params: Iterable[torch.nn.Parameter], param_sync_dtype: Optional[torch.dtype] = None, **kwargs,
+        self,
+        params: Iterable[torch.nn.Parameter],
+        grad_sync_dtype: Optional[torch.dtype] = None,
+        param_sync_dtype: Optional[torch.dtype] = None,
+        **kwargs,
     ) -> None:
-        """Initialize optimizer state for parameters in one effective bucket
-
-        If any FP8 params are detected, all non-FP8 params are removed
-        from the bucket and their overlapped grad syncs are disabled.
-        This assumes that weight matrices are FP8 params and that
-        non-FP8 params are small (e.g. biases and layer norm params).
-
-        """
+        """Initialize optimizer state for parameters in one effective bucket"""
 
         # Ignore parameters that have already been initialized
         if isinstance(params, torch.Tensor):
@@ -185,18 +168,91 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if not params:
             return
 
-        # Ignore non-FP8 params if there are any FP8 params
-        if any(_is_fp8_tensor(param) for param in params):
-            for param in params:
-                if not _is_fp8_tensor(param):
-                    param._disable_overlap_grad_sync = True
-            params = filter(_is_fp8_tensor, params)
-            param_sync_dtype = torch.uint8
-
-        # Initialize parameter buckets
+        # Initialize parameters with FP32 grads
+        fp32_params = []
+        remaining_params = []
+        for param in params:
+            if getattr(param, '_with_fp32_optimizer', False):
+                fp32_params.append(param)
+            else:
+                remaining_params.append(param)
+        params = remaining_params
+        start_bucket_id = len(self.state["buckets"])
         super().init_params_bucket(
-            params, param_sync_dtype=param_sync_dtype, **kwargs,
+            fp32_params,
+            grad_sync_dtype=torch.float32,
+            param_sync_dtype=param_sync_dtype,
+            **kwargs,
         )
+        end_bucket_id = len(self.state["buckets"])
+        fp32_buckets = self.state["buckets"][start_bucket_id:end_bucket_id]
+
+        # Initialize FP8 parameters
+        fp8_params = []
+        remaining_params = []
+        for param in params:
+            if _is_fp8_tensor(param):
+                fp8_params.append(param)
+            else:
+                remaining_params.append(param)
+        params = remaining_params
+        start_bucket_id = len(self.state["buckets"])
+        super().init_params_bucket(
+            fp8_params,
+            grad_sync_dtype=grad_sync_dtype,
+            param_sync_dtype=torch.uint8,
+            **kwargs,
+        )
+        end_bucket_id = len(self.state["buckets"])
+        fp8_buckets =self.state["buckets"][start_bucket_id:end_bucket_id]
+
+        # Initialize remaining parameters as usual
+        normal_buckets = []
+        start_bucket_id = len(self.state["buckets"])
+        super().init_params_bucket(
+            params,
+            grad_sync_dtype=grad_sync_dtype,
+            param_sync_dtype=param_sync_dtype,
+            **kwargs,
+        )
+        end_bucket_id = len(self.state["buckets"])
+        normal_buckets =self.state["buckets"][start_bucket_id:end_bucket_id]
+
+        def add_param_to_bucket(
+            param: torch.nn.Parameter,
+            bucket: self.StateBucket,
+        ) -> None:
+            """Add trivial param fragment to bucket"""
+            param_fragments = self.state[param]["fragments"]
+            param_group_id = param_fragments[0].param_group_id
+            param_id = param_fragments[0].param_id
+            bucket_id = bucket.fragments[0].bucket_id
+            param_size = param.numel()
+            bucket_size = bucket.bucket_size
+            fragment = self.ParameterFragment(
+                param_group_id=param_group_id,
+                param_id=param_id,
+                bucket_id=bucket_id,
+                param_range=(param_size, param_size),
+                bucket_range=(bucket_size, bucket_size),
+                in_local_shard=False,
+                shard_range=None,
+                shard_bucket_range=None,
+                shard_param_range=None,
+            )
+            param_fragments.append(fragment)
+            bucket.fragments.append(fragment)
+
+        # Make sure all added buckets depend on provided params
+        for bucket in fp32_buckets:
+            for param in itertools.chain(fp8_params, params):
+                add_param_to_bucket(param, bucket)
+        for bucket in fp8_buckets:
+            for param in itertools.chain(fp32_params, params):
+                add_param_to_bucket(param, bucket)
+        for bucket in normal_buckets:
+            for param in itertools.chain(fp32_params, fp8_params):
+                add_param_to_bucket(param, bucket)
 
     def _init_param_state(
         self,
