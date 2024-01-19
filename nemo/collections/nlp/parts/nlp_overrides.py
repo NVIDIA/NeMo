@@ -124,7 +124,6 @@ def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) 
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
-                context_parallel_size=app_state.context_parallel_size,
                 nccl_communicator_config_path=nccl_communicator_config_path,
                 use_sharp=sharp,
             )
@@ -234,7 +233,7 @@ class NLPDDPStrategy(DDPStrategy):
                 # device_ids = self.determine_ddp_device_ids()
                 self._model = DistributedDataParallel(
                     _LightningModuleWrapperBase(self.model),
-                    process_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                    process_group=parallel_state.get_data_parallel_group(),
                     **self._ddp_kwargs,
                 )
 

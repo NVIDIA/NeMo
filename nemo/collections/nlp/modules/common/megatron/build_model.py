@@ -151,10 +151,7 @@ def build_model(
         i = torch.cuda.current_device()
         model = [
             torch.nn.parallel.distributed.DistributedDataParallel(
-                model_module,
-                device_ids=[i],
-                output_device=i,
-                process_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                model_module, device_ids=[i], output_device=i, process_group=parallel_state.get_data_parallel_group(),
             )
             for model_module in model
         ]
