@@ -26,7 +26,7 @@ import torch
 import torch.nn.functional as F
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
-from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
+from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IMAGE_PATCH_TOKEN
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
@@ -170,7 +170,9 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
 
         # Regular expression pattern to match the sequence
         pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN}( ⁇ )+{DEFAULT_IM_END_TOKEN}')
-        clean_text = re.sub(pattern, '<image>', response['sentences'][0])
+        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN}({DEFAULT_IMAGE_PATCH_TOKEN})+{DEFAULT_IM_END_TOKEN}')
+        combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
+        clean_text = re.sub(combined_pattern, '<image>', response['sentences'][0])
 
         clean_response = clean_text
         # for string in sampling_params['end_strings']:
@@ -182,6 +184,7 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
                 last_match_end_position = match.end()
             if last_match_end_position is not None:
                 clean_response = clean_response[last_match_end_position:]
+            clean_response = clean_response.strip("<extra_id_1>")
         elif conv_template == "llama_2":
             clean_response = clean_response.rsplit("[/INST] ", 1)[-1]
         elif conv_template == "v1":

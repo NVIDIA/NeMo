@@ -338,11 +338,10 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
         record = {
             'system': 'A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user\'s questions.\n\n',
             'conversations': [
-                {'from': 'User', 'value': prompt,},
+                {'from': 'User', 'value': prompt},
                 {
                     'from': 'Assistant',
                     'value': '',
-                    'label': 'quality:6,toxicity:0,humor:0,creativity:0,violence:0,helpfulness:6,not_appropriate:0',
                 },
             ],
         }
