@@ -152,7 +152,7 @@ def find_best_hyps(spotted_words: List[WSHyp], intersection_threshold: int = 10)
     return best_hyp_list
 
 
-def get_ctc_word_alignment(logprob: np.ndarray, asr_model, token_weight: float = 1.0) -> List[tuple]:
+def get_ctc_word_alignment(logprob: np.ndarray, asr_model, token_weight: float = 1.0, blank_idx: int = 0) -> List[tuple]:
     """ 
     Get word level alignment (with start and end frames) based on argmax ctc predictions.
     The word score is a sum of non-blank token logprobs with additional token_weight.
@@ -174,7 +174,7 @@ def get_ctc_word_alignment(logprob: np.ndarray, asr_model, token_weight: float =
     prev_idx = None
     for i, idx in enumerate(alignment_ctc):
         token_logprob = 0
-        if idx != asr_model.decoder.blank_idx:
+        if idx != blank_idx:
             token = asr_model.tokenizer.ids_to_tokens([int(idx)])[0]
             if idx == prev_idx:
                 prev_repited_token = token_alignment.pop()
@@ -268,6 +268,7 @@ def run_word_spotter(
         logprobs: np.ndarray,
         context_graph: ContextGraphCTC,
         asr_model,
+        blank_idx: int = 0,
         beam_threshold: float = 5.0,
         cb_weight: float = 3.0,
         ctc_ali_token_weight: float = 0.5,
@@ -284,6 +285,7 @@ def run_word_spotter(
     Args:
         logprobs: CTC logprobs
         context_graph: Context-Biasing graph
+        blank_idx: blank index in ASR model
         asr_model: ASR model (ctc or hybrid-transducer-ctc)
         beam_threshold: threshold for beam pruning
         cb_weight: context biasing weight
@@ -305,8 +307,6 @@ def run_word_spotter(
     # move probabilities to log space
     blank_threshold = np.log(blank_threshold)
     non_blank_threshold = np.log(non_blank_threshold)
-
-    blank_idx = asr_model.decoder.blank_idx
 
     for frame in range(logprobs.shape[0]):
         # add an empty token (located in the graph root) at each new frame to start new word spotting
@@ -357,7 +357,7 @@ def run_word_spotter(
     best_hyp_list = find_best_hyps(spotted_words)
     
     # filter hyps according to word-level ctc predictions to avoid a high false accept rate
-    ctc_word_alignment = get_ctc_word_alignment(logprobs, asr_model, token_weight=ctc_ali_token_weight)
+    ctc_word_alignment = get_ctc_word_alignment(logprobs, asr_model, token_weight=ctc_ali_token_weight, blank_idx=blank_idx)
     best_hyp_list = filter_wb_hyps(best_hyp_list, ctc_word_alignment)
 
     return best_hyp_list

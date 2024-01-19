@@ -14,7 +14,7 @@
 #
 
 """
-# This script would evaluate CTC and Transducer (only hybrid model) models in context biasing mode
+# This script would evaluate CTC and Transducer (RNNT) models (only Hybrid Transducer-CTC in case of Transducer) in context biasing mode
 # by applying CTC-based Word Spotter (paper link) 
 
 # Config Help
@@ -26,26 +26,25 @@ python eval_greedy_decoding_with_context_biasing.py --cfg job
 # USAGE
 
 python eval_greedy_decoding_with_context_biasing.py nemo_model_file=<path to the .nemo file of the model> \
-           input_manifest=<path to the evaluation JSON manifest file \
-           preds_output_folder=<optional folder to store the predictions> \
-           decoder_type=<ctc or rnnt> \
-           acoustic_batch_size=<batch size to calculate log probabilities> \
-           apply_context_biasing=<True or False to apply context biasing> \
-           context_file=
-
-           decoding_strategy=<greedy_batch or maes decoding>
-           ...
+            input_manifest=<path to the evaluation JSON manifest file \
+            preds_output_folder=<optional folder to store the predictions> \
+            decoder_type=<type of model decoder [ctc or rnnt]> \
+            acoustic_batch_size=<batch size to calculate log probabilities> \
+            apply_context_biasing=<True or False to apply context biasing> \
+            context_file=<path to the context biasing file with key words/phrases> \
+            beam_threshold=[<list of the beam thresholds, separated with commas>] \
+            context_score=[<list of the context scores, separated with commas>] \
+            ctc_ali_token_weight=[<list of the ctc alignment token weights, separated with commas>] \
+            ...
 
 
 # Grid Search for Hyper parameters
 
 For grid search, you can provide a list of arguments as follows -
 
-           beam_width=[4,8,16,....] \
-           beam_alpha=[-2.0,-1.0,...,1.0,2.0] \
-
-# You may find more info on how to use this script at:
-# https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html
+            beam_threshold=[4.0,5.0,6.0,....] \
+            context_score=[1.0,1.5,...,4.0,4.5] \
+            ctc_ali_token_weight=[0.1,0.2,...,0.7,0.8] \
 
 """
 
@@ -71,7 +70,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from context_graph_ctc import ContextGraphCTC
-from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models import EncDecCTCModelBPE, EncDecHybridRNNTCTCModel
 
 from ctc_based_word_spotter import run_word_spotter
 from context_biasing_utils import merge_alignment_with_ws_hyps
@@ -81,7 +80,7 @@ from compute_key_words_fscore import compute_fscore
 @dataclass
 class EvalContextBiasingConfig:
     """
-    Evaluate CTC and RNNT ASR models in greedy decoding with context biasing.
+    Evaluate CTC and Transducer (RNNT) ASR models in greedy decoding with context biasing.
     """
     # # The path of the '.nemo' file of the ASR model or the name of a pretrained model (ngc / huggingface)
     nemo_model_file: str = MISSING
@@ -100,7 +99,8 @@ class EvalContextBiasingConfig:
 
     # Context-Biasing params
     apply_context_biasing: bool = False # 
-    context_file: Optional[str] = None # text file with context biasing words and their spellings (WORD-WORD_SPELLING1-WORD_SPELLING2...)
+    context_file: Optional[str] = None # text file with context biasing words and their spellings (WORD_SPELLING1_SPELLING2...)
+    spelling_separator: str = "_" # separator between word and its spellings in context biasing file
     beam_threshold: List[float] = field(default_factory=lambda: [5.0]) # beam pruning threshold for ctc-ws decoding
     context_score: List[float] = field(default_factory=lambda: [3.0]) # per token weight for context biasing words
     ctc_ali_token_weight: List[float] = field(default_factory=lambda: [0.6]) # weight of CTC tokens to prevent false accept errors
@@ -114,7 +114,7 @@ class EvalContextBiasingConfig:
 def decoding_step(
     asr_model: nemo_asr.models.ASRModel,
     cfg: EvalContextBiasingConfig,
-    all_probs: List[torch.Tensor],
+    encoder_outputs: List[torch.Tensor],
     ctc_logprobs: List[torch.Tensor],
     target_transcripts: List[str],
     audio_file_paths: List[str],
@@ -123,17 +123,19 @@ def decoding_step(
     beam_batch_size: int = 128,
     progress_bar: bool = True,
     context_graph: ContextGraphCTC = None,
+    blank_idx: int = 0,
     hp: Dict = None,
 ):
     
-    # run CTC based Word Spotter:
+    # run CTC-based Word Spotter:
     if cfg.apply_context_biasing:
         ws_results = {}
         for idx, logits in tqdm(enumerate(ctc_logprobs), desc=f"CTC based word boosting...", ncols=120, total=len(ctc_logprobs)):
             ws_results[audio_file_paths[idx]] = run_word_spotter(
-                logits.numpy(),
+                logits,
                 context_graph,
                 asr_model,
+                blank_idx=blank_idx,
                 beam_threshold=hp['beam_threshold'],
                 cb_weight=hp['context_score'],       
                 ctc_ali_token_weight=hp['ctc_ali_token_weight'],
@@ -148,7 +150,10 @@ def decoding_step(
     asr_model.cfg.decoding.preserve_alignments = cfg.preserve_alignments
 
     # Update model's decoding strategy config
-    asr_model.cfg.decoding.strategy = "greedy_batch"
+    if isinstance(asr_model, EncDecCTCModelBPE):
+        asr_model.cfg.decoding.strategy = "greedy"
+    else:
+        asr_model.cfg.decoding.strategy = "greedy_batch"
 
     # Update model's decoding strategy
     asr_model.change_decoding_strategy(asr_model.cfg.decoding)
@@ -168,17 +173,18 @@ def decoding_step(
             if cfg.apply_context_biasing and ws_results[audio_file_paths[batch_idx]]:
                 # make new text by mearging alignment with ctc-wb predictions:
                 pred_text = merge_alignment_with_ws_hyps(
-                    preds.numpy(),
+                    preds,
                     asr_model,
                     ws_results[audio_file_paths[batch_idx]],
                     decoder_type="ctc",
+                    blank_idx=blank_idx,
                 )
             else:
                 preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
                 else:
-                    pred_text = asr_model._wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+                    pred_text = asr_model.wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
 
             pred_split_w = pred_text.split()
             target_split_w = target_transcripts[batch_idx].split()
@@ -208,11 +214,11 @@ def decoding_step(
     elif cfg.decoder_type == "rnnt":
         if progress_bar:
             description = "Greedy_batch decoding.."
-            it = tqdm(range(int(np.ceil(len(all_probs) / beam_batch_size))), desc=description, ncols=120)
+            it = tqdm(range(int(np.ceil(len(encoder_outputs) / beam_batch_size))), desc=description, ncols=120)
         else:
-            it = range(int(np.ceil(len(all_probs) / beam_batch_size)))
+            it = range(int(np.ceil(len(encoder_outputs) / beam_batch_size)))
         for batch_idx in it:
-            probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
+            probs_batch = encoder_outputs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
             probs_lens = torch.tensor([prob.shape[-1] for prob in probs_batch])
             with torch.no_grad():
                 packed_batch = torch.zeros(len(probs_batch), probs_batch[0].shape[0], max(probs_lens), device='cpu')
@@ -241,6 +247,7 @@ def decoding_step(
                             asr_model,
                             ws_results[audio_file_paths[sample_idx + beams_idx]],
                             decoder_type="rnnt",
+                            blank_idx=blank_idx,
                         )
                         beams[0].text = pred_text
                     else:
@@ -289,6 +296,10 @@ def main(cfg: EvalContextBiasingConfig):
             cfg.nemo_model_file, map_location=torch.device(cfg.device)
         )
 
+    assert isinstance(asr_model, EncDecCTCModelBPE) or isinstance(asr_model, EncDecHybridRNNTCTCModel), \
+        "ASR model must be CTC BPE or Hybrid Transducer-CTC"
+
+
     target_transcripts = []
     durations = []
     manifest_dir = Path(cfg.input_manifest).parent
@@ -321,65 +332,72 @@ def main(cfg: EvalContextBiasingConfig):
             asr_model.eval()
             asr_model.encoder.freeze()
             device = next(asr_model.parameters()).device
-            all_probs = []
+            encoder_outputs = []
             ctc_logprobs = []
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
-                    for audio_file in audio_file_paths:
-                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
-                        fp.write(json.dumps(entry) + '\n')
-                config = {
-                    'paths2audio_files': audio_file_paths,
-                    'batch_size': cfg.acoustic_batch_size,
-                    'temp_dir': tmpdir,
-                    'num_workers': cfg.num_workers,
-                    'channel_selector': None,
-                    'augmentor': None,
-                }
-                temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
+            if isinstance(asr_model, EncDecCTCModelBPE):
+                        ctc_logprobs = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
+                        blank_idx = asr_model.tokenizer.tokenizer.vocab_size
+            else:
+                # in case of EncDecHybridRNNTCTCModel
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+                        for audio_file in audio_file_paths:
+                            entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
+                            fp.write(json.dumps(entry) + '\n')
+                    config = {
+                        'paths2audio_files': audio_file_paths,
+                        'batch_size': cfg.acoustic_batch_size,
+                        'temp_dir': tmpdir,
+                        'num_workers': cfg.num_workers,
+                        'channel_selector': None,
+                        'augmentor': None,
+                    }
+                    temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
 
-                for test_batch in tqdm(temporary_datalayer, desc="Getting encoder and CTC decoder outputs...", disable=False):
-                    encoded, encoded_len = asr_model.forward(
-                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
-                    )
-                    
-                    start_dec_time = time.time()
-
-                    ctc_dec_outputs = asr_model.ctc_decoder(encoder_output=encoded).cpu()
-                    # dump encoder embeddings per file
-                    for idx in range(encoded.shape[0]):
-                        encoded_no_pad = encoded[idx, :, : encoded_len[idx]]
-                        ctc_dec_outputs_no_pad = ctc_dec_outputs[idx, : encoded_len[idx]]
-                        all_probs.append(encoded_no_pad)
-                        ctc_logprobs.append(ctc_dec_outputs_no_pad)
-
-    if cfg.apply_context_biasing:
-        # build context graph:
+                    for test_batch in tqdm(temporary_datalayer, desc="Getting encoder and CTC decoder outputs...", disable=False):
+                        encoded, encoded_len = asr_model.forward(
+                            input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                        )
+                        ctc_dec_outputs = asr_model.ctc_decoder(encoder_output=encoded).cpu()
+                        # dump encoder embeddings per file
+                        for idx in range(encoded.shape[0]):
+                            encoded_no_pad = encoded[idx, :, : encoded_len[idx]]
+                            ctc_dec_outputs_no_pad = ctc_dec_outputs[idx, : encoded_len[idx]]
+                            encoder_outputs.append(encoded_no_pad)
+                            ctc_logprobs.append(ctc_dec_outputs_no_pad.cpu().numpy())
+                            ctc_logprobs = ctc_logprobs
+                    blank_idx = asr_model.decoder.blank_idx
+    # load context biasing words
+    if cfg.context_file:
         context_transcripts = []
         for line in open(cfg.context_file).readlines():
-            item = line.strip().lower().split("-")
+            item = line.strip().lower().split(cfg.spelling_separator)
             word = item[0]
             word_tokenization = [asr_model.tokenizer.text_to_ids(x) for x in item[1:]]
             context_transcripts.append([word, word_tokenization])
-        context_words = [item[0] for item in context_transcripts] 
-        context_graph = ContextGraphCTC(blank_id=asr_model.decoder.blank_idx)
-        context_graph.build(context_transcripts)
+        context_words = [item[0] for item in context_transcripts]
+        # build context graph:
+        if cfg.apply_context_biasing:
+            context_graph = ContextGraphCTC(blank_id=blank_idx)
+            context_graph.build(context_transcripts)
+        else:
+            context_graph = None
 
-    # sort all_probs according to length:
-    if cfg.sort_logits:
-        all_probs_with_indeces = (sorted(enumerate(all_probs), key=lambda x: x[1].size()[1], reverse=True))
-        all_probs_sorted = []
+    # sort encoder_outputs according to length:
+    if cfg.decoder_type == "rnnt" and cfg.sort_logits:
+        encoder_outputs_with_indeces = (sorted(enumerate(encoder_outputs), key=lambda x: x[1].size()[1], reverse=True))
+        encoder_outputs_sorted = []
         target_transcripts_sorted = []
         audio_file_paths_sorted = []
         durations_sorted = []
         ctc_logprobs_sorted = []
-        for pair in all_probs_with_indeces:
-            all_probs_sorted.append(pair[1])
+        for pair in encoder_outputs_with_indeces:
+            encoder_outputs_sorted.append(pair[1])
             target_transcripts_sorted.append(target_transcripts[pair[0]])
             audio_file_paths_sorted.append(audio_file_paths[pair[0]])
             durations_sorted.append(durations[pair[0]])
             ctc_logprobs_sorted.append(ctc_logprobs[pair[0]])
-        all_probs = all_probs_sorted
+        encoder_outputs = encoder_outputs_sorted
         target_transcripts = target_transcripts_sorted
         audio_file_paths = audio_file_paths_sorted
         durations = durations_sorted
@@ -408,7 +426,7 @@ def main(cfg: EvalContextBiasingConfig):
         candidate_wer, candidate_cer = decoding_step(
             asr_model,
             cfg,
-            all_probs=all_probs,
+            encoder_outputs=encoder_outputs,
             target_transcripts=target_transcripts,
             audio_file_paths=audio_file_paths,
             durations=durations,
@@ -417,6 +435,7 @@ def main(cfg: EvalContextBiasingConfig):
             preds_output_manifest=preds_output_manifest,
             context_graph=context_graph,
             ctc_logprobs=ctc_logprobs,
+            blank_idx=blank_idx,
             hp = hp,
         )
 
@@ -433,7 +452,6 @@ def main(cfg: EvalContextBiasingConfig):
         print("***"*15)
         print(f"[INFO]: Greedy batch WER/CER = {candidate_wer:.2%}/{candidate_cer:.2%}")
         print(f"[INFO]: Params: b_thr={hp['beam_threshold']}, cs={hp['context_score']}, ctc_ali_weight = {hp['ctc_ali_token_weight']}")
-        print(f"[INFO]: Decoding only time (without encoder) is: {int(time.time() - start_dec_time)} sec")
     
     logging.info(f'Best WER = {best_wer:.2%}')
     logging.info(f'Best Precision/Recall/Fscore = {best_fscore_stats[0]:.4f}/{best_fscore_stats[1]:.4f}/{best_fscore_stats[2]:.4f}')

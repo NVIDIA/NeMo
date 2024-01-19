@@ -25,6 +25,7 @@ def merge_alignment_with_ws_hyps(
     cb_results: List[WSHyp],
     decoder_type: str = "ctc",
     intersection_threshold: float = 30.0,
+    blank_idx: int = 0,
 ) -> str:
     """
     Merge context biasing predictions with ctc/rnnt word-level alignment.
@@ -45,7 +46,7 @@ def merge_alignment_with_ws_hyps(
         alignment_tokens = []
         prev_token = None
         for idx, token in enumerate(candidate):
-            if token != asr_model.decoder.blank_idx:
+            if token != blank_idx:
                 if token == prev_token:
                     alignment_tokens[-1] = [idx, asr_model.tokenizer.ids_to_tokens([int(token)])[0]]
                 else:

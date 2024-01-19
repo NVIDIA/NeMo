@@ -122,14 +122,28 @@ def main():
         "--input_manifest", type=str, required=True, help="nemo manifest with recognition results in pred_text field",
     )
     parser.add_argument(
-        "--context_biasing_file", type=str, required=True, help="file of context biasing words/phrases with their spellings"
+        "--context_biasing_file", type=str, required=True, 
+        help="""
+             file of context biasing words/phrases with their spellings \
+             (one word/phrase per line, spellings are separated from word/phrase by dash symbol):
+             WORD1_SPELLING1
+             WORD2_SPELLING1_SPELLING2
+             ...
+             nvidia_nvidia
+             gpu_gpu_g p u
+             nvlink_nvlink_nv link
+             ...
+             alternative spellings help to improve the recognition accuracy of abbriviations and complicated words,
+             which are aften recognized as separate words by ASR model (gpu -> g p u, tensorrt -> tensor rt, and so on).
+             """
     )
 
     args = parser.parse_args()
     # use list instead of dict to preserve key words order during printing word-level statistics
     key_words_list = []
     for line in open(args.context_biasing_file).readlines():
-        item = line.strip().split("-")[0].lower()
+        item = line.strip().split("_")[0].lower()
+        assert len(item) > 1, f"word/phrase {item} does not have any spelling"
         if item not in key_words_list:
             key_words_list.append(item)
     compute_fscore(args.input_manifest, key_words_list)

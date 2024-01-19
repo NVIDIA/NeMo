@@ -28,6 +28,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# The script is obtained and modified from Icefall repo:
+# https://github.com/k2-fsa/icefall/blob/master/icefall/context_graph.py
+
 from collections import deque
 from typing import Dict, List, Optional, Union
 
