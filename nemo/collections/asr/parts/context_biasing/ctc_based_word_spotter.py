@@ -14,7 +14,8 @@
 
 import numpy as np
 from typing import List, Optional
-from context_graph_ctc import ContextState, ContextGraphCTC
+from nemo.collections.asr.parts.context_biasing import ContextGraphCTC
+from nemo.collections.asr.parts.context_biasing.context_graph_ctc import ContextState
 
 
 class Token:

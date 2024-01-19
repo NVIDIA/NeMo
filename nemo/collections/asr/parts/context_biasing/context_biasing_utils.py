@@ -15,7 +15,7 @@
 
 from typing import List, Optional, Dict, Union
 from nemo.collections.asr.parts.utils import rnnt_utils
-from ctc_based_word_spotter import WSHyp
+from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import WSHyp
 from nemo.utils import logging
 import numpy as np
 import json
