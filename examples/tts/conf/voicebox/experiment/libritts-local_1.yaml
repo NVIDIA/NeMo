@@ -12,9 +12,9 @@ defaults:
 
 model:
   manifests_dir: data/parsed/LibriTTS
-  textgrid_dir: /datasets/LibriTTS_R/LibriTTSCorpusLabel/textgrid
+  textgrid_dir: data/aligned/LibriTTS/textgrid
   
-  corpus_dir: /datasets/LibriTTS_R/LibriTTS
+  corpus_dir: data/download/LibriTTS/LibriTTS
 
   duration_predictor:
     depth: 4
