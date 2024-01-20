@@ -262,21 +262,21 @@ def nemo_deploy(argv):
     if args.nemo_checkpoint is not None:
         try:
             LOGGER.info("Export operation will be started to export the nemo checkpoint to TensorRT-LLM.")
-            trt_llm_exporter.export(
-                nemo_checkpoint_path=args.nemo_checkpoint,
-                model_type=args.model_type,
-                n_gpus=args.num_gpus,
-                tensor_parallel_size=args.tensor_parallelism_size,
-                pipeline_parallel_size=args.pipeline_parallelism_size,
-                max_input_token=args.max_input_len,
-                max_output_token=args.max_output_len,
-                max_batch_size=args.max_batch_size,
-                max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
-                paged_kv_cache=args.use_paged_kv_cache,
-                enable_context_fmha=not args.disable_context_fmha,
-                dtype=args.dtype,
-                enable_multi_block_mode=args.multi_block_mode,
-            )
+            # trt_llm_exporter.export(
+            #     nemo_checkpoint_path=args.nemo_checkpoint,
+            #     model_type=args.model_type,
+            #     n_gpus=args.num_gpus,
+            #     tensor_parallel_size=args.tensor_parallelism_size,
+            #     pipeline_parallel_size=args.pipeline_parallelism_size,
+            #     max_input_token=args.max_input_len,
+            #     max_output_token=args.max_output_len,
+            #     max_batch_size=args.max_batch_size,
+            #     max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
+            #     paged_kv_cache=args.use_paged_kv_cache,
+            #     enable_context_fmha=not args.disable_context_fmha,
+            #     dtype=args.dtype,
+            #     enable_multi_block_mode=args.multi_block_mode,
+            # )
         except Exception as error:
             LOGGER.error("An error has occurred during the model export. Error message: " + str(error))
             return
