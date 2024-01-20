@@ -606,6 +606,293 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
             tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
 
 
+class RetroModelTextGenerationStrategy(TextGenerationStrategy):
+    def __init__(self, model):
+        super().__init__(model)
+        self.forward_model = self.model.model
+
+        # retro args
+        # self.retro_num_neighbors
+        # self.retro_gpt_retrieved_length =     
+
+    def clip_max_len(self, maxlen: int) -> int:
+        """ clip the max len based on the LM model max sequence length"""
+
+        # for positional embedding types that allow length extrapolation, don't clip the max length
+        if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
+            if maxlen > self.model.cfg.encoder_seq_length + 1:
+                maxlen = self.model.cfg.encoder_seq_length + 1
+        return maxlen
+
+    def tokenize_batch(self, sentences, max_len, add_BOS):
+        """
+        convert the sentences into lists of tokens, pad them to the same length, add bos tokens if it is needed
+        Args:
+            sentences (List[str]): list of input sentences in str format.
+            max_len (int): max number of tokens to generate.
+            add_BOS (bool): whether to add the BOS token at the beginning
+        Returns:
+            Tuple[torch.Tensor], the tokenized and padded torch tensor and the token context length tensor.
+        """
+        tokenizer = self.model.tokenizer
+        if add_BOS:
+            context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
+        else:
+            context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
+        context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
+        context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
+        context_length_tensor = torch.cuda.LongTensor(context_lengths)
+        return context_tokens_tensor, context_length_tensor
+
+    def tokenize_neighbors_batch(self, neighbors, retro_args):
+        tokenizer = self.model.tokenizer
+        r = retro_args['retro_gpt_retrieved_length']
+        retro_num_neighbors = retro_args['retro_num_neighbors']
+        ft_neighbours = retro_args['ft_neighbours']
+        reuse_top = retro_args['reuse_top']
+
+        # tokenize neighbors
+        neighbors_tokens = []
+        for neighbor in neighbors:
+            neighbors_tokens.append(tokenizer.tokenize(neighbor))
+
+        # take top k neighbours 
+        if reuse_top:
+            valid_neighbours_tokens = neighbors_tokens[:retro_num_neighbors]
+        else:
+            valid_neighbours_tokens = neighbors_tokens[ft_neighbours:retro_num_neighbors + ft_neighbours]
+
+        # pad neighbors
+        padded_valid_neighbours_tokens = []
+        for neighbour_tokens in valid_neighbours_tokens:
+            if len(neighbour_tokens) >= r:
+                padded_neighbour_tokens = neighbour_tokens[:r]
+            else:
+                padded_neighbour_tokens = neighbour_tokens + [tokenizer.eos_id] * (r - len(neighbour_tokens))
+            padded_valid_neighbours_tokens.append(padded_neighbour_tokens)            
+
+        # check if have enough neighbors
+        if len(padded_valid_neighbours_tokens) < retro_num_neighbors:
+            assert ValueError("neighbours are not enough, add empty ones and create mask for those empty ones")
+
+        # cast to torch tensor
+        padded_valid_neighbours_tokens = torch.cuda.LongTensor(padded_valid_neighbours_tokens)
+
+        return padded_valid_neighbours_tokens
+
+    def forward_step(self, batch, tensor_shape):
+        fwd_bwd_function = get_forward_backward_func()
+        output_tensor = fwd_bwd_function(
+            forward_step_func=self.model.get_forward_output_only_func(),
+            data_iterator=iter([batch,]),
+            model=[self.forward_model],
+            num_microbatches=get_num_microbatches(),
+            forward_only=True,
+            seq_length=tensor_shape[0],
+            micro_batch_size=tensor_shape[1],
+        )
+
+        return output_tensor
+
+    def init_batch(self, 
+                   context_tokens: torch.Tensor, 
+                   context_length: int, 
+                   compute_attention_mask: bool,
+                   **extra):
+        """initialize the batch data before the inference steps."""
+        # Move to GPU.
+        tokenizer = self.model.tokenizer
+        tokens = context_tokens.contiguous().cuda()
+        extra['neighbors_tokens'] = extra['neighbors_tokens'].contiguous().cuda()
+
+        # Get the attention mask and postition ids.
+        self.attention_mask, _, self.position_ids = get_ltor_masks_and_position_ids(
+            tokens,
+            tokenizer.eos_id,
+            self.model.cfg.get('reset_position_ids', False),
+            self.model.cfg.get('reset_attention_mask', False),
+            self.model.cfg.get('eod_mask_loss', False),
+            compute_attention_mask=compute_attention_mask,
+        )
+
+        # Get the attention mask and postition ids for neighbors (retro_generation.retro_generate_tokens_probs_and_return_on_first_stage)
+        _, _, self.neighbor_position_ids = get_ltor_masks_and_position_ids(
+            extra['neighbors_tokens'],
+            tokenizer.eod,
+            self.model.cfg.get('reset_position_ids', False),
+            self.model.cfg.get('reset_attention_mask', False),
+            self.model.cfg.get('eod_mask_loss', False),
+        )
+        self.neighbor_attention_mask = None
+
+    def prepare_batch_at_step(
+        self,
+        tokens: torch.Tensor,
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
+        context_length: int,
+        compute_attention_mask: bool = True,
+        **extra,
+    ) -> Tuple[List[torch.Tensor], List[int]]:
+        """
+        generate the batch used in inference for each of the steps
+        """
+        # types2use = None
+        if step == 0:
+            # Allocate memory for the entire context.
+            set_inference_key_value_memory = True
+            tokens2use = tokens[:, :context_length]
+            positions2use = self.position_ids[:, :context_length]
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, :context_length]
+        else:
+            # Set this to false so the memory is not reallocated.
+            set_inference_key_value_memory = False
+            tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
+            positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+
+        """Prepare batch for each of the inference steps"""
+        attention_mask_repeat = None
+        if compute_attention_mask:
+            attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
+
+        setkey_value_array = torch.tensor(
+            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+        )
+        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+
+        batch = [tokens2use, attention_mask_repeat, positions2use, extra['neighbors_tokens'], self.neighbor_attention_mask, self.neighbor_position_ids, setkey_value_array, len_array]
+        tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
+        return batch, tensor_shape
+
+    # def _pad_neighbours_for_query_only(args, nb_tokens, pad_id, ft_neighbours):
+    #     # take top k neighbours and padding
+    #     neighbours_tokens = []
+    #     retro_args = get_retro_args()
+    #     r = retro_args.retro_gpt_retrieved_length
+
+    #     if args.reuse_top:
+    #         valid_nb_tokens = nb_tokens[:args.retro_num_neighbors]
+    #     else:
+    #         valid_nb_tokens = nb_tokens[ft_neighbours:args.retro_num_neighbors + ft_neighbours]
+
+    #     for nb_token in valid_nb_tokens:
+    #         if len(nb_token) >= r:
+    #             nb_token = nb_token[:r]
+    #         else:
+    #             nb_token = nb_token + [pad_id] * (r - len(nb_token))
+    #         neighbours_tokens.append(nb_token)
+    #     print("len(nb_tokens)", len(nb_tokens))
+    #     print("len(neighbours_tokens)", len(neighbours_tokens))
+    #     print("args.retro_num_neighbors", args.retro_num_neighbors)
+
+    #     if len(neighbours_tokens) < args.retro_num_neighbors:
+    #         assert ValueError("neighbours are not enough, add empty ones and create mask for those empty ones")
+    #     neighbours_tokens = np.array(neighbours_tokens)
+    #     return neighbours_tokens
+
+    # def _tokenize_prompts(prompts=None, tokens_to_generate=None,
+    #                     add_BOS=None, rank=0):
+    #     """Tokenize prompts and make them avaiable on all ranks."""
+
+    #     # On all ranks set to None so we can pass them to functions
+    #     sizes_list = None
+    #     prompts_tokens_cuda_long_tensor = None
+    #     prompts_length_cuda_long_tensor = None
+
+    #     # On the specified rank, build the above.
+    #     if torch.distributed.get_rank() == rank:
+    #         assert prompts is not None
+    #         assert tokens_to_generate is not None
+    #         # Tensor of tokens padded and their unpadded length.
+    #         prompts_tokens_cuda_long_tensor, prompts_length_cuda_long_tensor = \
+    #             _tokenize_prompts_and_batch(prompts, tokens_to_generate, add_BOS)
+    #         # We need the sizes of these tensors for the boradcast
+    #         sizes_list = [prompts_tokens_cuda_long_tensor.size(0), # Batch size
+    #                     prompts_tokens_cuda_long_tensor.size(1)] # Sequence lenght
+
+    #     # First, broadcast the sizes.
+    #     sizes_tensor = broadcast_int_list(2, int_list=sizes_list, rank=rank)
+
+    #     # Now that we have the sizes, we can boradcast the tokens
+    #     # and length tensors.
+    #     sizes = sizes_tensor.tolist()
+    #     prompts_tokens_cuda_long_tensor = broadcast_tensor(
+    #         sizes, torch.int64, tensor=prompts_tokens_cuda_long_tensor, rank=rank)
+    #     prompts_length_cuda_long_tensor = broadcast_tensor(
+    #         sizes[0], torch.int64, tensor=prompts_length_cuda_long_tensor,
+    #         rank=rank)
+
+    #     return prompts_tokens_cuda_long_tensor, prompts_length_cuda_long_tensor
+
+    # def _tokenize_prompts_and_batch(prompts, tokens_to_generate, add_BOS):
+    #     """Given a set of prompts and number of tokens to generate:
+    #         - tokenize prompts
+    #         - set the sequence length to be the max of length of prompts
+    #         plus the number of tokens we would like to generate
+    #         - pad all the sequences to this length so we can convert them
+    #         into a 2D tensor.
+    #     """
+
+    #     # Tokenize all the prompts.
+    #     tokenizer = get_tokenizer()
+    #     if add_BOS:
+    #         prompts_tokens = [[tokenizer.eod] + tokenizer.tokenize(prompt)
+    #                         for prompt in prompts]
+    #     else:
+    #         prompts_tokens = [tokenizer.tokenize(prompt) for prompt in prompts]
+
+    #     # Now we have a list of list of tokens which each list has a different
+    #     # size. We want to extend this list to:
+    #     #   - incorporate the tokens that need to be generated
+    #     #   - make all the sequences equal length.
+    #     # Get the prompts length.
+    #     prompts_length = [len(prompt_tokens) for prompt_tokens in prompts_tokens]
+    #     # Get the max prompts length.
+    #     max_prompt_len = max(prompts_length)
+    #     # Set the tokens to generate to the max prompts length for Retro
+    #     args = get_args()
+    #     if args.retro_add_retriever:
+    #         tokens_to_generate = max_prompt_len
+    #     # Number of tokens in the each sample of the batch.
+    #     samples_length = max_prompt_len + tokens_to_generate
+    #     # Now update the list of list to be of the same size: samples_length.
+    #     for prompt_tokens, prompt_length in zip(prompts_tokens, prompts_length):
+    #         padding_size = samples_length - prompt_length
+    #         prompt_tokens.extend([tokenizer.eod] * padding_size)
+
+    #     # Now we are in a structured format, we can convert to tensors.
+    #     prompts_tokens_tensor = torch.cuda.LongTensor(prompts_tokens)
+    #     prompts_length_tensor = torch.cuda.LongTensor(prompts_length)
+
+    #     return prompts_tokens_tensor, prompts_length_tensor
+
+    # def _reformat_prompt_short(query, neighbours, dataset_name, ft_neighbours, \
+    #                         max_output_len, tokenizer, max_seq_length):
+    #     if not query.endswith("?"):
+    #         query = query + "?"
+    #     query = "Question: {} Answer: The answer is".format(query)
+
+    #     if ft_neighbours > 0:
+    #         context = "\n\n".join(neighbours[0:ft_neighbours]) + "\n\n"
+    #         context_tokens = tokenizer.tokenize(context)
+    #         dialogue_tokens = tokenizer.tokenize(query)
+    #         context_tokens = context_tokens[:max_seq_length - max_output_len - len(dialogue_tokens)]
+    #         context = tokenizer.detokenize(context_tokens)
+    #         all_input = context + query
+    #         input_tokens = tokenizer.tokenize(all_input)
+    #     else:
+    #         all_input = query
+    #         input_tokens = tokenizer.tokenize(all_input)
+
+    #     return input_tokens
+
+
 def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (

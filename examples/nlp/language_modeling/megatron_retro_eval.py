@@ -69,15 +69,16 @@ if not torch.cuda.is_available():
 
 
 class RequestDataSet(Dataset):
-    def __init__(self, sentences):
+    def __init__(self, sentences, neighbors):
         super().__init__()
         self.sentences = sentences
+        self.neighbors = neighbors
 
     def __len__(self,):
         return len(self.sentences)
 
     def __getitem__(self, idx):
-        return self.sentences[idx]
+        return [self.sentences[idx], self.neighbors[idx]]
 
 
 def remove_padded_prompts(response, nb_paddings):
@@ -218,8 +219,8 @@ def main(cfg) -> None:
         "end_strings": cfg.inference.end_strings,
     }
 
-    ## DEBUGGING
-    ## Turn off first method for now, because both use text_generation_utils.generate(), and first method is more complicated 
+    # # DEBUGGING
+    # # Turn off first method for now, because both use text_generation_utils.generate(), and first method is more complicated 
     # # First method of running text generation, call model.generate method
     # response = model.generate(
     #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
@@ -231,7 +232,9 @@ def main(cfg) -> None:
 
     # Second method of running text generation, call trainer.predict [recommended]
     bs = 2
-    ds = RequestDataSet(OmegaConf.to_container(cfg.prompts), OmegaConf.to_container(cfg.retro_inference.neighbors))
+    prompts = OmegaConf.to_container(cfg.prompts)
+    neighbors = [OmegaConf.to_container(cfg.retro_inference.neighbors.prompt1_neighbors), OmegaConf.to_container(cfg.retro_inference.neighbors.prompt2_neighbors)]
+    ds = RequestDataSet(prompts, neighbors)
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)

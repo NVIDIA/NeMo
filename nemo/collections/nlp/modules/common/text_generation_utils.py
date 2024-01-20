@@ -451,6 +451,7 @@ def synced_generate(
     end_strings=[],
     min_tokens_to_generate=0,
     image_list=None,
+    **strategy_args
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -466,6 +467,20 @@ def synced_generate(
             temperature=temperature,
         )
     else:
+
+        extra={
+            "top_p": top_p,
+            "top_k": top_k,
+            "greedy": greedy,
+            "repetition_penalty": repetition_penalty,
+            "min_tokens_to_generate": min_tokens_to_generate,
+            "neighbors_tokens_tensor": strategy_args['neighbors_tokens_tensor']
+        }
+
+        # if input containing neighbors (for retrieval RETRO model)
+        if "neighbors_tokens_tensor" in strategy_args:
+            extra['neighbors_tokens'] = strategy_args['neighbors_tokens_tensor']
+
         batch_token_iterator = sample_sequence_batch(
             model,
             inference_strategy,
@@ -478,13 +493,7 @@ def synced_generate(
             temperature=temperature,
             end_strings=end_strings,
             image_list=image_list,
-            extra={
-                "top_p": top_p,
-                "top_k": top_k,
-                "greedy": greedy,
-                "repetition_penalty": repetition_penalty,
-                "min_tokens_to_generate": min_tokens_to_generate,
-            },
+            extra=extra,
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
@@ -581,12 +590,14 @@ def generate(
         inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args)
     tokenizer = model.tokenizer
     if torch.distributed.get_rank() == get_model_parallel_src_rank():
+        # tokenize prompts
         if isinstance(inputs, tuple):
             context_tokens_tensor, context_length_tensor = inputs
         else:
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
                 inputs, tokens_to_generate, add_BOS
             )
+
 
         send_generate_info(
             context_tokens_tensor,
@@ -602,6 +613,24 @@ def generate(
             min_tokens_to_generate,
             end_strings,
         )
+
+        # tokenize neighbors and broadcast (for retrieval RETRO model)
+        if 'neighbors' in strategy_args:
+            # tokenize neighbors
+            if isinstance(strategy_args['neighbors'], tuple):
+                neighbors_tokens_tensor = strategy_args['neighbors']
+            else:
+                neighbors_tokens_tensor = inference_strategy.tokenize_neighbors_batch(
+                    strategy_args['neighbors']
+                )
+
+            # send neighbors tensors to all ranks 
+            model_parallel_group = parallel_state.get_model_parallel_group()
+            src = get_model_parallel_src_rank()
+            neighbors_tokens_tensor_shape = neighbors_tokens_tensor.shape
+            torch.distributed.broadcast(neighbors_tokens_tensor_shape, src, model_parallel_group)
+            torch.distributed.broadcast(neighbors_tokens_tensor, src, model_parallel_group)
+
     else:
         (
             context_length_tensor,
@@ -617,6 +646,21 @@ def generate(
             min_tokens_to_generate,
             end_strings,
         ) = receive_generate_info()
+
+
+        # receive broadcast (for retrieval RETRO model)
+        if 'neighbors' in strategy_args:
+            # receive neighbors tensors to all ranks 
+            model_parallel_group = parallel_state.get_model_parallel_group()
+            src = get_model_parallel_src_rank()
+            neighbors_tokens_tensor_shape = torch.empty(2, dtype=torch.float32, device=torch.cuda.current_device())
+            torch.distributed.broadcast(neighbors_tokens_tensor_shape, src, model_parallel_group)
+            neighbors_tokens_tensor = torch.empty(neighbors_tokens_tensor_shape[0], neighbors_tokens_tensor_shape[1], dtype=torch.int64, device=torch.cuda.current_device())
+            torch.distributed.broadcast(neighbors_tokens_tensor, src, model_parallel_group)
+
+    # add neighbors to strategy_args (for retrieval RETRO model)
+    if 'neighbors' in strategy_args:
+        strategy_args['neighbors_tokens_tensor'] = neighbors_tokens_tensor
 
     output = synced_generate(
         model,
@@ -635,6 +679,7 @@ def generate(
         end_strings=end_strings,
         min_tokens_to_generate=min_tokens_to_generate,
         image_list=image_list,
+        **strategy_args
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -746,7 +791,10 @@ def sample_sequence_batch(
     # initialize the batch
     with torch.no_grad():
         context_length = context_lengths.min().item()
-        inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask)
+        if 'neighbors_tokens_tensor' in extra: # (for retrieval RETRO model)
+            inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask, extra['neighbors_tokens'])
+        else:
+            inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask)
         # added eos_id to support the function generate_samples_eval that passes
         # eos_id as an argument and needs termination when that id id found.
         eod_id = tokenizer.eos_id
@@ -773,6 +821,10 @@ def sample_sequence_batch(
                 batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                     tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, media_tensor
                 )
+            elif 'neighbors_tokens_tensor' in extra: # (for retrieval RETRO model)
+                batch, tensor_shape = inference_strategy.prepare_batch_at_step(
+                    tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, extra = {'neighbors_tokens': extra['neighbors_tokens']}
+                )                            
             else:
                 batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                     tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
