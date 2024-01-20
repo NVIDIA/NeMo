@@ -27,7 +27,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypothe
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
-from dataclasses import field
+
 
 class AbstractRNNTDecoding(ConfidenceMixin):
     """
@@ -211,12 +211,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         if self.durations is not None and self.durations != []:  # this means it's a TDT model.
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
-            if self.big_blank_durations is not None:
+            if self.big_blank_durations is not None and self.big_blank_durations != []:
                 raise ValueError("duration and big_blank_durations can't both be not None")
             if self.cfg.strategy not in ['greedy', 'greedy_batch']:
                 raise ValueError("currently only greedy and greedy_batch inference is supported for TDT models")
 
-        if self.big_blank_durations is not None and self.big_blank_durations != []:  # this means it's a multi-blank model.
+        if (
+            self.big_blank_durations is not None and self.big_blank_durations != []
+        ):  # this means it's a multi-blank model.
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(vocabs) for multi-blank RNN-T models")
             if self.cfg.strategy not in ['greedy', 'greedy_batch']:
