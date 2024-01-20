@@ -928,12 +928,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
                     else:
                         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
-                    forward_args['cu_seqlens_q'] = cu_seqlens
-                    forward_args['cu_seqlens_kv'] = cu_seqlens
-                    if max_seqlen is not None:
-                        forward_args['max_seqlen_q'] = max_seqlen
-                        forward_args['max_seqlen_kv'] = max_seqlen
-                    forward_args['qkv_format'] = 'thd'
+
+                    from megatron.core.packed_seq_params import PackedSeqParams
+                    forward_args['packed_seq_params'] = PackedSeqParams(
+                        cu_seqlens_q=cu_seqlens,
+                        cu_seqlens_kv=cu_seqlens,
+                        max_seqlen_q=max_seqlen,
+                        max_seqlen_kv=max_seqlen,
+                        qkv_format='thd',
+                    )
 
             output_tensor = model(**forward_args)
 
