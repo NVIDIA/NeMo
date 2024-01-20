@@ -930,6 +930,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
 
                     from megatron.core.packed_seq_params import PackedSeqParams
+
                     forward_args['packed_seq_params'] = PackedSeqParams(
                         cu_seqlens_q=cu_seqlens,
                         cu_seqlens_kv=cu_seqlens,
