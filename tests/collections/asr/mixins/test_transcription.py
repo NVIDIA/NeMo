@@ -22,6 +22,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, Dataset
 
+from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.mixins import TranscribeConfig, TranscriptionMixin
 from nemo.collections.asr.parts.mixins.transcription import TranscriptionType
 
@@ -72,7 +73,7 @@ class TranscribableDummy(DummyModel, TranscriptionMixin):
 
             def __getitem__(self, index):
                 data = self.audio_files[index]
-                data = torch.tensor([data]).view(1)
+                data = torch.tensor([float(data)]).view(1)
                 return data
 
             def __len__(self):
@@ -137,7 +138,7 @@ class TestTranscriptionMixin:
         dummy_model.encoder.weight.data.fill_(1.0)
         dummy_model.encoder.bias.data.fill_(0.0)
 
-        audio = [1.0, 2.0, 3.0]
+        audio = ['1.0', '2.0', '3.0']
         outputs = dummy_model.transcribe(audio, batch_size=1)
         assert len(outputs) == 3
         assert outputs[0] == 1.0
@@ -148,7 +149,7 @@ class TestTranscriptionMixin:
     def test_transcribe_check_flags(self, dummy_model):
         dummy_model = dummy_model.eval()
 
-        audio = [1.0, 2.0, 3.0]
+        audio = ['1.0', '2.0', '3.0']
         dummy_model.transcribe(audio, batch_size=1)
         assert dummy_model.flag_begin
         assert dummy_model.flag_end
@@ -179,7 +180,7 @@ class TestTranscriptionMixin:
         dummy_model.encoder.weight.data.fill_(1.0)
         dummy_model.encoder.bias.data.fill_(0.0)
 
-        audio = [1.0, 2.0, 3.0]
+        audio = ['1.0', '2.0', '3.0']
         override_cfg = OverrideConfig(batch_size=1, output_type='dict')
         outputs = dummy_model.transcribe(audio, override_config=override_cfg)
 
@@ -217,3 +218,41 @@ class TestTranscriptionMixin:
         assert outputs[0][0] == 1.0
         assert outputs[0][1] == 2.0
         assert outputs[0][2] == 3.0
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_transcribe_tensor(self, test_data_dir):
+        model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
+        model.eval()
+
+        # Load audio file
+        import soundfile as sf
+        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+        audio, sr = sf.read(audio_file, dtype='float32')
+
+        # Numpy array test
+        outputs = model.transcribe(audio, batch_size=1)
+        assert len(outputs) == 1
+        assert isinstance(outputs[0], str)
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_transcribe_multiple_tensor(self, test_data_dir):
+        model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
+        model.eval()
+
+        # Load audio file
+        import soundfile as sf
+        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+        audio, sr = sf.read(audio_file, dtype='float32')
+
+        audio_file_2 = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an104-mrcb-b.wav")
+        audio_2, sr = sf.read(audio_file_2, dtype='float32')
+        # Mix second audio to torch.tensor()
+        audio_2 = torch.tensor(audio_2)
+
+        # Numpy array test
+        outputs = model.transcribe([audio, audio_2], batch_size=1)
+        assert len(outputs) == 2
+        assert isinstance(outputs[0], str)
+        assert isinstance(outputs[1], str)

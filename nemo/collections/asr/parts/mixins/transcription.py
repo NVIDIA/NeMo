@@ -17,17 +17,20 @@ import os
 import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
+from functools import partial
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from torch.utils.data import DataLoader, IterableDataset
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.utils import logging
+from nemo.utils import logging, logging_mode
 
 
 TranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
@@ -80,6 +83,58 @@ def move_to_device(batch, device):
         return {k: move_to_device(v, device) for k, v in batch.items()}
     else:
         raise TypeError(f"Unsupported type: {type(batch)}")
+
+
+class TranscriptionTensorDataset(Dataset):
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__()
+        self.audio_tensors = config['audio_tensors']
+        self.channel_selector = config['channel_selector']
+        self.augmentor_cfg = config.get('augmentor', None)
+        self.sample_rate = config['sample_rate']
+
+        if self.augmentor_cfg is not None:
+            self.augmentor = process_augmentations(self.augmentor_cfg, global_rank=0, world_size=1)
+        else:
+            self.augmentor = None
+
+        self.length = len(self.audio_tensors)
+
+    def __getitem__(self, index):
+        if index >= self.length:
+            raise IndexError(f"Index {index} out of range for dataset of size {self.length}")
+
+        return self.get_item(index)
+
+    def __len__(self):
+        return self.length
+
+    def get_item(self, index):
+        samples = self.audio_tensors[index]
+
+        if self.augmentor is not None:
+            logging.warning(
+                "Audio Augmentations are being applied during inference by moving the tensor onto CPU. "
+                "This is highly inefficient and therefore not recommended.",
+                mode=logging_mode.ONCE,
+            )
+
+            original_dtype = samples.dtype
+            samples = samples.to(device='cpu', dtype=torch.float32).numpy()
+            segment = AudioSegment(
+                samples, self.sample_rate, target_sr=self.sample_rate, channel_selector=self.channel_selector
+            )
+            samples = self.augmentor.perturb(segment)
+            samples = torch.tensor(samples.samples, dtype=original_dtype)
+
+        # Calculate seq length
+        seq_len = torch.tensor(samples.shape[0], dtype=torch.long)
+
+        # Dummy text tokens
+        text_tokens = torch.tensor([0], dtype=torch.long)
+        text_tokens_len = torch.tensor(1, dtype=torch.long)
+
+        return (samples, seq_len, text_tokens, text_tokens_len)
 
 
 class TranscriptionMixin(ABC):
@@ -251,12 +306,12 @@ class TranscriptionMixin(ABC):
                     processed_outputs = self._transcribe_output_processing(model_outputs, transcribe_cfg)
 
                     # clear up memory
-                    del test_batch
+                    del test_batch, model_outputs
 
                     # Yield results if generator
                     yield processed_outputs
 
-                    del model_outputs, processed_outputs
+                    del processed_outputs
 
         finally:
             # set mode back to its original value
@@ -270,7 +325,7 @@ class TranscriptionMixin(ABC):
         if audio is None:
             return {}
 
-        if isinstance(audio, str):
+        if isinstance(audio, (str, np.ndarray, torch.Tensor)):
             audio = [audio]
 
         if isinstance(audio, list) and len(audio) == 0:
@@ -306,7 +361,13 @@ class TranscriptionMixin(ABC):
         logging.set_verbosity(logging.WARNING)
 
     def _transcribe_input_processing(self, audio, trcfg: TranscribeConfig):
-        if isinstance(audio, (list, tuple, Iterable)):
+        if isinstance(audio, (list, tuple)):
+            if len(audio) == 0:
+                raise ValueError("Input `audio` is empty")
+        else:
+            audio = [audio]
+
+        if isinstance(audio[0], str):
             audio_files = list(audio)
 
             tmp_dir = trcfg._internal.temp_dir
@@ -315,8 +376,58 @@ class TranscriptionMixin(ABC):
             temp_dataloader = self._setup_transcribe_dataloader(ds_config)
             return temp_dataloader
 
-        elif isinstance(audio, np.ndarray):
-            raise NotImplemented()
+        elif isinstance(audio[0], (np.ndarray, torch.Tensor)):
+            audio_tensors = list(audio)
+
+            # Convert numpy tensors to torch tensors
+            if any([isinstance(_tensor, np.ndarray) for _tensor in audio_tensors]):
+                audio_tensors = [
+                    torch.from_numpy(audio_tensor) if isinstance(audio_tensor, np.ndarray) else audio_tensor
+                    for audio_tensor in audio_tensors
+                ]
+
+            tmp_dir = trcfg._internal.temp_dir
+            ds_config = self._transcribe_input_tensor_processing(audio_tensors, tmp_dir, trcfg)
+
+            temp_dataset = self._setup_transcribe_tensor_dataloader(ds_config, trcfg)
+            return temp_dataset
+
+        else:
+            raise ValueError(
+                f"Input `audio` is of type {type(audio[0])}. "
+                "Only `str` (path to audio file), `np.ndarray`, and `torch.Tensor` "
+                "are supported as input."
+            )
+
+    def _transcribe_input_tensor_processing(
+        self, audio_tensors: List[Union[np.ndarray, torch.Tensor]], temp_dir: str, trcfg: TranscribeConfig
+    ):
+        # Check if sample rate is set
+        sample_rate = None
+        if hasattr(self, 'cfg') and 'sample_rate' in self.cfg:
+            sample_rate = self.cfg.sample_rate
+        elif hasattr(self, 'sample_rate'):
+            sample_rate = self.sample_rate
+
+        if sample_rate is None:
+            raise RuntimeError(
+                "Provided `audio` data contains numpy or torch tensors, however the class "
+                "does not have `sample_rate` attribute. Please set `sample_rate` attribute to the model explicitly."
+            )
+
+        ds_config = {
+            'audio_tensors': audio_tensors,
+            'batch_size': trcfg.batch_size,
+            'temp_dir': temp_dir,
+            'num_workers': trcfg.num_workers,
+            'channel_selector': trcfg.channel_selector,
+            'sample_rate': sample_rate,
+        }
+
+        if trcfg.augmentor:
+            ds_config['augmentor'] = trcfg.augmentor
+
+        return ds_config
 
     @abstractmethod
     def _transcribe_input_manifest_processing(
@@ -350,15 +461,36 @@ class TranscriptionMixin(ABC):
         if trcfg._internal.logging_level is not None:
             logging.set_verbosity(trcfg._internal.logging_level)
 
-    """
-    Utility Methods
-    """
+    def _setup_transcribe_tensor_dataloader(self, config: Dict, trcfg: TranscribeConfig) -> DataLoader:
+        dataset = TranscriptionTensorDataset(config)
 
-    def _transcribe_preprocess_array(self, inputs, transcribe_cfg: TranscribeConfig):
-        if inputs.ndim > 1 and isinstance(transcribe_cfg.channel_selector, int):
-            inputs = inputs[transcribe_cfg.channel_selector, :]
+        # Import collate function here to avoid circular imports
+        from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
 
-        return inputs
+        # Calculate pad id
+        if hasattr(self, 'tokenizer') and hasattr(self.tokenizer, 'pad_id'):
+            pad_id = self.tokenizer.pad_id
+        elif hasattr(self, 'transcribe_pad_id'):
+            logging.info("Pad id is explicitly set to `model.transcribe_pad_id` = {}".format(self.transcribe_pad_id))
+            pad_id = self.transcribe_pad_id
+        else:
+            logging.info(
+                "Pad id is being set to 0 because it could not be resolved from the tokenizer. "
+                "This can happen for various reasons, especially for character based models. "
+                "If pad id is incorrect, please provide the pad id explicitly by setting "
+                "`model.transcribe_pad_id`."
+            )
+            pad_id = 0
+
+        return DataLoader(
+            dataset=dataset,
+            shuffle=False,
+            batch_size=config['batch_size'],
+            num_workers=config['num_workers'],
+            pin_memory=False,
+            drop_last=False,
+            collate_fn=partial(_speech_collate_fn, pad_id=pad_id),
+        )
 
 
 class ASRTranscriptionMixin(TranscriptionMixin):
