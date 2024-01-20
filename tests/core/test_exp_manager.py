@@ -221,7 +221,6 @@ class TestExpManager:
         )
         assert isinstance(test_trainer.logger, pl.loggers.NeptuneLogger)
 
-
     @pytest.mark.unit
     def test_checkpoint_configurations(self):
         """ Test that trainer creating modelcheckpoint and asking exp_manager to do it too results in errors, but
