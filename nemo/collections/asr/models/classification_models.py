@@ -378,7 +378,9 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
     """ Transcription related methods """
 
-    def _transcribe_input_manifest_processing(self, audio_files: List[str], temp_dir: str, trcfg: ClassificationTranscribeConfig):
+    def _transcribe_input_manifest_processing(
+        self, audio_files: List[str], temp_dir: str, trcfg: ClassificationTranscribeConfig
+    ):
         with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_files:
                 label = 0.0 if self.is_regression_task else self.cfg.labels[0]

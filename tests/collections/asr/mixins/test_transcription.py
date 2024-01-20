@@ -221,6 +221,7 @@ class TestTranscriptionMixin:
         assert outputs[0][2] == 3.0
 
     pytest.mark.with_downloads()
+
     @pytest.mark.unit
     def test_transcribe_return_hypothesis(self, test_data_dir):
         model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
