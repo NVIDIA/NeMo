@@ -48,9 +48,9 @@ web_port: 9889 # the port number of the web server
 retro_inference:
   retro_num_neighbors: 2
   neighbors:
-    - "prompt1"
+    prompt1_neighbors:
       - "prompt1_neighbor1"
       - "prompt1_neighbor2"
-    - "prompt2"
+    prompt2_neighbors:
       - "prompt2_neighbor1"
       - "prompt2_neighbor2"

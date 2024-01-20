@@ -216,6 +216,8 @@ class MegatronRetroModel(MegatronGPTModel):
         return output_tensor
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        # batch = {'prompts': List, 'neighbors': List[List]}
+
         inference_config = self.get_inference_config()
         if inference_config is None:
             return None
@@ -224,7 +226,8 @@ class MegatronRetroModel(MegatronGPTModel):
             inference_config = inference_config.copy()
             compute_logprob = inference_config['compute_logprob']
             if compute_logprob:
-                inference_config['inputs'] = batch
+                inference_config['inputs'] = batch['prompts']
+                inference_config['neighbors'] = batch['neighbors']
                 inference_config['tokens_to_generate'] = 1
                 inference_config['all_probs'] = True
                 inference_config["add_BOS"] = False
@@ -233,7 +236,8 @@ class MegatronRetroModel(MegatronGPTModel):
                 compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
                 return compute_prob_response
             else:
-                inference_config['inputs'] = batch
+                inference_config['inputs'] = batch['prompts']
+                inference_config['strategy_args'] = {'neighbors': batch['neighbors']}
                 return generate(self, **inference_config)
 
     def get_forward_output_and_loss_func(self, validation_step=False):
