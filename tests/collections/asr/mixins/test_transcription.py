@@ -227,6 +227,7 @@ class TestTranscriptionMixin:
 
         # Load audio file
         import soundfile as sf
+
         audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
         audio, sr = sf.read(audio_file, dtype='float32')
 
@@ -243,6 +244,7 @@ class TestTranscriptionMixin:
 
         # Load audio file
         import soundfile as sf
+
         audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
         audio, sr = sf.read(audio_file, dtype='float32')
 

@@ -17,8 +17,8 @@ import os
 import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from functools import partial
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -27,11 +27,10 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.utils import logging, logging_mode
-
 
 TranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
 
