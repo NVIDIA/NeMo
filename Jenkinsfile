@@ -3147,8 +3147,8 @@ pipeline {
         // model.activations_checkpoint_num_layers=1 \
         // model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
         // model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings"
-        // sh "rm -rf examples/nlp/language_modeling/bert_pretrain_results"
-        // sh "rm -rf examples/nlp/language_modeling/bert_index_mappings"
+        sh "rm -rf examples/nlp/language_modeling/bert_pretrain_results"
+        sh "rm -rf examples/nlp/language_modeling/bert_index_mappings"
       }
     }
     stage('L2: Megatron Bert Pretraining and Resume Training') {
@@ -3218,8 +3218,8 @@ pipeline {
         // model.activations_checkpoint_num_layers=1 \
         // model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
         // model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings"
-        // sh "rm -rf examples/nlp/language_modeling/bert_pretrain_results"
-        // sh "rm -rf examples/nlp/language_modeling/bert_index_mappings"
+        sh "rm -rf examples/nlp/language_modeling/bert_pretrain_results"
+        sh "rm -rf examples/nlp/language_modeling/bert_index_mappings"
       }
     }
     stage('L2: Megatron Core Bert Pretraining and Resume Training') {
