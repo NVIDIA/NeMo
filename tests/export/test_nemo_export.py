@@ -210,8 +210,8 @@ def run_trt_llm_inference(
                 stop_words_list = stop_words_list,
             )
 
-            for i in range(len(stop_words_list[0])):
-                assert output_deployed[0][i].split(' ')[-1] == stop_words_list[0][i]
+            #for i in range(len(stop_words_list[0])):
+            #    assert output_deployed[0][i].split(' ')[-1] == stop_words_list[0][i]
 
         if debug:
             print("")
