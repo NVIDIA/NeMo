@@ -237,13 +237,10 @@ def run_trt_llm_inference(
             shutil.rmtree(trt_llm_model_dir)
             return trtllm_accuracy, trtllm_accuracy_relaxed, trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed
 
-        if stop_words_list != None:
-            return output, None, None, None
-        else:
-            if test_deployment:
-                nm.stop()
-            shutil.rmtree(trt_llm_model_dir)
-            return None, None, None, None
+        if test_deployment:
+            nm.stop()
+        shutil.rmtree(trt_llm_model_dir)
+        return None, None, None, None
     else:
         raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
 
