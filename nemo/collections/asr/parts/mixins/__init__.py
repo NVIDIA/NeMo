@@ -20,4 +20,9 @@ from nemo.collections.asr.parts.mixins.mixins import (
     ASRModuleMixin,
     DiarizationMixin,
 )
-from nemo.collections.asr.parts.mixins.transcription import ASRTranscriptionMixin, TranscribeConfig, TranscriptionMixin
+from nemo.collections.asr.parts.mixins.transcription import (
+    ASRTranscriptionMixin,
+    TranscribeConfig,
+    TranscriptionMixin,
+    TranscriptionReturnType,
+)

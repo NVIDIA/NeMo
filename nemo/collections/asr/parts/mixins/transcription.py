@@ -32,7 +32,8 @@ from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.utils import logging, logging_mode
 
-TranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
+TranscriptionReturnType = Union[List[str], List['Hypothesis'], Tuple[List[str]], Tuple[List['Hypothesis']]]
+GenericTranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
 
 
 @dataclass
@@ -153,7 +154,7 @@ class TranscriptionMixin(ABC):
         verbose: bool = True,
         override_config: Optional[TranscribeConfig] = None,
         **config_kwargs,
-    ) -> List[str]:
+    ) -> GenericTranscriptionType:
         """
         Template function that defines the execution strategy for transcribing audio.
 
@@ -213,7 +214,7 @@ class TranscriptionMixin(ABC):
                 )
 
         # Hold the results here
-        results = None  # type: TranscriptionType
+        results = None  # type: GenericTranscriptionType
 
         try:
             generator = self.transcribe_generator(audio, override_config=transcribe_cfg)
@@ -443,7 +444,7 @@ class TranscriptionMixin(ABC):
         pass
 
     @abstractmethod
-    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> TranscriptionType:
+    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> GenericTranscriptionType:
         pass
 
     def _transcribe_on_end(self, trcfg: TranscribeConfig):

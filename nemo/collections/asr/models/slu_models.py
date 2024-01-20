@@ -27,7 +27,13 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin, ASRTranscriptionMixin, TranscribeConfig
+from nemo.collections.asr.parts.mixins import (
+    ASRBPEMixin,
+    ASRModuleMixin,
+    ASRTranscriptionMixin,
+    TranscribeConfig,
+    TranscriptionReturnType,
+)
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.utils.slu_utils import SequenceGenerator, SequenceGeneratorConfig, get_seq_mask
@@ -559,7 +565,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         return_hypotheses: bool = False,
         num_workers: int = 0,
         verbose: bool = True,
-    ) -> List[str]:
+    ) -> TranscriptionReturnType:
         """
         Uses greedy decoding to transcribe audio files into SLU semantics. 
         Use this method for debugging and prototyping.

@@ -31,7 +31,7 @@ from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin, ASRTranscriptionMixin, InterCTCMixin, TranscribeConfig
-from nemo.collections.asr.parts.mixins.transcription import TranscriptionType
+from nemo.collections.asr.parts.mixins.transcription import GenericTranscriptionType, TranscriptionReturnType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
@@ -125,7 +125,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[TranscribeConfig] = None,
-    ) -> List[str]:
+    ) -> TranscriptionReturnType:
         """
         If modify this function, please remember update transcribe_partial_audio() in
         nemo/collections/asr/parts/utils/trancribe_utils.py
@@ -655,7 +655,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         del greedy_predictions
         return output
 
-    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> 'TranscriptionType':
+    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> GenericTranscriptionType:
         logits = outputs.pop('logits')
         logits_len = outputs.pop('logits_len')
 

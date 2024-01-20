@@ -31,7 +31,12 @@ from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
-from nemo.collections.asr.parts.mixins import ASRModuleMixin, ASRTranscriptionMixin, TranscribeConfig
+from nemo.collections.asr.parts.mixins import (
+    ASRModuleMixin,
+    ASRTranscriptionMixin,
+    TranscribeConfig,
+    TranscriptionReturnType,
+)
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
@@ -230,7 +235,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[TranscribeConfig] = None,
-    ) -> list[str]:
+    ) -> TranscriptionReturnType:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 

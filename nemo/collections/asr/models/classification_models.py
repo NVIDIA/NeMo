@@ -29,9 +29,8 @@ from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError
 
 from nemo.collections.asr.data import audio_to_label_dataset, feature_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import TranscribeConfig
 from nemo.collections.asr.parts.mixins import TranscribeConfig as _TranscribeConfig
-from nemo.collections.asr.parts.mixins import TranscriptionMixin
+from nemo.collections.asr.parts.mixins import TranscriptionMixin, TranscriptionReturnType
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
@@ -350,7 +349,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         batch_size: int = 4,
         logprobs=False,
         override_config: Optional[ClassificationTranscribeConfig] = None,
-    ) -> List[str]:
+    ) -> TranscriptionReturnType:
         """
         Generate class labels for provided audio files. Use this method for debugging and prototyping.
 
@@ -379,7 +378,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
     """ Transcription related methods """
 
-    def _transcribe_input_manifest_processing(self, audio_files: List[str], temp_dir: str, trcfg: TranscribeConfig):
+    def _transcribe_input_manifest_processing(self, audio_files: List[str], temp_dir: str, trcfg: ClassificationTranscribeConfig):
         with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_files:
                 label = 0.0 if self.is_regression_task else self.cfg.labels[0]

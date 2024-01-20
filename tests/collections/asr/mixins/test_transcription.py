@@ -24,7 +24,8 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.mixins import TranscribeConfig, TranscriptionMixin
-from nemo.collections.asr.parts.mixins.transcription import TranscriptionType
+from nemo.collections.asr.parts.mixins.transcription import GenericTranscriptionType
+from nemo.collections.asr.parts.utils import Hypothesis
 
 
 class DummyModel(torch.nn.Module):
@@ -93,7 +94,7 @@ class TranscribableDummy(DummyModel, TranscriptionMixin):
         output = self(batch)
         return output
 
-    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> TranscriptionType:
+    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> GenericTranscriptionType:
         self.execution_count += 1
 
         result = []
@@ -219,11 +220,26 @@ class TestTranscriptionMixin:
         assert outputs[0][1] == 2.0
         assert outputs[0][2] == 3.0
 
+    pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_transcribe_return_hypothesis(self, test_data_dir):
+        model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
+        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+
+        # Numpy array test
+        outputs = model.transcribe(audio_file, batch_size=1, return_hypotheses=True)
+        assert len(outputs) == 1
+        assert isinstance(outputs[0], Hypothesis)
+
+        hyp = outputs[0]
+        assert isinstance(hyp.text, str)
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert isinstance(hyp.alignments, torch.Tensor)
+
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_transcribe_tensor(self, test_data_dir):
         model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
-        model.eval()
 
         # Load audio file
         import soundfile as sf
@@ -240,7 +256,6 @@ class TestTranscriptionMixin:
     @pytest.mark.unit
     def test_transcribe_multiple_tensor(self, test_data_dir):
         model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
-        model.eval()
 
         # Load audio file
         import soundfile as sf
