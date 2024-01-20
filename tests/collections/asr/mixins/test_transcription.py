@@ -254,7 +254,7 @@ class TestTranscriptionMixin:
         audio_2 = torch.tensor(audio_2)
 
         # Numpy array test
-        outputs = model.transcribe([audio, audio_2], batch_size=1)
+        outputs = model.transcribe([audio, audio_2], batch_size=2)
         assert len(outputs) == 2
         assert isinstance(outputs[0], str)
         assert isinstance(outputs[1], str)
