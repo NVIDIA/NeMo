@@ -26,6 +26,7 @@ import os
 from argparse import ArgumentParser
 from collections import OrderedDict
 
+import megatron.core.parallel_state as parallel_state
 import torch
 import torch.nn
 from omegaconf import OmegaConf
@@ -340,4 +341,5 @@ def convert(args):
 
 if __name__ == '__main__':
     args = get_args()
+    parallel_state.set_expert_model_parallel_world_size(1)
     convert(args)
