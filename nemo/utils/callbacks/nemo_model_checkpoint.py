@@ -422,8 +422,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         trainer.strategy.barrier()
 
     def _link_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, linkpath: str) -> None:
-        filepath = inject_model_parallel_rank(filepath)
-        linkpath = inject_model_parallel_rank(linkpath)
+        # if not using distributed checkpointing, inject model parallel rank
+        if not (
+            hasattr(trainer.lightning_module, 'sharded_state_dict')
+            and trainer.lightning_module.sharded_state_dict() is not None
+        ):
+            filepath = inject_model_parallel_rank(filepath)
+            linkpath = inject_model_parallel_rank(linkpath)
+
         if self._is_ema_filepath(filepath):
             self.link_checkpoint(trainer, filepath, self._ema_format_filepath(linkpath))
             self.link_checkpoint(
