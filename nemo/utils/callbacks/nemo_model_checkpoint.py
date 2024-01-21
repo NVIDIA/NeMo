@@ -408,14 +408,29 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         # we don't want to remove the marker until all checkpointing is done.
         self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
+    def link_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, linkpath: str) -> None:
+        if os.path.islink(linkpath) or os.path.isfile(linkpath):
+            os.remove(linkpath)
+        elif os.path.isdir(linkpath):
+            shutil.rmtree(linkpath)
+        try:
+            os.symlink(filepath, linkpath)
+        except OSError:
+            # on Windows, special permissions are required to create symbolic links as a regular user
+            # fall back to copying the file
+            shutil.copy(filepath, linkpath)
+        trainer.strategy.barrier()
+
     def _link_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, linkpath: str) -> None:
+        filepath = inject_model_parallel_rank(filepath)
+        linkpath = inject_model_parallel_rank(linkpath)
         if self._is_ema_filepath(filepath):
-            super()._link_checkpoint(trainer, filepath, self._ema_format_filepath(linkpath))
-            super()._link_checkpoint(
+            self.link_checkpoint(trainer, filepath, self._ema_format_filepath(linkpath))
+            self.link_checkpoint(
                 trainer, filepath.replace(f'-EMA{self.FILE_EXTENSION}', self.FILE_EXTENSION), linkpath
             )
         else:
-            super()._link_checkpoint(trainer, filepath, linkpath)
+            self.link_checkpoint(trainer, filepath, linkpath)
 
     def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str) -> None:
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
