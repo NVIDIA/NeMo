@@ -195,10 +195,14 @@ class TestExpManager:
         )
         assert isinstance(test_trainer.logger, pl.loggers.WandbLogger)
 
+    @pytest.mark.unit
+    def test_trainer_neptune_logger(self, tmp_path):
+        pytest.importorskip("neptune", reason="could not import `neptune`, use `pip install neptune` to run this test")
+
         test_trainer = pl.Trainer(accelerator='cpu', logger=False)
         # Check that a create_neptune_logger=True errors out unless neptune_logger_kwargs is passed.
         with pytest.raises(ValueError):
-            log_dir = exp_manager(
+            _ = exp_manager(
                 test_trainer,
                 {
                     "create_tensorboard_logger": False,
@@ -209,7 +213,7 @@ class TestExpManager:
             )
         # Check that a NeptuneLogger is attached to logger if create_neptune_logger=True and neptune_logger_kwargs has name
         # and project
-        log_dir = exp_manager(
+        _ = exp_manager(
             test_trainer,
             {
                 "create_tensorboard_logger": False,
