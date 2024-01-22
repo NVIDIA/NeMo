@@ -51,6 +51,7 @@ analyst:
         ignore_capitalization: False
         ignore_punctuation: False
         punctuations: null  # a string of punctuations to remove when ignore_punctuation=True. if not set, default to '!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~'
+        strip_punc_space: False # strip spaces before punctuations. e.g., "I do ." -> "I do."
 
     metadata:
         duration: 

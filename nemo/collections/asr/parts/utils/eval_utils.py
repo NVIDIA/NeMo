@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import re
 from typing import Optional, Tuple, Union
 
 from torchmetrics.text import SacreBLEUScore
@@ -26,6 +27,14 @@ TEXT_METRICS_MAPPING = {
     'bleu': SacreBLEUScore,
     'rouge': ROUGEScore,
 }
+
+
+def strip_spaces_before_punctuation(text):
+    # Define a regular expression pattern to match spaces between punctuations and letters
+    pattern = re.compile(r'(?<=[.,!?])\s*|\s*(?=[.,!?])')
+    # Use the pattern to substitute spaces with an empty string
+    text = re.sub(pattern, '', text)
+    return text
 
 
 def remove_punctuations(text: str, punctuations: Optional[Union[list, str]] = None) -> str:
@@ -115,6 +124,7 @@ def cal_write_wer(
     ignore_capitalization: bool = False,
     ignore_punctuation: bool = False,
     punctuations: Optional[list] = None,
+    strip_punc_space: bool = False,
 ) -> Tuple[str, dict, str]:
     """ 
     Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text) 
@@ -147,6 +157,9 @@ def cal_write_wer(
             if ignore_punctuation:
                 ref = remove_punctuations(ref, punctuations=punctuations)
                 hyp = remove_punctuations(hyp, punctuations=punctuations)
+            elif strip_punc_space:
+                ref = strip_spaces_before_punctuation(ref)
+                hyp = strip_spaces_before_punctuation(hyp)
 
             if ignore_capitalization:
                 ref = ref.lower()
@@ -201,6 +214,7 @@ def cal_write_text_metric(
     punctuations: Optional[list] = None,
     metric: str = 'bleu',
     metric_args: Optional[dict] = None,
+    strip_punc_space: bool = False,
 ):
     samples = []
     hyps = []
@@ -229,6 +243,9 @@ def cal_write_text_metric(
             if ignore_punctuation:
                 ref = remove_punctuations(ref, punctuations=punctuations)
                 hyp = remove_punctuations(hyp, punctuations=punctuations)
+            elif strip_punc_space:
+                ref = strip_spaces_before_punctuation(ref)
+                hyp = strip_spaces_before_punctuation(hyp)
 
             if ignore_capitalization:
                 ref = ref.lower()
