@@ -95,13 +95,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
             # stage 1: get decoder (prediction network) output
             if first_step:
                 # start of the loop, SOS symbol is passed into prediction network
-                decoder_output, state, *_ = self._pred_step(
-                    self._SOS, None, batch_size=current_batch_size, add_sos=False
+                decoder_output, state, *_ = self.decoder.predict(
+                    labels.unsqueeze(1), None, add_sos=False, batch_size=current_batch_size
                 )
                 first_step = False
             else:
-                decoder_output, state, *_ = self._pred_step(
-                    labels.unsqueeze(1), state, batch_size=current_batch_size, add_sos=False
+                decoder_output, state, *_ = self.decoder.predict(
+                    labels.unsqueeze(1), state, add_sos=False, batch_size=current_batch_size
                 )
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
 
@@ -219,50 +219,3 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
         #     assert last_state is not None
         # hyps[i].dec_state = last_state
         # return hyps
-
-    @torch.no_grad()
-    def _pred_step(
-        self,
-        label: Union[torch.Tensor, int],
-        # hidden: Optional[tuple[torch.Tensor, torch.Tensor]],
-        # hidden: Optional[list[torch.Tensor]],
-        hidden: Union[tuple[torch.Tensor, torch.Tensor], list[torch.Tensor], None],
-        add_sos: bool = False,
-        batch_size: Optional[int] = None,
-    ):
-        """
-        Common prediction step based on the AbstractRNNTDecoder implementation.
-
-        Args:
-            label: (int/torch.Tensor): Label or "Start-of-Signal" token.
-            hidden: (Optional torch.Tensor): RNN State vector
-            add_sos (bool): Whether to add a zero vector at the begging as "start of sentence" token.
-            batch_size: Batch size of the output tensor.
-
-        Returns:
-            g: (B, U, H) if add_sos is false, else (B, U + 1, H)
-            hid: (h, c) where h is the final sequence hidden state and c is
-                the final cell state:
-                    h (tensor), shape (L, B, H)
-                    c (tensor), shape (L, B, H)
-        """
-        if isinstance(label, torch.Tensor):
-            # label: [batch, 1]
-            # if label.dtype != torch.long:
-            label_tensor = label.long()
-
-        else:
-            # Label is an integer
-            # TODO: fix jit comptatibility ???
-            # if label == self._SOS:
-            assert label == self._SOS
-            return self.decoder.predict(None, None, add_sos=add_sos, batch_size=batch_size)
-            # label_tensor = label_collate([[label]], device=None)
-
-        # output: [B, 1, K]
-        if isinstance(self._sample_state_for_type_check, tuple):
-            assert isinstance(hidden, (tuple, NoneType))
-            return self.decoder.predict(label_tensor, hidden, add_sos=add_sos, batch_size=batch_size)
-
-        assert isinstance(hidden, (list, NoneType))
-        return self.decoder.predict(label_tensor, hidden, add_sos=add_sos, batch_size=batch_size)
