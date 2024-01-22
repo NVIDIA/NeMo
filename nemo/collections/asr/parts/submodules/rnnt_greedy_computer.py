@@ -17,6 +17,7 @@ from typing import Optional, Union
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 # from nemo.collections.common.parts.rnn import label_collate
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -70,11 +71,10 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
         # state = None
 
         # init additional structs for hypotheses: last decoder state, alignments, frame_confidence
-        last_decoder_state = [None for _ in range(batch_size)]
+        # last_decoder_state = [None for _ in range(batch_size)]
 
         # alignments: Optional[rnnt_utils.BatchedAlignments]
         use_alignments = self.preserve_alignments or self.preserve_frame_confidence
-        # if self.preserve_alignments or self.preserve_frame_confidence:
         alignments = rnnt_utils.BatchedAlignments(
             batch_size=batch_size,
             logits_dim=self.joint.num_classes_with_blank,
@@ -84,23 +84,21 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
             store_alignments=self.preserve_alignments,
             store_frame_confidence=self.preserve_frame_confidence,
         )
-        # else:
-        #     alignments = None
 
         # loop while there are active indices
-        start = True
+        first_step = True
 
         # state: Tuple[torch.Tensor, torch.Tensor] = (torch.zeros(0), torch.zeros(0))
         state = self.decoder.initialize_state(torch.zeros(batch_size, device=device))
         while active_indices.shape[0] > 0:
             current_batch_size = active_indices.shape[0]
             # stage 1: get decoder (prediction network) output
-            if start:
+            if first_step:
                 # start of the loop, SOS symbol is passed into prediction network
                 decoder_output, state, *_ = self._pred_step(
                     self._SOS, None, batch_size=current_batch_size, add_sos=False
                 )
-                start = False
+                first_step = False
             else:
                 decoder_output, state, *_ = self._pred_step(
                     labels.unsqueeze(1), state, batch_size=current_batch_size, add_sos=False
@@ -110,14 +108,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
             # stage 2: get joint output, iteratively seeking for non-blank labels
             # blank label in `labels` tensor means "end of hypothesis" (for this index)
             logits = (
-                self._joint_step_after_projection(
-                    x[active_indices, time_indices[active_indices]].unsqueeze(1),
-                    decoder_output,
-                    log_normalize=True if self.preserve_frame_confidence else None,
+                self.joint.joint_after_projection(
+                    x[active_indices, time_indices[active_indices]].unsqueeze(1), decoder_output,
                 )
                 .squeeze(1)
                 .squeeze(1)
             )
+            if self.preserve_frame_confidence:
+                logits = F.log_softmax(logits, dim=-1)
             scores, labels = logits.max(-1)
 
             # search for non-blank labels using joint, advancing time indices for blank labels
@@ -140,14 +138,15 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
                 advance_indices = active_indices[advance_mask]
                 time_indices[advance_indices] += 1
                 logits = (
-                    self._joint_step_after_projection(
-                        x[advance_indices, time_indices[advance_indices]].unsqueeze(1),
-                        decoder_output[advance_mask],
-                        log_normalize=True if self.preserve_frame_confidence else None,
+                    self.joint.joint_after_projection(
+                        x[advance_indices, time_indices[advance_indices]].unsqueeze(1), decoder_output[advance_mask],
                     )
                     .squeeze(1)
                     .squeeze(1)
                 )
+                if self.preserve_frame_confidence:
+                    logits = F.log_softmax(logits, dim=-1)
+
                 # get labels (greedy) and scores from current logits, replace labels/scores with new
                 # labels[advance_mask] are blank, and we are looking for non-blank labels
                 more_scores, more_labels = logits.max(-1)
@@ -267,27 +266,3 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
 
         assert isinstance(hidden, (list, NoneType))
         return self.decoder.predict(label_tensor, hidden, add_sos=add_sos, batch_size=batch_size)
-
-    def _joint_step_after_projection(self, enc, pred, log_normalize: Optional[bool] = None) -> torch.Tensor:
-        """
-        Common joint step based on AbstractRNNTJoint implementation.
-
-        Args:
-            enc: Output of the Encoder model after projection. A torch.Tensor of shape [B, 1, H]
-            pred: Output of the Decoder model after projection. A torch.Tensor of shape [B, 1, H]
-            log_normalize: Whether to log normalize or not. None will log normalize only for CPU.
-
-        Returns:
-             logits of shape (B, T=1, U=1, V + 1)
-        """
-        with torch.no_grad():
-            logits = self.joint.joint_after_projection(enc, pred)
-
-            if log_normalize is None:
-                if not logits.is_cuda:  # Use log softmax only if on CPU
-                    logits = logits.log_softmax(dim=len(logits.shape) - 1)
-            else:
-                if log_normalize:
-                    logits = logits.log_softmax(dim=len(logits.shape) - 1)
-
-        return logits
