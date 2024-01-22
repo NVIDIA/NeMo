@@ -284,7 +284,7 @@ def run_word_spotter(
     The algorithm is implemented in log semiring. 
     
     Args:
-        logprobs: CTC logprobs
+        logprobs: CTC logprobs for one file [Time, Vocab+blank]
         context_graph: Context-Biasing graph
         blank_idx: blank index in ASR model
         asr_model: ASR model (ctc or hybrid-transducer-ctc)

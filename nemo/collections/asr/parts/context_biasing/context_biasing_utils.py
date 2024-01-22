@@ -155,9 +155,15 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List, retu
     Returns:
         If return_scores is True, return tuple of precision, recall and fscore.
     """
+    
+    assert key_words_list, "key_words_list is empty"
 
     # get data from manifest
     data = load_data(recognition_results_manifest)
+    assert len(data) > 0, "manifest file is empty"
+    assert data[0].get('text', None), "manifest file should contain text field"
+    assert data[0].get('pred_text', None), "manifest file should contain pred_text field"
+
     # compute max number of words in one context biasing phrase
     max_ngram_order = max([len(item.split()) for item in key_words_list])
     key_words_stat = {} # a word here can be single word or phareses 
