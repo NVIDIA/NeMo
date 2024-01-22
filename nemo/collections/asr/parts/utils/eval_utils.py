@@ -30,11 +30,8 @@ TEXT_METRICS_MAPPING = {
 
 
 def strip_spaces_before_punctuation(text):
-    # Define a regular expression pattern to match spaces between punctuations and letters
-    pattern = re.compile(r'(?<=[.,!?])\s*|\s*(?=[.,!?])')
-    # Use the pattern to substitute spaces with an empty string
-    text = re.sub(pattern, '', text)
-    return text
+    result = re.sub(r'(\w)\s+([.,;!?])', r'\1\2', text)
+    return result
 
 
 def remove_punctuations(text: str, punctuations: Optional[Union[list, str]] = None) -> str:
