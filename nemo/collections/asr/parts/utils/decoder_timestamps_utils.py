@@ -440,6 +440,7 @@ class ASRDecoderTimeStamps:
             )  # type: List[nemo_asr.parts.Hypothesis]
             transcript_logits_list = [hyp.alignments for hyp in transcript_hyps_list]
             for idx, logit_np in enumerate(transcript_logits_list):
+                logit_np = logit_np.cpu().numpy()
                 uniq_id = get_uniqname_from_filepath(self.audio_file_list[idx])
                 if self.beam_search_decoder:
                     logging.info(
@@ -567,6 +568,7 @@ class ASRDecoderTimeStamps:
             )  # type: List[nemo_asr.parts.Hypothesis]
             transcript_logits_list = [hyp.alignments for hyp in transcript_hyps_list]
             for idx, logit_np in enumerate(transcript_logits_list):
+                log_prob = logit_np.cpu().numpy()
                 uniq_id = get_uniqname_from_filepath(self.audio_file_list[idx])
                 if self.beam_search_decoder:
                     logging.info(
