@@ -94,13 +94,31 @@ class RotaryEmbedding(nn.Module):
             else:
                 total_shift = self.base_len * self.seq_len_interpolation_factor - current_range
 
-        shifts = torch.rand(num_shifts)
-        shifts = shifts / shifts.sum() * total_shift
-        if self.augment_seq.get('discrete', False):
-            shifts = shifts.to(torch.int)
-        indices2shift = (torch.rand(num_shifts) * max_seq_len).to(torch.int)
+        if self.augment_seq.get('allowed_shift_values', False):
+            # provides allowed values for each shift index
+            allowed_shift_values = self.augment_seq['allowed_shift_values']
+            assert (len(allowed_shift_values) == num_shifts), f'allowed_shift_values length {allowed_shift_values} does not match num_shifts {num_shifts}'
+            shifts = torch.zeros(num_shifts, dtype = torch.int)
+            for idx, allowed_values in enumerate(allowed_shift_values):
+                shifts[idx] = random.choice(allowed_values)
+
+            # shifts = self.augment_seq['shifts']
+        else:
+            shifts = torch.rand(num_shifts)
+            shifts = shifts / shifts.sum() * total_shift
+            if self.augment_seq.get('discrete', False):
+                shifts = shifts.to(torch.int)
+
+        if self.augment_seq.get('shift_indices', False):
+            indices2shift = self.augment_seq['shift_indices']
+        else:
+            indices2shift = (torch.rand(num_shifts) * max_seq_len).to(torch.int)
+
         for idx, i in enumerate(indices2shift):
             seq[i:] += shifts[idx]
+
+        if random.random() < self.logging_freq:
+            logging.info(f'indices2shift: {indices2shift}, shifts: {shifts}')
 
         return seq
         
