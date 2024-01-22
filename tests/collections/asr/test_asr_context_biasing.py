@@ -27,10 +27,9 @@ from nemo.collections.asr.parts.context_biasing import run_word_spotter
 from nemo.collections.asr.parts.context_biasing import merge_alignment_with_ws_hyps
 from nemo.collections.asr.parts.context_biasing import compute_fscore
 from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import WSHyp
+from nemo.collections.asr.parts.utils import rnnt_utils
 
 
-
-# @pytest.fixture(scope="module")
 def conformer_ctc_bpe_model():
     model = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_conformer_ctc_small")
     model.set_trainer(Trainer(devices=1, accelerator="cpu"))
@@ -100,8 +99,10 @@ class TestContextBiasingUtils:
     def test_merge_alignment_with_ws_hyps(self):
         asr_model = conformer_ctc_bpe_model()
         blank_idx = asr_model.decoding.blank_id
-        preds = np.array([120,29, blank_idx, blank_idx])
         ws_results = [WSHyp("gpu", 6.0, 0, 2)]
+        
+        # ctc predictions
+        preds = np.array([120, 29, blank_idx, blank_idx])
         pred_text = merge_alignment_with_ws_hyps(
                     preds,
                     asr_model,
@@ -111,13 +112,29 @@ class TestContextBiasingUtils:
                 )
         assert pred_text == "gpu"
 
+        # rnnt predictions
+        preds = rnnt_utils.Hypothesis(
+                    y_sequence=torch.tensor([120, 29]),
+                    score=0.0,
+                    timestep=torch.tensor([0,1,2,3]),
+                )
+        pred_text = merge_alignment_with_ws_hyps(
+            preds,
+            asr_model,
+            ws_results,
+            decoder_type="rnnt",
+            blank_idx=blank_idx,
+        )
+        assert pred_text == "gpu"
+
+
     @pytest.mark.unit
     def test_compute_fscore(self):
-        recog_manifest = """{"audio_filepath": "test.wav", "duration": 1.0, "text": "a new gpu", "pred_text": "a new gp"}\n"""
-        context_words = ["gpu", "cpu"]
+        recog_manifest = """{"audio_filepath": "test.wav", "duration": 1.0, "text": "a new gpu for nvidia", "pred_text": "a new gpu for invidia"}\n"""
+        context_words = ["gpu", "cpu", "nvidia"]
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
             f.write(recog_manifest)
             f.seek(0)
 
             fscore_stats = compute_fscore(f.name, context_words, return_scores=True)
-            assert fscore_stats == (0, 0, 0)
+            assert (round(fscore_stats[0], 4), round(fscore_stats[1], 4), round(fscore_stats[2], 4)) == (1.0, 0.5, 0.6667)
