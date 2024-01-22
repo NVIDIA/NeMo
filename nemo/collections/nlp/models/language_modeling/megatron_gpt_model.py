@@ -19,6 +19,8 @@ import warnings
 from contextlib import nullcontext
 from dataclasses import fields
 from functools import partial
+from importlib.metadata import version
+from pkg_resources import packaging
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
@@ -929,7 +931,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     else:
                         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
 
-                    from megatron.core.packed_seq_params import PackedSeqParams
+                    try:
+                        from megatron.core.packed_seq_params import PackedSeqParams
+                    except (ImportError, ModuleNotFoundError) as e:
+                        mcore_version = packaging.version.Version(version('megatron-core'))
+                        logging.error(f"megatron-core v{mcore_version} does not support training with packed sequence. "
+                            "Please use megatron-core >= 0.5.0, or set model.data.train_ds.packed_sequence=False")
+                        raise e
 
                     forward_args['packed_seq_params'] = PackedSeqParams(
                         cu_seqlens_q=cu_seqlens,
