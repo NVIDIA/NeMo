@@ -12,13 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Example to run this conversion script:
+```
+    python convert_bert_hf_to_nemo.py \
+     --name_or_path /path/to/input/nemo/file.nemo \
+     --save_path /path/to/output/huggingface/file \
+     --precision 32
+```
+"""
 
 from argparse import ArgumentParser
 
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import Trainer
-from torch import Tensor
 from transformers import AutoTokenizer, BertConfig, BertModel
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
@@ -26,7 +34,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 
 
-def average_pool(last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
+def average_pool(last_hidden_states: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
     last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
     return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
 
@@ -199,10 +207,10 @@ def convert_config(ref_config, hf_state_dict):
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file", type=str, required=True, help="Path to .nemo file",
+        "--name_or_path", type=str, required=True, help="Path to .nemo file",
     )
     parser.add_argument(
-        "--hf-out-path", type=str, required=True, help="Output HF model path",
+        "--save_path", type=str, required=True, help="Output HF model path",
     )
 
     args = parser.parse_args()
@@ -210,9 +218,9 @@ def get_args():
 
 
 def convert(args):
-    logging.info(f"Loading checkpoint from: `{args.in_file}`")
+    logging.info(f"Loading checkpoint from: `{args.name_or_path}`")
     dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
-    nemo_model = MegatronBertModel.restore_from(args.in_file, trainer=dummy_trainer)
+    nemo_model = MegatronBertModel.restore_from(args.name_or_path, trainer=dummy_trainer)
     nemo_config = nemo_model.cfg
 
     old_state_dict = nemo_model.state_dict()
@@ -248,10 +256,12 @@ def convert(args):
         outputs = nemo_model(**batch_dict_cuda)
         embeddings = average_pool(outputs[0], batch_dict_cuda['attention_mask'])
         embeddings = F.normalize(embeddings, p=2, dim=1)
+    # Print difference between two embeddings
+    print("Difference between reference embedding and converted embedding results:")
     print(embeddings - embeddings_hf)
 
-    hf_model.save_pretrained(args.hf_out_path)
-    logging.info(f'Full HF model model saved to: {args.hf_out_path}')
+    hf_model.save_pretrained(args.save_path)
+    logging.info(f'Full HF model model saved to: {args.save_path}')
 
 
 if __name__ == '__main__':

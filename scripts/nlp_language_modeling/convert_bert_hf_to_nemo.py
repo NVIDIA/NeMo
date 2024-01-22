@@ -12,6 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Example to run this conversion script:
+```
+    python convert_bert_hf_to_nemo.py \
+     --name_or_path "thenlper/gte-large" \
+     --save_path /path/to/output/nemo/file.nemo \
+     --precision 32
+```
+"""
 
 import os
 from argparse import ArgumentParser
@@ -23,21 +32,11 @@ from nemo.collections.nlp.models.language_modeling.megatron_bert_model import Me
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.utils import logging
 
-try:
-    from megatron.core import parallel_state
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
 import torch.nn.functional as F
-from torch import Tensor
 from transformers import AutoModel, AutoTokenizer
 
 
-def average_pool(last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
+def average_pool(last_hidden_states: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
     last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
     return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
 
@@ -278,7 +277,8 @@ def convert(args):
         outputs = model(**batch_dict_cuda)
         embeddings = average_pool(outputs[0], batch_dict_cuda['attention_mask'])
         embeddings = F.normalize(embeddings, p=2, dim=1)
-    # print(embeddings)
+    # Print difference between two embeddings
+    print("Difference between reference embedding and converted embedding results:")
     print(embeddings - embeddings_hf)
 
     model.save_to(args.save_path)
