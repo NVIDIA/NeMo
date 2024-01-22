@@ -26,14 +26,13 @@ import os
 from argparse import ArgumentParser
 
 import torch
+import torch.nn.functional as F
 from omegaconf import OmegaConf
+from transformers import AutoModel, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.utils import logging
-
-import torch.nn.functional as F
-from transformers import AutoModel, AutoTokenizer
 
 
 def average_pool(last_hidden_states: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
