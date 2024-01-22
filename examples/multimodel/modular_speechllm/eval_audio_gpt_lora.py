@@ -135,9 +135,12 @@ def main(cfg) -> None:
     if isinstance(_test_ds, list):
         _test_ds = _test_ds[0]
 
-    request_dl = DataLoader(
-        dataset=_test_ds, batch_size=peft_model_cfg.data.test_ds.global_batch_size, collate_fn=_test_ds.collate_fn,
-    )
+    if peft_model_cfg.data.test_ds.get('use_lhotse', False):
+        request_dl = model.build_data_loader(_test_ds, peft_model_cfg.data.test_ds, is_eval=True)
+    else:
+        request_dl = DataLoader(
+            dataset=_test_ds, batch_size=peft_model_cfg.data.test_ds.global_batch_size, collate_fn=_test_ds.collate_fn,
+        )
 
     if cfg.evaluate_metric:
         trainer.test(model, request_dl)

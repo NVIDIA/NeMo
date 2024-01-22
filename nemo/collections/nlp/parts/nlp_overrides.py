@@ -843,13 +843,14 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
                             sharded_state_dict.pop(k)
 
                 checkpoint['state_dict'] = sharded_state_dict
-                # remove model weights extension
-                tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
-                tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
-                assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
-                checkpoint = dist_checkpointing.load(
-                    sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir
-                )
+                if len(sharded_state_dict.items()) != 0:
+                    # remove model weights extension
+                    tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
+                    tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
+                    assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
+                    checkpoint = dist_checkpointing.load(
+                        sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir
+                    )
                 checkpoint['state_dict'].update(peft_state_dict)
                 instance.on_load_checkpoint(checkpoint)
                 if hasattr(instance, 'setup_transformer_engine_tp_groups'):
