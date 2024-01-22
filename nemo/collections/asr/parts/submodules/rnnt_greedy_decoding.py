@@ -2758,7 +2758,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
-        loop_labels: bool = False,
+        loop_labels: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
