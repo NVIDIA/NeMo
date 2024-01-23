@@ -196,7 +196,7 @@ model:
 
   ##Offloading Activations/Weights to CPU
   cpu_offloading: False
-  cpu_offloading_num_layers: ${subtract:${num_layers},1} #This value should be between [1,num_layers-1] as we don't want to offload the final layer's activations and expose any offloading duration for the final layer
+  cpu_offloading_num_layers: 11 #This value should be between [1,num_layers-1] as we don't want to offload the final layer's activations and expose any offloading duration for the final layer
   cpu_offloading_activations: True
   cpu_offloading_weights: True
 
