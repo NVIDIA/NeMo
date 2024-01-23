@@ -456,12 +456,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # bucket.
             def make_parameter_bucket(module: torch.nn.Module) -> List[torch.nn.Parameter]:
                 bucket = [
-                    param for param in module.parameters()
-                    if not getattr(param, '_disable_overlap_grad_sync', False)
+                    param for param in module.parameters() if not getattr(param, '_disable_overlap_grad_sync', False)
                 ]
                 if any(is_float8tensor(param) for param in bucket):
                     bucket = list(filter(is_float8tensor, bucket))
                 return bucket
+
             buckets = []
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 # Initialize a bucket for each virtual pipeline stage

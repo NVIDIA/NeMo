@@ -166,10 +166,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         params = remaining_params
         start_bucket_id = len(self.state["buckets"])
         super().init_params_bucket(
-            fp32_params,
-            grad_sync_dtype=torch.float32,
-            param_sync_dtype=param_sync_dtype,
-            **kwargs,
+            fp32_params, grad_sync_dtype=torch.float32, param_sync_dtype=param_sync_dtype, **kwargs,
         )
         end_bucket_id = len(self.state["buckets"])
         fp32_buckets = self.state["buckets"][start_bucket_id:end_bucket_id]
@@ -185,30 +182,21 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         params = remaining_params
         start_bucket_id = len(self.state["buckets"])
         super().init_params_bucket(
-            fp8_params,
-            grad_sync_dtype=grad_sync_dtype,
-            param_sync_dtype=torch.uint8,
-            **kwargs,
+            fp8_params, grad_sync_dtype=grad_sync_dtype, param_sync_dtype=torch.uint8, **kwargs,
         )
         end_bucket_id = len(self.state["buckets"])
-        fp8_buckets =self.state["buckets"][start_bucket_id:end_bucket_id]
+        fp8_buckets = self.state["buckets"][start_bucket_id:end_bucket_id]
 
         # Initialize remaining parameters as usual
         normal_buckets = []
         start_bucket_id = len(self.state["buckets"])
         super().init_params_bucket(
-            params,
-            grad_sync_dtype=grad_sync_dtype,
-            param_sync_dtype=param_sync_dtype,
-            **kwargs,
+            params, grad_sync_dtype=grad_sync_dtype, param_sync_dtype=param_sync_dtype, **kwargs,
         )
         end_bucket_id = len(self.state["buckets"])
-        normal_buckets =self.state["buckets"][start_bucket_id:end_bucket_id]
+        normal_buckets = self.state["buckets"][start_bucket_id:end_bucket_id]
 
-        def add_param_to_bucket(
-            param: torch.nn.Parameter,
-            bucket: self.StateBucket,
-        ) -> None:
+        def add_param_to_bucket(param: torch.nn.Parameter, bucket: self.StateBucket,) -> None:
             """Add trivial param fragment to bucket"""
             param_fragments = self.state[param]["fragments"]
             param_group_id = param_fragments[0].param_group_id
@@ -511,9 +499,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             self._check_params_shard_dtypes_progress = []
         self._check_params_shard_dtypes_progress.extend(params_buckets.keys())
         if len(self._check_params_shard_dtypes_progress) == len(self.state["buckets"]):
-            assert (
-                len(set(self._check_params_shard_dtypes_progress)) == len(self.state["buckets"])
-            )
+            assert len(set(self._check_params_shard_dtypes_progress)) == len(self.state["buckets"])
 
             # FP8 scaling factors
             amaxes = []

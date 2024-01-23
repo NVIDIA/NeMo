@@ -24,6 +24,7 @@ except (ImportError, ModuleNotFoundError):
     # Float8Tensor not found
     pass
 
+
 def is_float8tensor(tensor: torch.Tensor) -> bool:
     """Check if a tensor is a Transformer Engine Float8Tensor"""
     return HAVE_TE_FLOAT8TENSOR and isinstance(tensor, Float8Tensor)
