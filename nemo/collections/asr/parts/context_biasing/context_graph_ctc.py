@@ -39,9 +39,7 @@ class ContextState:
     """The state in ContextGraph"""
 
     def __init__(
-        self,
-        index: int,
-        is_end: bool = False,
+        self, index: int, is_end: bool = False,
     ):
         """Create a ContextState.
         Args:
@@ -111,7 +109,7 @@ class ContextGraphCTC:
                             else:
                                 # create new blank node
                                 self.num_nodes += 1
-                                blank_node = ContextState(index=self.num_nodes, is_end=False)    
+                                blank_node = ContextState(index=self.num_nodes, is_end=False)
                                 blank_node.next[self.blank_token] = blank_node
                                 blank_node.next[token] = node
                                 prev_node.next[self.blank_token] = blank_node
@@ -134,7 +132,7 @@ class ContextGraphCTC:
                         else:
                             # create new blank node
                             self.num_nodes += 1
-                            blank_node = ContextState(index=self.num_nodes, is_end=False)    
+                            blank_node = ContextState(index=self.num_nodes, is_end=False)
                             blank_node.next[self.blank_token] = blank_node
                             blank_node.next[token] = node
                             prev_node.next[self.blank_token] = blank_node
@@ -147,13 +145,8 @@ class ContextGraphCTC:
                 # the end of current branch
                 prev_node.is_end = True
                 prev_node.word = word_item[0]
-                
 
-    def draw(
-        self,
-        title: Optional[str] = None,
-        symbol_table: Optional[Dict[int, str]] = None,
-    ) -> "Digraph":  # noqa
+    def draw(self, title: Optional[str] = None, symbol_table: Optional[Dict[int, str]] = None,) -> "Digraph":  # noqa
         """Visualize a ContextGraph via graphviz.
 
         Render ContextGraph as an image via graphviz, and return the Digraph object
@@ -228,7 +221,9 @@ class ContextGraphCTC:
                 else:
                     output, input, arc = str(current_node.index), str(current_node.index), f"{label}"
                     if (output, input, arc) not in printed_arcs:
-                        dot.edge(output, input, label=arc, color="green",)
+                        dot.edge(
+                            output, input, label=arc, color="green",
+                        )
                 printed_arcs.add((output, input, arc))
 
         return dot
