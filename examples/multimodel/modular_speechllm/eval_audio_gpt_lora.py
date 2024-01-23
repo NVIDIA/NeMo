@@ -95,6 +95,8 @@ def main(cfg) -> None:
             peft_model_cfg.use_flash_attention = cfg.model.use_flash_attention
         if cfg.model.get("seq_len_interpolation_factor", None) is not None:
             peft_model_cfg["seq_len_interpolation_factor"] = cfg.model.seq_len_interpolation_factor
+        if hasattr(cfg.model, "pretrained_audio_model"):
+            peft_model_cfg.pretrained_audio_model = cfg.model.pretrained_audio_model
 
     if cfg.model.peft.restore_from_path:
         if '\\' in cfg.model.peft.restore_from_path:

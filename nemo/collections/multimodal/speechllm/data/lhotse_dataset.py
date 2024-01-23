@@ -343,6 +343,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 )
                 if self.convert_canary_prompt_to_text:
                     cut.question = convert_canary_prompt_to_text(canary_text)
+                elif hasattr(cut, "question"):
+                    pass
                 else:
                     cut.question = self.question + ' ' + canary_text
 
