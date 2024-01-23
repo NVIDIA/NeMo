@@ -25,7 +25,7 @@ from datasets import load_dataset
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, OnlineSampleMapping
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -58,6 +58,7 @@ class GPTSFTDataset(Dataset):
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         is_test: bool = False,
+        output_original_text: bool = False,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -81,6 +82,7 @@ class GPTSFTDataset(Dataset):
         truncation_method: Truncation from which position. Options: ['left', 'right']
         special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
         is_test: Whether this dataset is the test split.
+        output_original_text (bool): if true, will keep the original text in the output alongside the tokenized ids.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -102,6 +104,7 @@ class GPTSFTDataset(Dataset):
         self.tokens_to_generate = tokens_to_generate
         self.truncation_method = truncation_method
         self.is_test = is_test
+        self.output_original_text = output_original_text
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -155,7 +158,6 @@ class GPTSFTDataset(Dataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
-            osm = OnlineSampleMapping(dataset_size=len(self.indexed_dataset), num_samples=self.max_num_samples)
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
@@ -167,7 +169,6 @@ class GPTSFTDataset(Dataset):
                 name=self.file_path.split('/')[-1],
                 binary_head=False,
                 index_mapping_dir=self.index_mapping_dir,
-                samples_mapping=osm,
             )
         else:
             self.samples_mapping = None
@@ -214,17 +215,17 @@ class GPTSFTDataset(Dataset):
         Returns:
             template_strings (List[str]): separated prompt_template with contexts/label placeholder filled with corresponding strings
             template_strings_keys (List[str]): strings point to placeholder keys or <template>
-            
+
         Examples:
             prompt_template = 'Context:  {context} Question: {question} Answer: {label}'
             prompt_template_values = ['xxx', 'yyy', 'zzz']
-            
+
             # tokenizer.space_sensitive = True
-            template_strings = ['Context:', '  xxx', ' Question:', ' yyy', ' Answer:', ' zzz'] 
-            
+            template_strings = ['Context:', '  xxx', ' Question:', ' yyy', ' Answer:', ' zzz']
+
             # tokenizer.space_sensitive = False
-            template_strings = ['Context:', ' xxx', 'Question:', 'yyy', 'Answer:', 'zzz'] 
-            
+            template_strings = ['Context:', ' xxx', 'Question:', 'yyy', 'Answer:', 'zzz']
+
             template_strings_keys = ['<template>', 'context', '<template>', 'question', '<template>', 'label']
         """
         placeholders = [f'{{{k}}}' for k in self.prompt_template_keys]
@@ -262,7 +263,7 @@ class GPTSFTDataset(Dataset):
     def _multiple_truncation(self, template_ids: List[List[int]], template_ids_keys: List[str]):
         """
         Calculate total tokens and truncate multiple contexts in truncation_fields.
-        
+
         Args:
             template_ids (List[List[int]]): the list of separate prompt_template ids.
             template_ids_keys (List[str]): the list of placeholder keys or <template> (used to check key in truncation_fields).
@@ -370,6 +371,9 @@ class GPTSFTDataset(Dataset):
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
+        if self.output_original_text:
+            for orig_text, text_key in zip(template_strings, template_strings_keys):
+                metadata[text_key] = orig_text
 
         processed_example = {
             'input_ids': input_ids,
@@ -378,6 +382,7 @@ class GPTSFTDataset(Dataset):
             'context_length': len(context_ids),
             'answer_ids': answer_ids,
             'metadata': metadata,
+            'token_count': len(input_ids),
         }
 
         return processed_example
@@ -428,6 +433,7 @@ class GPTSFTDataset(Dataset):
         answers = [item['answer_ids'] for item in batch]
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
         metadata = [item['metadata'] for item in batch]
+        token_count = [item['token_count'] for item in batch]
 
         max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
         # increase max length to nearest multiple of 4 or 8
@@ -459,6 +465,7 @@ class GPTSFTDataset(Dataset):
             'context_lengths': context_lengths,
             'answers': answers,
             'metadata': metadata,
+            'token_count': token_count,
         }
 
         return processed_batch
@@ -518,6 +525,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         loss_mask = [self._build_loss_mask(item) for item in batch]
 
+        token_count = [item.shape[0] for item in input_ids]
+
         if self.pad_to_max_length:
             max_length = self.max_seq_length
         else:
@@ -551,6 +560,12 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         loss_mask = self._collate_item(loss_mask, max_length=max_length, pad_id=0)
         position_ids = self._collate_item(position_ids, max_length=max_length, pad_id=0)
 
+        # Pre-generate `cu_seqlens_argmin` and `max_seqlen` as CPU tensor to avoid device-to-host copies.
+        cu_seqlens = torch.IntTensor(cu_seqlens)
+        cu_seqlens_argmin = torch.argmin(cu_seqlens, dim=1, keepdim=True)
+        seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
+        max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
+
         processed_batch = {
             'tokens': torch.LongTensor(input_ids),
             'labels': torch.LongTensor(labels),
@@ -558,6 +573,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             'loss_mask': torch.LongTensor(loss_mask),
             'position_ids': torch.LongTensor(position_ids),
             'cu_seqlens': torch.IntTensor(cu_seqlens),  # cu_seqlens_q must be in dtype torch.int32
+            'token_count': token_count,
+            'cu_seqlens_argmin': cu_seqlens_argmin,
+            'max_seqlen': max_seqlen,
         }
 
         return processed_batch

@@ -461,7 +461,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
                     for layer in layers:
                         stage_bucket.extend(
-                            p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+                            p
+                            for p in layer.parameters()
+                            if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
                         )
                     buckets.append(stage_bucket)
             else:
@@ -473,9 +475,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
                     for layer in layers:
                         buckets.append(
-                            [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
+                            [
+                                p
+                                for p in layer.parameters()
+                                if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
+                            ]
                         )
             buckets.reverse()
+            used_params = set()
+            for bucket in buckets:
+                used_params.update(bucket)
+            remaining_params = [p for p in self.parameters() if p not in used_params and p.requires_grad]
+            if remaining_params:
+                buckets.append(remaining_params)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
@@ -870,6 +882,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             # Transfer needed data to GPU
             required_keys = set()
+            max_seqlen = batch.pop('max_seqlen').squeeze() if 'max_seqlen' in batch else None
+            cu_seqlens_argmin = batch.pop('cu_seqlens_argmin') if 'cu_seqlens_argmin' in batch else None
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
@@ -906,9 +920,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if 'cu_seqlens' in batch:  # packed sequence from GPTSFTPackedDataset
                     # these args are passed eventually into TEDotProductAttention.forward()
                     cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
-                    cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]  # remove -1 "paddings" added in collate_fn
+                    # remove -1 "paddings" added in collate_fn
+                    if cu_seqlens_argmin is not None:
+                        cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
+                    else:
+                        cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
                     forward_args['cu_seqlens_q'] = cu_seqlens
                     forward_args['cu_seqlens_kv'] = cu_seqlens
+                    if max_seqlen is not None:
+                        forward_args['max_seqlen_q'] = max_seqlen
+                        forward_args['max_seqlen_kv'] = max_seqlen
                     forward_args['qkv_format'] = 'thd'
 
             output_tensor = model(**forward_args)
@@ -1204,19 +1225,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.setup_test_data(self.cfg.data)
 
         if stage == 'fit':
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                if self.cfg.get('share_embeddings_and_output_weights', True):
-                    for index, module in enumerate(self.get_model_module_list()):
-                        if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                            parallel_state.set_virtual_pipeline_model_parallel_rank(index)
-                        sync_embeddings = (
-                            module.initialize_last_stage_with_word_embeddings
-                            if self.mcore_gpt
-                            else module.sync_initial_word_embeddings
-                        )
-                        sync_embeddings()
-                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                        parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+            self.initialize_last_rank_embeddings()
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.setup_transformer_engine_tp_groups()
@@ -1445,6 +1454,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def list_export_subnets(self):
         return ['mgpt_wrapper']
+
+    def initialize_last_rank_embeddings(self):
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if self.cfg.get('share_embeddings_and_output_weights', True):
+                for index, module in enumerate(self.get_model_module_list()):
+                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                        parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                    sync_embeddings = (
+                        module.initialize_last_stage_with_word_embeddings
+                        if self.mcore_gpt
+                        else module.sync_initial_word_embeddings
+                    )
+                    sync_embeddings()
+                if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def _reset_activation_checkpointing_args(self):
         """ Disables activation checkpointing completely and saves the values so that
