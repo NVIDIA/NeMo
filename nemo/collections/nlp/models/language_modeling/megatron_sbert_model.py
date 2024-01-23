@@ -13,63 +13,57 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, Dict, List, Optional
+import json
+import os
+import random
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import torch
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from torch import Tensor
-from torch import nn
-from typing import Dict
-import torch.nn.functional as F
-import torch
-from torch import Tensor
-from torch import nn
-from typing import Dict
-import random
-import os
-import json
+from torch import Tensor, nn
 from torch.utils.data import DataLoader, Dataset
+
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from typing import Union, Tuple, List, Dict
-from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertLMHead, post_language_model_processing, bert_extended_attention_mask
+from nemo.collections.nlp.models.language_modeling.megatron.bert_model import (
+    BertLMHead,
+    BertModel,
+    bert_extended_attention_mask,
+    post_language_model_processing,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
+from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
+    build_position_ids,
+    erf_gelu,
+    get_linear_layer,
     get_params_for_weight_decay_optimization,
+    init_method_normal,
+    openai_gelu,
+    parallel_lm_logits,
+    scaled_init_method_normal,
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    build_position_ids,
-    erf_gelu,
-    get_linear_layer,
-    init_method_normal,
-    openai_gelu,
-    parallel_lm_logits,
-    scaled_init_method_normal,
-)
 
 try:
     from apex.transformer.enums import AttnMaskType
-    from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -137,7 +131,6 @@ class MultiplePositivesNegativesDataset(Dataset):
         num_hard_negs: int = 1,
         query_prefix: str = "",
         passage_prefix: str = "",
-        
     ):
         self.data = data
         self.num_hard_negs = num_hard_negs
@@ -147,8 +140,10 @@ class MultiplePositivesNegativesDataset(Dataset):
         if shuffled_negs:
             for example in self.data:
                 random.shuffle(example["neg_doc"])
+
     def __len__(self):
         return len(self.data)
+
     def __getitem__(self, item):
         example = self.data[item]
         question = f'{self.query_prefix} {example["question"]}'.strip()
@@ -182,16 +177,15 @@ class MultiplePositivesNegativesDataset(Dataset):
 
             else:
                 selected_negs = [negative]
-            selected_negs = [
-                f"{self.passage_prefix} {neg}".strip() for neg in selected_negs
-            ]
+            selected_negs = [f"{self.passage_prefix} {neg}".strip() for neg in selected_negs]
             texts.extend(selected_negs)
         return texts
-    
+
 
 ##########################
 # Below class is copied from SentenceTransformer library: https://github.com/UKPLab/sentence-transformers/blob/08a57b4a19ddaf7cccda51cd0c2c8af7bbc339a3/sentence_transformers/models/Normalize.py
 ##########################
+
 
 class Normalize(nn.Module):
     """
@@ -205,10 +199,12 @@ class Normalize(nn.Module):
         features.update({"sentence_embedding": F.normalize(features["sentence_embedding"], p=2, dim=1)})
         return features
 
+
 ##########################
 # Below class is copied from SentenceTransformer library: https://github.com/UKPLab/sentence-transformers/blob/08a57b4a19ddaf7cccda51cd0c2c8af7bbc339a3/sentence_transformers/models/Pooling.py
 ##########################
-    
+
+
 class Pooling(nn.Module):
     """Performs pooling (max or mean) on the token embeddings.
 
@@ -389,7 +385,7 @@ class Pooling(nn.Module):
     def get_config_dict(self):
         return {key: self.__dict__[key] for key in self.config_keys}
 
-    
+
 class SBertModel(BertModel):
     """
     Bert Language model.
@@ -434,50 +430,53 @@ class SBertModel(BertModel):
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
     ):
-        super().__init__(config,
-        vocab_size,
-        hidden_size,
-        max_position_embeddings,
-        num_layers,
-        num_attention_heads,
-        ffn_hidden_size,
-        apply_query_key_layer_scaling,
-        kv_channels,
-        num_tokentypes,
-        parallel_output,
-        pre_process,
-        post_process,
-        init_method_std,
-        fp16_lm_cross_entropy,
-        hidden_dropout,
-        precision,
-        fp32_residual_connection,
-        activations_checkpoint_granularity,
-        activations_checkpoint_method,
-        activations_checkpoint_num_layers,
-        activations_checkpoint_layers_per_pipeline,
-        layernorm_epsilon,
-        normalization,
-        transformer_block_type,
-        masked_softmax_fusion,
-        bias_gelu_fusion,
-        bias_dropout_add_fusion,
-        openai_gelu,
-        onnx_safe,
-        add_binary_head,
-        skip_head,
-        megatron_legacy,
-        sequence_parallel,
-        position_embedding_type,)
-                
-        self.pooling_add_on = Pooling(word_embedding_dimension = 1024, 
-                                      pooling_mode_cls_token = False, 
-                                      pooling_mode_mean_tokens = True, 
-                                      pooling_mode_max_tokens = False, 
-                                      pooling_mode_mean_sqrt_len_tokens = False)
-        
+        super().__init__(
+            config,
+            vocab_size,
+            hidden_size,
+            max_position_embeddings,
+            num_layers,
+            num_attention_heads,
+            ffn_hidden_size,
+            apply_query_key_layer_scaling,
+            kv_channels,
+            num_tokentypes,
+            parallel_output,
+            pre_process,
+            post_process,
+            init_method_std,
+            fp16_lm_cross_entropy,
+            hidden_dropout,
+            precision,
+            fp32_residual_connection,
+            activations_checkpoint_granularity,
+            activations_checkpoint_method,
+            activations_checkpoint_num_layers,
+            activations_checkpoint_layers_per_pipeline,
+            layernorm_epsilon,
+            normalization,
+            transformer_block_type,
+            masked_softmax_fusion,
+            bias_gelu_fusion,
+            bias_dropout_add_fusion,
+            openai_gelu,
+            onnx_safe,
+            add_binary_head,
+            skip_head,
+            megatron_legacy,
+            sequence_parallel,
+            position_embedding_type,
+        )
+
+        self.pooling_add_on = Pooling(
+            word_embedding_dimension=1024,
+            pooling_mode_cls_token=False,
+            pooling_mode_mean_tokens=True,
+            pooling_mode_max_tokens=False,
+            pooling_mode_mean_sqrt_len_tokens=False,
+        )
+
         self.normalize_add_on = Normalize()
- 
 
     def forward(
         self,
@@ -504,7 +503,6 @@ class SBertModel(BertModel):
             token_type_ids=token_type_ids,
             checkpoint_activations_all_layers=checkpoint_activations_all_layers,
         )
-        
 
         if self.post_process and self.add_binary_head:
 
@@ -512,13 +510,13 @@ class SBertModel(BertModel):
         else:
             pooled_output = None
 
-        add_on_inputs = {"token_embeddings":lm_output[0].permute(1, 0, 2), "attention_mask": attention_mask}
+        add_on_inputs = {"token_embeddings": lm_output[0].permute(1, 0, 2), "attention_mask": attention_mask}
         lm_output = self.pooling_add_on(add_on_inputs)
         lm_output = self.normalize_add_on(lm_output)
 
         return lm_output['sentence_embedding']
-    
- 
+
+
 class MegatronSBertModel(MegatronBertModel):
     """
     Megatron Bert pretraining.
@@ -531,7 +529,7 @@ class MegatronSBertModel(MegatronBertModel):
 
         self.cross_entropy_loss = torch.nn.CrossEntropyLoss(label_smoothing=cfg.get('label_smoothing', 0.0))
         softmax_temp = cfg.get('softmax_temp', 0.05)
-        self.scale = 1.0/softmax_temp
+        self.scale = 1.0 / softmax_temp
 
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
@@ -539,7 +537,7 @@ class MegatronSBertModel(MegatronBertModel):
 
         if self.mcore_bert:
             raise ValueError("mcore not supported for SBERT")
-            
+
         else:
             model = SBertModel(
                 config=self.model_parallel_config,
@@ -581,7 +579,6 @@ class MegatronSBertModel(MegatronBertModel):
 
         return model
 
-
     def build_train_valid_test_datasets(self):
 
         train_file_path = self.cfg.data.data_prefix
@@ -595,43 +592,36 @@ class MegatronSBertModel(MegatronBertModel):
         hard_negatives_to_train = self.cfg.data.get("hard_negatives_to_train", 4)
         evaluation_steps = self.cfg.data.get("evaluation_steps", 0)
 
-
-        #TODO @ataghibakhsh: Handle valid and test datasets better
+        # TODO @ataghibakhsh: Handle valid and test datasets better
 
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None
 
-        if train_file_path: # we don't support calculating validation loss for multiple train files 
+        if train_file_path:  # we don't support calculating validation loss for multiple train files
             valid_data = None
             if evaluation_sample_size:
                 if evaluation_steps == 0:
                     raise ValueError(
-                        "The --evaluation_steps should be greater than 0 "
-                        "when --evaluation_sample_size is set"
+                        "The --evaluation_steps should be greater than 0 " "when --evaluation_sample_size is set"
                     )
 
                 if evaluation_sample_size >= len(train_data):
-                    raise ValueError(
-                        "The --evaluation_sample_size cannot be greater " "than train set size."
-                    )
+                    raise ValueError("The --evaluation_sample_size cannot be greater " "than train set size.")
 
                 valid_data = train_data[-evaluation_sample_size:]
                 train_data = train_data[:-evaluation_sample_size]
-            
+
             if evaluation_sample_size:
                 self._validation_ds = MultiplePositivesNegativesDataset(
                     valid_data,
                     num_hard_negs=hard_negatives_to_train,
                     query_prefix=query_prefix,
-                    passage_prefix=passage_prefix
+                    passage_prefix=passage_prefix,
                 )
 
         self._train_ds = MultiplePositivesNegativesDataset(
-            train_data,
-            num_hard_negs=hard_negatives_to_train,
-            query_prefix=query_prefix,
-            passage_prefix=passage_prefix
+            train_data, num_hard_negs=hard_negatives_to_train, query_prefix=query_prefix, passage_prefix=passage_prefix
         )
 
         if self._train_ds is not None:
@@ -641,7 +631,7 @@ class MegatronSBertModel(MegatronBertModel):
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building Bert datasets.')
-        
+
         return self._train_ds, self._validation_ds, self._test_ds
 
     def setup(self, stage=None):
@@ -713,7 +703,7 @@ class MegatronSBertModel(MegatronBertModel):
 
         if dataset is None:
             return None
-        
+
         # Megatron sampler
         if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
             if self.cfg.data.dataloader_type == 'single':
@@ -750,13 +740,13 @@ class MegatronSBertModel(MegatronBertModel):
         )
 
         dataloader.collate_fn = self.batching_collate
-        
+
         return dataloader
-    
+
     def tokenize(self, texts: Union[List[str], List[Dict], List[Tuple[str, str]]]):
 
-        max_seq_length=self.cfg.encoder_seq_length
-        do_lower_case=self.cfg.tokenizer.get("do_lower_case", False)
+        max_seq_length = self.cfg.encoder_seq_length
+        do_lower_case = self.cfg.tokenizer.get("do_lower_case", False)
         """
         Tokenizes a text and maps tokens to token-ids
         """
@@ -787,18 +777,13 @@ class MegatronSBertModel(MegatronBertModel):
 
         output.update(
             self.tokenizer.tokenizer(
-                *to_tokenize,
-                padding=True,
-                truncation="longest_first",
-                return_tensors="pt",
-                max_length=max_seq_length,
+                *to_tokenize, padding=True, truncation="longest_first", return_tensors="pt", max_length=max_seq_length,
             )
         )
         return output
 
-
-    def batching_collate(self, batch) :
-            """
+    def batching_collate(self, batch):
+        """
             Transforms a batch from a SmartBatchingDataset to a batch of tensors for the model
             Here, batch is a list of InputExample instances: [InputExample(...), ...]
 
@@ -807,25 +792,34 @@ class MegatronSBertModel(MegatronBertModel):
             :return:
                 a batch of tensors for the model
             """
-            texts = [example for example in batch]
-            sentence_features = [self.tokenize(sentence) for sentence in zip(*texts)]
-            return sentence_features
+        texts = [example for example in batch]
+        sentence_features = [self.tokenize(sentence) for sentence in zip(*texts)]
+        return sentence_features
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batches = next(dataloader_iter) #for each element in batches, there should be 1 anchor, 1 positive, and n negatives                
+                batches = next(
+                    dataloader_iter
+                )  # for each element in batches, there should be 1 anchor, 1 positive, and n negatives
                 # In Bert dataset (like Pile), every batch has tokens, types, sentence_order, loss_mask, lm_labels, padding_mask
                 # For Sbert, we want the batch to be a list of [anchors, positives, negatives1, negatives2, ..., ] so that every of the anchors/positives/negatives are the same as the batch in pile dataset
                 # batches = [anchors, positives, negatives1, negatives2]
-                tokens_batch, types_batch, sentence_order_batch, loss_mask_batch, lm_labels_batch, padding_mask_batch = [], [], [], [], [], []
+                (
+                    tokens_batch,
+                    types_batch,
+                    sentence_order_batch,
+                    loss_mask_batch,
+                    lm_labels_batch,
+                    padding_mask_batch,
+                ) = ([], [], [], [], [], [])
                 for batch in batches:
                     tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
                         batch['input_ids'].cuda(non_blocking=True),
                         batch['token_type_ids'].cuda(non_blocking=True),
-                        None, # batch['is_random'].cuda(non_blocking=True),
-                        None, # batch['loss_mask'].cuda(non_blocking=True),
-                        None, # batch['labels'].cuda(non_blocking=True),
+                        None,  # batch['is_random'].cuda(non_blocking=True),
+                        None,  # batch['loss_mask'].cuda(non_blocking=True),
+                        None,  # batch['labels'].cuda(non_blocking=True),
                         batch['attention_mask'].cuda(non_blocking=True),
                     )
                     tokens_batch.append(tokens)
@@ -856,12 +850,12 @@ class MegatronSBertModel(MegatronBertModel):
             if not self.cfg.bert_binary_head:
                 types = None
 
-            forward_args = [{
-                "input_ids": tokens,
-                "attention_mask": padding_mask,
-                "lm_labels": lm_labels,
-                "token_type_ids": types
-            } for tokens, padding_mask, lm_labels, types in zip(tokens_batch, padding_mask_batch, lm_labels_batch, types_batch)]
+            forward_args = [
+                {"input_ids": tokens, "attention_mask": padding_mask, "lm_labels": lm_labels, "token_type_ids": types}
+                for tokens, padding_mask, lm_labels, types in zip(
+                    tokens_batch, padding_mask_batch, lm_labels_batch, types_batch
+                )
+            ]
 
             ''' if not self.mcore_bert:
                 forward_args["checkpoint_activations_all_layers"] = checkpoint_activations_all_layers
@@ -869,13 +863,13 @@ class MegatronSBertModel(MegatronBertModel):
                 forward_args["token_type_ids"] = types
             else:
                 forward_args["tokentype_ids"] = types'''
-            
+
             output_tensor = None
             if self.mcore_bert:
                 output_tensor = model(**forward_args)
             else:
-                output_tensor = [self.forward(**forward_arg).permute(1,0) for forward_arg in forward_args]
-   
+                output_tensor = [self.forward(**forward_arg).permute(1, 0) for forward_arg in forward_args]
+
             def loss_func(output_tensor):
 
                 loss_dict = self.loss_func(output_tensor)
@@ -888,7 +882,7 @@ class MegatronSBertModel(MegatronBertModel):
                     lm_loss = loss_dict['lm loss']
                     loss = lm_loss
                     reduced_loss = average_losses_across_data_parallel_group([loss, lm_loss])
-                
+
                 return loss, {'loss': reduced_loss}
 
             return output_tensor, loss_func
@@ -904,12 +898,7 @@ class MegatronSBertModel(MegatronBertModel):
         hard_negs = output_tensor[2:]
 
         hard_negs_scores = (
-            torch.multiply(
-                queries.unsqueeze(0).repeat(len(hard_negs), 1, 1),
-                torch.stack(hard_negs),
-            )
-            .sum(axis=-1)
-            .T
+            torch.multiply(queries.unsqueeze(0).repeat(len(hard_negs), 1, 1), torch.stack(hard_negs),).sum(axis=-1).T
         )
 
         scores = torch.cat([pos_inbatch_negs_scores, hard_negs_scores], axis=1)
@@ -921,4 +910,3 @@ class MegatronSBertModel(MegatronBertModel):
         )  # Indices of the (query, positive) pairs
 
         return {'lm loss': self.cross_entropy_loss(scores, labels)}
-
