@@ -29,7 +29,6 @@ jobs:
         # --device=/dev/nvidia0 
         # --gpus all 
         --user 0:128 
-        # -v /home/TestData:/home/TestData 
         --shm-size=8g 
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
