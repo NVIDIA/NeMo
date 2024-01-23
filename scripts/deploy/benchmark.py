@@ -21,7 +21,7 @@ from pathlib import Path
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
-from scripts.deploy.cloud_telemetry_service import postToNVDataFlow
+from cloud_telemetry_service import postToNVDataFlow
 
 from builtins import range
 from datetime import datetime
@@ -167,7 +167,8 @@ def nemo_deploy(args):
 
 
 def get_inputs():
-    with open("/opt/NeMo/scripts/deploy/benchmark_data.json") as json_file:
+    # Parse the json file - use "rb" to make sure that JSON parser understands UTF-8 characters
+    with open("/opt/NeMo/scripts/deploy/benchmark_data.json", "rb") as json_file:
         data = json.load(json_file)
 
     return {
