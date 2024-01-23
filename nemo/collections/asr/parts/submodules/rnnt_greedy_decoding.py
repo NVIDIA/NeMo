@@ -688,11 +688,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             self.decoder.eval()
             self.joint.eval()
 
-            with self.decoder.as_frozen(), self.joint.as_frozen():
-                inseq = encoder_output  # [B, T, D]
-                hypotheses = self._greedy_decode(
-                    inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
-                )
+            # as_frozen is not compiled by TorchScript; this is fine to avoid `as_frozen`,
+            # in torch inference mode; model is set to eval mode above
+            inseq = encoder_output  # [B, T, D]
+            hypotheses = self._greedy_decode(
+                inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
+            )
 
             # Pack the hypotheses results
             packed_result = pack_hypotheses(hypotheses, logitlen)
