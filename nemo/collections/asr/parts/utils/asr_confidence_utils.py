@@ -290,7 +290,7 @@ class ConfidenceMethodMixin(ABC):
     It initializes per-frame confidence method.
     """
 
-    def _init_confidence_method(self, confidence_method_cfg: Optional[DictConfig] = None):
+    def _init_confidence_method(self, confidence_method_cfg: Optional[DictConfig] = None, return_tensor: bool = False):
         """Initialize per-frame confidence method from config.
         """
         # OmegaConf.structured ensures that post_init check is always executed
@@ -322,7 +322,10 @@ class ConfidenceMethodMixin(ABC):
         if measure_name not in self.confidence_measure_bank:
             raise ValueError(f"Unsupported measure setup: `{measure_name}`")
         measure = partial(self.confidence_measure_bank[measure_name], v=self.num_tokens, t=self.alpha)
-        self._get_confidence = lambda x: measure(torch.nan_to_num(x)).tolist()
+        if return_tensor:
+            self._get_confidence = lambda x: measure(torch.nan_to_num(x))
+        else:
+            self._get_confidence = lambda x: measure(torch.nan_to_num(x)).tolist()
 
 
 class ConfidenceMixin(ABC):

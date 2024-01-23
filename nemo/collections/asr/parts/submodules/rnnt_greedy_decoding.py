@@ -634,7 +634,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             if loop_labels:
                 # default (faster) algo: loop over labels
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
-                if self.allow_jit and not preserve_frame_confidence:
+                if self.allow_jit:
                     computer = GreedyBatchedRNNTLoopLabelsComputer(
                         decoder=self.decoder,
                         joint=self.joint,
@@ -642,6 +642,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         max_symbols_per_step=self.max_symbols,
                         preserve_alignments=preserve_alignments,
                         preserve_frame_confidence=preserve_frame_confidence,
+                        confidence_method_cfg=confidence_method_cfg,
                     )
                     try:
                         self._computer = torch.jit.script(computer)
