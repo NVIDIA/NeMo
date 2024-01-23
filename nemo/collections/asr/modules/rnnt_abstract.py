@@ -100,6 +100,9 @@ class AbstractRNNTJoint(NeuralModule, ABC):
         """
         return self.joint_after_projection(self.project_encoder(f), self.project_prednet(g))
 
+    def get_jit_copy_for_inference(self) -> torch.jit.ScriptModule:
+        raise NotImplementedError()
+
     @property
     def num_classes_with_blank(self):
         raise NotImplementedError()

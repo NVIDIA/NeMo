@@ -160,10 +160,37 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        allow_jit: bool = True,
     ):
         super().__init__()
+        self.allow_jit = allow_jit
+        if self.allow_jit:
+            # try to compile decoder for inference (shared params, object is scripted)
+            try:
+                self.decoder = torch.compile(decoder_model)
+                logging.info("Compiled Decoder for inference")
+            except (OSError, RuntimeError):
+                logging.warning("Failed to compile Decoder, using without TorchScript")
+                self.decoder = decoder_model
+        else:
+            self.decoder = decoder_model
+
         self.decoder = decoder_model
-        self.joint = joint_model
+        if self.allow_jit:
+            # try to compile a copy for inference (shared params, object is scripted)
+            # joint does complex logic with wer/loss (cannot be compiled with torch.jit.script)
+            # we need a copy with reduced functionality for inference
+            try:
+                self.joint = joint_model.get_jit_copy_for_inference()
+                logging.info("Compiled Joint for inference")
+            except NotImplementedError:
+                logging.warning("Joint with TorchScript is not implemented")
+                self.joint = joint_model
+            except (OSError, RuntimeError):
+                logging.warning("Failed to compile Joint, using without TorchScript")
+                self.joint = joint_model
+        else:
+            self.joint = joint_model
 
         self._blank_index = blank_index
         self._SOS = blank_index  # Start of single index
@@ -588,6 +615,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = True,
+        allow_jit: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -597,6 +625,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
             confidence_method_cfg=confidence_method_cfg,
+            allow_jit=allow_jit,
         )
 
         # Depending on availability of `blank_as_pad` support
@@ -605,9 +634,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             if loop_labels:
                 # default (faster) algo: loop over labels
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
-                # TODO: fix jit compatibility
-                self.joint.set_loss(None)
-                self.joint.set_wer(None)
                 if not preserve_frame_confidence:
                     computer = GreedyBatchedRNNTLoopLabelsComputer(
                         decoder=self.decoder,
@@ -623,6 +649,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     except (OSError, RuntimeError):
                         logging.warning("torch.jit.script failed to compile, using greedy decoding without jit")
                         self._computer = computer
+                    self._computer.eval()
             else:
                 # previous algo: loop over frames
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames

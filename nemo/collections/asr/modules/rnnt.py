@@ -26,6 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -1559,6 +1560,14 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.joint_hidden)
         return cfg
+
+    def get_jit_copy_for_inference(self) -> torch.jit.ScriptModule:
+        # shallow copy
+        joint_copy = copy.copy(self)
+        joint_copy = joint_copy.eval()
+        joint_copy.set_fuse_loss_wer(fuse_loss_wer=False, loss=None, metric=None)
+        joint_copy_jit = torch.jit.script(joint_copy)
+        return joint_copy_jit
 
     @property
     def num_classes_with_blank(self):
