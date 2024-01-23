@@ -274,14 +274,15 @@ class BatchedHyps:
         self, active_indices: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
     ):
         """
-        Add results (inplace) from a decoding step to the batched hypotheses
+        Add results (inplace) from a decoding step to the batched hypotheses.
+        We assume that all tensors have the same first dimension, and labels are non-blanks.
         Args:
             active_indices: tensor with indices of active hypotheses (indices should be within the original batch_size)
             labels: non-blank labels to add
             time_indices: tensor of time index for each label
             scores: label scores
         """
-        # we assume that all tensors have the same first dimension, and labels are non-blanks
+        #
         if active_indices.shape[0] == 0:
             return  # nothing to add
         # if needed - increase storage
@@ -297,7 +298,8 @@ class BatchedHyps:
     ):
         """
         Add results (inplace) from a decoding step to the batched hypotheses without checks.
-        Useful if all the memory is pre-allocated + with cuda graphs
+        We assume that all tensors have the same first dimension, and labels are non-blanks.
+        Useful if all the memory is pre-allocated, especially with cuda graphs
         (otherwise prefer a more safe `add_results_`)
         Args:
             active_indices: tensor with indices of active hypotheses (indices should be within the original batch_size)
