@@ -337,7 +337,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Make all params a view into the param buffer
         for param, buffer_view in zip(params, param_buffer_views):
             if is_float8tensor(param):
-                param._data.data = buffer_view.view(param.size())
+                param._data = buffer_view.view(param.size())
             else:
                 param.data = buffer_view.view(param.size())
 
