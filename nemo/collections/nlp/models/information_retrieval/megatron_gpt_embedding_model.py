@@ -1,14 +1,15 @@
-
+import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
+
+from nemo.collections.nlp.data.information_retrieval.gpt_embedder_dataset import GPTEmbedderDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-import torch
-from nemo.utils import logging
-from nemo.collections.nlp.data.information_retrieval.gpt_embedder_dataset import GPTEmbedderDataset
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.utils import logging
+
 try:
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator,
@@ -29,7 +30,8 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-    
+
+
 class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_APEX:
@@ -42,7 +44,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
     def model_provider_func(self, pre_process, post_process):
         # (@adithyare) We need post_process to be False to get hidden states in the loss_func
         return super().model_provider_func(pre_process, post_process=False)
-    
+
     def _build_dataset(self, data_cfg, is_train=True):
         datasets = []
         # Determine if we are using a single dataset or a list of datasets.
@@ -126,10 +128,10 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             return dataset
         else:
             return datasets
-    
+
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
-        eos_tensors = output_tensor[loss_mask, idx, :] 
+        eos_tensors = output_tensor[loss_mask, idx, :]
         query_hs = eos_tensors[::3, :]
         pos_doc_hs = eos_tensors[1::3, :]
         neg_doc_hs = eos_tensors[2::3, :]

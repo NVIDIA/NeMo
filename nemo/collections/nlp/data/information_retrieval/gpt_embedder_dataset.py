@@ -19,6 +19,7 @@ import datasets
 import numpy as np
 import torch
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
 from datasets import load_dataset
@@ -146,7 +147,6 @@ class GPTEmbedderDataset(Dataset):
             raise e
         return self._process_example(example)
 
-
     def _process_example(self, example):
         """
         Create an example by concatenating text and answer.
@@ -164,24 +164,24 @@ class GPTEmbedderDataset(Dataset):
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens for ptuning (if used)
             q = [self.tokenizer.eos_id] * self.virtual_tokens + q  # type: ignore
-            d = [self.tokenizer.eos_id] * self.virtual_tokens + d # type: ignore
-            nd = [self.tokenizer.eos_id] * self.virtual_tokens + nd # type: ignore
+            d = [self.tokenizer.eos_id] * self.virtual_tokens + d  # type: ignore
+            nd = [self.tokenizer.eos_id] * self.virtual_tokens + nd  # type: ignore
 
         if self.add_bos:
-            q = [self.tokenizer.bos_id] + q # type: ignore
-            d = [self.tokenizer.bos_id] + d # type: ignore
-            nd = [self.tokenizer.bos_id] + nd # type: ignore
+            q = [self.tokenizer.bos_id] + q  # type: ignore
+            d = [self.tokenizer.bos_id] + d  # type: ignore
+            nd = [self.tokenizer.bos_id] + nd  # type: ignore
 
-        #TODO: (@adithyare) should probably add a warning before truncation
+        # TODO: (@adithyare) should probably add a warning before truncation
         q = q[: self.max_seq_length - 1]
         d = d[: self.max_seq_length - 1]
         nd = nd[: self.max_seq_length - 1]
 
         if self.add_eos:
-            q = q + [self.tokenizer.eos_id] # type: ignore
-            d = d + [self.tokenizer.eos_id] # type: ignore
-            nd = nd + [self.tokenizer.eos_id] # type: ignore
-        
+            q = q + [self.tokenizer.eos_id]  # type: ignore
+            d = d + [self.tokenizer.eos_id]  # type: ignore
+            nd = nd + [self.tokenizer.eos_id]  # type: ignore
+
         processed_example = {
             'query': q,
             'doc': d,
@@ -229,7 +229,9 @@ class GPTEmbedderDataset(Dataset):
         return attention_mask
 
     def collate_fn(self, batch):
-        assert len(batch) % 3 == 0, "a batch should contain multiples of 3 items; a query, a positive doc, and a negative doc"
+        assert (
+            len(batch) % 3 == 0
+        ), "a batch should contain multiples of 3 items; a query, a positive doc, and a negative doc"
         input_ids = []
         lengths = []
         max_length = -1
@@ -252,7 +254,7 @@ class GPTEmbedderDataset(Dataset):
         input_ids = torch.LongTensor(
             self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
         )
-        lengths = torch.LongTensor(lengths) -1 # subtract 1 to account for the eos token
+        lengths = torch.LongTensor(lengths) - 1  # subtract 1 to account for the eos token
 
         processed_batch = {
             'tokens': input_ids,
