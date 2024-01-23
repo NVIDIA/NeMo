@@ -19,7 +19,7 @@ from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import WS
 from nemo.utils import logging
 import numpy as np
 import json
-from kaldialign import align
+import os
 import texterrors
 
 
@@ -162,6 +162,7 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List, retu
     assert key_words_list, "key_words_list is empty"
 
     # get data from manifest
+    assert os.path.isfile(recognition_results_manifest), f"manifest file {recognition_results_manifest} doesn't exist"
     data = load_data(recognition_results_manifest)
     assert len(data) > 0, "manifest file is empty"
     assert data[0].get('text', None), "manifest file should contain text field"
@@ -173,23 +174,14 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List, retu
     for word in key_words_list:
         key_words_stat[word] = [0, 0, 0] # [true positive (tp), groud truth (gt), false positive (fp)]
 
-    # auxiliary variable for epsilon token during alignment 
-    eps = '***'
-
     for item in data:
-        
-        # texterrors
+        # get alignment by texterrors
         ref = item['text'].split()
         hyp = item['pred_text'].split()
         texterrors_ali = texterrors.align_texts(ref, hyp, False)
         ali = []
         for i in range(len(texterrors_ali[0])):
             ali.append((texterrors_ali[0][i], texterrors_ali[1][i]))
-        
-        # # kaldialign
-        # ref = item['text'].split()
-        # hyp = item['pred_text'].split()
-        # ali = align(ref, hyp, eps)
 
         for idx, pair in enumerate(ali):
             # check all the ngrams:
@@ -218,7 +210,7 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List, retu
 
     precision = tp / (tp + fp + 1e-8)
     recall = tp / (gt + 1e-8)
-    fscore = 2*(precision*recall)/(precision+recall + 1e-8)
+    fscore = 2 * (precision * recall) / (precision+recall + 1e-8)
 
     logging.info("============================================================")
     logging.info("Per words statistic (word: correct/totall | false positive):\n")

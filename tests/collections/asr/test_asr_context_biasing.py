@@ -19,7 +19,6 @@ import pytest
 import torch
 import numpy as np
 import tempfile
-import json
 from pytorch_lightning import Trainer
 from nemo.collections.asr.models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.context_biasing import ContextGraphCTC
@@ -150,6 +149,5 @@ class TestContextBiasingUtils:
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
             f.write(recog_manifest)
             f.seek(0)
-
             fscore_stats = compute_fscore(f.name, context_words, return_scores=True)
             assert (round(fscore_stats[0], 4), round(fscore_stats[1], 4), round(fscore_stats[2], 4)) == (1.0, 0.5, 0.6667)
