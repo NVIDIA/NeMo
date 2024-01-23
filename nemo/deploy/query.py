@@ -135,12 +135,9 @@ class NemoQuery(NemoQueryBase):
             inputs["random_seed"] = np.full(prompts.shape, random_seed, dtype=np.int_)
 
         if stop_words_list is not None:
-            stop_words_list = np.char.encode(stop_words_list, "utf-8")
-            inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
-
+            inputs["stop_words_list"] = str_list2numpy(stop_words_list)
         if bad_words_list is not None:
-            bad_words_list = np.char.encode(bad_words_list, "utf-8")
-            inputs["bad_words_list"] = np.full((prompts.shape[0], len(bad_words_list)), bad_words_list)
+            inputs["bad_words_list"] = str_list2numpy(bad_words_list)
 
         if no_repeat_ngram_size is not None:
             inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)

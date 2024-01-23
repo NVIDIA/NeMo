@@ -23,6 +23,7 @@ from pathlib import Path
 import typing
 from typing import Dict, List, Tuple
 
+import csv
 import numpy as np
 import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
@@ -207,3 +208,46 @@ def nemo_to_model_config(
         )
 
     return model_configs, tokenizer
+
+def to_word_list_format(word_dict: List[List[str]],
+                        tokenizer=None):
+    '''
+    format of word_dict
+        len(word_dict) should be same to batch_size
+        word_dict[i] means the words for batch i
+        len(word_dict[i]) must be 1, which means it only contains 1 string
+        This string can contains several sentences and split by ",".
+        For example, if word_dict[2] = " I am happy, I am sad", then this function will return
+        the ids for two short sentences " I am happy" and " I am sad".
+    '''
+    assert tokenizer != None, "need to set tokenizer"
+
+    flat_ids = []
+    offsets = []
+    for word_dict_item in word_dict:
+        item_flat_ids = []
+        item_offsets = []
+
+        if isinstance(word_dict_item[0], bytes):
+            word_dict_item = [word_dict_item[0].decode()]
+
+        words = list(csv.reader(word_dict_item))[0]
+        for word in words:
+            ids = tokenizer.encode(word)
+
+            if len(ids) == 0:
+                continue
+
+            item_flat_ids += ids
+            item_offsets.append(len(ids))
+
+        flat_ids.append(np.array(item_flat_ids))
+        offsets.append(np.cumsum(np.array(item_offsets)))
+
+    pad_to = max(1, max(len(ids) for ids in flat_ids))
+
+    for i, (ids, offs) in enumerate(zip(flat_ids, offsets)):
+        flat_ids[i] = np.pad(ids, (0, pad_to - len(ids)), constant_values=0)
+        offsets[i] = np.pad(offs, (0, pad_to - len(offs)), constant_values=-1)
+
+    return np.array([flat_ids, offsets], dtype="int32").transpose((1, 0, 2))

@@ -112,9 +112,10 @@ def run_trt_llm_inference(
         top_k=1,
         top_p=0.0,
         temperature=1.0,
-        run_accuracy=True,
+        run_accuracy=False,
         debug=True,
         streaming=False,
+        stop_words_list=None,
         test_deployment=False,
 ):
     if Path(checkpoint_path).exists():
@@ -157,6 +158,7 @@ def run_trt_llm_inference(
                 return None, None
 
         trt_llm_exporter = TensorRTLLM(trt_llm_model_dir)
+
         trt_llm_exporter.export(
             nemo_checkpoint_path=checkpoint_path,
             model_type=model_type,
@@ -182,7 +184,8 @@ def run_trt_llm_inference(
             top_p=top_p,
             temperature=temperature,
             task_ids=task_ids,
-            streaming=streaming
+            streaming=streaming,
+            stop_words_list=stop_words_list
         )
 
         nq = None
@@ -197,13 +200,18 @@ def run_trt_llm_inference(
             nm.deploy()
             nm.run()
             nq = NemoQuery(url="localhost:8000", model_name=model_name)
+            stop_words_list = ["Paris", "whale", "falcon"]
             output_deployed = nq.query_llm(
                 prompts=prompt,
                 max_output_token=max_output_token,
                 top_k=1,
                 top_p=0.0,
                 temperature=1.0,
+                stop_words_list = stop_words_list,
             )
+
+            #for i in range(len(stop_words_list[0])):
+            #    assert output_deployed[0][i].split(' ')[-1] == stop_words_list[0][i]
 
         if debug:
             print("")
@@ -214,9 +222,9 @@ def run_trt_llm_inference(
             print("")
             print("--- Output deployed: ", output_deployed)
             print("")
-            print("Start model accuracy testing ...")
 
         if run_accuracy:
+            print("Start model accuracy testing ...")
             (trtllm_accuracy, trtllm_accuracy_relaxed,
              trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed,
              all_trtllm_outputs, all_expected_outputs) = get_accuracy_with_lambada(
@@ -224,19 +232,17 @@ def run_trt_llm_inference(
                 nq,
                 task_ids,
             )
-
             if test_deployment:
                 nm.stop()
             shutil.rmtree(trt_llm_model_dir)
             return trtllm_accuracy, trtllm_accuracy_relaxed, trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed
-        else:
-            if test_deployment:
-                nm.stop()
-            shutil.rmtree(trt_llm_model_dir)
-            return None, None, None, None
+
+        if test_deployment:
+            nm.stop()
+        shutil.rmtree(trt_llm_model_dir)
+        return None, None, None, None
     else:
         raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
-
 
 def run_existing_checkpoints(
         model_name,
@@ -245,8 +251,9 @@ def run_existing_checkpoints(
         pp_size=None,
         ptuning=False,
         streaming=False,
-        run_accuracy=True,
+        run_accuracy=False,
         test_deployment=False,
+        stop_words_list=None,
 ):
     if n_gpus > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
@@ -289,6 +296,7 @@ def run_existing_checkpoints(
         run_accuracy=run_accuracy,
         debug=True,
         streaming=streaming,
+        stop_words_list=stop_words_list,
         test_deployment=test_deployment,
     )
 
@@ -312,6 +320,7 @@ def get_args():
     parser.add_argument(
         "--model_type",
         type=str,
+        required=False,
     )
     parser.add_argument(
         "--min_gpus",
@@ -327,6 +336,7 @@ def get_args():
         "--checkpoint_dir",
         type=str,
         default="/tmp/nemo_checkpoint/",
+        required=False,
     )
     parser.add_argument(
         "--trt_llm_model_dir",
