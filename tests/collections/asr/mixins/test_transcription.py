@@ -147,6 +147,58 @@ class TestTranscriptionMixin:
         assert outputs[2] == 3.0
 
     @pytest.mark.unit
+    def test_transcribe_generator(self, dummy_model):
+        dummy_model = dummy_model.eval()
+        dummy_model.encoder.weight.data.fill_(1.0)
+        dummy_model.encoder.bias.data.fill_(0.0)
+
+        audio = ['1.0', '2.0', '3.0']
+
+        transribe_config = TranscribeConfig(batch_size=1)
+        generator = dummy_model.transcribe_generator(audio, override_config=transribe_config)
+
+        outputs = []
+        index = 1
+        for result in generator:
+            outputs.extend(result)
+            assert len(result) == 1
+            assert len(outputs) == index
+            index += 1
+
+        assert len(outputs) == 3
+        assert outputs[0] == 1.0
+        assert outputs[1] == 2.0
+        assert outputs[2] == 3.0
+
+    @pytest.mark.unit
+    def test_transcribe_generator_expliit_stop_check(self, dummy_model):
+        dummy_model = dummy_model.eval()
+        dummy_model.encoder.weight.data.fill_(1.0)
+        dummy_model.encoder.bias.data.fill_(0.0)
+
+        audio = ['1.0', '2.0', '3.0']
+
+        transribe_config = TranscribeConfig(batch_size=1)
+        generator = dummy_model.transcribe_generator(audio, override_config=transribe_config)
+
+        outputs = []
+        index = 1
+        while True:
+            try:
+                result = next(generator)
+            except StopIteration:
+                break
+            outputs.extend(result)
+            assert len(result) == 1
+            assert len(outputs) == index
+            index += 1
+
+        assert len(outputs) == 3
+        assert outputs[0] == 1.0
+        assert outputs[1] == 2.0
+        assert outputs[2] == 3.0
+
+    @pytest.mark.unit
     def test_transcribe_check_flags(self, dummy_model):
         dummy_model = dummy_model.eval()
 

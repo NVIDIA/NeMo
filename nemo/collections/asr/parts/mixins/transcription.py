@@ -140,6 +140,24 @@ class TranscriptionTensorDataset(Dataset):
 class TranscriptionMixin(ABC):
     """
     An abstract class for transcribe-able models.
+
+    Creates a template function `transcribe()` that provides an interface to perform transcription of audio tensors or
+    filepaths.
+
+    The following abstract classes must be implemented by the subclass:
+    - `_transcribe_input_manifest_processing()`: Process the provided input arguments (filepaths only) and return a
+        config dict for the dataloader. The data loader is should generally operate on NeMo manifests.
+
+    - `_setup_transcribe_dataloader()`: Setup the dataloader for transcription. Receives the output from
+        `_transcribe_input_manifest_processing()`.
+
+    - `_transcribe_forward()`: Implements the model's custom forward pass to return outputs that are processed by
+        `_transcribe_output_processing()`.
+
+    - `_transcribe_output_processing()`: Implements the post processing of the model's outputs to return the results to
+        the user. The result can be a list of objects, list of list of objects, tuple of objects, tuple of list of
+        objects, or a dict of list of objects.
+
     """
 
     @torch.no_grad()
@@ -175,6 +193,8 @@ class TranscriptionMixin(ABC):
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.
                 You should call this argument as `model.transcribe(audio, override_config=TranscribeConfig(...))`.
+            **config_kwargs: (Optional[Dict]) additional arguments to override the default TranscribeConfig.
+                Note: If override_config is passed, these arguments will be ignored.
 
         Returns:
             Output is defined by the subclass implementation of `TranscriptionMixin._transcribe_output_processing()`.
@@ -284,6 +304,23 @@ class TranscriptionMixin(ABC):
         A generator version of `transcribe` function.
         """
 
+        if override_config is None:
+            override_config = TranscribeConfig()
+
+        if not isinstance(override_config, TranscribeConfig):
+            raise ValueError("`override_config` must be of an object of type TranscribeConfig or its subclass")
+
+        # Add new internal config
+        if override_config._internal is None:
+            override_config._internal = InternalTranscribeConfig()
+        else:
+            # Check if internal config is valid
+            if not isinstance(override_config._internal, InternalTranscribeConfig):
+                raise ValueError(
+                    "`transcribe_cfg._internal` must be of an object of type InternalTranscribeConfig or "
+                    "its subclass"
+                )
+
         transcribe_cfg = override_config
         transcribe_cfg.return_generator = True
 
@@ -382,7 +419,7 @@ class TranscriptionMixin(ABC):
             # Convert numpy tensors to torch tensors
             if any([isinstance(_tensor, np.ndarray) for _tensor in audio_tensors]):
                 audio_tensors = [
-                    torch.from_numpy(audio_tensor) if isinstance(audio_tensor, np.ndarray) else audio_tensor
+                    torch.as_tensor(audio_tensor) if isinstance(audio_tensor, np.ndarray) else audio_tensor
                     for audio_tensor in audio_tensors
                 ]
 
