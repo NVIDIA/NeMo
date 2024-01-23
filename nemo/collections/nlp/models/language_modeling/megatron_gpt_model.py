@@ -237,7 +237,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.prev_consumed_samples = 0
             self.if_first_step = 0
             self.prev_global_batch_size = None
-        
+
         if cfg.get('data', None) is not None:
             self.reset_position_ids = cfg.data.get('reset_position_ids', False)
             self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
