@@ -26,23 +26,10 @@ from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
 from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_param_map, optim_state_to_sharding_state
+from transformer_engine.pytorch.cpp_extensions import cast_to_fp8
 
 from nemo.utils import str_to_dtype
-
-# Check if Transformer Engine has FP8 tensor class
-HAVE_TE_FP8TENSOR = False
-try:
-    from transformer_engine.pytorch.cpp_extensions import cast_to_fp8
-    from transformer_engine.pytorch.float8_tensor import Float8Tensor
-
-    HAVE_TE_FP8TENSOR = True
-except (ImportError, ModuleNotFoundError):
-    # Float8Tensor not found
-    pass
-
-
-def _is_fp8_tensor(tensor: torch.Tensor) -> bool:
-    return HAVE_TE_FP8TENSOR and isinstance(tensor, Float8Tensor)
+from nemo.utils.te_utils import is_float8tensor
 
 
 class MegatronDistributedFusedAdam(DistributedFusedAdam):
@@ -144,9 +131,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             return
 
         # Initialize FP8 and non-FP8 tensors separately
-        if any(_is_fp8_tensor(param) for param in params):
+        if any(is_float8tensor(param) for param in params):
             super().init_params(
-                filter(_is_fp8_tensor, params), param_sync_dtype=torch.uint8, **kwargs,
+                filter(is_float8tensor, params), param_sync_dtype=torch.uint8, **kwargs,
             )
         super().init_params(
             params, param_sync_dtype=param_sync_dtype, **kwargs,
@@ -191,7 +178,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         fp8_params = []
         remaining_params = []
         for param in params:
-            if _is_fp8_tensor(param):
+            if is_float8tensor(param):
                 fp8_params.append(param)
             else:
                 remaining_params.append(param)
@@ -272,7 +259,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         """
 
         # Initialize non-FP8 params as usual
-        if not _is_fp8_tensor(param):
+        if not is_float8tensor(param):
             super()._init_param_state(
                 param, param_group_id, param_id, param_sync_dtype=param_sync_dtype, **kwargs,
             )
@@ -331,7 +318,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     "Attempted to change a parameter with device={param.device} "
                     f"into a buffer view with device={param_buffer_view.device}"
                 )
-            if _is_fp8_tensor(param):
+            if is_float8tensor(param):
                 param_flat_views.append(param._data.detach().view(-1))
             else:
                 if param_buffer_view.dtype != param.dtype:
@@ -349,8 +336,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         # Make all params a view into the param buffer
         for param, buffer_view in zip(params, param_buffer_views):
-            if _is_fp8_tensor(param):
-                param._data = buffer_view.view(param.size())
+            if is_float8tensor(param):
+                param._data.data = buffer_view.view(param.size())
             else:
                 param.data = buffer_view.view(param.size())
 
@@ -428,7 +415,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             param_bucket = self._params_buckets[bucket_id]
             param = self.parameter(fragment)
             buffer_in = param_bucket.params_bucket[bucket_start:bucket_end]
-            if _is_fp8_tensor(param):
+            if is_float8tensor(param):
                 # Copy into FP8 params's data buffer
                 assert (
                     param_bucket.params_bucket.dtype == torch.uint8
@@ -462,7 +449,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Update transpose caches
         params = set(self.parameter(fragment) for fragment in fragments)
         for param in params:
-            if _is_fp8_tensor(param):
+            if is_float8tensor(param):
                 param.transpose(update_cache=True)
 
     @torch.no_grad()
@@ -475,7 +462,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         """
 
         # Just call base class function if there are no FP8 tensors
-        num_fp8_params = sum(1 for param in self.parameters() if _is_fp8_tensor(param))
+        num_fp8_params = sum(1 for param in self.parameters() if is_float8tensor(param))
         if num_fp8_params == 0:
             super()._check_params_shard_dtypes(params_buckets)
             return
@@ -503,7 +490,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             # Cast param fragments to FP8
             for fragment in self.state["buckets"][bucket_id].fragments:
                 param = self.parameter(fragment)
-                if not _is_fp8_tensor(param):
+                if not is_float8tensor(param):
                     continue
                 if not fragment.in_local_shard:
                     continue
@@ -534,7 +521,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             scale_invs = []
             i = -1
             for param in self.parameters():
-                if not _is_fp8_tensor(param):
+                if not is_float8tensor(param):
                     continue
                 i += 1
                 fp8_meta = param._fp8_meta["scaling_fwd"]
