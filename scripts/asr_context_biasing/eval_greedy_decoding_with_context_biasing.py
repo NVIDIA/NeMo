@@ -14,7 +14,7 @@
 #
 
 """
-# This script would evaluate CTC and Transducer (RNNT) models (only Hybrid Transducer-CTC in case of Transducer) in context biasing mode
+# This script evaluates CTC and Transducer (RNNT) models (only Hybrid Transducer-CTC in case of Transducer) in context biasing mode
 # by applying CTC-based Word Spotter (paper link) 
 
 # Config Help
@@ -37,6 +37,19 @@ python eval_greedy_decoding_with_context_biasing.py nemo_model_file=<path to the
             ctc_ali_token_weight=[<list of the ctc alignment token weights, separated with commas>] \
             ...
 
+# Description of context biasing graph:
+Context biasing file contains words/phrases with their spellings
+(one word/phrase per line, spellings are separated from word/phrase by dash symbol):
+WORD1_SPELLING1
+WORD2_SPELLING1_SPELLING2
+...
+nvidia_nvidia
+gpu_gpu_g p u
+nvlink_nvlink_nv link
+...
+alternative spellings help to improve the recognition accuracy of abbreviations and complicated words,
+which are often recognized as separate words (gpu -> g p u, nvlink -> nv link, tensorrt -> tensor rt, and so on).
+
 
 # Grid Search for Hyper parameters
 
@@ -57,7 +70,6 @@ import tempfile
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import List, Optional, Dict
-import time
 
 import editdistance
 import numpy as np
@@ -98,14 +110,14 @@ class EvalContextBiasingConfig:
     decoder_type: Optional[str] = None # [ctc, rnnt] decoder type for asr model
 
     # Context-Biasing params
-    apply_context_biasing: bool = False # 
-    context_file: Optional[str] = None # text file with context biasing words and their spellings (WORD_SPELLING1_SPELLING2...)
+    apply_context_biasing: bool = False # True in case of context biasing
+    context_file: Optional[str] = None # text file with context biasing words and their spellings
     spelling_separator: str = "_" # separator between word and its spellings in context biasing file
     beam_threshold: List[float] = field(default_factory=lambda: [5.0]) # beam pruning threshold for ctc-ws decoding
     context_score: List[float] = field(default_factory=lambda: [3.0]) # per token weight for context biasing words
     ctc_ali_token_weight: List[float] = field(default_factory=lambda: [0.6]) # weight of CTC tokens to prevent false accept errors
 
-    # auxiliary parameters
+    # Auxiliary parameters
     sort_logits: bool = True # do logits sorting before decoding - it reduces computation on puddings
     softmax_temperature: float = 1.00
     preserve_alignments: bool = False
@@ -130,7 +142,7 @@ def decoding_step(
     # run CTC-based Word Spotter:
     if cfg.apply_context_biasing:
         ws_results = {}
-        for idx, logits in tqdm(enumerate(ctc_logprobs), desc=f"CTC based word boosting...", ncols=120, total=len(ctc_logprobs)):
+        for idx, logits in tqdm(enumerate(ctc_logprobs), desc=f"Eval CTC-based Word Spotter...", ncols=120, total=len(ctc_logprobs)):
             ws_results[audio_file_paths[idx]] = run_word_spotter(
                 logits,
                 context_graph,
@@ -165,13 +177,12 @@ def decoding_step(
     if preds_output_manifest:
         out_manifest = open(preds_output_manifest, 'w', encoding='utf_8', newline='\n')
 
-    # ctc part
+    # ctc part for both EncDecCTCModelBPE and EncDecHybridRNNTCTCModel
     if cfg.decoder_type == "ctc":
         for batch_idx, probs in enumerate(ctc_logprobs):
             preds = np.argmax(probs, axis=1)
-            # do CTC based word boosting
             if cfg.apply_context_biasing and ws_results[audio_file_paths[batch_idx]]:
-                # make new text by mearging alignment with ctc-wb predictions:
+                # make new text by mearging alignment with ctc-ws predictions:
                 pred_text = merge_alignment_with_ws_hyps(
                     preds,
                     asr_model,
@@ -207,10 +218,9 @@ def decoding_step(
                         'wer': f"{wer_dist/len(target_split_w):.4f}",}
                 out_manifest.write(json.dumps(item) + "\n")
 
-        logging.info('Greedy WER/CER = {:.2%}/{:.2%}'.format(wer_dist_first / words_count, cer_dist_first / chars_count))
         return wer_dist_first / words_count, cer_dist_first / chars_count
 
-    # rnnt part
+    # rnnt part for EncDecHybridRNNTCTCModel
     elif cfg.decoder_type == "rnnt":
         if progress_bar:
             description = "Greedy_batch decoding.."
@@ -286,6 +296,16 @@ def main(cfg: EvalContextBiasingConfig):
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
+    assert os.path.isfile(cfg.input_manifest), \
+        f"input_manifest {cfg.input_manifest} does not exist"
+    assert cfg.apply_context_biasing and cfg.context_file, \
+        "context_file must be provided in case of context biasing"
+    assert os.path.isfile(cfg.context_file), \
+        f"context_file {cfg.context_file} does not exist"
+    assert cfg.decoder_type in ["ctc", "rnnt"], \
+        "decoder_type must be ctc or rnnt"
+
+    # load nemo asr model
     if cfg.nemo_model_file.endswith('.nemo'):
         asr_model = nemo_asr.models.ASRModel.restore_from(cfg.nemo_model_file, map_location=torch.device(cfg.device))
     else:
@@ -295,11 +315,10 @@ def main(cfg: EvalContextBiasingConfig):
         asr_model = nemo_asr.models.ASRModel.from_pretrained(
             cfg.nemo_model_file, map_location=torch.device(cfg.device)
         )
-
     assert isinstance(asr_model, (EncDecCTCModelBPE, EncDecHybridRNNTCTCModel)), \
         "ASR model must be CTC BPE or Hybrid Transducer-CTC"
 
-
+    # load nemo manifest
     target_transcripts = []
     durations = []
     manifest_dir = Path(cfg.input_manifest).parent
@@ -335,6 +354,7 @@ def main(cfg: EvalContextBiasingConfig):
             encoder_outputs = []
             ctc_logprobs = []
             if isinstance(asr_model, EncDecCTCModelBPE):
+                        # in case of EncDecCTCModelBPE
                         ctc_logprobs = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
                         blank_idx = asr_model.decoding.blank_id
             else:
@@ -367,6 +387,7 @@ def main(cfg: EvalContextBiasingConfig):
                             ctc_logprobs.append(ctc_dec_outputs_no_pad.cpu().numpy())
                             ctc_logprobs = ctc_logprobs
                     blank_idx = asr_model.decoder.blank_idx
+                    
     # load context biasing words
     if cfg.context_file:
         context_transcripts = []
@@ -420,6 +441,7 @@ def main(cfg: EvalContextBiasingConfig):
     asr_model = asr_model.to('cpu')
     best_wer = 1e6
 
+    # run decoding step for each hyper parameter set
     for hp in hp_grid:
         results_file = f"preds_out_bthr-{hp['beam_threshold']}_cs-{hp['context_score']}ctcw-{hp['ctc_ali_token_weight']}"
         preds_output_manifest = os.path.join(cfg.preds_output_folder, results_file)
@@ -442,6 +464,7 @@ def main(cfg: EvalContextBiasingConfig):
         # compute fscore
         fscore_stats = compute_fscore(preds_output_manifest, context_words, return_scores=True)
         
+        # find the best wer value
         if candidate_wer < best_wer:
             best_beam_threshold = hp["beam_threshold"]
             best_context_score = hp["context_score"]
@@ -450,7 +473,7 @@ def main(cfg: EvalContextBiasingConfig):
             best_fscore_stats = fscore_stats
 
         logging.info(f"=============================================================================================================")
-        logging.info(f"Greedy batch WER/CER = {candidate_wer:.2%}/{candidate_cer:.2%}")
+        logging.info(f"Greedy WER/CER = {candidate_wer:.2%}/{candidate_cer:.2%}")
         logging.info(f"Params: b_thr={hp['beam_threshold']}, cs={hp['context_score']}, ctc_ali_weight = {hp['ctc_ali_token_weight']}")
         logging.info(f"=============================================================================================================")
     

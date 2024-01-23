@@ -101,7 +101,7 @@ class TestContextBiasingUtils:
         blank_idx = asr_model.decoding.blank_id
         ws_results = [WSHyp("gpu", 6.0, 0, 2)]
         
-        # ctc predictions
+        # ctc argmax predictions
         preds = np.array([120, 29, blank_idx, blank_idx])
         pred_text = merge_alignment_with_ws_hyps(
                     preds,
@@ -112,11 +112,26 @@ class TestContextBiasingUtils:
                 )
         assert pred_text == "gpu"
 
-        # rnnt predictions
+        # rnnt token predictions
         preds = rnnt_utils.Hypothesis(
                     y_sequence=torch.tensor([120, 29]),
                     score=0.0,
                     timestep=torch.tensor([0,1,2,3]),
+                )
+        pred_text = merge_alignment_with_ws_hyps(
+            preds,
+            asr_model,
+            ws_results,
+            decoder_type="rnnt",
+            blank_idx=blank_idx,
+        )
+        assert pred_text == "gpu"
+
+        # rnnt empty token predictions
+        preds = rnnt_utils.Hypothesis(
+                    y_sequence=[],
+                    score=0.0,
+                    timestep=[],
                 )
         pred_text = merge_alignment_with_ws_hyps(
             preds,

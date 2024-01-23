@@ -28,7 +28,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# The script is obtained and modified from Icefall repo:
+# The script was obtained and modified from Icefall repo:
 # https://github.com/k2-fsa/icefall/blob/11d816d174076ec9485ab8b1d36af2592514e348/icefall/context_graph.py
 
 from collections import deque
@@ -41,7 +41,7 @@ class ContextState:
     def __init__(
         self,
         index: int,
-        is_end: bool,
+        is_end: bool = False,
     ):
         """Create a ContextState.
         Args:
@@ -49,13 +49,13 @@ class ContextState:
             The node index, only for visualization now. A node is in [0, graph.num_nodes).
             The index of the root node is always 0.
           is_end:
-            True if current token is the end of a context.
+            True if current node is the end of a context biasing word.
         """
         self.index = index
-        self.is_end = False
-        # dict of next token transitions to next state (key: token, value: next state)
+        self.is_end = is_end
+        # dict of next token transitions to next states (key: token, value: next state)
         self.next = {}
-        # the word of coresponding transcription (true only for end states)
+        # the word of coresponding transcription (not None only for end states)
         self.word = None
         # the best token on current state (needed for state pruning during word spotter work)
         self.best_token = None
@@ -87,7 +87,7 @@ class ContextGraphCTC:
             word_items: a list of word items, each word item is a tuple of (word, tokenizations)
                         word: the word to be inserted into the context graph
                         tokenizations: a list of BPE word tokenizations
-                        (each word can have several tokenizations to improve the accuracy of context biasing)
+                        (each word can have several tokenizations to improve the recognition accuracy)
 
         """
         # process context biasing words with tokenizations
@@ -148,7 +148,6 @@ class ContextGraphCTC:
                 prev_node.is_end = True
                 prev_node.word = word_item[0]
                 
-
 
     def draw(
         self,

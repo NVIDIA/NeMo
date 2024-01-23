@@ -20,6 +20,7 @@ from nemo.utils import logging
 import numpy as np
 import json
 from kaldialign import align
+import texterrors
 
 
 def merge_alignment_with_ws_hyps(
@@ -58,7 +59,9 @@ def merge_alignment_with_ws_hyps(
         
     elif decoder_type == "rnnt":
         alignment_tokens = []
-        tokens = asr_model.tokenizer.ids_to_tokens(candidate.y_sequence.tolist())
+        if not isinstance(candidate.y_sequence, list):
+            candidate.y_sequence = candidate.y_sequence.tolist()
+        tokens = asr_model.tokenizer.ids_to_tokens(candidate.y_sequence)
         for idx, token in enumerate(tokens):
             alignment_tokens.append([candidate.timestep[idx], token])
 
@@ -174,9 +177,19 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List, retu
     eps = '***'
 
     for item in data:
+        
+        # texterrors
         ref = item['text'].split()
         hyp = item['pred_text'].split()
-        ali = align(ref, hyp, eps)
+        texterrors_ali = texterrors.align_texts(ref, hyp, False)
+        ali = []
+        for i in range(len(texterrors_ali[0])):
+            ali.append((texterrors_ali[0][i], texterrors_ali[1][i]))
+        
+        # # kaldialign
+        # ref = item['text'].split()
+        # hyp = item['pred_text'].split()
+        # ali = align(ref, hyp, eps)
 
         for idx, pair in enumerate(ali):
             # check all the ngrams:
