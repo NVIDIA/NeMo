@@ -200,7 +200,7 @@ def run_trt_llm_inference(
             nm.deploy()
             nm.run()
             nq = NemoQuery(url="localhost:8000", model_name=model_name)
-            stop_words_list = [["Paris"], ["whale"], ["falcon"]]
+            stop_words_list = ["Paris", "whale", "falcon"]
             output_deployed = nq.query_llm(
                 prompts=prompt,
                 max_output_token=max_output_token,
