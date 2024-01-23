@@ -26,13 +26,16 @@ import torch
 from torch import Tensor
 from torch import nn
 from typing import Dict
+import random
 import os
 import json
+from torch.utils.data import DataLoader, Dataset
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
+from typing import Union, Tuple, List, Dict
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertLMHead, post_language_model_processing, bert_extended_attention_mask
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -107,6 +110,84 @@ try:
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
+
+
+class MultiplePositivesNegativesDataset(Dataset):
+    """SentenceTransformer tokenizer and MultipleNegativesRankingLoss expects
+        a single positive and a single hard-negative (optional) per example.
+        This Dataset manages the case where there is more than one positive or negative
+        available, in form of a list.
+        It uses the list of positives/negatives as a queue, where for each epoch the 
+        first positive/negative of the queue is used for training, after which the
+        item is moved to the end of the queue.
+        If num_hard_negs > 1, multiple negatives will be sampled for each example.
+
+        Args:
+            data (List[Dict[str, str]]): A list of Dict whose 
+            keys are "question", "pos_doc", "neg_doc"
+            num_hard_negs (int): Number of hard-negatives for each query to sample
+            shuffled_negs (bool, optional): Whether the negatives per example
+            needs to be shuffled in the initialization. Defaults to False.
+    """
+
+    def __init__(
+        self,
+        data: List[Dict[str, str]],
+        shuffled_negs: bool = False,
+        num_hard_negs: int = 1,
+        query_prefix: str = "",
+        passage_prefix: str = "",
+        
+    ):
+        self.data = data
+        self.num_hard_negs = num_hard_negs
+        self.query_prefix = query_prefix
+        self.passage_prefix = passage_prefix
+
+        if shuffled_negs:
+            for example in self.data:
+                random.shuffle(example["neg_doc"])
+    def __len__(self):
+        return len(self.data)
+    def __getitem__(self, item):
+        example = self.data[item]
+        question = f'{self.query_prefix} {example["question"]}'.strip()
+        texts = [question]
+
+        positive = example["pos_doc"]
+        if isinstance(positive, list):
+            # Dequeues one positive and adds it at end of the queue
+            positive = example["pos_doc"].pop(0)
+            example["pos_doc"].append(positive)
+
+        positive = f"{self.passage_prefix} {positive}".strip()
+        texts.append(positive)
+
+        negative = []
+        if "neg_doc" in example:
+            negative = example["neg_doc"]
+            selected_negs = []
+            if isinstance(negative, list):
+                for _ in range(self.num_hard_negs):
+                    if len(example["neg_doc"]) > 0:
+                        # Dequeues a negative and adds it at end of the queue
+                        negative = example["neg_doc"].pop(0)
+                        selected_negs.append(negative)
+                        example["neg_doc"].append(negative)
+                    else:
+                        # Providing empty hard-negative, for this example,
+                        # so that it matches the number of hard negatives
+                        # of the other examples
+                        selected_negs.append("")
+
+            else:
+                selected_negs = [negative]
+            selected_negs = [
+                f"{self.passage_prefix} {neg}".strip() for neg in selected_negs
+            ]
+            texts.extend(selected_negs)
+        return texts
+    
 
 ##########################
 # Below class is copied from SentenceTransformer library: https://github.com/UKPLab/sentence-transformers/blob/08a57b4a19ddaf7cccda51cd0c2c8af7bbc339a3/sentence_transformers/models/Normalize.py
@@ -436,7 +517,7 @@ class SBertModel(BertModel):
         lm_output = self.normalize_add_on(lm_output)
 
         return lm_output['sentence_embedding']
-
+    
  
 class MegatronSBertModel(MegatronBertModel):
     """
@@ -500,31 +581,252 @@ class MegatronSBertModel(MegatronBertModel):
 
         return model
 
-    def _validate_trainer(self):
-        """ Certain trainer configurations can break training.
-            Here we try to catch them and raise an error.
+
+    def build_train_valid_test_datasets(self):
+
+        train_file_path = self.cfg.data.data_prefix
+
+        with open(train_file_path) as f:
+            train_data = json.load(f)
+
+        query_prefix = "query:"
+        passage_prefix = "passage:"
+        evaluation_sample_size = self.cfg.data.get("evaluation_sample_size", 0)
+        hard_negatives_to_train = self.cfg.data.get("hard_negatives_to_train", 4)
+        evaluation_steps = self.cfg.data.get("evaluation_steps", 0)
+
+
+        #TODO @ataghibakhsh: Handle valid and test datasets better
+
+        self._train_ds = None
+        self._validation_ds = None
+        self._test_ds = None
+
+        if train_file_path: # we don't support calculating validation loss for multiple train files 
+            valid_data = None
+            if evaluation_sample_size:
+                if evaluation_steps == 0:
+                    raise ValueError(
+                        "The --evaluation_steps should be greater than 0 "
+                        "when --evaluation_sample_size is set"
+                    )
+
+                if evaluation_sample_size >= len(train_data):
+                    raise ValueError(
+                        "The --evaluation_sample_size cannot be greater " "than train set size."
+                    )
+
+                valid_data = train_data[-evaluation_sample_size:]
+                train_data = train_data[:-evaluation_sample_size]
+            
+            if evaluation_sample_size:
+                self._validation_ds = MultiplePositivesNegativesDataset(
+                    valid_data,
+                    num_hard_negs=hard_negatives_to_train,
+                    query_prefix=query_prefix,
+                    passage_prefix=passage_prefix
+                )
+
+        self._train_ds = MultiplePositivesNegativesDataset(
+            train_data,
+            num_hard_negs=hard_negatives_to_train,
+            query_prefix=query_prefix,
+            passage_prefix=passage_prefix
+        )
+
+        if self._train_ds is not None:
+            logging.info(f'Length of train dataset: {len(self._train_ds)}')
+        if self._validation_ds is not None:
+            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+        if self._test_ds is not None:
+            logging.info(f'Length of test dataset: {len(self._test_ds)}')
+        logging.info(f'Finished building Bert datasets.')
+        
+        return self._train_ds, self._validation_ds, self._test_ds
+
+    def setup(self, stage=None):
+        """ PTL hook that is executed after DDP spawns.
+            We setup datasets here as megatron datasets require DDP to instantiate.
+            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        Args:
+            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-        if self.trainer.accumulate_grad_batches > 1:
-            raise ValueError(
-                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert(
+            self.model
+        )
+
+        logging.info(
+            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
+            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
+            f'Number of model parameters on device: {num_parameters_on_device:.2e}. '
+            f'Total number of model parameters: {total_num_parameters:.2e}.'
+        )
+
+        resume_checkpoint_path = self.trainer.ckpt_path
+        if resume_checkpoint_path:
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+        self.init_global_step = self.trainer.global_step
+
+        if stage == 'predict':
+            return
+        else:
+            # TODO: consider adding a ModelPT guard to check if model is being restored.
+            # allowing restored models to optionally setup datasets
+            if self.cfg.data.dataloader_type == "LDDL":
+                self.build_LDDL_data(self.cfg.data)
+                torch.distributed.barrier()
+            else:
+                self.build_train_valid_test_datasets()
+                self.setup_training_data(self.cfg.data)
+                # self.setup_validation_data(self.cfg.data)
+                # self.setup_test_data(self.cfg.data)
+
+        # when using pipeline model parallel the final stage need to initialize word embeddings
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if isinstance(self.model, list):
+                for i, module in enumerate(self.model):
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                    sync_embeddings = (
+                        module.initialize_last_stage_with_word_embeddings
+                        if self.mcore_bert
+                        else module.sync_initial_word_embeddings
+                    )
+                    sync_embeddings()
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+            else:
+                sync_embeddings = (
+                    self.model.initialize_last_stage_with_word_embeddings
+                    if self.mcore_bert
+                    else self.model.sync_initial_word_embeddings
+                )
+                sync_embeddings()
+
+        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_bert', False):
+            self.setup_transformer_engine_tp_groups()
+
+    def build_pretraining_data_loader(self, dataset, consumed_samples):
+        """Buld dataloader given an input dataset."""
+
+        if dataset is None:
+            return None
+        
+        # Megatron sampler
+        if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
+            if self.cfg.data.dataloader_type == 'single':
+                batch_sampler = MegatronPretrainingSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self.cfg.micro_batch_size,
+                    global_batch_size=self.cfg.global_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    drop_last=self.cfg.get('drop_last', True),
+                )
+            elif self.cfg.data.dataloader_type == 'cyclic':
+                batch_sampler = MegatronPretrainingRandomSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self.cfg.micro_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    drop_last=self.cfg.get('drop_last', True),
+                )
+            else:
+                raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
+        else:
+            raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
+
+        # Torch dataloader.
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
+            persistent_workers=True if self.cfg.data.num_workers > 0 else False,
+        )
+
+        dataloader.collate_fn = self.batching_collate
+        
+        return dataloader
+    
+    def tokenize(self, texts: Union[List[str], List[Dict], List[Tuple[str, str]]]):
+
+        max_seq_length=self.cfg.encoder_seq_length
+        do_lower_case=self.cfg.tokenizer.get("do_lower_case", False)
+        """
+        Tokenizes a text and maps tokens to token-ids
+        """
+        output = {}
+        if isinstance(texts[0], str):
+            to_tokenize = [texts]
+        elif isinstance(texts[0], dict):
+            to_tokenize = []
+            output["text_keys"] = []
+            for lookup in texts:
+                text_key, text = next(iter(lookup.items()))
+                to_tokenize.append(text)
+                output["text_keys"].append(text_key)
+            to_tokenize = [to_tokenize]
+        else:
+            batch1, batch2 = [], []
+            for text_tuple in texts:
+                batch1.append(text_tuple[0])
+                batch2.append(text_tuple[1])
+            to_tokenize = [batch1, batch2]
+
+        # strip
+        to_tokenize = [[str(s).strip() for s in col] for col in to_tokenize]
+
+        # Lowercase
+        if do_lower_case:
+            to_tokenize = [[s.lower() for s in col] for col in to_tokenize]
+
+        output.update(
+            self.tokenizer.tokenizer(
+                *to_tokenize,
+                padding=True,
+                truncation="longest_first",
+                return_tensors="pt",
+                max_length=max_seq_length,
             )
+        )
+        return output
+
+
+    def batching_collate(self, batch) :
+            """
+            Transforms a batch from a SmartBatchingDataset to a batch of tensors for the model
+            Here, batch is a list of InputExample instances: [InputExample(...), ...]
+
+            :param batch:
+                a batch from a SmartBatchingDataset
+            :return:
+                a batch of tensors for the model
+            """
+            texts = [example for example in batch]
+            sentence_features = [self.tokenize(sentence) for sentence in zip(*texts)]
+            return sentence_features
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batches = next(dataloader_iter) #for each element in batches, there should be 1 anchor, 1 positive, and n negatives
+                batches = next(dataloader_iter) #for each element in batches, there should be 1 anchor, 1 positive, and n negatives                
                 # In Bert dataset (like Pile), every batch has tokens, types, sentence_order, loss_mask, lm_labels, padding_mask
                 # For Sbert, we want the batch to be a list of [anchors, positives, negatives1, negatives2, ..., ] so that every of the anchors/positives/negatives are the same as the batch in pile dataset
-                # batches = [batches, batches, batches, batches]
+                # batches = [anchors, positives, negatives1, negatives2]
                 tokens_batch, types_batch, sentence_order_batch, loss_mask_batch, lm_labels_batch, padding_mask_batch = [], [], [], [], [], []
                 for batch in batches:
                     tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
-                        batch['text'].cuda(non_blocking=True),
-                        batch['types'].cuda(non_blocking=True),
-                        batch['is_random'].cuda(non_blocking=True),
-                        batch['loss_mask'].cuda(non_blocking=True),
-                        batch['labels'].cuda(non_blocking=True),
-                        batch['padding_mask'].cuda(non_blocking=True),
+                        batch['input_ids'].cuda(non_blocking=True),
+                        batch['token_type_ids'].cuda(non_blocking=True),
+                        None, # batch['is_random'].cuda(non_blocking=True),
+                        None, # batch['loss_mask'].cuda(non_blocking=True),
+                        None, # batch['labels'].cuda(non_blocking=True),
+                        batch['attention_mask'].cuda(non_blocking=True),
                     )
                     tokens_batch.append(tokens)
                     types_batch.append(types)
@@ -573,8 +875,7 @@ class MegatronSBertModel(MegatronBertModel):
                 output_tensor = model(**forward_args)
             else:
                 output_tensor = [self.forward(**forward_arg).permute(1,0) for forward_arg in forward_args]
-
-
+   
             def loss_func(output_tensor):
 
                 loss_dict = self.loss_func(output_tensor)
