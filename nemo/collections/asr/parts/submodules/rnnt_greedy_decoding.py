@@ -634,7 +634,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             if loop_labels:
                 # default (faster) algo: loop over labels
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
-                if self.allow_jit:
+                if self.allow_jit and not self.preserve_frame_confidence:
                     computer = GreedyBatchedRNNTLoopLabelsComputer(
                         decoder=self.decoder,
                         joint=self.joint,

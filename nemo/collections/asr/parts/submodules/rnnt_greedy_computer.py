@@ -23,7 +23,7 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 
 
-class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
+class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
     def __init__(
         self,
         decoder,
@@ -42,7 +42,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
         self._SOS = self._blank_index
-        self._init_confidence_method(confidence_method_cfg, return_tensor=True)
+        if self.preserve_frame_confidence:
+            raise NotImplementedError
+        # self._init_confidence_method(confidence_method_cfg, return_tensor=True)
+        # self._get_confidence = lambda x: x
+
+    def _get_confidence(self, x):
+        return x
 
     def forward(
         self, x: torch.Tensor, out_len: torch.Tensor,
