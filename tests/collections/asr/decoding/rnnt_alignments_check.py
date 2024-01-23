@@ -24,7 +24,7 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.parts.utils.transcribe_utils import prepare_audio_data, setup_model
 
-TEST_DATA_PATH = "/home/TestData/an4_dataset/an4_val.json"
+TEST_DATA_PAT = "/home/TestData/an4_dataset/an4_val.json"
 PRETRAINED_MODEL_NAME = "stt_en_conformer_transducer_small"
 
 
@@ -42,7 +42,7 @@ def get_rnnt_alignments(strategy: str, loop_labels: bool = True, location="cuda"
     model.change_decoding_strategy(cfg.rnnt_decoding)
 
     transcriptions = model.transcribe(
-        paths2audio_files=filepaths,
+        audio=filepaths,
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
         return_hypotheses=True,
