@@ -38,6 +38,10 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
+    DEFAULT_VID_END_TOKEN,
+    DEFAULT_VID_START_TOKEN,
+    DEFAULT_VIDEO_PATCH_TOKEN,
+    DEFAULT_VIDEO_TOKEN,
     DEFAULT_LABELS_TOKEN,
     DEFAULT_PAD_TOKEN,
     DEFAULT_SEPARATOR_TOKEN,
@@ -162,19 +166,30 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     if not is_multimodal:
         return sources
 
+    # <video> := `num_frames` * <image>
     if multimodal_cfg['use_im_start_end']:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN * image_token_len
+        vid_replace_token = replace_token * multimodal_cfg['num_frames']
     else:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (image_token_len - 2)
+        vid_replace_token = replace_token * multimodal_cfg['num_frames']
     replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
+    vid_replace_token = DEFAULT_VID_START_TOKEN + vid_replace_token + DEFAULT_IM_END_TOKEN
 
     for source in sources:
         conversation = source['conversations']
         if multimodal_cfg['sep_image_conv_front']:
             assert DEFAULT_IMAGE_TOKEN in conversation[0]['value']
-            conversation[0]['value'] = conversation[0]['value'].replace(DEFAULT_IMAGE_TOKEN, '').strip()
+            IMAGE_TOKEN_NUM = conversation[0]['value'].count(DEFAULT_IMAGE_TOKEN)
+            VIDEO_TOKEN_NUM = conversation[0]['value'].count(DEFAULT_VIDEO_TOKEN)
+            if IMAGE_TOKEN_NUM > VIDEO_TOKEN_NUM:
+                DEFAULT_TOKEN = DEFAULT_IMAGE_TOKEN
+            else:
+                DEFAULT_TOKEN = DEFAULT_VIDEO_TOKEN
+
+            conversation[0]['value'] = conversation[0]['value'].replace(DEFAULT_TOKEN, '').strip()
             conversation[0]['value'] = (
-                DEFAULT_IMAGE_TOKEN
+                DEFAULT_TOKEN
                 + conversation_lib.default_conversation.sep
                 + conversation_lib.default_conversation.roles[0]
                 + ": "
@@ -185,7 +200,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             conversation[0]['value'] = DEFAULT_IMAGE_TOKEN
         for turn in conversation:
             turn["value"] = turn["value"].replace(DEFAULT_IMAGE_TOKEN, replace_token)
-
+            turn["value"] = turn["value"].replace(DEFAULT_VIDEO_TOKEN, vid_replace_token)
     return sources
 
 
