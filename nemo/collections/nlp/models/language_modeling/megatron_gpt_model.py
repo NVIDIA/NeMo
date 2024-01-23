@@ -19,11 +19,13 @@ import warnings
 from contextlib import nullcontext
 from dataclasses import fields
 from functools import partial
+from importlib.metadata import version
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
+from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -463,7 +465,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
                     for layer in layers:
                         stage_bucket.extend(
-                            p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+                            p
+                            for p in layer.parameters()
+                            if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
                         )
                     buckets.append(stage_bucket)
             else:
@@ -475,9 +479,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
                     for layer in layers:
                         buckets.append(
-                            [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
+                            [
+                                p
+                                for p in layer.parameters()
+                                if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
+                            ]
                         )
             buckets.reverse()
+            used_params = set()
+            for bucket in buckets:
+                used_params.update(bucket)
+            remaining_params = [p for p in self.parameters() if p not in used_params and p.requires_grad]
+            if remaining_params:
+                buckets.append(remaining_params)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
@@ -876,17 +890,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             # Transfer needed data to GPU
             required_keys = set()
-            max_seqlen, cu_seqlens_argmin = None, None
+            max_seqlen = batch.pop('max_seqlen').squeeze() if 'max_seqlen' in batch else None
+            cu_seqlens_argmin = batch.pop('cu_seqlens_argmin') if 'cu_seqlens_argmin' in batch else None
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
                 required_keys.add('attention_mask')
                 if 'cu_seqlens' in batch:
                     required_keys.add('cu_seqlens')
-                    if 'max_seqlen' in batch:
-                        max_seqlen = batch['max_seqlen'].squeeze()
-                    if 'cu_seqlens_argmin' in batch:
-                        cu_seqlens_argmin = batch['cu_seqlens_argmin']
                 if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
@@ -922,12 +933,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
                     else:
                         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
-                    forward_args['cu_seqlens_q'] = cu_seqlens
-                    forward_args['cu_seqlens_kv'] = cu_seqlens
-                    if max_seqlen is not None:
-                        forward_args['max_seqlen_q'] = max_seqlen
-                        forward_args['max_seqlen_kv'] = max_seqlen
-                    forward_args['qkv_format'] = 'thd'
+
+                    try:
+                        from megatron.core.packed_seq_params import PackedSeqParams
+                    except (ImportError, ModuleNotFoundError) as e:
+                        mcore_version = packaging.version.Version(version('megatron-core'))
+                        logging.error(
+                            f"megatron-core v{mcore_version} does not support training with packed sequence. "
+                            "Please use megatron-core >= 0.5.0, or set model.data.train_ds.packed_sequence=False"
+                        )
+                        raise e
+
+                    forward_args['packed_seq_params'] = PackedSeqParams(
+                        cu_seqlens_q=cu_seqlens,
+                        cu_seqlens_kv=cu_seqlens,
+                        max_seqlen_q=max_seqlen,
+                        max_seqlen_kv=max_seqlen,
+                        qkv_format='thd',
+                    )
 
             output_tensor = model(**forward_args)
 
