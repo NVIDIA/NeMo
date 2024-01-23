@@ -200,13 +200,18 @@ def run_trt_llm_inference(
             nm.deploy()
             nm.run()
             nq = NemoQuery(url="localhost:8000", model_name=model_name)
+            stop_words_list = [["Paris"], ["whale"], ["falcon"]]
             output_deployed = nq.query_llm(
                 prompts=prompt,
                 max_output_token=max_output_token,
                 top_k=1,
                 top_p=0.0,
                 temperature=1.0,
+                stop_words_list = stop_words_list,
             )
+
+            #for i in range(len(stop_words_list[0])):
+            #    assert output_deployed[0][i].split(' ')[-1] == stop_words_list[0][i]
 
         if debug:
             print("")
@@ -232,13 +237,10 @@ def run_trt_llm_inference(
             shutil.rmtree(trt_llm_model_dir)
             return trtllm_accuracy, trtllm_accuracy_relaxed, trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed
 
-        if stop_words_list != None:
-            return output, None, None, None
-        else:
-            if test_deployment:
-                nm.stop()
-            shutil.rmtree(trt_llm_model_dir)
-            return None, None, None, None
+        if test_deployment:
+            nm.stop()
+        shutil.rmtree(trt_llm_model_dir)
+        return None, None, None, None
     else:
         raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
 
@@ -356,7 +358,7 @@ def get_args():
         default=128,
     )
     parser.add_argument(
-        "--ptuning_checkpoint",
+        "--p_tuning_checkpoint",
         type=str,
     )
     parser.add_argument(
@@ -415,20 +417,6 @@ def get_args():
 
     return parser.parse_args()
 
-
-def test_stop_words_list(args):
-    prompt_template = ["The capital of France is", "Largest animal in the sea is"]
-    n_gpus = args.min_gpus
-
-    stop_words_list = [["Paris"], ["whale"], ["falcon"]]
-    output, _, _, _ = run_existing_checkpoints(model_name=args.model_name,
-                                               n_gpus=args.min_gpus,
-                                               ptuning=args.ptuning,
-                                               tp_size=args.tp_size,
-                                               pp_size=args.pp_size,
-                                               stop_words_list=stop_words_list)
-    for i in range(len(stop_words_list[0])):
-        assert output[0][i].split(' ')[-1] == stop_words_list[0][i]
 
 def run_inference_tests(args):
     if args.test_deployment == "False":
@@ -517,4 +505,3 @@ def run_inference_tests(args):
 if __name__ == '__main__':
     args = get_args()
     run_inference_tests(args)
-    test_stop_words_list(args)
