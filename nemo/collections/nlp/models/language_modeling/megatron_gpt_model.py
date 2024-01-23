@@ -908,7 +908,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'input_ids': batch['tokens'],
                 'position_ids': batch['position_ids'],
                 'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
-                'labels': batch['labels'],
+                'labels': batch['labels'] if 'labels' in batch else None,
                 'loss_mask': batch['loss_mask'],
             }
 
