@@ -642,7 +642,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         max_symbols_per_step=self.max_symbols,
                         preserve_alignments=preserve_alignments,
                         preserve_frame_confidence=preserve_frame_confidence,
-                        confidence_method_cfg=confidence_method_cfg,
                     )
                     try:
                         self._computer = torch.jit.script(computer)

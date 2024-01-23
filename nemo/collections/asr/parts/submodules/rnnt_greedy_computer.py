@@ -17,10 +17,8 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 
 
 class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
@@ -32,7 +30,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments=False,
         preserve_frame_confidence=False,
-        confidence_method_cfg: Optional[DictConfig] = None,
     ):
         super().__init__()
         self.decoder = decoder
@@ -44,10 +41,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
         self._SOS = self._blank_index
         if self.preserve_frame_confidence:
             raise NotImplementedError
-        # self._init_confidence_method(confidence_method_cfg, return_tensor=True)
-        # self._get_confidence = lambda x: x
 
     def _get_confidence(self, x):
+        """
+        Stub for get confidence function to make torch.jit.script happy.
+        TODO: make real confidence support
+        """
         return x
 
     def forward(
