@@ -288,6 +288,23 @@ class BatchedHyps:
         if self.current_lengths.max().item() >= self._max_length:
             self._allocate_more()
 
+        self.add_results_no_checks_(
+            active_indices=active_indices, labels=labels, time_indices=time_indices, scores=scores
+        )
+
+    def add_results_no_checks_(
+        self, active_indices: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
+    ):
+        """
+        Add results (inplace) from a decoding step to the batched hypotheses without checks.
+        Useful if all the memory is pre-allocated + with cuda graphs
+        (otherwise prefer a more safe `add_results_`)
+        Args:
+            active_indices: tensor with indices of active hypotheses (indices should be within the original batch_size)
+            labels: non-blank labels to add
+            time_indices: tensor of time index for each label
+            scores: label scores
+        """
         # accumulate scores
         self.scores[active_indices] += scores
 
