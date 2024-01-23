@@ -634,7 +634,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             if loop_labels:
                 # default (faster) algo: loop over labels
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
-                if not preserve_frame_confidence:
+                if self.allow_jit and not preserve_frame_confidence:
                     computer = GreedyBatchedRNNTLoopLabelsComputer(
                         decoder=self.decoder,
                         joint=self.joint,
@@ -645,11 +645,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     )
                     try:
                         self._computer = torch.jit.script(computer)
+                        self._computer.eval()
                         logging.warning("Using greedy decoding with torch.jit.script")
                     except (OSError, RuntimeError):
                         logging.warning("torch.jit.script failed to compile, using greedy decoding without jit")
-                        self._computer = computer
-                    self._computer.eval()
+                        self._computer = None
+                else:
+                    self._computer = None
             else:
                 # previous algo: loop over frames
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
@@ -716,7 +718,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
-        if not self.preserve_frame_confidence:
+        if self._computer is not None:
             self._computer.eval()
             self._computer.to(x.device)
             batched_hyps, alignments = self._computer(x=x, out_len=out_len)
@@ -755,12 +757,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # loop while there are active indices
         while (current_batch_size := active_indices.shape[0]) > 0:
             # stage 1: get decoder (prediction network) output
-            if state is None:
-                # start of the loop, SOS symbol is passed into prediction network
-                decoder_output, state, *_ = self._pred_step(self._SOS, state, batch_size=current_batch_size)
-            else:
-                # pass the labels (found in the inner loop) to the prediction network
-                decoder_output, state, *_ = self._pred_step(labels.unsqueeze(1), state, batch_size=current_batch_size)
+            # pass the labels (found in the inner loop) to the prediction network
+            decoder_output, state, *_ = self.decoder.predict(
+                labels.unsqueeze(1), state, add_sos=False, batch_size=current_batch_size
+            )
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
 
             # stage 2: get joint output, iteratively seeking for non-blank labels
@@ -2474,6 +2474,7 @@ class GreedyBatchedRNNTInferConfig:
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     loop_labels: bool = True
+    allow_jit: bool = True
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed

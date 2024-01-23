@@ -317,6 +317,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_frame_confidence=self.preserve_frame_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
                         loop_labels=self.cfg.greedy.get('loop_labels', True),
+                        allow_jit=self.cfg.greedy.get('allow_jit', True),  # TODO: add to all
                     )
                 else:
                     self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
