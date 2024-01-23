@@ -237,10 +237,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.prev_consumed_samples = 0
             self.if_first_step = 0
             self.prev_global_batch_size = None
-
-        self.reset_position_ids = cfg.data.get('reset_position_ids', False)
-        self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
-        self.eod_mask_loss = cfg.data.get('eod_mask_loss', False)
+        
+        if cfg.get('data', None) is not None:
+            self.reset_position_ids = cfg.data.get('reset_position_ids', False)
+            self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
+            self.eod_mask_loss = cfg.data.get('eod_mask_loss', False)
 
         if not self.megatron_amp_O2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
