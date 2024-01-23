@@ -26,6 +26,10 @@ DEFAULT_LABELS_TOKEN = "<extra_id_2>"
 DEFAULT_IMAGE_PATCH_TOKEN = "<extra_id_3>"
 DEFAULT_IM_START_TOKEN = "<extra_id_4>"
 DEFAULT_IM_END_TOKEN = "<extra_id_5>"
+DEFAULT_VIDEO_TOKEN = "<video>"
+DEFAULT_VIDEO_PATCH_TOKEN = "<im_patch>"
+DEFAULT_VID_START_TOKEN = "<vid_start>"
+DEFAULT_VID_END_TOKEN = "<vid_end>"
 
 
 class SeparatorStyle(Enum):

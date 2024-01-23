@@ -193,6 +193,7 @@ model:
     data_path:
     lazy_preprocess: True
     is_multimodal: True
+    num_frames: 8
     sep_image_conv_front: False
     image_token_len: 256
     conv_template: ${model.mm_cfg.llm.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
