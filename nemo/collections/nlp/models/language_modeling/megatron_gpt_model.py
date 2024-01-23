@@ -78,7 +78,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec, get_gpt_layer_with_transformer_engine_and_mlp_te_block_spec
+    from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -106,7 +106,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 def get_specs(spec_name):
-    name_spec_dict = {"": get_gpt_layer_with_transformer_engine_and_mlp_te_block_spec(), "megatron_falcon_gpt": get_falcon_layer_spec()}
+    name_spec_dict = {"": get_gpt_layer_with_transformer_engine_spec(), "megatron_falcon_gpt": get_falcon_layer_spec()}
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
