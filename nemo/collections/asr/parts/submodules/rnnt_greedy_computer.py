@@ -17,11 +17,13 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 
 
-class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
+class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
     def __init__(
         self,
         decoder,
@@ -30,6 +32,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments=False,
         preserve_frame_confidence=False,
+        confidence_method_cfg: Optional[DictConfig] = None,
     ):
         super().__init__()
         self.decoder = decoder
@@ -39,15 +42,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
         self._SOS = self._blank_index
-        if self.preserve_frame_confidence:
-            raise NotImplementedError
-
-    def _get_confidence(self, x):
-        """
-        Stub for get confidence function to make torch.jit.script happy.
-        TODO: make real confidence support
-        """
-        return x
+        self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
 
     def forward(
         self, x: torch.Tensor, out_len: torch.Tensor,
@@ -130,7 +125,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
                     time_indices=time_indices[active_indices],
                     logits=logits if self.preserve_alignments else None,
                     labels=labels if self.preserve_alignments else None,
-                    confidence=self._get_confidence(logits) if self.preserve_frame_confidence else None,
+                    confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
                 )
             # advance_mask is a mask for current batch for searching non-blank labels;
             # each element is True if non-blank symbol is not yet found AND we can increase the time index
@@ -159,7 +154,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
                         time_indices=time_indices[advance_indices],
                         logits=logits if self.preserve_alignments else None,
                         labels=more_labels if self.preserve_alignments else None,
-                        confidence=self._get_confidence(logits) if self.preserve_frame_confidence else None,
+                        confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
                     )
                 blank_mask = labels == self._blank_index
                 advance_mask = torch.logical_and(
