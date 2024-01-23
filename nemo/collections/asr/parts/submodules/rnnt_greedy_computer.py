@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from types import NoneType
-from typing import Optional, Union
+from typing import Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# from nemo.collections.common.parts.rnn import label_collate
 from nemo.collections.asr.parts.utils import rnnt_utils
 
 
@@ -43,7 +41,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module):
         if preserve_frame_confidence:
             raise NotImplementedError
         self._SOS = self._blank_index
-        self._sample_state_for_type_check = self.decoder.initialize_state(torch.tensor([1]))
 
     def forward(
         self, x: torch.Tensor, out_len: torch.Tensor,
