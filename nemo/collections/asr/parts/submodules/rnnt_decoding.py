@@ -332,6 +332,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
+                        allow_jit=self.cfg.greedy.get('allow_jit', True),  # TODO: add to all
                     )
 
             else:
