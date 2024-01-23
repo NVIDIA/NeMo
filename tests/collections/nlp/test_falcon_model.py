@@ -120,6 +120,7 @@ def model_cfg(test_data_dir):
             'betas': [0.9, 0.98],
             'sched': {'name': 'CosineAnnealing', 'warmup_steps': 500, 'constant_steps': 50000, 'min_lr': '2e-5'},
         },
+        'data': {},
         'gc_interval': 0,
         'precision': 'bf16',
         'new_decoder_architecture': False,
