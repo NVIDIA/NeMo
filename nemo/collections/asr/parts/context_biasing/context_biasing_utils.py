@@ -87,8 +87,6 @@ def merge_alignment_with_ws_hyps(
                 word += item[1]
                 r = item[0]
     word_alignment.append((word, l, r))
-    ref_text = [item[0] for item in word_alignment]
-    ref_text = " ".join(ref_text)
 
     # step 3: merge spotted words with word alignment
     for ws_hyp in cb_results:

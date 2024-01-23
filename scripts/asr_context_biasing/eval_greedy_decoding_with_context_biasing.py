@@ -25,7 +25,8 @@ python eval_greedy_decoding_with_context_biasing.py --cfg job
 
 # USAGE
 
-python eval_greedy_decoding_with_context_biasing.py nemo_model_file=<path to the .nemo file of the model> \
+python eval_greedy_decoding_with_context_biasing.py \
+            nemo_model_file=<path to the .nemo file of the model> \
             input_manifest=<path to the evaluation JSON manifest file \
             preds_output_folder=<optional folder to store the predictions> \
             decoder_type=<type of model decoder [ctc or rnnt]> \
@@ -65,11 +66,10 @@ For grid search, you can provide a list of arguments as follows -
 import contextlib
 import json
 import os
-import pickle
 import tempfile
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 
 import editdistance
 import numpy as np
@@ -127,7 +127,7 @@ def decoding_step(
     asr_model: nemo_asr.models.ASRModel,
     cfg: EvalContextBiasingConfig,
     encoder_outputs: List[torch.Tensor],
-    ctc_logprobs: List[torch.Tensor],
+    ctc_logprobs: List[np.ndarray],
     target_transcripts: List[str],
     audio_file_paths: List[str],
     durations: List[str],
@@ -137,7 +137,7 @@ def decoding_step(
     context_graph: ContextGraphCTC = None,
     blank_idx: int = 0,
     hp: Dict = None,
-):
+) -> Tuple(float, float):
     
     # run CTC-based Word Spotter:
     if cfg.apply_context_biasing:
@@ -217,6 +217,7 @@ def decoding_step(
                         'pred_text': pred_text,
                         'wer': f"{wer_dist/len(target_split_w):.4f}",}
                 out_manifest.write(json.dumps(item) + "\n")
+        preds_output_manifest.close()
 
         return wer_dist_first / words_count, cer_dist_first / chars_count
 
@@ -287,6 +288,7 @@ def decoding_step(
                     out_manifest.write(json.dumps(item) + "\n")
             
             sample_idx += len(probs_batch)
+        preds_output_manifest.close()
 
         return wer_dist_first / words_count, cer_dist_first / chars_count
 
@@ -385,7 +387,6 @@ def main(cfg: EvalContextBiasingConfig):
                             ctc_dec_outputs_no_pad = ctc_dec_outputs[idx, : encoded_len[idx]]
                             encoder_outputs.append(encoded_no_pad)
                             ctc_logprobs.append(ctc_dec_outputs_no_pad.cpu().numpy())
-                            ctc_logprobs = ctc_logprobs
                     blank_idx = asr_model.decoder.blank_idx
                     
     # load context biasing words
