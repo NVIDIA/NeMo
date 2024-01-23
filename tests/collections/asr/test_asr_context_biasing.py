@@ -22,12 +22,7 @@ import torch
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.models import EncDecCTCModelBPE
-from nemo.collections.asr.parts.context_biasing import (
-    ContextGraphCTC,
-    compute_fscore,
-    merge_alignment_with_ws_hyps,
-    run_word_spotter,
-)
+from nemo.collections.asr.parts import context_biasing
 from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import WSHyp
 from nemo.collections.asr.parts.utils import rnnt_utils
 
@@ -43,7 +38,7 @@ class TestContextGraphCTC:
     @pytest.mark.unit
     def test_graph_building(self):
         context_biasing_list = [["gpu", [['▁g', 'p', 'u'], ['▁g', '▁p', '▁u']]]]
-        context_graph = ContextGraphCTC(blank_id=1024)
+        context_graph = context_biasing.ContextGraphCTC(blank_id=1024)
         context_graph.build(context_biasing_list)
         assert context_graph.num_nodes == 8
         assert context_graph.blank_token == 1024
@@ -64,11 +59,11 @@ class TestCTCWordSpotter:
         ctc_logprobs = asr_model.transcribe([audio_file_path], batch_size=1, logprobs=True)
 
         context_biasing_list = [[target_text, [target_tokenization]]]
-        context_graph = ContextGraphCTC(blank_id=asr_model.decoding.blank_id)
+        context_graph = context_biasing.ContextGraphCTC(blank_id=asr_model.decoding.blank_id)
         context_graph.build(context_biasing_list)
 
         # without context biasing
-        ws_results = run_word_spotter(
+        ws_results = context_biasing.run_word_spotter(
             ctc_logprobs[0],
             context_graph,
             asr_model,
@@ -80,7 +75,7 @@ class TestCTCWordSpotter:
         assert len(ws_results) == 0
 
         # with context biasing
-        ws_results = run_word_spotter(
+        ws_results = context_biasing.run_word_spotter(
             ctc_logprobs[0],
             context_graph,
             asr_model,
@@ -105,7 +100,7 @@ class TestContextBiasingUtils:
 
         # ctc argmax predictions
         preds = np.array([120, 29, blank_idx, blank_idx])
-        pred_text = merge_alignment_with_ws_hyps(
+        pred_text = context_biasing.merge_alignment_with_ws_hyps(
             preds, asr_model, ws_results, decoder_type="ctc", blank_idx=blank_idx,
         )
         assert pred_text == "gpu"
@@ -114,14 +109,14 @@ class TestContextBiasingUtils:
         preds = rnnt_utils.Hypothesis(
             y_sequence=torch.tensor([120, 29]), score=0.0, timestep=torch.tensor([0, 1, 2, 3]),
         )
-        pred_text = merge_alignment_with_ws_hyps(
+        pred_text = context_biasing.merge_alignment_with_ws_hyps(
             preds, asr_model, ws_results, decoder_type="rnnt", blank_idx=blank_idx,
         )
         assert pred_text == "gpu"
 
         # rnnt empty token predictions
         preds = rnnt_utils.Hypothesis(y_sequence=[], score=0.0, timestep=[],)
-        pred_text = merge_alignment_with_ws_hyps(
+        pred_text = context_biasing.merge_alignment_with_ws_hyps(
             preds, asr_model, ws_results, decoder_type="rnnt", blank_idx=blank_idx,
         )
         assert pred_text == "gpu"
@@ -133,7 +128,7 @@ class TestContextBiasingUtils:
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
             f.write(recog_manifest)
             f.seek(0)
-            fscore_stats = compute_fscore(f.name, context_words, return_scores=True)
+            fscore_stats = context_biasing.compute_fscore(f.name, context_words, return_scores=True)
             assert (round(fscore_stats[0], 4), round(fscore_stats[1], 4), round(fscore_stats[2], 4)) == (
                 1.0,
                 0.5,

@@ -69,7 +69,7 @@ import os
 import tempfile
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import editdistance
 import numpy as np
@@ -80,12 +80,7 @@ from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import EncDecCTCModelBPE, EncDecHybridRNNTCTCModel
-from nemo.collections.asr.parts.context_biasing import (
-    ContextGraphCTC,
-    compute_fscore,
-    merge_alignment_with_ws_hyps,
-    run_word_spotter,
-)
+from nemo.collections.asr.parts import context_biasing
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -138,10 +133,10 @@ def decoding_step(
     preds_output_manifest: str = None,
     beam_batch_size: int = 128,
     progress_bar: bool = True,
-    context_graph: ContextGraphCTC = None,
+    context_graph: context_biasing.ContextGraphCTC = None,
     blank_idx: int = 0,
     hp: Dict = None,
-) -> Tuple(float, float):
+) -> tuple[float, float]:
     
     # run CTC-based Word Spotter:
     if cfg.apply_context_biasing:
@@ -149,7 +144,7 @@ def decoding_step(
         for idx, logits in tqdm(
             enumerate(ctc_logprobs), desc=f"Eval CTC-based Word Spotter...", ncols=120, total=len(ctc_logprobs)
         ):
-            ws_results[audio_file_paths[idx]] = run_word_spotter(
+            ws_results[audio_file_paths[idx]] = context_biasing.run_word_spotter(
                 logits,
                 context_graph,
                 asr_model,
@@ -189,7 +184,7 @@ def decoding_step(
             preds = np.argmax(probs, axis=1)
             if cfg.apply_context_biasing and ws_results[audio_file_paths[batch_idx]]:
                 # make new text by mearging alignment with ctc-ws predictions:
-                pred_text = merge_alignment_with_ws_hyps(
+                pred_text = context_biasing.merge_alignment_with_ws_hyps(
                     preds, asr_model, ws_results[audio_file_paths[batch_idx]], decoder_type="ctc", blank_idx=blank_idx,
                 )
             else:
@@ -221,7 +216,7 @@ def decoding_step(
                     'wer': f"{wer_dist/len(target_split_w):.4f}",
                 }
                 out_manifest.write(json.dumps(item) + "\n")
-        preds_output_manifest.close()
+        out_manifest.close()
 
         return wer_dist_first / words_count, cer_dist_first / chars_count
 
@@ -259,7 +254,7 @@ def decoding_step(
 
                     if cfg.apply_context_biasing and ws_results[audio_file_paths[sample_idx + beams_idx]]:
                         # make new text by mearging alignment with ctc-ws predictions:
-                        pred_text = merge_alignment_with_ws_hyps(
+                        pred_text = context_biasing.merge_alignment_with_ws_hyps(
                             candidate,
                             asr_model,
                             ws_results[audio_file_paths[sample_idx + beams_idx]],
@@ -296,7 +291,7 @@ def decoding_step(
                     out_manifest.write(json.dumps(item) + "\n")
 
             sample_idx += len(probs_batch)
-        preds_output_manifest.close()
+        out_manifest.close()
 
         return wer_dist_first / words_count, cer_dist_first / chars_count
 
@@ -410,7 +405,7 @@ def main(cfg: EvalContextBiasingConfig):
         context_words = [item[0] for item in context_transcripts]
         # build context graph:
         if cfg.apply_context_biasing:
-            context_graph = ContextGraphCTC(blank_id=blank_idx)
+            context_graph = context_biasing.ContextGraphCTC(blank_id=blank_idx)
             context_graph.build(context_transcripts)
         else:
             context_graph = None
@@ -475,7 +470,7 @@ def main(cfg: EvalContextBiasingConfig):
         )
 
         # compute fscore
-        fscore_stats = compute_fscore(preds_output_manifest, context_words, return_scores=True)
+        fscore_stats = context_biasing.compute_fscore(preds_output_manifest, context_words, return_scores=True)
 
         # find the best wer value
         if candidate_wer < best_wer:
