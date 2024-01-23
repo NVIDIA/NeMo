@@ -137,7 +137,7 @@ def decoding_step(
     blank_idx: int = 0,
     hp: Dict = None,
 ) -> tuple[float, float]:
-    
+
     # run CTC-based Word Spotter:
     if cfg.apply_context_biasing:
         ws_results = {}
