@@ -1,0 +1,83 @@
+defaults:
+  - nemo_fw_gpt3_pretrain_126m
+
+run:
+  name: attention-125m
+
+trainer:
+  devices: 1
+  num_nodes: 1
+  accelerator: gpu
+  precision: bf16
+  max_steps: 115000
+  log_every_n_steps: 10
+  val_check_interval: 1000
+  limit_val_batches: 15
+  limit_test_batches: 1.0
+
+exp_manager:
+  name: megatron_gpt
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: hyena-nemo-wt103
+  resume_if_exists: False
+
+model:
+  # use GPTModel from megatron.core
+  mcore_gpt: True
+#  use_flash_attention: True
+#  sequence_parallel: True
+
+#  micro_batch_size: 32 # limited by GPU memory
+#  global_batch_size: 512 # will use more micro batches to reach global batch size
+  micro_batch_size: 16 # limited by GPU memory
+  global_batch_size: 16 # will use more micro batches to reach global batch size
+
+  # model architecture
+  encoder_seq_length: 1024
+  max_position_embeddings: ${.encoder_seq_length}
+  num_layers: 12
+  hidden_size: 768
+  ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  num_attention_heads: 12
+  embedding_dropout: 0.1
+  hidden_dropout: 0.0 # Dropout probability for hidden state transformer.
+  attention_dropout: 0.1 # Dropout probability for attention
+  ffn_dropout: 0.0 # Dropout probability in the feed-forward layer.
+
+  tokenizer:
+    library: 'megatron'
+    type: 'GPT2BPETokenizer'
+    model: null
+    vocab_file: '/hdd/data/gpt2-vocab.json'
+    merge_file: '/hdd/data/gpt2-merges.txt'
+
+  data:
+    seq_length: ${model.encoder_seq_length}
+    data_prefix:
+      train:
+          - 1.0
+          - '/hdd/data/wikitext-103/nemo/hfbpe_gpt_training_data_text_document'
+      validation:
+        - 1.0
+        - '/hdd/data/wikitext-103/nemo/hfbpe_gpt_validation_data_text_document'
+      test:
+        - 1.0
+        - '/hdd/data/wikitext-103/nemo/hfbpe_gpt_test_data_text_document'
+    splits_string: null
+
+  # Miscellaneous
+  seed: 1234
+
+  optim:
+    name: distributed_fused_adam
+    lr: 1e-3
+    weight_decay: 0.1
+    betas:
+      - 0.9
+      - 0.999
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 1150
+      constant_steps: 0
+      min_lr: 0.0
