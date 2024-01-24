@@ -226,6 +226,7 @@ class AdapterModuleMixin(ABC):
             cfg['enabled'] = adapter_enabled
             self.adapter_cfg[adapter_name] = cfg
 
+    @torch.jit.export
     def is_adapter_available(self) -> bool:
         """
         Checks if any Adapter module has been instantiated.
@@ -451,6 +452,7 @@ class AdapterModuleMixin(ABC):
             The result tensor, after all active adapters have finished their forward passes.
         """
         # TODO: fix jit compatibility
+        # Currently the module with adapters will crash TorchScript, since we use drop=True
         enabled_adapters = self.get_enabled_adapters()
         for adapter_name in enabled_adapters:
             adapter_module = self.adapter_layer[adapter_name]

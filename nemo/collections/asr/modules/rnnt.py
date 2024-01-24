@@ -757,8 +757,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         del y, start, state
 
         # Adapter module forward step
-        # TODO: fix jit compatibility
-        if not torch.jit.is_scripting() and self.is_adapter_available():
+        if self.is_adapter_available():
             g = self.forward_enabled_adapters(g)
 
         return g, hid
