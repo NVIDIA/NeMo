@@ -356,7 +356,7 @@ class CUDAGraphCallback(Callback):
         for config in trainer.lr_scheduler_configs:
             assert isinstance(
                 config.scheduler, torch.optim.lr_scheduler._LRScheduler
-            ), f"Expect _LRScheduler type but got {type(dataloader)}"
+            ), f"Expect _LRScheduler type but got {type(config.scheduler)}"
             config.scheduler.__orig_get_lr__ = config.scheduler.get_lr
             config.scheduler.get_lr = MethodType(get_lr, config.scheduler)
 
