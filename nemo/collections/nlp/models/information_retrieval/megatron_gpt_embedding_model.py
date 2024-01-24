@@ -9,17 +9,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.utils import logging
-try:
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator,
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 try:
     from megatron.core import parallel_state
@@ -33,10 +22,6 @@ except (ImportError, ModuleNotFoundError):
 
 class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
         super().__init__(cfg, trainer=trainer)
         self.temperature = self.cfg.get('temperature', 1.0)
 
