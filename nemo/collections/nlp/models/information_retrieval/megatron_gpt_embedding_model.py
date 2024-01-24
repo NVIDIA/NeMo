@@ -9,6 +9,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.utils import logging
+
 try:
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator,
