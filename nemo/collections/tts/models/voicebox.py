@@ -29,6 +29,8 @@ from einops import rearrange
 from hydra.utils import instantiate, get_class
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities import grad_norm
+
 
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
@@ -273,6 +275,8 @@ class VoiceboxModel(TextToWaveform):
                     logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.2f}, ali_end: {maxTime:.2f}")
             return new_sup_seg
 
+        logging.info(f"mkdir -p {output_dir}")
+        os.makedirs(output_dir, exist_ok=True)
         for subset in dataset_parts:
             manifest_path = os.path.join(output_dir, f"libritts_cuts_{subset}.jsonl.gz")
             if manifest_path not in [self._cfg.train_ds.manifest_filepath, self._cfg.validation_ds.manifest_filepath, self._cfg.test_ds.manifest_filepath]:
@@ -460,6 +464,12 @@ class VoiceboxModel(TextToWaveform):
             decode_to_audio=decode_to_audio
         )
         return audio
+
+    def on_before_optimizer_step(self, optimizer):
+        # Compute the 2-norm for each layer
+        # If using mixed precision, the gradients are already unscaled here
+        norms = grad_norm(self.voicebox, norm_type=2)
+        self.log_dict(norms)
 
     def train_dp(self, audio, audio_mask, tokens, token_lens, texts, durations, batch_idx):
         self.duration_predictor.train()
