@@ -73,7 +73,7 @@ class RotaryEmbedding(nn.Module):
         if target_augmented_length and augmented_length_range:
             logging.warning(f'target_augmented_length setting of {target_augmented_length} supercedes augmented_length_range of {augmented_length_range}')
         elif augmented_length_range:
-            target_augmented_length = random.randint(augmented_length_range[0],augmented_length_range[1])
+            target_augmented_length = random.randint(max(augmented_length_range[0], max_seq_len),augmented_length_range[1])
 
         if self.augment_seq.get('stretch', False):
             if target_augmented_length:
@@ -118,7 +118,7 @@ class RotaryEmbedding(nn.Module):
             seq[i:] += shifts[idx]
 
         if random.random() < self.logging_freq:
-            logging.info(f'indices2shift: {indices2shift}, shifts: {shifts}')
+            logging.info(f'indices2shift: {indices2shift}, shifts: {shifts}, total shift: {torch.sum(shifts)})
 
         return seq
         
