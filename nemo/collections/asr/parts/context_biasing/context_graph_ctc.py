@@ -39,7 +39,7 @@ class ContextState:
     """The state in ContextGraph"""
 
     def __init__(
-        self, index: int, is_end: bool = False,
+        self, index: int, is_end: bool = False, word: Optional[str] = None,
     ):
         """Create a ContextState.
         Args:
@@ -48,13 +48,14 @@ class ContextState:
             The index of the root node is always 0.
           is_end:
             True if current node is the end of a context biasing word.
+          word:
+            The word of coresponding transcription (not None only for end states).
         """
         self.index = index
         self.is_end = is_end
+        self.word = word
         # dict of next token transitions to next states (key: token, value: next state)
         self.next = {}
-        # the word of coresponding transcription (not None only for end states)
-        self.word = None
         # the best token on current state (needed for state pruning during word spotter work)
         self.best_token = None
 
@@ -97,7 +98,8 @@ class ContextGraphCTC:
                     if token not in prev_node.next:
                         self.num_nodes += 1
                         is_end = i == len(tokens) - 1
-                        node = ContextState(index=self.num_nodes, is_end=is_end)
+                        word = word_item[0] if is_end else None
+                        node = ContextState(index=self.num_nodes, is_end=is_end, word=word)
                         node.next[token] = node
                         prev_node.next[token] = node
 
@@ -124,7 +126,8 @@ class ContextGraphCTC:
                         # create new token
                         self.num_nodes += 1
                         is_end = i == len(tokens) - 1
-                        node = ContextState(index=self.num_nodes, is_end=is_end)
+                        word = word_item[0] if is_end else None
+                        node = ContextState(index=self.num_nodes, is_end=is_end, word=word)
                         # add blank
                         if self.blank_token in prev_node.next:
                             prev_node.next[self.blank_token].next[token] = node
@@ -142,9 +145,7 @@ class ContextGraphCTC:
                     else:
                         prev_node = prev_node.next[self.blank_token].next[token]
                     prev_token = token
-                # the end of current branch
-                prev_node.is_end = True
-                prev_node.word = word_item[0]
+
 
     def draw(self, title: Optional[str] = None, symbol_table: Optional[Dict[int, str]] = None,) -> "Digraph":  # noqa
         """Visualize a ContextGraph via graphviz.

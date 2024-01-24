@@ -251,11 +251,13 @@ def filter_wb_hyps(best_hyp_list: List[WSHyp], word_alignment: List[tuple]) -> L
                     overall_spot_score += intersection_part / 100 * word_stats[3]
                 hyp_intersects = True
             elif hyp_intersects:
+                # add hyp to the best list
                 if hyp.score >= overall_spot_score:
                     best_hyp_list_filtered.append(hyp)
                     current_word_in_ali = i
+                    hyp_intersects = False
                     break
-        # end of sentence case
+        # if hyp has not yet been added (end of sentence case)
         if hyp_intersects and hyp.score >= overall_spot_score:
             best_hyp_list_filtered.append(hyp)
 
