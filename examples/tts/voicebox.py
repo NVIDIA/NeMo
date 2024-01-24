@@ -102,6 +102,11 @@ def main(cfg: DictConfig) -> Optional[float]:
         logging.info("Starting training!")
         trainer.fit(model=model, ckpt_path=cfg.get("ckpt_path"))
 
+    elif cfg.get("validate"):
+        exp_log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
+        logging.info("Starting training!")
+        trainer.validate(model=model, ckpt_path=cfg.get("ckpt_path"))
+
     train_metrics = trainer.callback_metrics
 
     if cfg.get("test"):

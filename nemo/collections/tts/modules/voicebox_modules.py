@@ -475,7 +475,8 @@ class NeMoDurationPredictor(DurationPredictor):
             attn_flash=attn_flash,
             p_drop_prob=p_drop_prob,
             frac_lengths_mask=frac_lengths_mask,
-            aligner_kwargs=None
+            aligner_kwargs=None,
+            **kwargs
         )
 
         self.aligner: AlignerModel = aligner
@@ -813,6 +814,22 @@ class MFADurationPredictor(DurationPredictor):
         return loss, losses, outputs
 
 
+class SinusoidalPosEmb(nn.Module):
+    def __init__(self, dim):
+        super(SinusoidalPosEmb, self).__init__()
+        self.dim = dim
+
+    def forward(self, x, scale=1000):
+        if x.ndim < 1:
+            x = x.unsqueeze(0)
+        device = x.device
+        half_dim = self.dim // 2
+        emb = math.log(10000) / half_dim
+        emb = torch.exp(torch.arange(half_dim, device=device).float() * -emb)
+        emb = scale * x.unsqueeze(1) * emb.unsqueeze(0)
+        emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
+        return emb
+
 
 class VoiceBox(_VB, LightningModule):
     """ Nothing to fix currently. Add some docs.
@@ -842,6 +859,8 @@ class VoiceBox(_VB, LightningModule):
         condition_on_text = True,
         loss_masked = True,
         no_diffusion = False,
+        # rmsnorm_shape = -1,
+        fix_time_emb = False,
         **kwargs
     ):
         """
@@ -894,14 +913,19 @@ class VoiceBox(_VB, LightningModule):
             num_register_tokens=num_register_tokens,
             p_drop_prob=p_drop_prob,
             frac_lengths_mask=frac_lengths_mask,
-            condition_on_text=condition_on_text
+            condition_on_text=condition_on_text,
+            # rmsnorm_shape=rmsnorm_shape,
+            **kwargs,
         )
         self.audio_enc_dec.freeze()
         self.loss_masked = loss_masked
         self.no_diffusion = no_diffusion
+        self.fix_time_emb = fix_time_emb
         if self.no_diffusion:
             dim_in = default(dim_in, dim)
             self.to_embed = nn.Linear(dim_in + self.dim_cond_emb, dim)
+        if self.fix_time_emb:
+            self.sinu_pos_emb[0] = SinusoidalPosEmb(dim)
 
     def create_cond_mask(self, batch, seq_len, cond_token_ids=None, self_attn_mask=None, training=True, frac_lengths_mask=None):
         if training:
@@ -991,7 +1015,7 @@ class VoiceBox(_VB, LightningModule):
         cond_drop_prob = 0.1,
         target = None,
         cond = None,
-        cond_mask = None
+        cond_mask: BoolTensor | None = None
     ):
         """ Copied from `super.forward()`.
 
@@ -1050,6 +1074,7 @@ class VoiceBox(_VB, LightningModule):
         # as described in section 3.2
 
         cond = cond * ~cond_mask_with_pad_dim
+        # import pdb;pdb.set_trace()
 
         # classifier free guidance
 

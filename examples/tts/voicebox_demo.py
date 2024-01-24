@@ -35,8 +35,9 @@ tgt_word_masks = {
 
 def get_audio_data(audio_path, device):
     # audio_data, orig_sr = sf.read(audio_path)
-    audio_data, orig_sr = librosa.load(audio_path, sr=sampling_rate)
-    audio_data = audio_data / max(np.abs(audio_data))
+    _, orig_sr = librosa.load(audio_path)
+    audio_data, _ = librosa.load(audio_path, sr=sampling_rate)
+    # audio_data = audio_data / max(np.abs(audio_data))
     audio = torch.tensor(audio_data, dtype=torch.float, device=device).unsqueeze(0)
     audio_len = torch.tensor(audio.shape[1], device=device).unsqueeze(0)
     return audio, audio_len, orig_sr
@@ -227,12 +228,12 @@ def audio_frame_mask_by_phn(ori_audio, model, ori_phn_dur, ori_phn_mask, new_phn
 
     new_mel_len = round(dur_ratio * new_phn_dur[-1][-1])
 
-    new_cond = torch.ones((1, new_mel_len, ori_mel.shape[2]), device=ori_mel.device) * 0
+    new_cond = torch.zeros((1, new_mel_len, ori_mel.shape[2]), device=ori_mel.device)
     new_cond[:, :ori_st_pos] = ori_mel[:, :ori_st_pos]
     new_cond[:, -ori_ed_len:] = ori_mel[:, -ori_ed_len:]
-    new_frame_mask = torch.zeros((1, new_mel_len), device=ori_mel.device).int()
-    new_frame_mask[:, :ori_st_pos] = 1
-    new_frame_mask[:, -ori_ed_len:] = 1
+    new_frame_mask = torch.ones((1, new_mel_len), device=ori_mel.device).bool()
+    new_frame_mask[:, :ori_st_pos] = False
+    new_frame_mask[:, -ori_ed_len:] = False
 
     aligned_phonemes = []
     new_dur = []
@@ -243,6 +244,28 @@ def audio_frame_mask_by_phn(ori_audio, model, ori_phn_dur, ori_phn_mask, new_phn
         new_phoneme_ids.append(p)
     new_phoneme_ids = model.tokenizer.text_to_ids(new_phoneme_ids)[0]
     aligned_phoneme_ids = model.tokenizer.text_to_ids(aligned_phonemes)[0]
+
+    ori_aligned_phonemes = []
+    ori_dur = []
+    ori_phoneme_ids = []
+    for p, st, ed in ori_phn_dur:
+        ori_aligned_phonemes += [p] * (round(dur_ratio*ed) - round(dur_ratio*st))
+        ori_dur.append(round(dur_ratio*ed) - round(dur_ratio*st))
+        ori_phoneme_ids.append(p)
+    ori_phoneme_ids = model.tokenizer.text_to_ids(ori_phoneme_ids)[0]
+    ori_aligned_phoneme_ids = model.tokenizer.text_to_ids(ori_aligned_phonemes)[0]
+    return {
+        "ori_mel": ori_mel,
+        "ori_self_attn_mask": torch.ones_like(ori_mel[0, :, 0]).unsqueeze(0),
+        "ori_phoneme_ids": ori_phoneme_ids,
+        "ori_aligned_phoneme_ids": torch.tensor(ori_aligned_phoneme_ids).to(ori_mel.device).unsqueeze(0),
+        "ori_dur": ori_dur,
+        "new_cond": new_cond,
+        "new_frame_mask": new_frame_mask,
+        "new_phoneme_ids": new_phoneme_ids,
+        "aligned_phoneme_ids": torch.tensor(aligned_phoneme_ids).to(new_cond.device).unsqueeze(0),
+        "new_dur": new_dur,
+    }
     return ori_mel, new_cond, new_frame_mask, new_phoneme_ids, aligned_phoneme_ids, new_dur
 
 def get_edit_data(model, device, ori_audio_path, ori_textgrid_path, tgt_textgrid_path, ori_word_mask=None, tgt_word_mask=None):
@@ -255,8 +278,14 @@ def get_edit_data(model, device, ori_audio_path, ori_textgrid_path, tgt_textgrid
     ori_phn_mask = word_mask_to_phn_mask(ori_word_dur, ori_phn_dur, ori_word_mask)
     tgt_phn_mask = word_mask_to_phn_mask(tgt_word_dur, tgt_phn_dur, tgt_word_mask)
     new_phn_dur, new_phn_mask, _ = combine_masked_dur(ori_word_dur=ori_phn_dur, tgt_word_dur=tgt_phn_dur, ori_word_mask=ori_phn_mask, tgt_word_mask=tgt_phn_mask)
-    ori_mel, new_cond, new_frame_mask, new_phoneme_ids, aligned_phoneme_ids, new_dur = audio_frame_mask_by_phn(ori_audio=ori_audio, model=model, ori_phn_dur=ori_phn_dur, ori_phn_mask=ori_phn_mask, new_phn_dur=new_phn_dur)
-    return ori_audio, ori_mel, new_cond, new_frame_mask, torch.tensor(aligned_phoneme_ids).to(new_cond.device).unsqueeze(0), new_phn_dur, new_phn_mask
+    outputs = audio_frame_mask_by_phn(ori_audio=ori_audio, model=model, ori_phn_dur=ori_phn_dur, ori_phn_mask=ori_phn_mask, new_phn_dur=new_phn_dur)
+    outputs.update({
+        "ori_sr": orig_sr,
+        "ori_audio": ori_audio,
+        "new_phn_dur": new_phn_dur,
+        "new_phn_mask": new_phn_mask,
+    })
+    return outputs
 
 def get_data(model, corpus_dir, textgrid_dir, device):
     outputs = {}
@@ -287,7 +316,8 @@ if __name__ == "__main__":
     outputs = get_data(model, corpus_dir, textgrid_dir, device)
 
     for spk in tqdm(outputs):
-        _ori_audio, ori_mel, new_cond, new_frame_mask, aligned_phoneme_ids, *_ = outputs[spk]
+        _ori_audio, ori_mel = outputs[spk]["ori_audio"], outputs[spk]["ori_mel"]
+        new_cond, new_frame_mask, aligned_phoneme_ids = outputs[spk]["new_cond"], outputs[spk]["new_frame_mask"], outputs[spk]["aligned_phoneme_ids"]
         print(spk)
         print(new_cond.shape, new_frame_mask.shape, aligned_phoneme_ids.shape)
 
@@ -306,7 +336,7 @@ if __name__ == "__main__":
                 cond=new_cond,
                 # phoneme_ids=torch.tensor(new_phoneme_ids).to(new_cond.device),
                 aligned_phoneme_ids=aligned_phoneme_ids,
-                cond_mask=None,
+                cond_mask=new_frame_mask,
                 steps=20,
             )
             # print(output_audio.shape)

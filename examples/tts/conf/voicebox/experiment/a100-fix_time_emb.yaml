@@ -1,0 +1,14 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=local-1
+
+defaults:
+  - a100
+
+model:
+  voicebox:
+    fix_time_emb: True
+
+# task name, determines output directory path
+task_name: "a100-fix_time_emb"

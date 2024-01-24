@@ -10,5 +10,9 @@ trainer:
   limit_train_batches: ${model.train_ds.num_workers}
   limit_val_batches: ${model.validation_ds.num_workers}
   limit_test_batches: ${model.test_ds.num_workers}
+  log_every_n_steps: ${.limit_train_batches}
 
   devices: 1
+
+exp_manager:
+  resume_if_exists: False

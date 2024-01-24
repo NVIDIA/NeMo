@@ -587,7 +587,7 @@ class VoiceboxModel(TextToWaveform):
                 tb_writer.add_image(f"val_vb/{plot_id}/cond", plot_spectrogram_to_numpy(cond[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
                 tb_writer.add_image(f"val_vb/{plot_id}/pred_x1", plot_spectrogram_to_numpy(pred_x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step, dataformats="HWC")
 
-                _pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1[None, plot_id, :mel_len[plot_id]]).detach().cpu().numpy()
+                _pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1[None, plot_id, :mel_len[plot_id]])[0].detach().cpu().numpy()
                 _orig_audio = audio[plot_id, :audio_len[plot_id]].detach().cpu().numpy()
                 tb_writer.add_audio(f"val_vb/{plot_id}/pred_audio", _pred_audio / max(np.abs(_pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
                 tb_writer.add_audio(f"val_vb/{plot_id}/orig_audio", _orig_audio / max(np.abs(_orig_audio)), self.global_step, sample_rate=24000)
