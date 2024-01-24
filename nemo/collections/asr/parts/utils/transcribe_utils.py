@@ -241,14 +241,14 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
 
 def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
     """ Compute filename of output manifest and update cfg"""
-    if cfg.output_filename is None:
+    if cfg.output_manifest is None:
         # create default output filename
         if cfg.audio_dir is not None:
-            cfg.output_filename = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
+            cfg.output_manifest = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
         elif cfg.pred_name_postfix is not None:
-            cfg.output_filename = cfg.input_manifest.replace('.json', f'_{cfg.pred_name_postfix}.json')
+            cfg.output_manifest = cfg.input_manifest.replace('.json', f'_{cfg.pred_name_postfix}.json')
         else:
-            cfg.output_filename = cfg.input_manifest.replace('.json', f'_{model_name}.json')
+            cfg.output_manifest = cfg.input_manifest.replace('.json', f'_{model_name}.json')
     return cfg
 
 
@@ -283,7 +283,7 @@ def write_transcription(
 ) -> Tuple[str, str]:
     """ Write generated transcription to output file. """
     if cfg.append_pred:
-        logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
+        logging.info(f'Transcripts will be written in "{cfg.output_manifest}" file')
         if cfg.pred_name_postfix is not None:
             pred_by_model_name = cfg.pred_name_postfix
         else:
@@ -313,7 +313,7 @@ def write_transcription(
     else:
         raise TypeError
 
-    with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
+    with open(cfg.output_manifest, 'w', encoding='utf-8', newline='\n') as f:
         if cfg.audio_dir is not None:
             for idx, transcription in enumerate(best_hyps):  # type: rnnt_utils.Hypothesis or str
                 if not return_hypotheses:  # transcription is str
@@ -364,7 +364,7 @@ def write_transcription(
                             item['beams'] = beams[idx]
                     f.write(json.dumps(item) + "\n")
 
-    return cfg.output_filename, pred_text_attr_name
+    return cfg.output_manifest, pred_text_attr_name
 
 
 def transcribe_partial_audio(

@@ -57,7 +57,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
   rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
 
-  output_filename: Output filename where the transcriptions will be written
+  output_manifest: Output filename where the transcriptions will be written
   batch_size: batch size during inference
 
   cuda: Optional int to enable or disable execution of model on certain CUDA device.
@@ -87,7 +87,7 @@ python transcribe_speech.py \
     pretrained_name=null \
     audio_dir="<remove or path to folder of audio files>" \
     input_manifest="<remove or path to manifest>" \
-    output_filename="<remove or specify output filename>" \
+    output_manifest="<remove or specify output filename>" \
     clean_groundtruth_text=True \
     langid='en' \
     batch_size=32 \
@@ -121,7 +121,7 @@ class TranscriptionConfig:
     eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
 
     # General configs
-    output_filename: Optional[str] = None
+    output_manifest: Optional[str] = None
     batch_size: int = 32
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
@@ -315,9 +315,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     cfg = compute_output_filename(cfg, model_name)
 
     # if transcripts should not be overwritten, and already exists, skip re-transcription step and return
-    if not cfg.return_transcriptions and not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename):
+    if not cfg.return_transcriptions and not cfg.overwrite_transcripts and os.path.exists(cfg.output_manifest):
         logging.info(
-            f"Previous transcripts found at {cfg.output_filename}, and flag `overwrite_transcripts`"
+            f"Previous transcripts found at {cfg.output_manifest}, and flag `overwrite_transcripts`"
             f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text."
         )
         return cfg
@@ -350,7 +350,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 )
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
-    logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
+    logging.info(f"Writing transcriptions into file: {cfg.output_manifest}")
 
     # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
     if type(transcriptions) == tuple and len(transcriptions) == 2:
