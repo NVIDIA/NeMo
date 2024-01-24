@@ -164,9 +164,13 @@ def decoding_step(
 
     # Update model's decoding strategy config
     if isinstance(asr_model, EncDecCTCModelBPE):
+        # in case of ctc
         asr_model.cfg.decoding.strategy = "greedy"
     else:
+        # in case of rnnt
         asr_model.cfg.decoding.strategy = "greedy_batch"
+        # fast greedy batch decoding:
+        asr_model.cfg.decoding.greedy.loop_labels = True
 
     # Update model's decoding strategy
     asr_model.change_decoding_strategy(asr_model.cfg.decoding)
