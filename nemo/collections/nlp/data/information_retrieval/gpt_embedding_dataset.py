@@ -215,9 +215,6 @@ class GPTEmbeddingDataset(Dataset):
         return attention_mask
 
     def collate_fn(self, batch):
-        assert (
-            len(batch) % 3 == 0
-        ), "a batch should contain multiples of 3 items; a query, a positive doc, and a negative doc"
         input_ids = []
         lengths = []
         max_length = -1
