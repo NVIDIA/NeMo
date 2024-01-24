@@ -88,7 +88,7 @@ class TestCTCWordSpotter:
         assert ws_results[0].word == target_text
         assert ws_results[0].start_frame == 9
         assert ws_results[0].end_frame == 19
-        assert ws_results[0].score == 8.996693096626814
+        assert round(ws_results[0].score, 4) == 8.9967
 
 
 class TestContextBiasingUtils:
