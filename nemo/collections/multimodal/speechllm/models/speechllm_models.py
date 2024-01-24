@@ -86,14 +86,7 @@ default_inference_config = {'tokens_to_generate': 30}
 class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     """Modularized speech GPT model."""
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer):
-        self.cfg = cfg
-        super().__init__(cfg, trainer)
-        # Used other keys from metadata to calulate metrics
-        if hasattr(self.cfg.data, "test_ds") and hasattr(self.cfg.data.test_ds, "metric"):
-            self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
-        if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
-            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+    def setup_perception_modules(self, cfg):
         if 'target' in cfg.perception:
             imported_cls = model_utils.import_class_by_path(cfg.perception.target)
             self.perception = imported_cls(
@@ -103,6 +96,16 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             imported_cls = AudioPerceptionModel
             self.perception = imported_cls(cfg=cfg.perception)
 
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        self.cfg = cfg
+        super().__init__(cfg, trainer)
+        # Used other keys from metadata to calulate metrics
+        if hasattr(self.cfg.data, "test_ds") and hasattr(self.cfg.data.test_ds, "metric"):
+            self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
+        if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
+            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+
+        self.setup_perception_modules(cfg)
         self.setup_optimizer_param_groups()
         # self.configure_optimizers()
         self.summarize(max_depth=3)
@@ -1474,3 +1477,51 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     #      """
     #     checkpoint_state_dict = checkpoint['state_dict']
     #     self.load_state_dict(checkpoint_state_dict, strict=False)
+
+
+class CrossAttendModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
+    """Modularized speech GPT model."""
+
+    def prepare_llm_input(self, audio_batch):
+
+        input_signal = audio_batch['audio_signal']
+        input_signal_length = audio_batch['audio_signal_length']
+
+        input_ids, input_length, labels, loss_mask = (
+            audio_batch['tokens'],
+            audio_batch['tokens_length'],
+            audio_batch['labels'],
+            audio_batch['loss_mask'],
+        )
+
+        num_audios = audio_batch.get("num_audios", None)
+        if num_audios is not None:
+            raise ValueError("num_audios is not supported.")
+
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        lm_embedding = (
+            base_module.language_model.embedding if hasattr(base_module, 'language_model') else base_module.embedding
+        )
+        # [b, t, c]
+        encoded, encoded_len, aux_loss = self.perception(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
+            lm_embedding=lm_embedding,
+            canary_tokens=audio_batch.get('canary_tokens', None),
+        )
+        input_embeds = self._get_text_embeddings(input_ids, None)
+        enc_dec_attn_output = self.perception_cross_attn(encoded, encoded_len, input_embeds)
+        attention_mask = self._create_attention_mask(enc_dec_attn_output.transpose(0, 1))
+
+        return enc_dec_attn_output, attention_mask, labels, loss_mask, (encoded, encoded_len), aux_loss
+
+    def setup_perception_modules(self, cfg):
+        super().setup_perception_modules(cfg)
+        imported_cls = model_utils.import_class_by_path(cfg.perception.xattn.target)
+        self.perception_cross_attn = imported_cls(cfg=cfg.perception)
+        

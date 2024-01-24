@@ -38,6 +38,9 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    build_position_ids,
+)
 
 # the text representation of eos_id, it applies for all tokenizers
 END_OF_SEQ = '<|endoftext|>'
@@ -195,10 +198,77 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             return torch.tensor(conditions, dtype=torch.bool, device=tokens.device)
 
 
-def model_inference_strategy_dispatcher(model, **args):
-    from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
+class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
+    def init_batch(
+        self,
+        context_tokens: torch.Tensor,
+        context_lengths: torch.Tensor,
+        audio_signal: torch.Tensor,
+        audio_length: torch.Tensor,
+        compute_attention_mask: bool,
+        num_audios: Optional[torch.Tensor] = None,
+        context_start_idx: Optional[List[List[int]]] = None,
+        canary_tokens: Optional[torch.Tensor] = None,
+    ):
+        """initialize the batch data before the inference steps."""
+        # Move to GPU.
+        batch = {'audio_signal': audio_signal, 'audio_signal_length': audio_length, 'tokens': context_tokens, 'tokens_length': context_lengths,
+                 'labels': None, 'loss_mask': None}
+        if canary_tokens is not None:
+            batch['canary_tokens'] = canary_tokens
+        encoder_input, _, _, _, (speech_encoded, speech_encoded_len), _ = self.model.prepare_llm_input(batch)
+        self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
+        self.attention_mask = self.model._create_attention_mask(encoder_input.transpose(0, 1))
+        return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), torch.zeros_like(context_lengths)
 
-    if isinstance(model, ModularAudioGPTLoRAModel):
+    def prepare_batch_at_step(
+        self,
+        tokens: torch.Tensor,
+        input_embeddings: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
+        context_lengths: torch.Tensor,
+        curr_context_length: int,
+        compute_attention_mask: bool,
+    ) -> Tuple[List[torch.Tensor], List[int]]:
+        # types2use = None
+        input_embeddings, speech_encoded, speech_encoded_len = input_embeddings
+        if step == 0:
+            # Allocate memory for the entire context.
+            set_inference_key_value_memory = True
+            tokens2use = tokens[:, :curr_context_length]
+            positions2use = self.position_ids[:, :curr_context_length]
+            embeddings2use = input_embeddings[:curr_context_length]
+        else:
+            # Set this to false so the memory is not reallocated.
+            set_inference_key_value_memory = False
+            tokens2use = tokens[:, curr_context_length - 1].view(micro_batch_size, -1)
+            positions2use = self.position_ids[:, curr_context_length - 1].view(micro_batch_size, -1)
+            embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use)
+            started = context_lengths <= curr_context_length
+            # for seq started, first get embeddings2use, and then run cross attend, after that replace embeddings2use with the cross attended embed
+            # use speech_encoded; rerun cross attend
+            embeddings2use = self.model.perception_cross_attn(speech_encoded, speech_encoded_len, embeddings2use)
+            embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use, started)
+
+        """Prepare batch for each of the inference steps"""
+        setkey_value_array = torch.tensor(
+            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+        )
+        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+
+        batch = [tokens2use, embeddings2use, self.attention_mask, positions2use, setkey_value_array, len_array]
+        tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
+        return batch, tensor_shape
+
+
+def model_inference_strategy_dispatcher(model, **args):
+    from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel, CrossAttendModularAudioGPTLoRAModel
+
+    if isinstance(model, CrossAttendModularAudioGPTLoRAModel):
+        return CrossAttendAudioToTextGenerationStrategy(model, **args)
+    elif isinstance(model, ModularAudioGPTLoRAModel):
         return AudioToTextGenerationStrategy(model, **args)
     else:
         return text_generation_strategy.model_inference_strategy_dispatcher(model, **args)

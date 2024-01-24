@@ -410,8 +410,8 @@ def collate_text_data(
         "tokens_length": full_lengths - 1,
         "labels": all_tokens[:, 1:],
         "loss_mask": collate_vectors(
-            [torch.as_tensor(_build_loss_mask(item)[1:]) for item in examples], max_length=max_length, padding_value=0
-        ),
+            [torch.as_tensor(_build_loss_mask(item)) for item in examples], max_length=max_length, padding_value=0
+        )[:, 1:],
         "position_ids": torch.arange(max_length, dtype=torch.long).repeat(batch_size, 1),
         "contexts": collate_vectors(fields["context_ids"], max_length=max_length, padding_value=pad_id),
         "context_lengths": torch.LongTensor([len(seq) for seq in fields["context_ids"]]),

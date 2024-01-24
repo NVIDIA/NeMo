@@ -38,6 +38,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
+from nemo.collections.asr.modules.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
 
 __all__ = ["AudioPerceptionModel", "MultiAudioPerceptionModel"]
 
@@ -889,3 +890,30 @@ class AmFixQueryAudioPerceptionModel(AmQueryAudioPerceptionModel):
             )
             aux_loss['asr_loss'] = asr_loss * asr_loss_weight
         return attend_encoded, encoded_len, aux_loss
+
+
+class GatedCrossAttentionDense(NeuralModule, Exportable):
+    """Audio perception model with basic modality_adapter (some fc layers)."""
+
+    def __init__(self, cfg: DictConfig, *args, **kwargs):
+        super().__init__()
+        cross_attn_cfg= cfg.xattn
+        self.xattn = MultiHeadAttention(
+            cfg.output_dim, cross_attn_cfg.num_attention_heads, cross_attn_cfg.attn_score_dropout, cross_attn_cfg.attn_layer_dropout
+        )
+        self.ffw = PositionWiseFF(cfg.output_dim, 4*cfg.output_dim, cross_attn_cfg.ffn_dropout, cross_attn_cfg.hidden_act)
+        self.alpha_xattn = nn.Parameter(torch.tensor([0.]))
+        self.alpha_dense = nn.Parameter(torch.tensor([0.]))
+        self.layer_norm = nn.LayerNorm(cfg.output_dim, eps=1e-5)
+
+
+    def forward(self, encoder_states, encoded_len, input_embeds):
+        assert input_embeds.shape[-1] == encoder_states.shape[-1]
+        input_embeds_norm = self.layer_norm(input_embeds)
+        # follow EncDecTransfModelBPE to use full ctx for now
+        enc_mask = lens_to_mask(encoded_len, encoder_states.shape[1]).to(encoder_states.dtype)
+        attn_out = self.xattn(input_embeds_norm, encoder_states, encoder_states, enc_mask)
+        y = input_embeds + torch.tanh(self.alpha_xattn) * attn_out
+        y = y + torch.tanh(self.alpha_dense) * self.ffw(y)
+        assert y.shape == input_embeds.shape
+        return y

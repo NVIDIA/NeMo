@@ -21,7 +21,6 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
@@ -30,9 +29,10 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, logging, model_utils
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.model_utils import inject_model_parallel_rank
+from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
 
 mp.set_start_method("spawn", force=True)
 
@@ -76,7 +76,11 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(cfg, trainer=trainer)
+    if hasattr(cfg, 'model_target'):
+        imported_cls = model_utils.import_class_by_path(cfg.model_target)
+    else:
+        imported_cls = ModularAudioGPTLoRAModel
+    model = imported_cls.restore_from_pretrained_models(cfg, trainer=trainer)
 
     trainer.fit(model)
 
