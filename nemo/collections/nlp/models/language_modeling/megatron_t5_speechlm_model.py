@@ -31,8 +31,8 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import (
     T5SpeechLMDataset,
-    Lang
-    # phoneme_tokenizer,
+    Lang,
+    phoneme_tokenizer
 )
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_tarred_dataset import T5SpeechLMTarredDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
@@ -142,10 +142,16 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.frozen_model.enc_dec_model.num_cross_attention_heads = num_cross_attention_heads
 
         self.alignment_loss_start_step = 0
+        self.alignment_loss_end_step = float('inf')
         if cfg.get('use_alignment_loss', False):
             alignment_loss_scale = cfg.get('alignment_loss_scale', 1.0)
             self.frozen_model.enc_dec_model.forward_sum_loss = ForwardSumLoss(loss_scale=alignment_loss_scale)
+            self.frozen_model.enc_dec_model.alignment_text_end_offset = cfg.get('alignment_text_end_offset', 0)
+            self.frozen_model.enc_dec_model.align_every_n_head = cfg.get('align_every_n_head', 1)
+            self.frozen_model.enc_dec_model.alignment_decoder_layerids = cfg.get('alignment_decoder_layerids', list(range(0,12)))
             self.alignment_loss_start_step = cfg.get('alignment_loss_start_step', 0)
+            self.alignment_loss_end_step = cfg.get('alignment_loss_end_step', float('inf'))
+            
 
         # Parallel output is used only for vocab parallel cross entropy.
         self.frozen_model.enc_dec_model.parallel_output = (
@@ -309,6 +315,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 cross_attention_prior=cross_attention_prior,
                 text_limits=text_limits,
                 global_step=self.global_step,
+                set_inference_key_value_memory=True if inference and inference_step == 0 else False,
+                decoder_max_sequence_len=decoder_max_sequence_len,
+                encoder_max_sequence_len=encoder_max_sequence_len,
             )
         else:
             with torch.autocast(device_type="cuda", dtype=self.autocast_dtype):
@@ -367,7 +376,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             override_config_path=t5_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
-        self.frozen_model.tokenizer.update_phone_tokens()
+        
+        if not cfg.get('english_only_model', False):
+            self.frozen_model.tokenizer.update_phone_tokens()
+
         logging.info(f"self.frozen_model {self.frozen_model}")
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
@@ -618,8 +630,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 output_tensor, out_logits, curr_step = loss_args
                 alignment_loss = out_logits[3]
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
-                if (alignment_loss is not None) and (curr_step > self.alignment_loss_start_step):
-                    # print("Adding alignment loss", curr_step, self.alignment_loss_start_step)
+                if (alignment_loss is not None) and (curr_step > self.alignment_loss_start_step) and (curr_step < self.alignment_loss_end_step):
+                    print("Adding alignment loss", curr_step, self.alignment_loss_start_step)
                     loss = loss + alignment_loss
                 reduced_loss = average_losses_across_data_parallel_group([loss])
                 return loss, {'avg': reduced_loss}
@@ -815,7 +827,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             speech_mask=speech_mask,
             cross_attention_prior=cross_attention_prior,
             text_limits=text_limits,
-            inference=True,
+            inference=False,
         )
 
         if batch_idx == 0 and self.is_rank_zero:
@@ -1225,7 +1237,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             context_pattern=self.cfg.data.get('context_pattern', 'parallel'),
             context_duration_min=self.cfg.data.get('context_duration_min', 3.0),
             context_duration_max=self.cfg.data.get('context_duration_max', 5.0),
-            g2p=self.cfg.data.get('g2p', None)
+            g2p=self.cfg.data.get('g2p', None),
+            skip_datasets=self.cfg.data.get('skip_datasets', []),
+            english_only_model=self.cfg.get('english_only_model', False),
         )
 
         rank = parallel_state.get_data_parallel_rank()
@@ -1466,18 +1480,31 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-            nemo_sv_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
-            nemo_sv_model = nemo_sv_model.to(device)
-            nemo_sv_model.eval()
+            if 'nemo_sv_model' not in self.additional_models:
+                nemo_sv_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
+                nemo_sv_model = nemo_sv_model.to(device)
+                nemo_sv_model.eval()
+                self.additional_models['nemo_sv_model'] = nemo_sv_model
+            else:
+                nemo_sv_model = self.additional_models['nemo_sv_model']
 
-            asr_model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.from_pretrained(model_name="stt_multilingual_fastconformer_hybrid_large_pc_blend_eu")
-            asr_model = asr_model.to(device)
-            asr_model.eval()
+            if 'asr_model' not in self.additional_models:
+                asr_model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.from_pretrained(model_name="stt_multilingual_fastconformer_hybrid_large_pc_blend_eu")
+                asr_model = asr_model.to(device)
+                asr_model.eval()
+                self.additional_models['asr_model'] = asr_model
+            else:
+                asr_model = self.additional_models['asr_model']
+
             asr_model_zh = None
             if Lang.zh.value in lang:
-                asr_model_zh = nemo_asr.models.EncDecRNNTModel.from_pretrained(model_name="stt_zh_conformer_transducer_large")
-                asr_model_zh = asr_model_zh.to(device)
-                asr_model_zh.eval()
+                if 'asr_model_zh' not in self.additional_models:
+                    asr_model_zh = nemo_asr.models.EncDecRNNTModel.from_pretrained(model_name="stt_zh_conformer_transducer_large")
+                    asr_model_zh = asr_model_zh.to(device)
+                    asr_model_zh.eval()
+                    self.additional_models['asr_model_zh'] = asr_model_zh
+                else:
+                    asr_model_zh = self.additional_models['asr_model_zh']
             _exp_dir_path = self.logger.log_dir
             _exp_dir_path = _exp_dir_path + '/Sample_Audios'
             if not os.path.exists(_exp_dir_path):

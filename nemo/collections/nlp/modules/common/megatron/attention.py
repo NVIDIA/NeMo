@@ -438,7 +438,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             )
         else:
             # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
-            if self.inference_current_sequence_len < inference_max_sequence_len:
+            if (inference_max_sequence_len is None) or self.inference_current_sequence_len < inference_max_sequence_len:
                 mixed_kv_layer, _ = self.key_value(encoder_output)
                 if self.is_adapter_available():
                     lora_kv_adapter = self.get_adapter_module(AdapterName.LORA_KV_ADAPTER)
