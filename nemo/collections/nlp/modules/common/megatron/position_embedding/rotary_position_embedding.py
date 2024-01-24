@@ -118,7 +118,7 @@ class RotaryEmbedding(nn.Module):
             seq[i:] += shifts[idx]
 
         if random.random() < self.logging_freq:
-            logging.info(f'indices2shift: {indices2shift}, shifts: {shifts}, total shift: {torch.sum(shifts)})
+            logging.info(f'indices2shift: {indices2shift}, shifts: {shifts}, total shift: {torch.sum(shifts)}')
 
         return seq
         
