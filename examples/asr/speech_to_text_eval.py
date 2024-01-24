@@ -43,7 +43,7 @@ for full list of arguments >>
 ## To score a dataset with a manifest file that does not contain previously transcribed `pred_text`.
 
 python speech_to_text_eval.py \
-    model_path=null \
+    nemo_model_file=null \
     pretrained_name=null \
     input_manifest=<Mandatory: Path to an ASR dataset manifest file> \
     output_manifest=<Optional: Some output filename which will hold the transcribed text as a manifest> \
