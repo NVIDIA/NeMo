@@ -218,11 +218,11 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
     else:
         # get filenames from manifest
         filepaths = []
-        if os.stat(cfg.dataset_manifest).st_size == 0:
-            logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
+        if os.stat(cfg.input_manifest).st_size == 0:
+            logging.error(f"The input input_manifest {cfg.input_manifest} is empty. Exiting!")
             return None
 
-        with open(cfg.dataset_manifest, 'r', encoding='utf_8') as f:
+        with open(cfg.input_manifest, 'r', encoding='utf_8') as f:
             has_two_fields = []
             for line in f:
                 item = json.loads(line)
@@ -231,7 +231,7 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
                 else:
                     has_two_fields.append(False)
                 audio_key = cfg.get('audio_key', 'audio_filepath')
-                audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
+                audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.input_manifest)
                 filepaths.append(audio_file)
         partial_audio = all(has_two_fields)
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
@@ -246,9 +246,9 @@ def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
         if cfg.audio_dir is not None:
             cfg.output_filename = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
         elif cfg.pred_name_postfix is not None:
-            cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{cfg.pred_name_postfix}.json')
+            cfg.output_filename = cfg.input_manifest.replace('.json', f'_{cfg.pred_name_postfix}.json')
         else:
-            cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{model_name}.json')
+            cfg.output_filename = cfg.input_manifest.replace('.json', f'_{model_name}.json')
     return cfg
 
 
@@ -338,7 +338,7 @@ def write_transcription(
                         item['beams'] = beams[idx]
                 f.write(json.dumps(item) + "\n")
         else:
-            with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
+            with open(cfg.input_manifest, 'r', encoding='utf-8') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
                     if not return_hypotheses:  # transcription is str
