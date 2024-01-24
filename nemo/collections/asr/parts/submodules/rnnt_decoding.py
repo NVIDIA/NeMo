@@ -317,7 +317,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_frame_confidence=self.preserve_frame_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
                         loop_labels=self.cfg.greedy.get('loop_labels', True),
-                        allow_jit=self.cfg.greedy.get('allow_jit', True),  # TODO: add to all
+                        allow_jit=self.cfg.greedy.get('allow_jit', True),
                     )
                 else:
                     self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
@@ -332,7 +332,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
-                        allow_jit=self.cfg.greedy.get('allow_jit', True),  # TODO: add to all
+                        allow_jit=self.cfg.greedy.get('allow_jit', True),
                     )
 
             else:
@@ -347,6 +347,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                     preserve_frame_confidence=self.preserve_frame_confidence,
                     confidence_method_cfg=self.confidence_method_cfg,
+                    allow_jit=self.cfg.greedy.get('allow_jit', True),
                 )
 
         elif self.cfg.strategy == 'beam':
