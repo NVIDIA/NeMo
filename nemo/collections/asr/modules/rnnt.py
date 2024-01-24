@@ -378,11 +378,15 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     def batch_replace_states(
         self,
-        src_states: List[torch.Tensor],
+        src_states: Optional[List[torch.Tensor]],
         src_mask_or_indices: torch.Tensor,
-        dst_states: List[torch.Tensor],
+        dst_states: Optional[List[torch.Tensor]],
         dst_mask_or_indices: torch.Tensor,
     ):
+        if src_states is None or dst_states is None:
+            # NB: it is important for torch.jit that the state has an optional type consistent with other code
+            # So, we have to check this and always annotate with Optional[List[torch.Tensor]]
+            return  # nothing to replace
         dst_states[0][dst_mask_or_indices] = src_states[0][src_mask_or_indices]
 
     def batch_copy_states(
@@ -1510,8 +1514,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         del f, g
 
         # Forward adapter modules on joint hidden
-        # TODO: fix jit compatibility
-        if not torch.jit.is_scripting() and self.is_adapter_available():
+        if self.is_adapter_available():
             inp = self.forward_enabled_adapters(inp)
 
         res = self.joint_net(inp)  # [B, T, U, V + 1]
@@ -1584,6 +1587,8 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     def get_jit_copy_for_inference(self) -> torch.jit.ScriptModule:
         # shallow copy
+        if self.is_adapter_available():
+            raise NotImplementedError("Adapters are not supported now with torch.jit")
         joint_copy = copy.copy(self)
         joint_copy = joint_copy.eval()
         joint_copy.set_fuse_loss_wer(fuse_loss_wer=False, loss=None, metric=None)

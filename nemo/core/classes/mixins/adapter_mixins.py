@@ -434,7 +434,8 @@ class AdapterModuleMixin(ABC):
         for name in adapter_names:
             logging.info(f"Unfrozen adapter : {name}")
 
-    def forward_enabled_adapters(self, input: 'torch.Tensor'):
+    @torch.jit.ignore(drop=True)
+    def forward_enabled_adapters(self, input: torch.Tensor):
         """
         Forward's all active adapters one by one with the provided input, and chaining the outputs of each
         adapter layer to the next.
@@ -449,6 +450,7 @@ class AdapterModuleMixin(ABC):
         Returns:
             The result tensor, after all active adapters have finished their forward passes.
         """
+        # TODO: fix jit compatibility
         enabled_adapters = self.get_enabled_adapters()
         for adapter_name in enabled_adapters:
             adapter_module = self.adapter_layer[adapter_name]
