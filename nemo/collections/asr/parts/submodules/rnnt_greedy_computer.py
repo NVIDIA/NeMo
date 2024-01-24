@@ -70,7 +70,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
         # state = None
 
         # init additional structs for hypotheses: last decoder state, alignments, frame_confidence
-        # last_decoder_state = [None for _ in range(batch_size)]
+
+        # sample state, will be replaced further when the decoding for hypothesis is done
+        last_decoder_state = self.decoder.initialize_state(x)
 
         use_alignments = self.preserve_alignments or self.preserve_frame_confidence
         alignments = rnnt_utils.BatchedAlignments(
@@ -85,14 +87,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
 
         # loop while there are active indices
         first_step = True
-
-        # state: Tuple[torch.Tensor, torch.Tensor] = (torch.zeros(0), torch.zeros(0))
-        state = self.decoder.initialize_state(torch.zeros(batch_size, device=device))
+        state = self.decoder.initialize_state(torch.zeros(batch_size, device=device, dtype=x.dtype))
         while active_indices.shape[0] > 0:
             current_batch_size = active_indices.shape[0]
             # stage 1: get decoder (prediction network) output
             if first_step:
-                # start of the loop, SOS symbol is passed into prediction network
+                # start of the loop, SOS symbol is passed into prediction network, state is None
                 decoder_output, state, *_ = self.decoder.predict(
                     labels.unsqueeze(1), None, add_sos=False, batch_size=current_batch_size
                 )
@@ -170,10 +170,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
 
                 # select states for hyps that became inactive (is it necessary?)
                 # this seems to be redundant, but used in the `loop_frames` output
-                # inactive_global_indices = active_indices[blank_mask]
-                # inactive_inner_indices = torch.arange(current_batch_size, device=device, dtype=torch.long)[blank_mask]
-                # for idx, batch_idx in zip(inactive_global_indices.cpu().numpy(), inactive_inner_indices.cpu().numpy()):
-                #     last_decoder_state[idx] = self.decoder.batch_select_state(state, batch_idx)
+                inactive_global_indices = active_indices[blank_mask]
+                inactive_inner_indices = torch.arange(current_batch_size, device=device, dtype=torch.long)[blank_mask]
+                self.decoder.batch_replace_states(
+                    src_states=state,
+                    src_mask_or_indices=inactive_inner_indices,
+                    dst_states=last_decoder_state,
+                    dst_mask_or_indices=inactive_global_indices,
+                )
 
                 # update active indices and state
                 active_indices = active_indices[non_blank_mask]
@@ -203,6 +207,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
                     labels = labels[still_active_mask]
                     state = self.decoder.mask_select_states(state, still_active_mask)
 
+        # TODO: return last state
         if use_alignments:
             return batched_hyps, alignments
         else:
