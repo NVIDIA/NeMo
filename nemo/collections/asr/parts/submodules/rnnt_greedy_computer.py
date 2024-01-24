@@ -52,9 +52,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
         The main idea: search for next labels for the whole batch (evaluating Joint)
         and thus always evaluate prediction network with maximum possible batch size
         """
-        # if partial_hypotheses is not None:
-        #     raise NotImplementedError("`partial_hypotheses` support is not implemented")
-
         batch_size, max_time, _unused = x.shape
         device = x.device
 
@@ -67,7 +64,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
         time_indices = torch.zeros([batch_size], dtype=torch.long, device=device)  # always of batch_size
         active_indices = torch.arange(batch_size, dtype=torch.long, device=device)  # initial: all indices
         labels = torch.full([batch_size], fill_value=self._blank_index, dtype=torch.long, device=device)
-        # state = None
 
         # init additional structs for hypotheses: last decoder state, alignments, frame_confidence
 
@@ -209,11 +205,4 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
 
         if use_alignments:
             return batched_hyps, alignments, last_decoder_state
-        else:
-            return batched_hyps, None, last_decoder_state
-        # hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
-        # preserve last decoder state (is it necessary?)
-        # for i, last_state in enumerate(last_decoder_state):
-        #     assert last_state is not None
-        # hyps[i].dec_state = last_state
-        # return hyps
+        return batched_hyps, None, last_decoder_state

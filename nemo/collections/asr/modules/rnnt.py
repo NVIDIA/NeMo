@@ -713,7 +713,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         """
         # Get device and dtype of current module
         # torch.jit cannot use .parameters(), need to use the pre-defined weight for device/dtype
-        # _p = list(self.parameters())[0]
         _p = self.prediction["embed"].weight
         device = _p.device
         dtype = _p.dtype
