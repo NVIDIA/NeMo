@@ -146,7 +146,6 @@ class ContextGraphCTC:
                         prev_node = prev_node.next[self.blank_token].next[token]
                     prev_token = token
 
-
     def draw(self, title: Optional[str] = None, symbol_table: Optional[Dict[int, str]] = None,) -> "Digraph":  # noqa
         """Visualize a ContextGraph via graphviz.
 

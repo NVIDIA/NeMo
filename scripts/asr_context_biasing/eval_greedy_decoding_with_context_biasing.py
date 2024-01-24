@@ -454,9 +454,7 @@ def main(cfg: EvalContextBiasingConfig):
 
     # run decoding step for each hyper parameter set
     for hp in hp_grid:
-        results_file = (
-            f"preds_out_manifest_bthr-{hp['beam_threshold']}_cs-{hp['context_score']}ctcw-{hp['ctc_ali_token_weight']}.json"
-        )
+        results_file = f"preds_out_manifest_bthr-{hp['beam_threshold']}_cs-{hp['context_score']}ctcw-{hp['ctc_ali_token_weight']}.json"
         preds_output_manifest = os.path.join(cfg.preds_output_folder, results_file)
         candidate_wer, candidate_cer = decoding_step(
             asr_model,
