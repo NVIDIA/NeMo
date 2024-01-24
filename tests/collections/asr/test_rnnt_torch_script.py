@@ -45,7 +45,7 @@ class TestJointTorchScript:
             },
             num_classes=10,
         )
-        joint_jit = torch.jit.script(joint)
+        joint_jit = joint.get_jit_copy_for_inference()
         joint = joint.to(device).eval()
         joint_jit = joint_jit.to(device).eval()
 
