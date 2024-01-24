@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>First FFT using cuFFTDx &mdash; cuFFTDx 1.0.0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="_static/cufftdx_override.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Achieving high performance" href="performance.html" />
+    <link rel="prev" title="NVIDIA cuFFTDx" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" > 
+            <a href="index.html" class="icon icon-home"> cuFFTDx
+          </a>
+              <div class="version">
+                1.0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #76b900;
+    }
+
+    .wy-side-nav-search a:link, .wy-nav-top a:link {
+      color: #fff;
+    }
+    .wy-side-nav-search a:visited, .wy-nav-top a:visited {
+      color: #fff;
+    }
+    .wy-side-nav-search a:hover, .wy-nav-top a:hover {
+      color: #fff;
+    }
+
+    .wy-menu-vertical a:link, .wy-menu-vertical a:visited {
+      color: #d9d9d9
+    }
+
+    .wy-menu-vertical a:active {
+      background-color: #76b900
+    }
+
+    .wy-side-nav-search>div.version {
+      color: rgba(0, 0, 0, 0.3)
+    }
+
+    /* override table width restrictions */
+    .wy-table-responsive table td, .wy-table-responsive table th {
+        white-space: normal;
+    }
+
+    .wy-table-responsive {
+        margin-bottom: 24px;
+        max-width: 100%;
+        overflow: visible;
+    }
+  </style>
+  
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="index.html">Documentation home</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User guide:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">First FFT using cuFFTDx</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#what-next">What next?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#compilation">Compilation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="#your-next-custom-fft-kernels">Your next custom FFT kernels</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#what-happens-under-the-hood">What happens under the hood?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#why">Why?</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="performance.html">Achieving high performance</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="performance.html#general-advice">General advice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance.html#memory-management">Memory management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance.html#kernel-fusion">Kernel fusion</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance.html#advanced">Advanced</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance.html#further-reading">Further reading</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="performance.html#references">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="requirements_func.html">Requirements and Functionality</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="requirements_func.html#requirements">Requirements</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="requirements_func.html#supported-compilers">Supported Compilers</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="requirements_func.html#supported-functionality">Supported Functionality</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/index.html">cuFFTDx API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/operators.html">Operators</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/operators.html#description-operators">Description Operators</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/operators.html#size-operator">Size Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/operators.html#direction-operator">Direction Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/operators.html#type-operator">Type Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/operators.html#precision-operator">Precision Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/operators.html#sm-operator">SM Operator</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api/operators.html#execution-operators">Execution Operators</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/operators.html#thread-operator">Thread Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/operators.html#block-operator">Block Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/operators.html#block-configuration-operators">Block Configuration Operators</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/traits.html">Traits</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/traits.html#description-traits">Description Traits</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/traits.html#size-trait">Size Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/traits.html#type-trait">Type Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/traits.html#direction-trait">Direction Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/traits.html#precision-trait">Precision Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/traits.html#is-fft-trait">Is FFT? Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/traits.html#is-fft-execution-trait">Is FFT Execution? Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/traits.html#is-fft-complete-trait">Is FFT-complete? Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/traits.html#is-fft-complete-execution-trait">Is FFT-complete Execution? Trait</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api/traits.html#execution-traits">Execution Traits</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/traits.html#thread-traits">Thread Traits</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/traits.html#block-traits">Block Traits</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/methods.html">Execution Methods</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/methods.html#thread-execute-method">Thread Execute Method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/methods.html#block-execute-method">Block Execute Method</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/methods.html#value-format">Value Format</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/methods.html#input-output-data-format">Input/Output Data Format</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api/methods.html#make-workspace-function">Make Workspace Function</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="release_notes.html">Release Notes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="release_notes.html#id1">1.0.0</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="release_notes.html#new-features">New Features</a></li>
+<li class="toctree-l3"><a class="reference internal" href="release_notes.html#resolved-issues">Resolved Issues</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="release_notes.html#id2">0.3.1</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="release_notes.html#known-issues">Known Issues</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">cuFFTDx</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>First FFT using cuFFTDx</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="section" id="first-fft-using-cufftdx">
+<span id="first-fft-label"></span><h1>First FFT using cuFFTDx<a class="headerlink" href="#first-fft-using-cufftdx" title="Permalink to this headline">¶</a></h1>
+<p>In the following example, we will calculate an FFT of size 128 using a standalone
+kernel. We start with an empty CUDA kernel:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="c1">// Empty kernel to compute an FFT of size 128 using float</span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>First, we have to provide an FFT description to the cuFFTDx library. A cuFFTDx transform description
+is built using C++ constructs that are evaluated at compile time. A correctly-defined FFT must include
+the problem size, the precision used (<code class="code highlight cpp docutils literal notranslate"><span class="kt"><span class="pre">float</span></span></code>, <code class="code highlight cpp docutils literal notranslate"><span class="kt"><span class="pre">double</span></span></code>, etc.), the type of operation (complex-to-complex,
+real-to-complex, etc.), and its direction (forward, or inverse). We add the following lines:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="c1">// Kernel containing a descriptor of an FFT of size 128 using float</span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">());</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>In order to encode the FFT properties, cuFFTDx provides operators <a class="reference internal" href="api/operators.html#size-operator-label"><span class="std std-ref">Size Operator</span></a>,
+<a class="reference internal" href="api/operators.html#precision-operator-label"><span class="std std-ref">Precision Operator</span></a>, <a class="reference internal" href="api/operators.html#type-operator-label"><span class="std std-ref">Type Operator</span></a>, and <a class="reference internal" href="api/operators.html#direction-operator-label"><span class="std std-ref">Direction Operator</span></a>.
+Listed operators can be combined by using the addition operator (<code class="code highlight cpp docutils literal notranslate"><span class="o"><span class="pre">+</span></span></code>).</p>
+<p>To obtain a fully usable CUDA FFT kernel, we need to provide three additional
+pieces of information. The first one is how many FFTs we would like to compute,
+the second one is how to map the calculations into a CUDA block, and the
+last one is what CUDA architecture we are targeting.</p>
+<p>In cuFFTDx, we specify how many FFTs we want to compute using the <a class="reference internal" href="api/operators.html#fftsperblock-operator-label"><span class="std std-ref">FFTs Per Block Operator</span></a>.
+It defines how many FFT to do in parallel inside of a single CUDA block. Let us
+add that operator:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="c1">// Kernel containing a descriptor of an FFT of size 128 using float</span>
+<span class="c1">// and one FFT per block</span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="mi">1</span><span class="o">&gt;</span><span class="p">());</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>To map the computing of the FFT to the CUDA block, we use the <a class="reference internal" href="api/operators.html#ept-operator-label"><span class="std std-ref">Elements Per Thread Operator</span></a>.
+This operator determines the number of registers required per thread and the exact implementation
+to be used. It also influences the required CUDA block size. We add that operator to the description:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="c1">// Kernel containing a descriptor of an FFT of size 128 using float</span>
+<span class="c1">// and one FFT per block with 8 elements per thread</span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="mi">1</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="mi">8</span><span class="o">&gt;</span><span class="p">());</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Finally, we use the <a class="reference internal" href="api/operators.html#sm-operator-label"><span class="std std-ref">SM Operator</span></a> to indicate the target CUDA architecure
+on which we want to build the FFT descriptor.  Each GPU architecture can use different
+parameters. Therefore, the choice of architecture potentially affects the configuration
+to maximize performance. For this example, we target Volta GPUs (<code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">SM</span></span><span class="o"><span class="pre">&lt;</span></span><span class="mi"><span class="pre">700</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code>):</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="c1">// Kernel containing a descriptor of an FFT of size 128 using float</span>
+<span class="c1">// and one FFT per block with 8 elements per thread</span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="mi">1</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">SM</span><span class="o">&lt;</span><span class="mi">700</span><span class="o">&gt;</span><span class="p">());</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Once the FFT description is fully formed, we can finalize it by adding the
+<a class="reference internal" href="api/operators.html#block-operator-label"><span class="std std-ref">Block Operator</span></a>. It indicates that we are asking for the
+collective FFT operation to be performed by a single CUDA block. The operator
+verifies correctness of the description, and it is a type of <a class="reference internal" href="api/operators.html#execution-operators-label"><span class="std std-ref">Execution Operators</span></a>,
+(the other being the <a class="reference internal" href="api/operators.html#thread-operator-label"><span class="std std-ref">Thread Operator</span></a>).</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="c1">// Kernel containing a fully-formed descriptor of an</span>
+<span class="c1">// FFT of size 128 using float and one FFT per block</span>
+<span class="c1">// with 8 elements per thread, targeting Volta arch</span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="mi">1</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">SM</span><span class="o">&lt;</span><span class="mi">700</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Block</span><span class="p">());</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<div class="section" id="what-next">
+<h2>What next?<a class="headerlink" href="#what-next" title="Permalink to this headline">¶</a></h2>
+<p>FFT descriptions can be instantiated into objects. Forming the object has
+no computational cost, and should be seen as a handle. The FFT descriptor object
+provides a compute method, <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">execute</span></span><span class="p"><span class="pre">(...)</span></span></code> that performs the requested FFT.</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="c1">// Kernel containing a fully-formed descriptor of an FFT and its</span>
+<span class="c1">// execution</span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="mi">1</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">SM</span><span class="o">&lt;</span><span class="mi">700</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Block</span><span class="p">());</span><span class="w"></span>
+
+<span class="w">  </span><span class="c1">// Execute FFT</span>
+<span class="w">  </span><span class="n">FFT</span><span class="p">().</span><span class="n">execute</span><span class="p">(</span><span class="cm">/*What are the arguments?*/</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>cuFFTDx operations require registers and shared memory to operate. Users can query the FFT descriptor
+for needed resources.</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="c1">;</span><span class="cp"></span>
+
+<span class="c1">// Kernel containing a fully-formed descriptor of an FFT and its</span>
+<span class="c1">// execution, where each thread allocates data in registers</span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                      </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="mi">1</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                      </span><span class="o">+</span><span class="w"> </span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">SM</span><span class="o">&lt;</span><span class="mi">700</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Block</span><span class="p">())</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">value_type</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">complex_type</span><span class="w"> </span><span class="n">thread_data</span><span class="p">[</span><span class="n">FFT</span><span class="o">::</span><span class="n">storage_size</span><span class="p">];</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">extern</span><span class="w"> </span><span class="n">__shared__</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="n">shared_mem</span><span class="p">[];</span><span class="w"></span>
+
+<span class="w">  </span><span class="c1">// Execute FFT</span>
+<span class="w">  </span><span class="n">FFT</span><span class="p">().</span><span class="n">execute</span><span class="p">(</span><span class="n">thread_data</span><span class="p">,</span><span class="w"> </span><span class="n">shared_mem</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Some FFTs, depending on the selected size, may also require additional global memory workspace,
+which needs to be allocated on host and passed to the kernel. You can check if you have to create workspace
+using <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">FFT</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">requires_workspace</span></span><span class="w"> </span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">requiresworkspace</span></span><span class="o"><span class="pre">-</span></span><span class="n"><span class="pre">block</span></span><span class="o"><span class="pre">-</span></span><span class="n"><span class="pre">trait</span></span><span class="o"><span class="pre">-</span></span><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">&gt;</span></span></code> trait.</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">151</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">double</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                    </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">inverse</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="mi">2</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                    </span><span class="o">+</span><span class="w"> </span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="mi">16</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">SM</span><span class="o">&lt;</span><span class="mi">700</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Block</span><span class="p">());</span><span class="w"></span>
+
+<span class="c1">// Kernel containing a fully-formed descriptor of an FFT and its</span>
+<span class="c1">// execution, where each thread allocates data in registers</span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">workspace_type</span><span class="w"> </span><span class="n">workspace</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">value_type</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">complex_type</span><span class="w"> </span><span class="n">thread_data</span><span class="p">[</span><span class="n">FFT</span><span class="o">::</span><span class="n">storage_size</span><span class="p">];</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">extern</span><span class="w"> </span><span class="n">__shared__</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="n">shared_mem</span><span class="p">[];</span><span class="w"></span>
+
+<span class="w">  </span><span class="c1">// Execute FFT</span>
+<span class="w">  </span><span class="n">FFT</span><span class="p">().</span><span class="n">execute</span><span class="p">(</span><span class="n">thread_data</span><span class="p">,</span><span class="w"> </span><span class="n">shared_mem</span><span class="p">,</span><span class="w"> </span><span class="n">workspace</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>To launch a kernel we need to know the block size and required amount of shared memory needed to perform the FFT
+operation. Both are fixed and determined by the FFT description.</p>
+<p>Since we defined the FFT description in device code, information about the
+block size needs to be propagated to the host. When all parameters are fully specified,
+all GPU architectures use the same block size, so the kernel can be launched in
+the same manner for all architectures.</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="c1">// Kernel</span>
+<span class="k">template</span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">FFT</span><span class="o">&gt;</span><span class="w"></span>
+<span class="n">__launch_bounds__</span><span class="p">(</span><span class="n">FFT</span><span class="o">::</span><span class="n">max_threads_per_block</span><span class="p">)</span><span class="w"></span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">block_fft_kernel</span><span class="p">(</span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">value_type</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">workspace_type</span><span class="w"> </span><span class="n">workspace</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">using</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">value_type</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">complex_type</span><span class="w"> </span><span class="n">thread_data</span><span class="p">[</span><span class="n">FFT</span><span class="o">::</span><span class="n">storage_size</span><span class="p">];</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">extern</span><span class="w"> </span><span class="n">__shared__</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="n">shared_mem</span><span class="p">[];</span><span class="w"></span>
+
+<span class="w">    </span><span class="c1">// Execute FFT</span>
+<span class="w">    </span><span class="n">FFT</span><span class="p">().</span><span class="n">execute</span><span class="p">(</span><span class="n">thread_data</span><span class="p">,</span><span class="w"> </span><span class="n">shared_mem</span><span class="p">,</span><span class="w"> </span><span class="n">workspace</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+
+<span class="c1">// Host function, data is a managed memory pointer</span>
+<span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="mi">1</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">SM</span><span class="o">&lt;</span><span class="mi">700</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Block</span><span class="p">());</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">value_type</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">cudaError_t</span><span class="w"> </span><span class="n">error_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cudaSuccess</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">workspace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">make_workspace</span><span class="o">&lt;</span><span class="n">FFT</span><span class="o">&gt;</span><span class="p">(</span><span class="n">error_code</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">block_fft_kernel</span><span class="o">&lt;</span><span class="n">FFT</span><span class="o">&gt;&lt;&lt;&lt;</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">FFT</span><span class="o">::</span><span class="n">block_dim</span><span class="p">,</span><span class="w"> </span><span class="n">FFT</span><span class="o">::</span><span class="n">shared_memory_size</span><span class="o">&gt;&gt;&gt;</span><span class="p">((</span><span class="n">complex_type</span><span class="o">*</span><span class="p">)</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="n">workspace</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>If we also add input/output operations to global memory, we obtain a kernel that is
+equivalent to the cuFFT kernel for size 128.</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="c1">// Kernel</span>
+<span class="k">template</span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">FFT</span><span class="o">&gt;</span><span class="w"></span>
+<span class="n">__launch_bounds__</span><span class="p">(</span><span class="n">FFT</span><span class="o">::</span><span class="n">max_threads_per_block</span><span class="p">)</span><span class="w"></span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">block_fft_kernel</span><span class="p">(</span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">value_type</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">workspace_type</span><span class="w"> </span><span class="n">workspace</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">using</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">value_type</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="c1">// Local array and copy data into it</span>
+<span class="w">    </span><span class="n">complex_type</span><span class="w"> </span><span class="n">thread_data</span><span class="p">[</span><span class="n">FFT</span><span class="o">::</span><span class="n">storage_size</span><span class="p">];</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">stride</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size_of</span><span class="o">&lt;</span><span class="n">FFT</span><span class="o">&gt;::</span><span class="n">value</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">FFT</span><span class="o">::</span><span class="n">elements_per_thread</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">FFT</span><span class="o">::</span><span class="n">elements_per_thread</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">){</span><span class="w"></span>
+<span class="w">      </span><span class="n">thread_data</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">data</span><span class="p">[</span><span class="n">threadIdx</span><span class="p">.</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">stride</span><span class="p">].</span><span class="n">x</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">thread_data</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">data</span><span class="p">[</span><span class="n">threadIdx</span><span class="p">.</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">stride</span><span class="p">].</span><span class="n">y</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">};</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">extern</span><span class="w"> </span><span class="n">__shared__</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="n">shared_mem</span><span class="p">[];</span><span class="w"></span>
+
+<span class="w">    </span><span class="c1">// Execute FFT</span>
+<span class="w">    </span><span class="n">FFT</span><span class="p">().</span><span class="n">execute</span><span class="p">(</span><span class="n">thread_data</span><span class="p">,</span><span class="w"> </span><span class="n">shared_mem</span><span class="p">,</span><span class="w"> </span><span class="n">workspace</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="c1">// Save results</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">FFT</span><span class="o">::</span><span class="n">elements_per_thread</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">){</span><span class="w"></span>
+<span class="w">      </span><span class="n">data</span><span class="p">[</span><span class="n">threadIdx</span><span class="p">.</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">stride</span><span class="p">].</span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">thread_data</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">x</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">data</span><span class="p">[</span><span class="n">threadIdx</span><span class="p">.</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">stride</span><span class="p">].</span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">thread_data</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">y</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">};</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+
+<span class="c1">// Host function, data is a managed memory pointer</span>
+<span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="mi">1</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                     </span><span class="o">+</span><span class="w"> </span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">SM</span><span class="o">&lt;</span><span class="mi">700</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Block</span><span class="p">());</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">value_type</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">cudaError_t</span><span class="w"> </span><span class="n">error_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cudaSuccess</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">workspace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">make_workspace</span><span class="o">&lt;</span><span class="n">FFT</span><span class="o">&gt;</span><span class="p">(</span><span class="n">error_code</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">block_fft_kernel</span><span class="o">&lt;</span><span class="n">FFT</span><span class="o">&gt;&lt;&lt;&lt;</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">FFT</span><span class="o">::</span><span class="n">block_dim</span><span class="p">,</span><span class="w"> </span><span class="n">FFT</span><span class="o">::</span><span class="n">shared_memory_size</span><span class="o">&gt;&gt;&gt;</span><span class="p">((</span><span class="n">complex_type</span><span class="o">*</span><span class="p">)</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="n">workspace</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Unlike cuFFT, cuFFTDx does not require moving data back to global memory after
+executing a FFT operation. This is a major performance advantage.</p>
+</div>
+<div class="section" id="compilation">
+<h2>Compilation<a class="headerlink" href="#compilation" title="Permalink to this headline">¶</a></h2>
+<p>In order to compile we only need to pass the location of the cuFFTDx library (the directory with the <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="p"><span class="pre">.</span></span><span class="n"><span class="pre">hpp</span></span></code> file).</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nvcc -std<span class="o">=</span>c++11 -arch sm_70 -O3 -I&lt;path_to_cuFFTDx_location&gt; my_fft_kernel_128.cu -o my_fft_kernel_128
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Since version 0.3.0 cuFFTDx has an experimental support for compilation with NVRTC.</p>
+</div>
+</div>
+</div>
+<div class="section" id="your-next-custom-fft-kernels">
+<h1>Your next custom FFT kernels<a class="headerlink" href="#your-next-custom-fft-kernels" title="Permalink to this headline">¶</a></h1>
+<p>For real world use cases, it is likely we will need more than a single kernel.
+A single use case, aiming at obtaining the maximum performance on multiple architectures,
+may require a number of different implementations. cuFFTDx was designed
+to handle this burden automatically, while offering users full control over
+the implementation details.</p>
+<p>cuFFTDx allows user to defer the definition of certain details of the implementation
+(such as the number of FFT elements computed per thread, or the number of FFTs per block)
+to the library. Let us apply this to our previous kernel:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="c1">// Kernel</span>
+<span class="k">template</span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">FFT</span><span class="o">&gt;</span><span class="w"></span>
+<span class="n">__launch_bounds__</span><span class="p">(</span><span class="n">FFT</span><span class="o">::</span><span class="n">max_threads_per_block</span><span class="p">)</span><span class="w"></span>
+<span class="n">__global__</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">block_fft_kernel</span><span class="p">(</span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">value_type</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">workspace_type</span><span class="w"> </span><span class="n">workspace</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">using</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFT</span><span class="o">::</span><span class="n">value_type</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="c1">// Local array and copy data into it</span>
+<span class="w">    </span><span class="n">complex_type</span><span class="w"> </span><span class="n">thread_data</span><span class="p">[</span><span class="n">FFT</span><span class="o">::</span><span class="n">storage_size</span><span class="p">];</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">stride</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size_of</span><span class="o">&lt;</span><span class="n">FFT</span><span class="o">&gt;::</span><span class="n">value</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">FFT</span><span class="o">::</span><span class="n">elements_per_thread</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">FFT</span><span class="o">::</span><span class="n">elements_per_thread</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">){</span><span class="w"></span>
+<span class="w">      </span><span class="n">thread_data</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">data</span><span class="p">[</span><span class="n">threadIdx</span><span class="p">.</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">stride</span><span class="p">].</span><span class="n">x</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">thread_data</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">data</span><span class="p">[</span><span class="n">threadIdx</span><span class="p">.</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">stride</span><span class="p">].</span><span class="n">y</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">};</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">extern</span><span class="w"> </span><span class="n">__shared__</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="n">shared_mem</span><span class="p">[];</span><span class="w"></span>
+
+<span class="w">    </span><span class="c1">// Execute FFT</span>
+<span class="w">    </span><span class="n">FFT</span><span class="p">().</span><span class="n">execute</span><span class="p">(</span><span class="n">thread_data</span><span class="p">,</span><span class="w"> </span><span class="n">shared_mem</span><span class="p">,</span><span class="w"> </span><span class="n">workspace</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="c1">// Save results</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">FFT</span><span class="o">::</span><span class="n">elements_per_thread</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">){</span><span class="w"></span>
+<span class="w">      </span><span class="n">data</span><span class="p">[</span><span class="n">threadIdx</span><span class="p">.</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">stride</span><span class="p">].</span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">thread_data</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">x</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">data</span><span class="p">[</span><span class="n">threadIdx</span><span class="p">.</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">stride</span><span class="p">].</span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">thread_data</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">y</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">};</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+
+<span class="c1">// Host function, data is managed memory pointer</span>
+<span class="kt">void</span><span class="w"> </span><span class="n">fft_128_float</span><span class="p">(</span><span class="n">float2</span><span class="o">*</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">cufftdx</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="c1">// Create a complete descriptor</span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">FFTComplete</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                             </span><span class="o">+</span><span class="w"> </span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">SM</span><span class="o">&lt;</span><span class="mi">700</span><span class="o">&gt;</span><span class="p">());</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="n">is_complete_fft</span><span class="o">&lt;</span><span class="n">FFTComplete</span><span class="o">&gt;::</span><span class="n">value</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+
+<span class="w">    </span><span class="c1">// Retrieve suggested elements per block and FFTs per block and use them</span>
+<span class="w">    </span><span class="c1">// to create a complete descriptor</span>
+<span class="w">    </span><span class="k">using</span><span class="w"> </span><span class="n">FFTExecution</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="n">FFTComplete</span><span class="p">()</span><span class="w"></span>
+<span class="w">                                </span><span class="o">+</span><span class="w"> </span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="n">FFTComplete</span><span class="o">::</span><span class="n">elements_per_thread</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                                </span><span class="o">+</span><span class="w"> </span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="n">FFTComplete</span><span class="o">::</span><span class="n">suggested_ffts_per_block</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                                </span><span class="o">+</span><span class="w"> </span><span class="n">Block</span><span class="p">());</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">using</span><span class="w"> </span><span class="n">complex_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">FFTExecution</span><span class="o">::</span><span class="n">value_type</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">cudaError_t</span><span class="w"> </span><span class="n">error_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cudaSuccess</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">workspace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">make_workspace</span><span class="o">&lt;</span><span class="n">FFT</span><span class="o">&gt;</span><span class="p">(</span><span class="n">error_code</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">block_fft_kernel</span><span class="o">&lt;</span><span class="n">FFTExecution</span><span class="o">&gt;&lt;&lt;&lt;</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">FFTExecution</span><span class="o">::</span><span class="n">block_dim</span><span class="p">,</span><span class="w"> </span><span class="n">FFTExecution</span><span class="o">::</span><span class="n">shared_memory_size</span><span class="o">&gt;&gt;&gt;</span><span class="p">(</span><span class="w"></span>
+<span class="w">        </span><span class="p">(</span><span class="n">complex_type</span><span class="o">*</span><span class="p">)</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="n">workspace</span><span class="w"></span>
+<span class="w">    </span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>To retrieve the optimal parameters, we require a complete descriptor (as indicated by
+<a class="reference internal" href="api/traits.html#isfftcomplete-trait-label"><span class="std std-ref">cufftdx::is_complete_fft</span></a>). This is because some of the details are only available
+after the FFT operation has been fully described, and the target architecture has been
+identified. <a class="reference internal" href="api/operators.html#sm-operator-label"><span class="std std-ref">SM Operator</span></a> compiled on the host allows the user to query
+launch parameters for a particular architecture.</p>
+<div class="section" id="what-happens-under-the-hood">
+<h2>What happens under the hood?<a class="headerlink" href="#what-happens-under-the-hood" title="Permalink to this headline">¶</a></h2>
+<dl class="simple">
+<dt>Expression templates</dt><dd><p>The cuFFTDx API is using a variation of a C++ technique called expression templates.
+We use expression templates to allow the user to construct compile-time objects that
+describe the FFT calculation to compute. Compile-time C++ mechanisms allow cuFFTDx to
+attach optimized FFT routines to the object, and expose them as a compute method
+that can be called by the user.</p>
+</dd>
+<dt>Header only</dt><dd><p>cuFFTDx FFT routines are shipped as optimized inline PTX.</p>
+</dd>
+</dl>
+</div>
+<div class="section" id="why">
+<h2>Why?<a class="headerlink" href="#why" title="Permalink to this headline">¶</a></h2>
+<p>For a library to be useful, it needs to abstract functionality in a future-proof manner.
+By future-proof we mean that an existing user code should not need to be modified
+in the future, and new functionality should consist of simple extensions to the
+existing code. On the CUDA platform, this requires adapting to quickly evolving
+GPU hardware.</p>
+<p>cuFFTDx approaches future-proofing in two ways. On one hand, the API is a
+source-level abstraction which decouples the library from ABI changes.
+Along with the PTX code in headers, cuFFTDx is forward-compatible with any CUDA
+toolkit, driver and compiler that supports hardware that cuFFDx was released for.
+PTX can be recompiled by the CUDA compiler to run on future GPU architectures.</p>
+<p>On the other hand, the API organization allows preserving operators describing
+what gets computed and how. New features depending on type can either be picked up
+automatically if code defers implementation choices to the library, or require
+adding operators to an existing expression.</p>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="NVIDIA cuFFTDx" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="performance.html" class="btn btn-neutral float-right" title="Achieving high performance" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, NVIDIA Corporation.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+  a:link, a:visited {
+    color: #76b900;
+  }
+
+  a:hover {
+    color: #8c0;
+  }
+
+  .rst-content dl:not(.docutils) dt {
+    background: rgba(118, 185, 0, 0.1);
+    color: rgba(59,93,0,1);
+    border-top: solid 3px rgba(59,93,0,1);
+  }
+  </style>
+  
+
+</body>
+</html>

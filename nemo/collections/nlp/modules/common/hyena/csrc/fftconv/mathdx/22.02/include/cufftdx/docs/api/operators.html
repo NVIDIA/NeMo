@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operators &mdash; cuFFTDx 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/cufftdx_override.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Traits" href="traits.html" />
+    <link rel="prev" title="cuFFTDx API Reference" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" > 
+            <a href="../index.html" class="icon icon-home"> cuFFTDx
+          </a>
+              <div class="version">
+                1.0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #76b900;
+    }
+
+    .wy-side-nav-search a:link, .wy-nav-top a:link {
+      color: #fff;
+    }
+    .wy-side-nav-search a:visited, .wy-nav-top a:visited {
+      color: #fff;
+    }
+    .wy-side-nav-search a:hover, .wy-nav-top a:hover {
+      color: #fff;
+    }
+
+    .wy-menu-vertical a:link, .wy-menu-vertical a:visited {
+      color: #d9d9d9
+    }
+
+    .wy-menu-vertical a:active {
+      background-color: #76b900
+    }
+
+    .wy-side-nav-search>div.version {
+      color: rgba(0, 0, 0, 0.3)
+    }
+
+    /* override table width restrictions */
+    .wy-table-responsive table td, .wy-table-responsive table th {
+        white-space: normal;
+    }
+
+    .wy-table-responsive {
+        margin-bottom: 24px;
+        max-width: 100%;
+        overflow: visible;
+    }
+  </style>
+  
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Documentation home</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User guide:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../introduction.html">First FFT using cuFFTDx</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../introduction.html#what-next">What next?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../introduction.html#compilation">Compilation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction.html#your-next-custom-fft-kernels">Your next custom FFT kernels</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../introduction.html#what-happens-under-the-hood">What happens under the hood?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../introduction.html#why">Why?</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../performance.html">Achieving high performance</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../performance.html#general-advice">General advice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../performance.html#memory-management">Memory management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../performance.html#kernel-fusion">Kernel fusion</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../performance.html#advanced">Advanced</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../performance.html#further-reading">Further reading</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../performance.html#references">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements_func.html">Requirements and Functionality</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../requirements_func.html#requirements">Requirements</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../requirements_func.html#supported-compilers">Supported Compilers</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../requirements_func.html#supported-functionality">Supported Functionality</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">cuFFTDx API Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Operators</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#description-operators">Description Operators</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#size-operator">Size Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#direction-operator">Direction Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#type-operator">Type Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#precision-operator">Precision Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sm-operator">SM Operator</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#execution-operators">Execution Operators</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#thread-operator">Thread Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#block-operator">Block Operator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#block-configuration-operators">Block Configuration Operators</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="traits.html">Traits</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="traits.html#description-traits">Description Traits</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="traits.html#size-trait">Size Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="traits.html#type-trait">Type Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="traits.html#direction-trait">Direction Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="traits.html#precision-trait">Precision Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="traits.html#is-fft-trait">Is FFT? Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="traits.html#is-fft-execution-trait">Is FFT Execution? Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="traits.html#is-fft-complete-trait">Is FFT-complete? Trait</a></li>
+<li class="toctree-l4"><a class="reference internal" href="traits.html#is-fft-complete-execution-trait">Is FFT-complete Execution? Trait</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="traits.html#execution-traits">Execution Traits</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="traits.html#thread-traits">Thread Traits</a></li>
+<li class="toctree-l4"><a class="reference internal" href="traits.html#block-traits">Block Traits</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="methods.html">Execution Methods</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="methods.html#thread-execute-method">Thread Execute Method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="methods.html#block-execute-method">Block Execute Method</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="methods.html#value-format">Value Format</a></li>
+<li class="toctree-l4"><a class="reference internal" href="methods.html#input-output-data-format">Input/Output Data Format</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="methods.html#make-workspace-function">Make Workspace Function</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../release_notes.html">Release Notes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../release_notes.html#id1">1.0.0</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../release_notes.html#new-features">New Features</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../release_notes.html#resolved-issues">Resolved Issues</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../release_notes.html#id2">0.3.1</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../release_notes.html#known-issues">Known Issues</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">cuFFTDx</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="index.html">cuFFTDx API Reference</a> &raquo;</li>
+      <li>Operators</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="section" id="operators">
+<span id="operators-label"></span><h1>Operators<a class="headerlink" href="#operators" title="Permalink to this headline">¶</a></h1>
+<p>Operators are used to describe the FFT operation to solve, and to configure the execution. They are divided into
+<a class="reference internal" href="#description-operators-label"><span class="std std-ref">Description Operators</span></a> and <a class="reference internal" href="#execution-operators-label"><span class="std std-ref">Execution Operators</span></a>.</p>
+<hr class="docutils" />
+<div class="section" id="description-operators">
+<span id="description-operators-label"></span><h2>Description Operators<a class="headerlink" href="#description-operators" title="Permalink to this headline">¶</a></h2>
+<table class="colwidths-given docutils align-default">
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Operator</p></th>
+<th class="head"><p>Default value</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="#size-operator-label"><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">Size</span></span><span class="o"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">unsigned</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">S</span></span><span class="o"><span class="pre">&gt;</span></span></code></a></p></td>
+<td><p>Not set.</p></td>
+<td><p>Size <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">S</span></span></code> of the FFT to calculate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#direction-operator-label"><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">Direction</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">&gt;</span></span></code></a></p></td>
+<td><p>Not set.</p></td>
+<td><p>Direction of the FFT, either <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">inverse</span></span></code> or <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">forward</span></span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#type-operator-label"><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">Type</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">fft_type</span></span><span class="o"><span class="pre">&gt;</span></span></code></a></p></td>
+<td><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_type</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">c2c</span></span></code></p></td>
+<td><p>Types of input and output data (C2C, R2C, C2R).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#precision-operator-label"><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">Precision</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">P</span></span><span class="o"><span class="pre">&gt;</span></span></code></a></p></td>
+<td><p><code class="code highlight cpp docutils literal notranslate"><span class="kt"><span class="pre">float</span></span></code></p></td>
+<td><p>Precision <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">P</span></span></code> of the floating-point values used to compute the FFT: <code class="code highlight cpp docutils literal notranslate"><span class="kt"><span class="pre">double</span></span></code>, <code class="code highlight cpp docutils literal notranslate"><span class="kt"><span class="pre">float</span></span></code> or <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">__half</span></span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#sm-operator-label"><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">SM</span></span><span class="o"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">unsigned</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">CC</span></span><span class="o"><span class="pre">&gt;</span></span></code></a></p></td>
+<td><p>Not set.</p></td>
+<td><p>Target CUDA architecure for which the FFT function should be generated.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Description operators define the FFT operation to be solved. Combined with <a class="reference internal" href="#execution-operators-label"><span class="std std-ref">Execution Operators</span></a>, they form a
+complete FFT descriptor that can be executed on a GPU.</p>
+<p>Operators are added to construct the FFT descriptor type. For example, for a forward FFT operation consisting of a FFT with 8 <code class="code highlight cpp docutils literal notranslate"><span class="kt"><span class="pre">double</span></span></code> elements per thread:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                    </span><span class="o">+</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                    </span><span class="o">+</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">double</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Thread</span><span class="p">()</span><span class="w"> </span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<dl class="simple">
+<dt>For an FFT descriptor to be complete, the following is required:</dt><dd><ul class="simple">
+<li><p>One, and only one, <a class="reference internal" href="#size-operator-label"><span class="std std-ref">Size Operator</span></a>.</p></li>
+<li><p>One, and only one, <a class="reference internal" href="#direction-operator-label"><span class="std std-ref">Direction Operator</span></a> unless either <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Type</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">fft_type</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">r2c</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code> or <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Type</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">fft_type</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">c2r</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code> are added.</p></li>
+<li><p>One, and only one, <a class="reference internal" href="#sm-operator-label"><span class="std std-ref">SM Operator</span></a> unless a <a class="reference internal" href="#thread-operator-label"><span class="std std-ref">Thread Operator</span></a> is added.</p></li>
+</ul>
+</dd>
+</dl>
+<div class="section" id="size-operator">
+<span id="size-operator-label"></span><h3>Size Operator<a class="headerlink" href="#size-operator" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Size</span><span class="o">&lt;</span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">S</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Sets the size <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">S</span></span></code> of the FFT operation to compute.</p>
+<p>There is no default size.</p>
+<dl class="simple">
+<dt>Restrictions:</dt><dd><ul class="simple">
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">S</span></span></code> must be greater than <code class="code highlight cpp docutils literal notranslate"><span class="mi"><span class="pre">1</span></span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+</div>
+<div class="section" id="direction-operator">
+<span id="direction-operator-label"></span><h3>Direction Operator<a class="headerlink" href="#direction-operator" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">cufftdx</span><span class="o">::</span><span class="n">fft_direction</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Sets the direction of the FFT, either <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">inverse</span></span></code> or <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">forward</span></span></code>.</p>
+<p>There is no default direction.</p>
+<p>If the FFT is constructed with the <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Type&lt;R2C&gt;</span></code> operator, direction is assumed to be forward and
+a direction operator is not necessary.</p>
+<p>If the FFT is constructed with the <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Type&lt;C2R&gt;</span></code> operator, direction is assumed to be inverse and
+a direction operator is not necessary.</p>
+<dl class="simple">
+<dt>Restrictions:</dt><dd><ul class="simple">
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">forward</span></span></code> requires <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Type&lt;C2C&gt;</span></code> or <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Type&lt;R2C&gt;</span></code>.</p></li>
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">inverse</span></span></code> requires <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Type&lt;C2C&gt;</span></code> or <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Type&lt;C2R&gt;</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+</div>
+<div class="section" id="type-operator">
+<span id="type-operator-label"></span><h3>Type Operator<a class="headerlink" href="#type-operator" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Type</span><span class="o">&lt;</span><span class="n">cufftdx</span><span class="o">::</span><span class="n">fft_type</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Sets the type of the FFT to compute, either <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_type</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">c2c</span></span></code> for complex-to-complex; <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_type</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">r2c</span></span></code> for
+real-to-complex; or <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_type</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">c2r</span></span></code> for complex-to-real.</p>
+<p>The default type is <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_type</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">c2c</span></span></code>.</p>
+<dl class="simple">
+<dt>Restrictions:</dt><dd><ul class="simple">
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_type</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">r2c</span></span></code> requires <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">forward</span></span></code>. If no direction is specified, it is assumed to be <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">forward</span></span></code>.</p></li>
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_type</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">c2r</span></span></code> requires <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">inverse</span></span></code>. If no direction is specified, it is assumed to be <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">inverse</span></span></code>.</p></li>
+<li><p>cuFFDx performs unnormalized Fast Fourier Transform calculations.</p></li>
+</ul>
+</dd>
+</dl>
+</div>
+<div class="section" id="precision-operator">
+<span id="precision-operator-label"></span><h3>Precision Operator<a class="headerlink" href="#precision-operator" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Precision</span><span class="o">&lt;</span><span class="n">__half</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+
+<span class="n">cufftdx</span><span class="o">::</span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+
+<span class="n">cufftdx</span><span class="o">::</span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">double</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Sets the floating-point precision used to compute the FFT. This is the type of the values used for input and output, as well as the
+underlying type of the values used to compute the FFT.</p>
+<p>The default precision is <code class="code highlight cpp docutils literal notranslate"><span class="kt"><span class="pre">float</span></span></code>.</p>
+</div>
+<div class="section" id="sm-operator">
+<span id="sm-operator-label"></span><h3>SM Operator<a class="headerlink" href="#sm-operator" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">cufftdx</span><span class="o">::</span><span class="n">SM</span><span class="o">&lt;</span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">CC</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Sets the target architecture <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">CC</span></span></code> for the underlying FFT function to use. Supported architectures are:</p>
+<ul class="simple">
+<li><p>Volta: <code class="code highlight cpp docutils literal notranslate"><span class="mi"><span class="pre">700</span></span></code> and <code class="code highlight cpp docutils literal notranslate"><span class="mi"><span class="pre">720</span></span></code> (sm_70, sm_72),</p></li>
+<li><p>Turing: <code class="code highlight cpp docutils literal notranslate"><span class="mi"><span class="pre">750</span></span></code> (sm_75), and</p></li>
+<li><p>Ampere: <code class="code highlight cpp docutils literal notranslate"><span class="mi"><span class="pre">800</span></span></code>, <code class="code highlight cpp docutils literal notranslate"><span class="mi"><span class="pre">860</span></span></code> (sm_80, sm_86).</p></li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>It is not guaranteed that executions of exactly the same FFTs on GPUs of different CUDA architectures will produce
+bit-identical results.</p>
+</div>
+<hr class="docutils" />
+</div>
+</div>
+<div class="section" id="execution-operators">
+<span id="execution-operators-label"></span><h2>Execution Operators<a class="headerlink" href="#execution-operators" title="Permalink to this headline">¶</a></h2>
+<table class="colwidths-given docutils align-default">
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Operator</p></th>
+<th class="head"><p>Default value</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="#thread-operator-label"><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">Thread</span></span></code></a></p></td>
+<td><p>Not set.</p></td>
+<td><p>Creates FFT thread execution object.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#block-operator-label"><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">Block</span></span></code></a></p></td>
+<td><p>Not set.</p></td>
+<td><p>Creates FFT block execution object. See <a class="reference internal" href="#block-configuration-operators">Block Configuration Operators</a>.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Execution operators configure how the FFT operation will run on the GPU. Combined with <a class="reference internal" href="#description-operators-label"><span class="std std-ref">Description Operators</span></a>, they form a
+complete FFT descriptor that can be executed on a GPU.</p>
+<p>Operators are added to construct the FFT descriptor type. For example, for a forward FFT operation consisting of two FFTs with 128 <code class="code highlight cpp docutils literal notranslate"><span class="kt"><span class="pre">float</span></span></code> elements each, running simultaneously in one CUDA block:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cufftdx.hpp&gt;</span><span class="cp"></span>
+
+<span class="k">using</span><span class="w"> </span><span class="n">FFT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">decltype</span><span class="p">(</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Size</span><span class="o">&lt;</span><span class="mi">128</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Type</span><span class="o">&lt;</span><span class="n">fft_type</span><span class="o">::</span><span class="n">c2c</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                    </span><span class="o">+</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Direction</span><span class="o">&lt;</span><span class="n">fft_direction</span><span class="o">::</span><span class="n">forward</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">                    </span><span class="o">+</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Precision</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Block</span><span class="p">()</span><span class="w"></span>
+<span class="w">                    </span><span class="o">+</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">cufftdx</span><span class="o">::</span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="mi">2</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<div class="section" id="thread-operator">
+<span id="thread-operator-label"></span><h3>Thread Operator<a class="headerlink" href="#thread-operator" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Thread</span><span class="p">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Sets the FFT operation to run in a thread context. The FFT operation will simultaneously run a single, independent FFT (described using <a class="reference internal" href="#description-operators-label"><span class="std std-ref">Description Operators</span></a>) per thread.</p>
+<p>Each thread will compute one FFT of the size defined by the <a class="reference internal" href="#size-operator">Size Operator</a>.</p>
+<dl class="simple">
+<dt>Restrictions:</dt><dd><ul class="simple">
+<li><p>Is mutually exclusive with <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Block</span></code> operator</p></li>
+<li><p>Compilation will fail when used with block-only operators: <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">FFTsPerBlock</span></code>, <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">ElementsPerThread</span></code>, <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">BlockDim</span></code>.</p></li>
+<li><p>With <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Precision&lt;__half&gt;</span></code> restricts <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Size</span></code> to range <span class="math notranslate nohighlight">\([2, 32]\)</span>.</p></li>
+<li><p>With <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Precision&lt;float&gt;</span></code> restricts <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Size</span></code> to range <span class="math notranslate nohighlight">\([2, 32]\)</span>.</p></li>
+<li><p>With <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Precision&lt;double&gt;</span></code> restricts <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Size</span></code> to range <span class="math notranslate nohighlight">\([2, 16]\)</span>.</p></li>
+</ul>
+</dd>
+</dl>
+</div>
+<div class="section" id="block-operator">
+<span id="block-operator-label"></span><h3>Block Operator<a class="headerlink" href="#block-operator" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">cufftdx</span><span class="o">::</span><span class="n">Block</span><span class="p">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Generates a collective FFT operation to run in a single CUDA block. One or more threads will cooperate to compute the
+collective FFT operation.</p>
+<p>The number of FFTs to compute, as well as the number of threads used to calculate each FFT, can be configured using
+<a class="reference internal" href="#block-configuration-operators">Block Configuration Operators</a>.</p>
+<dl>
+<dt>Restrictions:</dt><dd><ul>
+<li><p>Is mutually exclusive with <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Thread</span></code> operator</p></li>
+<li><p>Unless a <a class="reference internal" href="#blockdim-operator-label"><span class="std std-ref">BlockDim Operator</span></a> is used, the collective FFT operation can only be executed
+inside a 2D block of sizes:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">blockDim</span></span><span class="p"><span class="pre">.</span></span><span class="n"><span class="pre">x</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">size_of</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">Description</span></span><span class="o"><span class="pre">&gt;::</span></span><span class="n"><span class="pre">value</span></span><span class="o"><span class="pre">/</span></span><span class="n"><span class="pre">Description</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">elements_per_thread</span></span></code>.</p></li>
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">blockDim</span></span><span class="p"><span class="pre">.</span></span><span class="n"><span class="pre">y</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">Description</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">ffts_per_block</span></span></code>.</p></li>
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">blockDim</span></span><span class="p"><span class="pre">.</span></span><span class="n"><span class="pre">z</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="mi"><span class="pre">1</span></span></code>.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p><a class="reference internal" href="#blockdim-operator-label"><span class="std std-ref">BlockDim Operator</span></a> is not implemented yet.</p></li>
+<li><p>Operator <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Precision</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">__half</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code> restricts <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Size</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">U</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code> to range <span class="math notranslate nohighlight">\([2, 32768]\)</span>.</p></li>
+<li><p>Operator <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Precision</span></span><span class="o"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">float</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code> restricts <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Size</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">U</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code> to range <span class="math notranslate nohighlight">\([2, 32768]\)</span>.</p></li>
+<li><p>Operator <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Precision</span></span><span class="o"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">double</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code> restricts <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Size</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">U</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code> to range <span class="math notranslate nohighlight">\([2, 16384]\)</span>.</p></li>
+</ul>
+</dd>
+</dl>
+</div>
+<div class="section" id="block-configuration-operators">
+<h3>Block Configuration Operators<a class="headerlink" href="#block-configuration-operators" title="Permalink to this headline">¶</a></h3>
+<table class="colwidths-given docutils align-default">
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Operators</p></th>
+<th class="head"><p>Default value</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="#fftsperblock-operator-label"><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">FFTsPerBlock</span></span><span class="o"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">unsigned</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">F</span></span><span class="o"><span class="pre">&gt;</span></span></code></a></p></td>
+<td><p>1</p></td>
+<td><p>Number <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">F</span></span></code> of FFTs calculated per CUDA block.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ept-operator-label"><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">ElementsPerThread</span></span><span class="o"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">unsigned</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">E</span></span><span class="o"><span class="pre">&gt;</span></span></code></a></p></td>
+<td><p>Heuristic.</p></td>
+<td><p>Number <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">E</span></span></code> of FFT values per CUDA thread.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#blockdim-operator-label"><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">BlockDim</span></span><span class="o"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">unsigned</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">Y</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">Z</span></span><span class="o"><span class="pre">&gt;</span></span></code></a></p></td>
+<td><p>Not set.</p></td>
+<td><p>Required for executing block FFT within block
+with custom dimensions.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Block-configuration operators allow the user to tune how the collective FFT operation will run on a single CUDA block.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Block configuration operators can only be used with <a class="reference internal" href="#block-operator-label"><span class="std std-ref">Block Operator</span></a>.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>It is not guaranteed that executions of the same FFTs (size, direction, type, precision) but with different</p>
+<ul class="simple">
+<li><p>number of elements per thread (<a class="reference internal" href="#ept-operator-label"><span class="std std-ref">ElementsPerThread</span></a>),</p></li>
+<li><p>number of FFTs calculated per CUDA block (<a class="reference internal" href="#fftsperblock-operator-label"><span class="std std-ref">FFTsPerBlock</span></a>), or</p></li>
+<li><p>block dimension (<a class="reference internal" href="#blockdim-operator-label"><span class="std std-ref">BlockDim</span></a>),</p></li>
+</ul>
+<p>will produce bit-identical results.</p>
+</div>
+<div class="section" id="ffts-per-block-operator">
+<span id="fftsperblock-operator-label"></span><h4>FFTs Per Block Operator<a class="headerlink" href="#ffts-per-block-operator" title="Permalink to this headline">¶</a></h4>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">cufftdx</span><span class="o">::</span><span class="n">FFTsPerBlock</span><span class="o">&lt;</span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">int</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Sets the number of FFT to compute in parallel within a single CUDA block. Each FFT is computed concurrently by a
+separate group of threads.</p>
+<p>The default is one FFT per block.</p>
+</div>
+<div class="section" id="elements-per-thread-operator">
+<span id="ept-operator-label"></span><h4>Elements Per Thread Operator<a class="headerlink" href="#elements-per-thread-operator" title="Permalink to this headline">¶</a></h4>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">cufftdx</span><span class="o">::</span><span class="n">ElementsPerThread</span><span class="o">&lt;</span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">int</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Sets the number of FFT elements to be computed by each thread.</p>
+<p>The default is determined heuristically to target performance.</p>
+<p>Restrictions:</p>
+<ul class="simple">
+<li><p>If <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">FFT</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">requires_workspace</span></span></code> if <code class="code highlight cpp docutils literal notranslate"><span class="nb"><span class="pre">false</span></span></code>, it must be a divisor of the requested FFT size.</p></li>
+<li><p>If <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">FFT</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">requires_workspace</span></span></code> if <code class="code highlight cpp docutils literal notranslate"><span class="nb"><span class="pre">true</span></span></code>, it must be a power of two smaller than the size of the FFT.</p></li>
+<li><p>Must be in range <span class="math notranslate nohighlight">\([2; 32]\)</span> for <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Precision</span></span><span class="o"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">float</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code> and <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Precision</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">__half</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code>.</p></li>
+<li><p>Must be in range <span class="math notranslate nohighlight">\([2; 16]\)</span> for <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">cufftdx</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">Precision</span></span><span class="o"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">double</span></span><span class="o"><span class="pre">&gt;</span></span><span class="p"><span class="pre">()</span></span></code>.</p></li>
+</ul>
+</div>
+<div class="section" id="blockdim-operator">
+<span id="blockdim-operator-label"></span><h4>BlockDim Operator<a class="headerlink" href="#blockdim-operator" title="Permalink to this headline">¶</a></h4>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">struct</span><span class="w"> </span><span class="nc">cufftdx</span><span class="o">::</span><span class="n">BlockDim</span><span class="o">&lt;</span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">X</span><span class="p">,</span><span class="w"> </span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">Y</span><span class="p">,</span><span class="w"> </span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">Z</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Sets the CUDA block size to (X, Y, Z), to configure the execution.</p>
+<p>Using this operator, the user can run the collective FFT operation with 2D or 3D CUDA blocks.</p>
+<p>Default <code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">BlockDim</span></span></code> size:</p>
+<ul class="simple">
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">blockDim</span></span><span class="p"><span class="pre">.</span></span><span class="n"><span class="pre">x</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">size_of</span></span><span class="o"><span class="pre">&lt;</span></span><span class="n"><span class="pre">Description</span></span><span class="o"><span class="pre">&gt;::</span></span><span class="n"><span class="pre">value</span></span><span class="o"><span class="pre">/</span></span><span class="n"><span class="pre">Description</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">elements_per_thread</span></span></code>.</p></li>
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">blockDim</span></span><span class="p"><span class="pre">.</span></span><span class="n"><span class="pre">y</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">Description</span></span><span class="o"><span class="pre">::</span></span><span class="n"><span class="pre">ffts_per_block</span></span></code>.</p></li>
+<li><p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">blockDim</span></span><span class="p"><span class="pre">.</span></span><span class="n"><span class="pre">z</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="mi"><span class="pre">1</span></span></code>.</p></li>
+</ul>
+<p>See <a class="reference internal" href="traits.html#blockdim-block-trait-label"><span class="std std-ref">FFT::block_dim</span></a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="code highlight cpp docutils literal notranslate"><span class="n"><span class="pre">BlockDim</span></span></code> operator is not implemented yet.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="cuFFTDx API Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="traits.html" class="btn btn-neutral float-right" title="Traits" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, NVIDIA Corporation.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+  a:link, a:visited {
+    color: #76b900;
+  }
+
+  a:hover {
+    color: #8c0;
+  }
+
+  .rst-content dl:not(.docutils) dt {
+    background: rgba(118, 185, 0, 0.1);
+    color: rgba(59,93,0,1);
+    border-top: solid 3px rgba(59,93,0,1);
+  }
+  </style>
+  
+
+</body>
+</html>

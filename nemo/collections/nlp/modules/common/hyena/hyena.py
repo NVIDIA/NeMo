@@ -19,10 +19,10 @@ from functools import partial
 
 from einops import rearrange, repeat
 
-# try:
-#     from src.ops.fftconv import fftconv_ref, fftconv_func
-# except ImportError:
-#     fftconv_func = None
+try:
+    from .fftconv_wrapper import fftconv_ref, fftconv_func
+except ImportError:
+    fftconv_func = None
 
 try:
     from flash_attn.ops.fused_dense import FusedDense
@@ -225,15 +225,15 @@ class HyenaFilter(nn.Module):
         if bias is None: bias = self.bias
         bias = bias if self.use_bias else 0 * bias
 
-        # if self.fused_fft_conv:
-        #     bias = bias.to(dtype=torch.float32)
-        #     y = fftconv_func(
-        #         x, k, bias, dropout_mask=None, gelu=False,
-        #         force_fp16_output=torch.is_autocast_enabled()
-        #     )
-        # else:
-        #     y = fftconv_ref(x, k, bias, dropout_mask=None, gelu=False)
-        y = fftconv_ref(x, k, bias, dropout_mask=None, gelu=False)
+        if self.fused_fft_conv:
+            bias = bias.to(dtype=torch.float32)
+
+            y = fftconv_func(
+                x, k, bias, dropout_mask=None, gelu=False,
+                force_fp16_output=torch.is_autocast_enabled()
+            )
+        else:
+            y = fftconv_ref(x, k, bias, dropout_mask=None, gelu=False)
 
         return y
 
