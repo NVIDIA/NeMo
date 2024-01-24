@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+#############################
+# THIS SCRIPT IS DEPRECATED #
+#############################
 
 import asyncio
 import threading
@@ -28,6 +30,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 try:
     from megatron.core import parallel_state
@@ -42,7 +45,7 @@ This is the script to run inference with a PEFT model or an SFT Model.
 
 If you want to evaluate an SFT .nemo file:
 
-python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
+python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
 	model.restore_from_path=<path_to_sft_nemo_file> \
 	model.peft.restore_from_path=null \
 	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
@@ -55,9 +58,9 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
 
 If you want to evaluate a PEFT Model, you should provide a base GPT model and a PEFT model .nemo file
 
-python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
+python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
 	model.restore_from_path=<path_to_sft_nemo_file> \
-	model.peft.restore_from_path=<path_to_peft_nemo_file> \ # this will be created if you use `megatron_gpt_peft_tuning.py`
+	model.peft.restore_from_path=<path_to_peft_nemo_file> \ # this will be created if you use `megatron_gpt_finetuning.py`
 	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
 	model.data.test_ds.names=\['name_for_test_file1', 'name_for_test_file2'] \  # this is not the filename just some identifier
 	model.data.test_ds.global_batch_size=4 \  # or some other value
@@ -108,7 +111,15 @@ def use_inference_server(cfg, model, trainer):
             generate(model.cuda())
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_peft_eval_config")
+banner = '\n'.join(['' "*" * 80] * 5)
+
+
+@deprecated(
+    wait_seconds=20,
+    explanation=f"\n{banner}\nmegatron_gpt_peft_eval.py is renamed to megatron_gpt_generate.py with the "
+    f"same functionality. \nPlease switch to the new name.\n{banner}\n",
+)
+@hydra_runner(config_path="conf", config_name="megatron_gpt_generate_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
