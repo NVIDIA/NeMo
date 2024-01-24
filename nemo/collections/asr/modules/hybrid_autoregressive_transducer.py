@@ -176,10 +176,8 @@ class HATJoint(rnnt.RNNTJoint):
         del f
 
         # Forward adapter modules on joint hidden
-        # TODO: fix jit compatibility
-        if not torch.jit.is_scripting():
-            if self.is_adapter_available():
-                inp = self.forward_enabled_adapters(inp)
+        if self.is_adapter_available():
+            inp = self.forward_enabled_adapters(inp)
 
         blank_logprob = self.blank_pred(inp)  # [B, T, U, 1]
         label_logit = self.joint_net(inp)  # [B, T, U, V]
