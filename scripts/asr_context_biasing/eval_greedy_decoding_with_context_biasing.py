@@ -28,7 +28,7 @@ python eval_greedy_decoding_with_context_biasing.py --cfg job
 python eval_greedy_decoding_with_context_biasing.py \
             nemo_model_file=<path to the .nemo file of the model> \
             input_manifest=<path to the evaluation JSON manifest file \
-            preds_output_folder=<optional folder to store the predictions> \
+            preds_output_folder=<folder to store the predictions> \
             decoder_type=<type of model decoder [ctc or rnnt]> \
             acoustic_batch_size=<batch size to calculate log probabilities> \
             apply_context_biasing=<True or False to apply context biasing> \
@@ -96,7 +96,7 @@ class EvalContextBiasingConfig:
 
     # File paths
     input_manifest: str = MISSING  # The manifest file of the evaluation set
-    preds_output_folder: Optional[str] = None  # The optional folder where the predictions are stored
+    preds_output_folder: str = MISSING  # The folder where the predictions are stored
 
     # Parameters for inference
     acoustic_batch_size: int = 128  # The batch size to calculate log probabilities
@@ -130,7 +130,7 @@ def decoding_step(
     target_transcripts: List[str],
     audio_file_paths: List[str],
     durations: List[str],
-    preds_output_manifest: str = None,
+    preds_output_manifest: str,
     beam_batch_size: int = 128,
     progress_bar: bool = True,
     context_graph: context_biasing.ContextGraphCTC = None,
@@ -175,8 +175,7 @@ def decoding_step(
     wer_dist_first = cer_dist_first = 0
     words_count = chars_count = sample_idx = 0
 
-    if preds_output_manifest:
-        out_manifest = open(preds_output_manifest, 'w', encoding='utf_8', newline='\n')
+    out_manifest = open(preds_output_manifest, 'w', encoding='utf_8', newline='\n')
 
     # ctc part for both EncDecCTCModelBPE and EncDecHybridRNNTCTCModel
     if cfg.decoder_type == "ctc":
@@ -221,7 +220,7 @@ def decoding_step(
         return wer_dist_first / words_count, cer_dist_first / chars_count
 
     # rnnt part for EncDecHybridRNNTCTCModel
-    elif cfg.decoder_type == "rnnt":
+    else:
         if progress_bar:
             description = "Greedy_batch decoding.."
             it = tqdm(range(int(np.ceil(len(encoder_outputs) / beam_batch_size))), desc=description, ncols=120)
@@ -305,6 +304,8 @@ def main(cfg: EvalContextBiasingConfig):
     assert cfg.apply_context_biasing and cfg.context_file, "context_file must be provided in case of context biasing"
     assert os.path.isfile(cfg.context_file), f"context_file {cfg.context_file} does not exist"
     assert cfg.decoder_type in ["ctc", "rnnt"], "decoder_type must be ctc or rnnt"
+    assert cfg.preds_output_folder, "preds_output_folder must be provided"
+    assert os.path.isdir(cfg.preds_output_folder), f"preds_output_folder {cfg.preds_output_folder} does not exist"
 
     # load nemo asr model
     if cfg.nemo_model_file.endswith('.nemo'):
