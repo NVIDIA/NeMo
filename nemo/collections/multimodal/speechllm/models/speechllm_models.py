@@ -1514,11 +1514,15 @@ class CrossAttendModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
             lm_embedding=lm_embedding,
             canary_tokens=audio_batch.get('canary_tokens', None),
         )
-        input_embeds = self._get_text_embeddings(input_ids, None)
-        enc_dec_attn_output = self.perception_cross_attn(encoded, encoded_len, input_embeds)
-        attention_mask = self._create_attention_mask(enc_dec_attn_output.transpose(0, 1))
+        input_embeds = self._get_text_embeddings(input_ids, None).transpose(0, 1)
+        encoder_input = self.perception_cross_attn(encoded, encoded_len, input_embeds)
+        attention_mask = self._create_attention_mask(encoder_input)
 
-        return enc_dec_attn_output, attention_mask, labels, loss_mask, (encoded, encoded_len), aux_loss
+        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
+            encoder_input = encoder_input.transpose(0, 1).contiguous()
+        if self.cfg.get("sequence_parallel", False):
+            encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
+        return encoder_input, attention_mask, labels, loss_mask, (encoded, encoded_len), aux_loss
 
     def setup_perception_modules(self, cfg):
         super().setup_perception_modules(cfg)

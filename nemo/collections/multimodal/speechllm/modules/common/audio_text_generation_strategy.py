@@ -216,9 +216,8 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
                  'labels': None, 'loss_mask': None}
         if canary_tokens is not None:
             batch['canary_tokens'] = canary_tokens
-        encoder_input, _, _, _, (speech_encoded, speech_encoded_len), _ = self.model.prepare_llm_input(batch)
+        encoder_input, self.attention_mask, _, _, (speech_encoded, speech_encoded_len), _ = self.model.prepare_llm_input(batch)
         self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
-        self.attention_mask = self.model._create_attention_mask(encoder_input.transpose(0, 1))
         return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), torch.zeros_like(context_lengths)
 
     def prepare_batch_at_step(
@@ -245,11 +244,12 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
             set_inference_key_value_memory = False
             tokens2use = tokens[:, curr_context_length - 1].view(micro_batch_size, -1)
             positions2use = self.position_ids[:, curr_context_length - 1].view(micro_batch_size, -1)
-            embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use)
+            embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use).transpose(0, 1)
             started = context_lengths <= curr_context_length
             # for seq started, first get embeddings2use, and then run cross attend, after that replace embeddings2use with the cross attended embed
             # use speech_encoded; rerun cross attend
-            embeddings2use = self.model.perception_cross_attn(speech_encoded, speech_encoded_len, embeddings2use)
+            # [1, b, d]
+            embeddings2use = self.model.perception_cross_attn(speech_encoded, speech_encoded_len, embeddings2use).transpose(0, 1)
             embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use, started)
 
         """Prepare batch for each of the inference steps"""

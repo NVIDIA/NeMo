@@ -39,6 +39,7 @@ from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 from nemo.collections.asr.modules.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
+from nemo.collections.common.parts import form_attention_mask
 
 __all__ = ["AudioPerceptionModel", "MultiAudioPerceptionModel"]
 
@@ -912,8 +913,9 @@ class GatedCrossAttentionDense(NeuralModule, Exportable):
     def forward(self, encoder_states, encoded_len, input_embeds):
         assert input_embeds.shape[-1] == encoder_states.shape[-1]
         input_embeds_norm = self.layer_norm(input_embeds)
-        # follow EncDecTransfModelBPE to use full ctx for now
+        # follow EncDecTransfModelBPE - TransformerDecoder to use full ctx for now
         enc_mask = lens_to_mask(encoded_len, encoder_states.shape[1]).to(encoder_states.dtype)
+        enc_mask = form_attention_mask(enc_mask)
         attn_out = self.xattn(input_embeds_norm, encoder_states, encoder_states, enc_mask)
         y = input_embeds + torch.tanh(self.alpha_xattn) * attn_out
         y = y + torch.tanh(self.alpha_dense) * self.ffw(y)
