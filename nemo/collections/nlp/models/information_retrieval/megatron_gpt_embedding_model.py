@@ -126,21 +126,22 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             assert self.num_soft_negatives < query_hs.shape[0], f"Batch size {query_hs.shape[0]} is not large enough for {self.num_soft_negatives} soft negatives"
             query_hs = query_hs / torch.norm(query_hs, dim=-1, keepdim=True)
             pos_doc_hs = pos_doc_hs / torch.norm(pos_doc_hs, dim=-1, keepdim=True)
-            neg_doc_hs = neg_doc_hs / torch.norm(neg_doc_hs, dim=-1, keepdim=True)
 
+            # (@adithyare) sample soft negatives using a multinomial distribution
             soft_neg_samples = torch.ones((query_hs.shape[0], query_hs.shape[0])).type_as(query_hs)
+            # (@adithyare) ensure the diagonal is zero, i.e. don't sample the same document as a soft negative
             soft_neg_samples.fill_diagonal_(0.0)
             soft_neg_samples = torch.multinomial(soft_neg_samples, self.num_soft_negatives, replacement=False)
+
             all_cs = torch.mm(query_hs, pos_doc_hs.transpose(0, 1)) * (1.0 / self.temperature)
             pos_cs_diag = torch.diag(all_cs)
-            soft_neg_cs = all_cs[soft_neg_samples][:, :, 0]
+            soft_neg_cs = all_cs[soft_neg_samples][:, :, 0] # (@adithyare) can be made more efficient?
             cs = torch.cat([pos_cs_diag.unsqueeze(1), neg_cs.unsqueeze(1), soft_neg_cs], dim=1)
         else:
             pos_cs = torch.nn.functional.cosine_similarity(query_hs, pos_doc_hs, dim=-1) * (1.0 / self.temperature)
             cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.unsqueeze(1)], dim=1)
             
         loss = torch.nn.functional.cross_entropy(cs, torch.zeros(cs.shape[0], dtype=torch.long, device=cs.device))
-        # TODO: (@adithyare) add feature for random sampling of negative documents from a batch
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
