@@ -51,6 +51,7 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
 
         return None
 
+    @torch.jit.ignore
     def freeze(self) -> None:
         r"""
         Freeze all params for inference.
@@ -60,6 +61,7 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
 
         self.eval()
 
+    @torch.jit.ignore
     def unfreeze(self) -> None:
         """
         Unfreeze all parameters for training.
@@ -69,6 +71,7 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
 
         self.train()
 
+    @torch.jit.ignore
     @contextmanager
     def as_frozen(self):
         """
