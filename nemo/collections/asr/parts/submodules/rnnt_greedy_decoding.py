@@ -2687,7 +2687,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         )
         self.durations = durations
 
-        self._decoding_computer = None
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
         if self.decoder.blank_as_pad:
