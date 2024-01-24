@@ -207,11 +207,10 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
                     labels = labels[still_active_mask]
                     state = self.decoder.mask_select_states(state, still_active_mask)
 
-        # TODO: return last state
         if use_alignments:
-            return batched_hyps, alignments
+            return batched_hyps, alignments, last_decoder_state
         else:
-            return batched_hyps, None
+            return batched_hyps, None, last_decoder_state
         # hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
         # preserve last decoder state (is it necessary?)
         # for i, last_state in enumerate(last_decoder_state):

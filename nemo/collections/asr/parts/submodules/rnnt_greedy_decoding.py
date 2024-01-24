@@ -723,8 +723,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         if self._decoding_computer is not None:
             self._decoding_computer.eval()
             self._decoding_computer.to(x.device)
-            batched_hyps, alignments = self._decoding_computer(x=x, out_len=out_len)
-            return rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
+            batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
+            hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
+            for i, hyp in enumerate(hyps):
+                hyp.dec_state = self.decoder.batch_select_state(last_decoder_state, i)
+            return hyps
 
         batch_size, max_time, _ = x.shape
 
