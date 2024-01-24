@@ -226,7 +226,6 @@ class AdapterModuleMixin(ABC):
             cfg['enabled'] = adapter_enabled
             self.adapter_cfg[adapter_name] = cfg
 
-    @torch.jit.export
     def is_adapter_available(self) -> bool:
         """
         Checks if any Adapter module has been instantiated.
