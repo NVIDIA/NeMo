@@ -13,16 +13,14 @@
 # limitations under the License.
 
 import re
-from typing import List, Mapping, Optional
+from typing import Mapping, Optional
 
 import datasets
 import numpy as np
 import torch
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
-from datasets import load_dataset
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
@@ -204,17 +202,6 @@ class GPTEmbeddingDataset(Dataset):
         # here [0] should be tokenizer.pad_id
         item = [x + [pad_id] * (max_length - len(x)) for x in item]
         return item
-
-    def _build_loss_mask(self, processed_example):
-        """ Pad input_ids in batch to max batch length while building loss mask """
-        input_ids = processed_example['input_ids']
-        answer_start_idx = processed_example['answer_start_idx']
-        if self.answer_only_loss:
-            loss_mask = [float(idx >= answer_start_idx) for idx in range(len(input_ids))]
-        else:
-            loss_mask = [1.0] * len(input_ids)
-
-        return loss_mask
 
     @torch.no_grad()
     def _create_attention_mask(self, max_length):
