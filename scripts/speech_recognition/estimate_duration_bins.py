@@ -29,7 +29,7 @@ def parse_args():
         "input",
         help='Same input format as in model configs under model.train_ds.manifest_filepath. Options: '
         '1) "path.json"; '
-        '2) "[path1.json,path2.json,...]"; '
+        '2) "[[path1.json],[path2.json],...]"; '
         '3) "[[path1.json,weight1],[path2.json,weight2],...]"',
     )
     parser.add_argument("-b", "--buckets", type=int, default=30, help="The desired number of buckets.")
