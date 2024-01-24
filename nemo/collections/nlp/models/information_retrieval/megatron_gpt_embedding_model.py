@@ -137,7 +137,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
 
             all_cs = torch.mm(query_hs, pos_doc_hs.transpose(0, 1)) * (1.0 / self.temperature)
             pos_cs_diag = torch.diag(all_cs)
-            soft_neg_cs = all_cs[soft_neg_samples][:, :, 0] # (@adithyare) can be made more efficient?
+            soft_neg_cs = all_cs[soft_neg_samples][:, :, 0]  # (@adithyare) can be made more efficient?
             cs = torch.cat([pos_cs_diag.unsqueeze(1), neg_cs.unsqueeze(1), soft_neg_cs], dim=1)
         else:
             pos_cs = torch.nn.functional.cosine_similarity(query_hs, pos_doc_hs, dim=-1) * (1.0 / self.temperature)
