@@ -7,7 +7,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 import torch
 from nemo.utils import logging
-from nemo.collections.nlp.data.information_retrieval.gpt_embedder_dataset import GPTEmbedderDataset
+from nemo.collections.nlp.data.information_retrieval.gpt_embedding_dataset import GPTEmbeddingDataset
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 try:
     from apex.transformer.pipeline_parallel.utils import (
@@ -97,7 +97,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             data_cfg.max_seq_length = self.cfg.max_position_embeddings
 
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
-            dataset = GPTEmbedderDataset(
+            dataset = GPTEmbeddingDataset(
                 file_path=file_path,
                 tokenizer=self.tokenizer,
                 max_seq_length=data_cfg.max_seq_length,
@@ -137,6 +137,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         neg_cs = torch.nn.functional.cosine_similarity(query_hs, neg_doc_hs, dim=-1) * (1.0 / self.temperature)
         cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.unsqueeze(1)], dim=1)
         loss = torch.nn.functional.cross_entropy(cs, torch.zeros(cs.shape[0], dtype=torch.long, device=cs.device))
+        #TODO: (@adithyare) add feature for random sampling of negative documents from a batch
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())

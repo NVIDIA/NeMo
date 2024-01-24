@@ -29,10 +29,10 @@ from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSON
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
-__all__ = ['GPTEmbedderDataset']
+__all__ = ['GPTEmbeddingDataset']
 
 
-class GPTEmbedderDataset(Dataset):
+class GPTEmbeddingDataset(Dataset):
     def __init__(
         self,
         file_path: str,
