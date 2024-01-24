@@ -207,18 +207,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             raise ValueError(f"Currently this flag is not supported for beam search algorithms.")
 
         self.vocab = None  # This must be set by specific method by user before calling forward() !
-
-        if search_type == "default" or search_type == "nemo":
-            self.search_algorithm = self.default_beam_search
-        elif search_type == "pyctcdecode":
-            self.search_algorithm = self._pyctcdecode_beam_search
-        elif search_type == "flashlight":
-            self.search_algorithm = self.flashlight_beam_search
-        else:
-            raise NotImplementedError(
-                f"The search type ({search_type}) supplied is not supported!\n"
-                f"Please use one of : (default, nemo, pyctcdecode)"
-            )
+        self.search_algorithm = self.flashlight_beam_search
 
         # Log the beam search algorithm
         logging.info(f"Beam search algorithm: {search_type}")
@@ -593,7 +582,6 @@ class FlashlightConfig:
 @dataclass
 class BeamCTCInferConfig:
     beam_size: int
-    search_type: str = 'default'
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     return_best_hypothesis: bool = True
