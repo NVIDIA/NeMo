@@ -1515,7 +1515,14 @@ class CrossAttendModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
             canary_tokens=audio_batch.get('canary_tokens', None),
         )
         input_embeds = self._get_text_embeddings(input_ids, None).transpose(0, 1)
-        encoder_input = self.perception_cross_attn(encoded, encoded_len, input_embeds)
+        encoder_input, alpha_xattn = self.perception_cross_attn(encoded, encoded_len, input_embeds)
+        self.log(
+            'alpha_xattn',
+            alpha_xattn.mean(),
+            prog_bar=True,
+            batch_size=1,
+            rank_zero_only=True,
+        )
         attention_mask = self._create_attention_mask(encoder_input)
 
         if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:

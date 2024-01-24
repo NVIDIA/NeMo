@@ -249,8 +249,8 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
             # for seq started, first get embeddings2use, and then run cross attend, after that replace embeddings2use with the cross attended embed
             # use speech_encoded; rerun cross attend
             # [1, b, d]
-            embeddings2use = self.model.perception_cross_attn(speech_encoded, speech_encoded_len, embeddings2use).transpose(0, 1)
-            embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use, started)
+            embeddings2use, _ = self.model.perception_cross_attn(speech_encoded, speech_encoded_len, embeddings2use)
+            embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use.transpose(0, 1), started)
 
         """Prepare batch for each of the inference steps"""
         setkey_value_array = torch.tensor(
