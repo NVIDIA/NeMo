@@ -225,6 +225,8 @@ class HyenaFilter(nn.Module):
         if bias is None: bias = self.bias
         bias = bias if self.use_bias else 0 * bias
 
+        k = k.to(dtype=torch.float32)
+
         if self.fused_fft_conv:
             bias = bias.to(dtype=torch.float32)
 
