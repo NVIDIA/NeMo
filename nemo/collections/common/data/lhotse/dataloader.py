@@ -93,6 +93,7 @@ class LhotseDataLoadingConfig:
     # 5. Other Lhotse options.
     text_field: str = "text"  # key to read the transcript from
     lang_field: str = "lang"  # key to read the language tag from
+    dummy_mode: bool = False  # Enables iteration of NeMo non-tarred manifests without performing any I/O
 
 
 def get_lhotse_dataloader_from_config(
