@@ -13,7 +13,7 @@ model:
   librilight_dir: /datasets/LibriLight/
   libriheavy_dir: data/download/LibriHeavy
   manifests_dir: data/parsed/LibriHeavy
-  textgrid_dir: data/aligned/textgrids
+  textgrid_dir: data/aligned/LibriHeavy/textgrids
   
   corpus_dir: ${.librilight_dir}
 
@@ -25,8 +25,13 @@ model:
     depth: 2
     heads: 2
 
-  # cfm_wrapper:
-  #   cond_drop_prob: 0.0
+  cfm_wrapper:
+    sigma: 1e-5
+
+  freeze_updates:
+    enabled: True
+    modules:
+      duration_predictor: -1  # steps to freeze from start (-1: to the end)
 
   train_ds:
     manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
@@ -43,6 +48,11 @@ model:
 
   ds_kwargs:
     num_workers: 8
+
+exp_manager:
+  checkpoint_callback_params:
+    # save the best checkpoints based on this metric 
+    monitor: val_loss/vb
 
 # task name, determines output directory path
 task_name: "local_1"

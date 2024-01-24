@@ -19,11 +19,19 @@ model:
   
   duration_predictor:
     # depth: 4
-    heads: 4
+    heads: 8
 
   voicebox:
     # depth: 12
-    heads: 8
+    heads: 16
+
+  cfm_wrapper:
+    sigma: 1e-5
+
+  freeze_updates:
+    enabled: True
+    modules:
+      duration_predictor: -1  # steps to freeze from start (-1: to the end)
 
   optim:
     name: adam
@@ -38,7 +46,7 @@ model:
     max_duration: 16
     manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
-      batch_duration: 48
+      batch_duration: 300
 
   ds_kwargs:
     num_workers: 8
@@ -57,4 +65,4 @@ exp_manager:
     monitor: val_loss/vb
 
 # task name, determines output directory path
-task_name: "ngc"
+task_name: "a100"
