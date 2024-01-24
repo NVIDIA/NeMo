@@ -16,8 +16,8 @@ from typing import List
 
 import pytest
 import torch
+from omegaconf import DictConfig
 
-# from nemo.collections.asr.modules.hybrid_autoregressive_transducer import HATJoint
 from nemo.collections.asr.modules.rnnt import RNNTDecoder, RNNTJoint, StatelessTransducerDecoder
 from nemo.collections.asr.parts.submodules.rnnt_greedy_computer import GreedyBatchedRNNTLoopLabelsComputer
 from nemo.collections.common.parts.rnn import label_collate
@@ -61,34 +61,35 @@ class TestJointTorchScript:
         joint_jit_joint = joint_jit.joint(f=sample_f, g=sample_g)
         assert torch.allclose(joint_joint, joint_jit_joint)
 
-    # @pytest.mark.unit
-    # @pytest.mark.parametrize("device", DEVICES)
-    # def test_compilable_hat_joint(self, device):
-    #     joint = HATJoint(
-    #         jointnet={
-    #             "encoder_hidden": 16,
-    #             "pred_hidden": 8,
-    #             "joint_hidden": 32,
-    #             "activation": "relu",
-    #             "dropout": 0.2,
-    #         },
-    #         num_classes=10,
-    #     )
-    #     joint_jit = torch.jit.script(joint)
-    #     joint = joint.to(device).eval()
-    #     joint_jit = joint_jit.to(device).eval()
-    #
-    #     sample_encoder = torch.rand([2, 16, 4], device=device)
-    #     sample_prednet = torch.rand([2, 8, 3], device=device)
-    #     joint_forward = joint(encoder_outputs=sample_encoder, decoder_outputs=sample_prednet)
-    #     joint_jit_forward = joint_jit(encoder_outputs=sample_encoder, decoder_outputs=sample_prednet)
-    #     assert torch.allclose(joint_forward, joint_jit_forward)
-    #
-    #     sample_f = torch.rand([2, 1, 16], device=device)
-    #     sample_g = torch.rand([2, 1, 8], device=device)
-    #     joint_joint = joint.joint(f=sample_f, g=sample_g)
-    #     joint_jit_joint = joint_jit.joint(f=sample_f, g=sample_g)
-    #     assert torch.allclose(joint_joint, joint_jit_joint)
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_compilable_rnnt_joint(self, device):
+        joint = RNNTJoint(
+            jointnet={
+                "encoder_hidden": 16,
+                "pred_hidden": 8,
+                "joint_hidden": 32,
+                "activation": "relu",
+                "dropout": 0.2,
+            },
+            num_classes=10,
+        )
+        joint.add_adapter(
+            "adapter_0",
+            cfg=DictConfig(
+                {
+                    '_target_': 'nemo.collections.common.parts.adapter_modules.LinearAdapter',
+                    'in_features': 32,
+                    'dim': 32,
+                }
+            ),
+        )
+
+        with pytest.raises(NotImplementedError):
+            # TODO: fix adapters support with torch.jit.script
+            # This may require refactoring many parts, the problematic point is AccessMixin, which uses global variables
+            # (which is not supported by TorchScript)
+            _ = joint.get_jit_copy_for_inference()
 
 
 class TestRNNTDecoderTorchScript:
