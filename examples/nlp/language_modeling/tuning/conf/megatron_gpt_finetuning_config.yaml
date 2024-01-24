@@ -44,6 +44,9 @@ exp_manager:
     strict: False # Should be False to avoid a runtime error where EarlyStopping says monitor is unavailable, which sometimes happens with resumed training.
 
 model:
+  # use GPTModel from megatron.core
+  mcore_gpt: False
+
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
@@ -75,6 +78,13 @@ model:
   hidden_dropout: 0.0
   attention_dropout: 0.0
   ffn_dropout: 0.0
+
+  # FSDP
+  fsdp: False # Enable training with torch FSDP.
+  fsdp_sharding_strategy: 'full' # Method to shard model states. Available options are 'full', 'hybrid', and 'grad'.
+  fsdp_grad_reduce_dtype: 'fp32' # Gradient reduction data type.
+  fsdp_sharded_checkpoint: False # Store and load FSDP shared checkpoint.
+  fsdp_use_orig_params: False
 
   peft:
     peft_scheme: "adapter"  # can be either adapter,ia3, or ptuning
