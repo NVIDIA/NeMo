@@ -138,7 +138,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         neg_cs = torch.nn.functional.cosine_similarity(query_hs, neg_doc_hs, dim=-1) * (1.0 / self.temperature)
         cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.unsqueeze(1)], dim=1)
         loss = torch.nn.functional.cross_entropy(cs, torch.zeros(cs.shape[0], dtype=torch.long, device=cs.device))
-        #TODO: (@adithyare) add feature for random sampling of negative documents from a batch
+        # TODO: (@adithyare) add feature for random sampling of negative documents from a batch
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
