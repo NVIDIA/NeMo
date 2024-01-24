@@ -231,8 +231,8 @@ def update_to_asr_task(canary_tokens):
     return canary_tokens
 
 
-def convert_canary_prompt_to_text(prompt):
-    ps = prompt.split('>')
+def convert_canary_prompt_to_text(prompt, is_canary_tokens_augment):
+    ps = prompt.replace("<pad>", "").split('>')
 
     def get_lang(text):
         if text == "<|fr|":
@@ -247,11 +247,14 @@ def convert_canary_prompt_to_text(prompt):
             assert False, 'Unknown language {}'.format(prompt)
         return lang
 
-    def get_task_template(text):
+    def get_task_template(text, is_canary_tokens_augment):
         if text == "<|transcribe|":
-            template = 'Provide the <|SLANG|> transcription of the audio, <|PNC|>.'
+            template = 'Transcribe the spoken content to written <|SLANG|> text, <|PNC|>.'
         elif text == "<|translate|":
-            template = 'Translate the spoken <|SLANG|> content to written <|TLANG|> text, <|PNC|>'
+            if is_canary_tokens_augment:
+                template = 'Transcribe the spoken content to written <|SLANG|> text, then translate this to English text, then translate this to <|TLANG|> text, <|PNC|>'
+            else:
+                template = 'Translate the spoken <|SLANG|> content to written <|TLANG|> text, <|PNC|>'
         else:
             assert False, 'Unknown task {}'.format(prompt)
         return template
@@ -265,11 +268,11 @@ def convert_canary_prompt_to_text(prompt):
             assert False, 'Unknown pnc {}'.format(prompt)
         return pnc
 
-    if len(ps) == 5:
+    if len(ps) == 6:
         source_lang = get_lang(ps[1])
         target_lang = get_lang(ps[3])
         pnc = get_pnc(ps[4])
-        task = get_task_template(ps[2])
+        task = get_task_template(ps[2], is_canary_tokens_augment)
         task = task.replace('<|SLANG|>', source_lang)
         task = task.replace('<|TLANG|>', target_lang)
         task = task.replace('<|PNC|>', pnc)
@@ -329,20 +332,21 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         return_batch = {}
         if self.canary_processor != None:
+            is_canary_tokens_augment = torch.rand(1) < self.canary_tokens_augment_ratio
             _, _, canary_tokens, canary_token_lens = self.canary_processor.__getitem__(cuts)
-            if torch.rand(1) < self.canary_tokens_augment_ratio:
+            if is_canary_tokens_augment:
                 return_batch['canary_tokens'] = update_to_asr_task(canary_tokens)
             else:
                 return_batch['canary_tokens'] = canary_tokens
             return_batch['canary_token_lengths'] = canary_token_lens
-
-        if self.canary_processor != None:
             for id, cut in enumerate(cuts):
                 canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(
                     canary_tokens[id][: self.context_len_for_AR_decoding].tolist()
                 )
                 if self.convert_canary_prompt_to_text:
-                    cut.question = convert_canary_prompt_to_text(canary_text)
+                    cut.question = convert_canary_prompt_to_text(canary_text, is_canary_tokens_augment)
+                elif hasattr(cut, "question"):
+                    pass
                 else:
                     cut.question = self.question + ' ' + canary_text
 

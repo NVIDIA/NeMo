@@ -95,6 +95,8 @@ def main(cfg) -> None:
             peft_model_cfg.use_flash_attention = cfg.model.use_flash_attention
         if cfg.model.get("seq_len_interpolation_factor", None) is not None:
             peft_model_cfg["seq_len_interpolation_factor"] = cfg.model.seq_len_interpolation_factor
+        if hasattr(cfg.model, "pretrained_audio_model"):
+            peft_model_cfg.pretrained_audio_model = cfg.model.pretrained_audio_model
 
     if cfg.model.peft.restore_from_path:
         if '\\' in cfg.model.peft.restore_from_path:
@@ -135,9 +137,12 @@ def main(cfg) -> None:
     if isinstance(_test_ds, list):
         _test_ds = _test_ds[0]
 
-    request_dl = DataLoader(
-        dataset=_test_ds, batch_size=peft_model_cfg.data.test_ds.global_batch_size, collate_fn=_test_ds.collate_fn,
-    )
+    if peft_model_cfg.data.test_ds.get('use_lhotse', False):
+        request_dl = model.build_data_loader(_test_ds, peft_model_cfg.data.test_ds, is_eval=True)
+    else:
+        request_dl = DataLoader(
+            dataset=_test_ds, batch_size=peft_model_cfg.data.test_ds.global_batch_size, collate_fn=_test_ds.collate_fn,
+        )
 
     if cfg.evaluate_metric:
         trainer.test(model, request_dl)
