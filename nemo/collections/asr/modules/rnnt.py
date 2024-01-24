@@ -1060,8 +1060,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         dst_states: Tuple[torch.Tensor, torch.Tensor],
         dst_mask_or_indices: torch.Tensor,
     ):
-        dst_states[0][:, dst_mask_or_indices] = src_states[0][:, src_mask_or_indices]
-        dst_states[1][:, dst_mask_or_indices] = src_states[1][:, src_mask_or_indices]
+        # TODO: why do we need to cast?
+        #  with bfloat16 the initialize_state returns bfloat16, but lstm returns float16
+        dst_states[0][:, dst_mask_or_indices] = src_states[0][:, src_mask_or_indices].to(dst_states[0].dtype)
+        dst_states[1][:, dst_mask_or_indices] = src_states[1][:, src_mask_or_indices].to(dst_states[1].dtype)
 
     def batch_copy_states(
         self,
