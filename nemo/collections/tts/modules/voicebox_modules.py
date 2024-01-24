@@ -475,7 +475,8 @@ class NeMoDurationPredictor(DurationPredictor):
             attn_flash=attn_flash,
             p_drop_prob=p_drop_prob,
             frac_lengths_mask=frac_lengths_mask,
-            aligner_kwargs=None
+            aligner_kwargs=None,
+            **kwargs
         )
 
         self.aligner: AlignerModel = aligner
@@ -842,6 +843,7 @@ class VoiceBox(_VB, LightningModule):
         condition_on_text = True,
         loss_masked = True,
         no_diffusion = False,
+        rmsnorm_shape = -1,
         **kwargs
     ):
         """
@@ -894,7 +896,9 @@ class VoiceBox(_VB, LightningModule):
             num_register_tokens=num_register_tokens,
             p_drop_prob=p_drop_prob,
             frac_lengths_mask=frac_lengths_mask,
-            condition_on_text=condition_on_text
+            condition_on_text=condition_on_text,
+            rmsnorm_shape=rmsnorm_shape,
+            **kwargs,
         )
         self.audio_enc_dec.freeze()
         self.loss_masked = loss_masked
