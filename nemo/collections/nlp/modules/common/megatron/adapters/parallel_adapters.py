@@ -252,7 +252,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         # Add dropout if available
         if self.dropout is not None:
             x = self.dropout(x)
-        
+
         x = x * (self.alpha / self.dim)
 
         return x
