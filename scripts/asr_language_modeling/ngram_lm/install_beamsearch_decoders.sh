@@ -45,7 +45,7 @@ wget https://boostorg.jfrog.io/artifactory/main/release/1.84.0/source/boost_1_84
 export BOOST_ROOT=$NEMO_PATH/boost_1_84_0
 
 # install binary KenLM
-mkdir $NEMO_PATH/decoders && cd $NEMO_PATH/decoders && git clone https://github.com/kpu/kenlm.git && mkdir $NEMO_PATH/decoders/kenlm/build && cd $NEMO_PATH/decoders/kenlm/build && cmake -DKENLM_MAX_ORDER=$KENLM_MAX_ORDER .. && make -j2
+export MAX_ORDER=$KENLM_MAX_ORDER && mkdir $NEMO_PATH/decoders && cd $NEMO_PATH/decoders && git clone https://github.com/kpu/kenlm.git && mkdir $NEMO_PATH/decoders/kenlm/build && cd $NEMO_PATH/decoders/kenlm/build && cmake -DKENLM_MAX_ORDER=$KENLM_MAX_ORDER .. && make -j2
 # install python KenLM
 cd $NEMO_PATH/decoders/kenlm && python setup.py install --max_order=$KENLM_MAX_ORDER && export KENLM_LIB=$NEMO_PATH/decoders/kenlm/build/bin && export KENLM_ROOT=$NEMO_PATH/decoders/kenlm && cd ..
 
