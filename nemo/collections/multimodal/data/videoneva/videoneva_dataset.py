@@ -20,13 +20,13 @@ import tarfile
 from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence, Union
 
+import cv2
+import numpy as np
 import torch
 import torch.nn.functional as F
 import transformers
 from einops import rearrange
 from omegaconf import DictConfig
-import cv2
-import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor
@@ -40,21 +40,22 @@ from nemo.collections.multimodal.data.videoneva.conversation import (
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
-    DEFAULT_VID_END_TOKEN,
-    DEFAULT_VID_START_TOKEN,
-    DEFAULT_VIDEO_PATCH_TOKEN,
-    DEFAULT_VIDEO_TOKEN,
     DEFAULT_LABELS_TOKEN,
     DEFAULT_PAD_TOKEN,
     DEFAULT_SEPARATOR_TOKEN,
     DEFAULT_SYSTEM_TOKEN,
     DEFAULT_UNK_TOKEN,
+    DEFAULT_VID_END_TOKEN,
+    DEFAULT_VID_START_TOKEN,
+    DEFAULT_VIDEO_PATCH_TOKEN,
+    DEFAULT_VIDEO_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
 MAX_NUM_IMAGES = 1
 MAX_NUM_VIDEOS = 1
 IGNORE_INDEX = -1
+
 
 class TarOrFolderVisualLoader:
     """
