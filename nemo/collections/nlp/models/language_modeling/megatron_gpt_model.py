@@ -19,11 +19,13 @@ import warnings
 from contextlib import nullcontext
 from dataclasses import fields
 from functools import partial
+from importlib.metadata import version
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
+from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -225,6 +227,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
         self.spec_name = cfg.get('name', '')
+        if cfg.get('fp8', False):
+            self.prev_step_training = True
 
         self.rampup_batch_size = self.cfg.get('rampup_batch_size', None)
         if self.rampup_batch_size:
@@ -496,7 +500,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -526,6 +530,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             forward_only=forward_only,
             seq_length=self.cfg.encoder_seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
+            first_val_step=first_val_step,
         )
 
         # only the last stages of the pipeline return losses
@@ -619,6 +624,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         param.data_ptr()
 
         loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+
+        if self.cfg.get('fp8', False):
+            self.prev_step_training = self.training
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -882,17 +890,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             # Transfer needed data to GPU
             required_keys = set()
-            max_seqlen, cu_seqlens_argmin = None, None
+            max_seqlen = batch.pop('max_seqlen').squeeze() if 'max_seqlen' in batch else None
+            cu_seqlens_argmin = batch.pop('cu_seqlens_argmin') if 'cu_seqlens_argmin' in batch else None
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
                 required_keys.add('attention_mask')
                 if 'cu_seqlens' in batch:
                     required_keys.add('cu_seqlens')
-                    if 'max_seqlen' in batch:
-                        max_seqlen = batch['max_seqlen'].squeeze()
-                    if 'cu_seqlens_argmin' in batch:
-                        cu_seqlens_argmin = batch['cu_seqlens_argmin']
                 if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
@@ -928,12 +933,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
                     else:
                         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
-                    forward_args['cu_seqlens_q'] = cu_seqlens
-                    forward_args['cu_seqlens_kv'] = cu_seqlens
-                    if max_seqlen is not None:
-                        forward_args['max_seqlen_q'] = max_seqlen
-                        forward_args['max_seqlen_kv'] = max_seqlen
-                    forward_args['qkv_format'] = 'thd'
+
+                    try:
+                        from megatron.core.packed_seq_params import PackedSeqParams
+                    except (ImportError, ModuleNotFoundError) as e:
+                        mcore_version = packaging.version.Version(version('megatron-core'))
+                        logging.error(
+                            f"megatron-core v{mcore_version} does not support training with packed sequence. "
+                            "Please use megatron-core >= 0.5.0, or set model.data.train_ds.packed_sequence=False"
+                        )
+                        raise e
+
+                    forward_args['packed_seq_params'] = PackedSeqParams(
+                        cu_seqlens_q=cu_seqlens,
+                        cu_seqlens_kv=cu_seqlens,
+                        max_seqlen_q=max_seqlen,
+                        max_seqlen_kv=max_seqlen,
+                        qkv_format='thd',
+                    )
 
             output_tensor = model(**forward_args)
 
@@ -1036,7 +1053,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for model_module in self.model:
                 model_module.eval()
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        if self.cfg.get('fp8', False):
+            first_val_step = self.prev_step_training and not self.training
+            self.prev_step_training = self.training
+        else:
+            first_val_step = None
+
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True, first_val_step)
 
         if isinstance(self.model, list):
             for model_module in self.model:
@@ -1573,7 +1596,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
 
-        normalization = self.cfg.get('normalization', 'layernorm')
+        normalization = self.cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
@@ -1604,7 +1627,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'normalization': normalization,
             'fp8': fp8,
-            'ub_tp_comm_overlap': ub_tp_comm_overlap,
+            'tp_comm_overlap': ub_tp_comm_overlap,
         }
 
         transformer_config = super().build_transformer_config()
