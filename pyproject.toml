@@ -37,7 +37,6 @@ extend-exclude = '''
 (
   ^\/docs\/
   | ^\/examples\/
-  | ^\/external\/
   | ^\/nemo\/collections\/asr\/
   | ^\/nemo\/collections\/common\/
   | ^\/nemo\/collections\/multimodal\/
