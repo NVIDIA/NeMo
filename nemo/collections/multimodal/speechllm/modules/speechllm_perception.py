@@ -118,6 +118,7 @@ class AudioPerceptionModel(NeuralModule, Exportable):
 
     def __init__(self, cfg: DictConfig, *args, **kwargs):
         super().__init__()
+        self.cfg = cfg
         if 'adapter' in cfg:
             # Update encoder adapter compatible config
             adapter_metadata = adapter_mixins.get_registered_adapter(cfg.encoder._target_)
@@ -508,6 +509,7 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
 
     def __init__(self, cfg: DictConfig, pretrained_audio_model: str, llm_tokenizer):
         super(AudioPerceptionModel, self).__init__()
+        self.cfg = cfg
         if pretrained_audio_model.endswith('.nemo'):
             logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
             self.asr_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
@@ -571,7 +573,6 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
             precision=32,
         )
         self.llm_tokenizer = llm_tokenizer
-        self.cfg = cfg
         if self.cfg.get('learnable_combine', False):
             self.lm_attention_ratio = nn.Parameter(torch.tensor(0.5))
         if self.cfg.get('consistency_loss_weight', 0.0) > 0.0:
@@ -756,6 +757,7 @@ class AmAdaptQueryAudioPerceptionModel(AmQueryAudioPerceptionModel):
 
     def __init__(self, cfg: DictConfig, pretrained_audio_model: str, llm_tokenizer):
         super(AudioPerceptionModel, self).__init__()
+        self.cfg = cfg
         if 'adapter' in cfg:
             # Update encoder adapter compatible config
             model_cfg = ASRModel.from_pretrained(pretrained_audio_model, return_config=True)
@@ -804,7 +806,6 @@ class AmAdaptQueryAudioPerceptionModel(AmQueryAudioPerceptionModel):
             precision=32,
         )
         self.llm_tokenizer = llm_tokenizer
-        self.cfg = cfg
         if self.cfg.get('learnable_combine', False):
             self.lm_attention_ratio = nn.Parameter(torch.tensor(0.5))
         if self.cfg.get('consistency_loss_weight', 0.0) > 0.0:

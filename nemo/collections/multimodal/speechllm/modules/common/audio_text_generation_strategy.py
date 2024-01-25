@@ -213,15 +213,15 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
         batch = {'audio_signal': audio_signal, 'audio_signal_length': audio_length, 'tokens': context_tokens, 'tokens_length': context_lengths,
-                 'labels': None, 'loss_mask': None}
+                 'labels': context_tokens, 'loss_mask': None}
         if canary_tokens is not None:
             batch['canary_tokens'] = canary_tokens
         if self.model.perception.cfg.get('combine_return', True):
-            encoder_input, self.attention_mask, _, _, (speech_encoded, speech_encoded_len), _ = self.model.prepare_llm_input(batch)
+            encoder_input, self.attention_mask, context_tokens, _, (speech_encoded, speech_encoded_len), _ = self.model.prepare_llm_input(batch)
             self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
             return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), torch.zeros_like(context_lengths)
         else:
-            encoder_input, self.attention_mask, _, _, (speech_encoded, speech_encoded_len, llm_encoded_len), _ = self.model.prepare_llm_input(batch)
+            encoder_input, self.attention_mask, context_tokens, _, (speech_encoded, speech_encoded_len, llm_encoded_len), _ = self.model.prepare_llm_input(batch)
             self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
             return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), llm_encoded_len
 
