@@ -706,7 +706,7 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
             am_encoded_asr = am_encoded
         am_hyps_text, log_probs = self.get_am_text_output(am_encoded_asr, am_encoded_len, canary_tokens=canary_tokens)
         llm_encoded, llm_encoded_len = self.get_text_embed(am_hyps_text, lm_embedding, pad_id=pad_id)
-        attend_encoded, encoded_len, aux_loss = self.cross_attend(encoded, encoded_len, llm_encoded, llm_encoded_len)
+        attend_encoded, attend_encoded_len, aux_loss = self.cross_attend(encoded, encoded_len, llm_encoded, llm_encoded_len)
 
         asr_loss_weight = self.cfg.get('asr_loss_weight', 0.0)
         if labels is not None and asr_loss_weight > 0.0:
@@ -723,7 +723,10 @@ class AmQueryAudioPerceptionModel(AudioPerceptionModel):
                 log_probs=log_probs, targets=transcript, input_lengths=am_encoded_len, target_lengths=transcript_len
             )
             aux_loss['asr_loss'] = asr_loss * asr_loss_weight
-        return attend_encoded, encoded_len, aux_loss
+        if self.cfg.get('combine_return', True):
+            return attend_encoded, attend_encoded_len, aux_loss
+        else:
+            return (encoded, encoded_len), (llm_encoded, llm_encoded_len), aux_loss
 
 
 class LmQueryAudioPerceptionModel(AmQueryAudioPerceptionModel):

@@ -1536,3 +1536,63 @@ class CrossAttendModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
         imported_cls = model_utils.import_class_by_path(cfg.perception.xattn.target)
         self.perception_cross_attn = imported_cls(cfg=cfg.perception)
         
+
+class PseudoCrossAttendModularAudioGPTLoRAModel(CrossAttendModularAudioGPTLoRAModel):
+    """Modularized speech GPT model."""
+
+    def prepare_llm_input(self, audio_batch):
+
+        input_signal = audio_batch['audio_signal']
+        input_signal_length = audio_batch['audio_signal_length']
+
+        input_ids, input_length, labels, loss_mask = (
+            audio_batch['tokens'],
+            audio_batch['tokens_length'],
+            audio_batch['labels'],
+            audio_batch['loss_mask'],
+        )
+
+        num_audios = audio_batch.get("num_audios", None)
+        if num_audios is not None:
+            raise ValueError("num_audios is not supported.")
+
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        lm_embedding = (
+            base_module.language_model.embedding if hasattr(base_module, 'language_model') else base_module.embedding
+        )
+        assert self.perception.cfg.combine_return == False
+        # [b, t, c]
+        (encoded, encoded_len), (llm_encoded, llm_encoded_len), aux_loss = self.perception(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
+            lm_embedding=lm_embedding,
+            canary_tokens=audio_batch.get('canary_tokens', None),
+        )
+        input_embeds = self._get_text_embeddings(input_ids, None).transpose(0, 1)
+        # concat llm_encoded and input_embeds
+        concat_input_embeds, concat_input_length = self._concat_features(llm_encoded, llm_encoded_len, input_embeds, input_length)
+        if labels is not None:
+            labels = self._shift_labels_by_emb_len(labels, input_length, llm_encoded_len, concat_input_embeds.shape[1], pad_token=0)
+        if loss_mask is not None:
+            loss_mask = self._shift_labels_by_emb_len(
+                loss_mask, input_length, llm_encoded_len, concat_input_embeds.shape[1], pad_token=0)
+        encoder_input, alpha_xattn = self.perception_cross_attn(encoded, encoded_len, concat_input_embeds)
+        self.log(
+            'alpha_xattn',
+            alpha_xattn.mean(),
+            prog_bar=True,
+            batch_size=1,
+            rank_zero_only=True,
+        )
+        attention_mask = self._create_attention_mask(encoder_input)
+
+        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
+            encoder_input = encoder_input.transpose(0, 1).contiguous()
+        if self.cfg.get("sequence_parallel", False):
+            encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
+        return encoder_input, attention_mask, labels, loss_mask, (encoded, encoded_len, llm_encoded_len), aux_loss

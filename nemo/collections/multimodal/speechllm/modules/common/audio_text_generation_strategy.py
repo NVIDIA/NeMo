@@ -216,9 +216,14 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
                  'labels': None, 'loss_mask': None}
         if canary_tokens is not None:
             batch['canary_tokens'] = canary_tokens
-        encoder_input, self.attention_mask, _, _, (speech_encoded, speech_encoded_len), _ = self.model.prepare_llm_input(batch)
-        self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
-        return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), torch.zeros_like(context_lengths)
+        if self.model.perception.cfg.get('combine_return', True):
+            encoder_input, self.attention_mask, _, _, (speech_encoded, speech_encoded_len), _ = self.model.prepare_llm_input(batch)
+            self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
+            return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), torch.zeros_like(context_lengths)
+        else:
+            encoder_input, self.attention_mask, _, _, (speech_encoded, speech_encoded_len, llm_encoded_len), _ = self.model.prepare_llm_input(batch)
+            self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
+            return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), llm_encoded_len
 
     def prepare_batch_at_step(
         self,
