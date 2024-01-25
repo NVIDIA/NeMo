@@ -74,6 +74,7 @@ class LoraPEFTConfig(PEFTConfig):
         if num_query_groups is None:
             num_query_groups = cfg.num_attention_heads
         qkv_projection_size = projection_size + (2 * kv_channels * num_query_groups)
+        alpha = lora_cfg.get("alpha", lora_cfg.adapter_dim)
 
         config_args = {
             "in_features": cfg.hidden_size,
@@ -86,6 +87,7 @@ class LoraPEFTConfig(PEFTConfig):
             "row_init_method": lora_cfg.get("row_init_method", "zero"),
             "gather_output": False,
             "dropout": lora_cfg.adapter_dropout,
+            "alpha": alpha,
         }
 
         if lora_cfg.weight_tying:

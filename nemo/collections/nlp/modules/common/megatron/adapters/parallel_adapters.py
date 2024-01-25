@@ -130,6 +130,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         gather_output: bool = True,
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
+        alpha: float | None = None,
         **kwargs,
     ):
         super().__init__()
@@ -142,6 +143,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
         self.dim = dim
+        self.alpha = alpha if alpha is not None else self.dim
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.
@@ -234,6 +236,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         # Add dropout if available
         if self.dropout is not None:
             x = self.dropout(x)
+        
+        x = x * (self.alpha / self.dim)
 
         return x
 
@@ -250,6 +254,7 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     row_init_method: str = 'zero'
     gather_output: bool = True
     dropout: float = 0.0
+    alpha: float | None = None
     network_alpha: int | None = None
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
 
