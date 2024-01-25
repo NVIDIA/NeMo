@@ -28,8 +28,8 @@ from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
+from nemo.collections.asr.data.audio_to_text_canary import CanaryDataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.utils import manifest_utils
@@ -367,9 +367,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 config,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
-                dataset=LhotseSpeechToTextBpeDataset(
-                    tokenizer=self.tokenizer, token_sequence_format=config.get("token_sequence_format", None),
-                ),
+                dataset=CanaryDataset(tokenizer=self.tokenizer),
             )
 
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
@@ -750,7 +748,6 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             'is_tarred': False,
             'batch_size': 1,
             'force_strip_pnc': False,
-            'token_sequence_format': "canary",
             'use_lhotse': True,
             'lhotse': {
                 'use_bucketing': False,
