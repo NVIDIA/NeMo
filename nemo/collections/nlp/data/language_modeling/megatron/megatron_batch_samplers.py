@@ -208,8 +208,10 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
             not pad_samples_to_global_batch_size
         ), "`MegatronPretrainingRandomBatchSampler` does not support sample padding"
         if (not drop_last) and self.micro_batch_times_data_parallel_size > 1:
-            raise RuntimeError("`MegatronPretrainingRandomBatchSampler` does not support drop_last=False when micro_batch_size * data_parallel_size > 1. \
-                                please reduce your MBS and data parallelism to 1 if you want to use drop_last=False, or switch to drop_last=True to avoid this error")
+            raise RuntimeError(
+                "`MegatronPretrainingRandomBatchSampler` does not support drop_last=False when micro_batch_size * data_parallel_size > 1. \
+                                please reduce your MBS and data parallelism to 1 if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
+            )
         self.last_batch_size = self.total_samples % self._global_batch_size
         self.seed = seed
 
