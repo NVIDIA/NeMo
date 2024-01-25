@@ -69,7 +69,7 @@ import os
 import tempfile
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import editdistance
 import numpy as np
@@ -115,6 +115,7 @@ class EvalContextBiasingConfig:
     ctc_ali_token_weight: List[float] = field(
         default_factory=lambda: [0.6]
     )  # weight of CTC tokens to prevent false accept errors
+    print_cb_stats: bool = False  # print context biasing stats (mostly for debugging)
 
     # Auxiliary parameters
     sort_logits: bool = True  # do logits sorting before decoding - it reduces computation on puddings
@@ -187,16 +188,27 @@ def decoding_step(
             preds = np.argmax(probs, axis=1)
             if cfg.apply_context_biasing and ws_results[audio_file_paths[batch_idx]]:
                 # make new text by mearging alignment with ctc-ws predictions:
-                pred_text = context_biasing.merge_alignment_with_ws_hyps(
-                    preds, asr_model, ws_results[audio_file_paths[batch_idx]], decoder_type="ctc", blank_idx=blank_idx,
+                if cfg.print_cb_stats:
+                    logging.info("\n"+ "********"*10)
+                    logging.info(f"File name: {audio_file_paths[batch_idx]}")
+                pred_text, raw_text = context_biasing.merge_alignment_with_ws_hyps(
+                    preds,
+                    asr_model,
+                    ws_results[audio_file_paths[batch_idx]],
+                    decoder_type="ctc", blank_idx=blank_idx,
+                    print_stats=cfg.print_cb_stats,
                 )
+                if cfg.print_cb_stats:
+                    logging.info(f"raw text: {raw_text}")
+                    logging.info(f"hyp text: {pred_text}")
+                    logging.info(f"ref text: {target_transcripts[batch_idx]}")
             else:
                 preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
                 else:
                     pred_text = asr_model.wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
-
+            
             pred_split_w = pred_text.split()
             target_split_w = target_transcripts[batch_idx].split()
             pred_split_c = list(pred_text)
@@ -254,17 +266,23 @@ def decoding_step(
                 for candidate_idx, candidate in enumerate(
                     beams
                 ):  # type: (int, rnnt_beam_decoding.rnnt_utils.Hypothesis)
-
                     if cfg.apply_context_biasing and ws_results[audio_file_paths[sample_idx + beams_idx]]:
                         # make new text by mearging alignment with ctc-ws predictions:
-                        pred_text = context_biasing.merge_alignment_with_ws_hyps(
+                        if cfg.print_cb_stats:
+                            logging.info("\n"+ "********"*10)
+                            logging.info(f"File name: {audio_file_paths[batch_idx]}")
+                        pred_text, raw_text = context_biasing.merge_alignment_with_ws_hyps(
                             candidate,
                             asr_model,
                             ws_results[audio_file_paths[sample_idx + beams_idx]],
                             decoder_type="rnnt",
                             blank_idx=blank_idx,
+                            print_stats=cfg.print_cb_stats,
                         )
-                        beams[0].text = pred_text
+                        if cfg.print_cb_stats:
+                            logging.info(f"raw text: {raw_text}")
+                            logging.info(f"hyp text: {pred_text}")
+                            logging.info(f"ref text: {target_transcripts[sample_idx + beams_idx]}")
                     else:
                         pred_text = candidate.text
 
@@ -287,7 +305,7 @@ def decoding_step(
                         'audio_filepath': audio_file_paths[sample_idx + beams_idx],
                         'duration': durations[sample_idx + beams_idx],
                         'text': target_transcripts[sample_idx + beams_idx],
-                        'pred_text': beams[0].text,
+                        'pred_text': pred_text,
                         'wer': f"{wer_dist_tosave/len(target_split_w):.3f}",
                         'alignment': f"{alignment}",
                     }
@@ -305,7 +323,7 @@ def main(cfg: EvalContextBiasingConfig):
         cfg = OmegaConf.structured(cfg)
 
     assert os.path.isfile(cfg.input_manifest), f"input_manifest {cfg.input_manifest} does not exist"
-    assert cfg.apply_context_biasing and cfg.context_file, "context_file must be provided in case of context biasing"
+    if cfg.apply_context_biasing: assert cfg.context_file, "context_file must be provided in case of context biasing"
     assert os.path.isfile(cfg.context_file), f"context_file {cfg.context_file} does not exist"
     assert cfg.decoder_type in ["ctc", "rnnt"], "decoder_type must be ctc or rnnt"
     assert cfg.preds_output_folder, "preds_output_folder must be provided"

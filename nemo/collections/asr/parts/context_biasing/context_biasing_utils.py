@@ -32,7 +32,9 @@ def merge_alignment_with_ws_hyps(
     decoder_type: str = "ctc",
     intersection_threshold: float = 30.0,
     blank_idx: int = 0,
-) -> str:
+    print_stats: bool = False,
+    bow: str = "▁",
+) -> tuple[str, str]:
     """
     Merge context biasing predictions with ctc/rnnt word-level alignment.
     Words from alignment will be replaced by spotted words if intersection between them is greater than threshold.
@@ -43,6 +45,9 @@ def merge_alignment_with_ws_hyps(
         cb_results: list of context biasing predictions (spotted words)
         decoder_type: ctc or rnnt
         intersection_threshold: threshold for intersection between spotted word and word from alignment (in percentage)
+        blank_idx: blank index for ctc/rnnt decoding
+        print_stats: if True, print word alignment and spotted words
+        bow: symbol for begin of word (bow) in BPE tokenizer
     Returns:
         boosted_text: final text with context biasing predictions
     """
@@ -65,14 +70,18 @@ def merge_alignment_with_ws_hyps(
             candidate.y_sequence = candidate.y_sequence.tolist()
         tokens = asr_model.tokenizer.ids_to_tokens(candidate.y_sequence)
         for idx, token in enumerate(tokens):
-            alignment_tokens.append([candidate.timestep[idx], token])
+            # bow symbol may be predicted separately from token
+            if token == bow:
+                if idx+1 < len(tokens) and not tokens[idx+1].startswith(bow):
+                    tokens[idx+1] = bow + tokens[idx+1]
+                    continue
+            alignment_tokens.append([candidate.timestep[idx].item(), token])
 
     if not alignment_tokens:
         # ctc/rnnt decoding results are empty, return context biasing results only
-        return " ".join([ws_hyp.word for ws_hyp in cb_results])
+        return " ".join([ws_hyp.word for ws_hyp in cb_results]), ""
 
     # step 2: get word-level alignment [word, start_frame, end_frame]
-    bow = "▁"  # symbol for begin of word (bow) in BPE tokenizer
     word_alignment = []
     word = ""
     l, r, = None, None
@@ -89,6 +98,9 @@ def merge_alignment_with_ws_hyps(
                 word += item[1]
                 r = item[0]
     word_alignment.append((word, l, r))
+    initial_text_transcript = " ".join([item[0] for item in word_alignment])
+    if print_stats:
+        logging.info(f"Word alignment: {word_alignment}")
 
     # step 3: merge spotted words with word alignment
     for ws_hyp in cb_results:
@@ -119,13 +131,14 @@ def merge_alignment_with_ws_hyps(
         # insert last spotted word if not yet
         if not already_inserted:
             new_word_alignment.append((ws_hyp.word, ws_hyp.start_frame, ws_hyp.end_frame))
-
         word_alignment = new_word_alignment
+        if print_stats:
+            logging.info(f"Spotted word: {ws_hyp.word} [{ws_hyp.start_frame}, {ws_hyp.end_frame}]")
 
     boosted_text_list = [item[0] for item in new_word_alignment]
     boosted_text = " ".join(boosted_text_list)
 
-    return boosted_text
+    return boosted_text, initial_text_transcript
 
 
 def load_data(manifest: str) -> List[Dict]:
