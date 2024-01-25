@@ -260,6 +260,8 @@ class BatchedHyps:
         self.last_timestep = torch.full((batch_size,), -1, device=device, dtype=torch.long)
         # number of labels for the last timestep
         self.last_timestep_lasts = torch.zeros(batch_size, device=device, dtype=torch.long)
+        self._batch_indices = torch.arange(batch_size, device=device)
+        self._ones_batch = torch.ones_like(self._batch_indices)
 
     def _allocate_more(self):
         """
@@ -321,6 +323,45 @@ class BatchedHyps:
         self.last_timestep[active_indices] = time_indices
         # increase lengths
         self.current_lengths[active_indices] += 1
+
+    def add_results_masked_no_checks_(
+        self, active_mask: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
+    ):
+        """
+        Add results (inplace) from a decoding step to the batched hypotheses without checks.
+        We assume that all tensors have the same first dimension, and labels are non-blanks.
+        Useful if all the memory is pre-allocated, especially with cuda graphs
+        (otherwise prefer a more safe `add_results_`)
+        Args:
+            active_mask: tensor with mask for active hypotheses (of batch_size)
+            labels: non-blank labels to add
+            time_indices: tensor of time index for each label
+            scores: label scores
+        """
+        # accumulate scores
+        # self.scores[active_mask] += scores[active_mask]
+        torch.where(active_mask, self.scores + scores, self.scores, out=self.scores)
+
+        # store transcript and timesteps
+        self.transcript[self._batch_indices, self.current_lengths] = labels
+        self.timesteps[self._batch_indices, self.current_lengths] = time_indices
+        # store last observed timestep + number of observation for the current timestep
+        torch.where(
+            torch.logical_and(active_mask, self.last_timestep == time_indices),
+            self.last_timestep_lasts + 1,
+            self.last_timestep_lasts,
+            out=self.last_timestep_lasts,
+        )
+        torch.where(
+            torch.logical_and(active_mask, self.last_timestep != time_indices),
+            self._ones_batch,
+            self.last_timestep_lasts,
+            out=self.last_timestep_lasts,
+        )
+        # self.last_timestep[active_mask] = time_indices[active_mask]
+        torch.where(active_mask, time_indices, self.last_timestep, out=self.last_timestep)
+        # increase lengths
+        self.current_lengths += active_mask
 
 
 class BatchedAlignments:

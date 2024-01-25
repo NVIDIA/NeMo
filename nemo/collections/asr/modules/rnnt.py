@@ -389,6 +389,14 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             return  # nothing to replace
         dst_states[0][dst_mask_or_indices] = src_states[0][src_mask_or_indices]
 
+    def batch_replace_states_mask(
+        self,
+        src_states: Tuple[torch.Tensor, torch.Tensor],
+        dst_states: Tuple[torch.Tensor, torch.Tensor],
+        mask: torch.Tensor,
+    ):
+        torch.where(mask.unsqueeze(-1), src_states[0], dst_states[0], out=dst_states[0])
+
     def batch_copy_states(
         self,
         old_states: List[torch.Tensor],
@@ -1066,6 +1074,18 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         #  with bfloat16 the initialize_state returns bfloat16, but lstm returns float16
         dst_states[0][:, dst_mask_or_indices] = src_states[0][:, src_mask_or_indices].to(dst_states[0].dtype)
         dst_states[1][:, dst_mask_or_indices] = src_states[1][:, src_mask_or_indices].to(dst_states[1].dtype)
+
+    def batch_replace_states_mask(
+        self,
+        src_states: Tuple[torch.Tensor, torch.Tensor],
+        dst_states: Tuple[torch.Tensor, torch.Tensor],
+        mask: torch.Tensor,
+    ):
+        # TODO: why do we need to cast?
+        #  with bfloat16 the initialize_state returns bfloat16, but lstm returns float16
+        dtype = dst_states[0].dtype
+        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), dst_states[0], out=dst_states[0])
+        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), dst_states[1], out=dst_states[1])
 
     def batch_copy_states(
         self,

@@ -647,12 +647,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     confidence_method_cfg=confidence_method_cfg,
                 )
                 if self.allow_jit and not self.preserve_frame_confidence:
-                    try:
-                        self._decoding_computer = torch.jit.script(self._decoding_computer)
-                        self._decoding_computer.eval()
-                        logging.info("Using greedy decoding with torch.jit.script")
-                    except (OSError, RuntimeError):
-                        logging.warning("torch.jit.script failed to compile, using greedy decoding without jit")
+                    # try:
+                    self._decoding_computer = torch.jit.script(self._decoding_computer)
+                    self._decoding_computer.eval()
+                    #     logging.info("Using greedy decoding with torch.jit.script")
+                    # except (OSError, RuntimeError):
+                    #     logging.warning("torch.jit.script failed to compile, using greedy decoding without jit")
             else:
                 # previous algo: loop over frames
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
@@ -722,7 +722,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         assert self._decoding_computer is not None
 
         self._decoding_computer.eval().to(x.device)
-        batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
+        batched_hyps, alignments, last_decoder_state = self._decoding_computer.forward_const_batch_size(
+            x=x, out_len=out_len
+        )
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
         for i, hyp in enumerate(hyps):
             hyp.dec_state = self.decoder.batch_select_state(last_decoder_state, i)
