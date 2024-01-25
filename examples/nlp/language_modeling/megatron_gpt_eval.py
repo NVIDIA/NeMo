@@ -199,7 +199,7 @@ def main(cfg) -> None:
 
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
-        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size * max(1, cfg.expert_model_parallel_size)
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     if cfg.gpt_model_file:
@@ -224,10 +224,13 @@ def main(cfg) -> None:
                 # with dist checkpointing we can use the model parallel config specified by the user
                 pretrained_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
                 pretrained_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
+                pretrained_cfg.expert_model_parallel_size = cfg.expert_model_parallel_size
+                pretrained_cfg.micro_batch_size = 1
             if trainer.precision == "16":
                 pretrained_cfg.megatron_amp_O2 = False
             elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
                 pretrained_cfg.megatron_amp_O2 = True
+
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
@@ -237,13 +240,14 @@ def main(cfg) -> None:
         )
     elif cfg.checkpoint_dir:
         app_state = AppState()
-        if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
-            app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+        if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1 or cfg.expert_model_parallel_size > 1:
+            app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size * cfg.expert_model_parallel_size
             app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
             (
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
+                app_state.expert_model_parallel_rank,
                 app_state.model_parallel_size,
                 app_state.data_parallel_size,
                 app_state.pipeline_model_parallel_split_rank,
@@ -254,13 +258,15 @@ def main(cfg) -> None:
                 tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
                 pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
+                expert_model_parallel_size_=cfg.expert_model_parallel_size
             )
         checkpoint_path = os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
         # checkpoint_path is a dir in case of distributed checkpointing
         if not os.path.isdir(checkpoint_path):
             # legacy checkpoint needs model parallel rank injection
             checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
+        model = MegatronGPTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
