@@ -176,10 +176,11 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
     # I omit those two arguments.
     # commit: https://github.com/NVIDIA/Megatron-LM/commit/7a77abd9b6267dc0020a60b424b4748fc22790bb
     #
-    # NOTE (degert): I have re-written this class somewhat as previous implementation relied on the
-    # base class constructor which would have thrown in the case of consumed_samples >= total_samples
-    # which this class was designed to do, as that is how it implicitly calculates the current epoch
+    # NOTE (degert): I have re-written this class somewhat to give the length correctly when consumed_samples
+    # are larger than total_samples, which happens with epochs > 1 training when using this Sampler
     # I have also added an explicit seed which allows us to remove Dataset-side shuffling in Nemo-Aligner
+    #
+    # This class does not currently work with pad_samples_to_global_batch_size=True
     def __init__(
         self,
         total_samples: int,
@@ -192,32 +193,21 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         pad_samples_to_global_batch_size: bool = False,
         seed: int = 0,
     ) -> None:
-
-        # Sanity checks.
-        if total_samples <= 0:
-            raise RuntimeError("no sample to consume: {}".format(total_samples))
-        if micro_batch_size <= 0:
-            raise RuntimeError(f"micro_batch_size size must be greater than 0, but {micro_batch_size}")
-        if data_parallel_size <= 0:
-            raise RuntimeError(f"data parallel size must be greater than 0, but {data_parallel_size}")
-        if data_parallel_rank >= data_parallel_size:
-            raise RuntimeError(
-                "data_parallel_rank should be smaller than data size, but {} >= {}".format(
-                    data_parallel_rank, data_parallel_size
-                )
-            )
-
-        self.total_samples: int = total_samples
-        self.consumed_samples: int = consumed_samples
-        self.micro_batch_size: int = micro_batch_size
-        self.data_parallel_rank: int = data_parallel_rank
-        self.data_parallel_size: int = data_parallel_size
-        self.drop_last: bool = drop_last
-        self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
-        self.seed = seed
-
-        self.update_global_batch_size(global_batch_size)
+        super().__init__(
+            total_samples=total_samples,
+            consumed_samples=consumed_samples,
+            micro_batch_size=micro_batch_size,
+            data_parallel_rank=data_parallel_rank,
+            data_parallel_size=data_parallel_size,
+            drop_last=drop_last,
+            global_batch_size=global_batch_size,
+            pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
+        )
+        assert (
+            pad_samples_to_global_batch_size == False
+        ), "`MegatronPretrainingRandomBatchSampler` does not support sample padding"
         self.last_batch_size = self.total_samples % self._global_batch_size
+        self.seed = seed
 
     def __len__(self) -> int:
         """Length of Random Batch Sampler.
@@ -226,7 +216,7 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
             When `rampup_batch_size` is enabled, the return value can be not exactly precise.
 
         """
-        active_total_samples = self.total_samples - self.last_batch_size
+        active_total_samples = self.total_samples - (self.last_batch_size if self.drop_last else 0)
         num_available_samples = (
             active_total_samples * (1 + (self.consumed_samples // active_total_samples))
         ) - self.consumed_samples
