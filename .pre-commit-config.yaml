@@ -49,3 +49,4 @@ repos:
         # https://pre-commit.com/#top_level-default_language_version
         language_version: python3.11
         args: [--extend-exclude='']
+        types_or: [python, pyi]
