@@ -196,6 +196,7 @@ class NLPDDPStrategy(DDPStrategy):
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size=app_state.tensor_model_parallel_size,
                     pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+                    expert_model_parallel_size=app_state.expert_model_parallel_size,
                     virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                     pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
                     nccl_communicator_config_path=self.nccl_communicator_config_path,
