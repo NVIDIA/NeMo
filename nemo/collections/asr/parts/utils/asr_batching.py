@@ -139,6 +139,15 @@ class SemiSortBatchSampler(DistributedSampler):
 
         global_num_batches: int = math.ceil(len(sorted_indices) / self.micro_batch_size)
 
+        # if the global_num_batches is zero than return empty list
+        if global_num_batches == 0:
+            logging.warning(
+                f"The number of all batches is {global_num_batches}, than dataloader will "
+                "be empty. To avoid this try to decrease batch size or world size or set "
+                "drop_last to False."
+            )
+            return []
+
         # add extra batches to make it divisible by world size (num replicas)
         pad_batches_num: int = (self.num_replicas - global_num_batches % self.num_replicas) % self.num_replicas
         if global_num_batches < self.num_replicas:
@@ -165,7 +174,10 @@ class SemiSortBatchSampler(DistributedSampler):
         local_batches = np.split(local_indices, size_mask, axis=0)
 
         if len(local_batches) != self.local_num_batches:
-            raise RuntimeError('Number of calculated indices is not equa to calculated number of local batches.')
+            raise RuntimeError(
+                f'Number of calculated indices {len(local_batches)} is not equal to calculated '
+                f'number of local batches {self.local_num_batches}.'
+            )
 
         return local_batches
 
