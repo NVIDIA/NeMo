@@ -267,7 +267,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         return (packed_result,)
 
-
     @torch.no_grad()
     def flashlight_beam_search(
         self, x: torch.Tensor, out_len: torch.Tensor
@@ -284,9 +283,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             A list of NBestHypotheses objects, one for each sequence in the batch.
         """
         if self.compute_timestamps:
-            raise ValueError(
-                f"Flashlight beam search does not support time stamp calculation!"
-            )
+            raise ValueError(f"Flashlight beam search does not support time stamp calculation!")
 
         if self.flashlight_beam_scorer is None:
             # Check for filepath
@@ -386,7 +383,8 @@ class BeamCTCInferConfig:
     kenlm_path: Optional[str] = None
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
-    
+
+
 @dataclass
 class BeamCTCInferConfigList(BeamCTCInferConfig):
     beam_size: List[int]
