@@ -410,6 +410,7 @@ def convert(local_rank, rank, world_size, args):
         name_translate = {}
         name_translate['transformer'] = 'encoder'
         name_translate['.attention.'] = '.self_attention.'
+        name_translate['_norm'] = '_layernorm'
         # nemo megatron doesn't have _for_head key
         name_translate['word_embeddings_for_head'] = 'word_embeddings'
         checkpoint, consumed, steps, version = load_from_checkpoint(
