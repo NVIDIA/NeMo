@@ -227,12 +227,12 @@ def audio_frame_mask_by_phn(ori_audio, model, ori_phn_dur, ori_phn_mask, new_phn
 
     new_mel_len = round(dur_ratio * new_phn_dur[-1][-1])
 
-    new_cond = torch.zeros((1, new_mel_len, ori_mel.shape[2]), device=ori_mel.device)
+    new_cond = torch.zeros((1, new_mel_len, ori_mel.shape[2]), device=ori_mel.device, dtype=torch.bool)
     new_cond[:, :ori_st_pos] = ori_mel[:, :ori_st_pos]
     new_cond[:, -ori_ed_len:] = ori_mel[:, -ori_ed_len:]
     new_frame_mask = torch.ones((1, new_mel_len), device=ori_mel.device).int()
-    new_frame_mask[:, :ori_st_pos] = 0
-    new_frame_mask[:, -ori_ed_len:] = 0
+    new_frame_mask[:, :ori_st_pos] = False
+    new_frame_mask[:, -ori_ed_len:] = False
 
     aligned_phonemes = []
     new_dur = []
