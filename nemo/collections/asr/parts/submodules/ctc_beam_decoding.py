@@ -295,10 +295,10 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
             # perform token offset for subword models
             if self.decoding_type == 'subword':
-               vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
+                vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
             else:
-               # char models
-               vocab = self.vocab
+                # char models
+                vocab = self.vocab
 
             # Must import at runtime to avoid circular dependency due to module level import.
             from nemo.collections.asr.modules.flashlight_decoder import FlashLightKenLMBeamSearchDecoder
