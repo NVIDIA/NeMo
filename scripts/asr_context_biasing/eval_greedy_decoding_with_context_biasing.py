@@ -189,13 +189,14 @@ def decoding_step(
             if cfg.apply_context_biasing and ws_results[audio_file_paths[batch_idx]]:
                 # make new text by mearging alignment with ctc-ws predictions:
                 if cfg.print_cb_stats:
-                    logging.info("\n"+ "********"*10)
+                    logging.info("\n" + "********" * 10)
                     logging.info(f"File name: {audio_file_paths[batch_idx]}")
                 pred_text, raw_text = context_biasing.merge_alignment_with_ws_hyps(
                     preds,
                     asr_model,
                     ws_results[audio_file_paths[batch_idx]],
-                    decoder_type="ctc", blank_idx=blank_idx,
+                    decoder_type="ctc",
+                    blank_idx=blank_idx,
                     print_stats=cfg.print_cb_stats,
                 )
                 if cfg.print_cb_stats:
@@ -208,7 +209,7 @@ def decoding_step(
                     pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
                 else:
                     pred_text = asr_model.wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
-            
+
             pred_split_w = pred_text.split()
             target_split_w = target_transcripts[batch_idx].split()
             pred_split_c = list(pred_text)
@@ -269,7 +270,7 @@ def decoding_step(
                     if cfg.apply_context_biasing and ws_results[audio_file_paths[sample_idx + beams_idx]]:
                         # make new text by mearging alignment with ctc-ws predictions:
                         if cfg.print_cb_stats:
-                            logging.info("\n"+ "********"*10)
+                            logging.info("\n" + "********" * 10)
                             logging.info(f"File name: {audio_file_paths[batch_idx]}")
                         pred_text, raw_text = context_biasing.merge_alignment_with_ws_hyps(
                             candidate,
@@ -323,7 +324,8 @@ def main(cfg: EvalContextBiasingConfig):
         cfg = OmegaConf.structured(cfg)
 
     assert os.path.isfile(cfg.input_manifest), f"input_manifest {cfg.input_manifest} does not exist"
-    if cfg.apply_context_biasing: assert cfg.context_file, "context_file must be provided in case of context biasing"
+    if cfg.apply_context_biasing:
+        assert cfg.context_file, "context_file must be provided in case of context biasing"
     assert os.path.isfile(cfg.context_file), f"context_file {cfg.context_file} does not exist"
     assert cfg.decoder_type in ["ctc", "rnnt"], "decoder_type must be ctc or rnnt"
     assert cfg.preds_output_folder, "preds_output_folder must be provided"

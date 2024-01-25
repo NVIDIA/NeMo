@@ -72,8 +72,8 @@ def merge_alignment_with_ws_hyps(
         for idx, token in enumerate(tokens):
             # bow symbol may be predicted separately from token
             if token == bow:
-                if idx+1 < len(tokens) and not tokens[idx+1].startswith(bow):
-                    tokens[idx+1] = bow + tokens[idx+1]
+                if idx + 1 < len(tokens) and not tokens[idx + 1].startswith(bow):
+                    tokens[idx + 1] = bow + tokens[idx + 1]
                     continue
             alignment_tokens.append([candidate.timestep[idx].item(), token])
 
