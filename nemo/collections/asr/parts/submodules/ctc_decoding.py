@@ -1127,7 +1127,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
 @dataclass
 class CTCDecodingConfig:
-    strategy: str = "greedy" # greedy or beam
+    strategy: str = "greedy"  # greedy or beam
 
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None
