@@ -1535,7 +1535,16 @@ class CrossAttendModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
         super().setup_perception_modules(cfg)
         imported_cls = model_utils.import_class_by_path(cfg.perception.xattn.target)
         self.perception_cross_attn = imported_cls(cfg=cfg.perception)
-        
+
+    def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        if self.setup_complete:
+            return_state_dict = super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
+            state_dict = self.perception_cross_attn.state_dict(prefix="perception_cross_attn.")
+            return_state_dict.update(state_dict)
+            return return_state_dict
+        else:
+            return super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
+
 
 class PseudoCrossAttendModularAudioGPTLoRAModel(CrossAttendModularAudioGPTLoRAModel):
     """Modularized speech GPT model."""
