@@ -152,7 +152,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         if (not drop_last) and self.micro_batch_times_data_parallel_size > 1:
             raise RuntimeError(
                 "`MegatronPretrainingRandomSampler` does not support drop_last=False when micro_batch_size * data_parallel_size > 1. \
-                                please reduce your MBS and data parallelism to 1 if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
+                  please reduce your MBS and data parallelism to 1 if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
             )
         self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
         self.seed = seed
