@@ -43,10 +43,6 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_SEPARATOR_TOKEN,
     DEFAULT_SYSTEM_TOKEN,
     DEFAULT_UNK_TOKEN,
-    DEFAULT_VID_END_TOKEN,
-    DEFAULT_VID_START_TOKEN,
-    DEFAULT_VIDEO_PATCH_TOKEN,
-    DEFAULT_VIDEO_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
