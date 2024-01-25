@@ -32,13 +32,13 @@ python eval_beamsearch_ngram_ctc.py --cfg job
 
 python eval_beamsearch_ngram_ctc.py nemo_model_file=<path to the .nemo file of the model> \
            input_manifest=<path to the evaluation JSON manifest file> \
-           kenlm_model_file=<path to the binary KenLM model> \
-           beam_width=[<list of the beam widths, separated with commas>] \
-           beam_alpha=[<list of the beam alphas, separated with commas>] \
-           beam_beta=[<list of the beam betas, separated with commas>] \
+           ctc_decoding.beam.kenlm_path=<path to the binary KenLM model> \
+           ctc_decoding.beam.beam_size=[<list of the beam widths, separated with commas>] \
+           ctc_decoding.beam.beam_alpha=[<list of the beam alphas, separated with commas>] \
+           ctc_decoding.beam.beam_beta=[<list of the beam betas, separated with commas>] \
            preds_output_folder=<optional folder to store the predictions> \
            probs_cache_file=null \
-           decoding_mode=beamsearch_ngram
+           decoding_strategy=beam
            ...
 
 
@@ -46,7 +46,7 @@ python eval_beamsearch_ngram_ctc.py nemo_model_file=<path to the .nemo file of t
 
 For grid search, you can provide a list of arguments as follows -
 
-           beam_width=[4,8,16,....] \
+           beam_size=[4,8,16,....] \
            beam_alpha=[-2.0,-1.0,...,1.0,2.0] \
            beam_beta=[-1.0,-0.5,0.0,...,1.0] \
 
@@ -74,6 +74,8 @@ from tqdm.auto import tqdm
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.submodules import ctc_beam_decoding
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -91,7 +93,6 @@ class EvalBeamSearchNGramConfig:
 
     # File paths
     input_manifest: str = MISSING  # The manifest file of the evaluation set
-    kenlm_model_file: Optional[str] = None  # The path of the KenLM binary model file
     preds_output_folder: Optional[str] = None  # The optional folder where the predictions are stored
     probs_cache_file: Optional[str] = None  # The cache file for storing the logprobs of the model
 
@@ -102,17 +103,15 @@ class EvalBeamSearchNGramConfig:
     use_amp: bool = False  # Whether to use AMP if available to calculate log probabilities
 
     # Beam Search hyperparameters
-
-    # The decoding scheme to be used for evaluation.
-    # Can be one of ["greedy", "beamsearch", "beamsearch_ngram"]
-    decoding_mode: str = "beamsearch_ngram"
-
-    beam_width: List[int] = field(default_factory=lambda: [128])  # The width or list of the widths for the beam search decoding
-    beam_alpha: List[float] = field(default_factory=lambda: [1.0])  # The alpha parameter or list of the alphas for the beam search decoding
-    beam_beta: List[float] = field(default_factory=lambda: [0.0])  # The beta parameter or list of the betas for the beam search decoding
-
-    decoding_strategy: str = "beam"
-    decoding: ctc_beam_decoding.BeamCTCInferConfig = field(default_factory=lambda: ctc_beam_decoding.BeamCTCInferConfig(beam_size=128))
+    ctc_decoding: CTCDecodingConfig = field(default_factory=lambda: CTCDecodingConfig(
+        strategy="beam",
+        beam = ctc_beam_decoding.BeamCTCInferConfigList(
+            beam_size=[4],
+            beam_alpha=[0.5],
+            beam_beta=[0.5],
+            return_best_hypothesis = False,
+            ),
+        ))
     
     text_processing: Optional[TextProcessingConfig] = field(default_factory=lambda: TextProcessingConfig(
         punctuation_marks = ".,?",
@@ -120,7 +119,6 @@ class EvalBeamSearchNGramConfig:
         do_lowercase = False,
         rm_punctuation = False,
     ))
-# fmt: on
 
 
 def beam_search_eval(
@@ -132,7 +130,7 @@ def beam_search_eval(
     lm_path: str = None,
     beam_alpha: float = 1.0,
     beam_beta: float = 0.0,
-    beam_width: int = 128,
+    beam_size: int = 128,
     beam_batch_size: int = 128,
     progress_bar: bool = True,
     punctuation_capitalization: PunctuationCapitalization = None,
@@ -146,15 +144,29 @@ def beam_search_eval(
         model.change_decoding_strategy(None)
 
     # Override the beam search config with current search candidate configuration
-    cfg.decoding.beam_size = beam_width
-    cfg.decoding.beam_alpha = beam_alpha
-    cfg.decoding.beam_beta = beam_beta
-    cfg.decoding.return_best_hypothesis = False
-    cfg.decoding.kenlm_path = cfg.kenlm_model_file
+    decoding = CTCDecodingConfig(
+        strategy=cfg.ctc_decoding.strategy,
+        preserve_alignments=cfg.ctc_decoding.preserve_alignments,
+        compute_timestamps=cfg.ctc_decoding.compute_timestamps,
+        word_seperator=cfg.ctc_decoding.word_seperator,
+        ctc_timestamp_type=cfg.ctc_decoding.ctc_timestamp_type,
+        batch_dim_index=cfg.ctc_decoding.batch_dim_index,
+        greedy=cfg.ctc_decoding.greedy,
+        confidence_cfg=cfg.ctc_decoding.confidence_cfg,
+        temperature=cfg.ctc_decoding.temperature,
+        beam = ctc_beam_decoding.BeamCTCInferConfig(beam_size=beam_size,
+                                                    beam_alpha=beam_alpha,
+                                                    beam_beta=beam_beta,
+                                                    kenlm_path=cfg.ctc_decoding.beam.kenlm_path,
+                                                    preserve_alignments=cfg.ctc_decoding.beam.preserve_alignments,
+                                                    compute_timestamps=cfg.ctc_decoding.beam.compute_timestamps,
+                                                    flashlight_cfg=cfg.ctc_decoding.beam.flashlight_cfg,
+                                                    return_best_hypothesis=cfg.ctc_decoding.beam.return_best_hypothesis),
+        )
 
     # Update model's decoding strategy config
-    model.cfg.decoding.strategy = cfg.decoding_strategy
-    model.cfg.decoding.beam = cfg.decoding
+    model.cfg.decoding.strategy = decoding.strategy
+    model.cfg.decoding.beam = decoding.beam
 
     # Update model's decoding strategy
     if isinstance(model, EncDecHybridRNNTCTCModel):
@@ -176,7 +188,7 @@ def beam_search_eval(
     if progress_bar:
         it = tqdm(
             range(int(np.ceil(len(all_probs) / beam_batch_size))),
-            desc=f"Beam search decoding with width={beam_width}, alpha={beam_alpha}, beta={beam_beta}",
+            desc=f"Beam search decoding with width={beam_size}, alpha={beam_alpha}, beta={beam_beta}",
             ncols=120,
         )
     else:
@@ -262,12 +274,6 @@ def beam_search_eval(
 def main(cfg: EvalBeamSearchNGramConfig):
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)  # type: EvalBeamSearchNGramConfig
-
-    valid_decoding_modes = ["greedy", "beamsearch", "beamsearch_ngram"]
-    if cfg.decoding_mode not in valid_decoding_modes:
-        raise ValueError(
-            f"Given decoding_mode={cfg.decoding_mode} is invalid. Available options are :\n" f"{valid_decoding_modes}"
-        )
 
     if cfg.nemo_model_file.endswith('.nemo'):
         asr_model = nemo_asr.models.ASRModel.restore_from(cfg.nemo_model_file, map_location=torch.device(cfg.device))
@@ -376,18 +382,18 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
     asr_model = asr_model.to('cpu')
 
-    if cfg.decoding_mode == "beamsearch_ngram":
-        if not os.path.exists(cfg.kenlm_model_file):
-            raise FileNotFoundError(f"Could not find the KenLM model file '{cfg.kenlm_model_file}'.")
-        lm_path = cfg.kenlm_model_file
+    if cfg.ctc_decoding.strategy == "beam":
+        if not os.path.exists(cfg.ctc_decoding.beam.kenlm_path):
+            raise FileNotFoundError(f"Could not find the KenLM model file '{cfg.ctc_decoding.beam.kenlm_path}'.")
+        lm_path = cfg.ctc_decoding.beam.kenlm_path
     else:
         lm_path = None
 
     # 'greedy' decoding_mode would skip the beam search decoding
-    if cfg.decoding_mode in ["beamsearch_ngram", "beamsearch"]:
-        if cfg.beam_width is None or cfg.beam_alpha is None or cfg.beam_beta is None:
-            raise ValueError("beam_width, beam_alpha and beam_beta are needed to perform beam search decoding.")
-        params = {'beam_width': cfg.beam_width, 'beam_alpha': cfg.beam_alpha, 'beam_beta': cfg.beam_beta}
+    if cfg.ctc_decoding.strategy in ["beam"]:
+        if cfg.ctc_decoding.beam.beam_size is None or cfg.ctc_decoding.beam.beam_alpha is None or cfg.ctc_decoding.beam.beam_beta is None:
+            raise ValueError("beam_size, beam_alpha and beam_beta are needed to perform beam search decoding.")
+        params = {'beam_size': cfg.ctc_decoding.beam.beam_size, 'beam_alpha': cfg.ctc_decoding.beam.beam_alpha, 'beam_beta': cfg.ctc_decoding.beam.beam_beta}
         hp_grid = ParameterGrid(params)
         hp_grid = list(hp_grid)
 
@@ -407,7 +413,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
             if cfg.preds_output_folder:
                 preds_output_file = os.path.join(
                     cfg.preds_output_folder,
-                    f"preds_out_width{hp['beam_width']}_alpha{hp['beam_alpha']}_beta{hp['beam_beta']}.tsv",
+                    f"preds_out_size{hp['beam_size']}_alpha{hp['beam_alpha']}_beta{hp['beam_beta']}.tsv",
                 )
             else:
                 preds_output_file = None
@@ -419,7 +425,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 target_transcripts=target_transcripts,
                 preds_output_file=preds_output_file,
                 lm_path=lm_path,
-                beam_width=hp["beam_width"],
+                beam_size=hp["beam_size"],
                 beam_alpha=hp["beam_alpha"],
                 beam_beta=hp["beam_beta"],
                 beam_batch_size=cfg.beam_batch_size,
@@ -428,13 +434,13 @@ def main(cfg: EvalBeamSearchNGramConfig):
             )
 
             if candidate_cer < best_cer:
-                best_cer_beam_size = hp["beam_width"]
+                best_cer_beam_size = hp["beam_size"]
                 best_cer_alpha = hp["beam_alpha"]
                 best_cer_beta = hp["beam_beta"]
                 best_cer = candidate_cer
 
             if candidate_wer < best_wer:
-                best_wer_beam_size = hp["beam_width"]
+                best_wer_beam_size = hp["beam_size"]
                 best_wer_alpha = hp["beam_alpha"]
                 best_wer_beta = hp["beam_beta"]
                 best_wer = candidate_wer
