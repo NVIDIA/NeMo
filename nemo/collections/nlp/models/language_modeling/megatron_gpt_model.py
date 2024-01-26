@@ -26,6 +26,9 @@ from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
+import nvtx
+import time
+
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
@@ -534,6 +537,32 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         self.initialize_ub = False
 
+    def on_train_batch_start(self, batch, batch_idx):
+        super().on_train_batch_start(batch, batch_idx)
+        pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+        tp_rank = parallel_state.get_tensor_model_parallel_rank()
+        dp_rank = parallel_state.get_data_parallel_rank()
+        global_rank = torch.distributed.get_rank()
+
+        self._nvtx_range = nvtx.start_range(f'Training Step [GPU rank {global_rank} (D{dp_rank}P{pp_rank}T{tp_rank})]', color='green')
+
+        self.timestamp = None
+        if global_rank == 0:
+            self.timestamp = time.time_ns()
+
+    def on_train_batch_end(self, outputs, batch, batch_idx):
+        super().on_train_batch_end(outputs, batch, batch_idx)
+        nvtx.end_range(self._nvtx_range)
+
+        if self.timestamp:
+            now = time.time_ns()
+            self.log_step_time(now - self.timestamp)
+            self.timestamp = None
+
+    def log_step_time(self, step_time_ns):
+        step_time = step_time_ns / 1000000000
+        print(f"step_time: {step_time} s")
+
     def training_step(self, dataloader_iter, batch_idx):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
@@ -575,7 +604,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # synchronize asynchronous grad reductions
             # note: not necessary, but reduces performance degradation
             # from multiple simultaneous NCCL calls
-            self._optimizer._finish_bucket_grad_sync()
+            with nvtx.annotate(message=f'Sync Gradients [stall for complete]', color="purple"):
+                self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
@@ -590,12 +620,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'share_embeddings_and_output_weights', True
         ):
             # when using pipeline parallelism the first and last stage must keep embeddings in sync
-            self.allreduce_first_last_embeddings()
+            with nvtx.annotate(message=f'Sync Embeddings', color="purple"):
+                self.allreduce_first_last_embeddings()
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-        torch.distributed.broadcast(loss_mean, get_last_rank())
+        with nvtx.annotate(message=f'Loss Broadcast', color="purple"):
+            torch.distributed.broadcast(loss_mean, get_last_rank())
 
         # (@adithyare) we need to check for the _scaler attribute to enable pp>1 for adapter training
         if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
