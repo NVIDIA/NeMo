@@ -15,6 +15,7 @@
 from abc import ABC, abstractmethod
 from typing import Iterable, List, Optional, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -962,6 +963,7 @@ class MelSpectrogramProcessor(NeuralModule):
 
     def __init__(self, sample_rate: int, win_length: int, hop_length: int, mel_dim: int = 80, log_guard: float = 1.0):
         super(MelSpectrogramProcessor, self).__init__()
+        self.mel_dim = mel_dim
         self.hop_length = hop_length
         self.preprocessor = AudioToMelSpectrogramPreprocessor(
             sample_rate=sample_rate,
@@ -1090,12 +1092,25 @@ class MultiBandMelEncoder(NeuralModule):
 
     def __init__(self, mel_bands: Iterable[Tuple[int, int]], mel_processor: NeuralModule, **encoder_kwargs):
         super(MultiBandMelEncoder, self).__init__()
+        self.validate_mel_bands(mel_dim=mel_processor.mel_dim, mel_bands=mel_bands)
         self.mel_bands = mel_bands
         self.mel_processor = mel_processor
         band_dims = [band[1] - band[0] for band in self.mel_bands]
         self.encoders = nn.ModuleList(
             [ResNetEncoder(in_channels=band_dim, **encoder_kwargs) for band_dim in band_dims]
         )
+
+    @staticmethod
+    def validate_mel_bands(mel_dim: int, mel_bands: Iterable[Tuple[int, int]]):
+        mel_dims_used = np.zeros([mel_dim], dtype=bool)
+        for band in mel_bands:
+            mel_dims_used[band[0] : band[1]] = True
+
+        if not all(mel_dims_used):
+            missing_dims = np.where(~mel_dims_used)
+            raise ValueError(f"Mel bands must cover all {mel_dim} dimensions. Missing {missing_dims}.")
+
+        return
 
     def remove_weight_norm(self):
         for encoder in self.encoders:

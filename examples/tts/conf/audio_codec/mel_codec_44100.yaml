@@ -1,8 +1,9 @@
-# This config contains the default values for training 24khz audio codec model
+# This config contains the default values for training 44.1kHz audio codec model which encodes mel spectrogram
+# instead of raw audio.
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
-name: SpeechCodec
+name: MelCodec
 
 max_epochs: ???
 # Adjust batch size based on GPU memory
@@ -44,7 +45,7 @@ model:
   commit_loss_scale: 0.0
 
   # Probability of updating the discriminator during each training step
-  # For example, update the discriminator 1/2 times (1 updates for every 2 batches)
+  # For example, update the discriminator 1/2 times (1 update for every 2 batches)
   disc_updates_per_period: 1
   disc_update_period: 2
 
@@ -128,13 +129,13 @@ model:
   audio_decoder:
     _target_: nemo.collections.tts.modules.audio_codec_modules.HiFiGANDecoder
     up_sample_rates: ${up_sample_rates}
-    input_dim: 32
+    input_dim: 32 # Should be equal to len(audio_encoder.mel_bands) * audio_encoder.out_channels
     base_channels: 1024 # This is double the base channels of HiFi-GAN V1, making it approximately 4x larger.
 
   vector_quantizer:
     _target_: nemo.collections.tts.modules.audio_codec_modules.GroupFiniteScalarQuantizer
-    num_groups: 8
-    num_levels_per_group: [8, 5, 5, 5] # 8 x 5 x 5 x 5 = 1000 entries per codebook
+    num_groups: 8 # Should equal len(audio_encoder.mel_bands)
+    num_levels_per_group: [8, 5, 5, 5] # 8 * 5 * 5 * 5 = 1000 entries per codebook
 
   discriminator:
     _target_: nemo.collections.tts.modules.audio_codec_modules.Discriminator
