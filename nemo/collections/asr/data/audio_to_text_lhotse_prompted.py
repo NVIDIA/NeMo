@@ -60,7 +60,38 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         return audio, audio_lens, tokens, token_lens
 
 
-def _canary_prompt_format(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence[Sequence[int]]:
+# Mapping from a string name to a known prompt formatter function.
+PROMPT_FORMAT_FNS = {}
+
+
+def registered_prompt_format_fn(prompt_fn: Callable[[CutSet, TokenizerWrapper], Sequence[Sequence[int]]]):
+    """
+    Decorator for registering prompt functions under a name.
+
+    Example::
+
+        >>> @registered_prompt_format_fn
+        ... def my_prompt(cuts, tokenizer):
+        ...     pass
+        ...
+        ... prompt_fn = get_prompt_format_fn("my_prompt")
+    """
+    global PROMPT_FORMAT_FNS
+
+    PROMPT_FORMAT_FNS[prompt_fn.__name__] = prompt_fn
+    return prompt_fn
+
+
+def get_prompt_format_fn(name: str) -> Callable[[CutSet, TokenizerWrapper], Sequence[Sequence[int]]]:
+    if name not in PROMPT_FORMAT_FNS:
+        raise ValueError(
+            f"Unknown prompt format function name: {name} " f"(must be one of: {list(PROMPT_FORMAT_FNS.keys())}"
+        )
+    return PROMPT_FORMAT_FNS[name]
+
+
+@registered_prompt_format_fn
+def canary(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence[Sequence[int]]:
     """
 
     prepend and append control tokens to the token sequence as per canary format
@@ -133,17 +164,3 @@ def _canary_prompt_format(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence
         canary_tokens.append(prompted_tokens)
 
     return canary_tokens
-
-
-# Mapping from a string name to a known prompt formatter function.
-PROMPT_FORMAT_FNS = {
-    "canary": _canary_prompt_format,
-}
-
-
-def get_prompt_format_fn(name: str) -> Callable[[Sequence[Sequence[int]], CutSet], Sequence[Sequence[int]]]:
-    if name not in PROMPT_FORMAT_FNS:
-        raise ValueError(
-            f"Unknown prompt format function name: {name} " f"(must be one of: {list(PROMPT_FORMAT_FNS.keys())}"
-        )
-    return PROMPT_FORMAT_FNS[name]

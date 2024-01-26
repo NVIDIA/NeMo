@@ -22,14 +22,16 @@ model:
   log_prediction: true # enables logging sample predictions in the output during training
 
   train_ds:
-    is_tarred: true
+    use_lhotse: true
     tarred_audio_filepaths: ???
     manifest_filepath: ???
-    sample_rate: 16000
+    sample_rate: ${model.sample_rate}
     shuffle: true
-    trim_silence: false
     num_workers: 8
-    use_lhotse: true
+    # To understand the settings below, please refer to Lhotse Dataloading documentation:
+    # https://github.com/NVIDIA/NeMo/blob/main/docs/source/asr/datasets.rst#lhotse-dataloading
+    # You can also check the following configuration dataclass:
+    # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/common/data/lhotse/dataloader.py#L36
     batch_size: None
     batch_duration: 360
     quadratic_duration: 20
@@ -39,6 +41,7 @@ model:
     shuffle_buffer_size: 10000
 
   validation_ds:
+    use_lhotse: true
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
     batch_size: 8 # you may increase batch_size if your memory allows
@@ -46,10 +49,11 @@ model:
     num_workers: 4
     pin_memory: true
     use_start_end_token: true
-    use_lhotse: true
     use_bucketing: false
+    drop_last: false
 
   test_ds:
+    use_lhotse: true
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
     batch_size: 8 # you may increase batch_size if your memory allows
@@ -57,8 +61,8 @@ model:
     num_workers: 4
     pin_memory: true
     use_start_end_token: true
-    use_lhotse: true
     use_bucketing: false
+    drop_last: false
 
   # recommend small vocab size of 128 or 256 when using 4x sub-sampling
   # you may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
@@ -93,8 +97,8 @@ model:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}
     feat_out: -1 # you may set it if you need different output size other than the default d_model
-    n_layers: 17
-    d_model: 512
+    n_layers: 24
+    d_model: 1024
 
     # Sub-sampling params
     subsampling: dw_striding # vggnet or striding, vggnet may give better results but needs more memory
@@ -113,7 +117,7 @@ model:
     n_heads: 8 # may need to be lower for smaller d_models
     # [left, right] specifies the number of steps to be seen from left and right of each step in self-attention
     att_context_size: [-1, -1] # -1 means unlimited context
-    xscaling: true # scales up the input embeddings by sqrt(d_model)
+    xscaling: false # scales up the input embeddings by sqrt(d_model)
     untie_biases: true # unties the biases of the TransformerXL layers
     pos_emb_max_len: 5000
 
@@ -145,10 +149,10 @@ model:
     num_token_types: 0
     embedding_dropout: 0.1
     learn_positional_encodings: false
-    hidden_size: 512
-    inner_size: 2048
-    num_layers: 6
-    num_attention_heads: 4
+    hidden_size: 1024
+    inner_size: 4096
+    num_layers: 24
+    num_attention_heads: 8
     ffn_dropout: 0.1
     attn_score_dropout: 0.1
     attn_layer_dropout: 0.1
@@ -164,34 +168,34 @@ model:
     use_transformer_init: true
     
   beam_search:
-    beam_size: 4
+    beam_size: 1
     len_pen: 0.0
     max_generation_delta: 50
 
   optim:
-    name: adam
-    lr: 0.0001
+    name: adamw
+    lr: 3e-4
     # optimizer arguments
     betas: [0.9, 0.98]
     # less necessity for weight_decay as we already have large augmentations with SpecAug
     # you may need weight_decay for large models, stable AMP training, small datasets, or when lower augmentations are used
     # weight decay of 0.0 with lr of 2.0 also works fine
-    #weight_decay: 1e-3
+    weight_decay: 1e-3
 
     # scheduler setup
     sched:
       name: InverseSquareRootAnnealing
       #d_model: ${model.encoder.d_model}
       # scheduler config override
-      warmup_steps: 1000
+      warmup_steps: 2500
       warmup_ratio: null
       min_lr: 1e-6
 
 trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
-  max_epochs: 100
-  max_steps: -1 # computed at runtime if not set
+  max_epochs: -1
+  max_steps: 100000 # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: auto
   strategy: ddp
@@ -200,7 +204,7 @@ trainer:
   precision: 16 # Should be set to 16 for O1 and O2 to enable the AMP.
   log_every_n_steps: 100  # Interval of logging.
   enable_progress_bar: True
-  num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
+  num_sanity_val_steps: 2 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
   sync_batchnorm: true
   enable_checkpointing: False  # Provided by exp_manager
@@ -220,7 +224,7 @@ exp_manager:
 
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   # you need to set these two to True to continue the training
-  resume_if_exists: false
+  resume_if_exists: true
   resume_ignore_no_checkpoint: false
 
   # You may use this section to create a W&B logger
