@@ -111,9 +111,14 @@ pipeline {
     }
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'NEMO_NUMBA_MINVER=0.53 pytest \
-            --cov=nemo --cov-report=term-missing --cov-report=xml \
+        sh 'NEMO_NUMBA_MINVER=0.53 pytest --junitxml=test_results_gpu.xml \
+            --cov=nemo --cov-report=term-missing \
             -m "not pleasefixme" --with_downloads'
+      }
+      post {
+        always {
+          junit 'test_results_gpu.xml'
+        }
       }
     }
 
@@ -125,9 +130,14 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest \
+        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest --junitxml=test_results_cpu.xml \
             --cov=nemo --cov-report=term-missing --cov-report=xml \
             -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
+      }
+      post {
+        always {
+          junit 'test_results_cpu.xml'
+        }
       }
     }
 //
