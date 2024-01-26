@@ -50,10 +50,11 @@ from nemo.collections.multimodal.data.videoneva.conversation import (
     DEFAULT_VIDEO_PATCH_TOKEN,
     DEFAULT_VIDEO_TOKEN,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.multimodal.models.multimodal_llm.videoneva.multimodal_encoder.video.process_video import (
-    LanguageBindVideoProcessor
+    LanguageBindVideoProcessor,
 )
+from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+
 MAX_NUM_IMAGES = 1
 MAX_NUM_VIDEOS = 1
 IGNORE_INDEX = -1
@@ -718,7 +719,7 @@ class LazySupervisedDataset(Dataset):
                         image = self.image_processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
                 else:
                     assert (
-                            self.multimodal_cfg['image_aspect_ratio'] == 'square'
+                        self.multimodal_cfg['image_aspect_ratio'] == 'square'
                     ), 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
                     image = self.image_processor(image)
                 images.append(image)
@@ -727,7 +728,7 @@ class LazySupervisedDataset(Dataset):
             if videos:
                 videos_tensors = torch.stack(videos)
                 cur_token_len = (videos_tensor[0].shape[1] // 14) * (
-                        videos_tensors[0].shape[2] // 14
+                    videos_tensors[0].shape[2] // 14
                 )  # FIXME: 14 is hardcoded patch size
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
@@ -739,7 +740,7 @@ class LazySupervisedDataset(Dataset):
             if images:
                 images_tensors = torch.stack(images)
                 cur_token_len = (images_tensors[0].shape[1] // 14) * (
-                        images_tensors[0].shape[2] // 14
+                    images_tensors[0].shape[2] // 14
                 )  # FIXME: 14 is hardcoded patch size
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
