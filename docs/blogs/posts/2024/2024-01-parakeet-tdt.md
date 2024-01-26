@@ -73,27 +73,8 @@ TDT is designed to reduce the wasted computation by intelligently detecting and 
 <li>probability of duration P<sub>D</sub>(d|t, u): the number of frames the current token lasts before the model can make the next token prediction. 
 </ol>
 
-The TDT model is trained to maximize the number of frames skipped by using the duration prediction while maintaining the same recognition accuracy, thus bring a significant speedup to recognition speed.
+The TDT model is trained to maximize the number of frames skipped by using the duration prediction while maintaining the same recognition accuracy, thus bring a significant speedup to recognition speed. Our research has also shown that TDT models are more robust to noisy speech, and robust to token repetitions in the text compared to conventional Transducer models. We would refer interested reader to our [paper](https://arxiv.org/abs/2309.09950) for technical details. 
 
-## Long-Form Speech Inference
-
-Once you have a Fast Conformer model loaded, you can easily modify the attention type to limited context attention after building the model. You can also apply audio chunking for the subsampling module to perform inference on huge audio files!
-
-!!! note
-    These models were trained with global attention, and switching to local attention will degrade their performance. However, they will still be able to transcribe long audio files reasonably well.
-
-For limited context attention on huge files (upto 11 hours on an A100), perform the following steps:
-
-```python
-# Enable local attention
-asr_model.change_attention_model("rel_pos_local_attn", [128, 128])  # local attn
-
-# Enable chunking for subsampling module
-asr_model.change_subsampling_conv_chunking_factor(1)  # 1 = auto select
-
-# Transcribe a huge audio file
-asr_model.transcribe(["<path to a huge audio file>.wav"])  # 10+ hours !
-```
 
 ## Additional Resources
 
