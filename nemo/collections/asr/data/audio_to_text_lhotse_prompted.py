@@ -29,11 +29,18 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     It is a Lhotse-style dataset that converts a mini-batch of Cuts into tensors.
     The main difference from ``LhotseSpeechToTextBpeDataset`` is that we introduce
     a special prompt format for multitask encoder-decoder models.
+
+    To perform the prompt formatting, we accept a ``prompt_format_fn``.
+    It's expected to accept:
+    * a ``CutSet`` which it will internally iterate over for utterances, and
+    * a ``TokenizerWrapper`` object that will be internally used to tokenize the utterances
+
+    Tokenized utterances will be extended with special prompt tokens according to ``prompt_format_fn`` logic.
+    We support cuts with multiple supervision segments -- their tokenized texts will be concatenated before we add the prompt tokens.
+    This is useful, for example, in code-switched scenarios where each segment is spoken in a different language.
     """
 
-    def __init__(
-        self, tokenizer, prompt_format_fn: Callable[[Sequence[Sequence[int]], CutSet], Sequence[Sequence[int]]]
-    ):
+    def __init__(self, tokenizer, prompt_format_fn: Callable[[CutSet, TokenizerWrapper], Sequence[Sequence[int]]]):
         super().__init__()
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
@@ -43,8 +50,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts) -> tuple[torch.Tensor, ...]:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        tokens = [self.tokenizer(c.supervisions[0].text, c.supervisions[0].language) for c in cuts]
-        tokens = self.prompt_format_fn(tokens, cuts)
+        tokens = self.prompt_format_fn(cuts, self.tokenizer)
         tokens = [torch.as_tensor(t) for t in tokens]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=self.padding_value)
@@ -52,10 +58,9 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         return audio, audio_lens, tokens, token_lens
 
 
-def _canary_prompt_format(
-    tokens_batch: Sequence[Sequence[int]], cuts: CutSet, tokenizer: TokenizerWrapper
-) -> Sequence[Sequence[int]]:
+def _canary_prompt_format(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence[Sequence[int]]:
     """
+
     prepend and append control tokens to the token sequence as per canary format
 
     Format:
@@ -68,7 +73,7 @@ def _canary_prompt_format(
     tokenizer = tokenizer._tokenizer
 
     canary_tokens = []
-    for tokens, cut in zip(tokens_batch, cuts):
+    for cut in cuts:
         if isinstance(cut, MixedCut):
             cut = cut._first_non_padding_cut
         assert isinstance(cut, MonoCut), "Expected MonoCut."
@@ -79,6 +84,9 @@ def _canary_prompt_format(
                 f"We found cut with ID {cut.id} that is missing the following keys: {missing_keys}"
                 f"Please ensure that every utterance in the input manifests contains these keys."
             )
+
+        # Actual tokenization. If a cut has multiple supervisions, we'll stitch their tokenized texts together.
+        tokens = sum((tokenizer.text_to_ids(sup.text, sup.language) for sup in cut.supervisions), start=[])
 
         # bos
         prompted_tokens = [tokenizer.bos_id]
