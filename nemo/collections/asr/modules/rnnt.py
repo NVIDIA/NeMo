@@ -390,12 +390,12 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         dst_states[0][dst_mask_or_indices] = src_states[0][src_mask_or_indices]
 
     def batch_replace_states_mask(
-        self,
-        src_states: Tuple[torch.Tensor, torch.Tensor],
-        dst_states: Tuple[torch.Tensor, torch.Tensor],
-        mask: torch.Tensor,
+        self, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
     ):
         torch.where(mask.unsqueeze(-1), src_states[0], dst_states[0], out=dst_states[0])
+
+    def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+        return [sub_state.split(1, dim=0) for sub_state in batch_states]
 
     def batch_copy_states(
         self,
@@ -1086,6 +1086,11 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         dtype = dst_states[0].dtype
         torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), dst_states[0], out=dst_states[0])
         torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), dst_states[1], out=dst_states[1])
+
+    def batch_split_states(
+        self, batch_states: Tuple[torch.Tensor, torch.Tensor]
+    ) -> list[Tuple[torch.Tensor, torch.Tensor]]:
+        return list(zip(batch_states[0].split(1, dim=1), batch_states[1].split(1, dim=1)))
 
     def batch_copy_states(
         self,

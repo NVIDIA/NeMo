@@ -726,8 +726,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             x=x, out_len=out_len
         )
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
-        for i, hyp in enumerate(hyps):
-            hyp.dec_state = self.decoder.batch_select_state(last_decoder_state, i)
+        for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
+            hyp.dec_state = state
         return hyps
 
     def _greedy_decode_blank_as_pad_loop_frames(
