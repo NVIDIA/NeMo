@@ -455,6 +455,7 @@ def convert(local_rank, rank, world_size, args):
         name_translate['.attention.'] = '.self_attention.'
         # nemo megatron doesn't have _for_head key
         name_translate['word_embeddings_for_head'] = 'word_embeddings'
+        name_translate['_norm.'] = '_layernorm.'  # alternative layer norm key names
 
         mcore_translate = None
         model_cfg = load_hparams_from_yaml(args.hparams_file).cfg
@@ -471,7 +472,7 @@ def convert(local_rank, rank, world_size, args):
             mcore_translate = {}
             for k, v in build_key_mapping(model_cfg).items():
                 mcore_translate[v] = k
-                # take into account layer norm key names in the unfused case
+                # take into account alternative layer norm key names
                 mcore_translate[v.replace('_layernorm.', '_norm.')] = k
 
         checkpoint, consumed, steps, version = load_from_checkpoint(
