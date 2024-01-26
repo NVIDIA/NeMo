@@ -16,8 +16,8 @@
 Example to run this conversion script:
 ```
     python convert_bert_hf_to_nemo.py \
-     --name_or_path "thenlper/gte-large" \
-     --save_path /path/to/output/nemo/file.nemo \
+     --input_name_or_path "thenlper/gte-large" \
+     --output_path /path/to/output/nemo/file.nemo \
      --precision 32
 ```
 """
@@ -203,7 +203,7 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 
 
 def adjust_nemo_config(model_config, ref_config):
-    model_config.tokenizer["type"] = "intfloat/e5-large-unsupervised"  # ref_config["_name_or_path"]
+    model_config.tokenizer["type"] = "intfloat/e5-large-unsupervised"  # ref_config["_input_name_or_path"]
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["hidden_size"] = ref_config["hidden_size"]
     model_config["ffn_hidden_size"] = ref_config["intermediate_size"]
@@ -219,7 +219,7 @@ def adjust_nemo_config(model_config, ref_config):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--name_or_path", type=str, default="thenlper/gte-large")
+    parser.add_argument("--input_name_or_path", type=str, default="thenlper/gte-large")
     parser.add_argument(
         "--hparams_file",
         type=str,
@@ -227,7 +227,7 @@ def get_args():
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--save_path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument(
         "--precision", type=str, default="32", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
@@ -237,9 +237,9 @@ def get_args():
 
 
 def convert(args):
-    logging.info(f"Loading checkpoint from HF: `{args.name_or_path}`")
-    hf_tokenizer = AutoTokenizer.from_pretrained(args.name_or_path)
-    hf_model = AutoModel.from_pretrained(args.name_or_path)
+    logging.info(f"Loading checkpoint from HF: `{args.input_name_or_path}`")
+    hf_tokenizer = AutoTokenizer.from_pretrained(args.input_name_or_path)
+    hf_model = AutoModel.from_pretrained(args.input_name_or_path)
 
     nemo_config = OmegaConf.load(args.hparams_file)
     nemo_config.model = adjust_nemo_config(nemo_config.model, hf_model.config.to_dict())
@@ -280,8 +280,8 @@ def convert(args):
     print("Difference between reference embedding and converted embedding results:")
     print(embeddings - embeddings_hf)
 
-    model.save_to(args.save_path)
-    logging.info(f'NeMo model saved to: {args.save_path}')
+    model.save_to(args.output_path)
+    logging.info(f'NeMo model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':

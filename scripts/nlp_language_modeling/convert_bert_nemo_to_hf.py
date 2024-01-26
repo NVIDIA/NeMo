@@ -16,8 +16,8 @@
 Example to run this conversion script:
 ```
     python convert_bert_hf_to_nemo.py \
-     --name_or_path /path/to/input/nemo/file.nemo \
-     --save_path /path/to/output/huggingface/file \
+     --input_name_or_path /path/to/input/nemo/file.nemo \
+     --output_path /path/to/output/huggingface/file \
      --precision 32
 ```
 """
@@ -207,10 +207,10 @@ def convert_config(ref_config, hf_state_dict):
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--name_or_path", type=str, required=True, help="Path to .nemo file",
+        "--input_name_or_path", type=str, required=True, help="Path to .nemo file",
     )
     parser.add_argument(
-        "--save_path", type=str, required=True, help="Output HF model path",
+        "--output_path", type=str, required=True, help="Output HF model path",
     )
 
     args = parser.parse_args()
@@ -218,9 +218,9 @@ def get_args():
 
 
 def convert(args):
-    logging.info(f"Loading checkpoint from: `{args.name_or_path}`")
+    logging.info(f"Loading checkpoint from: `{args.input_name_or_path}`")
     dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
-    nemo_model = MegatronBertModel.restore_from(args.name_or_path, trainer=dummy_trainer)
+    nemo_model = MegatronBertModel.restore_from(args.input_name_or_path, trainer=dummy_trainer)
     nemo_config = nemo_model.cfg
 
     old_state_dict = nemo_model.state_dict()
@@ -260,8 +260,8 @@ def convert(args):
     print("Difference between reference embedding and converted embedding results:")
     print(embeddings - embeddings_hf)
 
-    hf_model.save_pretrained(args.save_path)
-    logging.info(f'Full HF model model saved to: {args.save_path}')
+    hf_model.save_pretrained(args.output_path)
+    logging.info(f'Full HF model model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':
