@@ -239,6 +239,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
         last_decoder_state = self.decoder.initialize_state(x)
 
         use_alignments = self.preserve_alignments or self.preserve_frame_confidence
+        # TODO: maybe preallocate + use `no_checks` for results
         alignments = rnnt_utils.BatchedAlignments(
             batch_size=batch_size,
             logits_dim=self.joint.num_classes_with_blank,
@@ -281,22 +282,22 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
                 .squeeze(1)
                 .squeeze(1)
             )
-            if self.preserve_frame_confidence:
-                logits = F.log_softmax(logits, dim=-1)
             scores, labels = logits.max(-1)
 
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
             blank_mask = labels == self._blank_index
             time_indices_current_labels.copy_(time_indices, non_blocking=True)
-            # if use_alignments:
-            #     alignments.add_results_(
-            #         active_indices=active_indices,
-            #         time_indices=time_indices[active_indices],
-            #         logits=logits if self.preserve_alignments else None,
-            #         labels=labels if self.preserve_alignments else None,
-            #         confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
-            #     )
+            if use_alignments:
+                if self.preserve_frame_confidence:
+                    logits = F.log_softmax(logits, dim=-1)
+                alignments.add_results_masked_(
+                    active_mask=active_mask,
+                    time_indices=time_indices,
+                    logits=logits if self.preserve_alignments else None,
+                    labels=labels if self.preserve_alignments else None,
+                    confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
+                )
             # advance_mask is a mask for current batch for searching non-blank labels;
             # each element is True if non-blank symbol is not yet found AND we can increase the time index
             time_indices += blank_mask
@@ -311,8 +312,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
                     .squeeze(1)
                     .squeeze(1)
                 )
-                if self.preserve_frame_confidence:
-                    logits = F.log_softmax(logits, dim=-1)
 
                 # get labels (greedy) and scores from current logits, replace labels/scores with new
                 # labels[advance_mask] are blank, and we are looking for non-blank labels
@@ -321,14 +320,16 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
                 torch.where(advance_mask, more_labels, labels, out=labels)
                 # scores[advance_mask] = more_scores
                 torch.where(advance_mask, more_scores, scores, out=scores)
-                # if use_alignments:
-                #     alignments.add_results_(
-                #         active_indices=advance_indices,
-                #         time_indices=time_indices[advance_indices],
-                #         logits=logits if self.preserve_alignments else None,
-                #         labels=more_labels if self.preserve_alignments else None,
-                #         confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
-                #     )
+                if use_alignments:
+                    if self.preserve_frame_confidence:
+                        logits = F.log_softmax(logits, dim=-1)
+                    alignments.add_results_masked_(
+                        active_mask=advance_mask,
+                        time_indices=time_indices,
+                        logits=logits if self.preserve_alignments else None,
+                        labels=more_labels if self.preserve_alignments else None,
+                        confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
+                    )
                 blank_mask = labels == self._blank_index
                 torch.where(advance_mask, time_indices, time_indices_current_labels, out=time_indices_current_labels)
                 time_indices += blank_mask

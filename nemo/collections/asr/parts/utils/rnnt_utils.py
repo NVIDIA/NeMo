@@ -324,6 +324,15 @@ class BatchedHyps:
         # increase lengths
         self.current_lengths[active_indices] += 1
 
+    def add_results_masked_(
+        self, active_mask: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
+    ):
+        if (self.current_lengths + active_mask).max() >= self._max_length:
+            self._allocate_more()
+        self.add_results_masked_no_checks_(
+            active_mask=active_mask, labels=labels, time_indices=time_indices, scores=scores
+        )
+
     def add_results_masked_no_checks_(
         self, active_mask: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
     ):
@@ -417,6 +426,7 @@ class BatchedAlignments:
         if self.with_frame_confidence:
             # tensor to store frame confidence
             self.frame_confidence = torch.zeros((batch_size, self._max_length), device=device, dtype=float_dtype)
+        self._batch_indices = torch.arange(batch_size, device=device)
 
     def _allocate_more(self):
         """
@@ -440,9 +450,10 @@ class BatchedAlignments:
         confidence: Optional[torch.Tensor] = None,
     ):
         """
-        Add results (inplace) from a decoding step to the batched hypotheses
+        Add results (inplace) from a decoding step to the batched hypotheses.
+        All tensors must use the same fixed batch dimension.
         Args:
-            active_indices: tensor with indices of active hypotheses (indices should be within the original batch_size)
+            active_mask: tensor with mask for active hypotheses (of batch_size)
             logits: tensor with raw network outputs
             labels: tensor with decoded labels (can contain blank)
             time_indices: tensor of time index for each label
@@ -468,6 +479,52 @@ class BatchedAlignments:
             self.frame_confidence[active_indices, active_lengths] = confidence
         # increase lengths
         self.current_lengths[active_indices] += 1
+
+    def add_results_masked_(
+        self,
+        active_mask: torch.Tensor,
+        time_indices: torch.Tensor,
+        logits: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        confidence: Optional[torch.Tensor] = None,
+    ):
+        if (self.current_lengths + active_mask).max() >= self._max_length:
+            self._allocate_more()
+        self.add_results_masked_no_checks_(
+            active_mask=active_mask, time_indices=time_indices, logits=logits, labels=labels, confidence=confidence
+        )
+
+    def add_results_masked_no_checks_(
+        self,
+        active_mask: torch.Tensor,
+        time_indices: torch.Tensor,
+        logits: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        confidence: Optional[torch.Tensor] = None,
+    ):
+        """
+        Add results (inplace) from a decoding step to the batched hypotheses.
+        All tensors must use the same fixed batch dimension.
+        Args:
+            active_mask: tensor with indices of active hypotheses (indices should be within the original batch_size)
+            logits: tensor with raw network outputs
+            labels: tensor with decoded labels (can contain blank)
+            time_indices: tensor of time index for each label
+            confidence: optional tensor with confidence for each item in batch
+        """
+        # we assume that all tensors have the same first dimension = batch_size
+        # store timesteps - same for alignments / confidence
+        self.timesteps[self._batch_indices, self.current_lengths] = time_indices
+
+        if self.with_alignments and logits is not None and labels is not None:
+            self.timesteps[self._batch_indices, self.current_lengths] = time_indices
+            self.logits[self._batch_indices, self.current_lengths] = logits
+            self.labels[self._batch_indices, self.current_lengths] = labels
+
+        if self.with_frame_confidence and confidence is not None:
+            self.frame_confidence[self._batch_indices, self.current_lengths] = confidence
+        # increase lengths
+        self.current_lengths += active_mask
 
 
 def batched_hyps_to_hypotheses(
