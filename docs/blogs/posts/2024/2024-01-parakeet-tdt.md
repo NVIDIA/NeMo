@@ -45,14 +45,14 @@ transcript = asr_model.transcribe(["some_audio_file.wav"])
 
 ## Understanding Token-and-Duration Transducer
 
-Token-and-Duration Transducer (TDT) represents a significant advancement over Transducer models by significantly reducing wasteful computations during the recognition process. To grasp this improvement, let's delve into the workings of a typical Transducer model.
+Token-and-Duration Transducer (TDT) represents a significant advancement over Transducer models by drastically reducing wasteful computations during the recognition process. To grasp this improvement, let's delve into the workings of a typical Transducer model.
 
 <figure markdown>
   ![RNNTTOPO](rnnt_topo.png)
   <figcaption><b>Figure 1.</b> <i>Transducer Model Architecture</i></figcaption>
 </figure>
 
-Transducer models, as illustrated in Figure 1, consist of an encoder, a decoder, and a joiner. During speech recognition, the encoder processes audio signals, extracting crucial information from each frame. The decoder then extracts information from the predicted text, and the joiner combines data from both the encoder and decoder to determine the text token to predict for each frame. Typically a frame covers 40 to 80 milliseconds of audio signal, while on average people speak a word per 400 milliseconds; for those frames that don't add more text to the output, the Transducer predicts a blank symbol, and we refer to those frames as "blank frames". A typical sequence of predictions of a Transducer looks something like,
+Transducer models, as illustrated in Figure 1, consist of an encoder, a decoder, and a joiner. During speech recognition, the encoder processes audio signals, extracting crucial information from each frame. The decoder then extracts information from the predicted text, and the joiner combines data from both the encoder and decoder to determine the text token to predict for each frame. Typically a frame covers 40 to 80 milliseconds of audio signal, while on average people speak a word per 400 milliseconds; for those frames that don't add more text to the output, the Transducer predicts a blank symbol. A typical sequence of predictions of a Transducer looks something like,
 
 <code>
 &lt;b> &lt;b> &lt;b> NVIDIA &lt;b> &lt;b> &lt;b> &lt;b> is &lt;b> &lt;b>  a &lt;b>  great &lt;b>  place &lt;b> &lt;b> &lt;b>  to work &lt;b> &lt;b> &lt;b> &lt;b> &lt;b> &lt;b> 
