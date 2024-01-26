@@ -136,7 +136,7 @@ class MegatronBaseModel(NLPModel):
         # Overrides used when converting checkpoints
         if os.environ.get(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, "false").lower() == "true":
             app_state = AppState()
-            init_world_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size * app_state.expert_model_paralle_size
+            init_world_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size * app_state.expert_model_parallel_size
             init_global_rank = app_state.global_rank
             init_local_rank = app_state.local_rank
         else:
