@@ -50,6 +50,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
     get_params_for_weight_decay_optimization,
 )
+from nemo.collections.multimodal.parts.utils import extend_instance
 from nemo.collections.nlp.modules.common.text_generation_strategy import TextGenerationStrategy
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
@@ -138,6 +139,12 @@ def get_specs(spec_name, num_experts=None):
         return get_falcon_layer_spec()
     else:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
+
+
+class EmbeddingScalingMixin(torch.nn.Module):
+    def forward(self, **kwargs):
+        embeddings = super().forward(**kwargs)
+        return embeddings * (self.config.hidden_size ** 0.5)
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -360,6 +367,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+            if self.cfg.get("apply_embedding_scaling", False):
+                extend_instance(model.embedding, EmbeddingScalingMixin)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
                 'num_query_groups', None
@@ -428,6 +437,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+            if self.cfg.get("apply_embedding_scaling", False):
+                extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
 
     def setup_optimizer_param_groups(self):
