@@ -78,13 +78,6 @@ def _canary_prompt_format(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence
             cut = cut._first_non_padding_cut
         assert isinstance(cut, MonoCut), "Expected MonoCut."
 
-        missing_keys = [k for k in ("source_lang", "target_lang", "taskname", "pnc") if k not in cut.custom]
-        if missing_keys:
-            raise RuntimeError(
-                f"We found cut with ID {cut.id} that is missing the following keys: {missing_keys}"
-                f"Please ensure that every utterance in the input manifests contains these keys."
-            )
-
         # Actual tokenization. If a cut has multiple supervisions, we'll stitch their tokenized texts together.
         tokens = sum((tokenizer.text_to_ids(sup.text, sup.language) for sup in cut.supervisions), start=[])
 
@@ -95,6 +88,14 @@ def _canary_prompt_format(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence
             # no speech token
             prompted_tokens.append(tokenizer.nospeech_id)
         else:
+            # first, validate the utterance
+            missing_keys = [k for k in ("source_lang", "target_lang", "taskname", "pnc") if k not in cut.custom]
+            if missing_keys:
+                raise RuntimeError(
+                    f"We found cut with ID {cut.id} that is missing the following keys: {missing_keys}"
+                    f"Please ensure that every utterance in the input manifests contains these keys."
+                )
+
             # src_lang_id/no_speech
             src_lang_id = tokenizer.to_language_id(cut.custom['source_lang'])
             prompted_tokens.append(src_lang_id)
