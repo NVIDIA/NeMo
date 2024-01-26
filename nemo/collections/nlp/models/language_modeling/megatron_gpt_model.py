@@ -113,8 +113,7 @@ def mcore_supports_moe() -> bool:
     if not HAVE_MEGATRON_CORE:
         return False
     try:
-        from megatron.core.transformer.moe.router import MoETokenDispatcher
-
+        from megatron.core.transformer.moe.router import TopKRouter
         return True
     except ImportError:
         return False
