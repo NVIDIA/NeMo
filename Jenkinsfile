@@ -81,14 +81,14 @@ pipeline {
 
     // pip package should be working with main, if not we can update the commit here
     // until the pip package is updated
-    // stage('Megatron Core installation') {
-    //   steps {
-    //      sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
-    //          cd Megatron-LM && \
-    //          git checkout 973330e9c3681604703bf1eb6b5a265d1b9b9b38 && \
-    //          pip install .'
-    //   }
-    // }
+    stage('Megatron Core installation') {
+      steps {
+         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
+             cd Megatron-LM && \
+             git checkout bed60a881f4b238b1c14b6c6a64997cc636e77b6 && \
+             pip install .'
+      }
+    }
 
     stage('PyTorch Lightning version') {
       steps {
@@ -5047,34 +5047,34 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         }
       }
       failFast true
-      parallel {
-        stage('MockGPTDataset') {
-          steps {
-            sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-            trainer.max_steps=10 \
-            trainer.limit_val_batches=7 \
-            trainer.val_check_interval=10 \
-            exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-            model.data.data_impl=mock \
-            model.data.data_prefix=[] \
-            "
-            sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
-          }
-        }
-        stage('MockT5Dataset') {
-          steps {
-            sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-            trainer.max_steps=10 \
-            trainer.limit_val_batches=3 \
-            trainer.val_check_interval=10 \
-            exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-            model.data.data_impl=mock \
-            model.data.data_prefix=[] \
-            "
-            sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
-          }
-        }
+      //parallel {
+        //stage('MockGPTDataset') {
+        //  steps {
+        //    sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        //    trainer.max_steps=10 \
+        //    trainer.limit_val_batches=7 \
+        //    trainer.val_check_interval=10 \
+        //    exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        //    model.data.data_impl=mock \
+        //    model.data.data_prefix=[] \
+        //    "
+        //    sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+        //  }
+        //}
+      //stage('MockT5Dataset') {
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        trainer.max_steps=10 \
+        trainer.limit_val_batches=3 \
+        trainer.val_check_interval=10 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
+        model.data.data_impl=mock \
+        model.data.data_prefix=[] \
+        "
+        sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
       }
+      //}
+      //}
     }
 
     stage('L2: TTS Fast dev runs 1') {
