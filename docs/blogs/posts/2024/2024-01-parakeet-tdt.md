@@ -50,7 +50,7 @@ pip install nemo_toolkit['asr']
 Once installed, you can evaluate a list of audio files as follows:
 ```python
 import nemo.collections.asr as nemo_asr
-asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name="nvidia/parakeet-rnnt-1.1b")
+asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name="nvidia/parakeet-tdt-1.1b")
 transcript = asr_model.transcribe(["some_audio_file.wav"])
 ```
 
@@ -82,5 +82,6 @@ asr_model.transcribe(["<path to a huge audio file>.wav"])  # 10+ hours !
 * [NVIDIA NeMo Webpage](https://github.com/NVIDIA/NeMo)
 * [NVIDIA NeMo ASR Documentation](https://docs.nvidia.com/deeplearning/nemo/user-guide/index.html)
 * Papers:
+    * [Efficient Sequence Transduction by Jointly Predicting Tokens and Durations](https://arxiv.org/abs/2304.06795)
     * [Fast Conformer with Linearly Scalable Attention for Efficient Speech Recognition](https://arxiv.org/abs/2305.05084)
     * [Investigating End-to-End ASR Architectures for Long Form Audio Transcription](https://arxiv.org/abs/2309.09950)
