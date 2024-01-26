@@ -27,8 +27,11 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.data.audio_to_text_canary import CanaryDataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
+from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
+    PromptedAudioToTextLhotseDataset,
+    get_prompt_format_fn,
+)
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.utils import manifest_utils
@@ -368,7 +371,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             config,
             global_rank=self.global_rank,
             world_size=self.world_size,
-            dataset=CanaryDataset(tokenizer=self.tokenizer),
+            dataset=PromptedAudioToTextLhotseDataset(
+                tokenizer=self.tokenizer, prompt_format_fn=get_prompt_format_fn("canary"),
+            ),
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):

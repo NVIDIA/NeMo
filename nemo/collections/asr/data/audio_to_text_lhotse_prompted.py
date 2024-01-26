@@ -1,0 +1,138 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from typing import Callable, Sequence
+
+import torch.utils.data
+from lhotse import CutSet
+from lhotse.cut import MixedCut, MonoCut
+from lhotse.dataset import AudioSamples
+from lhotse.dataset.collation import collate_vectors
+
+from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
+from nemo.collections.common.tokenizers import CanaryTokenizer
+
+
+class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
+    """
+    This dataset is based on :class:`~nemo.collections.asr.data.audio_to_text_lhotse.LhotseSpeechToTextBpeDataset`.
+    It is a Lhotse-style dataset that converts a mini-batch of Cuts into tensors.
+    The main difference from ``LhotseSpeechToTextBpeDataset`` is that we introduce
+    a special prompt format for multitask encoder-decoder models.
+    """
+
+    def __init__(
+        self, tokenizer, prompt_format_fn: Callable[[Sequence[Sequence[int]], CutSet], Sequence[Sequence[int]]]
+    ):
+        super().__init__()
+        self.tokenizer = TokenizerWrapper(tokenizer)
+        self.load_audio = AudioSamples(fault_tolerant=True)
+        self.padding_value = self.tokenizer._tokenizer.pad_id
+        self.prompt_format_fn = prompt_format_fn
+
+    def __getitem__(self, cuts) -> tuple[torch.Tensor, ...]:
+        audio, audio_lens, cuts = self.load_audio(cuts)
+
+        tokens = [self.tokenizer(c.supervisions[0].text, c.supervisions[0].language) for c in cuts]
+        tokens = self.prompt_format_fn(tokens, cuts)
+        tokens = [torch.as_tensor(t) for t in tokens]
+        token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
+        tokens = collate_vectors(tokens, padding_value=self.padding_value)
+
+        return audio, audio_lens, tokens, token_lens
+
+
+def _canary_prompt_format(
+    tokens_batch: Sequence[Sequence[int]], cuts: CutSet, tokenizer: TokenizerWrapper
+) -> Sequence[Sequence[int]]:
+    """
+    prepend and append control tokens to the token sequence as per canary format
+
+    Format:
+    sot, src_lang_id/no_speech, transcribe/translate, tgt_lang_id, text, eot
+    """
+
+    assert isinstance(
+        tokenizer._tokenizer, CanaryTokenizer
+    ), "To use 'canary' prompt format, you must use the CanaryTokenizer."
+    tokenizer = tokenizer._tokenizer
+
+    canary_tokens = []
+    for tokens, cut in zip(tokens_batch, cuts):
+        if isinstance(cut, MixedCut):
+            cut = cut._first_non_padding_cut
+        assert isinstance(cut, MonoCut), "Expected MonoCut."
+
+        missing_keys = [k for k in ("source_lang", "target_lang", "taskname", "pnc") if k not in cut.custom]
+        if missing_keys:
+            raise RuntimeError(
+                f"We found cut with ID {cut.id} that is missing the following keys: {missing_keys}"
+                f"Please ensure that every utterance in the input manifests contains these keys."
+            )
+
+        # bos
+        prompted_tokens = [tokenizer.bos_id]
+
+        if len(tokens) == 0:
+            # no speech token
+            prompted_tokens.append(tokenizer.nospeech_id)
+        else:
+            # src_lang_id/no_speech
+            src_lang_id = tokenizer.to_language_id(cut.custom['source_lang'])
+            prompted_tokens.append(src_lang_id)
+
+            # task
+            task = cut.custom['taskname']
+            if task == 'asr':
+                prompted_tokens.append(tokenizer.transcribe_id)
+            elif task == 's2t_translation':
+                prompted_tokens.append(tokenizer.translate_id)
+            else:
+                raise ValueError(f"Unknown task: {task} for cut ID: {cut.id}")
+
+            # tgt_lang_id
+            tgt_lang_id = tokenizer.to_language_id(cut.custom['target_lang'])
+            prompted_tokens.append(tgt_lang_id)
+
+            # PnC
+            pnc = f"{cut.custom['pnc']}".lower().strip()  # to account for bool or str
+            if pnc in {'yes', 'true'}:
+                prompted_tokens.append(tokenizer.pnc_id)
+            elif pnc in {'no', 'false'}:
+                prompted_tokens.append(tokenizer.nopnc_id)
+            else:
+                raise ValueError(f"Unknown value for key 'pnc': {pnc} for cut ID: {cut.id}")
+
+            # text
+            prompted_tokens.extend(tokens)
+
+        # eos
+        prompted_tokens.append(tokenizer.eos_id)
+
+        canary_tokens.append(prompted_tokens)
+
+    return canary_tokens
+
+
+# Mapping from a string name to a known prompt formatter function.
+PROMPT_FORMAT_FNS = {
+    "canary": _canary_prompt_format,
+}
+
+
+def get_prompt_format_fn(name: str) -> Callable[[Sequence[Sequence[int]], CutSet], Sequence[Sequence[int]]]:
+    if name not in PROMPT_FORMAT_FNS:
+        raise ValueError(
+            f"Unknown prompt format function name: {name} " f"(must be one of: {list(PROMPT_FORMAT_FNS.keys())}"
+        )
+    return PROMPT_FORMAT_FNS[name]
