@@ -843,7 +843,7 @@ class VoiceBox(_VB, LightningModule):
         condition_on_text = True,
         loss_masked = True,
         no_diffusion = False,
-        rmsnorm_shape = -1,
+        # rmsnorm_shape = -1,
         **kwargs
     ):
         """
@@ -897,7 +897,7 @@ class VoiceBox(_VB, LightningModule):
             p_drop_prob=p_drop_prob,
             frac_lengths_mask=frac_lengths_mask,
             condition_on_text=condition_on_text,
-            rmsnorm_shape=rmsnorm_shape,
+            # rmsnorm_shape=rmsnorm_shape,
             **kwargs,
         )
         self.audio_enc_dec.freeze()
@@ -995,7 +995,7 @@ class VoiceBox(_VB, LightningModule):
         cond_drop_prob = 0.1,
         target = None,
         cond = None,
-        cond_mask = None
+        cond_mask: BoolTensor | None = None
     ):
         """ Copied from `super.forward()`.
 
@@ -1054,6 +1054,7 @@ class VoiceBox(_VB, LightningModule):
         # as described in section 3.2
 
         cond = cond * ~cond_mask_with_pad_dim
+        # import pdb;pdb.set_trace()
 
         # classifier free guidance
 
