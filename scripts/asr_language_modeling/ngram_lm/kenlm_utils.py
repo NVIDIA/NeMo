@@ -221,3 +221,17 @@ def write_dataset(chunks, path):
             for text in chunks[chunk_idx]:
                 line = ' '.join(text)
                 path.write((line + '\n').encode())
+
+
+def create_lexicon(tokenizer, kenlm_file):
+    save_path = os.path.dirname(kenlm_file)
+    os.makedirs(save_path, exist_ok=True)
+
+    lex_file = os.path.join(save_path, os.path.splitext(os.path.basename(kenlm_file))[0] + '.lexicon')
+
+    logging.info(f"Writing Lexicon file to: {lex_file}...")
+    with open(lex_file, "w", encoding='utf_8', newline='\n') as f:
+        for id in range(tokenizer.vocab_size):
+            word = chr(id + DEFAULT_TOKEN_OFFSET)
+            f.write("{w}\t{s}\n".format(w=word, s=" ".join(tokenizer.ids_to_tokens([id]))))
+    return lex_file

@@ -87,6 +87,7 @@ def main(args: TrainKenlmConfig):
 
     if encoding_level == "subword":
         discount_arg = "--discount_fallback"  # --discount_fallback is needed for training KenLM for BPE-based models
+        kenlm_utils.create_lexicon(tokenizer, args.kenlm_model_file)
     else:
         discount_arg = ""
 
