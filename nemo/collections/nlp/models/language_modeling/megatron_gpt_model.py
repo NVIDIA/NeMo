@@ -1768,18 +1768,25 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'normalization': normalization,
             'fp8': fp8,
-            'num_moe_experts': self.cfg.get('num_moe_experts', None),
-            'moe_router_type': self.cfg.get('moe_router_type', None),
             'tp_comm_overlap': ub_tp_comm_overlap,
+            # MoE related
+            'num_experts': self.cfg.get('num_experts', None),
+            'moe_router_load_balancing_type': self.cfg.get('moe_router_load_balancing_type', 'aux_loss'),
+            'moe_router_topk': self.cfg.get('moe_router_topk', 2),
+            'moe_grouped_gemm': self.cfg.get('moe_grouped_gemm', False),
+            'moe_aux_loss_coeff': self.cfg.get('moe_aux_loss_coeff', 0), # 1e-2 would be a good start value for load balance loss.
+            'moe_z_loss_coeff': self.cfg.get('moe_z_loss_coeff', None),  # 1e-3 would be a good start value for z-loss
+            'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
+            'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
         }
-        if (
-            model_specific_configs['num_moe_experts'] is not None
-            or model_specific_configs['moe_router_type'] is not None
-        ):
+        if model_specific_configs['num_experts'] is not None:
             assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
         elif not mcore_supports_moe():
-            del model_specific_configs['num_moe_experts']
-            del model_specific_configs['moe_router_type']
+            if 'num_experts' in model_specific_configs:
+                del model_specific_configs['num_experts']
+            moe_keys = list(filter(lambda x: x.startswith('moe_'), model_specific_configs.keys()))
+            for k in moe_keys:
+                del model_specific_configs[k]
 
         transformer_config = super().build_transformer_config()
 

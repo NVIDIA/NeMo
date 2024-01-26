@@ -110,11 +110,10 @@ def load_config(mixtral_config, tokenizer_path):
     if 'num_key_value_heads' in mixtral_config:
         nemo_config.num_query_groups = mixtral_config['num_key_value_heads']
 
-    nemo_config.num_moe_experts = int(mixtral_config['num_local_experts'])
-    assert nemo_config.num_moe_experts > 0, "num_experts must be greater than zero."
-    nemo_config.num_experts_per_token = int(mixtral_config['num_experts_per_tok'])
-    assert nemo_config.num_experts_per_token > 0, "num_experts_per_token must be greater than zero."
-    nemo_config.moe_router_type = f'top{nemo_config.num_experts_per_token}'
+    nemo_config.num_experts = int(mixtral_config['num_local_experts'])
+    assert nemo_config.num_experts > 0, "num_experts must be greater than zero."
+    nemo_config.moe_router_topk = int(mixtral_config['num_experts_per_tok'])
+    assert nemo_config.moe_router_topk > 0, "moe_router_topk must be greater than zero."
     nemo_config.use_cpu_initialization = True
     # Mixtral uses SiLU, but it is the same as swish with beta = 1.
     nemo_config.activation = 'fast-swiglu'
@@ -267,7 +266,7 @@ def convert(args):
             raise Exception("not implemented")
         checkpoint['state_dict'][moe_gate_name] = param_to_weights(moe_gate)
         # Handle experts
-        for i in range(nemo_config.num_moe_experts):
+        for i in range(nemo_config.num_experts):
             gate_proj = ckpt[f'model.layers.{l}.block_sparse_moe.experts.{i}.w1.weight']
             up_proj = ckpt[f'model.layers.{l}.block_sparse_moe.experts.{i}.w3.weight']
             if mcore_gpt:
