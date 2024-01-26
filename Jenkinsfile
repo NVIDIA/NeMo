@@ -1028,7 +1028,7 @@ pipeline {
       parallel {
         stage('Running pytest') {
           steps {
-            sh 'pytest --cov=nemo --cov-report=term-missing --cov-report=xml \
+            sh 'pytest --cov=nemo --cov-report=term-missing \
                 tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1'
           }
         }
