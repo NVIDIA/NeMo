@@ -881,12 +881,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             return data
 
         batch = {
-           'tokens': data["tokens"],
-           'labels': data["labels"],
-           'loss_mask': data["loss_mask"],
-           'attention_mask': data["attention_mask"],
-           'position_ids': data["position_ids"],
-       }
+            'tokens': data["tokens"],
+            'labels': data["labels"],
+            'loss_mask': data["loss_mask"],
+            'attention_mask': data["attention_mask"],
+            'position_ids': data["position_ids"],
+        }
 
         return batch
 
