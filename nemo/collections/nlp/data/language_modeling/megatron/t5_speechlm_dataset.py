@@ -347,12 +347,12 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
             if not skip_record:
                 if (self.transformer_type == "GPT") and (
-                    approx_context_len + approx_question_len + approx_answer_len < self.max_seq_length
+                    self.min_seq_length < approx_context_len + approx_question_len + approx_answer_len < self.max_seq_length
                 ):
                     self.examples.append(doc)
                 elif (self.transformer_type == "T5") and (
-                    approx_context_len + approx_question_len < self.max_seq_length
-                    and approx_answer_len < self.max_seq_length):
+                    self.min_seq_length < approx_context_len + approx_question_len < self.max_seq_length
+                    and self.min_seq_length < approx_answer_len < self.max_seq_length):
                     self.examples.append(doc)
                 else:
                     logging.debug(f"skipped for {approx_context_len + approx_question_len} {approx_answer_len} len")
@@ -480,97 +480,97 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             else:
                 answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.END.value)
 
-        # Skip example if the final length doesn't fit length requirements even after truncation
-        if (
-            self.min_seq_length
-            <= self._get_element_len(context_and_question_tokens) + self._get_element_len(virtual_tokens)
-            <= self.max_seq_length
-            and self.min_seq_length <= self._get_element_len(answer_text_ids) <= self.max_seq_length
-        ):
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                taskname_id = self.tokenizer.text_to_ids(taskname)
-            elif (
-                self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT
-            ):  # TODO (@adithyare) this class and GPTPromptLearningDataset should be merged.
-                taskname_id = -1
-            else:
-                raise ValueError("Invalid virtual prompt source specified")
+        # # Skip example if the final length doesn't fit length requirements even after truncation
+        # if (
+        #     self.min_seq_length
+        #     <= self._get_element_len(context_and_question_tokens) + self._get_element_len(virtual_tokens)
+        #     <= self.max_seq_length
+        #     and self.min_seq_length <= self._get_element_len(answer_text_ids) <= self.max_seq_length
+        # ):
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            taskname_id = self.tokenizer.text_to_ids(taskname)
+        elif (
+            self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT
+        ):  # TODO (@adithyare) this class and GPTPromptLearningDataset should be merged.
+            taskname_id = -1
+        else:
+            raise ValueError("Invalid virtual prompt source specified")
 
-            dec_input = None
-            dec_labels = None
+        dec_input = None
+        dec_labels = None
 
-            if answer_field in doc.keys():  # training and validation
-                dec_input = answer_text_ids[:-1]
-                dec_labels = answer_text_ids[1:]
+        if answer_field in doc.keys():  # training and validation
+            dec_input = answer_text_ids[:-1]
+            dec_labels = answer_text_ids[1:]
 
-            dec_input, dec_input_len = self.list_to_tensor(dec_input, True)
-            dec_labels, dec_labels_len = self.list_to_tensor(dec_labels, True)
-            is_speech = True if doc["answer_type"] != "TEXT" else False
-            if is_speech:
-                assert dec_input.dim() == 2 and dec_labels.dim() == 2
-                if self.seq_pattern == "delay_parallel":
-                    num_codebooks = dec_input.shape[0]
-                    dec_input_padded = torch.cat(
-                        [
-                            torch.zeros_like(dec_input[:, 0:num_codebooks]),
-                            dec_input,
-                            torch.zeros_like(dec_input[:, 0:num_codebooks]),
-                        ],
-                        dim=1,
-                    )
-                    dec_labels_padded = torch.cat(
-                        [
-                            torch.zeros_like(dec_labels[:, 0:num_codebooks]),
-                            dec_labels,
-                            torch.zeros_like(dec_labels[:, 0:num_codebooks]),
-                        ],
-                        dim=1,
-                    )
-                    dec_input_new = []
-                    dec_labels_new = []
-                    for _c in range(self.num_speech_codebooks):
-                        st = num_codebooks - _c
-                        et_decoder_input = dec_input_padded.shape[1] - _c
-                        et_decoder_labels = dec_labels_padded.shape[1] - _c
-                        dec_input_new.append(dec_input_padded[_c, st:et_decoder_input])
-                        dec_labels_new.append(dec_labels_padded[_c, st:et_decoder_labels])
-                    dec_input = torch.stack(dec_input_new, dim=0)
-                    dec_labels = torch.stack(dec_labels_new, dim=0)
-                    dec_input_len = torch.tensor(dec_input.shape[1]).long()
-                    dec_labels_len = torch.tensor(dec_labels.shape[1]).long()
-
-            enc_len = context_tokens_len + question_tokens_len + virtual_tokens_len
-            # TODO: Remove hardcoding
-            start_of_question_offset = 4  # For both "Text to Speech this" and "Phoneme TTS"
-            end_of_question_offset = 2
-            cross_attention_prior = torch.zeros(dec_labels_len, enc_len) + self.cross_attention_epsilon
-            if self.use_attention_prior:
-                cross_attention_question_prior = torch.from_numpy(
-                    beta_binomial_prior_distribution(
-                        question_tokens_len.item() - start_of_question_offset - end_of_question_offset,
-                        dec_labels_len.item(),
-                        scaling_factor=self.attention_prior_scaling_factor,
-                    )
+        dec_input, dec_input_len = self.list_to_tensor(dec_input, True)
+        dec_labels, dec_labels_len = self.list_to_tensor(dec_labels, True)
+        is_speech = True if doc["answer_type"] != "TEXT" else False
+        if is_speech:
+            assert dec_input.dim() == 2 and dec_labels.dim() == 2
+            if self.seq_pattern == "delay_parallel":
+                num_codebooks = dec_input.shape[0]
+                dec_input_padded = torch.cat(
+                    [
+                        torch.zeros_like(dec_input[:, 0:num_codebooks]),
+                        dec_input,
+                        torch.zeros_like(dec_input[:, 0:num_codebooks]),
+                    ],
+                    dim=1,
                 )
-                cross_attention_prior[
-                    :, virtual_tokens_len + context_tokens_len + start_of_question_offset : -end_of_question_offset
-                ] = cross_attention_question_prior
+                dec_labels_padded = torch.cat(
+                    [
+                        torch.zeros_like(dec_labels[:, 0:num_codebooks]),
+                        dec_labels,
+                        torch.zeros_like(dec_labels[:, 0:num_codebooks]),
+                    ],
+                    dim=1,
+                )
+                dec_input_new = []
+                dec_labels_new = []
+                for _c in range(self.num_speech_codebooks):
+                    st = num_codebooks - _c
+                    et_decoder_input = dec_input_padded.shape[1] - _c
+                    et_decoder_labels = dec_labels_padded.shape[1] - _c
+                    dec_input_new.append(dec_input_padded[_c, st:et_decoder_input])
+                    dec_labels_new.append(dec_labels_padded[_c, st:et_decoder_labels])
+                dec_input = torch.stack(dec_input_new, dim=0)
+                dec_labels = torch.stack(dec_labels_new, dim=0)
+                dec_input_len = torch.tensor(dec_input.shape[1]).long()
+                dec_labels_len = torch.tensor(dec_labels.shape[1]).long()
 
-            return (
-                taskname_id,
-                virtual_tokens,
-                virtual_tokens_len,
-                context_tokens_len,
-                context_and_question_tokens,
-                context_tokens_len + question_tokens_len,
-                dec_input,
-                dec_input_len,
-                dec_labels,
-                dec_labels_len,
-                is_speech,
-                cross_attention_prior,
-                lang.value
+        enc_len = context_tokens_len + question_tokens_len + virtual_tokens_len
+        # TODO: Remove hardcoding
+        start_of_question_offset = 4  # For both "Text to Speech this" and "Phoneme TTS"
+        end_of_question_offset = 2
+        cross_attention_prior = torch.zeros(dec_labels_len, enc_len) + self.cross_attention_epsilon
+        if self.use_attention_prior:
+            cross_attention_question_prior = torch.from_numpy(
+                beta_binomial_prior_distribution(
+                    question_tokens_len.item() - start_of_question_offset - end_of_question_offset,
+                    dec_labels_len.item(),
+                    scaling_factor=self.attention_prior_scaling_factor,
+                )
             )
+            cross_attention_prior[
+                :, virtual_tokens_len + context_tokens_len + start_of_question_offset : -end_of_question_offset
+            ] = cross_attention_question_prior
+
+        return (
+            taskname_id,
+            virtual_tokens,
+            virtual_tokens_len,
+            context_tokens_len,
+            context_and_question_tokens,
+            context_tokens_len + question_tokens_len,
+            dec_input,
+            dec_input_len,
+            dec_labels,
+            dec_labels_len,
+            is_speech,
+            cross_attention_prior,
+            lang.value
+        )
 
     def _truncate_input_speech(self, context_tokens, question_tokens, virtual_tokens):
         total_len = self._get_len(context_tokens, question_tokens, virtual_tokens)
@@ -841,7 +841,6 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         else:
             raise Exception(f"{field}_type not recognized")
         return field_tokens
-
 
     def _insert_data_in_template(self, prompt_template_fields, doc, answer_field):
         """ Format the input example according to the template """
