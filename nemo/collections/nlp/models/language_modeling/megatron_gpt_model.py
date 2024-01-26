@@ -114,6 +114,7 @@ def mcore_supports_moe() -> bool:
         return False
     try:
         from megatron.core.transformer.moe.router import TopKRouter
+
         return True
     except ImportError:
         return False
