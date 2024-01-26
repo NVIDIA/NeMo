@@ -20,7 +20,7 @@ from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
-from nemo.collections.common.tokenizers import CanaryTokenizer
+from nemo.collections.common.tokenizers import CanaryTokenizer, TokenizerSpec
 
 
 class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
@@ -40,14 +40,16 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     This is useful, for example, in code-switched scenarios where each segment is spoken in a different language.
     """
 
-    def __init__(self, tokenizer, prompt_format_fn: Callable[[CutSet, TokenizerWrapper], Sequence[Sequence[int]]]):
+    def __init__(
+        self, tokenizer: TokenizerSpec, prompt_format_fn: Callable[[CutSet, TokenizerWrapper], Sequence[Sequence[int]]]
+    ):
         super().__init__()
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.padding_value = self.tokenizer._tokenizer.pad_id
         self.prompt_format_fn = prompt_format_fn
 
-    def __getitem__(self, cuts) -> tuple[torch.Tensor, ...]:
+    def __getitem__(self, cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
         tokens = self.prompt_format_fn(cuts, self.tokenizer)
