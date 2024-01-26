@@ -18,15 +18,16 @@ model:
   corpus_dir: ${.librilight_dir}
   
   duration_predictor:
-    # depth: 4
+    depth: 8
     heads: 8
 
   voicebox:
-    # depth: 12
+    depth: 24
     heads: 16
+    loss_masked: False
 
   cfm_wrapper:
-    sigma: 1e-5
+    sigma: 1e-3
 
   freeze_updates:
     enabled: True
