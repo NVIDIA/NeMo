@@ -914,7 +914,7 @@ class GatedCrossAttentionDense(NeuralModule, Exportable):
         self.layer_norm = nn.LayerNorm(cfg.output_dim, eps=1e-5)
 
 
-    def forward(self, encoder_states, encoded_len, input_embeds):
+    def forward(self, encoder_states, encoded_len, input_embeds, *args, **kwargs):
         assert input_embeds.shape[-1] == encoder_states.shape[-1]
         input_embeds_norm = self.layer_norm(input_embeds)
         # follow EncDecTransfModelBPE - TransformerDecoder to use full ctx for now
@@ -925,7 +925,7 @@ class GatedCrossAttentionDense(NeuralModule, Exportable):
         y = input_embeds + alpha_xattn * attn_out
         y = y + torch.tanh(self.alpha_dense) * self.ffw(y)
         assert y.shape == input_embeds.shape
-        return y, alpha_xattn
+        return y, {'alpha_xattn':alpha_xattn}
 
 
 class CrossAttentionDense(GatedCrossAttentionDense):
@@ -952,7 +952,7 @@ class PerStepGatedCrossAttentionDense(GatedCrossAttentionDense):
         del self.alpha_xattn
         self.alpha_xattn_proj = nn.Linear(cfg.output_dim, 1)
 
-    def forward(self, encoder_states, encoded_len, input_embeds):
+    def forward(self, encoder_states, encoded_len, input_embeds, *args, **kwargs):
         assert input_embeds.shape[-1] == encoder_states.shape[-1]
         input_embeds_norm = self.layer_norm(input_embeds)
         # follow EncDecTransfModelBPE - TransformerDecoder to use full ctx for now
@@ -964,4 +964,34 @@ class PerStepGatedCrossAttentionDense(GatedCrossAttentionDense):
         y = input_embeds + alpha_xattn * attn_out
         y = y + torch.tanh(self.alpha_dense) * self.ffw(y)
         assert y.shape == input_embeds.shape
-        return y, alpha_xattn
+        return y, {'alpha_xattn':alpha_xattn}
+
+
+class RnnGatedCrossAttention(GatedCrossAttentionDense):
+    """Audio perception model with basic modality_adapter (some fc layers)."""
+
+    def __init__(self, cfg: DictConfig, *args, **kwargs):
+        super().__init__(cfg, args, kwargs)
+        del self.alpha_xattn
+        del self.layer_norm
+        del self.ffw
+        del self.alpha_dense
+        self.alpha_xattn_proj = nn.Linear(cfg.output_dim, 1)
+        input_rnn_hidden_size = cfg.xattn.get('input_rnn_hidden_size', 512)
+        input_rnn_num_layers= cfg.xattn.get('input_rnn_num_layers', 2)
+        self.input_rnn = nn.GRU(cfg.output_dim, input_rnn_hidden_size, num_layers=input_rnn_num_layers, batch_first=True, bidirectional=False)
+        self.input_proj= nn.Linear(input_rnn_hidden_size, cfg.output_dim)
+
+    def forward(self, encoder_states, encoded_len, input_embeds, input_embeds_hidden = None, *args, **kwargs):
+        assert input_embeds.shape[-1] == encoder_states.shape[-1]
+        # follow EncDecTransfModelBPE - TransformerDecoder to use full ctx for now
+        input_embeds_rnn, input_embeds_rnn_hidden = self.input_rnn(input_embeds, input_embeds_hidden)
+        input_embeds_rnn = self.input_proj(input_embeds_rnn)
+        enc_mask = lens_to_mask(encoded_len, encoder_states.shape[1]).to(encoder_states.dtype)
+        enc_mask = form_attention_mask(enc_mask)
+        attn_out = self.xattn(input_embeds_rnn, encoder_states, encoder_states, enc_mask)
+        alpha_xattn = self.alpha_xattn_proj(input_embeds_rnn)
+        alpha_xattn = torch.sigmoid(alpha_xattn)
+        y = input_embeds + alpha_xattn * attn_out
+        assert y.shape == input_embeds.shape
+        return y, {'alpha_xattn':alpha_xattn, 'input_embeds_hidden':input_embeds_rnn_hidden}

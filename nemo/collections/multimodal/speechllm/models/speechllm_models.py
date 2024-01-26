@@ -1515,7 +1515,8 @@ class CrossAttendModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
             canary_tokens=audio_batch.get('canary_tokens', None),
         )
         input_embeds = self._get_text_embeddings(input_ids, None).transpose(0, 1)
-        encoder_input, alpha_xattn = self.perception_cross_attn(encoded, encoded_len, input_embeds)
+        encoder_input, extra_outputs = self.perception_cross_attn(encoded, encoded_len, input_embeds)
+        alpha_xattn = extra_outputs['alpha_xattn']
         self.log(
             'alpha_xattn',
             alpha_xattn.mean(),
@@ -1529,7 +1530,7 @@ class CrossAttendModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
             encoder_input = encoder_input.transpose(0, 1).contiguous()
         if self.cfg.get("sequence_parallel", False):
             encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
-        return encoder_input, attention_mask, labels, loss_mask, (encoded, encoded_len), aux_loss
+        return encoder_input, attention_mask, labels, loss_mask, (encoded, encoded_len, extra_outputs), aux_loss
 
     def setup_perception_modules(self, cfg):
         super().setup_perception_modules(cfg)
@@ -1590,7 +1591,8 @@ class PseudoCrossAttendModularAudioGPTLoRAModel(CrossAttendModularAudioGPTLoRAMo
         if loss_mask is not None:
             loss_mask = self._shift_labels_by_emb_len(
                 loss_mask, input_length, llm_encoded_len, concat_input_embeds.shape[1], pad_token=0)
-        encoder_input, alpha_xattn = self.perception_cross_attn(encoded, encoded_len, concat_input_embeds)
+        encoder_input, extra_outputs = self.perception_cross_attn(encoded, encoded_len, concat_input_embeds)
+        alpha_xattn = extra_outputs['alpha_xattn']
         self.log(
             'alpha_xattn',
             alpha_xattn.mean(),
@@ -1604,4 +1606,4 @@ class PseudoCrossAttendModularAudioGPTLoRAModel(CrossAttendModularAudioGPTLoRAMo
             encoder_input = encoder_input.transpose(0, 1).contiguous()
         if self.cfg.get("sequence_parallel", False):
             encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
-        return encoder_input, attention_mask, labels, loss_mask, (encoded, encoded_len, llm_encoded_len), aux_loss
+        return encoder_input, attention_mask, labels, loss_mask, (encoded, encoded_len, llm_encoded_len, extra_outputs), aux_loss
