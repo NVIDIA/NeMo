@@ -1774,7 +1774,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'moe_router_load_balancing_type': self.cfg.get('moe_router_load_balancing_type', 'aux_loss'),
             'moe_router_topk': self.cfg.get('moe_router_topk', 2),
             'moe_grouped_gemm': self.cfg.get('moe_grouped_gemm', False),
-            'moe_aux_loss_coeff': self.cfg.get('moe_aux_loss_coeff', 0), # 1e-2 would be a good start value for load balance loss.
+            'moe_aux_loss_coeff': self.cfg.get(
+                'moe_aux_loss_coeff', 0
+            ),  # 1e-2 would be a good start value for load balance loss.
             'moe_z_loss_coeff': self.cfg.get('moe_z_loss_coeff', None),  # 1e-3 would be a good start value for z-loss
             'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
             'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
