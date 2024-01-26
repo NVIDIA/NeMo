@@ -111,7 +111,9 @@ pipeline {
     }
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads'
+        sh 'NEMO_NUMBA_MINVER=0.53 pytest \
+            --cov=nemo --cov-report=term-missing --cov-report=xml \
+            -m "not pleasefixme" --with_downloads'
       }
     }
 
@@ -123,7 +125,9 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
+        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest \
+            --cov=nemo --cov-report=term-missing --cov-report=xml
+            -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
       }
     }
 //
@@ -1014,7 +1018,8 @@ pipeline {
       parallel {
         stage('Running pytest') {
           steps {
-            sh 'pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1'
+            sh 'pytest --cov=nemo --cov-report=term-missing --cov-report=xml \
+                tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1'
           }
         }
       }
