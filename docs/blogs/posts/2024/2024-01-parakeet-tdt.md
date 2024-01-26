@@ -1,5 +1,5 @@
 ---
-title: Introducing NVIDIA NeMo's Parakeet-TDT Models: Elevating Speech Recognition to New Heights
+title: Introducing NVIDIA NeMo's Parakeet-TDT Models\: Elevating Speech Recognition to New Heights
 author: [Hainan Xu, Nithin Rao Koluguri, Somshubra Majumdar]
 author_gh_user: [hainan-xv, nithinraok, titu1994]
 readtime: 5
