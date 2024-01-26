@@ -81,15 +81,16 @@ def pad_text_to_speech_dims(text_tensor, pad_id, pad_size=7):
     empty_padding = torch.ones((pad_size, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
     return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
-# For legacy models, trained with this phoneme tokenizer
-tokenizer_config = _get_default_text_tokenizer_conf()
-phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
+# # For legacy models, trained with this phoneme tokenizer
+# tokenizer_config = _get_default_text_tokenizer_conf()
+# phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
 
 class Lang(enum.Enum):
     en = 1
     es = 2
     fr = 3
     zh = 4
+    de = 4
 
 class T5SpeechLMDataset(BasePromptLearningDataset):
     """
@@ -196,6 +197,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         self.context_duration_min = context_duration_min
         self.context_duration_max = context_duration_max
         self.english_only_model = english_only_model
+        self.phoneme_tokenizer = None
+        if english_only_model:
+            self.phoneme_tokenizer = instantiate(_get_default_text_tokenizer_conf()).text_tokenizer
 
         self.g2p = {"fr": lambda x: x}
         if kwargs.get("g2p", None):
@@ -208,6 +212,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             if "mandarin" in kwargs["g2p"]:
                 mandarin_g2p = instantiate(kwargs["g2p"]["mandarin"])
                 self.g2p["zh"] = lambda x: mandarin_g2p(x)
+            if "german" in kwargs["g2p"]:
+                german_g2p = instantiate(kwargs["g2p"]["german"])
+                self.g2p["de"] = lambda x: german_g2p(x)
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
@@ -332,7 +339,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             else:
                 approx_answer_len = len(doc["answer"].split(' ')) + 3
 
-            
+
             skip_record = False
             for skip_dataset in self.skip_datasets:
                 if skip_dataset in doc['answer']:
@@ -610,7 +617,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
     def _get_phoneme_tokens(self, text, lang="en"):
         if self.english_only_model:
-            input_ids = phoneme_tokenizer.encode(text)
+            input_ids = self.phoneme_tokenizer.encode(text)
             input_ids_adjusted = [_id + self.lm_vocab_size for _id in input_ids]
             return input_ids_adjusted
         else:
@@ -1056,7 +1063,7 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
     def __init__(self, *args, **kwargs):
         kwargs["transformer_type"] = "GPT"
         super().__init__(*args, **kwargs)
-        
+
 
     def __getitem__(self, idx):
         doc = self.examples[idx]

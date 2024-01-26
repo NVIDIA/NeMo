@@ -32,7 +32,6 @@ from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import (
     T5SpeechLMDataset,
     Lang,
-    phoneme_tokenizer
 )
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_tarred_dataset import T5SpeechLMTarredDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
@@ -151,7 +150,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             self.frozen_model.enc_dec_model.alignment_decoder_layerids = cfg.get('alignment_decoder_layerids', list(range(0,12)))
             self.alignment_loss_start_step = cfg.get('alignment_loss_start_step', 0)
             self.alignment_loss_end_step = cfg.get('alignment_loss_end_step', float('inf'))
-            
+
 
         # Parallel output is used only for vocab parallel cross entropy.
         self.frozen_model.enc_dec_model.parallel_output = (
@@ -230,6 +229,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         app_state = AppState()
         self.is_rank_zero = app_state.global_rank == 0
         self.predict_step_outputs = []
+        self.phoneme_tokenizer = None
 
     def decode_wav_from_codec_model(self, codes):
         codec_model = self.additional_models['codec']
@@ -367,6 +367,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             t5_cfg.tokenizer.num_sentinel_tokens = cfg.get('num_sentinel_tokens', 39184 - 29056)
             t5_cfg.seq_length = cfg.data.max_seq_length
             t5_cfg.max_position_embeddings = cfg.data.max_seq_length
+            t5_cfg.use_flash_attention = cfg.get('use_flash_attention', False)
             if cfg.get('override_token_model', None):
                 t5_cfg.tokenizer.model = cfg['override_token_model']
 
@@ -376,7 +377,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             override_config_path=t5_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
-        
+
         if not cfg.get('english_only_model', False):
             self.frozen_model.tokenizer.update_phone_tokens()
 
@@ -548,7 +549,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             ]
 
                             if len(input_phoneme_tokens) > 0:
-                                phoneme_text = phoneme_tokenizer.decode(input_phoneme_tokens)
+                                phoneme_text = self.phoneme_tokenizer.decode(input_phoneme_tokens)
                                 self.logger.experiment.add_text("Train Input Phoneme Text", phoneme_text, self.global_step)
 
                             token_logits = out_logits[0]
@@ -631,7 +632,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 alignment_loss = out_logits[3]
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
                 if (alignment_loss is not None) and (curr_step > self.alignment_loss_start_step) and (curr_step < self.alignment_loss_end_step):
-                    print("Adding alignment loss", curr_step, self.alignment_loss_start_step)
+                    logging.debug(f"Adding alignment loss. cur:{curr_step} start:{self.alignment_loss_start_step}")
                     loss = loss + alignment_loss
                 reduced_loss = average_losses_across_data_parallel_group([loss])
                 return loss, {'avg': reduced_loss}
@@ -895,7 +896,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         v - self.lm_vocab_size for v in input_token_list_all[question_si:question_ei] if v >= self.lm_vocab_size
                     ]
                     if len(input_phoneme_tokens) > 0:
-                        phoneme_text = phoneme_tokenizer.decode(input_phoneme_tokens)
+                        phoneme_text = self.phoneme_tokenizer.decode(input_phoneme_tokens)
                         self.logger.experiment.add_text("Val Input Phoneme Text", phoneme_text, self.global_step)
 
                     token_logits = output_logits[0]
@@ -1261,6 +1262,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
         logging.info(f'build success: {len(dataloader)} {dataset_paths}')
+        if self.phoneme_tokenizer is None:
+            self.phoneme_tokenizer = dataset.phoneme_tokenizer
         return dataset, dataloader
 
     def build_virtual_prompt_tarred_dataset(
@@ -1465,6 +1468,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     dec_input[:, :, t + 1] = dec_input_next_timestep * 1
                 else:
                     dec_input[:, 0, t + 1] = output_tokens_curr_timestep.squeeze(1)
+                # # TF
+                # if t+1 < 10:
+                #     dec_input[:, :, t + 1] = dec_input_raw[:, :, t+1]
+                #     import ipdb; ipdb.set_trace()
 
             output_tokens_combined = torch.stack(output_token_list)  # (T, B, 8) if speech else (T, B)
             if torch.count_nonzero(speech_mask) > 0:
@@ -1608,7 +1615,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         v[1] - self.lm_vocab_size for v in input_token_list if v[1] >= self.lm_vocab_size
                     ]
                     if len(task_question_phoneme_tokens) > 0:
-                        phoneme_text = phoneme_tokenizer.decode(task_question_phoneme_tokens)
+                        phoneme_text = self.phoneme_tokenizer.decode(task_question_phoneme_tokens)
                         self.logger.experiment.add_text("Task Question Phoneme Text", phoneme_text, step)
 
                     # store predicted_tokens for each layer to compute token error rate

@@ -1094,7 +1094,7 @@ class CoreAttention(MegatronModule):
                 value_layer,
                 dropout_p=self.attention_dropout_p if self.training else 0.,
                 causal=is_causal,
-                return_attn_probs=True
+                return_attn_probs=return_scores
             )
             if isinstance(output, tuple):
                 context_layer, _, attn_probs = output
@@ -1105,7 +1105,7 @@ class CoreAttention(MegatronModule):
             k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
             v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
 
-            context_layer, _, attn_probs = flash_attn_unpadded_func(
+            output = flash_attn_unpadded_func(
                 q,
                 k,
                 v,
@@ -1117,6 +1117,10 @@ class CoreAttention(MegatronModule):
                 causal=is_causal,
                 return_attn_probs=return_scores
             )
+            if isinstance(output, tuple):
+                context_layer, _, attn_probs = output
+            else:
+                context_layer = output
 
             # [b, sq, np, hn]
             context_layer = pad_input(context_layer, indices_q, batch_size, seqlen)
