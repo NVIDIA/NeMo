@@ -52,8 +52,7 @@ from nemo.core.neural_types import (
     NeuralType,
     SpectrogramType,
 )
-from nemo.utils import model_utils
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 try:
     from sacrebleu import corpus_bleu
