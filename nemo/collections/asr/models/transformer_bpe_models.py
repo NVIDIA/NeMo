@@ -291,6 +291,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         return hypotheses
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
+
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
                 config,
