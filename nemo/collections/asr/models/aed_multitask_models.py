@@ -33,6 +33,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     get_prompt_format_fn,
 )
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
@@ -59,7 +60,7 @@ try:
 
     from nemo.collections.nlp.modules.common import TokenClassifier
     from nemo.collections.nlp.modules.common.lm_utils import get_transformer
-    from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
+    from nemo.collections.nlp.modules.common.transformer import TransformerEncoder
 
     NLP_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -152,19 +153,27 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
-        # Beam Search decoding
-        self.beam_search = BeamSearchSequenceGenerator(
-            embedding=self.transf_decoder.embedding,
-            decoder=self.transf_decoder.decoder,
-            log_softmax=self.log_softmax,
-            max_sequence_length=self.transf_decoder.max_sequence_length,
-            beam_size=self.cfg.beam_search.beam_size,
-            bos=self.tokenizer.bos_id,
-            pad=self.tokenizer.pad_id,
-            eos=self.tokenizer.eos_id,
-            len_pen=self.cfg.beam_search.len_pen,
-            max_delta_length=self.cfg.beam_search.max_generation_delta,
+        # Setup decoding objects
+        self.decoding = MultiTaskDecoding(
+            decoding_cfg=self.cfg.decoding,
+            transformer_decoder=self.transf_decoder,
+            log_softmax_module=self.log_softmax,
+            tokenizer=self.tokenizer,
         )
+
+        # Beam Search decoding
+        # self.beam_search = BeamSearchSequenceGenerator(
+        #     embedding=self.transf_decoder.embedding,
+        #     decoder=self.transf_decoder.decoder,
+        #     log_softmax=self.log_softmax,
+        #     max_sequence_length=self.transf_decoder.max_sequence_length,
+        #     beam_size=self.cfg.beam_search.beam_size,
+        #     bos=self.tokenizer.bos_id,
+        #     pad=self.tokenizer.pad_id,
+        #     eos=self.tokenizer.eos_id,
+        #     len_pen=self.cfg.beam_search.len_pen,
+        #     max_delta_length=self.cfg.beam_search.max_generation_delta,
+        # )
         # TO DO: remove this hardcoded context size for AR decoding
         self.context_len_for_AR_decoding = 5
 
@@ -183,18 +192,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     def change_decoding_strategy(self, cfg: DictConfig):
         logging.info(f"Changing beam search decoding to {cfg}")
         # Beam Search decoding
-        self.beam_search = BeamSearchSequenceGenerator(
-            embedding=self.transf_decoder.embedding,
-            decoder=self.transf_decoder.decoder,
-            log_softmax=self.log_softmax,
-            max_sequence_length=self.transf_decoder.max_sequence_length,
-            beam_size=cfg.beam_size,
-            bos=self.tokenizer.bos_id,
-            pad=self.tokenizer.pad_id,
-            eos=self.tokenizer.eos_id,
-            len_pen=cfg.len_pen,
-            max_delta_length=cfg.max_generation_delta,
-        )
+        # self.beam_search = BeamSearchSequenceGenerator(
+        #     embedding=self.transf_decoder.embedding,
+        #     decoder=self.transf_decoder.decoder,
+        #     log_softmax=self.log_softmax,
+        #     max_sequence_length=self.transf_decoder.max_sequence_length,
+        #     beam_size=cfg.beam_size,
+        #     bos=self.tokenizer.bos_id,
+        #     pad=self.tokenizer.pad_id,
+        #     eos=self.tokenizer.eos_id,
+        #     len_pen=cfg.len_pen,
+        #     max_delta_length=cfg.max_generation_delta,
+        # )
 
     @torch.no_grad()
     def transcribe(
@@ -323,23 +332,33 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
 
-                    beam_hypotheses = (
-                        self.beam_search(
-                            encoder_hidden_states=enc_states,
-                            encoder_input_mask=enc_mask,
-                            return_beam_scores=False,
-                            decoder_input_ids=test_batch[2][:, : self.context_len_for_AR_decoding].to(device)
-                            if self.context_len_for_AR_decoding > 0
-                            else None,
-                        )
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
+                    # beam_hypotheses = (
+                    #     self.beam_search(
+                    #         encoder_hidden_states=enc_states,
+                    #         encoder_input_mask=enc_mask,
+                    #         return_beam_scores=False,
+                    #         decoder_input_ids=test_batch[2][:, : self.context_len_for_AR_decoding].to(device)
+                    #         if self.context_len_for_AR_decoding > 0
+                    #         else None,
+                    #     )
+                    #     .detach()
+                    #     .cpu()
+                    #     .numpy()
+                    # )
+                    #
+                    # beam_hypotheses = [
+                    #     self._strip_special_tokens(self.tokenizer.ids_to_text(hyp)) for hyp in beam_hypotheses
+                    # ]
 
-                    beam_hypotheses = [
-                        self._strip_special_tokens(self.tokenizer.ids_to_text(hyp)) for hyp in beam_hypotheses
-                    ]
+                    beam_hypotheses = self.decoding.decode_predictions_tensor(
+                        encoder_hidden_states=enc_states,
+                        encoder_input_mask=enc_mask,
+                        decoder_input_ids=test_batch[2][:, : self.context_len_for_AR_decoding].to(device)
+                        if self.context_len_for_AR_decoding > 0
+                        else None,
+                        return_hypotheses=False,
+                    )
+                    beam_hypotheses = [self.decoding.strip_special_tokens(text) for text in beam_hypotheses]
 
                     # TODO: add support for return_hypotheses=True @AlexGrinch
                     # if return_hypotheses:
@@ -590,18 +609,27 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 transcript_length=transcript_len,
             )
 
-        beam_hypotheses = self.beam_search(
+        # beam_hypotheses = self.beam_search(
+        #     encoder_hidden_states=enc_states,
+        #     encoder_input_mask=enc_mask,
+        #     return_beam_scores=False,
+        #     decoder_input_ids=input_ids[:, : self.context_len_for_AR_decoding]
+        #     if self.context_len_for_AR_decoding > 0
+        #     else None,
+        # )
+        beam_hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
-            return_beam_scores=False,
             decoder_input_ids=input_ids[:, : self.context_len_for_AR_decoding]
             if self.context_len_for_AR_decoding > 0
             else None,
+            return_hypotheses=False,
         )
+
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
 
         ground_truths = [self.tokenizer.ids_to_text(sent) for sent in transcript.detach().cpu().tolist()]
-        translations = [self.tokenizer.ids_to_text(sent) for sent in beam_hypotheses.detach().cpu().tolist()]
+        translations = [hyp for hyp in beam_hypotheses]
 
         self.val_loss(loss=transf_loss, num_measurements=transf_log_probs.shape[0] * transf_log_probs.shape[1])
 
