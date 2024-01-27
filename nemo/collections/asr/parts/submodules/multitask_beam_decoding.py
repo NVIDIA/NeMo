@@ -194,7 +194,9 @@ class TransformerAEDBeamInfer(AEDBeamInfer):  # TODO: Add (Typing) to class
             packed list containing batch number of sentences (Hypotheses).
         """
         with torch.inference_mode():
-            hypotheses = [Hypothesis(score=0.0, y_sequence=[], timestep=[]) for _ in range(encoder_hidden_states.shape[0])]
+            hypotheses = [
+                Hypothesis(score=0.0, y_sequence=[], timestep=[]) for _ in range(encoder_hidden_states.shape[0])
+            ]
             beam_hypotheses = self.beam_search(
                 encoder_hidden_states=encoder_hidden_states,
                 encoder_input_mask=encoder_input_mask,
@@ -215,7 +217,6 @@ class TransformerAEDBeamInfer(AEDBeamInfer):  # TODO: Add (Typing) to class
         return (packed_result,)
 
 
-
 @dataclass
 class AEDBeamInferConfig:
     beam_size: int
@@ -223,4 +224,3 @@ class AEDBeamInferConfig:
 
     return_best_hypothesis: bool = True
     preserve_alignments: bool = False
-

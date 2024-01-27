@@ -21,7 +21,11 @@ import numpy as np
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.submodules.multitask_beam_decoding import AEDBeamInfer, TransformerAEDBeamInfer, AEDBeamInferConfig
+from nemo.collections.asr.parts.submodules.multitask_beam_decoding import (
+    AEDBeamInfer,
+    AEDBeamInferConfig,
+    TransformerAEDBeamInfer,
+)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -83,10 +87,13 @@ class AbstractMultiTaskDecoding(ABC):
         tokenizer: Aggregate Tokenizer.
     """
 
-    def __init__(self, decoding_cfg,
-                 transformer_decoder: torch.nn.Module,
-                 log_softmax_module: torch.nn.Module,
-                 tokenizer: TokenizerSpec):
+    def __init__(
+        self,
+        decoding_cfg,
+        transformer_decoder: torch.nn.Module,
+        log_softmax_module: torch.nn.Module,
+        tokenizer: TokenizerSpec,
+    ):
         super().__init__()
 
         # Convert dataclass to config object
@@ -175,7 +182,7 @@ class AbstractMultiTaskDecoding(ABC):
                 encoder_input_mask=encoder_input_mask,
                 decoder_input_ids=decoder_input_ids,
                 return_scores=self.return_scores,
-                partial_hypotheses=partial_hypotheses
+                partial_hypotheses=partial_hypotheses,
             )  # type: [List[Hypothesis]]
 
             # extract the hypotheses
@@ -360,10 +367,11 @@ class MultiTaskDecoding(AbstractMultiTaskDecoding):
     """
 
     def __init__(
-        self, decoding_cfg,
-         transformer_decoder: torch.nn.Module,
-         log_softmax_module: torch.nn.Module,
-         tokenizer: TokenizerSpec,
+        self,
+        decoding_cfg,
+        transformer_decoder: torch.nn.Module,
+        log_softmax_module: torch.nn.Module,
+        tokenizer: TokenizerSpec,
     ):
         self.tokenizer = tokenizer
 
@@ -371,7 +379,7 @@ class MultiTaskDecoding(AbstractMultiTaskDecoding):
             decoding_cfg=decoding_cfg,
             transformer_decoder=transformer_decoder,
             log_softmax_module=log_softmax_module,
-            tokenizer=tokenizer
+            tokenizer=tokenizer,
         )
 
         if isinstance(self.decoding, AEDBeamInfer):
@@ -479,9 +487,7 @@ class MultiTaskDecodingConfig:
     # )
 
     # beam decoding config
-    beam: AEDBeamInferConfig = field(
-        default_factory=lambda: AEDBeamInferConfig(beam_size=4)
-    )
+    beam: AEDBeamInferConfig = field(default_factory=lambda: AEDBeamInferConfig(beam_size=4))
 
     # can be used to change temperature for decoding
     temperature: float = 1.0

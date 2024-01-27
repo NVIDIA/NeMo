@@ -33,8 +33,8 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     get_prompt_format_fn,
 )
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
@@ -247,9 +247,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         elif isinstance(audio, str):
             logging.info(f"Found paths2audio_files to be a string. Assuming it is a path to manifest file.")
             assert os.path.exists(audio), f"File {audio} doesn't exist"
-            assert audio.endswith('.json') or audio.endswith(
-                '.jsonl'
-            ), f"File {audio} must be a json or jsonl file"
+            assert audio.endswith('.json') or audio.endswith('.jsonl'), f"File {audio} must be a json or jsonl file"
 
             # load json lines
             manifest_path = audio  # need to save this as we are overwriting paths2audio_files in nextline
