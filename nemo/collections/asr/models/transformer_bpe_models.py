@@ -302,6 +302,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get("use_lhotse"):
             config = self._update_default_values(config)
+            config['lang_field'] = "target_lang"
             return get_lhotse_dataloader_from_config(
                 config,
                 global_rank=self.global_rank,
