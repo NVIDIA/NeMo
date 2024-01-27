@@ -12,30 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, is_dataclass
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import List, Optional
 
 import torch
-from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
-from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+from nemo.collections.asr.modules.transformer import BeamSearchSequenceGenerator
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.core.classes import typecheck
 from nemo.utils import logging
-
-try:
-    # TODO: @steve please fix this import to use only ASR
-    from sacrebleu import corpus_bleu
-
-    from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
-
-    NLP_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    NLP_AVAILABLE = False
-    logging.warning("Could not import NeMo NLP collection which is required for speech translation model.")
 
 
 def pack_hypotheses(

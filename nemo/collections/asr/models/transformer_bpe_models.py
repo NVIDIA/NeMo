@@ -30,12 +30,17 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.modules.transformer import (
+    BeamSearchSequenceGenerator,
+    TransformerEncoder,
+    get_nemo_transformer,
+)
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
-from nemo.collections.common.parts import transformer_weights_init
+from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -51,10 +56,6 @@ from nemo.utils import logging
 
 try:
     from sacrebleu import corpus_bleu
-
-    from nemo.collections.nlp.modules.common import TokenClassifier
-    from nemo.collections.nlp.modules.common.lm_utils import get_transformer
-    from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
 
     NLP_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -123,10 +124,11 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         vocab_size = 8 * ceil(self.tokenizer.vocab_size / 8)
         transf_decoder_cfg_dict['vocab_size'] = vocab_size
         library = transf_decoder_cfg_dict.pop('library', 'nemo')
+        if library != 'nemo':
+            raise ValueError(f"Currently only 'nemo' library is supported for Transformer decoder. Got {library}")
         model_name = transf_decoder_cfg_dict.pop('model_name', None)
         pretrained = transf_decoder_cfg_dict.pop('pretrained', False)
-        self.transf_decoder = get_transformer(
-            library=library,
+        self.transf_decoder = get_nemo_transformer(
             model_name=model_name,
             pretrained=pretrained,
             config_dict=transf_decoder_cfg_dict,
@@ -134,15 +136,14 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             pre_ln_final_layer_norm=transf_decoder_cfg_dict.get("pre_ln_final_layer_norm", False),
         )
 
-        self.log_softmax = TokenClassifier(
+        self.log_softmax = MultiLayerPerceptron(
             hidden_size=self.transf_decoder.hidden_size,
             num_classes=vocab_size,
             activation=self.cfg.head.activation,
             log_softmax=self.cfg.head.log_softmax,
-            dropout=self.cfg.head.dropout,
-            use_transformer_init=self.cfg.head.use_transformer_init,
+            num_layers=1,  # Always 1 layer
         )
-        self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
+        self.log_softmax.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
         std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))

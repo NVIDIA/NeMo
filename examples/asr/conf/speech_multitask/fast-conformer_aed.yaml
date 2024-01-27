@@ -138,8 +138,7 @@ model:
   # Optional Transformer Encoder sandwitched between ASR Encoder and Transformer Ddcoder.
   # Only used if num_layers > 0
   transf_encoder:
-    # TODO: @steve - change this to ASR config path
-    _target_: nemo.collections.nlp.modules.common.transformer.transformer_encoders.TransformerEncoder
+    _target_: nemo.collections.asr.modules.transformer.transformer_encoders.TransformerEncoder
     num_layers: 0
     hidden_size: 512
     inner_size: 2048
@@ -152,9 +151,7 @@ model:
     pre_ln_final_layer_norm: True
 
   transf_decoder:
-    # TODO: @steve - change this to ASR config path
-    _target_: nemo.collections.nlp.modules.common.lm_utils.get_transformer
-    library: nemo
+    _target_: nemo.collections.asr.modules.transformer.get_nemo_transformer
     model_name: null
     pretrained: false
     encoder: null
@@ -178,14 +175,12 @@ model:
 
   # Label Prediction Head (Token Classifier)
   head:
-    _target_: nemo.collections.nlp.modules.common.token_classifier.TokenClassifier
+    _target_: nemo.collections.common.parts.MultiLayerPerceptron
     num_layers: 1
     activation: relu
     log_softmax: true
-    dropout: 0.0
-    use_transformer_init: true
     hidden_size: ${model.transf_decoder.config_dict.hidden_size}
-    vocab_size: None  # Will be set by the model at runtime
+    num_classes: None  # Will be set by the model at runtime
 
   # Decoding Strategy
   decoding:

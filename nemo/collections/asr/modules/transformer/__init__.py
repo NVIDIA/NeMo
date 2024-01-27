@@ -19,3 +19,4 @@ from nemo.collections.asr.modules.transformer.transformer_decoders import *
 from nemo.collections.asr.modules.transformer.transformer_encoders import *
 from nemo.collections.asr.modules.transformer.transformer_generators import *
 from nemo.collections.asr.modules.transformer.transformer_modules import *
+from nemo.collections.asr.modules.transformer.transformer_utils import *
