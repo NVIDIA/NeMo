@@ -147,7 +147,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # Setup decoding objects
-        # Setup decoding objects
         decoding_cfg = self.cfg.get('decoding', None)
 
         # In case decoding config not found, use default config
