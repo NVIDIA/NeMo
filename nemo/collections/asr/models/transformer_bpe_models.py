@@ -301,8 +301,6 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get("use_lhotse"):
-            config = self._update_default_values(config)
-            config['lang_field'] = "target_lang"
             return get_lhotse_dataloader_from_config(
                 config,
                 global_rank=self.global_rank,
@@ -644,7 +642,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             'shuffle': False,
             'num_workers': min(batch_size, os.cpu_count() - 1),
             'pin_memory': True,
+            'use_lhotse': True,
+            'lang_field': 'target_lang',
         }
 
+        dl_config = self._update_default_values(dl_config)
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
