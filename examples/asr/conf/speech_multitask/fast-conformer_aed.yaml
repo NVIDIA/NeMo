@@ -175,12 +175,14 @@ model:
 
   # Label Prediction Head (Token Classifier)
   head:
-    _target_: nemo.collections.common.parts.MultiLayerPerceptron
+    _target_: nemo.collections.asr.parts.submodules.token_classifier.TokenClassifier
     num_layers: 1
     activation: relu
     log_softmax: true
     hidden_size: ${model.transf_decoder.config_dict.hidden_size}
     num_classes: None  # Will be set by the model at runtime
+    dropout: 0.0
+    use_transformer_init: true
 
   # Decoding Strategy
   decoding:

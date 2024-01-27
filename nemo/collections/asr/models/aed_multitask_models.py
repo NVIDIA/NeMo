@@ -35,11 +35,12 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
+from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.metrics import GlobalAverageLossMetric
-from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
+from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
@@ -138,10 +139,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             self.cfg.head.num_classes = vocab_size
 
         self.log_softmax = EncDecMultiTaskModel.from_config_dict(self.cfg.head)
-        if isinstance(self.log_softmax, MultiLayerPerceptron):
-            self.log_softmax.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
+        if isinstance(self.log_softmax, TokenClassifier):
+            self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
         else:
-            raise ValueError(f"Expected MultiLayerPerceptron head, got {type(self.log_softmax)}")
+            raise ValueError(f"Expected TokenClassifier head, got {type(self.log_softmax)}")
         std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))

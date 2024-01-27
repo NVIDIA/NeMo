@@ -36,11 +36,12 @@ from nemo.collections.asr.modules.transformer import (
     get_nemo_transformer,
 )
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
-from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
+from nemo.collections.common.parts import transformer_weights_init
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -136,14 +137,16 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             pre_ln_final_layer_norm=transf_decoder_cfg_dict.get("pre_ln_final_layer_norm", False),
         )
 
-        self.log_softmax = MultiLayerPerceptron(
+        self.log_softmax = TokenClassifier(
             hidden_size=self.transf_decoder.hidden_size,
             num_classes=vocab_size,
             activation=self.cfg.head.activation,
             log_softmax=self.cfg.head.log_softmax,
-            num_layers=1,  # Always 1 layer
+            dropout=self.cfg.head.dropout,
+            use_transformer_init=self.cfg.head.use_transformer_init,
+            num_layers=self.cfg.head.num_layers,
         )
-        self.log_softmax.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
+        self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
         std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
