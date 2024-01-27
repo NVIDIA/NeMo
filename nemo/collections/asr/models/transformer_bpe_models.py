@@ -22,7 +22,7 @@ from typing import Dict, List, Optional, Union
 import editdistance
 import torch
 import torch.distributed as dist
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
@@ -290,9 +290,18 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         return hypotheses
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+    def _update_default_values(self, config: DictConfig):
+        if self.training:  # don't do anything for training
+            return config
+        with open_dict(config):
+            for k, v in self.cfg.train_ds.items():
+                if k not in config:
+                    config[k] = v
+        return config
 
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get("use_lhotse"):
+            config = self._update_default_values(config)
             return get_lhotse_dataloader_from_config(
                 config,
                 global_rank=self.global_rank,
