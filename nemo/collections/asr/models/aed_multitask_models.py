@@ -38,6 +38,7 @@ from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDe
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.common import tokenizers
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
@@ -95,19 +96,21 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         # Setup audio encoder
         self.encoder = EncDecMultiTaskModel.from_config_dict(self.cfg.encoder)
 
+        # Assert config has `model_defaults`
+        if 'model_defaults' not in self.cfg:
+            raise ValueError("`cfg` must have `model_defaults` config to create a model !")
+        if "asr_enc_hidden" not in self.cfg.model_defaults:
+            raise ValueError("`cfg.model_defaults` must have `asr_enc_hidden` key !")
+        if "lm_enc_hidden" not in self.cfg.model_defaults:
+            raise ValueError("`cfg.model_defaults` must have `lm_enc_hidden` key !")
+        if "dec_hidden" not in self.cfg.model_defaults:
+            raise ValueError("`cfg.model_defaults` must have `dec_hidden` key !")
+
         # Add projection layer if encoder and decoder differ in hidden size
-        # get decoder hidden size
-        if 'hidden_size' in self.cfg.transf_decoder:
-            decoder_hidden_size = self.cfg.transf_decoder['hidden_size']
-
-        # `config_dict` can be used if you use `get_transformer` to create the decoder
-        elif 'config_dict' in self.cfg.transf_decoder and 'hidden_size' in self.cfg.transf_decoder.config_dict:
-            decoder_hidden_size = self.cfg.transf_decoder.config_dict['hidden_size']
-        else:
-            raise ValueError("Could not find hidden size for decoder")
-
-        if self.cfg.encoder['d_model'] != decoder_hidden_size:
-            self.encoder_decoder_proj = torch.nn.Linear(self.cfg.encoder['d_model'], decoder_hidden_size)
+        asr_enc_hidden_size = self.cfg.model_defaults.asr_enc_hidden
+        decoder_hidden_size = self.cfg.model_defaults.dec_hidden
+        if asr_enc_hidden_size != decoder_hidden_size:
+            self.encoder_decoder_proj = torch.nn.Linear(asr_enc_hidden_size, decoder_hidden_size)
         else:
             self.encoder_decoder_proj = torch.nn.Identity()
 
@@ -119,7 +122,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             self.use_transf_encoder = True
 
             self.transf_encoder = EncDecMultiTaskModel.from_config_dict(transf_encoder_cfg_dict)
-            std_init_range = 1 / transf_encoder_cfg_dict['hidden_size'] ** 0.5
+
+            # Initialize weights
+            std_init_range = 1 / self.cfg.model_defaults.lm_enc_hidden ** 0.5
             self.transf_encoder.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         transf_decoder_cfg_dict = cfg.transf_decoder
@@ -139,11 +144,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             self.cfg.head.num_classes = vocab_size
 
         self.log_softmax = EncDecMultiTaskModel.from_config_dict(self.cfg.head)
+
+        # Weight tying - if using TokenClassifier only
         if isinstance(self.log_softmax, TokenClassifier):
             self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
-        else:
-            raise ValueError(f"Expected TokenClassifier head, got {type(self.log_softmax)}")
-        std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
+
+        # Initialize weights
+        std_init_range = 1 / self.cfg.model_defaults.dec_hidden ** 0.5
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
@@ -181,7 +188,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
         """
-        Changes decoding strategy used during CTC decoding process.
+        Changes decoding strategy used during Multi Task decoding process.
 
         Args:
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
@@ -247,7 +254,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if isinstance(audio, list):
             logging.info(f"Found paths2audio_files to be a list of {len(audio)} items.")
             logging.info(f"Assuming each item in paths2audio_files is a path to audio file.")
-            logging.info(f"Transcribing with default Canary setting of English without PnC.")
+
+            if isinstance(self.tokenizer, tokenizers.AggregateTokenizer):
+                primary_language = self.tokenizer.langs[0]
+                logging.info(f"Transcribing with default setting of {primary_language}.")
+
         elif isinstance(audio, str):
             logging.info(f"Found paths2audio_files to be a string. Assuming it is a path to manifest file.")
             assert os.path.exists(audio), f"File {audio} doesn't exist"

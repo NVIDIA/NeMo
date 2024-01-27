@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -362,7 +362,7 @@ class MultiTaskDecoding(AbstractMultiTaskDecoding):
 
         transformer_decoder: Transformer decoder module.
         log_softmax_module: Log Softmax projection module to the vocab size.
-        tokenizer: Aggregate Tokenizer.
+        tokenizer: TokenizerSpec.
     """
 
     def __init__(
