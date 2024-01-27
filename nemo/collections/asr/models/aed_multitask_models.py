@@ -582,14 +582,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 transcript_length=transcript_len,
             )
 
-        # beam_hypotheses = self.beam_search(
-        #     encoder_hidden_states=enc_states,
-        #     encoder_input_mask=enc_mask,
-        #     return_beam_scores=False,
-        #     decoder_input_ids=input_ids[:, : self.context_len_for_AR_decoding]
-        #     if self.context_len_for_AR_decoding > 0
-        #     else None,
-        # )
         beam_hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
