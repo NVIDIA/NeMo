@@ -38,7 +38,6 @@ from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDe
 from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
@@ -53,14 +52,11 @@ from nemo.core.neural_types import (
     NeuralType,
     SpectrogramType,
 )
+from nemo.utils import model_utils
 from nemo.utils import logging
 
 try:
     from sacrebleu import corpus_bleu
-
-    from nemo.collections.nlp.modules.common import TokenClassifier
-    from nemo.collections.nlp.modules.common.lm_utils import get_transformer
-    from nemo.collections.nlp.modules.common.transformer import TransformerEncoder
 
     NLP_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -80,6 +76,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     """Base class for encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+
+        # Convert to Hydra 1.0 compatible DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
 
         if 'tokenizer' not in cfg:
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
@@ -133,15 +133,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 transf_decoder_cfg_dict['config_dict']['vocab_size'] = vocab_size
 
         self.transf_decoder = EncDecMultiTaskModel.from_config_dict(transf_decoder_cfg_dict)
-
-        # self.log_softmax = TokenClassifier(
-        #     hidden_size=self.transf_decoder.hidden_size,
-        #     num_classes=vocab_size,
-        #     activation=self.cfg.head.activation,
-        #     log_softmax=self.cfg.head.log_softmax,
-        #     dropout=self.cfg.head.dropout,
-        #     use_transformer_init=self.cfg.head.use_transformer_init,
-        # )
 
         # Setup token classifier
         with open_dict(self.cfg.head):
