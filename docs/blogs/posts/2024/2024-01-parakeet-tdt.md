@@ -63,7 +63,7 @@ where <code>\_</code> represents the blank symbol. To generate the final recogni
 NVIDIA is a great place to work
 </code>
 
-As we can see, there are many blanks symbols in the output and this means the Transducer model wasted a lot of time on "blank frames" -- frames for which the model predicts blanks which don't contribute to the final output.
+As we can see, there are many blanks symbols in the original output and this means the Transducer model wasted a lot of time on "blank frames" -- frames for which the model predicts blanks which don't contribute to the final output.
 
 <figure markdown>
   ![TDTTOPO](tdt_topo.png){align="center" width=300}
