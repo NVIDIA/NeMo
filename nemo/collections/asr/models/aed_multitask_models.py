@@ -106,6 +106,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if "dec_hidden" not in self.cfg.model_defaults:
             raise ValueError("`cfg.model_defaults` must have `dec_hidden` key !")
 
+        # Assert config has "prompt_format"
+        if "prompt_format" not in self.cfg:
+            raise ValueError("`cfg` must have `prompt_format` config to create a multi task model !")
+        self.prompt_format = self.cfg.prompt_format
+
         # Add projection layer if encoder and decoder differ in hidden size
         asr_enc_hidden_size = self.cfg.model_defaults.asr_enc_hidden
         decoder_hidden_size = self.cfg.model_defaults.dec_hidden
@@ -374,7 +379,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=PromptedAudioToTextLhotseDataset(
-                tokenizer=self.tokenizer, prompt_format_fn=get_prompt_format_fn("canary"),
+                tokenizer=self.tokenizer, prompt_format_fn=get_prompt_format_fn(self.prompt_format),
             ),
         )
 
@@ -562,17 +567,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         return {'loss': audio_loss, 'log': tensorboard_logs}
 
-    def _strip_special_tokens(self, text):
-        """
-        assuming all special tokens are of format <token>
-        Note that if any label/pred is of format <token>, it will be stripped
-        """
-        assert isinstance(text, str), f"Expected str, got {type(text)}"
-        text = re.sub(r'<[^>]+>', '', text)
-        # strip spaces at the beginning and end;
-        # this is training data artifact, will be fixed in future (@kpuvvada)
-        return text.strip()
-
     def validation_step(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
         signal, signal_len, transcript, transcript_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
@@ -610,8 +604,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         output_dict = {
             f'{eval_mode}_loss': transf_loss,
-            'translations': [self._strip_special_tokens(t) for t in translations],
-            'ground_truths': [self._strip_special_tokens(g) for g in ground_truths],
+            'translations': [self.decoding.strip_special_tokens(t) for t in translations],
+            'ground_truths': [self.decoding.strip_special_tokens(g) for g in ground_truths],
         }
 
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
