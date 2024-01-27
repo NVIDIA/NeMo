@@ -96,58 +96,59 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.encoder = EncDecMultiTaskModel.from_config_dict(self.cfg.encoder)
 
         # Add projection layer if encoder and decoder differ in hidden size
-        if self.cfg.encoder['d_model'] != self.cfg.transf_decoder['hidden_size']:
-            self.adapter = torch.nn.Linear(self.cfg.encoder['d_model'], self.cfg.transf_decoder['hidden_size'])
-        else:
-            self.adapter = torch.nn.Identity()
+        # get decoder hidden size
+        if 'hidden_size' in self.cfg.transf_decoder:
+            decoder_hidden_size = self.cfg.transf_decoder['hidden_size']
 
-        transf_encoder_cfg_dict = OmegaConf.to_container(cfg.get('transf_encoder'))
+        # `config_dict` can be used if you use `get_transformer` to create the decoder
+        elif 'config_dict' in self.cfg.transf_decoder and 'hidden_size' in self.cfg.transf_decoder.config_dict:
+            decoder_hidden_size = self.cfg.transf_decoder.config_dict['hidden_size']
+        else:
+            raise ValueError("Could not find hidden size for decoder")
+
+        if self.cfg.encoder['d_model'] != decoder_hidden_size:
+            self.encoder_decoder_proj = torch.nn.Linear(self.cfg.encoder['d_model'], decoder_hidden_size)
+        else:
+            self.encoder_decoder_proj = torch.nn.Identity()
+
+        transf_encoder_cfg_dict = self.cfg.get('transf_encoder', None)
 
         # Whether to add Transformer Encoder block between Conformer and Transformer Decoder
         self.use_transf_encoder = False
-        if transf_encoder_cfg_dict['num_layers'] > 0:
+        if transf_encoder_cfg_dict is not None and transf_encoder_cfg_dict['num_layers'] > 0:
             self.use_transf_encoder = True
 
-            self.transf_encoder = TransformerEncoder(
-                num_layers=transf_encoder_cfg_dict['num_layers'],
-                hidden_size=transf_encoder_cfg_dict['hidden_size'],
-                inner_size=transf_encoder_cfg_dict['inner_size'],
-                mask_future=False,
-                num_attention_heads=transf_encoder_cfg_dict['num_attention_heads'],
-                attn_score_dropout=transf_encoder_cfg_dict['attn_score_dropout'],
-                attn_layer_dropout=transf_encoder_cfg_dict['attn_layer_dropout'],
-                ffn_dropout=transf_encoder_cfg_dict['ffn_dropout'],
-                pre_ln=transf_encoder_cfg_dict.get('pre_ln', True),
-                pre_ln_final_layer_norm=transf_encoder_cfg_dict.get('pre_ln_final_layer_norm', True),
-            )
+            self.transf_encoder = EncDecMultiTaskModel.from_config_dict(transf_encoder_cfg_dict)
             std_init_range = 1 / transf_encoder_cfg_dict['hidden_size'] ** 0.5
             self.transf_encoder.apply(lambda module: transformer_weights_init(module, std_init_range))
 
-        transf_decoder_cfg_dict = OmegaConf.to_container(cfg.get('transf_decoder'))
+        transf_decoder_cfg_dict = cfg.transf_decoder
 
         # Transformer decoder
         vocab_size = 8 * ceil(self.tokenizer.vocab_size / 8)
-        transf_decoder_cfg_dict['vocab_size'] = vocab_size
-        library = transf_decoder_cfg_dict.pop('library', 'nemo')
-        model_name = transf_decoder_cfg_dict.pop('model_name', None)
-        pretrained = transf_decoder_cfg_dict.pop('pretrained', False)
-        self.transf_decoder = get_transformer(
-            library=library,
-            model_name=model_name,
-            pretrained=pretrained,
-            config_dict=transf_decoder_cfg_dict,
-            encoder=False,
-            pre_ln_final_layer_norm=transf_decoder_cfg_dict.get("pre_ln_final_layer_norm", False),
-        )
 
-        self.log_softmax = TokenClassifier(
-            hidden_size=self.transf_decoder.hidden_size,
-            num_classes=vocab_size,
-            activation=self.cfg.head.activation,
-            log_softmax=self.cfg.head.log_softmax,
-            dropout=self.cfg.head.dropout,
-            use_transformer_init=self.cfg.head.use_transformer_init,
-        )
+        # Auto inject vocab size for `get_transformer`
+        with open_dict(transf_decoder_cfg_dict):
+            if 'config_dict' in transf_decoder_cfg_dict:
+                transf_decoder_cfg_dict['config_dict']['vocab_size'] = vocab_size
+
+        self.transf_decoder = EncDecMultiTaskModel.from_config_dict(transf_decoder_cfg_dict)
+
+        # self.log_softmax = TokenClassifier(
+        #     hidden_size=self.transf_decoder.hidden_size,
+        #     num_classes=vocab_size,
+        #     activation=self.cfg.head.activation,
+        #     log_softmax=self.cfg.head.log_softmax,
+        #     dropout=self.cfg.head.dropout,
+        #     use_transformer_init=self.cfg.head.use_transformer_init,
+        # )
+
+        # Setup token classifier
+        with open_dict(self.cfg.head):
+            self.cfg.head.num_classes = vocab_size
+
+        self.log_softmax = EncDecMultiTaskModel.from_config_dict(self.cfg.head)
+
         self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
         std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
@@ -170,26 +171,17 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             tokenizer=self.tokenizer,
         )
 
-        # Beam Search decoding
-        # self.beam_search = BeamSearchSequenceGenerator(
-        #     embedding=self.transf_decoder.embedding,
-        #     decoder=self.transf_decoder.decoder,
-        #     log_softmax=self.log_softmax,
-        #     max_sequence_length=self.transf_decoder.max_sequence_length,
-        #     beam_size=self.cfg.beam_search.beam_size,
-        #     bos=self.tokenizer.bos_id,
-        #     pad=self.tokenizer.pad_id,
-        #     eos=self.tokenizer.eos_id,
-        #     len_pen=self.cfg.beam_search.len_pen,
-        #     max_delta_length=self.cfg.beam_search.max_generation_delta,
-        # )
         # TO DO: remove this hardcoded context size for AR decoding
-        self.context_len_for_AR_decoding = 5
+        self.context_len_for_AR_decoding = self.cfg.get("context_len_for_AR_decoding", 5)
 
         # Define autoregressive CE loss
-        self.transf_loss = SmoothedCrossEntropyLoss(
-            pad_id=self.tokenizer.pad_id, label_smoothing=self.cfg.label_smoothing
-        )
+        with open_dict(self.cfg.loss):
+            self.cfg.loss.pad_id = self.tokenizer.pad_id
+
+        self.loss = EncDecMultiTaskModel.from_config_dict(self.cfg.loss)
+        # self.transf_loss = SmoothedCrossEntropyLoss(
+        #     pad_id=self.tokenizer.pad_id, label_smoothing=self.cfg.label_smoothing
+        # )
 
         if hasattr(self.cfg, 'spec_augment') and self.cfg.spec_augment is not None:
             self.spec_augmentation = EncDecMultiTaskModel.from_config_dict(self.cfg.spec_augment)
@@ -537,7 +529,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
 
         enc_states = encoded.permute(0, 2, 1)
-        enc_states = self.adapter(enc_states)
+        enc_states = self.encoder_decoder_proj(enc_states)
         enc_mask = lens_to_mask(encoded_len, enc_states.shape[1]).to(enc_states.dtype)
         if self.use_transf_encoder:
             enc_states = self.transf_encoder(encoder_states=enc_states, encoder_mask=enc_mask)

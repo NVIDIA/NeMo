@@ -46,7 +46,11 @@ def pack_hypotheses(
         if scores[idx] is not None:
             hyp.score = scores[idx]
 
-        hyp.y_sequence = torch.tensor(beam_hypotheses[idx], dtype=torch.long)
+        hypi = beam_hypotheses[idx]
+        if torch.is_tensor(hypi):
+            hyp.y_sequence = hypi.long()
+        else:
+            hyp.y_sequence = torch.tensor(hypi, dtype=torch.long)
 
         if hyp.dec_state is not None:
             hyp.dec_state = _states_to_device(hyp.dec_state)

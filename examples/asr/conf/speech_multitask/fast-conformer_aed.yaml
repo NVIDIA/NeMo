@@ -70,6 +70,7 @@ model:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (wpe)
     type: bpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
 
+  # Audio Preprocessor
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     sample_rate: ${model.sample_rate}
@@ -85,6 +86,7 @@ model:
     pad_to: 0
     pad_value: 0.0
 
+  # SpecAugment is applied either in the model or in the data layer
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     freq_masks: 2 # set to zero to disable it
@@ -93,6 +95,7 @@ model:
     freq_width: 27
     time_width: 0.05
 
+  # ASR Encoder
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}
@@ -132,7 +135,11 @@ model:
     dropout_emb: 0.0 # The dropout used for embeddings
     dropout_att: 0.1 # The dropout for multi-headed attention modules
 
+  # Optional Transformer Encoder sandwitched between ASR Encoder and Transformer Ddcoder.
+  # Only used if num_layers > 0
   transf_encoder:
+    # TODO: @steve - change this to ASR config path
+    _target_: nemo.collections.nlp.modules.common.transformer.transformer_encoders.TransformerEncoder
     num_layers: 0
     hidden_size: 512
     inner_size: 2048
@@ -140,37 +147,61 @@ model:
     ffn_dropout: 0.1
     attn_score_dropout: 0.1
     attn_layer_dropout: 0.1
+    mask_future: False
+    pre_ln: True
+    pre_ln_final_layer_norm: True
 
   transf_decoder:
+    # TODO: @steve - change this to ASR config path
+    _target_: nemo.collections.nlp.modules.common.lm_utils.get_transformer
     library: nemo
     model_name: null
     pretrained: false
-    max_sequence_length: 512
-    num_token_types: 0
-    embedding_dropout: 0.1
-    learn_positional_encodings: false
-    hidden_size: 1024
-    inner_size: 4096
-    num_layers: 24
-    num_attention_heads: 8
-    ffn_dropout: 0.1
-    attn_score_dropout: 0.1
-    attn_layer_dropout: 0.1
-    hidden_act: relu
-    pre_ln: true
+    encoder: null
     pre_ln_final_layer_norm: true
 
+    config_dict:
+      max_sequence_length: 512
+      num_token_types: 0
+      embedding_dropout: 0.1
+      learn_positional_encodings: false
+      hidden_size: 1024
+      inner_size: 4096
+      num_layers: 24
+      num_attention_heads: 8
+      ffn_dropout: 0.1
+      attn_score_dropout: 0.1
+      attn_layer_dropout: 0.1
+      hidden_act: relu
+      pre_ln: true
+      vocab_size: None  # Will be set by the model at runtime
+
+  # Label Prediction Head (Token Classifier)
   head:
+    _target_: nemo.collections.nlp.modules.common.token_classifier.TokenClassifier
     num_layers: 1
     activation: relu
     log_softmax: true
     dropout: 0.0
     use_transformer_init: true
-    
-  beam_search:
+    hidden_size: ${model.transf_decoder.config_dict.hidden_size}
+    vocab_size: None  # Will be set by the model at runtime
+
+  # Decoding Strategy
+  decoding:
+    strategy: beam
     beam_size: 1
-    len_pen: 0.0
-    max_generation_delta: 50
+    return_best_hypothesis: true  # Returns the most probably hypothesis after beam search
+
+    beam:
+      len_pen: 0.0
+      max_generation_delta: 50
+
+  # Loss Config
+  loss:
+    _target_: nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss
+    label_smoothing: 0.0
+    pad_id: null
 
   optim:
     name: adamw
