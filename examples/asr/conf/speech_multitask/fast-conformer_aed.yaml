@@ -19,7 +19,16 @@ model:
   _target_: nemo.collections.asr.models.EncDecMultiTaskModel
   sample_rate: 16000
   label_smoothing: 0.0
+  context_len_for_AR_decoding: 5
   log_prediction: true # enables logging sample predictions in the output during training
+
+  # Important ! Set the prompt format to the class you need
+  prompt_format: "canary"
+
+  model_defaults:
+    asr_enc_hidden: 1024
+    lm_enc_hidden: 512
+    dec_hidden: 1024
 
   train_ds:
     use_lhotse: true
@@ -101,7 +110,7 @@ model:
     feat_in: ${model.preprocessor.features}
     feat_out: -1 # you may set it if you need different output size other than the default d_model
     n_layers: 24
-    d_model: 1024
+    d_model: ${model.model_defaults.asr_enc_hidden}
 
     # Sub-sampling params
     subsampling: dw_striding # vggnet or striding, vggnet may give better results but needs more memory
@@ -140,8 +149,8 @@ model:
   transf_encoder:
     _target_: nemo.collections.asr.modules.transformer.transformer_encoders.TransformerEncoder
     num_layers: 0
-    hidden_size: 512
-    inner_size: 2048
+    hidden_size: ${model.model_defaults.lm_enc_hidden}
+    inner_size: ${multiply:${model.model_defaults.lm_enc_hidden}, 4}
     num_attention_heads: 8
     ffn_dropout: 0.1
     attn_score_dropout: 0.1
@@ -162,8 +171,8 @@ model:
       num_token_types: 0
       embedding_dropout: 0.1
       learn_positional_encodings: false
-      hidden_size: 1024
-      inner_size: 4096
+      hidden_size: ${model.model_defaults.dec_hidden
+      inner_size: ${multiply:${model.model_defaults.dec_hidden}, 4}
       num_layers: 24
       num_attention_heads: 8
       ffn_dropout: 0.1
@@ -197,7 +206,7 @@ model:
   # Loss Config
   loss:
     _target_: nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss
-    label_smoothing: 0.0
+    label_smoothing: ${model.label_smoothing}
     pad_id: null
 
   optim:

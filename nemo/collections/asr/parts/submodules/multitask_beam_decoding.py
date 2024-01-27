@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ import torch
 from nemo.collections.asr.modules.transformer import BeamSearchSequenceGenerator
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.core import Typing, typecheck
+from nemo.core.neural_types import ChannelType, HypothesisType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
 
 
@@ -92,30 +94,33 @@ class AEDBeamInfer(ABC):
         self.decoding_type = decoding_type
 
 
-class TransformerAEDBeamInfer(AEDBeamInfer):  # TODO: Add (Typing) to class
+class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
     """A beam decoder engine for AED Transformer models.
 
     Provides a common abstraction for batch level beam decoding.
 
     """
 
-    # @property
-    # def input_types(self):
-    #     """Returns definitions of module input ports.
-    #     """
-    #     # Input can be of dimention -
-    #     # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
-    #
-    #     return {
-    #         "decoder_output": NeuralType(None, LogprobsType()),
-    #         "decoder_lengths": NeuralType(tuple('B'), LengthsType()),
-    #     }
-    #
-    # @property
-    # def output_types(self):
-    #     """Returns definitions of module output ports.
-    #     """
-    #     return {"predictions": [NeuralType(elements_type=HypothesisType())]}
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports.
+        """
+        # Input can be of dimention -
+        # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
+
+        return {
+            "encoder_hidden_states": NeuralType(tuple(('B', 'T', 'D')), ChannelType()),
+            "encoder_input_mask": NeuralType(tuple(('B', 'T')), MaskType()),
+            "decoder_input_ids": NeuralType(('B', 'T'), LabelsType()),
+            "return_scores": NeuralType(optional=True),
+            "partial_hypotheses": NeuralType(optional=True),
+        }
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports.
+        """
+        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
         self,
@@ -159,7 +164,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer):  # TODO: Add (Typing) to class
                 )
             )
 
-    # TODO: Apply @typecheck()
+    @typecheck()
     def forward(
         self,
         encoder_hidden_states: torch.Tensor,
