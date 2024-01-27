@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import re
 from typing import Optional, Tuple, Union
 
 from torchmetrics.text import SacreBLEUScore
@@ -26,6 +27,11 @@ TEXT_METRICS_MAPPING = {
     'bleu': SacreBLEUScore,
     'rouge': ROUGEScore,
 }
+
+
+def remove_space_before_punc(text):
+    result = re.sub(r'(\w)\s+([.,;!?])', r'\1\2', text)
+    return result
 
 
 def remove_punctuations(text: str, punctuations: Optional[Union[list, str]] = None) -> str:
@@ -115,6 +121,7 @@ def cal_write_wer(
     ignore_capitalization: bool = False,
     ignore_punctuation: bool = False,
     punctuations: Optional[list] = None,
+    strip_punc_space: bool = False,
 ) -> Tuple[str, dict, str]:
     """ 
     Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text) 
@@ -151,6 +158,10 @@ def cal_write_wer(
             if ignore_capitalization:
                 ref = ref.lower()
                 hyp = hyp.lower()
+
+            if strip_punc_space:
+                ref = remove_space_before_punc(ref)
+                hyp = remove_space_before_punc(hyp)
 
             wer, tokens, ins_rate, del_rate, sub_rate = word_error_rate_detail(
                 hypotheses=[hyp], references=[ref], use_cer=use_cer
@@ -201,6 +212,7 @@ def cal_write_text_metric(
     punctuations: Optional[list] = None,
     metric: str = 'bleu',
     metric_args: Optional[dict] = None,
+    strip_punc_space: bool = False,
 ):
     samples = []
     hyps = []
@@ -233,6 +245,10 @@ def cal_write_text_metric(
             if ignore_capitalization:
                 ref = ref.lower()
                 hyp = hyp.lower()
+
+            if strip_punc_space:
+                ref = remove_space_before_punc(ref)
+                hyp = remove_space_before_punc(hyp)
 
             if metric == 'bleu':
                 score = metric_calculator([hyp], [[ref]]).item()
