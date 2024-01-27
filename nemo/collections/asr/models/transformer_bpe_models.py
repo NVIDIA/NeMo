@@ -290,15 +290,6 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         return hypotheses
 
-    def _update_default_values(self, config: DictConfig):
-        if self.training:  # don't do anything for training
-            return config
-        with open_dict(config):
-            for k, v in self.cfg.train_ds.items():
-                if k not in config:
-                    config[k] = v
-        return config
-
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
@@ -619,6 +610,15 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if self._test_dl is not None:
             return self._test_dl
 
+    def _update_default_values(self, config: DictConfig):
+        if self.training:  # don't do anything for training
+            return config
+        with open_dict(config):
+            for k, v in self.cfg.train_ds.items():
+                if k not in config:
+                    config[k] = v
+        return config
+
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.
@@ -634,23 +634,31 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             A pytorch DataLoader for the given audio file(s).
         """
         batch_size = min(config['batch_size'], len(config['paths2audio_files']))
-        dl_config = DictConfig(
-            {
-                'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
-                'sample_rate': self.preprocessor._sample_rate,
-                'batch_size': batch_size,
-                'trim_silence': False,
-                'shuffle': False,
-                'num_workers': min(batch_size, os.cpu_count() - 1),
-                'pin_memory': True,
-                'use_lhotse': True,
-                'lang_field': 'target_lang',
-                'text_field': 'answer',
-                'use_bucketing': False,
-                'max_cuts': batch_size,
-                'drop_last': False,
-            }
-        )
+        dl_config = {
+            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'sample_rate': self.preprocessor._sample_rate,
+            'batch_size': batch_size,
+            'trim_silence': False,
+            'shuffle': False,
+            'num_workers': min(batch_size, os.cpu_count() - 1),
+            'pin_memory': True,
+        }
 
-        temporary_datalayer = self._setup_dataloader_from_config(config=dl_config)
+        lhotse_config = {
+            'is_tarred': False,
+            'batch_size': 1,
+            'force_strip_pnc': False,
+            'token_sequence_format': "canary",
+            'use_lhotse': True,
+            'use_bucketing': False,
+            'max_cuts': batch_size,
+            'drop_last': False,
+            'text_field': 'answer',
+            'lang_field': 'target_lang',
+        }
+
+        # update dl_config
+        dl_config.update(lhotse_config)
+
+        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
