@@ -24,13 +24,20 @@ import torch
 import torch.distributed as dist
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from torchmetrics.text import SacreBLEUScore
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.modules.transformer import (
+    BeamSearchSequenceGenerator,
+    TransformerEncoder,
+    get_nemo_transformer,
+)
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
@@ -48,18 +55,6 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging
-
-try:
-    from sacrebleu import corpus_bleu
-
-    from nemo.collections.nlp.modules.common import TokenClassifier
-    from nemo.collections.nlp.modules.common.lm_utils import get_transformer
-    from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
-
-    NLP_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    NLP_AVAILABLE = False
-    logging.warning("Could not import NeMo NLP collection which is required for speech translation model.")
 
 __all__ = ['EncDecTransfModelBPE']
 
@@ -123,10 +118,11 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         vocab_size = 8 * ceil(self.tokenizer.vocab_size / 8)
         transf_decoder_cfg_dict['vocab_size'] = vocab_size
         library = transf_decoder_cfg_dict.pop('library', 'nemo')
+        if library != 'nemo':
+            raise ValueError(f"Currently only 'nemo' library is supported for Transformer decoder. Got {library}")
         model_name = transf_decoder_cfg_dict.pop('model_name', None)
         pretrained = transf_decoder_cfg_dict.pop('pretrained', False)
-        self.transf_decoder = get_transformer(
-            library=library,
+        self.transf_decoder = get_nemo_transformer(
             model_name=model_name,
             pretrained=pretrained,
             config_dict=transf_decoder_cfg_dict,
@@ -141,6 +137,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             log_softmax=self.cfg.head.log_softmax,
             dropout=self.cfg.head.dropout,
             use_transformer_init=self.cfg.head.use_transformer_init,
+            num_layers=self.cfg.head.num_layers,
         )
         self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
         std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
@@ -586,8 +583,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                     _translations += [t for (t, g) in tr_and_gt[rank]]
                     _ground_truths += [g for (t, g) in tr_and_gt[rank]]
 
-                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
-                sb_score = sacre_bleu.score * self.world_size
+                sacre_bleu = SacreBLEUScore()(_translations, [[x] for x in _ground_truths]).item()
+                sb_score = sacre_bleu * self.world_size
 
                 wer_scores, wer_words = 0, 0
                 for h, r in zip(_translations, _ground_truths):
