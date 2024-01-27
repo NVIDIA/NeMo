@@ -34,6 +34,7 @@ except (ImportError, ModuleNotFoundError):
 class TETransformerLayerAutocast(AutocastTransformerLayer):
     def __init__(self, config, layer_number=1, hidden_dropout=None):
         self.config = config
+        self.is_first_microbatch = True
         precision = 'bf16' if config.bf16 else 16
 
         # TODO: Expose knobs instead of hardcoding
@@ -112,9 +113,10 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
             encoder_output=context,
             enc_dec_attn_mask=context_mask,
             inference_params=inference_params,
-            #is_first_microbatch,
+            is_first_microbatch=self.is_first_microbatch,
             #checkpoint_core_attention,
         )
+        self.is_first_microbatch = False
         context = None
 
         return hidden_states, context
