@@ -68,6 +68,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             [LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_]
         )
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
+        self.linear_qkv.return_layernorm_output_gathered = True  # need layernorm output gathered for lora SP
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
         """

@@ -111,6 +111,9 @@ class NLPAdapterModelMixin:
                             base_model_cfg=self.cfg,
                             model_parallel_config=self.model_parallel_config,
                         )
+                        # if peft_cfg.get("fp8", False) and module.config.fp8:
+                        #     module.get_adapter_module(AdapterName.LORA_KQV_ADAPTER).swap_TE_layers(module.config)
+
         elif isinstance(module, AdapterModuleMixin):
             if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                 module.add_adapter(
