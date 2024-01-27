@@ -328,24 +328,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
 
-                    # beam_hypotheses = (
-                    #     self.beam_search(
-                    #         encoder_hidden_states=enc_states,
-                    #         encoder_input_mask=enc_mask,
-                    #         return_beam_scores=False,
-                    #         decoder_input_ids=test_batch[2][:, : self.context_len_for_AR_decoding].to(device)
-                    #         if self.context_len_for_AR_decoding > 0
-                    #         else None,
-                    #     )
-                    #     .detach()
-                    #     .cpu()
-                    #     .numpy()
-                    # )
-                    #
-                    # beam_hypotheses = [
-                    #     self._strip_special_tokens(self.tokenizer.ids_to_text(hyp)) for hyp in beam_hypotheses
-                    # ]
-
                     beam_hypotheses = self.decoding.decode_predictions_tensor(
                         encoder_hidden_states=enc_states,
                         encoder_input_mask=enc_mask,
@@ -355,15 +337,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                         return_hypotheses=False,
                     )[0]
 
-                    print("Number of samples :", len(beam_hypotheses))
-
                     beam_hypotheses = [self.decoding.strip_special_tokens(text) for text in beam_hypotheses]
-
-                    # TODO: add support for return_hypotheses=True @AlexGrinch
-                    # if return_hypotheses:
-                    #     # dump log probs per file
-                    #     for idx in range(logits.shape[0]):
-                    #         current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
 
                     hypotheses += beam_hypotheses
 
