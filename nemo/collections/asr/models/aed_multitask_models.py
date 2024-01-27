@@ -23,7 +23,7 @@ from typing import Dict, List, Optional, Union
 import editdistance
 import torch
 import torch.distributed as dist
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
@@ -154,6 +154,15 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # Setup decoding objects
+        # Setup decoding objects
+        decoding_cfg = self.cfg.get('decoding', None)
+
+        # In case decoding config not found, use default config
+        if decoding_cfg is None:
+            decoding_cfg = OmegaConf.structured(MultiTaskDecodingConfig)
+            with open_dict(self.cfg):
+                self.cfg.decoding = decoding_cfg
+
         self.decoding = MultiTaskDecoding(
             decoding_cfg=self.cfg.decoding,
             transformer_decoder=self.transf_decoder,
@@ -208,9 +217,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     @torch.no_grad()
     def transcribe(
         self,
-        paths2audio_files: Union[List[str], str],
+        audio: Union[List[str], str],
         batch_size: int = 4,
-        logprobs: bool = False,
         return_hypotheses: bool = False,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
@@ -225,7 +233,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference.
                 Bigger will result in better throughput performance but would use more memory.
-            logprobs: (bool) pass True to get log probabilities instead of transcripts.
             return_hypotheses: (bool) Either return hypotheses or text
                 With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
@@ -235,26 +242,26 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
-        if paths2audio_files is None or len(paths2audio_files) == 0:
+        if audio is None or len(audio) == 0:
             return {}
 
         if return_hypotheses:
             logging.warning("return_hypotheses=True is currently not supported, returning text instead.")
 
-        if isinstance(paths2audio_files, list):
-            logging.info(f"Found paths2audio_files to be a list of {len(paths2audio_files)} items.")
+        if isinstance(audio, list):
+            logging.info(f"Found paths2audio_files to be a list of {len(audio)} items.")
             logging.info(f"Assuming each item in paths2audio_files is a path to audio file.")
             logging.info(f"Transcribing with default Canary setting of English without PnC.")
-        elif isinstance(paths2audio_files, str):
+        elif isinstance(audio, str):
             logging.info(f"Found paths2audio_files to be a string. Assuming it is a path to manifest file.")
-            assert os.path.exists(paths2audio_files), f"File {paths2audio_files} doesn't exist"
-            assert paths2audio_files.endswith('.json') or paths2audio_files.endswith(
+            assert os.path.exists(audio), f"File {audio} doesn't exist"
+            assert audio.endswith('.json') or audio.endswith(
                 '.jsonl'
-            ), f"File {paths2audio_files} must be a json or jsonl file"
+            ), f"File {audio} must be a json or jsonl file"
 
             # load json lines
-            manifest_path = paths2audio_files  # need to save this as we are overwriting paths2audio_files in nextline
-            paths2audio_files = manifest_utils.read_manifest(paths2audio_files)
+            manifest_path = audio  # need to save this as we are overwriting paths2audio_files in nextline
+            paths2audio_files = manifest_utils.read_manifest(audio)
 
         def _may_be_make_dict_and_fix_paths(json_items):
             out_json_items = []
@@ -278,13 +285,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 out_json_items.append(entry)
             return out_json_items
 
-        paths2audio_files = _may_be_make_dict_and_fix_paths(paths2audio_files)
-
-        if return_hypotheses and logprobs:
-            raise ValueError(
-                "Either `return_hypotheses` or `logprobs` can be True at any given time."
-                "Returned hypotheses will contain the logprobs."
-            )
+        paths2audio_files = _may_be_make_dict_and_fix_paths(audio)
 
         if num_workers is None:
             num_workers = min(batch_size, os.cpu_count() - 1)
@@ -357,7 +358,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                         if self.context_len_for_AR_decoding > 0
                         else None,
                         return_hypotheses=False,
-                    )
+                    )[0]
+
+                    print("Number of samples :", len(beam_hypotheses))
+
                     beam_hypotheses = [self.decoding.strip_special_tokens(text) for text in beam_hypotheses]
 
                     # TODO: add support for return_hypotheses=True @AlexGrinch
@@ -624,7 +628,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             if self.context_len_for_AR_decoding > 0
             else None,
             return_hypotheses=False,
-        )
+        )[0]
 
         transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
 

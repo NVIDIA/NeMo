@@ -112,7 +112,7 @@ class AbstractMultiTaskDecoding(ABC):
             elif self.cfg.strategy in ['beam']:
                 self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
 
-        if self.cfg.strategy == 'greedy' or 'greedy_batch':
+        if self.cfg.strategy == 'greedy' or self.cfg.strategy == 'greedy_batch':
 
             # self.decoding = None
             raise NotImplementedError("Greedy decoding is not implemented yet.")

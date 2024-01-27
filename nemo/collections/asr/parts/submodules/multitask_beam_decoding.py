@@ -42,11 +42,11 @@ def pack_hypotheses(
     hypotheses: List[Hypothesis], beam_hypotheses: torch.Tensor, scores: List[Optional[float]]
 ) -> List[Hypothesis]:
 
-    for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.Hypothesis
+    for idx, hyp in enumerate(hypotheses):  # type: Hypothesis
         if scores[idx] is not None:
             hyp.score = scores[idx]
 
-        hyp.y_sequence = torch.tensor(Hypothesis[idx], dtype=torch.long)
+        hyp.y_sequence = torch.tensor(beam_hypotheses[idx], dtype=torch.long)
 
         if hyp.dec_state is not None:
             hyp.dec_state = _states_to_device(hyp.dec_state)
@@ -83,6 +83,9 @@ class AEDBeamInfer(ABC):
         self.search_type = search_type
         self.return_best_hypothesis = return_best_hypothesis
         self.preserve_alignments = preserve_alignments
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
 
     @abstractmethod
     def forward(
@@ -187,7 +190,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer):  # TODO: Add (Typing) to class
             packed list containing batch number of sentences (Hypotheses).
         """
         with torch.inference_mode():
-            hypotheses = [Hypothesis(score=0.0, y_sequence=[], timestep=[])]
+            hypotheses = [Hypothesis(score=0.0, y_sequence=[], timestep=[]) for _ in range(encoder_hidden_states.shape[0])]
             beam_hypotheses = self.beam_search(
                 encoder_hidden_states=encoder_hidden_states,
                 encoder_input_mask=encoder_input_mask,
