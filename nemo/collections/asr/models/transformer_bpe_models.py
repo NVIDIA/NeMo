@@ -634,18 +634,20 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             A pytorch DataLoader for the given audio file(s).
         """
         batch_size = min(config['batch_size'], len(config['paths2audio_files']))
-        dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
-            'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': batch_size,
-            'trim_silence': False,
-            'shuffle': False,
-            'num_workers': min(batch_size, os.cpu_count() - 1),
-            'pin_memory': True,
-            'use_lhotse': True,
-            'lang_field': 'target_lang',
-        }
+        dl_config = DictConfig(
+            {
+                'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+                'sample_rate': self.preprocessor._sample_rate,
+                'batch_size': batch_size,
+                'trim_silence': False,
+                'shuffle': False,
+                'num_workers': min(batch_size, os.cpu_count() - 1),
+                'pin_memory': True,
+                'use_lhotse': True,
+                'lang_field': 'target_lang',
+            }
+        )
 
         dl_config = self._update_default_values(dl_config)
-        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        temporary_datalayer = self._setup_dataloader_from_config(config=dl_config)
         return temporary_datalayer
