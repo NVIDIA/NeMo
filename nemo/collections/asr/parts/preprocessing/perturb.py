@@ -446,6 +446,7 @@ class NoisePerturbation(Perturbation):
         shuffle_n (int): Shuffle parameter for shuffling buffered files from the tar files
         orig_sr (int): Original sampling rate of the noise files
         rng (int): Random seed. Default is None
+        repeat_noise (bool): Repeat noise to match the duration of data if True, otherwise, apply noise to a subsegment of data.
     """
 
     def __init__(
@@ -458,12 +459,14 @@ class NoisePerturbation(Perturbation):
         audio_tar_filepaths=None,
         shuffle_n=100,
         orig_sr=16000,
+        repeat_noise: bool = False,
     ):
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
         self._audiodataset = None
         self._tarred_audio = False
         self._orig_sr = orig_sr
         self._data_iterator = None
+        self._repeat_noise = repeat_noise
 
         if audio_tar_filepaths:
             self._tarred_audio = True
@@ -525,20 +528,30 @@ class NoisePerturbation(Perturbation):
             noise_gain_db = data_rms - noise.rms_db - snr_db
         noise_gain_db = min(noise_gain_db, self._max_gain_db)
 
-        # calculate noise segment to use
-        start_time = random.uniform(0.0, noise.duration - data.duration)
-        if noise.duration > (start_time + data.duration):
-            noise.subsegment(start_time=start_time, end_time=start_time + data.duration)
-
-        # adjust gain for snr purposes and superimpose
-        noise.gain_db(noise_gain_db)
-
-        if noise._samples.shape[0] < data._samples.shape[0]:
-            noise_idx = random.randint(0, data._samples.shape[0] - noise._samples.shape[0])
-            data._samples[noise_idx : noise_idx + noise._samples.shape[0]] += noise._samples
-
-        else:
+        # add noise to data
+        noise_length = noise._samples.shape[0]
+        data_length = data._samples.shape[0]
+        # case 1: noise duration is longer than data's, then apply subsegment of noise to data.
+        if noise_length >= data_length:
+            start_index = random.randint(0, noise_length - data_length)
+            end_index = start_index + data_length
+            noise._samples = noise._samples[start_index:end_index]
+            # adjust gain for snr purposes and superimpose
+            noise.gain_db(noise_gain_db)
             data._samples += noise._samples
+        # case 2: noise duration is shorter than data's,
+        else:
+            # adjust gain for snr purposes and superimpose
+            noise.gain_db(noise_gain_db)
+            # case 2.1: repeat noise until reaching the full duration of data's, and apply it to data.
+            if self._repeat_noise:
+                noise._samples = np.tile(noise._samples, data_length // noise_length + 1)[:data_length]
+                data._samples += noise._samples
+            # case 2.2: apply noise to a subsegment of data.
+            else:
+                start_index = random.randint(0, data_length - noise_length)
+                end_index = noise_length
+                data._samples[start_index:end_index] += noise._samples
 
     def perturb_with_foreground_noise(self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1, ref_mic=0):
         """
