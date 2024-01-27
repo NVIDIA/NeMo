@@ -25,6 +25,7 @@ import torch
 import torch.distributed as dist
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from torchmetrics.text import SacreBLEUScore
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
@@ -54,14 +55,6 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging, model_utils
-
-try:
-    from sacrebleu import corpus_bleu
-
-    NLP_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    NLP_AVAILABLE = False
-    logging.warning("Could not import NeMo NLP collection which is required for speech translation model.")
 
 __all__ = ['EncDecMultiTaskModel']
 
@@ -646,8 +639,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                     _translations += [t for (t, g) in tr_and_gt[rank]]
                     _ground_truths += [g for (t, g) in tr_and_gt[rank]]
 
-                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
-                sb_score = sacre_bleu.score * self.world_size
+                sacre_bleu = SacreBLEUScore()(_translations, [[x] for x in _ground_truths]).item()
+                sb_score = sacre_bleu * self.world_size
 
                 wer_scores, wer_words = 0, 0
                 for h, r in zip(_translations, _ground_truths):
