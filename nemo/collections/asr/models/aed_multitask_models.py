@@ -190,21 +190,36 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         self.val_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
 
-    def change_decoding_strategy(self, cfg: DictConfig):
-        logging.info(f"Changing beam search decoding to {cfg}")
-        # Beam Search decoding
-        # self.beam_search = BeamSearchSequenceGenerator(
-        #     embedding=self.transf_decoder.embedding,
-        #     decoder=self.transf_decoder.decoder,
-        #     log_softmax=self.log_softmax,
-        #     max_sequence_length=self.transf_decoder.max_sequence_length,
-        #     beam_size=cfg.beam_size,
-        #     bos=self.tokenizer.bos_id,
-        #     pad=self.tokenizer.pad_id,
-        #     eos=self.tokenizer.eos_id,
-        #     len_pen=cfg.len_pen,
-        #     max_delta_length=cfg.max_generation_delta,
-        # )
+    def change_decoding_strategy(self, decoding_cfg: DictConfig):
+        """
+        Changes decoding strategy used during CTC decoding process.
+
+        Args:
+            decoding_cfg: A config for the decoder, which is optional. If the decoding type
+                needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
+        """
+        if decoding_cfg is None:
+            # Assume same decoding config as before
+            logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
+            decoding_cfg = self.cfg.decoding
+
+        # Assert the decoding config with all hyper parameters
+        decoding_cls = OmegaConf.structured(MultiTaskDecodingConfig)
+        decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+        decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
+        self.decoding = MultiTaskDecoding(
+            decoding_cfg=decoding_cfg,
+            transformer_decoder=self.transf_decoder,
+            log_softmax_module=self.log_softmax,
+            tokenizer=self.tokenizer,
+        )
+
+        # Update config
+        with open_dict(self.cfg.decoding):
+            self.cfg.decoding = decoding_cfg
+
+        logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
     @torch.no_grad()
     def transcribe(
