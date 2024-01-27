@@ -645,6 +645,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 'pin_memory': True,
                 'use_lhotse': True,
                 'lang_field': 'target_lang',
+                'text_field': 'answer',
+                'use_bucketing': False,
+                'max_cuts': batch_size,
+                'drop_last': False,
             }
         )
 
