@@ -1213,7 +1213,7 @@ class Model(Typing, Serialization, FileIO):
         repo_id: str,
         *,
         pack_nemo_file: bool = True,
-        model_card: Optional[ModelCard] = None,
+        model_card: Optional[ModelCard | object | str] = None,
         commit_message: str = "Push model using huggingface_hub.",
         private: bool = False,
         api_endpoint: Optional[str] = None,
@@ -1237,7 +1237,10 @@ class Model(Typing, Serialization, FileIO):
                 configuration into a single `.nemo` file. If set to false, uploads the contents of the directory
                 containing the model checkpoint and configuration plus additional artifacts.
             model_card (`ModelCard`, *optional*): Model card to upload with the model. If None, will use the model
-                card template provided by the class itself.
+                card template provided by the class itself via `generate_model_card()`. Any object that implements
+                str(obj) can be passed here. Two keyword replacements are passed to `generate_model_card()`:
+                `model_name` and `repo_id`. If the model card generates a string, and it contains `{model_name}` or
+                `{repo_id}`, they will be replaced with the actual values.
             commit_message (`str`, *optional*):
                 Message to commit while pushing.
             private (`bool`, *optional*, defaults to `False`):
