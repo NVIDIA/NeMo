@@ -15,10 +15,10 @@ transformer-based models.
 ==================== ===== ======== ========= ====== ==
 \                    GPT 3 Nemotron LLaMa 1/2 Falcon T5
 ==================== ===== ======== ========= ====== ==
-Adapters (Canonical) ✅    ✅    ✅        ✅       ✅
-LoRA                 ✅    ✅    ✅        ✅       ✅
-IA3                  ✅    ✅    ✅        ✅       ✅
-P-Tuning             ✅    ✅    ✅        ✅       ✅
+Adapters (Canonical)  ✅    ✅      ✅    ✅   ✅
+LoRA                  ✅    ✅      ✅    ✅   ✅
+IA3                   ✅    ✅      ✅    ✅   ✅
+P-Tuning              ✅    ✅      ✅    ✅   ✅
 ==================== ===== ======== ========= ====== ==
 
 Learn more about PEFT in NeMo with the :ref:`peftquickstart` which provides an overview on how PEFT works
