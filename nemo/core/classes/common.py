@@ -14,12 +14,12 @@
 
 
 """Interfaces common to all Neural Modules and Models."""
-import os
 import copy
 import hashlib
 import inspect
-import traceback
+import os
 import shutil
+import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -31,8 +31,9 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 import hydra
 import torch
 import wrapt
-from huggingface_hub import HfApi, ModelFilter, ModelCard, ModelCardData
-from huggingface_hub import hf_hub_download, snapshot_download, get_token as get_hf_token
+from huggingface_hub import HfApi, ModelCard, ModelCardData, ModelFilter
+from huggingface_hub import get_token as get_hf_token
+from huggingface_hub import hf_hub_download, snapshot_download
 from huggingface_hub.hf_api import ModelInfo
 from huggingface_hub.utils import SoftTemporaryDirectory
 from omegaconf import DictConfig, OmegaConf
@@ -244,7 +245,6 @@ It should ideally be in a tabular format (you can use the following website to m
 
 [1] [NVIDIA NeMo Toolkit](https://github.com/NVIDIA/NeMo)
 """
-
 
 
 def is_typecheck_enabled():
@@ -967,12 +967,7 @@ class Model(Typing, Serialization, FileIO):
                 limit = mfilter.limit_results
 
             results = api.list_models(
-                filter=mfilter,
-                token=hf_token,
-                sort="lastModified",
-                direction=-1,
-                cardData=cardData,
-                limit=limit,
+                filter=mfilter, token=hf_token, sort="lastModified", direction=-1, cardData=cardData, limit=limit,
             )  # type: Iterable[ModelInfo]
 
             for result in results:
@@ -1204,7 +1199,7 @@ class Model(Typing, Serialization, FileIO):
                 cache_dir=save_path,
                 local_dir=save_path,
                 local_dir_use_symlinks=False,
-                token=hf_token
+                token=hf_token,
             )
 
         # Cannot pre-resolve the specific class without double instantiation (first for config, second for model params)
@@ -1213,20 +1208,21 @@ class Model(Typing, Serialization, FileIO):
 
         return class_, path
 
-    def push_to_hf_hub(self,
-           repo_id: str,
-           *,
-           pack_nemo_file: bool = True,
-           model_card: Optional[ModelCard] = None,
-           commit_message: str = "Push model using huggingface_hub.",
-           private: bool = False,
-           api_endpoint: Optional[str] = None,
-           token: Optional[str] = None,
-           branch: Optional[str] = None,
-           allow_patterns: Optional[Union[List[str], str]] = None,
-           ignore_patterns: Optional[Union[List[str], str]] = None,
-           delete_patterns: Optional[Union[List[str], str]] = None,
-       ):
+    def push_to_hf_hub(
+        self,
+        repo_id: str,
+        *,
+        pack_nemo_file: bool = True,
+        model_card: Optional[ModelCard] = None,
+        commit_message: str = "Push model using huggingface_hub.",
+        private: bool = False,
+        api_endpoint: Optional[str] = None,
+        token: Optional[str] = None,
+        branch: Optional[str] = None,
+        allow_patterns: Optional[Union[List[str], str]] = None,
+        ignore_patterns: Optional[Union[List[str], str]] = None,
+        delete_patterns: Optional[Union[List[str], str]] = None,
+    ):
         """
         Upload model checkpoint to the Hub.
 
@@ -1264,9 +1260,7 @@ class Model(Typing, Serialization, FileIO):
             The url of the commit of your model in the given repository.
         """
         if "/" not in repo_id or len(repo_id.split("/")) != 2:
-            raise ValueError(
-                "Invalid repo_id provided. Please provide a repo_id of the form `username/repo-name`."
-            )
+            raise ValueError("Invalid repo_id provided. Please provide a repo_id of the form `username/repo-name`.")
 
         domain_name, model_name = repo_id.split("/")
 
@@ -1285,7 +1279,8 @@ class Model(Typing, Serialization, FileIO):
             # Get SaveRestoreConnector from subclass implementation
             if not hasattr(self, '_save_restore_connector'):
                 raise NotImplementedError(
-                    "Model must implement a `_save_restore_connector` property to push to the HuggingFace Hub.")
+                    "Model must implement a `_save_restore_connector` property to push to the HuggingFace Hub."
+                )
 
             # We want to save a NeMo file, but not pack its contents into a tarfile by default
             save_restore_connector = self._save_restore_connector
@@ -1322,7 +1317,9 @@ class Model(Typing, Serialization, FileIO):
                 delete_patterns=delete_patterns,
             )
 
-    def generate_model_card(self, type: str = "hf", template: str = None, template_kwargs: Optional[Dict[str, str]] = None) -> object:
+    def generate_model_card(
+        self, type: str = "hf", template: str = None, template_kwargs: Optional[Dict[str, str]] = None
+    ) -> object:
         """
         Generates a ModelCard for the current model. This method is called when pushing the model to the Hub.
 
@@ -1338,10 +1335,7 @@ class Model(Typing, Serialization, FileIO):
 
         if type == "hf":
             card_data = ModelCardData(
-                library_name='nemo',
-                tags=['pytorch', 'NeMo'],
-                license='cc-by-4.0',
-                ignore_metadata_errors=True,
+                library_name='nemo', tags=['pytorch', 'NeMo'], license='cc-by-4.0', ignore_metadata_errors=True,
             )
 
             if 'card_data' not in template_kwargs:

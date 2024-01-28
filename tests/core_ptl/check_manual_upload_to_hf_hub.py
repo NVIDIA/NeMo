@@ -13,12 +13,11 @@
 # limitations under the License.
 import shutil
 
+from huggingface_hub import HfApi
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import ModelPT
-from nemo.utils import logging
-from huggingface_hub import HfApi
-from nemo.utils import AppState
+from nemo.utils import AppState, logging
 
 
 @rank_zero_only
