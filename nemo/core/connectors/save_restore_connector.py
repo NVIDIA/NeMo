@@ -610,8 +610,8 @@ class SaveRestoreConnector:
 
     @property
     def pack_nemo_file(self) -> bool:
-        return self._save_nemo_file
+        return self._pack_nemo_file
 
     @pack_nemo_file.setter
     def pack_nemo_file(self, save_nemo_file: bool):
-        self._save_nemo_file = save_nemo_file
+        self._pack_nemo_file = save_nemo_file
