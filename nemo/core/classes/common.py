@@ -14,10 +14,12 @@
 
 
 """Interfaces common to all Neural Modules and Models."""
+import os
 import copy
 import hashlib
 import inspect
 import traceback
+import shutil
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -30,7 +32,7 @@ import hydra
 import torch
 import wrapt
 from huggingface_hub import HfApi, ModelFilter, ModelCard, ModelCardData
-from huggingface_hub import hf_hub_download, get_token as get_hf_token
+from huggingface_hub import hf_hub_download, snapshot_download, get_token as get_hf_token
 from huggingface_hub.hf_api import ModelInfo
 from huggingface_hub.utils import SoftTemporaryDirectory
 from omegaconf import DictConfig, OmegaConf
@@ -84,6 +86,8 @@ pip install nemo_toolkit['all']
 The model is available for use in the NeMo toolkit [3], and can be used as a pre-trained checkpoint for inference or for fine-tuning on another dataset.
 
 ### Automatically instantiate the model
+
+**NOTE**: Please update the model class below to match the class of the model being uploaded.
 
 ```python
 import nemo.core import ModelPT
@@ -1050,6 +1054,12 @@ class Model(Typing, Serialization, FileIO):
             class_, nemo_model_file_in_cache = cls._get_hf_hub_pretrained_model_info(
                 model_name=model_name, refresh_cache=refresh_cache
             )
+
+            # Check if nemo_model_file_in_cache is a directory
+            if os.path.isdir(nemo_model_file_in_cache):
+                # Update SaveRestoreConnector with the flag to read from an unpacked NeMo folder
+                save_restore_connector.model_extracted_dir = nemo_model_file_in_cache
+
         else:
             # NGC source
             class_, nemo_model_file_in_cache = cls._get_ngc_pretrained_model_info(
@@ -1150,15 +1160,52 @@ class Model(Typing, Serialization, FileIO):
         # Check if api token exists, use if it does
         hf_token = get_hf_token()
 
-        # Try to load the model from the Huggingface Hub
-        path = hf_hub_download(
-            repo_id=model_name,
-            filename=resolved_model_filename,
-            library_name="nemo",
-            library_version=nemo.__version__,
-            force_download=refresh_cache,
-            token=hf_token,
-        )
+        # First check if .nemo file exists in HF
+        api = HfApi(token=hf_token)
+
+        # Check if model exists in HF
+        nemo_file_exists = api.file_exists(repo_id=model_name, filename=resolved_model_filename, repo_type="model")
+
+        if nemo_file_exists:
+            # Try to load the model from the Huggingface Hub
+            path = hf_hub_download(
+                repo_id=model_name,
+                filename=resolved_model_filename,
+                library_name='nemo',
+                library_version=nemo.__version__,
+                force_download=refresh_cache,
+                token=hf_token,
+            )
+        else:
+            repo_info = api.repo_info(repo_id=model_name, token=hf_token)
+
+            # Download whole HF repo and load entire directory as nemo directory
+            cache_dir = Path.joinpath(resolve_cache_dir(), "hf_hub_cache", f'{model_name}')
+            # If either description and location in the cloud changes, this will force re-download
+            cache_subfolder = repo_info.sha
+            # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
+            save_path = os.path.join(cache_dir, cache_subfolder)
+
+            if os.path.exists(cache_dir):
+                num_files_in_dir = len(os.listdir(cache_dir))
+                print("Found {} files in cache directory {}".format(num_files_in_dir, cache_dir))
+                print(f"Deleting old cache directory for model `{model_name}` in order to prevent duplicates...")
+                shutil.rmtree(cache_dir, ignore_errors=True)
+
+            if not os.path.exists(save_path):
+                logging.info(f"Downloading {model_name} from HuggingFace Hub to path: {save_path}")
+                os.makedirs(save_path, exist_ok=True)
+
+            path = snapshot_download(
+                repo_id=model_name,
+                library_name='nemo',
+                library_version=nemo.__version__,
+                force_download=refresh_cache,
+                cache_dir=save_path,
+                local_dir=save_path,
+                local_dir_use_symlinks=False,
+                token=hf_token
+            )
 
         # Cannot pre-resolve the specific class without double instantiation (first for config, second for model params)
         # Default to current class, and perform basic class path resolution (handled via restore_from() + target class)

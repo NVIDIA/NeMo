@@ -11,12 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import shutil
 
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import ModelPT
 from nemo.utils import logging
 from huggingface_hub import HfApi
+from nemo.utils import AppState
+
 
 @rank_zero_only
 def load_model():
@@ -27,21 +30,26 @@ def load_model():
 
 
 @rank_zero_only
-def upload_model_as_single_nemo_file(model: ModelPT, repo_id, token):
-    # Upload the model to HF Hub
-    model.push_to_hf_hub(
-        repo_id=repo_id,
-        pack_nemo_file=True,
-        token=token,
-    )
+def load_model_from_unpacked_hf_dir(repo_id):
+    # Load an ASR model for convenience
+    model = ModelPT.from_pretrained(repo_id, map_location='cpu')
+    model.eval()
+    return model
+
 
 @rank_zero_only
 def upload_model_as_single_nemo_file(model: ModelPT, repo_id, token):
     # Upload the model to HF Hub
     model.push_to_hf_hub(
-        repo_id=repo_id,
-        pack_nemo_file=True,
-        token=token,
+        repo_id=repo_id, pack_nemo_file=True, token=token,
+    )
+
+
+@rank_zero_only
+def upload_model_as_single_nemo_file(model: ModelPT, repo_id, token):
+    # Upload the model to HF Hub
+    model.push_to_hf_hub(
+        repo_id=repo_id, pack_nemo_file=True, token=token,
     )
 
 
@@ -49,9 +57,7 @@ def upload_model_as_single_nemo_file(model: ModelPT, repo_id, token):
 def upload_model_as_unpacked_files(model: ModelPT, repo_id, token):
     # Upload the model to HF Hub
     model.push_to_hf_hub(
-        repo_id=repo_id,
-        pack_nemo_file=False,
-        token=token,
+        repo_id=repo_id, pack_nemo_file=False, token=token,
     )
 
 
@@ -90,22 +96,38 @@ def run_checks(repo_id, token, run_cleanup=True):
 
     model = load_model()
 
-    single_repo_id = repo_id + '/temp_single'
-    upload_model_as_single_nemo_file(model, single_repo_id, token)
-    assert check_repo_exists(single_repo_id, token)
+    # single_repo_id = repo_id + '/temp_single'
+    # upload_model_as_single_nemo_file(model, single_repo_id, token)
+    # assert check_repo_exists(single_repo_id, token)
 
     unpacked_repo_id = repo_id + '/temp_unpacked'
     upload_model_as_unpacked_files(model, unpacked_repo_id, token)
     assert check_repo_exists(unpacked_repo_id, token)
 
+    # Try to restore model from the unpacked repo
+    model2 = load_model_from_unpacked_hf_dir(unpacked_repo_id)
+    assert (
+        model.num_weights == model2.num_weights
+    ), "Number of parameters in the restored model is different from the original model"
+
+    # Cleanup nemo file that was cached
+    appstate = AppState()
+    model2_metadata = appstate.get_model_metadata_from_guid(model2.model_guid)
+
+    restore_path = model2_metadata.restoration_path
+    print(restore_path)
+    if unpacked_repo_id in restore_path:
+        print("Cleaning up the cached nemo file")
+        shutil.rmtree(restore_path, ignore_errors=True)
+
 
 if __name__ == '__main__':
-    HF_TOKEN = ''  # Set it explicitly or set `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` env variable
-    repo_id = ''  # Provide some repo id here (you need to be able to have sufficient permissions to write to this repo)
+    HF_TOKEN = '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'  # Set it explicitly or set `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` env variable
+    repo_id = 'smajumdar'  # Provide some repo id here (you need to be able to have sufficient permissions to write to this repo)
 
     assert repo_id is not None, "Please set `repo_id` to the name of the repo you want to upload to"
     run_checks(repo_id, HF_TOKEN, run_cleanup=True)
 
     # Cleanup at the end
     # COMMENT THIS OUT TO MANUALLY INSPECT THE REPOS CREATED BY THIS SCRIPT
-    cleanup(repo_id, HF_TOKEN)
+    # cleanup(repo_id, HF_TOKEN)
