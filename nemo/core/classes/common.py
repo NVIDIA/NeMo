@@ -14,6 +14,7 @@
 
 
 """Interfaces common to all Neural Modules and Models."""
+import copy
 import hashlib
 import inspect
 import traceback
@@ -28,8 +29,10 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 import hydra
 import torch
 import wrapt
-from huggingface_hub import HfApi, HfFolder, ModelFilter, hf_hub_download
+from huggingface_hub import HfApi, ModelFilter, ModelCard, ModelCardData
+from huggingface_hub import hf_hub_download, get_token as get_hf_token
 from huggingface_hub.hf_api import ModelInfo
+from huggingface_hub.utils import SoftTemporaryDirectory
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
@@ -46,6 +49,198 @@ _TYPECHECK_ENABLED = True
 _TYPECHECK_SEMANTIC_CHECK_ENABLED = True
 # TODO @blisc: Remove _HAS_HYDRA
 _HAS_HYDRA = True
+
+
+NEMO_DEFAULT_MODEL_CARD_TEMPLATE = """---
+{card_data}
+---
+
+# {model_name}
+
+<style>
+img {
+ display: inline;
+}
+</style>
+
+[![Model architecture](https://img.shields.io/badge/Model_Arch-PUT-YOUR-ARCHITECTURE-HERE-lightgrey#model-badge)](#model-architecture)
+| [![Model size](https://img.shields.io/badge/Params-PUT-YOUR-MODEL-SIZE-HERE-lightgrey#model-badge)](#model-architecture)
+| [![Language](https://img.shields.io/badge/Language-PUT-YOUR-LANGUAGE-HERE-lightgrey#model-badge)](#datasets)
+
+**Put a short model description here.**
+
+See the [model architecture](#model-architecture) section and [NeMo documentation](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/index.html) for complete architecture details.
+
+
+## NVIDIA NeMo: Training
+
+To train, fine-tune or play with the model you will need to install [NVIDIA NeMo](https://github.com/NVIDIA/NeMo). We recommend you install it after you've installed latest Pytorch version.
+```
+pip install nemo_toolkit['all']
+``` 
+
+## How to Use this Model
+
+The model is available for use in the NeMo toolkit [3], and can be used as a pre-trained checkpoint for inference or for fine-tuning on another dataset.
+
+### Automatically instantiate the model
+
+```python
+import nemo.core import ModelPT
+model = ModelPT.from_pretrained("{repo_id}")
+```
+
+### NOTE
+
+    Add some information about how to use the model here. An example is provided for ASR inference below.
+
+    ### Transcribing using Python
+    First, let's get a sample
+    ```
+    wget https://dldata-public.s3.us-east-2.amazonaws.com/2086-149220-0033.wav
+    ```
+    Then simply do:
+    ```
+    asr_model.transcribe(['2086-149220-0033.wav'])
+    ```
+
+    ### Transcribing many audio files
+
+    ```shell
+    python [NEMO_GIT_FOLDER]/examples/asr/transcribe_speech.py \
+     pretrained_name="{repo_id}" \
+     audio_dir=""
+    ```
+
+### Input
+
+**Add some information about what are the inputs to this model**
+
+### Output
+
+**Add some information about what are the outputs of this model**
+
+## Model Architecture
+
+**Add information here discussing architectural details of the model or any comments to users about the model.**
+
+## Training
+
+**Add information here about how the model was trained. It should be as detailed as possible, potentially including the the link to the script used to train as well as the base config used to train the model. If extraneous scripts are used to prepare the components of the model, please include them here.**
+
+### NOTE
+
+    An example is provided below for ASR
+
+    The NeMo toolkit [3] was used for training the models for over several hundred epochs. These model are trained with this [example script](https://github.com/NVIDIA/NeMo/blob/main/examples/asr/asr_transducer/speech_to_text_rnnt_bpe.py) and this [base config](https://github.com/NVIDIA/NeMo/blob/main/examples/asr/conf/fastconformer/fast-conformer_transducer_bpe.yaml).
+
+    The tokenizers for these models were built using the text transcripts of the train set with this [script](https://github.com/NVIDIA/NeMo/blob/main/scripts/tokenizers/process_asr_text_tokenizer.py).
+
+
+### Datasets
+
+**Try to provide as detailed a list of datasets as possible. If possible, provide links to the datasets on HF by adding it to the manifest section at the top of the README (marked by ---).**
+
+### NOTE
+
+    An example for the manifest section is provided below for ASR datasets
+
+    datasets:
+    - librispeech_asr
+    - fisher_corpus
+    - Switchboard-1
+    - WSJ-0
+    - WSJ-1
+    - National-Singapore-Corpus-Part-1
+    - National-Singapore-Corpus-Part-6
+    - vctk
+    - voxpopuli
+    - europarl
+    - multilingual_librispeech
+    - mozilla-foundation/common_voice_8_0
+    - MLCommons/peoples_speech
+
+    The corresponding text in this section for those datasets is stated below -
+
+    The model was trained on 64K hours of English speech collected and prepared by NVIDIA NeMo and Suno teams.
+
+    The training dataset consists of private subset with 40K hours of English speech plus 24K hours from the following public datasets:
+
+    - Librispeech 960 hours of English speech
+    - Fisher Corpus
+    - Switchboard-1 Dataset
+    - WSJ-0 and WSJ-1
+    - National Speech Corpus (Part 1, Part 6)
+    - VCTK
+    - VoxPopuli (EN)
+    - Europarl-ASR (EN)
+    - Multilingual Librispeech (MLS EN) - 2,000 hour subset
+    - Mozilla Common Voice (v7.0)
+    - People's Speech  - 12,000 hour subset
+
+
+## Performance
+
+**Add information here about the performance of the model. Discuss what is the metric that is being used to evaluate the model and if there are external links explaning the custom metric, please link to it.
+
+### NOTE
+
+    An example is provided below for ASR metrics list that can be added to the top of the README
+    
+    model-index:
+    - name: PUT_MODEL_NAME
+      results:
+      - task:
+          name: Automatic Speech Recognition
+          type: automatic-speech-recognition
+        dataset:
+          name: AMI (Meetings test)
+          type: edinburghcstr/ami
+          config: ihm
+          split: test
+          args:
+            language: en
+        metrics:
+        - name: Test WER
+          type: wer
+          value: 17.10
+      - task:
+          name: Automatic Speech Recognition
+          type: automatic-speech-recognition
+        dataset:
+          name: Earnings-22
+          type: revdotcom/earnings22
+          split: test
+          args:
+            language: en
+        metrics:
+        - name: Test WER
+          type: wer
+          value: 14.11
+
+Provide any caveats about the results presented in the top of the discussion so that nuance is not lost. 
+
+It should ideally be in a tabular format (you can use the following website to make your tables in markdown format - https://www.tablesgenerator.com/markdown_tables)**
+
+## Limitations
+
+**Discuss any practical limitations to the model when being used in real world cases. They can also be legal disclaimers, or discussion regarding the safety of the model (particularly in the case of LLMs).**
+
+
+### Note
+
+    An example is provided below 
+
+    Since this model was trained on publicly available speech datasets, the performance of this model might degrade for speech which includes technical terms, or vernacular that the model has not been trained on. The model might also perform worse for accented speech.
+
+
+## References
+
+**Provide appropriate references in the markdown link format below. Please order them numerically.**
+
+[1] [NVIDIA NeMo Toolkit](https://github.com/NVIDIA/NeMo)
+"""
+
 
 
 def is_typecheck_enabled():
@@ -749,7 +944,7 @@ class Model(Typing, Serialization, FileIO):
                 mfilter.library.append('nemo')
 
         # Check if api token exists, use if it does
-        is_token_available = HfFolder.get_token() is not None
+        hf_token = get_hf_token()
 
         # Search for all valid models after filtering
         api = HfApi()
@@ -769,14 +964,15 @@ class Model(Typing, Serialization, FileIO):
 
             results = api.list_models(
                 filter=mfilter,
-                use_auth_token=is_token_available,
+                token=hf_token,
                 sort="lastModified",
                 direction=-1,
                 cardData=cardData,
                 limit=limit,
-            )  # type: List[ModelInfo]
+            )  # type: Iterable[ModelInfo]
 
-            all_results.extend(results)
+            for result in results:
+                all_results.append(result)
 
         return all_results
 
@@ -952,7 +1148,7 @@ class Model(Typing, Serialization, FileIO):
         resolved_model_filename = model_name.split("/")[-1] + '.nemo'
 
         # Check if api token exists, use if it does
-        is_token_available = HfFolder.get_token() is not None
+        hf_token = get_hf_token()
 
         # Try to load the model from the Huggingface Hub
         path = hf_hub_download(
@@ -961,7 +1157,7 @@ class Model(Typing, Serialization, FileIO):
             library_name="nemo",
             library_version=nemo.__version__,
             force_download=refresh_cache,
-            use_auth_token=is_token_available,
+            token=hf_token,
         )
 
         # Cannot pre-resolve the specific class without double instantiation (first for config, second for model params)
@@ -969,6 +1165,151 @@ class Model(Typing, Serialization, FileIO):
         class_ = cls
 
         return class_, path
+
+    def push_to_hf_hub(self,
+           repo_id: str,
+           *,
+           pack_nemo_file: bool = True,
+           model_card: Optional[ModelCard] = None,
+           commit_message: str = "Push model using huggingface_hub.",
+           private: bool = False,
+           api_endpoint: Optional[str] = None,
+           token: Optional[str] = None,
+           branch: Optional[str] = None,
+           allow_patterns: Optional[Union[List[str], str]] = None,
+           ignore_patterns: Optional[Union[List[str], str]] = None,
+           delete_patterns: Optional[Union[List[str], str]] = None,
+       ):
+        """
+        Upload model checkpoint to the Hub.
+
+        Use `allow_patterns` and `ignore_patterns` to precisely filter which files should be pushed to the hub. Use
+        `delete_patterns` to delete existing remote files in the same commit. See [`upload_folder`] reference for more
+        details.
+
+        Args:
+            repo_id (`str`):
+                ID of the repository to push to (example: `"username/my-model"`).
+            pack_nemo_file (`bool`, *optional*, defaults to `True`): Whether to pack the model checkpoint and
+                configuration into a single `.nemo` file. If set to false, uploads the contents of the directory
+                containing the model checkpoint and configuration plus additional artifacts.
+            model_card (`ModelCard`, *optional*): Model card to upload with the model. If None, will use the model
+                card template provided by the class itself.
+            commit_message (`str`, *optional*):
+                Message to commit while pushing.
+            private (`bool`, *optional*, defaults to `False`):
+                Whether the repository created should be private.
+            api_endpoint (`str`, *optional*):
+                The API endpoint to use when pushing the model to the hub.
+            token (`str`, *optional*):
+                The token to use as HTTP bearer authorization for remote files. By default, it will use the token
+                cached when running `huggingface-cli login`.
+            branch (`str`, *optional*):
+                The git branch on which to push the model. This defaults to `"main"`.
+            allow_patterns (`List[str]` or `str`, *optional*):
+                If provided, only files matching at least one pattern are pushed.
+            ignore_patterns (`List[str]` or `str`, *optional*):
+                If provided, files matching any of the patterns are not pushed.
+            delete_patterns (`List[str]` or `str`, *optional*):
+                If provided, remote files matching any of the patterns will be deleted from the repo.
+
+        Returns:
+            The url of the commit of your model in the given repository.
+        """
+        if "/" not in repo_id or len(repo_id.split("/")) != 2:
+            raise ValueError(
+                "Invalid repo_id provided. Please provide a repo_id of the form `username/repo-name`."
+            )
+
+        domain_name, model_name = repo_id.split("/")
+
+        if token is None:
+            token = get_hf_token()
+
+        api = HfApi(endpoint=api_endpoint, token=token)
+        repo_id = api.create_repo(repo_id=repo_id, private=private, exist_ok=True).repo_id
+
+        # Push the files to the repo in a single commit
+        with SoftTemporaryDirectory() as tmp:
+            saved_path = Path(tmp) / repo_id
+            saved_path.mkdir(parents=True, exist_ok=True)
+
+            # Save nemo file in temp dir
+            # Get SaveRestoreConnector from subclass implementation
+            if not hasattr(self, '_save_restore_connector'):
+                raise NotImplementedError(
+                    "Model must implement a `_save_restore_connector` property to push to the HuggingFace Hub.")
+
+            # We want to save a NeMo file, but not pack its contents into a tarfile by default
+            save_restore_connector = self._save_restore_connector
+            save_restore_connector.pack_nemo_file = pack_nemo_file
+
+            nemo_filepath = saved_path / f"{model_name}.nemo"
+            self.save_to(nemo_filepath)
+
+            # Save model card in temp dir
+            if model_card is None:
+                card_model_name = model_name.replace("_", " ").split(" ")
+                card_model_name = " ".join([word.capitalize() for word in card_model_name])
+                template_kwargs = {
+                    'model_name': card_model_name,
+                    'repo_id': repo_id,
+                }
+                model_card = self.generate_model_card(template_kwargs=template_kwargs)
+
+            # Convert model card to str
+            model_card = str(model_card)
+
+            # Write model card to temp dir
+            model_card_filepath = saved_path / f"README.md"
+            model_card_filepath.write_text(str(model_card), encoding='utf-8', errors='ignore')
+
+            return api.upload_folder(
+                repo_id=repo_id,
+                repo_type="model",
+                folder_path=saved_path,
+                commit_message=commit_message,
+                revision=branch,
+                allow_patterns=allow_patterns,
+                ignore_patterns=ignore_patterns,
+                delete_patterns=delete_patterns,
+            )
+
+    def generate_model_card(self, type: str = "hf", template: str = None, template_kwargs: Optional[Dict[str, str]] = None) -> object:
+        """
+        Generates a ModelCard for the current model. This method is called when pushing the model to the Hub.
+
+        Returns:
+            An object that can be represented as a str representation of the model card, usually in Markdown format.
+        """
+        if template is None:
+            template = copy.deepcopy(NEMO_DEFAULT_MODEL_CARD_TEMPLATE)
+
+        # Populate template kwargs with common model card fields
+        if template_kwargs is None:
+            template_kwargs = {}
+
+        if type == "hf":
+            card_data = ModelCardData(
+                library_name='nemo',
+                tags=['pytorch', 'NeMo'],
+                license='cc-by-4.0',
+                ignore_metadata_errors=True,
+            )
+
+            if 'card_data' not in template_kwargs:
+                template_kwargs['card_data'] = card_data.to_yaml()
+
+            # Update template with kwargs
+            # We need to do a manual replace because not all keys may be provided in the kwargs
+            for key, val in template_kwargs.items():
+                template = template.replace("{" + key.strip() + "}", val)
+
+            hf_model_card = ModelCard(template)
+            return hf_model_card
+
+        else:
+            raise ValueError(f"Model card type {type} not supported.")
 
 
 class typecheck:
