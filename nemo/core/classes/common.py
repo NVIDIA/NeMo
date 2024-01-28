@@ -239,6 +239,10 @@ It should ideally be in a tabular format (you can use the following website to m
     Since this model was trained on publicly available speech datasets, the performance of this model might degrade for speech which includes technical terms, or vernacular that the model has not been trained on. The model might also perform worse for accented speech.
 
 
+## License
+
+License to use this model is covered by the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). By downloading the public and release version of the model, you accept the terms and conditions of the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/) license.
+
 ## References
 
 **Provide appropriate references in the markdown link format below. Please order them numerically.**
