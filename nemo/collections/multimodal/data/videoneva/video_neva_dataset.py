@@ -104,7 +104,6 @@ class TarOrFolderVideoLoader:
         return None
 
 
-
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
     """
     Preprocesses multimodal sources based on the provided configuration.
