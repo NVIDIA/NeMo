@@ -151,6 +151,10 @@ def get_args(argv):
 
 def nemo_export(argv):
     args = get_args(argv)
+    if args.debug_mode:
+        loglevel = logging.DEBUG
+    else:
+        loglevel = logging.INFO
 
     LOGGER.setLevel(loglevel)
     LOGGER.info("Logging level set to {}".format(loglevel))
