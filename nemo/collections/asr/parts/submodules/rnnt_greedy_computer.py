@@ -293,7 +293,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
                     logits = F.log_softmax(logits, dim=-1)
                 alignments.add_results_masked_(
                     active_mask=active_mask,
-                    time_indices=time_indices,
+                    time_indices=time_indices_current_labels,
                     logits=logits if self.preserve_alignments else None,
                     labels=labels if self.preserve_alignments else None,
                     confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
@@ -316,24 +316,26 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
                 # get labels (greedy) and scores from current logits, replace labels/scores with new
                 # labels[advance_mask] are blank, and we are looking for non-blank labels
                 more_scores, more_labels = logits.max(-1)
-                # labels[advance_mask] = more_labels
+                # same as: labels[advance_mask] = more_labels[advance_mask]
                 torch.where(advance_mask, more_labels, labels, out=labels)
-                # scores[advance_mask] = more_scores
+                # same as: scores[advance_mask] = more_scores[advance_mask]
                 torch.where(advance_mask, more_scores, scores, out=scores)
+                # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask]
+                torch.where(advance_mask, time_indices, time_indices_current_labels, out=time_indices_current_labels)
+
                 if use_alignments:
                     if self.preserve_frame_confidence:
                         logits = F.log_softmax(logits, dim=-1)
                     alignments.add_results_masked_(
                         active_mask=advance_mask,
-                        time_indices=time_indices,
+                        time_indices=time_indices_current_labels,
                         logits=logits if self.preserve_alignments else None,
                         labels=more_labels if self.preserve_alignments else None,
                         confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
                     )
                 blank_mask = labels == self._blank_index
-                torch.where(advance_mask, time_indices, time_indices_current_labels, out=time_indices_current_labels)
                 time_indices += blank_mask
-                safe_time_indices = torch.minimum(time_indices, last_timesteps)
+                torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
                 torch.less(time_indices, out_len, out=active_mask)
                 torch.logical_and(active_mask, blank_mask, out=advance_mask)
                 # torch.cuda.set_sync_debug_mode(0)
