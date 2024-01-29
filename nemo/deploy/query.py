@@ -100,7 +100,7 @@ class NemoQuery(NemoQueryBase):
             init_timeout=60.0,
     ):
         """
-        Exports nemo checkpoints to TensorRT-LLM.
+        Query the Triton server synchronously and return a list of responses.
 
         Args:
             prompts (List(str)): list of sentences.
@@ -171,7 +171,7 @@ class NemoQuery(NemoQueryBase):
             init_timeout=60.0,
     ):
         """
-        Query triton server using streaming
+        Query the Triton server using streaming.
 
         Args:
             prompts (List(str)): list of sentences.
