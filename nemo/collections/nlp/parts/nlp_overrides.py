@@ -269,7 +269,7 @@ class NLPDDPStrategy(DDPStrategy):
         }
 
         if not isinstance(optimizer, MainParamsOptimizerWrapper):
-            return optimizer.sharded_state_dict(model_sharded_state_dict)
+            return optimizer.state_dict()
 
         optimizer_state_dict = optimizer.state_dict()
 
