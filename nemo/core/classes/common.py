@@ -39,6 +39,7 @@ from huggingface_hub.utils import SoftTemporaryDirectory
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
+from nemo.core.config.templates.model_card import NEMO_DEFAULT_MODEL_CARD_TEMPLATE
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
@@ -52,203 +53,6 @@ _TYPECHECK_ENABLED = True
 _TYPECHECK_SEMANTIC_CHECK_ENABLED = True
 # TODO @blisc: Remove _HAS_HYDRA
 _HAS_HYDRA = True
-
-
-NEMO_DEFAULT_MODEL_CARD_TEMPLATE = """---
-{card_data}
----
-
-# {model_name}
-
-<style>
-img {
- display: inline;
-}
-</style>
-
-[![Model architecture](https://img.shields.io/badge/Model_Arch-PUT-YOUR-ARCHITECTURE-HERE-lightgrey#model-badge)](#model-architecture)
-| [![Model size](https://img.shields.io/badge/Params-PUT-YOUR-MODEL-SIZE-HERE-lightgrey#model-badge)](#model-architecture)
-| [![Language](https://img.shields.io/badge/Language-PUT-YOUR-LANGUAGE-HERE-lightgrey#model-badge)](#datasets)
-
-**Put a short model description here.**
-
-See the [model architecture](#model-architecture) section and [NeMo documentation](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/index.html) for complete architecture details.
-
-
-## NVIDIA NeMo: Training
-
-To train, fine-tune or play with the model you will need to install [NVIDIA NeMo](https://github.com/NVIDIA/NeMo). We recommend you install it after you've installed latest Pytorch version.
-```
-pip install nemo_toolkit['all']
-``` 
-
-## How to Use this Model
-
-The model is available for use in the NeMo toolkit [3], and can be used as a pre-trained checkpoint for inference or for fine-tuning on another dataset.
-
-### Automatically instantiate the model
-
-**NOTE**: Please update the model class below to match the class of the model being uploaded.
-
-```python
-import nemo.core import ModelPT
-model = ModelPT.from_pretrained("{repo_id}")
-```
-
-### NOTE
-
-    Add some information about how to use the model here. An example is provided for ASR inference below.
-
-    ### Transcribing using Python
-    First, let's get a sample
-    ```
-    wget https://dldata-public.s3.us-east-2.amazonaws.com/2086-149220-0033.wav
-    ```
-    Then simply do:
-    ```
-    asr_model.transcribe(['2086-149220-0033.wav'])
-    ```
-
-    ### Transcribing many audio files
-
-    ```shell
-    python [NEMO_GIT_FOLDER]/examples/asr/transcribe_speech.py \
-     pretrained_name="{repo_id}" \
-     audio_dir=""
-    ```
-
-### Input
-
-**Add some information about what are the inputs to this model**
-
-### Output
-
-**Add some information about what are the outputs of this model**
-
-## Model Architecture
-
-**Add information here discussing architectural details of the model or any comments to users about the model.**
-
-## Training
-
-**Add information here about how the model was trained. It should be as detailed as possible, potentially including the the link to the script used to train as well as the base config used to train the model. If extraneous scripts are used to prepare the components of the model, please include them here.**
-
-### NOTE
-
-    An example is provided below for ASR
-
-    The NeMo toolkit [3] was used for training the models for over several hundred epochs. These model are trained with this [example script](https://github.com/NVIDIA/NeMo/blob/main/examples/asr/asr_transducer/speech_to_text_rnnt_bpe.py) and this [base config](https://github.com/NVIDIA/NeMo/blob/main/examples/asr/conf/fastconformer/fast-conformer_transducer_bpe.yaml).
-
-    The tokenizers for these models were built using the text transcripts of the train set with this [script](https://github.com/NVIDIA/NeMo/blob/main/scripts/tokenizers/process_asr_text_tokenizer.py).
-
-
-### Datasets
-
-**Try to provide as detailed a list of datasets as possible. If possible, provide links to the datasets on HF by adding it to the manifest section at the top of the README (marked by ---).**
-
-### NOTE
-
-    An example for the manifest section is provided below for ASR datasets
-
-    datasets:
-    - librispeech_asr
-    - fisher_corpus
-    - Switchboard-1
-    - WSJ-0
-    - WSJ-1
-    - National-Singapore-Corpus-Part-1
-    - National-Singapore-Corpus-Part-6
-    - vctk
-    - voxpopuli
-    - europarl
-    - multilingual_librispeech
-    - mozilla-foundation/common_voice_8_0
-    - MLCommons/peoples_speech
-
-    The corresponding text in this section for those datasets is stated below -
-
-    The model was trained on 64K hours of English speech collected and prepared by NVIDIA NeMo and Suno teams.
-
-    The training dataset consists of private subset with 40K hours of English speech plus 24K hours from the following public datasets:
-
-    - Librispeech 960 hours of English speech
-    - Fisher Corpus
-    - Switchboard-1 Dataset
-    - WSJ-0 and WSJ-1
-    - National Speech Corpus (Part 1, Part 6)
-    - VCTK
-    - VoxPopuli (EN)
-    - Europarl-ASR (EN)
-    - Multilingual Librispeech (MLS EN) - 2,000 hour subset
-    - Mozilla Common Voice (v7.0)
-    - People's Speech  - 12,000 hour subset
-
-
-## Performance
-
-**Add information here about the performance of the model. Discuss what is the metric that is being used to evaluate the model and if there are external links explaning the custom metric, please link to it.
-
-### NOTE
-
-    An example is provided below for ASR metrics list that can be added to the top of the README
-    
-    model-index:
-    - name: PUT_MODEL_NAME
-      results:
-      - task:
-          name: Automatic Speech Recognition
-          type: automatic-speech-recognition
-        dataset:
-          name: AMI (Meetings test)
-          type: edinburghcstr/ami
-          config: ihm
-          split: test
-          args:
-            language: en
-        metrics:
-        - name: Test WER
-          type: wer
-          value: 17.10
-      - task:
-          name: Automatic Speech Recognition
-          type: automatic-speech-recognition
-        dataset:
-          name: Earnings-22
-          type: revdotcom/earnings22
-          split: test
-          args:
-            language: en
-        metrics:
-        - name: Test WER
-          type: wer
-          value: 14.11
-
-Provide any caveats about the results presented in the top of the discussion so that nuance is not lost. 
-
-It should ideally be in a tabular format (you can use the following website to make your tables in markdown format - https://www.tablesgenerator.com/markdown_tables)**
-
-## Limitations
-
-**Discuss any practical limitations to the model when being used in real world cases. They can also be legal disclaimers, or discussion regarding the safety of the model (particularly in the case of LLMs).**
-
-
-### Note
-
-    An example is provided below 
-
-    Since this model was trained on publicly available speech datasets, the performance of this model might degrade for speech which includes technical terms, or vernacular that the model has not been trained on. The model might also perform worse for accented speech.
-
-
-## License
-
-License to use this model is covered by the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). By downloading the public and release version of the model, you accept the terms and conditions of the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/) license.
-
-## References
-
-**Provide appropriate references in the markdown link format below. Please order them numerically.**
-
-[1] [NVIDIA NeMo Toolkit](https://github.com/NVIDIA/NeMo)
-"""
 
 
 def is_typecheck_enabled():
@@ -1176,12 +980,22 @@ class Model(Typing, Serialization, FileIO):
                 token=hf_token,
             )
         else:
-            repo_info = api.repo_info(repo_id=model_name, token=hf_token)
+            repo_info = api.repo_info(repo_id=model_name, token=hf_token, files_metadata=True)
 
             # Download whole HF repo and load entire directory as nemo directory
             cache_dir = Path.joinpath(resolve_cache_dir(), "hf_hub_cache", f'{model_name}')
             # If either description and location in the cloud changes, this will force re-download
-            cache_subfolder = repo_info.sha
+            cache_subfolder = []
+            # Calculate hash of repo_info
+            for sibling in repo_info.siblings:
+                filename = sibling.rfilename.lower()
+                # Ignore updates to readme when downloading hash
+                if "readme" not in filename or "git" not in filename:
+                    cache_subfolder.append(sibling.blob_id)
+            cache_subfolder = sorted(cache_subfolder)
+            cache_subfolder = "".join(cache_subfolder)
+            cache_subfolder = hashlib.md5(cache_subfolder.encode('utf-8')).hexdigest()
+
             # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
             save_path = os.path.join(cache_dir, cache_subfolder)
 
@@ -1264,7 +1078,7 @@ class Model(Typing, Serialization, FileIO):
                 If provided, remote files matching any of the patterns will be deleted from the repo.
 
         Returns:
-            The url of the commit of your model in the given repository.
+            The url of the uploaded HF repo.
         """
         if "/" not in repo_id or len(repo_id.split("/")) != 2:
             raise ValueError("Invalid repo_id provided. Please provide a repo_id of the form `username/repo-name`.")
@@ -1313,7 +1127,7 @@ class Model(Typing, Serialization, FileIO):
             model_card_filepath = saved_path / f"README.md"
             model_card_filepath.write_text(str(model_card), encoding='utf-8', errors='ignore')
 
-            return api.upload_folder(
+            api.upload_folder(
                 repo_id=repo_id,
                 repo_type="model",
                 folder_path=saved_path,
@@ -1323,6 +1137,11 @@ class Model(Typing, Serialization, FileIO):
                 ignore_patterns=ignore_patterns,
                 delete_patterns=delete_patterns,
             )
+
+            if branch is None:
+                branch = "main"
+
+            return f"https://huggingface.co/{repo_id}/tree/{branch}"
 
     def generate_model_card(
         self, type: str = "hf", template: str = None, template_kwargs: Optional[Dict[str, str]] = None
