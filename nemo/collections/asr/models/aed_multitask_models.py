@@ -66,7 +66,7 @@ def lens_to_mask(lens, max_length):
 
 
 class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
-    """Base class for encoder decoder CTC-based models."""
+    """Base class for AED multi-task models"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
@@ -79,6 +79,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         # Setup the tokenizer
         self._setup_tokenizer(cfg.tokenizer)
+
+        # Assert config has "prompt_format"
+        if "prompt_format" not in cfg:
+            raise ValueError("`cfg` must have `prompt_format` config to create a multi task model !")
+        self.prompt_format = cfg.prompt_format
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -97,11 +102,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             raise ValueError("`cfg.model_defaults` must have `lm_enc_hidden` key !")
         if "dec_hidden" not in self.cfg.model_defaults:
             raise ValueError("`cfg.model_defaults` must have `dec_hidden` key !")
-
-        # Assert config has "prompt_format"
-        if "prompt_format" not in self.cfg:
-            raise ValueError("`cfg` must have `prompt_format` config to create a multi task model !")
-        self.prompt_format = self.cfg.prompt_format
 
         # Add projection layer if encoder and decoder differ in hidden size
         asr_enc_hidden_size = self.cfg.model_defaults.asr_enc_hidden
@@ -543,7 +543,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             transcript_length=transcript_len,
         )
 
-        transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
+        transf_loss = self.loss(log_probs=transf_log_probs, labels=labels)
 
         return transf_loss
 
@@ -587,7 +587,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             return_hypotheses=False,
         )[0]
 
-        transf_loss = self.transf_loss(log_probs=transf_log_probs, labels=labels)
+        transf_loss = self.loss(log_probs=transf_log_probs, labels=labels)
 
         ground_truths = [self.tokenizer.ids_to_text(sent) for sent in transcript.detach().cpu().tolist()]
         translations = [hyp for hyp in beam_hypotheses]

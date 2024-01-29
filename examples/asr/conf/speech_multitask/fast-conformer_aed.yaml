@@ -23,7 +23,7 @@ model:
   log_prediction: true # enables logging sample predictions in the output during training
 
   # Important ! Set the prompt format to the class you need
-  prompt_format: "canary"
+  prompt_format: ???   # Options supported: ["canary"]
 
   model_defaults:
     asr_enc_hidden: 1024
@@ -171,7 +171,7 @@ model:
       num_token_types: 0
       embedding_dropout: 0.1
       learn_positional_encodings: false
-      hidden_size: ${model.model_defaults.dec_hidden
+      hidden_size: ${model.model_defaults.dec_hidden}
       inner_size: ${multiply:${model.model_defaults.dec_hidden}, 4}
       num_layers: 24
       num_attention_heads: 8
@@ -196,10 +196,10 @@ model:
   # Decoding Strategy
   decoding:
     strategy: beam
-    beam_size: 1
     return_best_hypothesis: true  # Returns the most probably hypothesis after beam search
 
     beam:
+      beam_size: 1
       len_pen: 0.0
       max_generation_delta: 50
 
