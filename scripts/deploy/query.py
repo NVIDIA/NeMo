@@ -16,7 +16,7 @@ import argparse
 import sys
 import typing
 
-from pytriton.client import ModelClient
+from pytriton.client import ModelClient, DecoupledModelClient
 import numpy as np
 
 
