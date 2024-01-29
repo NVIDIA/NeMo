@@ -122,7 +122,9 @@ def run_checks(repo_id, token, run_cleanup=True):
 
 if __name__ == '__main__':
     HF_TOKEN = ''  # Set it explicitly or set `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` env variable
-    repo_id = ''  # Provide some repo id here (you need to be able to have sufficient permissions to write to this repo)
+    repo_id = (
+        ''  # Provide some repo id here (you need to be able to have sufficient permissions to write to this repo)
+    )
 
     assert repo_id is not None, "Please set `repo_id` to the name of the repo you want to upload to"
     run_checks(repo_id, HF_TOKEN, run_cleanup=True)
