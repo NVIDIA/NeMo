@@ -81,7 +81,7 @@ pipeline {
 
     stage('Pytorch lightning installation') {
       steps {
-         sh 'git clone -b bugfix/torch-io-exists https://github.com/Lightning-AI/pytorch-lightning.git && \
+         sh 'git clone -b bug_fix https://github.com/athitten/pytorch-lightning.git && \
              cd pytorch-lightning && \
              PACKAGE_NAME=pytorch pip install -e .'
       }
