@@ -17,6 +17,7 @@ import itertools
 import os
 import re
 from dataclasses import fields
+from datetime import datetime
 from typing import Any, Dict, Optional, Union
 
 import omegaconf
@@ -314,6 +315,11 @@ class MegatronBaseModel(NLPModel):
 
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
+
+        # Support DLFW master container
+        if nvidia_torch_version == 'master':
+            nvidia_torch_version = datetime.now().strftime('%y.%m')
+
         if nvidia_torch_version is not None:
             try:
                 NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
@@ -439,9 +445,10 @@ class MegatronBaseModel(NLPModel):
             attention_softmax_in_fp32 = True
 
         bias_activation_fusion = self.cfg.get('bias_activation_fusion', True)
-        bias_gelu_fusion = True if bias_activation_fusion else False
 
         bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
+
+        apply_rope_fusion = self.cfg.get('apply_rope_fusion', True)
 
         # TODO: need to check if recompute APIs are matching up properly
         recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
@@ -460,8 +467,9 @@ class MegatronBaseModel(NLPModel):
             'init_method': init_method,
             'output_layer_init_method': output_layer_init_method,
             'attention_softmax_in_fp32': attention_softmax_in_fp32,
-            'bias_gelu_fusion': bias_gelu_fusion,
+            'bias_activation_fusion': bias_activation_fusion,
             'bias_dropout_fusion': bias_dropout_fusion,
+            'apply_rope_fusion': apply_rope_fusion,
             'recompute_granularity': recompute_granularity,
             'recompute_method': recompute_method,
             'recompute_num_layers': recompute_num_layers,
@@ -655,6 +663,12 @@ class MegatronBaseModel(NLPModel):
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        # Ensure `max_steps` is set correctly
+        optim_config = self._optim_config_copy(optim_config)
+        if optim_config is not None and 'sched' in optim_config and optim_config.sched.get('max_steps') is None:
+            with open_dict(optim_config):
+                optim_config.sched.max_steps = self._get_max_steps()
+
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
 
         def get_config_arg(key: str, default_value: Optional[Any] = None) -> Any:
@@ -753,13 +767,18 @@ class MegatronBaseModel(NLPModel):
                 grad_allreduce_chunk_size_mb=self.cfg.get('grad_allreduce_chunk_size_mb', 125),
             )
 
-            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
             if hasattr(self._cfg.optim, 'sched'):
                 sched_config = self._cfg.optim.sched
-                sched_config['max_steps'] = self._trainer.max_steps
                 self._scheduler = prepare_lr_scheduler(
                     optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
                 )
+
+        if getattr(self._cfg.optim, 'sched', None) is not None and self._scheduler is None:
+            # The error below refers in particular to logs from `prepare_lr_scheduler()` (when it retunrs `None`).
+            raise AssertionError(
+                "A scheduler config exists but no scheduler was instantiated! Previous logs may help identify the "
+                "root cause of this issue."
+            )
 
         # Configure distributed optimizer
         if self.with_distributed_adam:
@@ -778,10 +797,11 @@ class MegatronBaseModel(NLPModel):
             overlap_params = []
             no_overlap_params = []
             for p in self.parameters():
-                if getattr(p, '_disable_overlap_grad_sync', False):
-                    no_overlap_params.append(p)
-                else:
-                    overlap_params.append(p)
+                if p.requires_grad:
+                    if getattr(p, '_disable_overlap_grad_sync', False):
+                        no_overlap_params.append(p)
+                    else:
+                        overlap_params.append(p)
             self._optimizer.init_params(reversed(overlap_params))
             self._optimizer.init_params(reversed(no_overlap_params))
 
@@ -1082,6 +1102,48 @@ class MegatronBaseModel(NLPModel):
             return iterator, True
         # reinsert the element back to the iterator
         return itertools.chain([element], iterator), False
+
+    def _get_max_steps(self):
+        """
+        Compute the maximum number of training steps (-1 if it cannot be computed).
+        """
+        if getattr(self, "_trainer", None) is None:
+            logging.warning("Cannot compute `max_steps` as no trainer is set")
+            return -1
+
+        if self._trainer.max_steps >= 0:
+            # Note that when `trainer.max_steps` is defined, we ignore `max_epochs` (even if training may end
+            # before `max_steps` is reached due to `max_epochs`). This is for backward compatibility with older
+            # versions of NeMo.
+            if self._trainer.max_epochs is not None and self._trainer.max_epochs >= 0:
+                logging.warning(
+                    "Ignoring `trainer.max_epochs` when computing `max_steps` because `trainer.max_steps` is already "
+                    f"set to {self._trainer.max_steps}."
+                )
+            return self._trainer.max_steps
+
+        if self._trainer.max_epochs is None or self._trainer.max_epochs < 0:
+            logging.warning(
+                "Cannot compute `max_steps` if neither `trainer.max_steps` nor `trainer.max_epochs` is set"
+            )
+            return -1
+
+        if getattr(self, "_train_dl", None) is None:
+            logging.warning("Cannot compute `max_steps` from the number of epochs as the train dataloader is not set")
+            return -1
+
+        # The number of training step per epoch is typically the number of global batches in the training set...
+        num_global_batches = len(self._train_dl)
+        steps_per_epoch = num_global_batches
+
+        # ... unless it is constrained by the `limit_train_batches` option.
+        limit_batches = self._trainer.limit_train_batches
+        if limit_batches is not None:
+            if isinstance(limit_batches, float):
+                limit_batches = int(limit_batches * num_global_batches)
+            steps_per_epoch = min(num_global_batches, limit_batches)
+
+        return steps_per_epoch * self._trainer.max_epochs
 
     def configure_sharded_model(self):
         if self.use_fsdp:
