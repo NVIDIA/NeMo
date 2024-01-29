@@ -130,7 +130,7 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest --junitxml=test_results_cpu.xml \
+        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest --junitxml=test_results_cpu.xml --cov-append \
             --cov=nemo --cov-report=term-missing --cov-report=xml \
             -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
       }
