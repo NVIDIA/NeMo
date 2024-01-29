@@ -166,43 +166,57 @@ def nemo_deploy(args):
     return nm
 
 
-def get_inputs():
+def get_inputs() -> dict[int, str]:
     # Parse the json file - use "rb" to make sure that JSON parser understands UTF-8 characters
     with open("/opt/NeMo/scripts/deploy/benchmark_data.json", "rb") as json_file:
         data = json.load(json_file)
 
     return {
-        128: [data["test_input_128"]],
-        256: [data["test_input_256"]],
-        512: [data["test_input_512"]],
-        2048: [data["test_input_2048"]]
+        128: data["test_input_128"],
+        256: data["test_input_256"],
+        512: data["test_input_512"],
+        2048: data["test_input_2048"]
     }
 
+def trim_sentence_to_length(input: str, newlen: int) -> str:
+    words = input.split()
+    newlen = min(len(words), int(newlen))
+    return " ".join(words[:newlen])
 
 def perform_benchmark(args):
     nq = NemoQuery(url="localhost:8000", model_name=args.triton_model_name)
  
     input_info = get_inputs()
+    warmed_up = False
     
     for prompt_len, prompt in input_info.items():
         if prompt_len <= args.max_input_len:
             for out_len in args.output_lens:
                 for batch_size in args.batch_size:
 
-                    LOGGER.info("Starting to get measurements for "
-                                "prompt len: {0}, output len {1}, and batch size "
-                                "{2}".format(prompt_len, out_len, batch_size))
-
-                    batch_size = int(batch_size)
-                    inputs = prompt * batch_size
+                    if args.variable_input_batch:
+                        inputs = []
+                        for i in range(batch_size):
+                            newlen = int((prompt_len * (i + 1)) / batch_size)
+                            newprompt = trim_sentence_to_length(prompt, newlen)
+                            inputs.append(newprompt)
+                    else:
+                        inputs = [prompt] * batch_size
 
                     failed = False
 
-                    # warm up
-                    if args.warm_up:
+                    # warm up once
+                    if args.warm_up and not warmed_up:
+                        LOGGER.info("Warming up...")
                         output = nq.query_llm(prompts=inputs, max_output_token=out_len)
                         if output[0][0].startswith("An error occurred"):
                             failed = True
+                        warmed_up = True
+
+                    # print the message after warmup to avoid breaking up the output
+                    LOGGER.info("Starting to get measurements for "
+                                "prompt len: {0}, output len {1}, and batch size "
+                                "{2}".format(prompt_len, out_len, batch_size))
 
                     latencies = []
                     for i in range(args.num_runs):
@@ -226,9 +240,10 @@ def perform_benchmark(args):
                         latency = round(latency, 3)
                         throughput = round(1000 / latency * batch_size, 3)
 
+                        prompt_len_str = f"up to {prompt_len}" if args.variable_input_batch else prompt_len
                         LOGGER.info("Latency: {0} ms, and throughput: {1} prompts/sec, for "
                                     "prompt len: {2}, output len: {3}, and batch size: "
-                                    "{4}.".format(latency, throughput, prompt_len, out_len, batch_size))
+                                    "{4}.".format(latency, throughput, prompt_len_str, out_len, batch_size))
 
                         if args.ci_upload_test_results_to_cloud:
                             postToNVDataFlow({"latency": latency})
@@ -383,15 +398,23 @@ def get_args(argv):
         action="store_true",
         required=False,
         default=False,
-        help='Enable warm_up before benchmark'
+        help='Enable warm-up before benchmark'
     )
     parser.add_argument(
         '-bs',
         '--batch_size',
         nargs='+',
-        default=["1", "2", "4", "8"],
+        default=[1, 2, 4, 8],
         required=False,
+        type=int,
         help='Specify batch size'
+    )
+    parser.add_argument(
+        '-vib',
+        '--variable_input_batch',
+        action="store_true",
+        required=False,
+        help='Use variable length inputs in every batch'
     )
     parser.add_argument(
         "-mbm",
