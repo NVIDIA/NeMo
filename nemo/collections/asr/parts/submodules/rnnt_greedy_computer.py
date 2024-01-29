@@ -307,12 +307,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
             # torch.cuda.set_sync_debug_mode(0)
             while advance_mask.any():
                 # torch.cuda.set_sync_debug_mode(2)
+                # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask]
+                torch.where(advance_mask, time_indices, time_indices_current_labels, out=time_indices_current_labels)
                 logits = (
                     self.joint.joint_after_projection(x[all_indices, safe_time_indices].unsqueeze(1), decoder_output,)
                     .squeeze(1)
                     .squeeze(1)
                 )
-
                 # get labels (greedy) and scores from current logits, replace labels/scores with new
                 # labels[advance_mask] are blank, and we are looking for non-blank labels
                 more_scores, more_labels = logits.max(-1)
@@ -320,8 +321,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
                 torch.where(advance_mask, more_labels, labels, out=labels)
                 # same as: scores[advance_mask] = more_scores[advance_mask]
                 torch.where(advance_mask, more_scores, scores, out=scores)
-                # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask]
-                torch.where(advance_mask, time_indices, time_indices_current_labels, out=time_indices_current_labels)
 
                 if use_alignments:
                     if self.preserve_frame_confidence:
