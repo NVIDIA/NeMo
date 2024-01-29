@@ -34,11 +34,9 @@ except (ImportError, ModuleNotFoundError):
 class TETransformerLayerAutocast(AutocastTransformerLayer):
     def __init__(self, config, layer_number=1, hidden_dropout=None):
         self.config = config
-        print("!!! config:", config) # TODO: Remove debugging print
         self.is_first_microbatch = True
         precision = 'bf16' if config.bf16 else 16
 
-        # Original init from nemo/collections/nlp/modules/common/megatron/transformer.py#L1057
         super().__init__(
             hidden_size=config.hidden_size,
             ffn_hidden_size=config.ffn_hidden_size,
@@ -50,7 +48,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
             attention_dropout=config.attention_dropout,
             layer_number=layer_number,
             kv_channels=config.kv_channels,
-            #self_attn_mask_type='causal', # use default 'causal'
+            #self_attn_mask_type='causal', # Use default 'causal'
             tp_size=parallel_state.get_tensor_model_parallel_world_size(),
             params_dtype=config.params_dtype,
             get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
@@ -60,12 +58,14 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
             sequence_parallel=config.sequence_parallel,
             apply_residual_connection_post_layernorm=config.apply_residual_connection_post_layernorm,
             autocast_dtype=precision,
-            use_emha=False, # TODO
+            #use_emha=False, # Use default 'False'
             ub_tp_comm_overlap=config.tp_comm_overlap, # TODO: ub_tp_comm_overlap?
             zero_centered_gamma=config.layernorm_zero_centered_gamma,
             device='cpu' if config.use_cpu_initialization else 'cuda',
         )
 
+    # Called by MCore's TransformerBlock.forward
+    # megatron/core/transformer/transformer_block.py
     def forward(
         self,
         hidden_states,
@@ -82,7 +82,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
             enc_dec_attn_mask=context_mask,
             inference_params=inference_params,
             is_first_microbatch=self.is_first_microbatch,
-            #checkpoint_core_attention, # TODO: Need to add?
+            #checkpoint_core_attention,
         )
         self.is_first_microbatch = False
         context = None
