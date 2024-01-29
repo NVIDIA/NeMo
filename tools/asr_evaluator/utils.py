@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Tuple
 
 from omegaconf import DictConfig, OmegaConf, open_dict
+from nemo.collections.asr.parts.utils.eval_utils import get_hydra_override_from_config
 from nemo.utils import logging
 
 
@@ -184,6 +185,19 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
         f.seek(0)  # reset file pointer
         script_path = Path(__file__).parents[2] / "examples" / "asr" / "transcribe_speech.py"
 
+        drop_list = [
+            'calculate_wer',
+            'model_path',
+            'pretrained_name',
+            'dataset_manifest',
+            'output_filename',
+            'batch_size',
+            'num_workers',
+            'random_seed',
+            'eval_config_yaml',
+            'decoder_type',
+        ]
+        hydra_overrides = get_hydra_override_from_config(cfg.get("transcribe_params", None), exclude_keys=drop_list)
         # If need to change other config such as decoding strategy, could either:
         # 1) change TranscriptionConfig on top of the executed scripts such as transcribe_speech.py in examples/asr, or
         # 2) add command as "rnnt_decoding.strategy=greedy_batch " to below script
@@ -198,9 +212,7 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
             f"num_workers={cfg.test_ds.num_workers} "
             f"random_seed={cfg.random_seed} "
             f"eval_config_yaml={f.name} "
-            f"decoder_type={cfg.inference.decoder_type} "
-            f"beam_search.beam_size={cfg.inference.beam_search.beam_size} "
-            f"beam_search.len_pen={cfg.inference.beam_search.len_pen} ",
+            f"decoder_type={cfg.inference.decoder_type} {hydra_overrides}",
             shell=True,
             check=True,
         )

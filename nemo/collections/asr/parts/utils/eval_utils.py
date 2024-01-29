@@ -28,6 +28,41 @@ TEXT_METRICS_MAPPING = {
     'rouge': ROUGEScore,
 }
 
+from omegaconf import DictConfig
+
+
+def flatten_dict_config(config: DictConfig, parent_key='', sep='.', join='\n') -> str:
+    """
+    Flatten a DictConfig object into a string of parameter names and their values.
+
+    Args:
+        config (DictConfig): The input DictConfig object.
+        parent_key (str): The parent key for nested configurations.
+        sep (str): Separator between keys.
+
+    Returns:
+        str: Flattened string of parameter names and their values.
+    """
+    items = []
+    for k, v in config.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, DictConfig):
+            items.extend(flatten_dict_config(v, new_key, sep=sep, join=join).split(join))
+        else:
+            items.append(f"{new_key}={v}")
+    return join.join(items)
+
+
+def get_hydra_override_from_config(config: Optional[DictConfig] = None, exclude_keys: Optional[list] = None) -> str:
+    if not config:
+        return ""
+    join = '\n'
+    overrides = flatten_dict_config(config, join=join).split(join)
+    if exclude_keys:
+        overrides = [x for x in overrides if not any([y == x.split("=")[0] for y in exclude_keys])]
+    param_str = " ".join([f"++{x}" for x in overrides])
+    return param_str
+
 
 def strip_spaces_before_punctuation(text):
     result = re.sub(r'(\w)\s+([.,;!?])', r'\1\2', text)

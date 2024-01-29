@@ -249,6 +249,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if return_hypotheses:
             logging.warning("return_hypotheses=True is currently not supported, returning text instead.")
 
+        manifest_path = None
         if isinstance(audio, list):
             logging.info(f"Found paths2audio_files to be a list of {len(audio)} items.")
             logging.info(f"Assuming each item in paths2audio_files is a path to audio file.")
@@ -264,9 +265,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
             # load json lines
             manifest_path = audio  # need to save this as we are overwriting paths2audio_files in nextline
-            paths2audio_files = manifest_utils.read_manifest(audio)
+            audio = manifest_utils.read_manifest(manifest_path)
 
-        def _may_be_make_dict_and_fix_paths(json_items):
+        def _may_be_make_dict_and_fix_paths(json_items, manifest_path):
             out_json_items = []
             for item in json_items:
                 if isinstance(item, str):
@@ -288,7 +289,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 out_json_items.append(entry)
             return out_json_items
 
-        paths2audio_files = _may_be_make_dict_and_fix_paths(audio)
+        paths2audio_files = _may_be_make_dict_and_fix_paths(audio, manifest_path)
 
         if num_workers is None:
             num_workers = min(batch_size, os.cpu_count() - 1)
