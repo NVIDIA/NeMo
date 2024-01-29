@@ -130,8 +130,8 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest --junitxml=test_results_cpu.xml --cov-append \
-            --cov=nemo --cov-report=term-missing --cov-report=xml \
+        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest --junitxml=test_results_cpu.xml \
+            --cov=nemo --cov-report=term-missing --cov-report=xml --cov-append \
             -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
       }
       post {
@@ -1028,7 +1028,7 @@ pipeline {
       parallel {
         stage('Running pytest') {
           steps {
-            sh 'pytest --cov=nemo --cov-report=term-missing \
+            sh 'pytest --cov=nemo --cov-report=term-missing --cov-append \
                 tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1'
           }
         }
