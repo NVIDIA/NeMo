@@ -85,27 +85,6 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             cut.recording.sources[0].source = new_path
         return cut
 
-    def parse_cut_mfa_textgrid(self, cut):
-        from textgrid import TextGrid, IntervalTier
-        cut_id = cut.id
-        subset, spk = cut_id.split('/')[:2]
-        f_id = f"{self.textgrid_dir}/{subset}/{spk}/{','.join(cut_id.split('/'))}.TextGrid"
-        tg = TextGrid()
-        tg.read(f_id)
-        phn_dur = []
-        for tier in tg.tiers:
-            if tier.name != "phones":
-                continue
-            for interval in tier.intervals:
-                minTime = interval.minTime
-                maxTime = interval.maxTime
-                phoneme = interval.mark
-                if phoneme in ["", "sp"]:
-                    phoneme = "sil"
-                phn_dur.append((phoneme, round(maxTime - minTime, 2)))
-        assert len(phn_dur)
-        return phn_dur
-
     def get_cut_alignment(self, cut):
         phn_alis = cut.supervisions[0].alignment["phones"]
         phn_dur = []
@@ -179,6 +158,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         audio_22050, audio_lens_22050, _ = self.load_audio(cuts.resample(22050))
         audio_24k, audio_lens_24k, _ = self.load_audio(cuts.resample(24000))
         batch.update({
+            # "cuts": cuts,
             "audio": audio,
             "audio_lens": audio_lens,
             "audio_22050": audio_22050,
