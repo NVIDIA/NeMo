@@ -904,6 +904,7 @@ class GatedCrossAttentionDense(NeuralModule, Exportable):
 
     def __init__(self, cfg: DictConfig, *args, **kwargs):
         super().__init__()
+        self.cfg = cfg
         cross_attn_cfg= cfg.xattn
         self.xattn = MultiHeadAttention(
             cfg.output_dim, cross_attn_cfg.num_attention_heads, cross_attn_cfg.attn_score_dropout, cross_attn_cfg.attn_layer_dropout
@@ -974,13 +975,17 @@ class RnnGatedCrossAttention(GatedCrossAttentionDense):
         super().__init__(cfg, args, kwargs)
         del self.alpha_xattn
         del self.layer_norm
-        del self.ffw
-        del self.alpha_dense
         self.alpha_xattn_proj = nn.Linear(cfg.output_dim, 1)
         input_rnn_hidden_size = cfg.xattn.get('input_rnn_hidden_size', 512)
         input_rnn_num_layers= cfg.xattn.get('input_rnn_num_layers', 2)
         self.input_rnn = nn.GRU(cfg.output_dim, input_rnn_hidden_size, num_layers=input_rnn_num_layers, batch_first=True, bidirectional=False)
         self.input_proj= nn.Linear(input_rnn_hidden_size, cfg.output_dim)
+        if cfg.xattn.get('include_ffw', False):
+            self.alpha_dense = nn.Parameter(torch.tensor([1.]))
+        else:
+            del self.ffw
+            del self.alpha_dense
+        
 
     def forward(self, encoder_states, encoded_len, input_embeds, input_embeds_hidden = None, *args, **kwargs):
         assert input_embeds.shape[-1] == encoder_states.shape[-1]
@@ -993,5 +998,7 @@ class RnnGatedCrossAttention(GatedCrossAttentionDense):
         alpha_xattn = self.alpha_xattn_proj(input_embeds_rnn)
         alpha_xattn = torch.sigmoid(alpha_xattn)
         y = input_embeds + alpha_xattn * attn_out
+        if self.cfg.xattn.get('include_ffw', False):
+            y = y + torch.tanh(self.alpha_dense) * self.ffw(y)
         assert y.shape == input_embeds.shape
         return y, {'alpha_xattn':alpha_xattn, 'input_embeds_hidden':input_embeds_rnn_hidden}

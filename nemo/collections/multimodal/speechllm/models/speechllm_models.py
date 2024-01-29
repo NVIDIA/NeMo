@@ -172,34 +172,38 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                 opt_params += [p for p in module.parameters()]
+        if (not self.cfg.get('freeze_llm', True)) and (not self.cfg.get('freeze_modality_adapter', False)) and (not self.cfg.get('freeze_audio_encoder', False)):
+            from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+            super(MegatronGPTModel, self).setup_optimizer_param_groups()
+        else:
+            param_groups = []
+            if "optim_param_groups" in self.cfg:
+                param_groups_cfg = self.cfg.optim_param_groups
+                for group, group_cfg in param_groups_cfg.items():
+                    module = getattr(self, group, None)
+                    if module is None:
+                        raise ValueError(f"{group} not found in model.")
+                    elif hasattr(module, "parameters"):
+                        known_groups.append(f"{group}.")
+                        new_group = {"params": module.parameters()}
+                        for k, v in group_cfg.items():
+                            new_group[k] = v
+                        param_groups.append(new_group)
+                    else:
+                        raise ValueError(f"{group} does not have parameters.")
 
-        param_groups = []
-        if "optim_param_groups" in self.cfg:
-            param_groups_cfg = self.cfg.optim_param_groups
-            for group, group_cfg in param_groups_cfg.items():
-                module = getattr(self, group, None)
-                if module is None:
-                    raise ValueError(f"{group} not found in model.")
-                elif hasattr(module, "parameters"):
-                    known_groups.append(f"{group}.")
-                    new_group = {"params": module.parameters()}
-                    for k, v in group_cfg.items():
-                        new_group[k] = v
-                    param_groups.append(new_group)
-                else:
-                    raise ValueError(f"{group} does not have parameters.")
+            for n, p in self.named_parameters():
+                is_unknown = True
+                for group in known_groups:
+                    if n.startswith(group):
+                        is_unknown = False
+                if is_unknown:
+                    opt_params.append(p)
 
-        for n, p in self.named_parameters():
-            is_unknown = True
-            for group in known_groups:
-                if n.startswith(group):
-                    is_unknown = False
-            if is_unknown:
-                opt_params.append(p)
+            param_groups = [{"params": opt_params}] + param_groups
 
-        param_groups = [{"params": opt_params}] + param_groups
+            self._optimizer_param_groups = param_groups
 
-        self._optimizer_param_groups = param_groups
         logging.info(f"Optimizer groups set:\n{self.summarize(max_depth=2)}")
 
     def _create_attention_mask(self, encoder_input: torch.Tensor):
