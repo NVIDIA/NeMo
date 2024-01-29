@@ -226,9 +226,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
         batched_hyps = rnnt_utils.BatchedHyps(
             batch_size=batch_size, init_length=max_time * self.max_symbols, device=x.device, float_dtype=x.dtype
         )
+
+        batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
+
         time_indices = torch.zeros([batch_size], dtype=torch.long, device=device)
         safe_time_indices = torch.zeros_like(time_indices)
-        all_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         time_indices_current_labels = torch.zeros_like(time_indices)
         last_timesteps = out_len - 1
         labels = torch.full([batch_size], fill_value=self._blank_index, dtype=torch.long, device=device)
@@ -250,14 +252,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
             store_frame_confidence=self.preserve_frame_confidence,
         )
 
-        # loop while there are active indices
-        first_step = True
-        state = self.decoder.initialize_state(torch.zeros(batch_size, device=device, dtype=x.dtype))
+        state = self.decoder.initialize_state(x)
         active_mask: torch.Tensor = out_len > 0
         active_mask_prev = torch.empty_like(active_mask)
         became_inactive_mask = torch.empty_like(active_mask)
         advance_mask = torch.empty_like(active_mask)
 
+        # loop while there are active utterances
+        first_step = True
         while active_mask.any():
             # torch.cuda.set_sync_debug_mode(2)
             active_mask_prev.copy_(active_mask, non_blocking=True)
@@ -278,7 +280,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
             # stage 2: get joint output, iteratively seeking for non-blank labels
             # blank label in `labels` tensor means "end of hypothesis" (for this index)
             logits = (
-                self.joint.joint_after_projection(x[all_indices, safe_time_indices].unsqueeze(1), decoder_output,)
+                self.joint.joint_after_projection(x[batch_indices, safe_time_indices].unsqueeze(1), decoder_output,)
                 .squeeze(1)
                 .squeeze(1)
             )
@@ -310,7 +312,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
                 # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask]
                 torch.where(advance_mask, time_indices, time_indices_current_labels, out=time_indices_current_labels)
                 logits = (
-                    self.joint.joint_after_projection(x[all_indices, safe_time_indices].unsqueeze(1), decoder_output,)
+                    self.joint.joint_after_projection(
+                        x[batch_indices, safe_time_indices].unsqueeze(1), decoder_output,
+                    )
                     .squeeze(1)
                     .squeeze(1)
                 )
