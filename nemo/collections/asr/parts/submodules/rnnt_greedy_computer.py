@@ -221,27 +221,16 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
 
         x = self.joint.project_encoder(x)  # do not recalculate joint projection, project only once
 
-        # Initialize empty hypotheses and all necessary tensors
+        # init output structures: BatchedHyps (for results), BatchedAlignments + last decoder state
+        # init empty batched hypotheses
         assert self.max_symbols is not None
         batched_hyps = rnnt_utils.BatchedHyps(
             batch_size=batch_size, init_length=max_time * self.max_symbols, device=x.device, float_dtype=x.dtype
         )
-
-        batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
-
-        time_indices = torch.zeros([batch_size], dtype=torch.long, device=device)
-        safe_time_indices = torch.zeros_like(time_indices)
-        time_indices_current_labels = torch.zeros_like(time_indices)
-        last_timesteps = out_len - 1
-        labels = torch.full([batch_size], fill_value=self._blank_index, dtype=torch.long, device=device)
-
-        # init additional structs for hypotheses: last decoder state, alignments, frame_confidence
-
         # sample state, will be replaced further when the decoding for hypothesis is done
         last_decoder_state = self.decoder.initialize_state(x)
-
+        # init alignments if necessary
         use_alignments = self.preserve_alignments or self.preserve_frame_confidence
-        # TODO: maybe preallocate + use `no_checks` for results
         alignments = rnnt_utils.BatchedAlignments(
             batch_size=batch_size,
             logits_dim=self.joint.num_classes_with_blank,
@@ -252,7 +241,20 @@ class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
             store_frame_confidence=self.preserve_frame_confidence,
         )
 
+        # initial state, needed for torch.jit to compile (cannot handle None)
         state = self.decoder.initialize_state(x)
+        # indices of elements in batch (constant)
+        batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
+        # last found labels - initially <SOS> (<blank>) symbol
+        labels = torch.full_like(batch_indices, fill_value=self._blank_index)
+
+        # time indices
+        time_indices = torch.zeros_like(batch_indices)
+        safe_time_indices = torch.zeros_like(time_indices)
+        time_indices_current_labels = torch.zeros_like(time_indices)
+        last_timesteps = out_len - 1
+
+        # masks for utterances in batch
         active_mask: torch.Tensor = out_len > 0
         active_mask_prev = torch.empty_like(active_mask)
         became_inactive_mask = torch.empty_like(active_mask)
