@@ -93,11 +93,26 @@ def get_prompt_format_fn(name: str) -> Callable[[CutSet, TokenizerWrapper], Sequ
 @registered_prompt_format_fn
 def canary(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence[Sequence[int]]:
     """
+    Prepend and append control tokens to the token sequence as per Canary format.
 
-    prepend and append control tokens to the token sequence as per canary format
+    We use the following special tokens:
+    * <|startoftranscript|>
+    * <|transcribe|>
+    * <|translate|>
+    * <|nopnc|>
+    * <|pnc|>
+    * <|endoftext|>
+    * <|LANG|> - for each supported language, where LANG is a 2-char language code.
+    * <|nospeech|>
 
-    Format:
-    sot, src_lang_id/no_speech, transcribe/translate, tgt_lang_id, text, eot
+    The prompt format syntax is as follows:
+
+        <|startoftranscript|> [ <|nospeech|> | <|LANG|> [ <|transcribe|> | <|translate|> ] <|LANG|> [ <|pnc|> | <|nopnc|> ] TEXT <|endoftext|> ]
+
+    Where expression ``[ a | b ]`` denotes expression ``a`` or expression ``b``, and can be nested.
+    Note that ``<|LANG|>`` appears twice: the first occurrence is for the "source" language
+    (i.e., spoken language in the recording) and the second occurrence is for the "target" language
+    (i.e., the language in which we are going to output the text).
     """
 
     assert isinstance(
