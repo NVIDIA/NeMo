@@ -46,6 +46,7 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_SYSTEM_TOKEN,
     DEFAULT_UNK_TOKEN,
 )
+from nemo.collections.multimodal.data.neva.neva_dataset import TarOrFolderImageLoader
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
 DEFAULT_VIDEO_TOKEN = "<video>"
@@ -58,62 +59,50 @@ MAX_NUM_VIDEOS = 1
 IGNORE_INDEX = -1
 
 
-class TarOrFolderVisualLoader:
+class TarOrFolderVideoLoader:
     """
-    A class for loading images and videos from a tar archive or a regular folder.
+        A class for loading videos from a tar archive or a regular folder.
 
-    This class provides functionality to open and read images and videos from either a tar archive
-    (.tar file) or a standard directory with image or video files. It builds an index of images and
-    videos if the source is a tar archive for efficient access.
+        This class provides functionality to open and read videos from either a tar archive
+        (.tar file) or a standard directory with video files. It builds an index of
+        videos if the source is a tar archive for efficient access.
 
-    Attributes:
-        visual_folder (str): The path to the tar archive or video/image folder.
-        tar_index (dict): A dictionary that maps file names to their tarfile member
-                          objects if the video/image source is a tar archive.
+        Attributes:
+            video_folder (str): The path to the tar archive or video folder.
+            tar_index (dict): A dictionary that maps file names to their tarfile member
+                              objects if the video source is a tar archive.
 
-    Methods:
-        __init__(self, image_folder): Initializes the loader with the specified video/image folder.
-        build_index(self): Builds an index of video/image file names and their corresponding
-                           tarfile member objects for a tar archive.
-        open_image(self, file_name): Opens and returns an image by its file name. The image
-                                     is returned as an RGB PIL Image object.
-        open_video(self, file_name): Opens and returns a video by its file name. The video
-                                     is returned as an OpenCV VideoCapture object.
-    """
+        Methods:
+            __init__(self, image_folder): Initializes the loader with the specified video folder.
+            build_index(self): Builds an index of video file names and their corresponding
+                               tarfile member objects for a tar archive.
+            open_video(self, file_name): Opens and returns a video by its file name. The video
+                                         is returned as an OpenCV VideoCapture object.
+        """
 
-    def __init__(self, visual_folder):
-        self.visual_folder = visual_folder
+    def __init__(self, video_folder):
+        self.video_folder = video_folder
         self.tar_index = {}
-        if self.visual_folder.endswith('.tar'):
+        if self.video_folder.endswith('.tar'):
             self.build_index()
 
     def build_index(self):
-        with tarfile.open(self.visual_folder, 'r') as tar:
+        with tarfile.open(self.video_folder, 'r') as tar:
             for member in tar.getmembers():
                 self.tar_index[member.name] = member
 
-    def open_image(self, file_name):
-        if self.visual_folder.endswith('.tar'):
-            with tarfile.open(self.visual_folder, 'r') as tar:
-                member = self.tar_index.get(file_name)
-                if member:
-                    f = tar.extractfile(member)
-                    return Image.open(f).convert('RGB')
-        else:
-            return Image.open(os.path.join(self.visual_folder, file_name)).convert('RGB')
-        return None
-
     def open_video(self, file_name):
-        if self.visual_folder.endswith('.tar'):
-            with tarfile.open(self.visual_folder, 'r') as tar:
+        if self.video_folder.endswith('.tar'):
+            with tarfile.open(self.video_folder, 'r') as tar:
                 member = self.tar_index.get(file_name)
                 if member:
                     f = tar.extractfile(member)
                     video_data = np.frombuffer(f.read(), dtype=np.uint8)
                     return cv2.imdecode(video_data, cv2.IMREAD_UNCHANGED)
         else:
-            return cv2.VideoCapture(os.path.join(self.visual_folder, file_name))
+            return cv2.VideoCapture(os.path.join(self.video_folder, file_name))
         return None
+
 
 
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
