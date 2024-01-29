@@ -13,8 +13,8 @@
 # limitations under the License.
 
 """Transformer based language model."""
-from ast import Mod
 import math
+from ast import Mod
 
 import torch
 
@@ -366,29 +366,37 @@ class Embedding(MegatronModule):
         """
         if self.training:
             if self.embedding_noise and not self.neft:
-                    # Add noise to the embeddings
-                    if self.embedding_noise_type == 'uniform':
-                        noise = torch.empty_like(embeddings).uniform_(self.embedding_noise_mean, self.embedding_noise_std).detach()
-                    elif self.embedding_noise_type == 'normal':
-                        noise = torch.empty_like(embeddings).normal_(self.embedding_noise_mean, self.embedding_noise_std).detach()
-                    else:
-                        raise NotImplementedError(f"embedding noise type {self.embedding_noise_type} not implemented")
+                # Add noise to the embeddings
+                if self.embedding_noise_type == 'uniform':
+                    noise = (
+                        torch.empty_like(embeddings)
+                        .uniform_(self.embedding_noise_mean, self.embedding_noise_std)
+                        .detach()
+                    )
+                elif self.embedding_noise_type == 'normal':
+                    noise = (
+                        torch.empty_like(embeddings)
+                        .normal_(self.embedding_noise_mean, self.embedding_noise_std)
+                        .detach()
+                    )
+                else:
+                    raise NotImplementedError(f"embedding noise type {self.embedding_noise_type} not implemented")
 
-                    # Calculate the norm of the original embeddings
-                    original_norm = torch.norm(embeddings, p=2, dim=1, keepdim=True)
+                # Calculate the norm of the original embeddings
+                original_norm = torch.norm(embeddings, p=2, dim=1, keepdim=True)
 
-                    # Apply noise
-                    embeddings = embeddings + noise
+                # Apply noise
+                embeddings = embeddings + noise
 
-                    # Calculate the norm of the noisy embeddings
-                    noisy_norm = torch.norm(embeddings, p=2, dim=1, keepdim=True)
+                # Calculate the norm of the noisy embeddings
+                noisy_norm = torch.norm(embeddings, p=2, dim=1, keepdim=True)
 
-                    # Normalize the noisy embeddings
-                    embeddings = embeddings * (original_norm / noisy_norm)
+                # Normalize the noisy embeddings
+                embeddings = embeddings * (original_norm / noisy_norm)
             elif self.neft:
-                    epsilon = torch.empty_like(embeddings).uniform_(-1, 1).detach()
-                    scaled_noise = (self.neft_alpha / math.sqrt(embeddings.shape[0] * embeddings.shape[-1])) * epsilon
-                    embeddings = embeddings + scaled_noise
+                epsilon = torch.empty_like(embeddings).uniform_(-1, 1).detach()
+                scaled_noise = (self.neft_alpha / math.sqrt(embeddings.shape[0] * embeddings.shape[-1])) * epsilon
+                embeddings = embeddings + scaled_noise
         return embeddings
 
     def zero_parameters(self):
@@ -450,9 +458,9 @@ class Embedding(MegatronModule):
                 embeddings = self.embedding_dropout(embeddings)
         else:
             embeddings = self.embedding_dropout(embeddings)
-        
+
         if self.noise_positonal_embedding:
-            embeddings = self._noise(embeddings)    
+            embeddings = self._noise(embeddings)
 
         return embeddings
 
