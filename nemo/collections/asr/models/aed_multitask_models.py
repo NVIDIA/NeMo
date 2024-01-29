@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 import itertools
 import json
 import os
-import re
 import tempfile
 from math import ceil
 from typing import Dict, List, Optional, Union
@@ -251,15 +250,15 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         manifest_path = None
         if isinstance(audio, list):
-            logging.info(f"Found paths2audio_files to be a list of {len(audio)} items.")
-            logging.info(f"Assuming each item in paths2audio_files is a path to audio file.")
+            logging.debug(f"Found 'audio' to be a list of {len(audio)} items.")
+            logging.debug(f"Assuming each item in 'audio' is a path to audio file.")
 
             if isinstance(self.tokenizer, tokenizers.AggregateTokenizer):
                 primary_language = self.tokenizer.langs[0]
-                logging.info(f"Transcribing with default setting of {primary_language}.")
+                logging.debug(f"Transcribing with default setting of {primary_language}.")
 
         elif isinstance(audio, str):
-            logging.info(f"Found paths2audio_files to be a string. Assuming it is a path to manifest file.")
+            logging.debug(f"Found 'audio' to be a string. Assuming it is a path to manifest file.")
             assert os.path.exists(audio), f"File {audio} doesn't exist"
             assert audio.endswith('.json') or audio.endswith('.jsonl'), f"File {audio} must be a json or jsonl file"
 
@@ -278,7 +277,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                         'source_lang': 'en',
                         'taskname': 'asr',
                         'target_lang': 'en',
-                        'pnc': 'no',
+                        'pnc': 'yes',
                         'answer': 'nothing',
                     }
                 elif isinstance(item, dict):
@@ -317,7 +316,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
                     for audio_file in paths2audio_files:
-                        # _may_be_make_dict_and_fix_paths has already fixed the path and added other fields   if needed
                         fp.write(json.dumps(audio_file) + '\n')
 
                 config = {

@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,13 +13,9 @@
 # limitations under the License.
 
 from functools import cached_property
-from typing import Dict, List, Union
-
-import numpy as np
+from typing import Dict
 
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.utils import logging
 
 __all__ = ['CanaryTokenizer']
 
