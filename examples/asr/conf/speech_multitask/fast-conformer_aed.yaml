@@ -23,7 +23,7 @@ model:
   log_prediction: true # enables logging sample predictions in the output during training
 
   # Important ! Set the prompt format to the class you need
-  prompt_format: "canary"
+  prompt_format: ???   # Options supported: ["canary"]
 
   model_defaults:
     asr_enc_hidden: 1024

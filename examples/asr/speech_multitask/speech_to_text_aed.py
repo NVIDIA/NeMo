@@ -24,9 +24,13 @@ python speech_to_text_aed.py \
     model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
     model.tokenizer.model_path=<path to speech tokenizer model> \
     model.tokenizer.type=<either bpe, wpe, or yttm> \
+    model.prompt_format="canary" \
     trainer.devices=-1 \
     trainer.accelerator="ddp" \
-    trainer.max_epochs=100 \
+    trainer.max_steps=100000 \
+    +trainer.limit_train_batches=20000 \
+    trainer.val_check_interval=5000 \
+    +trainer.use_distributed_sampler=false
     model.optim.name="adamw" \
     model.optim.lr=0.001 \
     model.optim.betas=[0.9,0.999] \
