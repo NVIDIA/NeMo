@@ -31,9 +31,9 @@ from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor
 
-import nemo.collections.multimodal.data.videoneva.conversation as conversation_lib
+import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
-from nemo.collections.multimodal.data.videoneva.conversation import (
+from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_BOS_TOKEN,
     DEFAULT_EOS_TOKEN,
     DEFAULT_IM_END_TOKEN,
@@ -45,12 +45,13 @@ from nemo.collections.multimodal.data.videoneva.conversation import (
     DEFAULT_SEPARATOR_TOKEN,
     DEFAULT_SYSTEM_TOKEN,
     DEFAULT_UNK_TOKEN,
-    DEFAULT_VID_END_TOKEN,
-    DEFAULT_VID_START_TOKEN,
-    DEFAULT_VIDEO_PATCH_TOKEN,
-    DEFAULT_VIDEO_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+
+DEFAULT_VIDEO_TOKEN = "<video>"
+DEFAULT_VIDEO_PATCH_TOKEN = "<vid_patch>"
+DEFAULT_VID_START_TOKEN = "<vid_start>"
+DEFAULT_VID_END_TOKEN = "<vid_end>"
 
 MAX_NUM_IMAGES = 1
 MAX_NUM_VIDEOS = 1
@@ -113,50 +114,6 @@ class TarOrFolderVisualLoader:
         else:
             return cv2.VideoCapture(os.path.join(self.visual_folder, file_name))
         return None
-
-
-def tokenize(
-    texts: Union[str, List[str]], tokenizer: Any, context_length: int, add_extra_token: int,
-) -> torch.LongTensor:
-    """
-    Returns the tokenized representation of given input string(s). If the list of tokens exceeds the context
-    length plus the number of extra tokens, it gets truncated. If it's smaller, it gets padded with zeros.
-
-    Parameters
-    ----------
-    texts : Union[str, List[str]]
-        An input string or a list of input strings to tokenize.
-    tokenizer : Any
-        A tokenizer to be used for tokenization.
-    context_length : int
-        The context length to be used for the output tensor.
-    add_extra_token : int
-        Number of extra tokens to add, should be either 0 or 1.
-
-    Returns
-    -------
-    torch.LongTensor
-        A two-dimensional tensor containing the resulting tokens, shape = [number of input strings, context_length + add_extra_token].
-    """
-    assert add_extra_token == 0 or add_extra_token == 1, "`add_extra_token` should be either 0 or 1."
-
-    texts_is_str = False
-    if isinstance(texts, str):
-        texts = [texts]
-        texts_is_str = True
-    tokens = tokenizer.text_to_ids(texts)
-    max_len = max([len(token) for token in tokens])
-    context_length = min(max_len - add_extra_token, context_length)
-    # truncate and padding
-    result = torch.zeros(len(tokens), context_length + add_extra_token, dtype=torch.long)
-
-    for i, token in enumerate(tokens):
-        if len(token) > context_length + add_extra_token:
-            token = token[: context_length + add_extra_token]  # Truncate
-        result[i, : len(token)] = torch.tensor(token)
-    if texts_is_str:
-        result = result[0]
-    return result
 
 
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
