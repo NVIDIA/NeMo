@@ -25,6 +25,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
+from omegaconf import open_dict
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -158,7 +159,9 @@ class MegatronRetroModel(MegatronGPTModel):
             cfg.tokenizer.type = retro_preprocess_config.retro_gpt_tokenizer_type
             cfg.tokenizer.vocab_file = retro_preprocess_config.retro_gpt_vocab_file
             cfg.tokenizer.merge_file = retro_preprocess_config.retro_gpt_merge_file
-
+            with open_dict(cfg):
+                cfg.retro_train_samples_with_neighbors = retro_preprocess_config.retro_gpt_train_samples
+                cfg.retro_valid_samples_with_neighbors = retro_preprocess_config.retro_gpt_valid_samples
             cfg.data.retro_data.retro_block_size = retro_preprocess_config.retro_block_size
             cfg.data.retro_data.retro_chunk_length = retro_preprocess_config.retro_gpt_chunk_length
 
@@ -195,9 +198,16 @@ class MegatronRetroModel(MegatronGPTModel):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             )
 
-            # if torch.distributed.get_rank() == 0:
-            print("model: ")
-            print(model)
+            # # DEBUGGING
+            # # if torch.distributed.get_rank() == 0:
+            # print("model: ")
+            # print(model)
+            # def count_parameters(model):
+            #     # return sum(p.numel() for p in model.parameters() if p.requires_grad)
+            #     for name, p in model.named_parameters():
+            #         print(str(name) + ": " + str(p.numel()) + ", {}".format(str(p.shape)))
+            #     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+            # print("self-count number of params: " + str(count_parameters(model)))
 
         else:
             assert self.mcore_gpt==True, "Currently only support mcore Retro."
@@ -215,10 +225,15 @@ class MegatronRetroModel(MegatronGPTModel):
         )
         return output_tensor
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None, **extra) -> Any:
         # batch = {'prompts': List, 'neighbors': List[List]}
 
         inference_config = self.get_inference_config()
+
+        if torch.distributed.get_rank() == 0:
+            print("inference_config: ")
+            print(inference_config)
+
         if inference_config is None:
             return None
         else:
@@ -232,19 +247,40 @@ class MegatronRetroModel(MegatronGPTModel):
                 inference_config['all_probs'] = True
                 inference_config["add_BOS"] = False
                 inference_config['greedy'] = True
+                inference_config['retro_inference'] = inference_config['retro_inference']
                 response = generate(self, **inference_config)
                 compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
                 return compute_prob_response
             else:
                 inference_config['inputs'] = batch['prompts']
-                inference_config['strategy_args'] = {'neighbors': batch['neighbors']}
+                inference_config['neighbors'] = batch['neighbors']
+                inference_config['retro_inference'] = inference_config['retro_inference']
                 return generate(self, **inference_config)
 
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
+            # DEBUGGING
+            if (torch.distributed.get_rank() == 0) and (self.training==True):
+                print("--------")
+
+            # DEBUGGING
+            if (torch.distributed.get_rank() == 0) and (self.training==True):
+                import time
+                start1 = time.time()
+
             # Get data batch
             batch = next(dataloader_iter)
+
+            # DEBUGGING
+            if (torch.distributed.get_rank() == 0) and (self.training==True):
+                end1 = time.time()
+                print("Time get data batch: " + str(round(end1 - start1,6)))
+
+            # DEBUGGING
+            if (torch.distributed.get_rank() == 0) and (self.training==True):
+                import time
+                start2 = time.time()
 
             # Transfer needed data to GPU
             required_keys = set()
@@ -260,6 +296,16 @@ class MegatronRetroModel(MegatronGPTModel):
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
+            # DEBUGGING
+            if (torch.distributed.get_rank() == 0) and (self.training==True):
+                end2 = time.time()
+                print("Time transferring data to GPU: " + str(round(end2 - start2,6)))
+
+            # DEBUGGING
+            if (torch.distributed.get_rank() == 0) and (self.training==True):
+                import time
+                start3 = time.time()
+
             # reshape context_input_ids and context_position_ids for RETRO from [bs, l*k, r] => [bs*l*k, r]
             context_input_ids = batch['context_input_ids']
             context_position_ids = batch['context_position_ids']
@@ -267,6 +313,11 @@ class MegatronRetroModel(MegatronGPTModel):
             context_position_ids = context_position_ids.view(-1, context_position_ids.shape[-1]).long()
             batch['context_input_ids'] = context_input_ids
             batch['context_position_ids'] = context_position_ids
+
+            # DEBUGGING
+            if (torch.distributed.get_rank() == 0) and (self.training==True):
+                end3 = time.time()
+                print("Time reshape tensors: " + str(round(end3 - start3,6)))
 
             # Model forward pass
             forward_args = {
@@ -280,8 +331,13 @@ class MegatronRetroModel(MegatronGPTModel):
                 'loss_mask': batch['loss_mask'],
             }
 
+            # # DEBUGGING
+            # if (torch.distributed.get_rank() == 0) and (self.training==False):
+            #     print("batch['tokens'].shape: ")
+            #     print(batch['tokens'].shape)
+
             # ## DEBUGGING
-            # if torch.distributed.get_rank() == 0:
+            # if (torch.distributed.get_rank() == 0) and (self.training==False):
             #     # print out sample and corresponding chunks, make sure match
             #     [bs, sq] = batch['tokens'].shape
             #     _, r = batch['context_input_ids'].shape
@@ -289,7 +345,7 @@ class MegatronRetroModel(MegatronGPTModel):
             #     batch['context_input_ids'] = batch['context_input_ids'].reshape(bs, -1 , r)
             #     print("==========================================================")
             #     b = 0
-            #     print("GPT sample: " + str(self.tokenizer.ids_to_text(batch['tokens'][b])).replace("\n", ""))
+            #     print("GPT sample: " + str(self.tokenizer.ids_to_text(batch['tokens'][b].tolist())).replace("\n", ""))
             #     one_gpt_sample = batch['tokens'][b]
             #     one_gpt_neighbors = batch['context_input_ids'][b]
             #     one_gpt_neighbors = one_gpt_neighbors.reshape(-1, self.retro_model_config.retro_num_neighbors, self.retro_model_config.retro_retrieved_length)
@@ -299,9 +355,9 @@ class MegatronRetroModel(MegatronGPTModel):
             #     for i in range(l): # iterating through the chunks within one GPT sample
             #         one_gpt_sample_chunk = one_gpt_sample[i*64:i*64+64]
             #         one_gpt_neighbors_chunks = one_gpt_neighbors[i]
-            #         print("GPT sample chunk: " + str(self.tokenizer.ids_to_text(one_gpt_sample_chunk)).replace("\n", "") + "\n")
+            #         print("GPT sample chunk: " + str(self.tokenizer.ids_to_text(one_gpt_sample_chunk.tolist())).replace("\n", "") + "\n")
             #         for j in range(k):
-            #             print("GPT sample neighbor chunk: " + str(self.tokenizer.ids_to_text(one_gpt_neighbors_chunks[j][:64])).replace("\n", "") + "\n")
+            #             print("GPT sample neighbor chunk: " + str(self.tokenizer.ids_to_text(one_gpt_neighbors_chunks[j][:64].tolist())).replace("\n", "") + "\n")
             #         print("------------")
             # exit()
 
@@ -441,17 +497,11 @@ class MegatronRetroModel(MegatronGPTModel):
         # eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches # check this carefully, we want to match mcore dataset value, should this computed, or overriden?
         # test_iters = self.trainer.limit_test_batches
 
-        # train_valid_test_num_samples = [
-        #     max_train_steps * global_batch_size,
-        #     eval_iters * global_batch_size,
-        #     test_iters * global_batch_size,
-        # ]
-
         # DEBUGGING
-        train_valid_test_num_samples = [
-            65000,
-            100 * global_batch_size,
-            0 * global_batch_size,
+        train_valid_test_num_samples = [  # compute the number of training/validating samples from workdir/query/train_*; dividing number of chunks for (2048/64)
+            self.cfg.retro_train_samples_with_neighbors,
+            self.cfg.retro_valid_samples_with_neighbors,
+            0,
         ]
 
         # DEBUGGING
@@ -479,15 +529,6 @@ class MegatronRetroModel(MegatronGPTModel):
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building mcore RETRO datasets.')
-
-        # # DEBUGGING
-        # if torch.distributed.get_rank() == 0:
-        #     print("self._train_ds nemo RETRO datasets: ")
-        #     print("nemo RETRO datasets (train): {}".format(str(len(self._train_ds)) if self._train_ds else None))
-        #     print("nemo RETRO datasets (valid): {}".format(str(len(self._validation_ds)) if self._validation_ds else None))
-        #     print("nemo RETRO datasets (test): {}".format(str(len(self._test_ds)) if self._test_ds else None))
-        #     print("nemo RETRO datasets (train) [0]: {}".format(str(self._train_ds[0]) if self._train_ds else None))
-        # # exit()
 
         return self._train_ds, self._validation_ds, self._test_ds
 
