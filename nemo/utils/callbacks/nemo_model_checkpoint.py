@@ -33,7 +33,7 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 
 class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
-    Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based 
+    Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based
     on the best checkpoint saved (according to the monitor value).
     Also contains func to save the EMA copy of the model.
     """
@@ -75,6 +75,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if self.save_top_k != -1 and n_resume:
             logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
+            self.previous_best_path = self.best_model_path
 
     def nemo_topk_check_previous_run(self):
         try:
@@ -158,7 +159,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         if self.save_best_model:
             if not os.path.exists(maybe_injected_best_model_path):
-                return
+                return output
 
             if self.best_model_path == self.previous_best_path:
                 logging.debug('Best model has not changed, skipping save.')
@@ -198,7 +199,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 monitor_candidates = self._monitor_candidates(trainer)
                 super()._save_last_checkpoint(trainer, monitor_candidates)
         # Call parent on_train_end() to save the -last checkpoint
-        super().on_train_end(trainer, pl_module)
+        output = super().on_train_end(trainer, pl_module)
 
         # Load the best model and then re-save it
         if self.save_best_model:
@@ -210,6 +211,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                     "were found. Saving latest model instead."
                 )
             else:
+                if self.best_model_path == self.previous_best_path:
+                    logging.warning('Best model has not changed, skipping save.')
+                    return output
+
                 if os.path.isdir(self.best_model_path.split('.ckpt')[0]):
                     self.best_model_path = self.best_model_path.split('.ckpt')[0]
                 self.best_model_path = trainer.strategy.broadcast(self.best_model_path)
