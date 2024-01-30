@@ -313,7 +313,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
             - log_global_rank_0_only (bool): Whether to only create log files for global rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
-            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want 
+            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want
                 a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
             - seconds_to_sleep (float): seconds to sleep non rank 0 processes for. Used to give enough time for rank 0 to initialize
 
@@ -973,7 +973,7 @@ def configure_checkpointing(
 
 def check_slurm(trainer):
     try:
-        return trainer.accelerator_connector.is_slurm_managing_tasks
+        return int(os.getenv('SLURM_STEP_NUM_TASKS','0')) == trainer.world_size
     except AttributeError:
         return False
 
