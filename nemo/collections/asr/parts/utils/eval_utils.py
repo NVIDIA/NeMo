@@ -54,6 +54,12 @@ def flatten_dict_config(config: DictConfig, parent_key='', sep='.', join='\n') -
 
 
 def get_hydra_override_from_config(config: Optional[DictConfig] = None, exclude_keys: Optional[list] = None) -> str:
+    """
+    Flatten a DictConfig object into a string of hydra overrides for commandline, for example:
+    >>> config = OmegaConf.create({"foo": {"bar": 1, "baz": 2}})
+    >>> get_hydra_override_from_config(config)
+    "++foo.bar=1 ++foo.baz=2"
+    """
     if not config:
         return ""
     join = '\n'
