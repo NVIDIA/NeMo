@@ -60,7 +60,6 @@ from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTra
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
-from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
 from nemo.core.optim.optimizers import init_optimizer_states
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -68,6 +67,7 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
 
     HAVE_APEX = True
 
