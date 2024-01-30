@@ -973,7 +973,7 @@ def configure_checkpointing(
 
 def check_slurm(trainer):
     try:
-        return int(os.getenv('SLURM_STEP_NUM_TASKS','0')) == trainer.world_size
+        return int(os.getenv('SLURM_STEP_NUM_TASKS', '0')) == trainer.world_size
     except AttributeError:
         return False
 
