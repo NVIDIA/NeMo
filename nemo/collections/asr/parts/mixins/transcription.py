@@ -65,9 +65,6 @@ class TranscribeConfig:
     return_generator: bool = False
     partial_hypothesis: Optional[List[Any]] = False
 
-    # TODO(@titu1994): DEPRECATED?
-    logprobs: bool = False
-
     _internal: Optional[InternalTranscribeConfig] = None
 
 
