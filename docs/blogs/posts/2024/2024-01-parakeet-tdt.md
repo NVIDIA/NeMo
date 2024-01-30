@@ -1,5 +1,5 @@
 ---
-title: Unveiling NVIDIA NeMo's Parakeet-TDT -- Turbocharged ASR with Unraveled Accuracy
+title: Unveiling NVIDIA NeMo's Parakeet-TDT -- Turbocharged ASR with Unrivaled Accuracy
 author: [Hainan Xu, Nithin Rao Koluguri, Somshubra Majumdar]
 author_gh_user: [hainan-xv, nithinraok, titu1994]
 readtime: 5
@@ -17,9 +17,9 @@ og_title: NVIDIA NeMo Parakeet-TDT
 description: State of the Art Speech Recognition for Everyone
 ---
 
-# Unveiling NVIDIA NeMo's Parakeet-TDT -- Turbocharged ASR with Unraveled Accuracy
+# Unveiling NVIDIA NeMo's Parakeet-TDT -- Turbocharged ASR with Unrivaled Accuracy
 
-Earlier this month, we announced [Parakeet](https://huggingface.co/collections/nvidia/parakeet-659711f49d1469e51546e021), a cutting-edge collection of state-of-the-art ASR models built by [NVIDIA's NeMo](https://nvidia.github.io/NeMo/) toolkit, developed jointly with [Suno.ai](http://suno.ai/). Today, we're thrilled to announce the latest addition to the Parakeet family -- [Parakeet TDT](https://huggingface.co/nvidia/parakeet-tdt-1.1b). Parakeet TDT achieves unraveled accuracy while running more than 70% faster over our previous best model, making it a great choice for powering speech recognition engines in diverse environments.
+Earlier this month, we announced [Parakeet](https://huggingface.co/collections/nvidia/parakeet-659711f49d1469e51546e021), a cutting-edge collection of state-of-the-art ASR models built by [NVIDIA's NeMo](https://nvidia.github.io/NeMo/) toolkit, developed jointly with [Suno.ai](http://suno.ai/). Today, we're thrilled to announce the latest addition to the Parakeet family -- [Parakeet TDT](https://huggingface.co/nvidia/parakeet-tdt-1.1b). Parakeet TDT achieves unrivaled accuracy while running more than 70% faster over our previous best model, making it a great choice for powering speech recognition engines in diverse environments.
 
 
 The "TDT" in Parakeet-TDT is short for "Token-and-Duration Transducer", a novel sequence modeling architecture developed by NVIDIA and is open-sourced through [NVIDIA's NeMo](https://nvidia.github.io/NeMo/) toolkit. Our research on TDT models, presented in a [paper](https://arxiv.org/abs/2304.06795) at the ICML 2023 conference, showcases the superior speed and recognition accuracy of TDT models compared to conventional Transducers of similar sizes. 
