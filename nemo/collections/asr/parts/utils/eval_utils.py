@@ -64,7 +64,10 @@ def get_hydra_override_from_config(config: Optional[DictConfig] = None, exclude_
     return param_str
 
 
-def strip_spaces_before_punctuation(text):
+def strip_spaces_before_punctuations(text: str) -> str:
+    """
+    Remove spaces before punctuations, e.g. "hello , world" -> "hello, world"
+    """
     result = re.sub(r'(\w)\s+([.,;!?])', r'\1\2', text)
     return result
 
@@ -190,8 +193,8 @@ def cal_write_wer(
                 ref = remove_punctuations(ref, punctuations=punctuations)
                 hyp = remove_punctuations(hyp, punctuations=punctuations)
             elif strip_punc_space:
-                ref = strip_spaces_before_punctuation(ref)
-                hyp = strip_spaces_before_punctuation(hyp)
+                ref = strip_spaces_before_punctuations(ref)
+                hyp = strip_spaces_before_punctuations(hyp)
 
             if ignore_capitalization:
                 ref = ref.lower()
@@ -276,8 +279,8 @@ def cal_write_text_metric(
                 ref = remove_punctuations(ref, punctuations=punctuations)
                 hyp = remove_punctuations(hyp, punctuations=punctuations)
             elif strip_punc_space:
-                ref = strip_spaces_before_punctuation(ref)
-                hyp = strip_spaces_before_punctuation(hyp)
+                ref = strip_spaces_before_punctuations(ref)
+                hyp = strip_spaces_before_punctuations(hyp)
 
             if ignore_capitalization:
                 ref = ref.lower()
