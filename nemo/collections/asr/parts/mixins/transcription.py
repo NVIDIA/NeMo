@@ -101,7 +101,9 @@ def get_value_from_transcription_config(trcfg, key, default):
     if hasattr(trcfg, key):
         return getattr(trcfg, key)
     else:
-        logging.debug(f"Using default value of {default} for {key} because it is not present in the transcription config {trcfg}.")
+        logging.debug(
+            f"Using default value of {default} for {key} because it is not present in the transcription config {trcfg}."
+        )
         return default
 
 
@@ -240,7 +242,9 @@ class TranscriptionMixin(ABC):
             # if not isinstance(override_config, TranscribeConfig):
             #     raise ValueError("`override_config` must be of an object of type TranscribeConfig or its subclass")
 
-            if not hasattr(override_config, '_internal') or not isinstance(override_config._internal, InternalTranscribeConfig):
+            if not hasattr(override_config, '_internal') or not isinstance(
+                override_config._internal, InternalTranscribeConfig
+            ):
                 raise ValueError(
                     "`transcribe_cfg must have an `_internal` argument, which must be of an object of type "
                     "InternalTranscribeConfig or its subclass."

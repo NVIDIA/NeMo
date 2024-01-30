@@ -29,8 +29,8 @@ from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError
 
 from nemo.collections.asr.data import audio_to_label_dataset, feature_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins.transcription import InternalTranscribeConfig
 from nemo.collections.asr.parts.mixins import TranscriptionMixin, TranscriptionReturnType
+from nemo.collections.asr.parts.mixins.transcription import InternalTranscribeConfig
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
