@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+#############################
+# THIS SCRIPT IS DEPRECATED #
+#############################
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 
@@ -21,6 +23,7 @@ from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 from nemo.utils.exp_manager import exp_manager
 
 mp.set_start_method("spawn", force=True)
@@ -38,7 +41,7 @@ be saved.
 Usage:
     Assuming the base model is a 125m GPT Model, with TP=1, PP=1:
     a. run a training run for a base gpt nemo file:
-        python megatron_gpt_peft_tuning.py \
+        python megatron_gpt_finetuning.py \
             "model.data.train_ds.file_names=[PATH TO TRAINING JSONL FILE]",
             "model.data.train_ds.concat_sampling_probabilities=[SAMPLING VAL]",
             "model.data.validation_ds.file_names=[PATH TO VALIDATION JSONL FILE]",
@@ -50,8 +53,15 @@ Usage:
 Please see lora.ipynb for a step-by-step guide.
 """
 
+banner = '\n'.join(['' "*" * 80] * 5)
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_peft_tuning_config")
+
+@deprecated(
+    wait_seconds=20,
+    explanation=f"\n{banner}\nmegatron_gpt_peft_tuning.py is renamed to megatron_gpt_finetuning.py with the "
+    f"same functionality. \nPlease switch to the new name.\n{banner}\n",
+)
+@hydra_runner(config_path="conf", config_name="megatron_gpt_finetuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
