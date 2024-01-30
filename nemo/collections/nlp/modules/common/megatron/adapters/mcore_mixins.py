@@ -148,7 +148,7 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         # [s, b, 4 * h/p]
         intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
 
-        if self.config.bias_gelu_fusion:
+        if self.config.bias_activation_fusion:
             assert self.config.add_bias_linear is True
             assert self.activation_func == F.gelu
             intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
@@ -204,6 +204,7 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
         context_mask=None,
         rotary_pos_emb=None,
         inference_params=None,
+        packed_seq_params=None,
     ):
         # hidden_states: [s, b, h]
 
