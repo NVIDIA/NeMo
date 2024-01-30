@@ -365,8 +365,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             micro_batch_size=get_micro_batch_size(),
         )
 
+        non_loss_tensors = {}
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
+            for k, v in losses_reduced_per_micro_batch[0].items():
+                if k != 'avg':
+                    av = non_loss_tensors.get(k, [])
+                    av.append(v)
+                    non_loss_tensors[k] = av
             if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
                 # average loss across micro batches
                 loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
@@ -392,6 +398,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             else:
                 loss_mean = torch.tensor(0.0).cuda()
 
+        if forward_only:
+            if non_loss_tensors: # TODO: need a nicer way to do this via inheritance (@adithyare)
+                return loss_mean, non_loss_tensors
+            else:
+                return loss_mean
         return loss_mean
 
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
@@ -410,6 +421,24 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
+        outputs = self.inference_step_validation_call(batch, batch_idx, data_cfg, dataloader_idx)
+        
+
+        if mode == 'validation':
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[-1] = outputs
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                self.test_step_outputs[-1] = outputs
+        return outputs
+    
+    def inference_step_validation_call(self, batch, batch_idx, data_cfg, dataloader_idx=0):
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
 
@@ -438,25 +467,99 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             'inputs': inputs_text,  # [str]
             'metadata': metadata,  # [dict]
         }
-
-        if mode == 'validation':
-            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
-                self.validation_step_outputs[dataloader_idx][-1] = outputs
-            else:
-                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
-                self.validation_step_outputs[-1] = outputs
-        else:
-            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
-                self.test_step_outputs[dataloader_idx][-1] = outputs
-            else:
-                self.test_step_outputs[-1] = outputs
         return outputs
 
+    def gather_and_maybe_write_predictions(self, output, data_cfg, mode, dataloader_idx=0):
+        # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
+        gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+        torch.distributed.all_gather_object(
+            gathered_outputs,
+            [
+                {'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'metadata': x['metadata']}
+                for x in output
+            ],
+            group=parallel_state.get_data_parallel_group(),
+        )
+
+        # Remove duplicate examples due to distributed sampler.
+        deduplicated_outputs = {
+            'preds': [],
+            'labels': [],
+            'inputs': [],
+            'metadata': [],
+        }
+        total_size = 0
+        for rank in range(0, parallel_state.get_data_parallel_world_size()):
+            for batch in gathered_outputs[rank]:
+                for pred, label, input, metadata in zip(
+                    batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
+                ):
+                    total_size += 1
+                    if not metadata.get("__AUTOGENERATED__", False):
+                        deduplicated_outputs['preds'].append(pred)
+                        deduplicated_outputs['labels'].append(label)
+                        deduplicated_outputs['inputs'].append(input)
+                        deduplicated_outputs['metadata'].append(metadata)
+                    else:
+                        logging.info(
+                            f"skipping autogenerated example example {input} prediction {pred} label {label}"
+                        )
+
+        # Compute metric score
+        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
+        if metric_name != 'loss':
+            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+            metric_fn = (
+                self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+            )
+            if metric_label_key in deduplicated_outputs['metadata'][0]:
+                labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
+            else:
+                labels = deduplicated_outputs['labels']
+
+            for pred, label in zip(deduplicated_outputs['preds'], labels):
+                _ = metric_fn(pred, label)
+
+            metric_result = metric_fn.compute()
+
+            if metric_name == 'rouge':
+                for k, v in metric_result.items():
+                    if 'fmeasure' in k:
+                        self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
+                        logging.info(f"{mode} {metric_name} {k}: {v.item()}")
+                metric_result = metric_result['rouge1_fmeasure']
+            else:
+                self.log(metric_log_key, metric_result.item(), sync_dist=True)
+                logging.info(f"{mode} {metric_name}: {metric_result.item()}")
+
+            metric_fn.reset()
+            averaged_metric.append(metric_result)
+
+        # Write predictions to file
+        if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
+            logging.info(
+                f"Total deduplicated inference data size: {total_size} to {len(deduplicated_outputs['inputs'])}"
+            )
+
+            # Check if the user provided a prefix path to the file(s) they want to write.
+            if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
+                raise ValueError(
+                    f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
+                )
+            filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+            self.write_predictions_to_file(
+                deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+            )
+
+        return deduplicated_outputs, total_size
+    
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
         if not outputs:
             return
+
+        # TODO: this method should be modularized. It is too long and does too many things. (@adithyare)
 
         if isinstance(outputs[0], dict):
             outputs = [outputs]
@@ -489,88 +592,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             self.log(loss_log_key, loss, batch_size=1)
             averaged_loss.append(loss)
-
-            # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
-            gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
-            torch.distributed.all_gather_object(
-                gathered_outputs,
-                [
-                    {'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'metadata': x['metadata']}
-                    for x in output
-                ],
-                group=parallel_state.get_data_parallel_group(),
-            )
-
-            # Remove duplicate examples due to distributed sampler.
-            deduplicated_outputs = {
-                'preds': [],
-                'labels': [],
-                'inputs': [],
-                'metadata': [],
-            }
-            total_size = 0
-            for rank in range(0, parallel_state.get_data_parallel_world_size()):
-                for batch in gathered_outputs[rank]:
-                    for pred, label, input, metadata in zip(
-                        batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
-                    ):
-                        total_size += 1
-                        if not metadata.get("__AUTOGENERATED__", False):
-                            deduplicated_outputs['preds'].append(pred)
-                            deduplicated_outputs['labels'].append(label)
-                            deduplicated_outputs['inputs'].append(input)
-                            deduplicated_outputs['metadata'].append(metadata)
-                        else:
-                            logging.info(
-                                f"skipping autogenerated example example {input} prediction {pred} label {label}"
-                            )
-
-            # Compute metric score
-            metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-            metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
-            if metric_name != 'loss':
-                metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-                metric_fn = (
-                    self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-                )
-                if metric_label_key in deduplicated_outputs['metadata'][0]:
-                    labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
-                else:
-                    labels = deduplicated_outputs['labels']
-
-                for pred, label in zip(deduplicated_outputs['preds'], labels):
-                    _ = metric_fn(pred, label)
-
-                metric_result = metric_fn.compute()
-
-                if metric_name == 'rouge':
-                    for k, v in metric_result.items():
-                        if 'fmeasure' in k:
-                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
-                            logging.info(f"{mode} {metric_name} {k}: {v.item()}")
-                    metric_result = metric_result['rouge1_fmeasure']
-                else:
-                    self.log(metric_log_key, metric_result.item(), sync_dist=True)
-                    logging.info(f"{mode} {metric_name}: {metric_result.item()}")
-
-                metric_fn.reset()
-                averaged_metric.append(metric_result)
-
-            # Write predictions to file
-            if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
-                logging.info(
-                    f"Total deduplicated inference data size: {total_size} to {len(deduplicated_outputs['inputs'])}"
-                )
-
-                # Check if the user provided a prefix path to the file(s) they want to write.
-                if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
-                    raise ValueError(
-                        f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
-                    )
-                filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
-                self.write_predictions_to_file(
-                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
-                )
+            self.gather_and_maybe_write_predictions(output, data_cfg, mode, dataloader_idx)
 
             torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
             outputs[dataloader_idx].clear()  # free memory

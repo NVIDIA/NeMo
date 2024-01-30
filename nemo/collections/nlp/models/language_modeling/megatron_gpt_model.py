@@ -941,7 +941,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
                 cp_size = self.cfg.get('context_parallel_size', 1)
-                if validation_step and not self.cfg.data.get('validation_drop_last', True):
+                if self.cfg.data.get("return_output_tensors", False): # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
+                    loss_for_ub, q_hs, d_hs = loss_for_ub
+                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
+                    return loss_for_ub * cp_size, {'avg': reduced_loss, 'query_hs': q_hs, 'doc_hs': d_hs}
+                elif validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
                     if loss_for_ub.isnan():
                         assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'

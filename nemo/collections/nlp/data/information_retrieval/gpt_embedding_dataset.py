@@ -60,6 +60,7 @@ class GPTEmbeddingDataset(Dataset):
         truncation_method: Truncation from which position. Options: ['left', 'right']
         special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
         """
+        # TODO: lot of copy-paste from GPTSFDDataset, should refactor both to use a common base class (@adithyare)
         self.tokenizer = tokenizer
         self.file_path = file_path
         self.max_seq_length = max_seq_length
