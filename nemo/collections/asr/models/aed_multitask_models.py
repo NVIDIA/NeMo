@@ -217,8 +217,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     @torch.no_grad()
     def transcribe(
         self,
-        audio: Union[List[str], str],
+        paths2audio_files: Union[List[str], str],
         batch_size: int = 4,
+        logprobs: Optional[bool] = None,
         return_hypotheses: bool = False,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
@@ -242,6 +243,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
+
+        # get ready for new transcribe API
+        if logprobs is not None:
+            logging.warning("logprobs is deprecated, please use return_hypotheses instead")
+            return_hypotheses = logprobs
+        audio = paths2audio_files
+
         if audio is None or len(audio) == 0:
             return {}
 
@@ -250,7 +258,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         manifest_path = None
         if isinstance(audio, list):
-            logging.debug(f"Found 'audio' to be a list of {len(audio)} items.")
+            logging.debug(f"Found 'paths2audio_files' to be a list of {len(audio)} items.")
             logging.debug(f"Assuming each item in 'audio' is a path to audio file.")
 
             if isinstance(self.tokenizer, tokenizers.AggregateTokenizer):
@@ -258,7 +266,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 logging.debug(f"Transcribing with default setting of {primary_language}.")
 
         elif isinstance(audio, str):
-            logging.debug(f"Found 'audio' to be a string. Assuming it is a path to manifest file.")
+            logging.debug(f"Found 'paths2audio_files' to be a string. Assuming it is a path to manifest file.")
             assert os.path.exists(audio), f"File {audio} doesn't exist"
             assert audio.endswith('.json') or audio.endswith('.jsonl'), f"File {audio} must be a json or jsonl file"
 
