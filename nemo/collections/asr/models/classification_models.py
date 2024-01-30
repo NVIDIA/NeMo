@@ -371,8 +371,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         else:
             if not isinstance(override_config, ClassificationInferConfig):
                 raise ValueError(
-                    f"override_config must be of type {ClassificationInferConfig}, "
-                    f"but got {type(override_config)}"
+                    f"override_config must be of type {ClassificationInferConfig}, " f"but got {type(override_config)}"
                 )
             trcfg = override_config
 
