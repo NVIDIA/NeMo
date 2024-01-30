@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any, Callable, Optional
 import torch
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal, scaled_init_method_normal
-from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer
+from nemo.collections.nlp.parts import utils_funcs
 
 try:
     from megatron.core.transformer.spec_utils import ModuleSpec
@@ -29,6 +30,115 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
     ModuleSpec = ApexGuardDefaults
+
+try:
+    from transformer_engine.pytorch import TransformerLayer
+
+    HAVE_TE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_TE = False
+
+# Copied from nemo/collections/nlp/modules/common/megatron/transformer.py
+# as the source file is slated to be removed
+class AutocastTransformerLayer(TransformerLayer):
+    def __init__(
+        self,
+        hidden_size: int,
+        ffn_hidden_size: int,
+        layernorm_epsilon: float,
+        num_attention_heads: int,
+        init_method: Callable,
+        output_layer_init_method: Callable,
+        hidden_dropout: float,
+        attention_dropout: float,
+        layer_number: Optional[int] = None,
+        kv_channels: Optional[int] = None,
+        self_attn_mask_type: str = "causal",
+        tp_group: Optional[Any] = None,
+        tp_size: int = 1,
+        params_dtype: torch.dtype = torch.float32,
+        get_rng_state_tracker: Optional[Callable] = None,
+        fuse_wgrad_accumulation: bool = False,
+        seq_length: Optional[int] = None,
+        micro_batch_size: Optional[int] = None,
+        sequence_parallel: bool = False,
+        apply_residual_connection_post_layernorm: bool = False,
+        output_layernorm: bool = False,
+        layer_type: str = "encoder",
+        drop_path_rate: float = 0,
+        use_emha: bool = False,
+        ub_tp_comm_overlap: bool = False,
+        autocast_dtype: Any = 16,
+        zero_centered_gamma: bool = False,
+        device: str = 'cuda',
+    ) -> None:
+        super().__init__(
+            hidden_size=hidden_size,
+            ffn_hidden_size=ffn_hidden_size,
+            layernorm_epsilon=layernorm_epsilon,
+            num_attention_heads=num_attention_heads,
+            init_method=init_method,
+            output_layer_init_method=output_layer_init_method,
+            hidden_dropout=hidden_dropout,
+            attention_dropout=attention_dropout,
+            layer_number=layer_number,
+            kv_channels=kv_channels,
+            self_attn_mask_type=self_attn_mask_type,
+            tp_group=tp_group,
+            tp_size=tp_size,
+            params_dtype=params_dtype,
+            get_rng_state_tracker=get_rng_state_tracker,
+            fuse_wgrad_accumulation=fuse_wgrad_accumulation,
+            seq_length=seq_length,
+            micro_batch_size=micro_batch_size,
+            sequence_parallel=sequence_parallel,
+            apply_residual_connection_post_layernorm=apply_residual_connection_post_layernorm,
+            output_layernorm=output_layernorm,
+            layer_type=layer_type,
+            drop_path_rate=drop_path_rate,
+            set_parallel_mode=tp_size > 1,
+            fuse_qkv_params=True,
+            zero_centered_gamma=zero_centered_gamma,
+            ub_tp_comm_overlap=ub_tp_comm_overlap,
+            device=device,
+        )
+        # use_emha=use_emha,
+
+        # Dtype for forward pass - ignore amp O2
+        self.dtype = utils_funcs.torch_dtype_from_precision(autocast_dtype, megatron_amp_O2=None)
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: torch.Tensor,
+        encoder_output: Optional[torch.Tensor] = None,
+        enc_dec_attn_mask: Optional[torch.Tensor] = None,
+        inference_params: Optional[Any] = None,
+        is_first_microbatch: Optional[bool] = None,
+        checkpoint_core_attention: Optional[bool] = False,
+    ) -> torch.Tensor:
+        if self.dtype == torch.float32:
+            return super().forward(
+                hidden_states,
+                attention_mask,
+                encoder_output=encoder_output,
+                enc_dec_attn_mask=enc_dec_attn_mask,
+                inference_params=inference_params,
+                is_first_microbatch=is_first_microbatch,
+                checkpoint_core_attention=checkpoint_core_attention,
+            )
+        with torch.autocast(device_type="cuda", dtype=self.dtype):
+            return super().forward(
+                hidden_states,
+                attention_mask,
+                encoder_output=encoder_output,
+                enc_dec_attn_mask=enc_dec_attn_mask,
+                inference_params=inference_params,
+                is_first_microbatch=is_first_microbatch,
+                checkpoint_core_attention=checkpoint_core_attention,
+            )
 
 
 class TETransformerLayerAutocast(AutocastTransformerLayer):
@@ -156,6 +266,10 @@ def get_gpt_full_te_layer_autocast_spec() -> TransformerBlockSubmodules:
     if not HAVE_MEGATRON_CORE:
         raise ImportError(
             "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+        )
+    if not HAVE_TE:
+        raise ImportError(
+            "TransformerEngine was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
         )
 
     return TransformerBlockSubmodules(
