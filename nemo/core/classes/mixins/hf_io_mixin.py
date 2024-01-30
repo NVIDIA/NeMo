@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from abc import ABC
-from typing import Dict, List, Optional, Union, Iterable
 from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Union
 
 from huggingface_hub import HfApi, ModelCard, ModelCardData, ModelFilter
 from huggingface_hub import get_token as get_hf_token

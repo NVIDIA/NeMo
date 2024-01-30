@@ -37,8 +37,8 @@ from huggingface_hub import hf_hub_download, snapshot_download
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
-from nemo.core.config.templates.model_card import NEMO_DEFAULT_MODEL_CARD_TEMPLATE
 from nemo.core.classes.mixins.hf_io_mixin import HuggingFaceFileIO
+from nemo.core.config.templates.model_card import NEMO_DEFAULT_MODEL_CARD_TEMPLATE
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
