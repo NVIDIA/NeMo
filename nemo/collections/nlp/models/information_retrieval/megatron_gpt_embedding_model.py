@@ -1,5 +1,4 @@
 import itertools
-from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -12,9 +11,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 try:
     from megatron.core import parallel_state
@@ -25,7 +22,6 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -37,6 +33,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         super().__init__(cfg, trainer=trainer)
         self.temperature = self.cfg.get('temperature', 1.0)
         self.num_soft_negatives = self.cfg.get('num_soft_negatives', 0)
+        self.use_all_possible_negatives = self.cfg.get("use_all_possible_negatives", False)
 
     def model_provider_func(self, pre_process, post_process):
         # (@adithyare) We need post_process to be False to get hidden states in the loss_func
@@ -220,37 +217,63 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
                 model_module.train()
         self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
         return loss, non_loss_tensors
+    
+    def contrast_all_possible_negatives(self, pos_doc_hs, neg_doc_hs, query_hs, bs):
+        all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0) # (2bs) x hidden_size
+        all_cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1)) * (1.0 / self.temperature)  # (bs) x (2bs)
 
+        select_cs = torch.cat([torch.eye(bs), torch.zeros(bs, bs)], dim=1).type_as(all_cs).long() # FIXME: TODO: should not be recomputed every time (@adithyare)
+        diag_positions = torch.where(select_cs == 1) # FIXME: TODO: should not be recomputed every time (@adithyare)
+        off_diag_positions = torch.where(select_cs == 0) # FIXME: TODO: should not be recomputed every time (@adithyare)
+
+        pos_cs = all_cs[diag_positions[0], diag_positions[1]] # collects the top diagonal elements
+        neg_cs = all_cs[off_diag_positions[0], off_diag_positions[1]] # collects all the other elements
+        cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.repeat(bs, 1)], dim=1)
+        return cs
+    
+    def contrast_with_sampled_negatives(self, pos_doc_hs, neg_doc_hs, query_hs, bs):
+        assert (
+            self.num_soft_negatives < query_hs.shape[0]
+        ), f"Batch size {bs} is not large enough for {self.num_soft_negatives} soft negatives"
+
+        # (@adithyare) sample soft negatives using a multinomial distribution
+        soft_neg_samples = torch.ones((bs, bs)).type_as(query_hs)
+        # (@adithyare) ensure the diagonal is zero, i.e. don't sample the same document as a soft negative
+        soft_neg_samples.fill_diagonal_(0.0)
+        soft_neg_samples = torch.multinomial(soft_neg_samples, self.num_soft_negatives, replacement=False)
+
+        all_cs = torch.mm(query_hs, pos_doc_hs.transpose(0, 1)) * (1.0 / self.temperature)
+        pos_cs_diag = torch.diag(all_cs)
+        soft_neg_cs = all_cs[soft_neg_samples][:, :, 0]  # (@adithyare) can be made more efficient?
+        neg_cs = torch.nn.functional.cosine_similarity(query_hs, neg_doc_hs, dim=-1) * (1.0 / self.temperature)
+        cs = torch.cat([pos_cs_diag.unsqueeze(1), neg_cs.unsqueeze(1), soft_neg_cs], dim=1)
+        return cs
+    
+    def constrast_with_hard_negatives(self, pos_doc_hs, neg_doc_hs, query_hs, bs):
+        pos_cs = torch.mm(query_hs, pos_doc_hs.transpose(0, 1)).diag() * (1.0 / self.temperature)
+        neg_cs = torch.mm(query_hs, neg_doc_hs.transpose(0, 1)).diag() * (1.0 / self.temperature)
+        cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.unsqueeze(1)], dim=1)
+        return cs
+        
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
         eos_tensors = output_tensor[loss_mask, idx, :]
-        query_hs = eos_tensors[::3, :]
-        pos_doc_hs = eos_tensors[1::3, :]
-        neg_doc_hs = eos_tensors[2::3, :]
-        neg_cs = torch.nn.functional.cosine_similarity(query_hs, neg_doc_hs, dim=-1) * (1.0 / self.temperature)
+        bs = eos_tensors.shape[0] // 3
+        query_hs = eos_tensors[::3, :] # every third tensor is a query (bs x hidden_size)
+        pos_doc_hs = eos_tensors[1::3, :] # every third tensor is a positive doc (bs x hidden_size)
+        neg_doc_hs = eos_tensors[2::3, :] # every third tensor is a negative doc (bs x hidden_size)
         query_hs = query_hs / torch.norm(query_hs, dim=-1, keepdim=True)
         pos_doc_hs = pos_doc_hs / torch.norm(pos_doc_hs, dim=-1, keepdim=True)
+        neg_doc_hs = neg_doc_hs / torch.norm(neg_doc_hs, dim=-1, keepdim=True)
 
-        if self.num_soft_negatives > 0:
-            assert (
-                self.num_soft_negatives < query_hs.shape[0]
-            ), f"Batch size {query_hs.shape[0]} is not large enough for {self.num_soft_negatives} soft negatives"
-
-            # (@adithyare) sample soft negatives using a multinomial distribution
-            soft_neg_samples = torch.ones((query_hs.shape[0], query_hs.shape[0])).type_as(query_hs)
-            # (@adithyare) ensure the diagonal is zero, i.e. don't sample the same document as a soft negative
-            soft_neg_samples.fill_diagonal_(0.0)
-            soft_neg_samples = torch.multinomial(soft_neg_samples, self.num_soft_negatives, replacement=False)
-
-            all_cs = torch.mm(query_hs, pos_doc_hs.transpose(0, 1)) * (1.0 / self.temperature)
-            pos_cs_diag = torch.diag(all_cs)
-            soft_neg_cs = all_cs[soft_neg_samples][:, :, 0]  # (@adithyare) can be made more efficient?
-            cs = torch.cat([pos_cs_diag.unsqueeze(1), neg_cs.unsqueeze(1), soft_neg_cs], dim=1)
+        if self.use_all_possible_negatives:
+           cs = self.contrast_all_possible_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs) 
+        elif self.num_soft_negatives > 0:
+           cs = self.contrast_with_sampled_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs) 
         else:
-            pos_cs = torch.nn.functional.cosine_similarity(query_hs, pos_doc_hs, dim=-1) * (1.0 / self.temperature)
-            cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.unsqueeze(1)], dim=1)
-
-        loss = torch.nn.functional.cross_entropy(cs, torch.zeros(cs.shape[0], dtype=torch.long, device=cs.device))
+            cs = self.constrast_with_hard_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
+            
+        loss = torch.nn.functional.cross_entropy(cs, torch.zeros(bs).type_as(cs).long())
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
