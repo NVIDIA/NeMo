@@ -17,8 +17,7 @@ Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
   Example to run this conversion script:
     python convert_hf_llama_to_nemo.py \
      --in-file <path_to_hf_checkpoints_folder> \
-     --out-file <path_to_output_nemo_file> \
-     [--fast-swiglu\
+     --out-file <path_to_output_nemo_file>
 """
 
 import os
@@ -27,13 +26,10 @@ from collections import OrderedDict
 
 import torch
 from omegaconf import OmegaConf
-from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import LlamaForCausalLM, LlamaTokenizer
 
-
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -41,6 +37,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper, torch_dtype_from_precision
 from nemo.utils import logging
 
 
@@ -50,54 +47,17 @@ def get_args():
         "--in-file", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
-    parser.add_argument("--precision", type=str, default="32", help="Model precision")
+    parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
     return args
 
 
-def load_model(cls, checkpoint, strict, **kwargs):
-    try:
-        if 'cfg' in kwargs:
-            model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
-        else:
-            # model = ptl_load_state(
-            #     cls, checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
-            # )
-            model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
-            for name, module in model.named_parameters():
-                if name in checkpoint['state_dict']:
-                    module.data = checkpoint['state_dict'][name]
-                    checkpoint['state_dict'].pop(name)
-                else:
-                    print(f"Unexpected key: {name} not in checkpoint but in model.")
-
-            for name, buffer in model.named_buffers():
-                if name in checkpoint['state_dict']:
-                    buffer.data = checkpoint['state_dict'][name]
-                    checkpoint['state_dict'].pop(name)
-
-            if len(checkpoint['state_dict'].keys()) != 0:
-                raise RuntimeError(
-                    f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model."
-                )
-
-            # register the artifacts
-            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]
-            if cfg.tokenizer.model is not None:
-                model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
-            if cfg.tokenizer.vocab_file is not None:
-                model.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file)
-            if cfg.tokenizer.merge_file is not None:
-                model.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file)
-    finally:
-        cls._set_model_restore_state(is_being_restored=False)
-    return model
-
-
-def load_config(args, llama_config):
+def load_config(llama_config):
     nemo_config = OmegaConf.load(
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
+    if llama_config.get('rope_theta', None):
+        nemo_config['rotary_base'] = llama_config['rope_theta']
     nemo_config.encoder_seq_length = llama_config['max_position_embeddings']
     nemo_config.num_layers = int(llama_config['num_hidden_layers'])
     nemo_config.hidden_size = llama_config['hidden_size']
@@ -116,6 +76,8 @@ def load_config(args, llama_config):
             nemo_config['seq_len_interpolation_factor'] = llama_config['rope_scaling']['factor']
         else:
             raise ValueError("Only linear rope scaling type is supported now")
+    if llama_config['rope_theta'] is not None:
+        nemo_config['rotary_base'] = llama_config['rope_theta']
 
     base = 128
     while llama_config['vocab_size'] % base != 0:
@@ -136,7 +98,7 @@ def convert(args):
     for name, param in model.named_parameters():
         print(f"- {name}")
 
-    nemo_config = load_config(args, hf_config)
+    nemo_config = load_config(hf_config)
 
     if args.precision in ["32", "16"]:
         precision = int(float(args.precision))
@@ -167,15 +129,6 @@ def convert(args):
             plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-
-    if precision == 32:
-        dtype = torch.float32
-    elif precision in [16, "16", "16-mixed"]:
-        dtype = torch.float16
-    elif precision in ["bf16", "bf16-mixed"]:
-        dtype = torch.bfloat16
-    else:
-        dtype = torch.float32  # fallback
 
     nemo_config.precision = precision
     print(f"nemo_config: {nemo_config}")
@@ -308,11 +261,12 @@ def convert(args):
         for key in keys:
             checkpoint['state_dict'][key.replace('model.', 'model.module.', 1)] = checkpoint['state_dict'].pop(key)
 
-    model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
+    model = load_state_dict_helper(MegatronGPTModel, nemo_config, trainer, checkpoint['state_dict'])
 
     model._save_restore_connector = NLPSaveRestoreConnector()
 
     # cast to target precision and disable cpu init
+    dtype = torch_dtype_from_precision(precision)
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
 
