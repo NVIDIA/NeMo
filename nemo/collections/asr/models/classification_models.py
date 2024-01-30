@@ -44,7 +44,7 @@ __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel']
 
 
 @dataclass
-class ClassificationTranscribeConfig(_TranscribeConfig):
+class ClassificationInferConfig(_TranscribeConfig):
     batch_size: int = 4
     logprobs: bool = False
 
@@ -348,7 +348,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         audio: List[str],
         batch_size: int = 4,
         logprobs=False,
-        override_config: Optional[ClassificationTranscribeConfig] = None,
+        override_config: Optional[ClassificationInferConfig] = None,
     ) -> TranscriptionReturnType:
         """
         Generate class labels for provided audio files. Use this method for debugging and prototyping.
@@ -359,17 +359,19 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
             batch_size: (int) batch size to use during inference. \
                 Bigger will result in better throughput performance but would use more memory.
             logprobs: (bool) pass True to get log probabilities instead of class labels.
+            override_config: (Optional) ClassificationInferConfig to use for this inference call.
+                If None, will use the default config.
 
         Returns:
 
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
         if override_config is None:
-            trcfg = ClassificationTranscribeConfig(batch_size=batch_size, logprobs=logprobs)
+            trcfg = ClassificationInferConfig(batch_size=batch_size, logprobs=logprobs)
         else:
-            if not isinstance(override_config, ClassificationTranscribeConfig):
+            if not isinstance(override_config, ClassificationInferConfig):
                 raise ValueError(
-                    f"override_config must be of type {ClassificationTranscribeConfig}, "
+                    f"override_config must be of type {ClassificationInferConfig}, "
                     f"but got {type(override_config)}"
                 )
             trcfg = override_config
@@ -379,7 +381,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
     """ Transcription related methods """
 
     def _transcribe_input_manifest_processing(
-        self, audio_files: List[str], temp_dir: str, trcfg: ClassificationTranscribeConfig
+        self, audio_files: List[str], temp_dir: str, trcfg: ClassificationInferConfig
     ):
         with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_files:
@@ -390,13 +392,13 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         config = {'paths2audio_files': audio_files, 'batch_size': trcfg.batch_size, 'temp_dir': temp_dir}
         return config
 
-    def _transcribe_forward(self, batch: Any, trcfg: ClassificationTranscribeConfig):
+    def _transcribe_forward(self, batch: Any, trcfg: ClassificationInferConfig):
         logits = self.forward(input_signal=batch[0], input_signal_length=batch[1])
         output = dict(logits=logits)
         return output
 
     def _transcribe_output_processing(
-        self, outputs, trcfg: ClassificationTranscribeConfig
+        self, outputs, trcfg: ClassificationInferConfig
     ) -> Union[List[str], List[torch.Tensor]]:
         logits = outputs.pop('logits')
         labels = []

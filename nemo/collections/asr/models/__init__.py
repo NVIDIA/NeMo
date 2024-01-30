@@ -16,7 +16,7 @@ from nemo.collections.asr.models.aed_multitask_models import EncDecMultiTaskMode
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.models.audio_to_audio_model import AudioToAudioModel
 from nemo.collections.asr.models.classification_models import (
-    ClassificationTranscribeConfig,
+    ClassificationInferConfig,
     EncDecClassificationModel,
     EncDecFrameClassificationModel,
 )

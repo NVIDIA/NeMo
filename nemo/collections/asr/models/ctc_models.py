@@ -117,7 +117,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
     def transcribe(
         self,
-        audio: Union[str, List[str], np.ndarray],
+        audio: Union[str, List[str], torch.Tensor, np.ndarray],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         num_workers: int = 0,

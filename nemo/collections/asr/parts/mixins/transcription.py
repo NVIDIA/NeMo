@@ -426,8 +426,8 @@ class TranscriptionMixin(ABC):
             tmp_dir = trcfg._internal.temp_dir
             ds_config = self._transcribe_input_tensor_processing(audio_tensors, tmp_dir, trcfg)
 
-            temp_dataset = self._setup_transcribe_tensor_dataloader(ds_config, trcfg)
-            return temp_dataset
+            temp_dataloader = self._setup_transcribe_tensor_dataloader(ds_config, trcfg)
+            return temp_dataloader
 
         else:
             raise ValueError(
