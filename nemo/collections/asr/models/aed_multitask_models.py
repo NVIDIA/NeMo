@@ -27,7 +27,6 @@ from pytorch_lightning import Trainer
 from torchmetrics.text import SacreBLEUScore
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     PromptedAudioToTextLhotseDataset,
     get_prompt_format_fn,
@@ -416,11 +415,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             val_data_config: A config that contains the information regarding construction
                 of an ASR Training dataset.
         Supported Datasets:
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_lhotse_prompted.PromptedAudioToTextLhotseDataset`
         """
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
@@ -436,11 +431,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             test_data_config: A config that contains the information regarding construction
                 of an ASR Training dataset.
         Supported Datasets:
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_lhotse_prompted.PromptedAudioToTextLhotseDataset`
         """
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
@@ -493,7 +484,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             input_signal_length: Vector of length B, that contains the individual lengths of the audio
                 sequences.
             processed_signal: Tensor that represents a batch of processed audio signals,
-                of shape (B, D, T) that has undergone processing via some DALI preprocessor.
+                of shape (B, D, T).
             processed_signal_length: Vector of length B, that contains the individual lengths of the
                 processed audio sequences.
         Returns:
@@ -536,7 +527,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         return transf_log_probs, encoded_len, enc_states, enc_mask
 
-    def compute_audio_loss(self, batch):
+    def compute_loss(self, batch):
 
         if batch is None:
             return 0
@@ -558,7 +549,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
 
-        audio_loss = self.compute_audio_loss(batch)
+        audio_loss = self.compute_loss(batch)
 
         tensorboard_logs = {
             'train_loss': audio_loss,
@@ -571,20 +562,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         signal, signal_len, transcript, transcript_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
-        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
-                processed_signal=signal,
-                processed_signal_length=signal_len,
-                transcript=input_ids,
-                transcript_length=transcript_len,
-            )
-        else:
-            transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
-                input_signal=signal,
-                input_signal_length=signal_len,
-                transcript=input_ids,
-                transcript_length=transcript_len,
-            )
+        transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
+            input_signal=signal,
+            input_signal_length=signal_len,
+            transcript=input_ids,
+            transcript_length=transcript_len,
+        )
 
         beam_hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
@@ -663,13 +646,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             else:
                 sb_score = 0.0
                 wer_score = 0.0
-
-            # To log via on_validation_epoch_end in modelPT.py
-            # remove  (* self.world_size) if logging via on_validation_epoch_end
-            # tensorboard_logs = {}
-            # tensorboard_logs.update({f"{eval_mode}_loss": eval_loss})
-            # tensorboard_logs.update({f"{eval_mode}_sacreBLEU": sb_score})
-            # tensorboard_logs.update({f"{eval_mode}_WER": wer_score})
 
             # logging here only.
             dataloader_prefix = self.get_validation_dataloader_prefix(dataloader_idx)
