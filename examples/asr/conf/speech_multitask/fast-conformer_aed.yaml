@@ -59,7 +59,6 @@ model:
     pin_memory: true
     use_start_end_token: true
     use_bucketing: false
-    drop_last: false
 
   test_ds:
     use_lhotse: true
@@ -71,7 +70,6 @@ model:
     pin_memory: true
     use_start_end_token: true
     use_bucketing: false
-    drop_last: false
 
   # recommend small vocab size of 128 or 256 when using 4x sub-sampling
   # you may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
