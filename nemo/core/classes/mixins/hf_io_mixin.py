@@ -13,8 +13,7 @@
 # limitations under the License.
 
 from abc import ABC
-from typing import Dict, List, Optional, Union
-from collections import Iterable
+from typing import Dict, List, Optional, Union, Iterable
 from pathlib import Path
 
 from huggingface_hub import HfApi, ModelCard, ModelCardData, ModelFilter
@@ -60,7 +59,7 @@ class HuggingFaceFileIO(ABC):
     @classmethod
     def search_huggingface_models(
         cls, model_filter: Optional[Union[ModelFilter, List[ModelFilter]]] = None
-    ) -> List[ModelInfo]:
+    ) -> List['ModelInfo']:
         """
         Should list all pre-trained models available via Hugging Face Hub.
 
@@ -157,7 +156,7 @@ class HuggingFaceFileIO(ABC):
         repo_id: str,
         *,
         pack_nemo_file: bool = True,
-        model_card: Optional[ModelCard | object | str] = None,
+        model_card: Optional['ModelCard'] | object | str = None,
         commit_message: str = "Push model using huggingface_hub.",
         private: bool = False,
         api_endpoint: Optional[str] = None,
