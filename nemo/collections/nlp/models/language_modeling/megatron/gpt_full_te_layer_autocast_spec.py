@@ -156,7 +156,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
             output_layer_init_method=config.output_layer_init_method,
             hidden_dropout=config.hidden_dropout,
             attention_dropout=config.attention_dropout,
-            layer_number=layer_number,
+            layer_number=layer_number + self._get_layer_offset(),
             kv_channels=config.kv_channels,
             #self_attn_mask_type='causal', # Use default 'causal'
             tp_size=parallel_state.get_tensor_model_parallel_world_size(),
