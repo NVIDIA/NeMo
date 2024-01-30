@@ -63,14 +63,14 @@ model:
   max_position_embeddings: ${.encoder_seq_length}
   num_layers: 12
   hidden_size: 768
-  ffn_hidden_size: 2048 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
   num_attention_heads: 12
-  init_method_std: 0.007 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  init_method_std: 0.023 # Standard deviation of the zero mean normal distribution used for weight initialization.')
   use_scaled_init_method: True # use scaled residuals initialization
-  hidden_dropout: 0.0 # Dropout probability for hidden state transformer.
-  attention_dropout: 0.0 # Dropout probability for attention
-  ffn_dropout: 0.0 # Dropout probability in the feed-forward layer.
-  kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+  hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
+  attention_dropout: 0.1 # Dropout probability for attention
+  ffn_dropout: 0.1 # Dropout probability in the feed-forward layer.
+  kv_channels: 64 # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number.
   normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
   layernorm_epsilon: 1e-5
@@ -79,8 +79,8 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
-  bias: False # Whether to use bias terms in all weight matrices.
-  activation: 'swiglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu', 'squared-relu', 'fast-geglu', 'fast-swiglu', 'fast-reglu']
+  bias: True # Whether to use bias terms in all weight matrices.
+  activation: 'gelu' # Options ['gelu', 'geglu', 'swiglu', 'reglu', 'squared-relu', 'fast-geglu', 'fast-swiglu', 'fast-reglu']
   headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
   transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
   openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
@@ -88,7 +88,7 @@ model:
   position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
   rotary_percentage: 0.5 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
   attention_type: 'multihead' # Attention type. Options ['multihead']
-  share_embeddings_and_output_weights: False # Share embedding and output layer weights.
+  share_embeddings_and_output_weights: True # Share embedding and output layer weights.
   overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
@@ -111,6 +111,16 @@ model:
     merge_file: null 
     delimiter: null # only used for tabular tokenizer
     sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
+
+  # tokenizer:
+  #   library: 'megatron'
+  #   type: 'GPTSentencePieceTokenizer'
+  #   model: /lustre/fsw/coreai_dlalgo_genai/huvu/data/retro/pretrain_data/wiki-core/tokenizer/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model
+  #   vocab_file: null
+  #   merge_file: null 
+  #   delimiter: null # only used for tabular tokenizer
+  #   sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
+
 
   # Mixed precision
   native_amp_init_scale: 4294967296 # 2 ** 32
@@ -246,8 +256,10 @@ model:
     - 0.9
     - 0.95
     sched:
-      name: WarmupPolicy
-      warmup_steps: 0
+      name: null
+      min_lr: null
+      warmup_steps: null
+      max_steps: null
     # sched:
     #   name: CosineAnnealing
     #   warmup_steps: 500

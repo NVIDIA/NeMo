@@ -59,7 +59,8 @@ class RETRODataset(Dataset):
         cfg,
         retro_config: RetroConfig,
         tokenizer,
-        mcore_retro_dataset
+        mcore_retro_dataset,
+        number_samples_with_neighbors
     ):
         super().__init__()
 
@@ -69,6 +70,7 @@ class RETRODataset(Dataset):
         self.eos_id = tokenizer.eos_id
         self.retro_config = retro_config
         self.mcore_retro_dataset = mcore_retro_dataset
+        self.number_samples_with_neighbors = number_samples_with_neighbors  # quick fix for problems of mismatch in processed/indexed retro data, # of GPT samples is different from # of samples with neighbors retrieved
 
         # DEBUGGING
         self.tokenizer = tokenizer
@@ -82,6 +84,9 @@ class RETRODataset(Dataset):
         return self.mcore_retro_dataset[idx]
 
     def __getitem__(self, idx):
+
+        # quick fix for problems of mismatch in processed/indexed retro data, # of GPT samples is different from # of samples with neighbors retrieved
+        idx = idx % self.number_samples_with_neighbors
 
         sample = self._get_text(idx)
 
@@ -164,6 +169,19 @@ def build_train_valid_test_datasets(
         test=(test_ds, train_valid_test_num_samples[2]),
     )
 
+    # DEBUGGING
+    # if torch.distributed.get_rank() == 0:
+    #     print("======================")
+    #     print("Note that number of GPT samples is different from number of samples having neighbors retrieved.")
+    #     print("gpt_datasets: ")
+    #     print(gpt_datasets)
+    #     print("train_ds: {}".format(str(len(train_ds)) if train_ds else None))
+    #     print("valid_ds: {}".format(str(len(valid_ds)) if valid_ds else None))
+    #     print("test_ds: {}".format(str(len(test_ds)) if test_ds else None))
+    #     print("train_valid_test_num_samples: " + str(train_valid_test_num_samples))
+    #     print("======================")
+    #     print(stop_here)
+
     retro_train_ds, retro_valid_ds, retro_test_ds = get_retro_datasets(
         config=retro_config,
         gpt_datasets=gpt_datasets,
@@ -172,20 +190,23 @@ def build_train_valid_test_datasets(
     )
 
     train_ds = RETRODataset(
-        cfg, 
-        retro_config, 
-        tokenizer,
-        retro_train_ds) if retro_train_ds else None
+        cfg = cfg, 
+        retro_config = retro_config, 
+        tokenizer = tokenizer,
+        mcore_retro_dataset = retro_train_ds,
+        number_samples_with_neighbors=train_valid_test_num_samples[0]) if retro_train_ds else None
     valid_ds = RETRODataset(
-        cfg, 
-        retro_config, 
-        tokenizer, 
-        retro_valid_ds) if retro_valid_ds else None
+        cfg = cfg, 
+        retro_config = retro_config, 
+        tokenizer = tokenizer,
+        mcore_retro_dataset = retro_valid_ds,
+        number_samples_with_neighbors=train_valid_test_num_samples[1]) if retro_valid_ds else None
     test_ds = RETRODataset(
-        cfg, 
-        retro_config, 
-        tokenizer, 
-        retro_test_ds) if retro_test_ds else None
+        cfg = cfg, 
+        retro_config = retro_config, 
+        tokenizer = tokenizer,
+        mcore_retro_dataset = retro_test_ds,
+        number_samples_with_neighbors=train_valid_test_num_samples[2]) if retro_test_ds else None
 
     return train_ds, valid_ds, test_ds
 
