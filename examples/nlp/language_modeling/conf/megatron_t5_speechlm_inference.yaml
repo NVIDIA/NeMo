@@ -88,6 +88,7 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
+    grapheme_prefix: null
     train_ds: null
     validation_ds: null
     test_ds: ["/Data/LibriTTS/inference_unseen.json"]
@@ -114,6 +115,7 @@ model:
         ignore_ambiguous_words: False
         use_chars: True
         use_stresses: True
+        grapheme_prefix: ${model.data.grapheme_prefix}
       spanish:
         _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
         phoneme_dict: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/es_ES/es_ES_nv230301.dict"
@@ -121,6 +123,7 @@ model:
         use_chars: True
         use_stresses: True
         ignore_ambiguous_words: False
+        grapheme_prefix: ${model.data.grapheme_prefix}
         locale: "es-ES"
       mandarin:
         _target_: nemo.collections.tts.g2p.models.zh_cn_pinyin.ChineseG2p
@@ -129,8 +132,19 @@ model:
         phoneme_prefix: ""
         phoneme_case: "lower"
         tone_prefix: "#"
-        ascii_letter_prefix: ""
+        ascii_letter_prefix: ${model.data.grapheme_prefix}
         ascii_letter_case: "upper"
+      german:
+        _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
+        phoneme_dict: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/de/de_nv240125.dict"
+        heteronyms: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/de/de_nv230119.heteronym"
+        phoneme_probability: 0.8
+        ignore_ambiguous_words: False
+        use_chars: True
+        use_stresses: True
+        grapheme_case: mixed
+        grapheme_prefix: ${model.data.grapheme_prefix}
+        locale: "de-DE"
 
   optim:
     name: fused_adam
