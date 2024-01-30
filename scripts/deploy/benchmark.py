@@ -43,13 +43,13 @@ except ImportError:
 
 LOGGER = logging.getLogger("NeMo")
 
-
-def nemo_deploy(args):
+def init_logger(args):
     loglevel = logging.DEBUG
     LOGGER.setLevel(loglevel)
     LOGGER.info("Logging level set to {}".format(loglevel))
     LOGGER.info(args)
 
+def nemo_deploy(args):
     if args.triton_model_repository is None:
         trt_llm_path = "/tmp/trt_llm_model_dir/"
         LOGGER.info(
@@ -184,7 +184,8 @@ def trim_sentence_to_length(input: str, newlen: int) -> str:
     return " ".join(words[:newlen])
 
 def perform_benchmark(args):
-    nq = NemoQuery(url="localhost:8000", model_name=args.triton_model_name)
+    server_url = args.attach if args.attach is not None else "localhost:8000"
+    nq = NemoQuery(url=server_url, model_name=args.triton_model_name)
  
     input_info = get_inputs()
     warmed_up = False
@@ -464,6 +465,14 @@ def get_args(argv):
         default=False,
         help='Post telemetry service data for ci runs'
     )
+    parser.add_argument(
+        '-at',
+        '--attach',
+        type=str,
+        required=False,
+        default=None,
+        help='Connect to a running server on the specified URL'
+    )
 
     args = parser.parse_args(argv)
     return args
@@ -472,22 +481,31 @@ def get_args(argv):
 if __name__ == '__main__':
     args = get_args(sys.argv[1:])
 
+    init_logger(args)
+
     if args.max_output_len < args.output_lens[-1]:
-        raise Exception("max_output_len is set to {0} and cannot be lower "
-                        "than the max value in output_lens which is "
-                        "{1}".format(args.max_output_len, args.output_lens[-1]))
-
-    nm = nemo_deploy(args)
-
-    if nm is None:
-        LOGGER.info("There is a problem and model serving couldn't be started. Please check the log messages.")
+        LOGGER.error("max_output_len is set to {0} and cannot be lower "
+                    "than the max value in output_lens which is "
+                    "{1}".format(args.max_output_len, args.output_lens[-1]))
+        sys.exit(1)
+    
+    if args.attach is not None:
+        nm = None
     else:
-        try:
-            perform_benchmark(args)
-        except Exception as e:
-            LOGGER.error("An error has occurred while sending queries.")
-            LOGGER.error(repr(e))
-            LOGGER.error(traceback.format_exc())
+        nm = nemo_deploy(args)
+
+        if nm is None:
+            LOGGER.error("There is a problem and model serving couldn't be started. Please check the log messages.")
+            sys.exit(1)
+            
+    try:
+        perform_benchmark(args)
+    except Exception as e:
+        LOGGER.error("An error has occurred while sending queries.")
+        LOGGER.error(repr(e))
+        LOGGER.error(traceback.format_exc())
+        
+    if nm is not None:
         try:
             LOGGER.info("Model serving will be stopped.")
             nm.stop()
