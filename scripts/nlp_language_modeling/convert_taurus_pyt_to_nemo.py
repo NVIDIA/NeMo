@@ -13,26 +13,20 @@
 # limitations under the License.
 
 """
-Example to run this conversion script:
-```
-    python convert_bert_hf_to_nemo.py \
-     --name_or_path "thenlper/gte-large" \
-     --save_path /path/to/output/nemo/file.nemo \
-     --precision 32
-```
+Requires to install: `pip install fairscale==0.4.13 immutabledict==4.1.0 tensorstore==0.1.45`
+Required to set: `export PYTHONPATH=/path/to/deepmind/models/taurus_pytorch/code:$PYTHONPATH`
 """
 
-import os
-import math
 import contextlib
+import os
 from argparse import ArgumentParser
 
 import torch
-from omegaconf import OmegaConf
-
-from model.config import Config, get_config_for_2b, get_config_for_7b
+from model.config import get_config_for_2b, get_config_for_7b
 from model.model import CausalLM
 from model.tokenizer import Tokenizer
+from omegaconf import OmegaConf
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.utils import logging
@@ -53,14 +47,19 @@ def create_rename_keys(num_hidden_layers):
     for i in range(num_hidden_layers):
         # Attention layers
         rename_keys.extend([
-            (f"model.layers.{i}.self_attn.o_proj.weight", f"model.decoder.layers.{i}.self_attention.linear_proj.weight"),
-            (f"model.layers.{i}.self_attn.qkv_proj.weight", f"model.decoder.layers.{i}.self_attention.linear_qkv.weight"),
+            (
+                f"model.layers.{i}.self_attn.o_proj.weight",
+                f"model.decoder.layers.{i}.self_attention.linear_proj.weight"),
+            (f"model.layers.{i}.self_attn.qkv_proj.weight",
+             f"model.decoder.layers.{i}.self_attention.linear_qkv.weight"),
             # MLP and LayerNorm
             (f"model.layers.{i}.mlp.gate_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc1_gate.weight"),
             (f"model.layers.{i}.mlp.up_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc1_proj.weight"),
             (f"model.layers.{i}.mlp.down_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc2.weight"),
-            (f"model.layers.{i}.input_layernorm.weight", f"model.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight"),
-            (f"model.layers.{i}.post_attention_layernorm.weight", f"model.decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight"),
+            (f"model.layers.{i}.input_layernorm.weight",
+             f"model.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight"),
+            (f"model.layers.{i}.post_attention_layernorm.weight",
+             f"model.decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight"),
         ])
 
     # Non layer dependent keys
@@ -158,7 +157,7 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 
 
 def adjust_nemo_config(model_config, ref_config):
-    model_config.tokenizer["model"] = ref_config["tokenizer"]  # ref_config["_name_or_path"]
+    model_config.tokenizer["model"] = ref_config["tokenizer"]  # ref_config["_input_name_or_path"]
     model_config["encoder_seq_length"] = ref_config["max_position_embeddings"]
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["ffn_hidden_size"] = ref_config["intermediate_size"]
@@ -173,15 +172,16 @@ def adjust_nemo_config(model_config, ref_config):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--name_or_path", type=str)
+    parser.add_argument("--input_name_or_path", type=str)
     parser.add_argument(
         "--hparams_file",
         type=str,
-        default=os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_taurus_config.yaml'),
+        default=os.path.join(os.path.dirname(__file__),
+                             '../../examples/nlp/language_modeling/conf/megatron_taurus_config.yaml'),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--save_path", type=str, default=None, help="Path to output .nemo file.")
+    parser.add_argument("--output_path", type=str, default=None, help="Path to output .nemo file.")
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weight saved"
     )
@@ -191,8 +191,8 @@ def get_args():
 
 
 def convert(args):
-    logging.info(f"Loading checkpoint from PyT Taurus: `{args.name_or_path}`")
-    if "2b" in args.name_or_path:
+    logging.info(f"Loading checkpoint from PyT Taurus: `{args.input_name_or_path}`")
+    if "2b" in args.input_name_or_path:
         pyt_config = get_config_for_2b()
     else:
         pyt_config = get_config_for_7b()
@@ -202,7 +202,7 @@ def convert(args):
 
     with _set_default_tensor_type(pyt_config.get_dtype()):
         pyt_model = CausalLM(pyt_config)
-        pyt_model.load_weights(args.name_or_path)
+        pyt_model.load_weights(args.input_name_or_path)
         pyt_model = pyt_model.to(device).eval()
     tokenizer = Tokenizer(pyt_config.tokenizer)
     logging.info("Model loading done")
@@ -292,11 +292,13 @@ def convert(args):
         top_ps=top_ps_tensor,
         top_ks=top_ks_tensor,
     )
-    nemo_outputs = model(tokens=input_token_ids_tensor, text_position_ids=input_positions_tensor, attention_mask=curr_mask_tensor, labels=None)
+    nemo_outputs = model(tokens=input_token_ids_tensor, text_position_ids=input_positions_tensor,
+                         attention_mask=curr_mask_tensor, labels=None)
     # print(nemo_outputs[:, -1] / (nemo_config.model["hidden_size"] ** 0.5) / pyt_outputs)
     assert torch.argmax(nemo_outputs[0, -1], dim=-1) == pyt_outputs, "Predicted next token not match."
-    model.save_to(args.save_path)
-    logging.info(f'NeMo model saved to: {args.save_path}')
+    torch.save(model.state_dict(), "/home/yuya/Projects/deepmind/models/taurus_nv/code/taurus/save_2b_pyt.pt")
+    # model.save_to(args.output_path)
+    # logging.info(f'NeMo model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':
