@@ -1037,7 +1037,39 @@ class MegatronBertModel(MegatronBaseModel):
         """
         activation = self.cfg.get('activation', 'gelu')
         assert activation == 'gelu', "Only gelu activation is support for BERT at the moment."
+
+        normalization = self.cfg.get('normalization', 'layernorm')
+
+        layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
+        if normalization == 'layernorm':
+            normalization = 'LayerNorm'
+        elif normalization == 'rmsnorm':
+            normalization = 'RMSNorm'
+        elif normalization == 'layernorm1p':
+            normalization = 'LayerNorm'
+            layernorm_zero_centered_gamma = True
+        else:
+            logging.warning(
+                f"The normalization type: {normalization} might not be supported in megatron core."
+                f"Supported types are LayerNorm and RMSNorm."
+            )
+
+        # any configs that are not in the nemo model config will be added here
+        model_specific_configs = {
+            'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
+            'normalization': normalization,
+        }
+
         transformer_config = super().build_transformer_config()
+
+        for key, value in model_specific_configs.items():
+            setattr(transformer_config, key, value)
+
+        # pass mcore customization configs directly to mcore
+        mcore_customization_config_dict = self.cfg.get('mcore_customization_config', {})
+        for key, value in mcore_customization_config_dict.items():
+            setattr(transformer_config, key, value)
+
         return transformer_config
 
 
