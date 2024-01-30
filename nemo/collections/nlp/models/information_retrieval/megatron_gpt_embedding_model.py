@@ -228,13 +228,13 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         pos_doc_hs = eos_tensors[1::3, :]
         neg_doc_hs = eos_tensors[2::3, :]
         neg_cs = torch.nn.functional.cosine_similarity(query_hs, neg_doc_hs, dim=-1) * (1.0 / self.temperature)
+        query_hs = query_hs / torch.norm(query_hs, dim=-1, keepdim=True)
+        pos_doc_hs = pos_doc_hs / torch.norm(pos_doc_hs, dim=-1, keepdim=True)
 
         if self.num_soft_negatives > 0:
             assert (
                 self.num_soft_negatives < query_hs.shape[0]
             ), f"Batch size {query_hs.shape[0]} is not large enough for {self.num_soft_negatives} soft negatives"
-            query_hs = query_hs / torch.norm(query_hs, dim=-1, keepdim=True)
-            pos_doc_hs = pos_doc_hs / torch.norm(pos_doc_hs, dim=-1, keepdim=True)
 
             # (@adithyare) sample soft negatives using a multinomial distribution
             soft_neg_samples = torch.ones((query_hs.shape[0], query_hs.shape[0])).type_as(query_hs)
