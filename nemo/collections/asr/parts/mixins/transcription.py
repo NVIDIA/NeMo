@@ -85,6 +85,26 @@ def move_to_device(batch, device):
         raise TypeError(f"Unsupported type: {type(batch)}")
 
 
+def get_value_from_transcription_config(trcfg, key, default):
+    """
+    Utility function to get a value from the transcription config.
+    If the value is not present in the transcription config, the default value is returned.
+
+    Args:
+        trcfg: A dataclass that represents the transcription config.
+        key: The name of the arg to retrieve.
+        default: The default value to return if the key is not present in the transcription config.
+
+    Returns:
+        The value of the key in the transcription config or the default value.
+    """
+    if hasattr(trcfg, key):
+        return getattr(trcfg, key)
+    else:
+        logging.debug(f"Using default value of {default} for {key} because it is not present in the transcription config {trcfg}.")
+        return default
+
+
 class TranscriptionTensorDataset(Dataset):
     def __init__(self, config: Dict[str, Any]):
         super().__init__()
@@ -217,8 +237,14 @@ class TranscriptionMixin(ABC):
                 **config_kwargs,
             )
         else:
-            if not isinstance(override_config, TranscribeConfig):
-                raise ValueError("`override_config` must be of an object of type TranscribeConfig or its subclass")
+            # if not isinstance(override_config, TranscribeConfig):
+            #     raise ValueError("`override_config` must be of an object of type TranscribeConfig or its subclass")
+
+            if not hasattr(override_config, '_internal') or not isinstance(override_config._internal, InternalTranscribeConfig):
+                raise ValueError(
+                    "`transcribe_cfg must have an `_internal` argument, which must be of an object of type "
+                    "InternalTranscribeConfig or its subclass."
+                )
 
             transcribe_cfg = override_config
 
@@ -368,14 +394,16 @@ class TranscriptionMixin(ABC):
         if isinstance(audio, list) and len(audio) == 0:
             return {}
 
+        _params = next(self.parameters())
         if trcfg._internal.device is None:
-            trcfg._internal.device = next(self.parameters()).device
+            trcfg._internal.device = _params.device
 
         if trcfg._internal.dtype is None:
-            trcfg._internal.dtype = next(self.parameters()).dtype
+            trcfg._internal.dtype = _params.dtype
 
         if trcfg.num_workers is None:
-            trcfg.num_workers = min(trcfg.batch_size, os.cpu_count() - 1)
+            _batch_size = get_value_from_transcription_config(trcfg, 'batch_size', 4)
+            trcfg.num_workers = min(_batch_size, os.cpu_count() - 1)
 
         # Model's mode and device
         trcfg._internal.training_mode = self.training
@@ -454,15 +482,16 @@ class TranscriptionMixin(ABC):
 
         ds_config = {
             'audio_tensors': audio_tensors,
-            'batch_size': trcfg.batch_size,
+            'batch_size': get_value_from_transcription_config(trcfg, 'batch_size', 4),
             'temp_dir': temp_dir,
-            'num_workers': trcfg.num_workers,
-            'channel_selector': trcfg.channel_selector,
+            'num_workers': get_value_from_transcription_config(trcfg, 'num_workers', 0),
+            'channel_selector': get_value_from_transcription_config(trcfg, 'channel_selector', None),
             'sample_rate': sample_rate,
         }
 
-        if trcfg.augmentor:
-            ds_config['augmentor'] = trcfg.augmentor
+        augmentor = get_value_from_transcription_config(trcfg, 'augmentor', None)
+        if augmentor:
+            ds_config['augmentor'] = augmentor
 
         return ds_config
 
@@ -541,14 +570,15 @@ class ASRTranscriptionMixin(TranscriptionMixin):
 
         ds_config = {
             'paths2audio_files': audio_files,
-            'batch_size': trcfg.batch_size,
+            'batch_size': get_value_from_transcription_config(trcfg, 'batch_size', 4),
             'temp_dir': temp_dir,
-            'num_workers': trcfg.num_workers,
-            'channel_selector': trcfg.channel_selector,
+            'num_workers': get_value_from_transcription_config(trcfg, 'num_workers', 0),
+            'channel_selector': get_value_from_transcription_config(trcfg, 'channel_selector', None),
         }
 
-        if trcfg.augmentor:
-            ds_config['augmentor'] = trcfg.augmentor
+        augmentor = get_value_from_transcription_config(trcfg, 'augmentor', None)
+        if augmentor:
+            ds_config['augmentor'] = augmentor
 
         return ds_config
 
@@ -577,3 +607,12 @@ class ASRTranscriptionMixin(TranscriptionMixin):
 
         if hasattr(self, 'joint'):
             self.joint.unfreeze()
+
+    @classmethod
+    def get_transcribe_config(cls) -> TranscribeConfig:
+        """
+        Utility method that returns the default config for transcribe() function.
+        Returns:
+            A dataclass
+        """
+        return TranscribeConfig()

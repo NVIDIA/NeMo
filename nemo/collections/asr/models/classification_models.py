@@ -29,7 +29,7 @@ from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError
 
 from nemo.collections.asr.data import audio_to_label_dataset, feature_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import TranscribeConfig as _TranscribeConfig
+from nemo.collections.asr.parts.mixins.transcription import InternalTranscribeConfig
 from nemo.collections.asr.parts.mixins import TranscriptionMixin, TranscriptionReturnType
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
@@ -44,9 +44,11 @@ __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel']
 
 
 @dataclass
-class ClassificationInferConfig(_TranscribeConfig):
+class ClassificationInferConfig:
     batch_size: int = 4
     logprobs: bool = False
+
+    _internal: InternalTranscribeConfig = InternalTranscribeConfig()
 
 
 class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
@@ -452,6 +454,15 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
     @abstractmethod
     def _update_decoder_config(self, labels, cfg):
         pass
+
+    @classmethod
+    def get_transcribe_config(cls) -> ClassificationInferConfig:
+        """
+        Utility method that returns the default config for transcribe() function.
+        Returns:
+            A dataclass
+        """
+        return ClassificationInferConfig()
 
 
 class EncDecClassificationModel(_EncDecBaseModel):
