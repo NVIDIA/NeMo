@@ -217,20 +217,24 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
                 model_module.train()
         self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
         return loss, non_loss_tensors
-    
+
     def contrast_all_possible_negatives(self, pos_doc_hs, neg_doc_hs, query_hs, bs):
-        all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0) # (2bs) x hidden_size
+        all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0)  # (2bs) x hidden_size
         all_cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1)) * (1.0 / self.temperature)  # (bs) x (2bs)
 
-        select_cs = torch.cat([torch.eye(bs), torch.zeros(bs, bs)], dim=1).type_as(all_cs).long() # FIXME: TODO: should not be recomputed every time (@adithyare)
-        diag_positions = torch.where(select_cs == 1) # FIXME: TODO: should not be recomputed every time (@adithyare)
-        off_diag_positions = torch.where(select_cs == 0) # FIXME: TODO: should not be recomputed every time (@adithyare)
+        select_cs = (
+            torch.cat([torch.eye(bs), torch.zeros(bs, bs)], dim=1).type_as(all_cs).long()
+        )  # FIXME: TODO: should not be recomputed every time (@adithyare)
+        diag_positions = torch.where(select_cs == 1)  # FIXME: TODO: should not be recomputed every time (@adithyare)
+        off_diag_positions = torch.where(
+            select_cs == 0
+        )  # FIXME: TODO: should not be recomputed every time (@adithyare)
 
-        pos_cs = all_cs[diag_positions[0], diag_positions[1]] # collects the top diagonal elements
-        neg_cs = all_cs[off_diag_positions[0], off_diag_positions[1]] # collects all the other elements
+        pos_cs = all_cs[diag_positions[0], diag_positions[1]]  # collects the top diagonal elements
+        neg_cs = all_cs[off_diag_positions[0], off_diag_positions[1]]  # collects all the other elements
         cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.repeat(bs, 1)], dim=1)
         return cs
-    
+
     def contrast_with_sampled_negatives(self, pos_doc_hs, neg_doc_hs, query_hs, bs):
         assert (
             self.num_soft_negatives < query_hs.shape[0]
@@ -248,31 +252,31 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         neg_cs = torch.nn.functional.cosine_similarity(query_hs, neg_doc_hs, dim=-1) * (1.0 / self.temperature)
         cs = torch.cat([pos_cs_diag.unsqueeze(1), neg_cs.unsqueeze(1), soft_neg_cs], dim=1)
         return cs
-    
+
     def constrast_with_hard_negatives(self, pos_doc_hs, neg_doc_hs, query_hs, bs):
         pos_cs = torch.mm(query_hs, pos_doc_hs.transpose(0, 1)).diag() * (1.0 / self.temperature)
         neg_cs = torch.mm(query_hs, neg_doc_hs.transpose(0, 1)).diag() * (1.0 / self.temperature)
         cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.unsqueeze(1)], dim=1)
         return cs
-        
+
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
         eos_tensors = output_tensor[loss_mask, idx, :]
         bs = eos_tensors.shape[0] // 3
-        query_hs = eos_tensors[::3, :] # every third tensor is a query (bs x hidden_size)
-        pos_doc_hs = eos_tensors[1::3, :] # every third tensor is a positive doc (bs x hidden_size)
-        neg_doc_hs = eos_tensors[2::3, :] # every third tensor is a negative doc (bs x hidden_size)
+        query_hs = eos_tensors[::3, :]  # every third tensor is a query (bs x hidden_size)
+        pos_doc_hs = eos_tensors[1::3, :]  # every third tensor is a positive doc (bs x hidden_size)
+        neg_doc_hs = eos_tensors[2::3, :]  # every third tensor is a negative doc (bs x hidden_size)
         query_hs = query_hs / torch.norm(query_hs, dim=-1, keepdim=True)
         pos_doc_hs = pos_doc_hs / torch.norm(pos_doc_hs, dim=-1, keepdim=True)
         neg_doc_hs = neg_doc_hs / torch.norm(neg_doc_hs, dim=-1, keepdim=True)
 
         if self.use_all_possible_negatives:
-           cs = self.contrast_all_possible_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs) 
+            cs = self.contrast_all_possible_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
         elif self.num_soft_negatives > 0:
-           cs = self.contrast_with_sampled_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs) 
+            cs = self.contrast_with_sampled_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
         else:
             cs = self.constrast_with_hard_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
-            
+
         loss = torch.nn.functional.cross_entropy(cs, torch.zeros(bs).type_as(cs).long())
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
