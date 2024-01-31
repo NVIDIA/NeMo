@@ -18,7 +18,7 @@ import multiprocessing as mp
 import os
 import pickle
 import time
-from functools import partial
+from functools import partial, lru_cache
 from typing import Callable, List, Optional, Type
 
 import numpy as np
@@ -649,7 +649,7 @@ class OnlineSampleMapping:
         self.block_bins = np.cumsum(block_size_list)
 
         # NOTE: MAKE get_sample_block A CACHED FUNCTION!!!
-        self.get_sample_block = functools.lru_cache(maxsize=cache_maxsize, typed=False)(self.get_sample_block)
+        self.get_sample_block = lru_cache(maxsize=cache_maxsize, typed=False)(self.get_sample_block)
 
     def __str__(self):
         return f"OnlineSampleMapping(dataset_size={self.dataset_size}, num_samples={self.num_samples}, block_size={self.block_size}, cache_maxsize={self.cache_maxsize}, seed={self.seed}, shuffle={self.shuffle}, truncate_to_block_boundary={self.truncate_to_block_boundary})"
