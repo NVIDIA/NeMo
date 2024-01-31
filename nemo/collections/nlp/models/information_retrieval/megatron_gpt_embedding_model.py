@@ -186,8 +186,8 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         d_hs = torch.cat(outputs['d_hs'], dim=0)
         q_hs_npy = q_hs.detach().cpu().numpy()
         d_hs_npy = d_hs.detach().cpu().numpy()
-        np.save(output_file_path + "_q_hs.npy", q_hs_npy)
-        np.save(output_file_path + "_d_hs.npy", d_hs_npy)
+        np.save(output_file_path + "_query.npy", q_hs_npy)
+        np.save(output_file_path + "_doc.npy", d_hs_npy)
         return True
 
     def local_validation_step(self, dataloader_iter, batch_idx):
