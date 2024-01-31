@@ -368,11 +368,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         non_loss_tensors = {}
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
-            for k, v in losses_reduced_per_micro_batch[0].items():
-                if k != 'avg':
-                    av = non_loss_tensors.get(k, [])
-                    av.append(v)
-                    non_loss_tensors[k] = av
+            for item in losses_reduced_per_micro_batch:
+                for k, v in item.items():
+                    if k != 'avg':
+                        av = non_loss_tensors.get(k, [])
+                        av.append(v)
+                        non_loss_tensors[k] = av
             if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
                 # average loss across micro batches
                 loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
@@ -398,12 +399,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             else:
                 loss_mean = torch.tensor(0.0).cuda()
 
-        if forward_only:
-            if non_loss_tensors:  # TODO: need a nicer way to do this via inheritance (@adithyare)
-                return loss_mean, non_loss_tensors
-            else:
-                return loss_mean
-        return loss_mean
+        #if forward_only:
+        #return loss_mean
+        if non_loss_tensors:  # TODO: need a nicer way to do this via inheritance (@adithyare)
+            return loss_mean, non_loss_tensors
+        else:
+            return loss_mean
 
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
@@ -550,11 +551,10 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         return deduplicated_outputs, total_size
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
+        # TODO: this method should be modularized. It is too long and does too many things. (@adithyare)
         # Parent class will handle logging of the loss.
         if not outputs:
             return
-
-        # TODO: this method should be modularized. It is too long and does too many things. (@adithyare)
 
         if isinstance(outputs[0], dict):
             outputs = [outputs]
