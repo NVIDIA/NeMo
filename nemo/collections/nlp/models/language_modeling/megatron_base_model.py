@@ -57,9 +57,13 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
+<<<<<<< HEAD
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
+=======
+    from megatron.core.transformer.transformer_config import TransformerConfig
+>>>>>>> bbc80b585 (runable training code, with already implemented eval code)
 
     HAVE_MEGATRON_CORE = True
 
@@ -475,10 +479,7 @@ class MegatronBaseModel(NLPModel):
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
             'fp8': None,
-<<<<<<< HEAD
             'deallocate_pipeline_outputs': True,
-=======
->>>>>>> 6149a3cec (clean code)
         }
 
         # populate the transformer config dict

@@ -1355,12 +1355,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):
-            consumed_samples = 0
-            logging.info(
-                f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
-            )
-            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
-
+            if self._test_ds is not None:
+                consumed_samples = 0
+                logging.info(
+                    f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
+                )
+                self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+            else:
+                self._test_dl = None
+                
     def generate(
         self,
         inputs: Union[List[str], torch.Tensor, List[dict]],

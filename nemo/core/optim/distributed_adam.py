@@ -520,7 +520,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Convert state
         step = optimizer_state_dict['state'].pop('step')
         state_dict_format = optimizer_state_dict.pop('format', None)
-
         optim_state_to_sharding_state(optimizer_state_dict, id_to_sharded_param_map)
         optimizer_state_dict['state']['step'] = step
         if state_dict_format is not None:
