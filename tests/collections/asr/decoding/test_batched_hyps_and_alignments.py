@@ -179,6 +179,26 @@ class TestBatchedAlignments:
                 alignments.logits[i, : alignments.current_lengths[i]] == sample_logits[i, add_logits_mask[i]]
             ).all()
 
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_torch_jit_compatibility(self, device: torch.device):
+        @torch.jit.script
+        def alignments_add_wrapper(
+            active_indices: torch.Tensor, logits: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor
+        ):
+            hyps = BatchedAlignments(batch_size=2, logits_dim=3, init_length=3, device=active_indices.device)
+            hyps.add_results_(active_indices=active_indices, logits=logits, labels=labels, time_indices=time_indices)
+            return hyps
+
+        logits = torch.tensor([[0.1, 0.1, 0.3], [0.5, 0.2, 0.9]], device=device)
+        hyps = alignments_add_wrapper(
+            active_indices=torch.tensor([0, 1], device=device),
+            logits=logits,
+            labels=torch.tensor([2, 4], device=device),
+            time_indices=torch.tensor([0, 0], device=device),
+        )
+        assert torch.allclose(hyps.logits[:, 0], logits)
+
 
 class TestConvertToHypotheses:
     @pytest.mark.unit
