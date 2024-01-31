@@ -391,8 +391,8 @@ pipeline {
         stage('Llama') {
           steps {
             sh 'CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
-            --name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf \
-            --save_path=/home/TestData/nlp/megatron_llama/ci.nemo \
+            --input-name-or-path=/home/TestData/nlp/megatron_llama/llama-ci-hf \
+            --output-path=/home/TestData/nlp/megatron_llama/ci.nemo \
             --precision=16'
             sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
           }
@@ -400,16 +400,16 @@ pipeline {
         stage('StarCoder') {
           steps {
             sh 'python scripts/checkpoint_converters/convert_starcoder_hf_to_nemo.py \
-            --name_or_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
-            --save_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf'
+            --input-name-or-path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
+            --output-path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/megatron_starcoder_tp1_pp1.nemo'
           }
         }
         stage('Falcon') {
           steps {
             sh 'python scripts/checkpoint_converters/convert_falcon_hf_to_nemo.py \
-            --name_or_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
-            --save_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
+            --input-name-or-path /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
+            --output-path /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
           }
         }
