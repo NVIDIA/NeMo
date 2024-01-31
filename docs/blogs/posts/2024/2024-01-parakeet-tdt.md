@@ -3,7 +3,7 @@ title: Unveiling NVIDIA NeMo's Parakeet-TDT -- Turbocharged ASR with Unrivaled A
 author: [Hainan Xu, Nithin Rao Koluguri, Somshubra Majumdar]
 author_gh_user: [hainan-xv, nithinraok, titu1994]
 readtime: 5
-date: 2024-01-25
+date: 2024-01-31
 
 # Optional: Categories
 categories:
