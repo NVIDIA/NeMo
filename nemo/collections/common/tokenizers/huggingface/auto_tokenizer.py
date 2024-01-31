@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import Optional
+from collections import OrderedDict
 
 from transformers import AutoTokenizer as AUTOTOKENIZER
 
@@ -121,6 +122,9 @@ class AutoTokenizer(TokenizerSpec):
             if token is not None and token not in self.tokenizer.get_vocab():
                 new_tokens_in_vocab.append(token)
 
+        self.unique_identifiers = OrderedDict()
+        self.unique_identifiers["class"] = type(self).__name__
+
         if len(new_tokens_in_vocab) > 0:
             """
             Special tokens that were not previously included in the tokenizer's vocabulary file will be added to 
@@ -225,6 +229,10 @@ class AutoTokenizer(TokenizerSpec):
 
     @property
     def eos_id(self):
+        return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
+
+    @property
+    def eod(self):
         return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
 
     @property

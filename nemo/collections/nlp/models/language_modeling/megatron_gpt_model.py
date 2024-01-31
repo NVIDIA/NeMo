@@ -1207,10 +1207,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             "blend": self.cfg.data.data_prefix,
             "split": self.cfg.data.splits_string,
             "path_to_cache": self.cfg.data.index_mapping_dir,
+            "tokenizer": self.tokenizer,
             "reset_position_ids": self.reset_position_ids,
             "reset_attention_mask": self.reset_attention_mask,
             "eod_mask_loss": self.eod_mask_loss,
-            "eod_id": self.tokenizer.eos_id,
         }
 
         if self.cfg.data.get('add_fim', False):
