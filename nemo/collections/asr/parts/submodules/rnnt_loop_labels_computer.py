@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Any, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -23,6 +23,10 @@ from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeth
 
 
 class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
+    """
+    Loop Labels algorithm implementation. Callable.
+    """
+
     def __init__(
         self,
         decoder,
@@ -33,6 +37,17 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         preserve_frame_confidence=False,
         confidence_method_cfg: Optional[DictConfig] = None,
     ):
+        """
+        Init method.
+        Args:
+            decoder: Prediction network from RNN-T
+            joint: Joint module from RNN-T
+            blank_index: index of blank symbol
+            max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
+            preserve_alignments: if alignments are needed
+            preserve_frame_confidence: if frame confidence is needed
+            confidence_method_cfg: config for the confidence
+        """
         super().__init__()
         self.decoder = decoder
         self.joint = joint
@@ -46,7 +61,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
 
     def __call__(
         self, x: torch.Tensor, out_len: torch.Tensor,
-    ):
+    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
         Optimized batched greedy decoding.
         Iterates over labels, on each step finding the next non-blank label
@@ -54,6 +69,10 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         to prediction network (with maximum possible batch size),
         which makes it especially useful for scaling the prediction network.
         As a result, all current hypotheses have the same lengths (except those whose end is found)
+
+        Args:
+            x: output from the encoder
+            out_len: lengths of the utterances in `x`
         """
         batch_size, max_time, _unused = x.shape
         device = x.device
