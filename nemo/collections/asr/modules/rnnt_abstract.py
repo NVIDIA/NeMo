@@ -278,21 +278,17 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
-    def batch_replace_states(
-        self,
-        src_states: list[torch.Tensor],
-        src_mask_or_indices: torch.Tensor,
-        dst_states: list[torch.Tensor],
-        dst_mask_or_indices: torch.Tensor,
-    ):
-        raise NotImplementedError()
-
     def batch_replace_states_mask(
         self, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
     ):
+        """Replace states in dst_states with states from src_states using the mask"""
         raise NotImplementedError()
 
     def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+        """
+        Split states into a list of states.
+        Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
+        """
         raise NotImplementedError()
 
     def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
