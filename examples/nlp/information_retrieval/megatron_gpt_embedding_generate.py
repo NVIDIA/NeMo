@@ -39,6 +39,7 @@ except (ImportError, ModuleNotFoundError):
 
 mp.set_start_method("spawn", force=True)
 
+
 def use_inference_server(cfg, model, trainer):
     if not HAVE_MEGATRON_CORE:
         raise ValueError('Megatron-core needs to be installed to use this feature!')
