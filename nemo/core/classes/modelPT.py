@@ -1603,17 +1603,15 @@ class ModelPT(LightningModule, Model):
             if self.cfg.nsys_profile.get('enabled', False):
                 # Nsys profiling options
                 self._nsys_profile_enabled = True
-                # self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
-                # self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
-                self._nsys_profile_step_multiple = self.cfg.nsys_profile.get('step_multiple', 0)
+                self._nsys_profile_steps = self.cfg.nsys_profile.get('profile_steps', [0])
                 self._nsys_profile_ranks = self.cfg.nsys_profile.get('ranks', [0])
                 self._nsys_profile_gen_shape = self.cfg.nsys_profile.get('gen_shape', False)
 
-                if type(self._nsys_profile_step_multiple) == int:
-                    logging.info(f'Nsys profiling setup with profiling every: {self._nsys_profile_step_multiple} steps')
+                if isinstance(self._nsys_profile_steps, list) and all(isinstance(step, int) for step in self._nsys_profile_steps):
+                    logging.info(f'Nsys profiling set up to profile steps {self._nsys_profile_steps}')
                 else:
                     raise ValueError(
-                        f'Nsys step_multiple must be of type int. Found: {type(self._nsys_profile_step_multiple)}'
+                        f'Nsys profile_steps must be a list of integer steps to profile. Found: {self._nsys_profile_steps}'
                     )
 
                 # if type(self._nsys_profile_end_step) == int:
@@ -1663,7 +1661,7 @@ class ModelPT(LightningModule, Model):
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled:
-                    if batch_idx > 0 and batch_idx % self._nsys_profile_step_multiple == 0:
+                    if batch_idx in self._nsys_profile_steps:
                         if get_rank() in self._nsys_profile_ranks:
                             logging.info(f"====== Start nsys profiling for rank {get_rank()} ======")
                             torch.cuda.cudart().cudaProfilerStart()
@@ -1708,7 +1706,7 @@ class ModelPT(LightningModule, Model):
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled:
                     # if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
-                    if batch_idx > 0 and batch_idx % self._nsys_profile_step_multiple == 0 and get_rank() in self._nsys_profile_ranks:
+                    if batch_idx in self._nsys_profile_steps and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== End nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStop()
 

@@ -551,13 +551,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.timestamp = time.time_ns()
 
     def on_train_batch_end(self, outputs, batch, batch_idx):
-        super().on_train_batch_end(outputs, batch, batch_idx)
-        nvtx.end_range(self._nvtx_range)
-
+        # Finish range before running base class hooks for more accurate times
         if self.timestamp:
             now = time.time_ns()
             self.log_step_time(now - self.timestamp)
             self.timestamp = None
+
+        nvtx.end_range(self._nvtx_range)
+
+        super().on_train_batch_end(outputs, batch, batch_idx)
 
     def log_step_time(self, step_time_ns):
         step_time = step_time_ns / 1000000000
