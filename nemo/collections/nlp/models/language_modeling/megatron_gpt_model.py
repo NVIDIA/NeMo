@@ -280,7 +280,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Convert the global-batch-based profile index to micro-batch index
         if hasattr(self, '_nsys_profile_enabled'):
-            self._nsys_profile_step_multiple *= grad_accum_steps
+            self._nsys_profile_steps = list([grad_accum_steps * step for step in self._nsys_profile_steps])
 
         self._microbatch_to_global_batch = grad_accum_steps
 
