@@ -806,13 +806,14 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     def initialize_state(self, y: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Initialize the state of the RNN layers, with same dtype and device as input `y`.
+        Initialize the state of the LSTM layers, with same dtype and device as input `y`.
+        LSTM accepts a tuple of 2 tensors as a state.
 
         Args:
             y: A torch.Tensor whose device the generated states will be placed on.
 
         Returns:
-            List of torch.Tensor, each of shape [L, B, H], where
+            Tuple of 2 tensors, each of shape [L, B, H], where
                 L = Number of RNN layers
                 B = Batch size
                 H = Hidden size of RNN.
