@@ -62,7 +62,6 @@ class TranscribeConfig:
     verbose: bool = True
 
     # Utility
-    return_generator: bool = False
     partial_hypothesis: Optional[List[Any]] = False
 
     _internal: Optional[InternalTranscribeConfig] = None
@@ -236,16 +235,14 @@ class TranscriptionMixin(ABC):
                 **config_kwargs,
             )
         else:
-            # if not isinstance(override_config, TranscribeConfig):
-            #     raise ValueError("`override_config` must be of an object of type TranscribeConfig or its subclass")
-
-            if not hasattr(override_config, '_internal') or not isinstance(
-                override_config._internal, InternalTranscribeConfig
-            ):
+            if not hasattr(override_config, '_internal'):
                 raise ValueError(
                     "`transcribe_cfg must have an `_internal` argument, which must be of an object of type "
                     "InternalTranscribeConfig or its subclass."
                 )
+
+            if override_config._internal is None:
+                override_config._internal = InternalTranscribeConfig()
 
             transcribe_cfg = override_config
 
@@ -334,8 +331,11 @@ class TranscriptionMixin(ABC):
         if override_config is None:
             override_config = TranscribeConfig()
 
-        if not isinstance(override_config, TranscribeConfig):
-            raise ValueError("`override_config` must be of an object of type TranscribeConfig or its subclass")
+        if not hasattr(override_config, '_internal'):
+            raise ValueError(
+                "`transcribe_cfg must have an `_internal` argument, which must be of an object of type "
+                "InternalTranscribeConfig or its subclass."
+            )
 
         # Add new internal config
         if override_config._internal is None:
@@ -349,7 +349,6 @@ class TranscriptionMixin(ABC):
                 )
 
         transcribe_cfg = override_config
-        transcribe_cfg.return_generator = True
 
         try:
             # Initialize and assert the transcription environment
@@ -361,7 +360,12 @@ class TranscriptionMixin(ABC):
 
                 dataloader = self._transcribe_input_processing(audio, transcribe_cfg)
 
-                for test_batch in tqdm(dataloader, desc="Transcribing", disable=not transcribe_cfg.verbose):
+                if hasattr(transcribe_cfg, 'verbose'):
+                    verbose = transcribe_cfg.verbose
+                else:
+                    verbose = True
+
+                for test_batch in tqdm(dataloader, desc="Transcribing", disable=not verbose):
                     # Move batch to device
                     test_batch = move_to_device(test_batch, transcribe_cfg._internal.device)
 
@@ -402,9 +406,16 @@ class TranscriptionMixin(ABC):
         if trcfg._internal.dtype is None:
             trcfg._internal.dtype = _params.dtype
 
-        if trcfg.num_workers is None:
-            _batch_size = get_value_from_transcription_config(trcfg, 'batch_size', 4)
-            trcfg.num_workers = min(_batch_size, os.cpu_count() - 1)
+        # Set num_workers
+        num_workers = get_value_from_transcription_config(trcfg, 'num_workers', default=0)
+
+        if num_workers is None:
+            _batch_size = get_value_from_transcription_config(trcfg, 'batch_size', default=4)
+            num_workers = min(_batch_size, os.cpu_count() - 1)
+
+        # Assign num_workers if available as key in trcfg
+        if hasattr(trcfg, 'num_workers'):
+            trcfg.num_workers = num_workers
 
         # Model's mode and device
         trcfg._internal.training_mode = self.training

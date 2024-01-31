@@ -51,6 +51,14 @@ class ClassificationInferConfig:
     _internal: InternalTranscribeConfig = InternalTranscribeConfig()
 
 
+@dataclass
+class RegressionInferConfig:
+    batch_size: int = 4
+    logprobs: bool = True
+
+    _internal: InternalTranscribeConfig = InternalTranscribeConfig()
+
+
 class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
     """Encoder decoder Classification models."""
 
@@ -349,8 +357,8 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         self,
         audio: List[str],
         batch_size: int = 4,
-        logprobs=False,
-        override_config: Optional[ClassificationInferConfig] = None,
+        logprobs=None,
+        override_config: Optional[ClassificationInferConfig] | Optional[RegressionInferConfig] = None,
     ) -> TranscriptionReturnType:
         """
         Generate class labels for provided audio files. Use this method for debugging and prototyping.
@@ -368,10 +376,18 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
+        if logprobs is None:
+            logprobs = self.is_regression_task
+
         if override_config is None:
-            trcfg = ClassificationInferConfig(batch_size=batch_size, logprobs=logprobs)
+            if not self.is_regression_task:
+                trcfg = ClassificationInferConfig(batch_size=batch_size, logprobs=logprobs)
+            else:
+                trcfg = RegressionInferConfig(batch_size=batch_size, logprobs=logprobs)
         else:
-            if not isinstance(override_config, ClassificationInferConfig):
+            if not isinstance(override_config, ClassificationInferConfig) and not isinstance(
+                override_config, RegressionInferConfig
+            ):
                 raise ValueError(
                     f"override_config must be of type {ClassificationInferConfig}, " f"but got {type(override_config)}"
                 )
@@ -841,7 +857,9 @@ class EncDecRegressionModel(_EncDecBaseModel):
         return {'test_loss': test_loss_mean, 'test_mse': test_mse, 'test_mae': test_mae, 'log': tensorboard_logs}
 
     @torch.no_grad()
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[float]:
+    def transcribe(
+        self, audio: List[str], batch_size: int = 4, override_config: Optional[RegressionInferConfig] = None
+    ) -> List[float]:
         """
         Generate class labels for provided audio files. Use this method for debugging and prototyping.
 
@@ -855,7 +873,16 @@ class EncDecRegressionModel(_EncDecBaseModel):
 
             A list of predictions in the same order as paths2audio_files
         """
-        predictions = super().transcribe(paths2audio_files, batch_size, logprobs=True)
+        if override_config is None:
+            trcfg = RegressionInferConfig(batch_size=batch_size, logprobs=True)
+        else:
+            if not isinstance(override_config, RegressionInferConfig):
+                raise ValueError(
+                    f"override_config must be of type {RegressionInferConfig}, " f"but got {type(override_config)}"
+                )
+            trcfg = override_config
+
+        predictions = super().transcribe(audio, override_config=trcfg)
         return [float(pred) for pred in predictions]
 
     def _update_decoder_config(self, labels, cfg):

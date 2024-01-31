@@ -171,7 +171,7 @@ class TestTranscriptionMixin:
         assert outputs[2] == 3.0
 
     @pytest.mark.unit
-    def test_transcribe_generator_expliit_stop_check(self, dummy_model):
+    def test_transcribe_generator_explicit_stop_check(self, dummy_model):
         dummy_model = dummy_model.eval()
         dummy_model.encoder.weight.data.fill_(1.0)
         dummy_model.encoder.bias.data.fill_(0.0)
