@@ -24,7 +24,12 @@ Earlier this month, we announced [Parakeet](https://huggingface.co/collections/n
 
 The "TDT" in Parakeet-TDT is short for "Token-and-Duration Transducer", a novel sequence modeling architecture developed by NVIDIA and is open-sourced through [NVIDIA's NeMo](https://nvidia.github.io/NeMo/) toolkit. Our research on TDT models, presented in a [paper](https://arxiv.org/abs/2304.06795) at the ICML 2023 conference, showcases the superior speed and recognition accuracy of TDT models compared to conventional Transducers of similar sizes. 
 
-To put things in perspective, our Parakeet-TDT model with 1.1 billion parameters outperforms similar-sized Parakeet-RNNT-1.1b in accuracy, as measured as the average performance among 9 benchmarks on the [HuggingFace Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard). Additionally, it achieves an impressive real-time factor (RTF) of 8.8e-3, 64% faster than Parakeet-RNNT-1.1b's RTF of 14.4e-3. Remarkably, Parakeet-TDT's RTF is even 40% faster than Parakeet-RNNT-0.6b (RTF 12.3), despite the latter having about half the model size.
+To put things in perspective, our Parakeet-TDT model with 1.1 billion parameters outperforms similar-sized Parakeet-RNNT-1.1b in accuracy, as measured as the average performance among 9 benchmarks on the [HuggingFace Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard). Notably, Parakeet-TDT is the first model to achieve an average WER below 7.0 on the leaderboard. Additionally, it achieves an impressive real-time factor (RTF) of 8.8e-3, 64% faster than Parakeet-RNNT-1.1b's RTF of 14.4e-3. Remarkably, Parakeet-TDT's RTF is even 40% faster than Parakeet-RNNT-0.6b (RTF 12.3), despite the latter having about half the model size.
+
+<figure markdown>
+  ![HuggingFace Leaderboard](leaderboard_01312024.png)
+  <figcaption><b>Figure 1.</b> <i> HuggingFace Leaderboard as of 01/31/2024. </i></figcaption>
+</figure>
 
 ## Use Parakeet-TDT model in your code
 
@@ -48,10 +53,10 @@ Token-and-Duration Transducers (TDT) represent a significant advancement over tr
 
 <figure markdown>
   ![RNNTTOPO](rnnt_topo.png){align="center" width=300}
-  <figcaption><b>Figure 1.</b> <i>Transducer Model Architecture</i></figcaption>
+  <figcaption><b>Figure 2.</b> <i>Transducer Model Architecture</i></figcaption>
 </figure>
 
-Transducer models, as illustrated in Figure 1, consist of an encoder, a decoder, and a joiner. During speech recognition, the encoder processes audio signals, extracting crucial information from each frame. The decoder extracts information from already predicted text. The joiner then combines the outputs from the encoder and decoder, and predict a text token for each audio frame. From the joiner's perspective, a frame typically covers 40 to 80 milliseconds of audio signal, while on average people speak a word per 400 milliseconds. This discrepancy makes it so that certain frames don't associate with any text output. For those frames, the Transducer would predict a "blank" symbol. A typical sequence of predictions of a Transducer looks something like,
+Transducer models, as illustrated in Figure 2, consist of an encoder, a decoder, and a joiner. During speech recognition, the encoder processes audio signals, extracting crucial information from each frame. The decoder extracts information from already predicted text. The joiner then combines the outputs from the encoder and decoder, and predict a text token for each audio frame. From the joiner's perspective, a frame typically covers 40 to 80 milliseconds of audio signal, while on average people speak a word per 400 milliseconds. This discrepancy makes it so that certain frames don't associate with any text output. For those frames, the Transducer would predict a "blank" symbol. A typical sequence of predictions of a Transducer looks something like,
 
 <code>
 _ _ _ _ NVIDIA _ _ _ _ is _ _ _  a _ _  great _ _ _ _ _  place _ _ _ _ to work _ _ _
@@ -67,11 +72,11 @@ As we can see, there are many blanks symbols in the original output and this mea
 
 <figure markdown>
   ![TDTTOPO](tdt_topo.png){align="center" width=300}
-  <figcaption><b>Figure 2.</b> <i>TDT Model Architecture</i></figcaption>
+  <figcaption><b>Figure 3.</b> <i>TDT Model Architecture</i></figcaption>
 </figure>
 
 
-TDT is designed to mitigate wasted computation by intelligently detecting and skipping blank frames during recognition. As Figure 2 shows, when a TDT model processes a frame, it simultaneously predicts two things: 
+TDT is designed to mitigate wasted computation by intelligently detecting and skipping blank frames during recognition. As Figure 3 shows, when a TDT model processes a frame, it simultaneously predicts two things: 
 
 <ol type="1">
 <li>probability of token P<sub>T</sub>(v|t, u): the token that should be
