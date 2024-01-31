@@ -13,9 +13,11 @@
 # limitations under the License.
 
 from functools import cached_property
+from pathlib import Path
 from typing import Dict
 
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 __all__ = ['CanaryTokenizer']
 
@@ -32,6 +34,7 @@ TO_LANGUAGE_CODE = {
 }
 
 SPECIAL_TOKENS = [
+    "<pad>",
     "<|endoftext|>",
     "<|startoftranscript|>",
     *[f"<|{lang}|>" for lang in list(LANGUAGES.keys())],
@@ -40,8 +43,9 @@ SPECIAL_TOKENS = [
     "<|nopnc|>",
     "<|pnc|>",
     "<|nospeech|>",
-    "<pad>",
 ]
+
+UNUSED_SPECIAL_TOKENS = [f"<|spltoken{i}|>" for i in range(18)]
 
 
 class CanaryTokenizer(AggregateTokenizer):
@@ -96,3 +100,22 @@ class CanaryTokenizer(AggregateTokenizer):
             return token_id
 
         raise KeyError(f"Language {language} not found in tokenizer.")
+
+    @staticmethod
+    def build_special_tokenizer(output_dir: str | Path) -> SentencePieceTokenizer:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(exist_ok=True, parents=True)
+        text_path = output_dir / "train_text.txt"
+        all_tokens = SPECIAL_TOKENS + UNUSED_SPECIAL_TOKENS
+        train_text = "\n".join(all_tokens)
+        text_path.write_text(train_text)
+        model_path = output_dir / "tokenizer.model"
+        create_spt_model(
+            str(text_path),
+            vocab_size=32,
+            sample_size=-1,
+            do_lower_case=False,
+            output_dir=str(output_dir),
+            user_defined_symbols=all_tokens,
+        )
+        return SentencePieceTokenizer(str(model_path))
