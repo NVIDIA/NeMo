@@ -14,7 +14,7 @@
 
 import itertools
 import queue
-from typing import Any, Dict, List, Optional, Iterator
+from typing import Any, Dict, Iterator, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -229,7 +229,9 @@ class MegatronBertModel(MegatronBaseModel):
                     lm_labels = batch['labels'].cuda(non_blocking=True)
                     sentence_order = batch['is_random'].cuda(non_blocking=True)
                     padding_mask = batch['padding_mask'].cuda(non_blocking=True)
-                    tokens = batch['text'].cuda(non_blocking=True) # CAN HANDLE THIS IN MCORE FORWARD FUNCTION (SHOULD CHECK IF WE WANT TO DO THAT. LEGACY MODEL HANDLES IT IN FORWARD FUNCTION)
+                    tokens = batch['text'].cuda(
+                        non_blocking=True
+                    )  # CAN HANDLE THIS IN MCORE FORWARD FUNCTION (SHOULD CHECK IF WE WANT TO DO THAT. LEGACY MODEL HANDLES IT IN FORWARD FUNCTION)
                     types = batch['types'].cuda(non_blocking=True)
                 else:
                     padding_mask = batch['padding_mask'].cuda(non_blocking=True)
@@ -467,7 +469,6 @@ class MegatronBertModel(MegatronBaseModel):
         # TODO @tmoon: Use once available in Megatron-LM
         # return DataIteratorList(iters)
 
-
     def allreduce_first_last_embeddings(self):
 
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
@@ -488,7 +489,7 @@ class MegatronBertModel(MegatronBaseModel):
             share_embeddings = (
                 module.share_embeddings_and_output_weights if self.mcore_bert else module.share_token_embeddings
             )
-            
+
             if share_embeddings:
                 word_embeddings_weight = (
                     module.shared_embedding_or_output_weight() if self.mcore_bert else module.word_embeddings_weight()
