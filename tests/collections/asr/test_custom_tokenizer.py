@@ -7,6 +7,7 @@ from omegaconf import OmegaConf
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.common.tokenizers.canary_tokenizer import SPECIAL_TOKENS, UNUSED_SPECIAL_TOKENS, CanaryTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
+from nemo.core import Serialization
 
 
 @pytest.fixture(scope="session")
@@ -35,21 +36,24 @@ def test_canary_tokenizer_build_special_tokenizer(tmp_path):
 
 
 def test_canary_tokenizer_init_from_cfg(special_tokenizer_path, lang_tokenizer_path):
-    bpe_mixin = ASRBPEMixin()
-    bpe_mixin.register_artifact = Mock(side_effect=lambda self, x: x)
+    class DummyModel(ASRBPEMixin, Serialization):
+        pass
+
+    model = DummyModel()
+    model.register_artifact = Mock(side_effect=lambda self, x: x)
     config = OmegaConf.create(
         {
             "type": "agg",
-            "is_canary": True,
             "dir": None,
             "langs": {
-                "spl_tokens": {"dir": special_tokenizer_path, "type": "bpe",},
-                "en": {"dir": lang_tokenizer_path, "type": "bpe",},
+                "spl_tokens": {"dir": special_tokenizer_path, "type": "bpe"},
+                "en": {"dir": lang_tokenizer_path, "type": "bpe"},
             },
+            "custom_tokenizer": {"_target_": "nemo.collections.common.tokenizers.canary_tokenizer.CanaryTokenizer",},
         }
     )
-    bpe_mixin._setup_aggregate_tokenizer(config)
-    tokenizer = bpe_mixin.tokenizer
+    model._setup_aggregate_tokenizer(config)
+    tokenizer = model.tokenizer
 
     assert isinstance(tokenizer, CanaryTokenizer)
     assert len(tokenizer.tokenizers_dict) == 2
