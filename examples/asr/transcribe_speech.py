@@ -185,7 +185,7 @@ class TranscriptionConfig:
     # Use model's transcribe() function instead of transcribe_partial_audio()
     # Only use transcribe_partial_audio() when the audio is too long to fit in memory
     # and your model's transcribe() function does not support processing manifests with audio offsets
-    use_model_transcribe: bool = True
+    use_model_transcribe: bool = False
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
