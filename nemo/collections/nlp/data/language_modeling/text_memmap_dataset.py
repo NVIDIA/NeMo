@@ -18,7 +18,7 @@ import multiprocessing as mp
 import os
 import pickle
 import time
-from functools import partial, lru_cache
+from functools import lru_cache, partial
 from typing import Callable, List, Optional, Type
 
 import numpy as np
