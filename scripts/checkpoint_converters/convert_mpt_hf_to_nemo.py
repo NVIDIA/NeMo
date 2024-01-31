@@ -47,7 +47,7 @@ Here is an example usage command:
 
 ```python
 python convert_mpt_hf_to_nemo.py \
- --name_or_path /path/to/mpt_7b --save_path /path/to/save.nemo
+ --input-name-or-path /path/to/mpt_7b --output-path /path/to/save.nemo
 ```
 
 """
@@ -68,9 +68,9 @@ from nemo.utils import logging
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--name_or_path", type=str, default=None, required=True, help="Path to Huggingface MPT checkpoints",
+        "--input-name-or-path", type=str, default=None, required=True, help="Path to Huggingface MPT checkpoints",
     )
-    parser.add_argument("--save_path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--output-path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument(
         "--hparams_file",
         type=str,
@@ -84,8 +84,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if not os.path.exists(args.name_or_path):
-        logging.critical(f'Input directory [ {args.name_or_path} ] does not exist or cannot be found. Aborting.')
+    if not os.path.exists(args.input_name_or_path):
+        logging.critical(f'Input directory [ {args.input_name_or_path} ] does not exist or cannot be found. Aborting.')
         exit(255)
 
     if not os.path.exists(args.hparams_file):
@@ -183,8 +183,8 @@ if __name__ == '__main__':
     if args.cuda:
         model = model.cuda()
 
-    mpt_1 = torch.load(os.path.join(args.name_or_path, 'pytorch_model-00001-of-00002.bin'), map_location="cpu")
-    mpt_2 = torch.load(os.path.join(args.name_or_path, 'pytorch_model-00002-of-00002.bin'), map_location="cpu")
+    mpt_1 = torch.load(os.path.join(args.input_name_or_path, 'pytorch_model-00001-of-00002.bin'), map_location="cpu")
+    mpt_2 = torch.load(os.path.join(args.input_name_or_path, 'pytorch_model-00002-of-00002.bin'), map_location="cpu")
     mpt_dict = {**mpt_1, **mpt_2}
     del mpt_1, mpt_2
 
@@ -232,7 +232,7 @@ if __name__ == '__main__':
         logging.warning('Unexpected keys were detected which should not happen. Please investigate.')
         logging.warning(f'Unexpected keys: \n{unexpected_keys}')
 
-    if args.save_path is None:
-        args.save_path = os.path.dirname(os.path.abspath(__file__))
+    if args.output_path is None:
+        args.output_path = os.path.dirname(os.path.abspath(__file__))
 
-    model.save_to(os.path.join(args.save_path, 'megatron_mpt_7b_base_tp1_pp1.nemo'))
+    model.save_to(os.path.join(args.output_path, 'megatron_mpt_7b_base_tp1_pp1.nemo'))

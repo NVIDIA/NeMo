@@ -21,8 +21,8 @@ user to run additional script to set the TP/PP values manually.
 Example to run this conversion script:
 ```
     python convert_falcon_hf_to_nemo.py \
-     --name_or_path /path/to/hf/checkpoints/folder \
-     --save_path /path/to/output/nemo/file \
+     --input-name-or-path /path/to/hf/checkpoints/folder \
+     --output-path /path/to/output/nemo/file \
      --precision <precision of converted nemo model>
 ```
 """
@@ -89,7 +89,7 @@ def load_falcon_config(args) -> FalconConfig:
     `transformers.FalconModel`. need to manually set the config values
     and force to `falcon` model type. 
     """
-    config = FalconConfig.from_pretrained(args.name_or_path)
+    config = FalconConfig.from_pretrained(args.input_name_or_path)
     if config.model_type == 'RefinedWeb':
         mappings = {
             "num_hidden_layers": config.n_layer,
@@ -117,12 +117,12 @@ def load_falcon_config(args) -> FalconConfig:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--name_or_path",
+        "--input-name-or-path",
         type=str,
         required=True,
         help="Path to Falcon variants checkpoint from HuggingFace hub or local dir",
     )
-    parser.add_argument("--save_path", type=str, required=True, help="Path to dir where to store output .nemo file")
+    parser.add_argument("--output-path", type=str, required=True, help="Path to dir where to store output .nemo file")
     parser.add_argument(
         "--hparams_file",
         type=str,
@@ -192,7 +192,7 @@ if __name__ == "__main__":
 
     tokenizer_dict = {
         "library": "huggingface",
-        "type": args.name_or_path,
+        "type": args.input_name_or_path,
         "use_fast": True,
     }
     trainer_dict = {
@@ -258,7 +258,7 @@ if __name__ == "__main__":
     model = MegatronGPTModel(omega_cfg, trainer)
 
     logging.info("Loading HuggingFace model...")
-    model_hf = AutoModelForCausalLM.from_pretrained(args.name_or_path)
+    model_hf = AutoModelForCausalLM.from_pretrained(args.input_name_or_path)
 
     state_dict_hf = model_hf.state_dict()
     convert_dict = convert_state_dict(state_dict_hf, amp=omega_cfg.megatron_amp_O2)
@@ -279,7 +279,7 @@ if __name__ == "__main__":
 
     logging.info("Saving model...")
 
-    # We make sure that the tokenizer can be instantiated later regardless of args.name_or_path
+    # We make sure that the tokenizer can be instantiated later regardless of args.input_name_or_path
     if falcon_config.new_decoder_architecture:
         model.cfg.tokenizer.update(type="tiiuae/falcon-40b")
     elif falcon_config.multi_query:
@@ -292,8 +292,8 @@ if __name__ == "__main__":
     dtype = torch.bfloat16 if args.precision == "bf16" else torch.float32
     model = model.to(dtype=dtype)
     model.cfg.update(use_cpu_initialization=False)
-    model.save_to(args.save_path)
-    logging.info(f'Done. NeMo model saved to: {args.save_path}')
+    model.save_to(args.output_path)
+    logging.info(f'Done. NeMo model saved to: {args.output_path}')
     tok = time.time()
     t = time.strftime('%H:%M:%S', time.gmtime(tok - tik))
     logging.info(f'nemo model created and saved. Total time: {t}')

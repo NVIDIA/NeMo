@@ -43,8 +43,8 @@ to correctly configure creating GPT-2 model in Megatron:
 Here is an example usage command:
 ```python
 python convert_starcoder_hf_to_nemo.py \
-    --name_or_path /path/to/starcoder \
-    --save_path /path/to/save.nemo
+    --input-name-or-path /path/to/starcoder \
+    --output-path /path/to/save.nemo
 ```
 """
 
@@ -98,12 +98,12 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--name_or_path",
+        "--input-name-or-path",
         type=str,
         required=True,
         help="Path to Starcoder checkpoint from HuggingFace hub or local dir",
     )
-    parser.add_argument("--save_path", type=str, required=True, help="Path to dir where to store output .nemo file")
+    parser.add_argument("--output-path", type=str, required=True, help="Path to dir where to store output .nemo file")
     parser.add_argument(
         "--hparams_file",
         type=str,
@@ -119,10 +119,10 @@ if __name__ == "__main__":
     parser.add_argument("--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving")
     args = parser.parse_args()
 
-    if not os.path.isdir(args.save_path):
-        raise FileNotFoundError(f"Output directory '{args.save_path}' does not exist")
+    if not os.path.isdir(args.output_path):
+        raise FileNotFoundError(f"Output directory '{args.output_path}' does not exist")
 
-    hf_config = AutoConfig.from_pretrained(args.name_or_path)
+    hf_config = AutoConfig.from_pretrained(args.input_name_or_path)
 
     with open(args.hparams_file, "r", encoding="utf_8") as f:
         orig_cfg = yaml.safe_load(f)
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     }
     tokenizer_dict = {
         "library": "huggingface",
-        "type": args.name_or_path,
+        "type": args.input_name_or_path,
         "use_fast": True,
     }
     trainer_dict = {
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     trainer = pl.Trainer(**trainer_dict)
 
     logging.info("Loading HuggingFace model...")
-    model_hf = AutoModelForCausalLM.from_pretrained(args.name_or_path)
+    model_hf = AutoModelForCausalLM.from_pretrained(args.input_name_or_path)
     logging.info(f"Loaded model:\n{model_hf}")
 
     state_dict_hf = model_hf.state_dict()
@@ -208,10 +208,10 @@ if __name__ == "__main__":
     logging.info(f"Created model:\n{model}")
 
     logging.info("Saving model...")
-    # We make sure that the tokenizer can be instantiated later regardless of args.name_or_path
+    # We make sure that the tokenizer can be instantiated later regardless of args.input_name_or_path
     model.cfg.tokenizer.update(type="bigcode/starcoder")
     dtype = torch.bfloat16 if args.precision == "bf16" else torch.float32
     model = model.to(dtype=dtype)
     model.cfg.update(use_cpu_initialization=False)
-    model.save_to(os.path.join(args.save_path, "megatron_starcoder_tp1_pp1.nemo"))
+    model.save_to(os.path.join(args.output_path, "megatron_starcoder_tp1_pp1.nemo"))
     logging.info("Done.")

@@ -32,16 +32,16 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 1) Generate only HF weights from a nemo file:
 
     python convert_falcon_nemo_to_hf.py \
-    --name_or_path /path/to/file.nemo or /path/to/extracted_folder \
-    --save_path /path/to/pytorch_model.bin
+    --input-name-or-path /path/to/file.nemo or /path/to/extracted_folder \
+    --output-path /path/to/pytorch_model.bin
     
 2) Generate the full HF model folder
 
     python convert_falcon_nemo_to_hf.py \
-    --name_or_path /path/to/file.nemo or /path/to/extracted_folder \
-    --save_path /path/to/pytorch_model.bin \
-    --hf-name_or_path /path/to/input_hf_folder \
-    --hf-save_path /path/to/output_hf_folder
+    --input-name-or-path /path/to/file.nemo or /path/to/extracted_folder \
+    --output-path /path/to/pytorch_model.bin \
+    --hf-input-path /path/to/input_hf_folder \
+    --hf-output-path /path/to/output_hf_folder
 
     Use the --cpu-only flag if the model cannot fit in the GPU (e.g. falcon 180b). 
     However this option makes the conversion script significantly slower.
@@ -51,18 +51,18 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--name_or_path", type=str, required=True, help="Path to .nemo file",
+        "--input-name-or-path", type=str, required=True, help="Path to .nemo file",
     )
-    parser.add_argument("--save_path", type=str, required=True, help="Path to HF .bin file")
+    parser.add_argument("--output-path", type=str, required=True, help="Path to HF .bin file")
     parser.add_argument(
-        "--hf-in-path",
+        "--hf-input-path",
         type=str,
         default=None,
         help="A HF model path, "
         "e.g. a folder containing https://huggingface.co/meta-falcon/falcon-2-7b-hf/tree/main",
     )
     parser.add_argument(
-        "--hf-out-path",
+        "--hf-output-path",
         type=str,
         default=None,
         help="Output HF model path, " "with the same format as above but user's own weights",
@@ -163,9 +163,9 @@ def replace_hf_weights(weights_file, input_hf_path, output_hf_path):
 
 if __name__ == '__main__':
     args = get_args()
-    convert(args.name_or_path, args.save_path, precision=args.precision, cpu_only=args.cpu_only)
-    if args.hf_in_path and args.hf_out_path:
-        replace_hf_weights(args.save_path, args.hf_in_path, args.hf_out_path)
+    convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
+    if args.hf_input_path and args.hf_output_path:
+        replace_hf_weights(args.output_path, args.hf_input_path, args.hf_output_path)
     else:
         logging.info("`hf-in-path` and/or `hf-out-path` not provided, not generating full HF model.")
-        logging.info(f".bin file is saved to {args.save_path}")
+        logging.info(f".bin file is saved to {args.output_path}")

@@ -16,8 +16,8 @@ r"""
 Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
   Example to run this conversion script:
     python convert_llama_hf_to_nemo.py \
-     --name_or_path <path_to_hf_checkpoints_folder> \
-     --save_path <path_to_output_nemo_file>
+     --input-name-or-path <path_to_hf_checkpoints_folder> \
+     --output-path <path_to_output_nemo_file>
 """
 
 import os
@@ -44,9 +44,9 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--name_or_path", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
+        "--input-name-or-path", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
     )
-    parser.add_argument("--save_path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--output-path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument(
         "--hparams_file",
         type=str,
@@ -95,9 +95,9 @@ def load_config(args, llama_config):
 
 
 def convert(args):
-    logging.info(f"loading checkpoint {args.name_or_path}")
-    model = LlamaForCausalLM.from_pretrained(args.name_or_path)
-    tokenizer = LlamaTokenizer.from_pretrained(args.name_or_path)
+    logging.info(f"loading checkpoint {args.input_name_or_path}")
+    model = LlamaForCausalLM.from_pretrained(args.input_name_or_path)
+    tokenizer = LlamaTokenizer.from_pretrained(args.input_name_or_path)
     hf_config = vars(model.config)
     hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
     print(f"hf_config: {hf_config}")
@@ -277,8 +277,8 @@ def convert(args):
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
 
-    model.save_to(args.save_path)
-    logging.info(f'NeMo model saved to: {args.save_path}')
+    model.save_to(args.output_path)
+    logging.info(f'NeMo model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':
