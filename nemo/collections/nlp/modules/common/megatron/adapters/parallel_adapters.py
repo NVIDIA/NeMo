@@ -72,6 +72,7 @@ class AdapterName(str, enum.Enum):
     LORA_Hto4H_ADAPTER = "lora_hto4h_adapter"
     LORA_4HtoH_ADAPTER = "lora_4htoh_adapter"
     MULTIMODAL_PROJECTOR_ADAPTER = "mm_projector_adapter"
+    PARALLEL_LINEAR_ADAPTER = "parallel_linear_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
@@ -145,6 +146,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             raise RuntimeError("ParallelLinearAdapter can not run without Megatron-core.")
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
+        self.dim = dim
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.
@@ -265,6 +267,7 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     gather_output: bool = True
     input_is_parallel: bool = False
     dropout: float = 0.0
+    network_alpha: int | None = None
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
 
 

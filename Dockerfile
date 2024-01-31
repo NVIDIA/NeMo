@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.11-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.12-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -66,7 +66,7 @@ WORKDIR /workspace/
 # We leave it here in case we need to work off of a specific commit in main
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout e122536b7645edcb7ebf099b5c92a443f7dbf8e7 && \
+  git checkout 27cbe46714a50c43ed290f1b1472db8d2780c55c && \
   pip install .
 
 # Apex bugfix for PyTorch 23.11 container: https://github.com/NVIDIA/apex/pull/1760
@@ -100,17 +100,6 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/torchaudio_build/scripts/installers/install_tor
   else echo "Skipping failed torchaudio installation"; fi \
   else echo "torchaudio installed successfully"; fi
 
-# install nemo dependencies
-WORKDIR /tmp/nemo
-ENV LHOTSE_REQUIRE_TORCHAUDIO=0
-COPY requirements .
-RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
-
-# install flash attention
-RUN pip install flash-attn
-# install numba for latest containers
-RUN pip install numba>=0.57.1
-
 COPY scripts /tmp/nemo/scripts/
 # install correct graphviz version (k2 and pynini visualization tool), skip if installation fails
 RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_graphviz.sh --docker); INSTALL_CODE=$?; \
@@ -133,13 +122,24 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL
   else echo "Skipping failed k2 installation"; fi \
   else echo "k2 installed successfully"; fi
 
+# install nemo dependencies
+WORKDIR /tmp/nemo
+ENV LHOTSE_REQUIRE_TORCHAUDIO=0
+COPY requirements .
+RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+
+# install flash attention
+RUN pip install flash-attn
+# install numba for latest containers
+RUN pip install numba>=0.57.1
+
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
 COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.21.0
+ARG NEMO_VERSION=1.23.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
