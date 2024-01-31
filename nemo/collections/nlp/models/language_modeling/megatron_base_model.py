@@ -475,7 +475,10 @@ class MegatronBaseModel(NLPModel):
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
             'fp8': None,
+<<<<<<< HEAD
             'deallocate_pipeline_outputs': True,
+=======
+>>>>>>> 6149a3cec (clean code)
         }
 
         # populate the transformer config dict

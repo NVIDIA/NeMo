@@ -514,12 +514,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
     def sharded_state_dict(self, model_sharded_state_dict):
         optimizer_state_dict = self.state_dict()
 
-        # DEBUGGING
-        if torch.distributed.get_rank()==0:
-            model_sharded_state_dict_keys = list(model_sharded_state_dict.keys())
-            for i in range(len(model_sharded_state_dict_keys)):
-                print("model_sharded_state_dict_keys[" + str(i) + "]: " + str(model_sharded_state_dict_keys[i]))
-            
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
             model_sharded_state_dict=model_sharded_state_dict, optim_params_iter=self.parameters(),
         )
