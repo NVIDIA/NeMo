@@ -38,37 +38,6 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 mp.set_start_method("spawn", force=True)
-"""
-This is the script to run inference with a PEFT model or an SFT Model.
-
-If you want to evaluate an SFT .nemo file:
-
-python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
-	model.restore_from_path=<path_to_sft_nemo_file> \
-	model.peft.restore_from_path=null \
-	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
-	model.data.test_ds.names=\['name_for_test_file1', 'name_for_test_file2'] \  # this is not the filename just some identifier
-	model.data.test_ds.global_batch_size=4 \  # or some other value
-	model.data.test_ds.micro_batch_size=4 \
-	model.data.test_ds.tokens_to_generate=30 \
-	inference.greedy=True \
-	inference.outfile_path=\'<path_to_jsonl_output_file>'  
-
-If you want to evaluate a PEFT Model, you should provide a base GPT model and a PEFT model .nemo file
-
-python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
-	model.restore_from_path=<path_to_sft_nemo_file> \
-	model.peft.restore_from_path=<path_to_peft_nemo_file> \ # this will be created if you use `megatron_gpt_finetuning.py`
-	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
-	model.data.test_ds.names=\['name_for_test_file1', 'name_for_test_file2'] \  # this is not the filename just some identifier
-	model.data.test_ds.global_batch_size=4 \  # or some other value
-	model.data.test_ds.micro_batch_size=4 \
-	model.data.test_ds.tokens_to_generate=30 \
-	inference.greedy=True \
-	inference.outfile_path=\'<path_to_jsonl_output_file>'  
-
-"""
-
 
 def use_inference_server(cfg, model, trainer):
     if not HAVE_MEGATRON_CORE:
