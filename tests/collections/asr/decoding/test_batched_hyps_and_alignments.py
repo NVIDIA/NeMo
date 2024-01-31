@@ -280,6 +280,67 @@ class TestBatchedAlignments:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
+    def test_add_results_masked(self, device: torch.device):
+        # batch of size 2, add label for first utterance
+        batch_size = 2
+        logits_dim = 7
+        sample_logits = torch.rand((batch_size, 1, logits_dim), device=device)
+        alignments = BatchedAlignments(batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device)
+        alignments.add_results_masked_(
+            active_mask=torch.tensor([True, True], device=device),
+            logits=sample_logits[:, 0],
+            labels=torch.argmax(sample_logits[:, 0], dim=-1),
+            time_indices=torch.tensor([0, 0], device=device),
+        )
+        assert alignments.current_lengths.tolist() == [1, 1]
+        assert torch.allclose(alignments.logits[:, 0], sample_logits[:, 0])
+        assert alignments.timesteps[:, 0].tolist() == [0, 0]
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_add_results_masked_no_checks(self, device: torch.device):
+        # batch of size 2, add label for first utterance
+        batch_size = 2
+        logits_dim = 7
+        sample_logits = torch.rand((batch_size, 1, logits_dim), device=device)
+        alignments = BatchedAlignments(batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device)
+        active_mask = torch.tensor([True, True], device=device)
+        time_indices = torch.tensor([0, 0], device=device)
+        labels = torch.argmax(sample_logits[:, 0], dim=-1)
+        with avoid_sync_operations(device=device):
+            alignments.add_results_masked_no_checks_(
+                active_mask=active_mask, logits=sample_logits[:, 0], labels=labels, time_indices=time_indices
+            )
+        assert alignments.current_lengths.tolist() == [1, 1]
+        assert torch.allclose(alignments.logits[:, 0], sample_logits[:, 0])
+        assert alignments.timesteps[:, 0].tolist() == [0, 0]
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_add_multiple_results_masked(self, device: torch.device):
+        # batch of size 2, add label for first utterance
+        batch_size = 2
+        seq_length = 5
+        logits_dim = 7
+        alignments = BatchedAlignments(batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device)
+        sample_logits = torch.rand((batch_size, seq_length, logits_dim), device=device)
+        add_logits_mask = torch.rand((batch_size, seq_length), device=device) < 0.6
+        for t in range(seq_length):
+            alignments.add_results_masked_(
+                active_mask=add_logits_mask[:, t],
+                logits=sample_logits[:, t],
+                labels=torch.argmax(sample_logits[:, t], dim=-1),
+                time_indices=torch.tensor([0, 0], device=device),
+            )
+
+        assert (alignments.current_lengths == add_logits_mask.sum(dim=-1)).all()
+        for i in range(batch_size):
+            assert (
+                alignments.logits[i, : alignments.current_lengths[i]] == sample_logits[i, add_logits_mask[i]]
+            ).all()
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
     def test_torch_jit_compatibility(self, device: torch.device):
         @torch.jit.script
         def alignments_add_wrapper(
