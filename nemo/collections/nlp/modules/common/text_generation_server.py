@@ -20,7 +20,7 @@ import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
-from nemo.collections.nlp.modules.common.retro_inference_strategies_legacy import (
+from nemo.collections.nlp.modules.common.retro_inference_strategies import (
     RetroModelTextGenerationStrategy,
     RetroQAModelTextGenerationStrategy,
 )
