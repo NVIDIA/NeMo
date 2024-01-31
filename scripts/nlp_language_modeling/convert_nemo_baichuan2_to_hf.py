@@ -101,8 +101,6 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     model = MegatronGPTModel.restore_from(
         input_nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
     )
-    for name, param in model.named_parameters():  
-        print(f"1111 - {name}", param.sum())
     if precision is None:
         precision = model.cfg.precision
     if precision in [32, "32"]:
@@ -189,8 +187,6 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     output_layer_weight = model.state_dict()[f'model.output_layer.weight']
     output_layer_base_name = f'lm_head.weight'
     checkpoint[output_layer_base_name] = param_to_weights(output_layer_weight)
-    for key in checkpoint:
-        print(key, ' ', checkpoint[key].sum())
 
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
     torch.save(checkpoint, output_hf_file)
