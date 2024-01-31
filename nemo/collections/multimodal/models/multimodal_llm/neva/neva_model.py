@@ -612,8 +612,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         output_tensor = self.model(**forward_args)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
-        return MegatronGPTModel.fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only)
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
+        return MegatronGPTModel.fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step)
 
     def training_step(self, dataloader_iter, batch_idx):
         """
@@ -623,7 +623,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         """
         return MegatronGPTModel.training_step(self, dataloader_iter, batch_idx)
 
-    def get_forward_output_and_loss_func(self, validation_step=False):
+    def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
         def loss_func(output_tensor, loss_mask):
             loss_for_ub = self.loss_func(loss_mask, output_tensor)
             if validation_step and not self.cfg.data.get('validation_drop_last', True):
@@ -921,7 +921,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         Returns:
             List of available pre-trained models.
         """
-        return []
+        return None
 
     def setup_test_data(self, cfg):
         pass
@@ -996,7 +996,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 return generate(self, **inference_config)
 
     def generate(
-        self, input_prompts, inference_config, length_params: LengthParam, sampling_params: SamplingParam = None,
+        self, inputs, inference_config, length_params: LengthParam, sampling_params: SamplingParam = None,
     ) -> OutputType:
 
         # check whether the DDP is initialized
@@ -1020,6 +1020,6 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             length_params = get_default_length_params()
 
         # Supports only one prompt at a time
-        result = megatron_neva_generate(self.cuda(), input_prompts, length_params, sampling_params, inference_config)
+        result = megatron_neva_generate(self.cuda(), inputs, length_params, sampling_params, inference_config)
 
         return result
