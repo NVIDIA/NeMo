@@ -48,7 +48,7 @@ class GPTEmbeddingDataset(Dataset):
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
     ):
         """
-        file_path: Path to a JSONL dataset with (query,doc,negative_doc) triplets in jsonl format. 
+        file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format. 
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
@@ -152,8 +152,8 @@ class GPTEmbeddingDataset(Dataset):
         BOS, EOS, and SEP, are added if specified.
         """
         q = self.tokenizer.text_to_ids(example['query'])
-        d = self.tokenizer.text_to_ids(example['doc'])
-        nd = self.tokenizer.text_to_ids(example['negative_doc'])
+        d = self.tokenizer.text_to_ids(example['pos_doc'])
+        nd = self.tokenizer.text_to_ids(example['neg_doc'])
         q = q if q is not None else []
         d = d if d is not None else []
         nd = nd if nd is not None else []
@@ -182,8 +182,8 @@ class GPTEmbeddingDataset(Dataset):
 
         processed_example = {
             'query': q,
-            'doc': d,
-            'negative_doc': nd,
+            'pos_doc': d,
+            'neg_doc': nd,
         }
 
         return processed_example
@@ -221,12 +221,12 @@ class GPTEmbeddingDataset(Dataset):
         max_length = -1
         for item in batch:
             input_ids.append(item['query'])
-            input_ids.append(item['doc'])
-            input_ids.append(item['negative_doc'])
+            input_ids.append(item['pos_doc'])
+            input_ids.append(item['neg_doc'])
             lengths.append(len(item['query']))
-            lengths.append(len(item['doc']))
-            lengths.append(len(item['negative_doc']))
-            max_length = max(max_length, len(item['query']), len(item['doc']), len(item['negative_doc']))
+            lengths.append(len(item['pos_doc']))
+            lengths.append(len(item['neg_doc']))
+            max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
 
         max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
         assert max_length <= self.max_seq_length
