@@ -98,7 +98,7 @@ class EvalBeamSearchNGramConfig:
 
     # Parameters for inference
     acoustic_batch_size: int = 16  # The batch size to calculate log probabilities
-    beam_batch_size: int = 128  # The batch size to be used for beam search decoding
+    beam_batch_size: int = 1  # The batch size to be used for beam search decoding
     device: str = "cuda"  # The device to load the model onto to calculate log probabilities
     use_amp: bool = False  # Whether to use AMP if available to calculate log probabilities
 
@@ -107,9 +107,10 @@ class EvalBeamSearchNGramConfig:
         strategy="beam",
         beam = ctc_beam_decoding.BeamCTCInferConfigList(
             beam_size=[4],
-            beam_alpha=[0.5],
-            beam_beta=[0.5],
+            beam_alpha=[0.5], # LM weight
+            beam_beta=[0.5], # AM weight
             return_best_hypothesis = False,
+            flashlight_cfg=ctc_beam_decoding.FlashlightConfig(lexicon_path = None)
             ),
         ))
     
@@ -128,10 +129,10 @@ def beam_search_eval(
     target_transcripts: List[str],
     preds_output_file: str = None,
     lm_path: str = None,
-    beam_alpha: float = 1.0,
-    beam_beta: float = 0.0,
-    beam_size: int = 128,
-    beam_batch_size: int = 128,
+    beam_alpha: float = 0.5, # LM weight
+    beam_beta: float = 0.5, # AM weight
+    beam_size: int = 4,
+    beam_batch_size: int = 1,
     progress_bar: bool = True,
     punctuation_capitalization: PunctuationCapitalization = None,
 ):
@@ -144,7 +145,7 @@ def beam_search_eval(
         model.change_decoding_strategy(None)
 
     # Override the beam search config with current search candidate configuration
-    decoding = CTCDecodingConfig(
+    model.cfg.decoding = CTCDecodingConfig(
         strategy=cfg.ctc_decoding.strategy,
         preserve_alignments=cfg.ctc_decoding.preserve_alignments,
         compute_timestamps=cfg.ctc_decoding.compute_timestamps,
@@ -163,10 +164,6 @@ def beam_search_eval(
                                                     flashlight_cfg=cfg.ctc_decoding.beam.flashlight_cfg,
                                                     return_best_hypothesis=cfg.ctc_decoding.beam.return_best_hypothesis),
         )
-
-    # Update model's decoding strategy config
-    model.cfg.decoding.strategy = decoding.strategy
-    model.cfg.decoding.beam = decoding.beam
 
     # Update model's decoding strategy
     if isinstance(model, EncDecHybridRNNTCTCModel):
@@ -272,6 +269,8 @@ def beam_search_eval(
 
 @hydra_runner(config_path=None, config_name='EvalBeamSearchNGramConfig', schema=EvalBeamSearchNGramConfig)
 def main(cfg: EvalBeamSearchNGramConfig):
+    assert cfg.beam_batch_size==1 # TODO fix bug for Flashlight beansearch with beam_batch_size>1
+
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)  # type: EvalBeamSearchNGramConfig
 
@@ -337,9 +336,8 @@ def main(cfg: EvalBeamSearchNGramConfig):
             with torch.no_grad():
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'
-                all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
+                all_probs = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
 
-        all_probs = all_logits
         if cfg.probs_cache_file:
             os.makedirs(os.path.split(cfg.probs_cache_file)[0], exist_ok=True)
             logging.info(f"Writing pickle files of probabilities at '{cfg.probs_cache_file}'...")

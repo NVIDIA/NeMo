@@ -295,12 +295,17 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
             for nbest_hyp in hypotheses_list:  # type: NBestHypotheses
                 n_hyps = nbest_hyp.n_best_hypotheses  # Extract all hypotheses for this sample
-                decoded_hyps = self.decode_hypothesis(
-                    n_hyps, fold_consecutive
-                )  # type: List[Union[Hypothesis, NBestHypotheses]]
+                decoded_hyps = self.decode_hypothesis(n_hyps, fold_consecutive)  # type: List[NBestHypotheses]
 
                 # If computing timestamps
                 if self.compute_timestamps is True:
+                    # greedy decoding, can get high-level confidence scores
+                    if return_hypotheses and (self.preserve_word_confidence or self.preserve_token_confidence):
+                        hypotheses = self.compute_confidence(hypotheses)
+                    else:
+                        # remove unused token_repetitions from Hypothesis.text
+                        for hyp in hypotheses:
+                            hyp.text = hyp.text[:2]
                     timestamp_type = self.cfg.get('ctc_timestamp_type', 'all')
                     for hyp_idx in range(len(decoded_hyps)):
                         decoded_hyps[hyp_idx] = self.compute_ctc_timestamps(decoded_hyps[hyp_idx], timestamp_type)
@@ -316,9 +321,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             return best_hyp_text, all_hyp_text
 
         else:
-            hypotheses = self.decode_hypothesis(
-                hypotheses_list, fold_consecutive
-            )  # type: List[Union[Hypothesis, NBestHypotheses]]
+            hypotheses = self.decode_hypothesis(hypotheses_list, fold_consecutive)  # type: List[Hypothesis]
 
             # If computing timestamps
             if self.compute_timestamps is True:

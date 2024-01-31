@@ -193,7 +193,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         beam_beta: float = 0.0,
         kenlm_path: str = None,
         flashlight_cfg: Optional['FlashlightConfig'] = None,
-        pyctcdecode_cfg: Optional['PyCTCDecodeConfig'] = None,
     ):
         super().__init__(blank_id=blank_id, beam_size=beam_size)
 
