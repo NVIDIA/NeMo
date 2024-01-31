@@ -10,6 +10,12 @@ inference:
   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
   end_strings: ["<|endoftext|>"]  # generation will stop when one of these tokens is generated
+  # RETRO-specific arguments
+  retro_inference:
+    retro_gpt_retrieved_length: 128
+    retro_num_neighbors: 2
+    ft_neighbours: 0
+    reuse_top: True
 
 trainer:
   devices: 1
@@ -36,6 +42,9 @@ prompts: # prompts for Retro inference
   - "prompt1"
   - "prompt2"
 
+# RETRO inference
+neighbors: null
+
 server: False  # whether launch the API server
 port: 5555 # the port number for the inference server
 web_server: False # whether launch the web inference server
@@ -44,13 +53,3 @@ username: test # user name for web client
 password: test2  # password for web client
 web_port: 9889 # the port number of the web server
 
-# RETRO-specific arguments
-retro_inference:
-  retro_num_neighbors: 2
-  neighbors:
-    prompt1_neighbors:
-      - "prompt1_neighbor1"
-      - "prompt1_neighbor2"
-    prompt2_neighbors:
-      - "prompt2_neighbor1"
-      - "prompt2_neighbor2"

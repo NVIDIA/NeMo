@@ -182,47 +182,18 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
     def sharded_state_dict(self, model_sharded_state_dict):
         optimizer_state_dict = self.state_dict()
 
-        # # DEBUGGING
-        # if torch.distributed.get_rank()==0:
-        #     # print("model_sharded_state_dict.keys(): " + str("\n".join(list(model_sharded_state_dict.keys()))))
-        #     model_sharded_state_dict_keys = list(model_sharded_state_dict.keys())
-        #     model_sharded_state_dict_keys.sort()
-        #     for i in range(len(model_sharded_state_dict_keys)):
-        #         print("model_sharded_state_dict_keys[" + str(i) + "]: " + str(model_sharded_state_dict_keys[i]))
+        # DEBUGGING
         if torch.distributed.get_rank()==0:
             model_sharded_state_dict_keys = list(model_sharded_state_dict.keys())
             for i in range(len(model_sharded_state_dict_keys)):
                 print("model_sharded_state_dict_keys[" + str(i) + "]: " + str(model_sharded_state_dict_keys[i]))
             
-
-
-
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
             model_sharded_state_dict=model_sharded_state_dict, optim_params_iter=self.parameters(),
         )
         # Convert state
         step = optimizer_state_dict['state'].pop('step')
         state_dict_format = optimizer_state_dict.pop('format', None)
-
-        # # DEBUGGING
-        # if torch.distributed.get_rank()==0:
-        #     print("optimizer_state_dict.keys(): " + str(optimizer_state_dict.keys()))
-        #     print("optimizer_state_dict['state'].keys(): " + str(optimizer_state_dict['state'].keys()))
-        #     print("optimizer_state_dict['param_groups']: " + str(optimizer_state_dict['param_groups']))
-        #     print("id_to_sharded_param_map.keys(): " + str(id_to_sharded_param_map.keys()))
-        #     print("id_to_sharded_param_map[0]: " + str(id_to_sharded_param_map[0]))
-        #     optimizer_state_dict_keys = list(optimizer_state_dict['state'].keys())
-        #     optimizer_state_dict_keys.sort()
-        #     for key in optimizer_state_dict_keys:
-        #         print("optimizer_state_dict['state'][" + str(key) + "]: " + str(optimizer_state_dict['state'][key].keys()))
-        #     id_to_sharded_param_map_keys = list(id_to_sharded_param_map.keys())
-        #     id_to_sharded_param_map_keys.sort()
-        #     for key in id_to_sharded_param_map_keys:
-        #         print("id_to_sharded_param_map[" + str(key) + "]: " + str(id_to_sharded_param_map[key]))    
-        #     # print("optimizer_state_dict['state']: " + str(optimizer_state_dict['state']))
-        #     # print("id_to_sharded_param_map: " + str(id_to_sharded_param_map))
-        #     # print("optimizer_state_dict: " + str(optimizer_state_dict))
-        #     # print("id_to_sharded_param_map: " + str(id_to_sharded_param_map))
 
         optim_state_to_sharding_state(optimizer_state_dict, id_to_sharded_param_map)
         optimizer_state_dict['state']['step'] = step

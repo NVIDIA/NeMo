@@ -57,8 +57,8 @@ Usage:
             tensor_model_parallel_size=-1 \
             pipeline_model_parallel_size=-1 \
             prompts=[prompt1, prompt2] \
-            retro_inference.retro_num_neighbors=2 \
-            retro_inference.neighbors=[[prompt1_neighbor1, prompt1_neighbor2], [prompt2_neighbor1, prompt2_neighbor2]]
+            inference.retro_inference.retro_num_neighbors=2 \
+            neighbors=[[prompt1_neighbor1, prompt1_neighbor2], [prompt2_neighbor1, prompt2_neighbor2]]
 
 
         ```
@@ -78,7 +78,7 @@ class RequestDataSet(Dataset):
         return len(self.sentences)
 
     def __getitem__(self, idx):
-        return [self.sentences[idx], self.neighbors[idx]]
+        return {'prompts': self.sentences[idx], 'neighbors': self.neighbors[idx]}
 
 
 def remove_padded_prompts(response, nb_paddings):
@@ -230,10 +230,16 @@ def main(cfg) -> None:
     # print(response)
     # print("***************************")
 
+
+    # DEBUGGING
+    cfg.prompts = ["Hi, my name is Huy. What's your name?", "Today looks like a nice day. Do you think so?"]
+    cfg.neighbors = [["I am 28 years old.","Your name is Jeff."], ["You also think today is a nice day.","Yesterday was very nice too."]]
+
+
     # Second method of running text generation, call trainer.predict [recommended]
     bs = 2
-    prompts = OmegaConf.to_container(cfg.prompts)
-    neighbors = [OmegaConf.to_container(cfg.retro_inference.neighbors.prompt1_neighbors), OmegaConf.to_container(cfg.retro_inference.neighbors.prompt2_neighbors)]
+    prompts = cfg.prompts
+    neighbors = cfg.neighbors
     ds = RequestDataSet(prompts, neighbors)
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
