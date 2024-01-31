@@ -14,6 +14,7 @@
 
 import json
 import os
+import re
 from os.path import expanduser
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
@@ -170,6 +171,19 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     return item
 
 
+def is_tarred_dataset(audio_file: str, manifest_file: Optional[str] = None) -> bool:
+    if "/" in audio_file or manifest_file is None:
+        # audio files in a tarred dataset don't have `/` in their paths
+        return False
+    if os.path.basename(manifest_file) == "tarred_audio_manifest.json":
+        # the manifest file is a tarred manifest
+        return True
+    if "/sharded_manifests/" in manifest_file and re.match(r'^manifest_(\d+)\.json$', os.path.basename(manifest_file)):
+        # the manifest file is a sharded manifest
+        return True
+    return False
+
+
 def get_full_path(
     audio_file: Union[str, List[str]],
     manifest_file: Optional[str] = None,
@@ -207,12 +221,9 @@ def get_full_path(
         ]
     elif isinstance(audio_file, str):
         # If input is a string, get the corresponding full path
-        if "/" not in audio_file and (
-            "/sharded_manifests/" in manifest_file
-            or str(os.path.basename(manifest_file)).startswith("tarred_audio_manifest")
-        ):
+        if is_tarred_dataset(audio_file=audio_file, manifest_file=manifest_file):
             logging.warning(
-                f"Manifest file {manifest_file} seems to be part of a tarred dataset, skip checking for relative paths. If this is not intended, please avoid have `/sharded_manifests/` and `tarred_audio_manifest.json` in your manifest filepath.",
+                f"Manifest file `{manifest_file}` seems to be part of a tarred dataset, skip checking for relative paths. If this is not intended, please avoid having `/sharded_manifests/` and `tarred_audio_manifest.json` in manifest_filepath.",
                 mode=LogMode.ONCE,
             )
             return audio_file

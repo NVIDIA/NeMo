@@ -16,6 +16,7 @@
 
 import enum
 import logging
+import re
 from dataclasses import dataclass
 from typing import Optional
 import torch
@@ -28,7 +29,6 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
-
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
@@ -66,6 +66,7 @@ class AdapterName(str, enum.Enum):
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
+    MULTIMODAL_PROJECTOR_ADAPTER = "mm_projector_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
@@ -159,6 +160,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 config=model_parallel_config,
                 bias=False,
                 init_method=self._get_init_fn(row_init_method),
+                input_is_parallel=False,
+                skip_bias_add=True,
             )
         else:
             # (@adithyare) we use this option to mirror the behavior a column parallel layer with two low-rank column parallel layers
@@ -568,3 +571,36 @@ class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
 @dataclass
 class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)
+
+
+class MultimodalProjectorAdapter(nn.Module, AdapterModuleUtil):
+    def __init__(self, adapter_type: str, in_features: int, out_features: int, bias: bool, **kwargs) -> None:
+        super().__init__()
+
+        if adapter_type == 'linear':
+            self.mm_projector = torch.nn.Linear(in_features, out_features, bias)
+        elif adapter_type == 'identity':
+            self.mm_projector = lambda x: x
+        else:
+            mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', adapter_type)
+            if mlp_gelu_match:
+                mlp_depth = int(mlp_gelu_match.group(1))
+                modules = [torch.nn.Linear(in_features, out_features, bias)]
+                for _ in range(1, mlp_depth):
+                    modules.append(torch.nn.GELU())
+                    modules.append(torch.nn.Linear(out_features, out_features, bias))
+                self.mm_projector = torch.nn.Sequential(*modules)
+            else:
+                raise ValueError(f'Unknown mm_mlp_adapter_type type: {adapter_type}')
+
+    def forward(self, x):
+        return self.mm_projector(x)
+
+
+@dataclass
+class MultimodalProjectorAdapterConfig:
+    adapter_type: str
+    in_features: int
+    out_features: int
+    bias: bool
+    _target_: str = "{0}.{1}".format(MultimodalProjectorAdapter.__module__, MultimodalProjectorAdapter.__name__)

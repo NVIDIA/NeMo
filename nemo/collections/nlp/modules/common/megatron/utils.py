@@ -18,7 +18,9 @@ import math
 from typing import Dict, Iterator, List, Tuple, Union
 
 import torch
-from nemo.utils import logging, logging_mode
+import torch.nn as nn
+
+from torch import Tensor
 
 try:
     from apex.normalization import MixedFusedRMSNorm
@@ -42,6 +44,13 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+
+def ApproxGELUActivation(input: Tensor):
+    """
+    Applies GELU approximation that is fast but somewhat inaccurate. See: https://github.com/hendrycks/GELUs
+    """
+    return input * torch.sigmoid(1.702 * input)
 
 
 class ApexGuardDefaults(object):

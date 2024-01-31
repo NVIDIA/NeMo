@@ -14,7 +14,8 @@
 
 import sys
 
-from omegaconf import DictConfig, OmegaConf
+from typing import Union
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -25,6 +26,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     NLPDDPStrategyNotebook,
+    NLPFSDPStrategy,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
@@ -38,11 +40,10 @@ class MegatronTrainerBuilder:
 
     def __init__(self, cfg: DictConfig) -> None:
         self.cfg = cfg
-        self.use_precision_plugin = False
 
-    def _training_strategy(self) -> NLPDDPStrategy:
+    def _training_strategy(self) -> Union[NLPDDPStrategy, NLPFSDPStrategy]:
         """
-        Returns a ddp strategy passed to Trainer.strategy.
+        Returns a DDP or a FSDP strategy passed to Trainer.strategy.
         """
         # check interactive environment
         _IS_INTERACTIVE = hasattr(sys, "ps1") or bool(sys.flags.interactive)
@@ -50,10 +51,32 @@ class MegatronTrainerBuilder:
             logging.info("Detected interactive environment, using NLPDDPStrategyNotebook")
             return NLPDDPStrategyNotebook(no_ddp_communication_hook=True, find_unused_parameters=False,)
 
+        if self.cfg.model.get('fsdp', False):
+            assert (
+                not self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+            ), 'Distributed optimizer cannot be used with FSDP.'
+            sharded_checkpoint = self.cfg.model.get('fsdp_sharded_checkpoint', False)
+            if self.cfg.model.get('tensor_model_parallel_size', 1) > 1:
+                assert not sharded_checkpoint, 'FSDP sharded checkpoint is not supported when TP size > 1.'
+            if self.cfg.model.get('megatron_amp_O2', False):
+                logging.info('Torch FSDP is not compatible with O2 precision recipe. Setting O2 `False`.')
+                self.cfg.model.megatron_amp_O2 = False
+            return NLPFSDPStrategy(
+                limit_all_gathers=self.cfg.model.get('fsdp_limit_all_gathers', True),
+                sharding_strategy=self.cfg.model.get('fsdp_sharding_strategy', 'full'),
+                cpu_offload=self.cfg.model.get('fsdp_cpu_offload', False),
+                grad_reduce_dtype=self.cfg.model.get('fsdp_grad_reduce_dtype', 32),
+                sharded_checkpoint=sharded_checkpoint,
+                precision=self.cfg.trainer.precision,
+                nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
+            )
+
         return NLPDDPStrategy(
             no_ddp_communication_hook=True,
             gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
             find_unused_parameters=False,
+            nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
+            sharp=self.cfg.model.get('sharp', False),
         )
 
     def _grad_scaler(self) -> GradScaler:
@@ -71,14 +94,13 @@ class MegatronTrainerBuilder:
         Returns:
             plugins: list of plugins passed to Trainer.plugins including precision plugins.
         """
-        megatron_amp_o2 = self.cfg.model.get('megatron_amp_O2', False)
+        megatron_amp_O2 = self.cfg.model.get('megatron_amp_O2', False)
         with_distributed_adam = (
             self.cfg.model.optim.get('name') == 'distributed_fused_adam' if self.cfg.model.get('optim') else False
         )
 
         plugins = []
         if self.cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
-            self.use_precision_plugin = True
             scaler = None
             if self.cfg.trainer.precision in [16, '16', '16-mixed']:
                 scaler = self._grad_scaler()
@@ -86,25 +108,24 @@ class MegatronTrainerBuilder:
             else:
                 plugin_precision = 'bf16-mixed'
 
-            if megatron_amp_o2 and not with_distributed_adam:
+            if megatron_amp_O2 and not with_distributed_adam:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:
                 plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+            with open_dict(self.cfg.trainer):
+                self.cfg.trainer.pop('precision', None)
 
         if self.cfg.get('cluster_type', None) == 'BCP':
             plugins.append(TorchElasticEnvironment())
 
         return plugins
 
-    def create_trainer(self) -> Trainer:
+    def create_trainer(self, callbacks=None) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        if self.use_precision_plugin:
-            trainer_cfg = OmegaConf.to_container(self.cfg.trainer, resolve=True)
-            trainer_cfg.pop('precision')
-        else:
-            trainer_cfg = self.cfg.trainer
-        return Trainer(plugins=plugins, strategy=strategy, **trainer_cfg, callbacks=[CustomProgressBar()])
+        if callbacks is None:
+            callbacks = [CustomProgressBar()]
+        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
 
 
 class MegatronBertTrainerBuilder(MegatronTrainerBuilder):

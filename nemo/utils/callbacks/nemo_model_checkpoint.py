@@ -88,7 +88,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.kth_best_model_path = ""
         self.best_model_score = None
         self.best_model_path = ""
-
         checkpoints = list(path for path in self._saved_checkpoint_paths if not self._is_ema_filepath(path))
         for checkpoint in checkpoints:
             if 'mp_rank' in str(checkpoint) or 'tp_rank' in str(checkpoint):
@@ -161,9 +160,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 return
 
             if self.best_model_path == self.previous_best_path:
+                logging.debug('Best model has not changed, skipping save.')
                 return output
 
-            self.previous_model_path = self.best_model_path
+            self.previous_best_path = self.best_model_path
             old_state_dict = deepcopy(pl_module.state_dict())
             checkpoint = torch.load(maybe_injected_best_model_path, map_location='cpu')
             if 'state_dict' in checkpoint:
@@ -226,7 +226,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             if is_global_rank_zero():
                 try:
                     dist_ckpt = ckpt_to_dir(filepath)
-                    shutil.rmtree(dist_ckpt)
+                    shutil.rmtree(dist_ckpt, ignore_errors=True)
                     logging.info(f"Removed distributed checkpoint: {dist_ckpt}")
                 except:
                     logging.info(f"Tried to remove distributed checkpoint: {dist_ckpt} but failed.")

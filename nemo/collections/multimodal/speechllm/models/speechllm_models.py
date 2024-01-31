@@ -49,7 +49,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     build_position_ids,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import get_computeprob_response
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, PEFTSaveRestoreConnector
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import ModelPT
 from nemo.core.classes.mixins import adapter_mixins
@@ -446,16 +446,36 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             batch = next(dataloader_iter)
+
+            # Transfer needed data to GPU
+            required_keys = set()
+            if parallel_state.get_pipeline_model_parallel_world_size() == 1:
+                required_keys.update(batch.keys())
+            else:
+                required_keys.add('attention_mask')
+                if 'cu_seqlens' in batch:
+                    required_keys.add('cu_seqlens')
+                if parallel_state.is_pipeline_first_stage():
+                    required_keys.update(('tokens', 'position_ids'))
+                if parallel_state.is_pipeline_last_stage():
+                    required_keys.update(('labels', 'loss_mask'))
+            if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
+                required_keys.remove('attention_mask')
+
             batch = to_cuda(batch, non_blocking=True)
+            batch = self.get_batch_on_this_context_parallel_rank(batch)
+
             output_tensor, loss_mask = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
+            batch['loss_mask'] = loss_mask
+
             if not self.mcore_gpt:
                 output_tensor = output_tensor[0]  # get loss only, ingore logits
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(loss_mask, output_tensor)
+                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['loss_mask'].sum()
                     if loss_for_ub.isnan():
@@ -611,40 +631,10 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         OmegaConf.set_struct(gpt_cfg, True)
         OmegaConf.resolve(cfg)
         with open_dict(gpt_cfg):
-            gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
-            gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
-            gpt_cfg.freeze_modality_adapter = cfg.model.get('freeze_modality_adapter', False)
-            gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
-            gpt_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
-            gpt_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
-            gpt_cfg.sequence_parallel = cfg.model.get("sequence_parallel", False)
-            gpt_cfg.tensor_model_parallel_size = cfg.model.get(
-                "tensor_model_parallel_size", gpt_cfg.tensor_model_parallel_size
-            )
-            gpt_cfg.activations_checkpoint_granularity = cfg.model.get("activations_checkpoint_granularity", None)
-            gpt_cfg.activations_checkpoint_num_layers = cfg.model.get("activations_checkpoint_num_layers", None)
-            gpt_cfg.activations_checkpoint_method = cfg.model.get("activations_checkpoint_method", None)
-            gpt_cfg.data = cfg.model.data
-            gpt_cfg.optim = cfg.model.optim
-            gpt_cfg.precision = cfg.trainer.precision
-            gpt_cfg.answer_only_loss = cfg.model.answer_only_loss
-            gpt_cfg.restore_from_path = cfg.model.restore_from_path
-            gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
-            gpt_cfg.save_nemo_on_validation_end = cfg.model.save_nemo_on_validation_end
-            gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
-            gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
-            gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
-            gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
-            gpt_cfg.peft = cfg.model.peft
             # for AudioGPTLoRAModel
             gpt_cfg.target = f"{cls.__module__}.{cls.__name__}"
             gpt_cfg.perception = cfg.model.perception
-
             cls._modify_audio_encoder_config(gpt_cfg, audio_cfg, speaker_cfg)
-
-            override_vocab_size = cfg.model.get('override_vocab_size', None)
-            if override_vocab_size is not None:
-                gpt_cfg.override_vocab_size = override_vocab_size
             # This is needed when modifying a hparam file directly to load `.ckpt` files.
             # This is not needed to modify the cfg in `.nemo` files.
             if add_cfg_to_tree:
@@ -765,37 +755,31 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         if not cfg.model.restore_from_path:
             raise RuntimeError("PEFT training needs a trained base model present.")
 
-        base_model_save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.model.restore_from_path):
-            base_model_save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-        base_model_cfg = cls.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            return_config=True,
-            save_restore_connector=base_model_save_restore_connector,
-        )
-
+        base_model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
         audio_model, audio_model_cfg = cls.get_audio_encoder_models_and_configs(cfg)
         speaker_model, speaker_cfg = cls.get_speaker_model_and_config(cfg)
         model_cfg = cls._modify_config(
             base_model_cfg, cfg, audio_model_cfg, add_cfg_to_tree=False, speaker_cfg=speaker_cfg
         )
 
-        save_restore_connector = PEFTSaveRestoreConnector(
-            peft_model_nemo_path=cfg.model.peft.restore_from_path,
-            peft_model_ckpt_path=cfg.model.peft.restore_from_path,
-        )
-        if os.path.isdir(cfg.model.restore_from_path):
-            save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-
         # load llm
         model = cls.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            override_config_path=model_cfg,
-            save_restore_connector=save_restore_connector,
-            strict=False,
+            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False,
         )
+
+        peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
+
+        if cfg.model.peft.restore_from_path is not None:
+            # initialize peft weights from a checkpoint instead of randomly
+            # This is not the same as resume training because optimizer states are not restored.
+            logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
+            model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+        elif peft_cfg_cls is not None:
+            logging.info("Adding adapter weights to the model for PEFT")
+            model.add_adapter(peft_cfg_cls(model_cfg))
+        else:
+            logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
+
         # load audio model weights
         model = cls._load_pretrained_audio_weights(cfg, model, audio_model, speaker_model)
 

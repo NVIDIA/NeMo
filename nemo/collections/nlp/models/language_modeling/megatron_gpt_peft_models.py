@@ -115,6 +115,9 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                                 base_model_cfg=self.cfg,
                                 model_parallel_config=self.model_parallel_config,
                             )
+                if self.megatron_amp_O2:
+                    for adapter_name in getattr(module, 'adapter_layer', []):
+                        module.adapter_layer[adapter_name] = module.adapter_layer[adapter_name].to(self.autocast_dtype)
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
 
@@ -168,7 +171,11 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
             # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
             # safety in strict=True anymore.
-            assert set(state_dict.keys()) == self.adapter_keys
+            if self.megatron_amp_O2:
+                adapter_keys = set(key.replace("model.", "model.module.", 1) for key in self.adapter_keys)
+            else:
+                adapter_keys = self.adapter_keys
+            assert set(state_dict.keys()) == adapter_keys
             super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)
@@ -182,7 +189,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             # mcore uses distributed checkpointing
             print('enter peft loading')
             if self.mcore_gpt:
-                for index, module in enumerate(self.get_gpt_module_list()):
+                for index, module in enumerate(self.get_model_module_list()):
                     if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                         checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
                     else:
@@ -332,6 +339,10 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
+        self.tie_weights()
+
+    def tie_weights(self,):
+        pos_idx = 0
 
 
 class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):

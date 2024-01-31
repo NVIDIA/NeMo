@@ -16,8 +16,8 @@ import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
 from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -52,14 +52,14 @@ Usage:
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
-
-    trainer = MegatronTrainerBuilder(cfg).create_trainer()
-    exp_manager(trainer, cfg.exp_manager)
-    # update resume from checkpoint found by exp_manager
-    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
+
+    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
+    exp_manager(trainer, cfg.exp_manager)
+    # update resume from checkpoint found by exp_manager
+    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
     model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(cfg, trainer=trainer)
 

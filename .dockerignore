@@ -17,3 +17,5 @@ coverage.xml
 .git
 **/*.nemo
 **/*.ckpt
+workspace
+nemo_experiments
