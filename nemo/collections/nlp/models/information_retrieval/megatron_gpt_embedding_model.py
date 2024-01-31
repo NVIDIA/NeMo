@@ -48,7 +48,9 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         self.temperature = self.cfg.get('temperature', 1.0)
         self.num_soft_negatives = self.cfg.get('num_soft_negatives', 0)
         self.use_all_possible_negatives = self.cfg.get("use_all_possible_negatives", False)
-        assert self.cfg.get("post_process", False) is False, "post_process must be False to get hidden states in the loss_func"
+        assert (
+            self.cfg.get("post_process", False) is False
+        ), "post_process must be False to get hidden states in the loss_func"
 
     def model_provider_func(self, pre_process, post_process):
         # (@adithyare) We need post_process to be False to get hidden states in the loss_func
