@@ -392,7 +392,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             if hasattr(tokenizer, 'special_token_to_id'):
                 item = [id for id in item if id not in tokenizer.special_token_to_id.values()]
 
-            item = tokenizer.ids_to_text(item)
+            try:
+                item = tokenizer.ids_to_text(item)
+            except:
+                item = tokenizer.ids_to_text(item[0])
             results.append(item)
 
         if processor is not None:
@@ -824,6 +827,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         target_lang: str = None,
         return_beam_scores: bool = False,
         log_timing: bool = False,
+        sampling_method: str = "greedy-search",
+        beam_size: int = 1
     ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
@@ -884,6 +889,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     src.size(1)
                     + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
                     tokenizer=self.decoder_tokenizer,
+                    sampling_method=sampling_method,
+                    sampling_kwargs={"beam_size": beam_size}
                 )
             best_translations = self.postprocess_outputs(
                 outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=self.target_processor

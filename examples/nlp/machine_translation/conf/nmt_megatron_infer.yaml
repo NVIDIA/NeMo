@@ -14,3 +14,5 @@ target_lang: null
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0
+sampling_method: beam-search
+beam_size: 5

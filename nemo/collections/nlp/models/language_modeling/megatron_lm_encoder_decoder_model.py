@@ -1156,6 +1156,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         # Setting up the sampling strategy
         sample_token_fn, sampling_kwargs = get_sampling_token_fn(sampling_method, sampling_kwargs)
+        """
+        sampling_method: beam-search
+        sample_token_fn: functools.partial(<function sample_token_topk_beam_search at 0x7f4c59990ee0>, beam_size=5)
+        sampling_kwargs: {'beam_size': 5, 'beam_alpha': 0.0, 'keep_only_best_tokens': False, 'return_scores': False}
+        """
+
         beam_search = sampling_method == 'beam-search'
         if beam_search:
             beam_size = sampling_kwargs['beam_size']
