@@ -356,7 +356,7 @@ class BatchedHyps:
             scores: label scores
         """
         # accumulate scores
-        # self.scores[active_mask] += scores[active_mask]
+        # same as self.scores[active_mask] += scores[active_mask], but non-blocking
         torch.where(active_mask, self.scores + scores, self.scores, out=self.scores)
 
         # store transcript and timesteps

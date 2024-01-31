@@ -12,12 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import contextmanager
 from typing import List
 
 import pytest
 import torch
 
 from nemo.collections.asr.parts.utils.rnnt_utils import BatchedAlignments, BatchedHyps, batched_hyps_to_hypotheses
+
+
+@contextmanager
+def avoid_sync_operations(device: torch.device):
+    try:
+        if device.type == "cuda":
+            torch.cuda.set_sync_debug_mode(2)  # fail if a blocking operation
+        yield
+    finally:
+        if device.type == "cuda":
+            torch.cuda.set_sync_debug_mode(0)  # default, blocking operations are allowed
+
 
 DEVICES: List[torch.device] = [torch.device("cpu")]
 
@@ -96,7 +109,73 @@ class TestBatchedHyps:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
-    def test_torch_jit_compatibility(self, device: torch.device):
+    def test_add_results_masked(self, device: torch.device):
+        # batch of size 2, add label for first utterance
+        hyps = BatchedHyps(batch_size=2, init_length=1, device=device)
+        active_mask = torch.tensor([True, False], device=device)
+        time_indices = torch.tensor([1, 0], device=device)
+        scores = torch.tensor([0.5, 10.0], device=device)
+        labels = torch.tensor([5, 1], device=device)
+        hyps.add_results_masked_(
+            active_mask=active_mask, labels=labels, time_indices=time_indices, scores=scores,
+        )
+        assert hyps.current_lengths.tolist() == [1, 0]
+        assert hyps.transcript.tolist()[0][:1] == [5]
+        assert hyps.timesteps.tolist()[0][:1] == [1]
+        assert hyps.scores.tolist() == pytest.approx([0.5, 0.0])  # last score should be ignored!
+        assert hyps.last_timestep.tolist() == [1, -1]
+        assert hyps.last_timestep_lasts.tolist() == [1, 0]
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_add_results_masked_no_checks(self, device: torch.device):
+        # batch of size 2, add label for first utterance
+        hyps = BatchedHyps(batch_size=2, init_length=1, device=device)
+        active_mask = torch.tensor([True, False], device=device)
+        time_indices = torch.tensor([1, 0], device=device)
+        scores = torch.tensor([0.5, 10.0], device=device)
+        labels = torch.tensor([5, 1], device=device)
+        # check there are no blocking operations
+        with avoid_sync_operations(device=device):
+            hyps.add_results_masked_(
+                active_mask=active_mask, labels=labels, time_indices=time_indices, scores=scores,
+            )
+        assert hyps.current_lengths.tolist() == [1, 0]
+        assert hyps.transcript.tolist()[0][:1] == [5]
+        assert hyps.timesteps.tolist()[0][:1] == [1]
+        assert hyps.scores.tolist() == pytest.approx([0.5, 0.0])  # last score should be ignored!
+        assert hyps.last_timestep.tolist() == [1, -1]
+        assert hyps.last_timestep_lasts.tolist() == [1, 0]
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_add_multiple_results_masked(self, device: torch.device):
+        # batch of size 2, add label for first utterance, then add labels for both utterances
+        hyps = BatchedHyps(batch_size=2, init_length=1, device=device)
+        hyps.add_results_masked_(
+            active_mask=torch.tensor([True, False], device=device),
+            labels=torch.tensor([5, 2], device=device),
+            time_indices=torch.tensor([1, 0], device=device),
+            scores=torch.tensor([0.5, 10.0], device=device),
+        )
+        hyps.add_results_masked_(
+            active_mask=torch.tensor([True, True], device=device),
+            labels=torch.tensor([2, 4], device=device),
+            time_indices=torch.tensor([1, 2], device=device),
+            scores=torch.tensor([1.0, 1.0], device=device),
+        )
+        assert hyps.current_lengths.tolist() == [2, 1]
+        assert hyps.transcript.tolist()[0][:2] == [5, 2]
+        assert hyps.transcript.tolist()[1][:1] == [4]
+        assert hyps.timesteps.tolist()[0][:2] == [1, 1]
+        assert hyps.timesteps.tolist()[1][:1] == [2]
+        assert hyps.scores.tolist() == pytest.approx([1.5, 1.0])
+        assert hyps.last_timestep.tolist() == [1, 2]
+        assert hyps.last_timestep_lasts.tolist() == [2, 1]
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_torch_jit_compatibility_add_results(self, device: torch.device):
         @torch.jit.script
         def hyps_add_wrapper(
             active_indices: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
@@ -108,6 +187,26 @@ class TestBatchedHyps:
         scores = torch.tensor([0.1, 0.1], device=device)
         hyps = hyps_add_wrapper(
             torch.tensor([0, 1], device=device),
+            torch.tensor([2, 4], device=device),
+            torch.tensor([0, 0], device=device),
+            scores,
+        )
+        assert torch.allclose(hyps.scores, scores)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_torch_jit_compatibility_add_results_masked(self, device: torch.device):
+        @torch.jit.script
+        def hyps_add_wrapper(
+            active_mask: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
+        ):
+            hyps = BatchedHyps(batch_size=2, init_length=3, device=active_mask.device)
+            hyps.add_results_masked_(active_mask=active_mask, labels=labels, time_indices=time_indices, scores=scores)
+            return hyps
+
+        scores = torch.tensor([0.1, 0.1], device=device)
+        hyps = hyps_add_wrapper(
+            torch.tensor([True, True], device=device),
             torch.tensor([2, 4], device=device),
             torch.tensor([0, 0], device=device),
             scores,
