@@ -174,8 +174,7 @@ class MegatronRetroModel(MegatronGPTModel):
 
         super().__init__(cfg, trainer=trainer)
 
-        # DEBUGGING
-        logging.info("\n\n************** Experiment configuration (after overriding) ***********")
+        logging.info("\n\n************** Experiment configuration (after overriding with RETRO's workdir values) ***********")
         logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
         return
@@ -197,17 +196,6 @@ class MegatronRetroModel(MegatronGPTModel):
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             )
-
-            # # DEBUGGING
-            # # if torch.distributed.get_rank() == 0:
-            # print("model: ")
-            # print(model)
-            # def count_parameters(model):
-            #     # return sum(p.numel() for p in model.parameters() if p.requires_grad)
-            #     for name, p in model.named_parameters():
-            #         print(str(name) + ": " + str(p.numel()) + ", {}".format(str(p.shape)))
-            #     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-            # print("self-count number of params: " + str(count_parameters(model)))
 
         else:
             assert self.mcore_gpt==True, "Currently only support mcore Retro."
@@ -260,27 +248,8 @@ class MegatronRetroModel(MegatronGPTModel):
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
-            # DEBUGGING
-            if (torch.distributed.get_rank() == 0) and (self.training==True):
-                print("--------")
-
-            # DEBUGGING
-            if (torch.distributed.get_rank() == 0) and (self.training==True):
-                import time
-                start1 = time.time()
-
             # Get data batch
             batch = next(dataloader_iter)
-
-            # DEBUGGING
-            if (torch.distributed.get_rank() == 0) and (self.training==True):
-                end1 = time.time()
-                print("Time get data batch: " + str(round(end1 - start1,6)))
-
-            # DEBUGGING
-            if (torch.distributed.get_rank() == 0) and (self.training==True):
-                import time
-                start2 = time.time()
 
             # Transfer needed data to GPU
             required_keys = set()
@@ -296,16 +265,6 @@ class MegatronRetroModel(MegatronGPTModel):
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
-            # DEBUGGING
-            if (torch.distributed.get_rank() == 0) and (self.training==True):
-                end2 = time.time()
-                print("Time transferring data to GPU: " + str(round(end2 - start2,6)))
-
-            # DEBUGGING
-            if (torch.distributed.get_rank() == 0) and (self.training==True):
-                import time
-                start3 = time.time()
-
             # reshape context_input_ids and context_position_ids for RETRO from [bs, l*k, r] => [bs*l*k, r]
             context_input_ids = batch['context_input_ids']
             context_position_ids = batch['context_position_ids']
@@ -313,11 +272,6 @@ class MegatronRetroModel(MegatronGPTModel):
             context_position_ids = context_position_ids.view(-1, context_position_ids.shape[-1]).long()
             batch['context_input_ids'] = context_input_ids
             batch['context_position_ids'] = context_position_ids
-
-            # DEBUGGING
-            if (torch.distributed.get_rank() == 0) and (self.training==True):
-                end3 = time.time()
-                print("Time reshape tensors: " + str(round(end3 - start3,6)))
 
             # Model forward pass
             forward_args = {
@@ -330,37 +284,6 @@ class MegatronRetroModel(MegatronGPTModel):
                 'labels': batch['labels'],
                 'loss_mask': batch['loss_mask'],
             }
-
-            # # DEBUGGING
-            # if (torch.distributed.get_rank() == 0) and (self.training==False):
-            #     print("batch['tokens'].shape: ")
-            #     print(batch['tokens'].shape)
-
-            # ## DEBUGGING
-            # if (torch.distributed.get_rank() == 0) and (self.training==False):
-            #     # print out sample and corresponding chunks, make sure match
-            #     [bs, sq] = batch['tokens'].shape
-            #     _, r = batch['context_input_ids'].shape
-            #     # reshape from [bs*(l*k), r] to [bs, l*k, r]
-            #     batch['context_input_ids'] = batch['context_input_ids'].reshape(bs, -1 , r)
-            #     print("==========================================================")
-            #     b = 0
-            #     print("GPT sample: " + str(self.tokenizer.ids_to_text(batch['tokens'][b].tolist())).replace("\n", ""))
-            #     one_gpt_sample = batch['tokens'][b]
-            #     one_gpt_neighbors = batch['context_input_ids'][b]
-            #     one_gpt_neighbors = one_gpt_neighbors.reshape(-1, self.retro_model_config.retro_num_neighbors, self.retro_model_config.retro_retrieved_length)
-            #     [l, k, r] = one_gpt_neighbors.shape # check here
-            #     print("[k, l, r]: " + str([k, l, r]))
-            #     print("------------")
-            #     for i in range(l): # iterating through the chunks within one GPT sample
-            #         one_gpt_sample_chunk = one_gpt_sample[i*64:i*64+64]
-            #         one_gpt_neighbors_chunks = one_gpt_neighbors[i]
-            #         print("GPT sample chunk: " + str(self.tokenizer.ids_to_text(one_gpt_sample_chunk.tolist())).replace("\n", "") + "\n")
-            #         for j in range(k):
-            #             print("GPT sample neighbor chunk: " + str(self.tokenizer.ids_to_text(one_gpt_neighbors_chunks[j][:64].tolist())).replace("\n", "") + "\n")
-            #         print("------------")
-            # exit()
-
 
             if not self.mcore_gpt:
                 forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
@@ -479,8 +402,6 @@ class MegatronRetroModel(MegatronGPTModel):
         retro_config.retro_num_retrieved_chunks = self.cfg.retro.get('retro_num_retrieved_chunks', 2)
         retro_config.retro_verify_neighbor_count = self.cfg.retro.get('retro_verify_neighbor_count', True)
         retro_config.retro_retrieved_length = retro_config.retro_num_retrieved_chunks * retro_config.retro_chunk_length
-
-        # DEBUGGING
         print("retro_config: ")
         print(retro_config)
 
@@ -497,7 +418,7 @@ class MegatronRetroModel(MegatronGPTModel):
         # eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches # check this carefully, we want to match mcore dataset value, should this computed, or overriden?
         # test_iters = self.trainer.limit_test_batches
 
-        # DEBUGGING
+        # getting train_valid_test_num_samples from values in RETRO's workdir
         train_valid_test_num_samples = [  # compute the number of training/validating samples from workdir/query/train_*; dividing number of chunks for (2048/64)
             self.cfg.retro_train_samples_with_neighbors,
             self.cfg.retro_valid_samples_with_neighbors,
