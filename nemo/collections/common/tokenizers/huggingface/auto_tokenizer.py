@@ -121,7 +121,7 @@ class AutoTokenizer(TokenizerSpec):
         for token in [mask_token, bos_token, eos_token, pad_token, sep_token, cls_token, unk_token]:
             if token is not None and token not in self.tokenizer.get_vocab():
                 new_tokens_in_vocab.append(token)
-        
+
         # value is required for megatron-core
         self.unique_identifiers = OrderedDict()
 
