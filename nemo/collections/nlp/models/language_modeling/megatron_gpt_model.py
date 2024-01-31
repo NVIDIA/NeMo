@@ -578,7 +578,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ub_cfgs=ub_cfgs,
         )
         self.initialize_ub = False
-    
+
     def training_step_fwd_bwd_step_call(self, dataloader_iter, batch_idx, forward_only):
         """
         This method is called from the training_step method.
@@ -626,7 +626,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        loss_mean = self.training_step_fwd_bwd_step_call(dataloader_iter, batch_idx, False) 
+        loss_mean = self.training_step_fwd_bwd_step_call(dataloader_iter, batch_idx, False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -954,7 +954,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 ):  # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
                     loss_for_ub, q_hs, d_hs, avg_pos_cs, avg_neg_cs = loss_for_ub
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                    return loss_for_ub * cp_size, {'avg': reduced_loss, 'query_hs': q_hs, 'doc_hs': d_hs, 'avg_pos_cs': avg_pos_cs, 'avg_neg_cs': avg_neg_cs}
+                    return (
+                        loss_for_ub * cp_size,
+                        {
+                            'avg': reduced_loss,
+                            'query_hs': q_hs,
+                            'doc_hs': d_hs,
+                            'avg_pos_cs': avg_pos_cs,
+                            'avg_neg_cs': avg_neg_cs,
+                        },
+                    )
                 elif validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
                     if loss_for_ub.isnan():

@@ -399,8 +399,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             else:
                 loss_mean = torch.tensor(0.0).cuda()
 
-        #if forward_only:
-        #return loss_mean
+        # if forward_only:
+        # return loss_mean
         if non_loss_tensors:  # TODO: need a nicer way to do this via inheritance (@adithyare)
             return loss_mean, non_loss_tensors
         else:
