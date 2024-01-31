@@ -24,7 +24,7 @@ Earlier this month, we announced [Parakeet](https://huggingface.co/collections/n
 
 The "TDT" in Parakeet-TDT is short for "Token-and-Duration Transducer", a novel sequence modeling architecture developed by NVIDIA and is open-sourced through [NVIDIA's NeMo](https://nvidia.github.io/NeMo/) toolkit. Our research on TDT models, presented in a [paper](https://arxiv.org/abs/2304.06795) at the ICML 2023 conference, showcases the superior speed and recognition accuracy of TDT models compared to conventional Transducers of similar sizes. 
 
-To put things in perspective, our Parakeet-TDT model with 1.1 billion parameters outperforms similar-sized Parakeet-RNNT-1.1b in accuracy, as measured as the average performance among 9 benchmarks on the [HuggingFace Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard). Additionally, it achieves an impressive real-time factor (RTF) of 8.5e-3, 75% faster than Parakeet-RNNT-1.1b's RTF of 15e-3. Remarkably, Parakeet-TDT's RTF is even 41% faster than Parakeet-RNNT-0.6b (RTF 12.3), despite the latter having about half the model size.
+To put things in perspective, our Parakeet-TDT model with 1.1 billion parameters outperforms similar-sized Parakeet-RNNT-1.1b in accuracy, as measured as the average performance among 9 benchmarks on the [HuggingFace Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard). Additionally, it achieves an impressive real-time factor (RTF) of 8.8e-3, 64% faster than Parakeet-RNNT-1.1b's RTF of 14.4e-3. Remarkably, Parakeet-TDT's RTF is even 40% faster than Parakeet-RNNT-0.6b (RTF 12.3), despite the latter having about half the model size.
 
 ## Use Parakeet-TDT model in your code
 
