@@ -1,9 +1,9 @@
 Megatron Core Customization
 ---------------------------
 
-Megatron offers a range of functionalities, one of the most notable being the ability for users to train GPT models on an epic scale. Users can use ``megatron.core.models.gpt.GPTModel`` (mcore GPTModel) to initialize the model, and then pretrain/load weights into the model. Mcore GPTModel adopts the typical GPT structure, beginning with embedding layer, positional encoding, followed by a series of transformer layers and finally output layer. 
+Megatron Core (Mcore) offers a range of functionalities, one of the most notable being the ability for users to train GPT models on an epic scale. Users can use ``megatron.core.models.gpt.GPTModel`` (Mcore GPTModel) to initialize the model, and then pretrain/load weights into the model. Mcore GPTModel adopts the typical GPT structure, beginning with embedding layer, positional encoding, followed by a series of transformer layers and finally output layer. 
 
-In the rapidly advancing world of LLM, it is increasingly important to experiment with various configurations of the transformer block within each transformer layer. Some of these configurations involve the use of different module classes. While it is possible to achieve this with “if else” statements in mcore, doing so makes mcore less readable and less maintainable in the long term. Mcore spec intends to solve this challenge by allowing users to specify a customization of the transformer block in each layer, without modifying code in mcore. 
+In the rapidly advancing world of LLM, it is increasingly important to experiment with various configurations of the transformer block within each transformer layer. Some of these configurations involve the use of different module classes. While it is possible to achieve this with “if else” statements in Mcore, doing so makes Mcore less readable and less maintainable in the long term. Mcore spec intends to solve this challenge by allowing users to specify a customization of the transformer block in each layer, without modifying code in mcore. 
 We will dive more into the details of mcore spec in the first section of this blog. Then, we will demonstrate the usefulness of mcore spec using Falcon as an example.
 
 What is Mcore Spec
@@ -11,13 +11,13 @@ What is Mcore Spec
 
 The Mcore spec system requires a “specification” to define the initialization of the mcore GPTModel modules (such as layer, self_attention, MLP, etc.) and their submodules. This allows users to customize these components by providing their own specifications. 
 
-Below is example from original spec system MR, we can see the extra parameter needed at initialization for mcore GPTModel (megatron/core/models/gpt/gpt_model.py):
+Here is a diff snippet from the original merge request for mcore spec. We can see the extra parameter needed at initialization for mcore GPTModel (megatron/core/models/gpt/gpt_model.py):
 
 .. image:: mr1.png
   :alt: 
   :width: 500px
 
-Where the required transformer_layer_spec (for mcore GPTModel layer) looks like: ::
+Where the required ``transformer_layer_spec`` (for mcore GPTModel layer) looks like: ::
 
     gpt_layer_with_transformer_engine_spec = ModuleSpec(
         module=TransformerLayer,
@@ -50,24 +50,24 @@ The spec system introduces a new approach to module initialization. Here is a be
   :width: 600px
 
 Instead of hard coding the ``SelfAttention`` class, we are using a ``build_module`` function to build our ``self.self_attention`` inside the layer.
-The initialization of layer has become (megatron/core/transformer/transformer_block.py): ::
+The initialization of a layer has become (megatron/core/transformer/transformer_block.py): ::
 
     def build_layer(layer_spec, layer_number):
         return build_module(layer_spec, config=self.config, layer_number=layer_number,)
 
 
-instead of hard coding ``TransformerLayer`` class.
+instead of hard coding the ``TransformerLayer`` class.
 
 
-There are several elements in mcore spec system we are covering in the subsections.
+There are several elements in mcore spec system we are covering in the following subsections.
 
 
 
 Submodules
 """"""""""
-When building modules (such as transformer layers, attention or MLP), we need to provide a data class to specify the submodules (if any) to use. Mcore GPTModel uses the ``TransformerLayerSubmodules`` as a template for layer submodules. Similarly there are ``SelfAttentionSubmodules``, ``CrossAttentionSubmodules``, ``MLPSubmodules`` etc.
+When building modules (such as transformer layers, attention or MLP), we need to provide a python dataclass to specify the submodules (if any) to use. Mcore GPTModel uses the ``TransformerLayerSubmodules`` as a template for layer submodules. Similarly, there are ``SelfAttentionSubmodules``, ``CrossAttentionSubmodules``, ``MLPSubmodules``, etc.
 
-``TransformerLayerSubmodules`` is a data class, listing all the possible customizable components  that you may need in your transformer block: ::
+``TransformerLayerSubmodules`` is a python dataclass, listing all the possible customizable components that you may need in your transformer block: ::
 
     @dataclass
     class TransformerLayerSubmodules:
@@ -83,13 +83,13 @@ When building modules (such as transformer layers, attention or MLP), we need to
         mlp: Union[ModuleSpec, type] = IdentityOp
         mlp_bda: Union[ModuleSpec, type] = IdentityFuncOp
 
-All layer submodules are initialized as IdentityOp or IdentityFuncOp which allow the input to pass the module as is without being modified. Mcore GPTModel’s ``TransformerLayer`` initializes every listed submodule. In the case you don’t need certain submodules, you can ignore it in your layer spec (which will be covered in the next section), leaving it IdentityOp (or IdentityFuncOp).
+All layer submodules are initialized as ``IdentityOp`` or ``IdentityFuncOp`` which allows the user to leave these modules as is without being modified. Mcore GPTModel’s ``TransformerLayer`` initializes every listed submodule. In the case you don’t need certain submodules, you can ignore it in your layer spec (which will be covered in the next section), leaving it ``IdentityOp`` (or ``IdentityFuncOp``).
 
 
 ModuleSpec
 """"""""""
 
-ModuleSpec is the basic configurable building block of the spec system which allows nesting. So this is perfect for ``TransformerLayer`` which could have multiple configurable submodules (like ``Attention``, ``MLP``, etc.). Next we show how to create the spec for a module. Mcore provides ``ModuleSpec`` class (megatron/core/transformer/spec_utils.py) as shown below. The docstrings give descriptions of the components in a ModuleSpec. ::
+ModuleSpec is the basic configurable building block of the spec system which enables nesting. This is perfect for ``TransformerLayer`` which could have multiple configurable submodules (like ``Attention``, ``MLP``, etc.). Next, we show how to create the spec for a module. Mcore provides ``ModuleSpec`` class (megatron/core/transformer/spec_utils.py) as shown below. The docstrings give descriptions of the components in a ModuleSpec. ::
     
     @dataclass
     class ModuleSpec:
@@ -113,7 +113,7 @@ ModuleSpec is the basic configurable building block of the spec system which all
         params: dict = field(default_factory=lambda: {})
         submodules: type = None
 
-Remember how we create the mcore GPTModel layer spec from the spec MR: ::
+Remember how we create the mcore GPTModel layer spec: ::
 
     gpt_layer_with_transformer_engine_spec = ModuleSpec(
         module=TransformerLayer,
@@ -138,12 +138,12 @@ Remember how we create the mcore GPTModel layer spec from the spec MR: ::
         ),
     )
 
-We are
+We are doing two things here
 
-- assigning the ``module``, which is the ``TransformerLayer`` class used in mcore GPTModel
-- initializing the ``TransformerLayerSubmodules`` with desired submodules overwriting the IdentityOp/IdentityFuncOps (whatever not specified here will remain IdentityOp/IdentifyFuncOp)
+1. assigning the ``module``, which is the ``TransformerLayer`` class used in mcore GPTModel
+2. initializing the ``TransformerLayerSubmodules`` with desired submodules overwriting the ``IdentityOp``/``IdentityFuncOps`` (whatever not specified here will remain as identity operations)
 
-Notice that the ``self_attention`` contains submodules itself, so just like layer spec we create a ``ModuleSpec``.
+Notice that the ``self_attention`` module contains submodules within itself, so we create a ``ModuleSpec`` to initialize ``self_attention`` in the same way as a GPT layer.
 
 Next step, build the modules.
 
@@ -152,10 +152,10 @@ Next step, build the modules.
 Build Module
 """"""""""""
 
-``build_module in megatron/core/transformer/spec_utils.py`` builds the module according to config and spec. If the module in ModuleSpec is an instantiable class (among many other cases it handles), build_module tries to create an instance of the class using:
+``build_module`` in ``megatron/core/transformer/spec_utils.py`` builds the module according to the given config and spec. If the module in ``ModuleSpec`` is an instantiable class (among many other cases it handles), ``build_module`` tries to create an instance of the class using:
 
-- all provided configuration (params in ModuleSpec, args, kwargs passed to ``build_module``. Some configs are wrapped within ``TransformerConfig`` class)
-- the ``submodules`` field in ModuleSpec, if it is present, is passed as an argument to that submodule’s class so that it can be used to initialize those modules.
+- all provided configuration (params in ``ModuleSpec``, args, kwargs passed to ``build_module``. Some configs are wrapped within ``TransformerConfig`` class)
+- the ``submodules`` field in ``ModuleSpec``, if it is present, is passed as an argument to that submodule’s class so that it can be used to initialize those modules.
 
 Let’s take layer initialization as an example. GPTModel passes the layer spec and the provided configs to ``TransformerBlock`` and layers are built using ``build_module``. Mcore GPTModel uses ``gpt_layer_with_transformer_engine_spec`` shown in the example above. According to the spec, ``module=TransformerLayer`` says the ``TransformerLayer`` class should be initialized with provided configs and the ``TransformerLayerSubmodules``. Inside the ``TransformerLayer.__init__``, layer submodules are built using build_module.
 
@@ -163,15 +163,15 @@ Customization Examples
 ^^^^^^^^^^^^^^^^^^^^^^
 Using Mcore Spec, we can customize model initialization and model forward.
 
-Let’s take Falcon as an example to see how to create its layer using mcore GPTModel with spec. There are several differences between a Falcon transformer layer and a conventional GPTModel transformer layer. Customizing these Falcon model variants would be difficult to achieve without mcore spec.
+Let’s take Falcon as an example to see how to create its layers using mcore GPTModel with spec. There are several differences between a Falcon transformer layer and a conventional GPTModel transformer layer. Customizing these Falcon model variants would be difficult to achieve without mcore spec.
 
 - Some Falcon variants use parallel attention where the attention and MLP are parallel instead of sequential
-- Some Falcon variant has ``input_layernorm``’s output fed to both MLP and self_attention in parallel, therefore we cannot use the default fused layernorm+linear ``TELayerNormColumnParallelLinear`` class in Falcon layer spec
+- Some Falcon variants have the output of ``input_layernorm`` fed to both MLP and self attention in parallel, therefore we cannot use the default fused layernorm + linear ``TELayerNormColumnParallelLinear`` class in Falcon layer spec
 - Some Falcon variants have one ``input_layernorm`` before attn and another ``mlp_layernorm`` before MLP
-- Some Falcon variants have extra ``post_self_attn_layernorm`` submodule
+- Some Falcon variants have an extra ``post_self_attn_layernorm`` submodule
   
 
-Customize model initialization
+Customizing model initialization
 """"""""""""""""""""""""""""""
 Here we show how modules can be customized at initialization using spec:
 
@@ -179,7 +179,7 @@ Here we show how modules can be customized at initialization using spec:
   :alt: Customize model initialization
   :width: 800px
 
-For the Falcon example, we instantiate the ``TransformerLayerSubmodule`` data class and manually add the extra attribute - post_self_attn_layernorm (A cleaner alternative could also be to subclass TransformerLayerSubmodules dataclass and then add to it another attribute - post_self_attn_layernorm). We specify the classes/modules we want for each submodule in our falcon layer. In the end, we specify the layer class to be our own FalconTransformerLayer and pass in the submodules to create the ModuleSpec. ::
+For the Falcon example, we instantiate the ``TransformerLayerSubmodule`` dataclass and manually add the extra attribute - ``post_self_attn_layernorm`` (A cleaner alternative could also be to subclass ``TransformerLayerSubmodules`` dataclass and then add to it another attribute - ``post_self_attn_layernorm``). We specify the classes/modules we want for each submodule in our falcon layer. In the end, we specify the layer class to be our own ``FalconTransformerLayer`` and pass in the submodules to create the ``ModuleSpec``. ::
     
     def get_falcon_layer_spec() -> ModuleSpec:
         falcon_submodules = TransformerLayerSubmodules(
@@ -205,10 +205,10 @@ For the Falcon example, we instantiate the ``TransformerLayerSubmodule`` data cl
         return ModuleSpec(module=FalconTransformerLayer, submodules=falcon_submodules)
 
 
-Customize model forward
+Customizing model forward
 """""""""""""""""""""""
 
-Here is a diagram showing the conventional Mcore GPTModel forward v.s. Customized forward (Falcon). 
+Here is a diagram showing the forward functions of conventional Mcore GPTModel v.s. Falcon. 
 
 .. image:: customization_forward.png
   :alt: Customize model initialization
@@ -216,8 +216,8 @@ Here is a diagram showing the conventional Mcore GPTModel forward v.s. Customize
 
 To achieve that, we create ``FalconTransformerLayer``, subclass it from mcore ``TransformerLayer`` and override:
 
-- ``__init__`` We can reuse most of TransformerLayer ‘s initialization, but we need to handle the creation of the extra post_self_attn_layernorm
-- forward to reconfigure the computation graph
+- ``__init__``: we can reuse most of TransformerLayer's initialization, but we need to handle the creation of the extra ``post_self_attn_layernorm``
+- ``forward()``: to reconfigure the computation graph
 
 It is necessary to subclass your own transformer layer from mcore ``TransformerLayer`` class.
 
