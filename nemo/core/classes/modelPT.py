@@ -1603,16 +1603,9 @@ class ModelPT(LightningModule, Model):
             if self.cfg.nsys_profile.get('enabled', False):
                 # Nsys profiling options
                 self._nsys_profile_enabled = True
-                self._nsys_profile_steps = self.cfg.nsys_profile.get('profile_steps', [0])
+                self._nsys_profile_steps = set([int(step) for step in self.cfg.nsys_profile.get('profile_steps', [0])])
                 self._nsys_profile_ranks = self.cfg.nsys_profile.get('ranks', [0])
                 self._nsys_profile_gen_shape = self.cfg.nsys_profile.get('gen_shape', False)
-
-                if isinstance(self._nsys_profile_steps, list) and all(isinstance(step, int) for step in self._nsys_profile_steps):
-                    logging.info(f'Nsys profiling set up to profile steps {self._nsys_profile_steps}')
-                else:
-                    raise ValueError(
-                        f'Nsys profile_steps must be a list of integer steps to profile. Found: {self._nsys_profile_steps}'
-                    )
 
                 # if type(self._nsys_profile_end_step) == int:
                 #     logging.info(f'Nsys profiling setup with end_step: {self._nsys_profile_end_step}')
@@ -1624,7 +1617,7 @@ class ModelPT(LightningModule, Model):
                 # else:
                 #     raise ValueError(f'Nsys end_step must be greater than or equal to nsys start_step')
 
-                logging.info(f"Nsys profiling on ranks: {self._nsys_profile_ranks}")
+                logging.info(f"Nsys profiling on ranks: {self._nsys_profile_ranks} and steps {self._nsys_profile_steps}")
 
     def on_train_start(self):
         """ PyTorch Lightning hook:
