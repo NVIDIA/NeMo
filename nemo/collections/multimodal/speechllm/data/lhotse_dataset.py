@@ -420,7 +420,7 @@ def collate_text_data(
         "contexts": collate_vectors(fields["context_ids"], max_length=max_length, padding_value=pad_id),
         "context_lengths": torch.LongTensor([len(seq) for seq in fields["context_ids"]]),
         "answers": collate_vectors(fields["answer_ids"], max_length=max_length, padding_value=pad_id),
-        "max_length": torch.LongTensor([max_length]),
+        "max_length": torch.LongTensor([max_length]*batch_size),
     }
 
 
