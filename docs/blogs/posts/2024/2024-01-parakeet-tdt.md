@@ -27,7 +27,7 @@ The "TDT" in Parakeet-TDT is short for "Token-and-Duration Transducer", a novel 
 To put things in perspective, our Parakeet-TDT model with 1.1 billion parameters outperforms similar-sized Parakeet-RNNT-1.1b in accuracy, as measured as the average performance among 9 benchmarks on the [HuggingFace Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard). Notably, Parakeet-TDT is the first model to achieve an average WER below 7.0 on the leaderboard. Additionally, it achieves an impressive real-time factor (RTF) of 8.8e-3, 64% faster than Parakeet-RNNT-1.1b's RTF of 14.4e-3. Remarkably, Parakeet-TDT's RTF is even 40% faster than Parakeet-RNNT-0.6b (RTF 12.3), despite the latter having about half the model size.
 
 <figure markdown>
-  ![HuggingFace Leaderboard](https://github.com/NVIDIA/NeMo/releases/download/parakeet-tdt/asset-post-parakeet-tdt-leaderboard.png)
+  ![HuggingFace Leaderboard](https://github.com/NVIDIA/NeMo/releases/download/v1.22.0/asset-post-v1.22.0-leaderboard.png)
   <figcaption><b>Figure 1.</b> <i> HuggingFace Leaderboard as of 01/31/2024. </i></figcaption>
 </figure>
 
@@ -52,7 +52,7 @@ transcript = asr_model.transcribe(["some_audio_file.wav"])
 Token-and-Duration Transducers (TDT) represent a significant advancement over traditional Transducer models by drastically reducing wasteful computations during the recognition process. To grasp this improvement, let's delve into the workings of a typical Transducer model.
 
 <figure markdown>
-  ![RNNTTOPO](https://github.com/NVIDIA/NeMo/releases/download/parakeet-tdt/asset-post-parakeet-tdt-rnnt_topo.png){align="center" width=300}
+  ![RNNTTOPO](https://github.com/NVIDIA/NeMo/releases/download/v1.22.0/asset-post-v1.22.0-rnnt_topo.png){align="center" width=300}
   <figcaption><b>Figure 2.</b> <i>Transducer Model Architecture</i></figcaption>
 </figure>
 
@@ -71,7 +71,7 @@ NVIDIA is a great place to work
 As we can see, there are many blanks symbols in the original output and this means the Transducer model wasted a lot of time on "blank frames" -- frames for which the model predicts blanks which don't contribute to the final output.
 
 <figure markdown>
-  ![TDTTOPO](https://github.com/NVIDIA/NeMo/releases/download/parakeet-tdt/asset-post-parakeet-tdt-tdt_topo.png){align="center" width=300}
+  ![TDTTOPO](https://github.com/NVIDIA/NeMo/releases/download/v1.22.0/asset-post-v1.22.0-tdt_topo.png){align="center" width=300}
   <figcaption><b>Figure 3.</b> <i>TDT Model Architecture</i></figcaption>
 </figure>
 
