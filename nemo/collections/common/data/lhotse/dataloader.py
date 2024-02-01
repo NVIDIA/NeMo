@@ -16,10 +16,12 @@ import logging
 import random
 import warnings
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Callable, Optional
 
 import torch
 from lhotse import CutSet
+from lhotse.cut import Cut
 from lhotse.dataset import (
     CutConcatenate,
     DynamicBucketingSampler,
@@ -123,8 +125,7 @@ def get_lhotse_dataloader_from_config(
     cuts = cuts.resample(config.sample_rate)
 
     # Duration filtering, same as native NeMo dataloaders.
-    min_dur, max_dur = config.min_duration, config.max_duration
-    cuts = cuts.filter(lambda c: min_dur <= c.duration <= max_dur)
+    cuts = cuts.filter(DurationFilter(config.min_duration, config.max_duration))
 
     # 2. Optional augmentations.
     # 2.a. Noise mixing.
@@ -200,9 +201,9 @@ def get_lhotse_dataloader_from_config(
             CutConcatenate(gap=config.concatenate_gap_seconds, duration_factor=config.concatenate_duration_factor,)
         )
         if config.db_norm is not None:
-            sampler = sampler.map(lambda cuts: cuts.normalize_loudness(config.db_norm, mix_first=False))
+            sampler = sampler.map(partial(_normalize_loudness, db_norm=config.db_norm))
         if config.concatenate_merge_supervisions:
-            sampler = sampler.map(lambda cuts: cuts.merge_supervisions())
+            sampler = sampler.map(_merge_supervisions)
 
     # 4. Creating dataloader.
     if is_tarred:
@@ -250,3 +251,28 @@ def make_structured_with_schema_warnings(config: DictConfig) -> DictConfig:
     config = OmegaConf.masked_copy(config, list(supported_keys))
 
     return OmegaConf.merge(default, config)
+
+
+# The helper callables below exist to avoid passing lambdas into lhotse CutSet map/filter methods.
+# Lambdas are not serializable across processes by pickle.
+# Note: lhotse offers LHOTSE_DILL_ENABLED=1 and ``lhotse.lazy.set_dill_enabled(True)``
+# to support pickling lambdas if its ever truly necessary.
+
+
+class DurationFilter:
+    """Callable, returns ``True`` if a cut's duration is in range [d_min, d_max] and ``False`` otherwise."""
+
+    def __init__(self, d_min: float, d_max: float) -> None:
+        self.d_min = d_min
+        self.d_max = d_max
+
+    def __call__(self, cut: Cut) -> bool:
+        return self.d_min <= cut.duration <= self.d_max
+
+
+def _normalize_loudness(cuts: CutSet, db_norm: float) -> CutSet:
+    return cuts.normalize_loudness(target=db_norm, mix_first=False)
+
+
+def _merge_supervisions(cuts: CutSet) -> CutSet:
+    return cuts.merge_supervisions()
