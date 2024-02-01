@@ -8,12 +8,20 @@ from torch import nn
 from torch.nn import functional as F
 from transformers import PreTrainedModel, add_start_docstrings
 from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
-from transformers.models.clip.modeling_clip import CLIPMLP, CLIPAttention, CLIPTextEmbeddings, CLIPVisionEmbeddings, \
-    CLIPVisionModelWithProjection, CLIPTextModelWithProjection, _expand_mask, CLIPOutput, clip_loss
+from transformers.models.clip.modeling_clip import (
+    CLIPMLP,
+    CLIPAttention,
+    CLIPOutput,
+    CLIPTextEmbeddings,
+    CLIPTextModelWithProjection,
+    CLIPVisionEmbeddings,
+    CLIPVisionModelWithProjection,
+    _expand_mask,
+    clip_loss,
+)
 from transformers.utils import add_start_docstrings_to_model_forward, replace_return_docstrings
 
-from .configuration_image import LanguageBindImageConfig, CLIPVisionConfig, CLIPTextConfig
-
+from .configuration_image import CLIPTextConfig, CLIPVisionConfig, LanguageBindImageConfig
 
 
 class PatchDropout(nn.Module):
@@ -23,12 +31,12 @@ class PatchDropout(nn.Module):
 
     def __init__(self, prob, exclude_first_token=True):
         super().__init__()
-        assert 0 <= prob < 1.
+        assert 0 <= prob < 1.0
         self.prob = prob
         self.exclude_first_token = exclude_first_token  # exclude CLS token
 
     def forward(self, x, B, T):
-        if not self.training or self.prob == 0.:
+        if not self.training or self.prob == 0.0:
             return x
 
         if self.exclude_first_token:
@@ -54,13 +62,13 @@ class PatchDropout(nn.Module):
             patch_indices_keep = patch_indices_keep.unsqueeze(1).repeat(1, T, 1)
             patch_indices_keep = rearrange(patch_indices_keep, 'b t n -> (b t) n')
 
-
         x = x[batch_indices, patch_indices_keep]
 
         if self.exclude_first_token:
             x = torch.cat((cls_tokens, x), dim=1)
 
         return x
+
 
 class CLIPEncoderLayer(nn.Module):
     def __init__(self, config: LanguageBindImageConfig):
@@ -100,7 +108,6 @@ class CLIPEncoderLayer(nn.Module):
                 Whether or not to return the attentions tensors of all attention layers. See `attentions` under
                 returned tensors for more detail.
         """
-
 
         if self.add_time_attn:
             bt, n, d = hidden_states.shape
@@ -158,13 +165,6 @@ class CLIPEncoderLayer(nn.Module):
         return outputs
 
 
-
-
-
-
-
-
-
 class CLIPPreTrainedModel(PreTrainedModel):
     """
     An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
@@ -184,13 +184,13 @@ class CLIPPreTrainedModel(PreTrainedModel):
             module.position_embedding.weight.data.normal_(mean=0.0, std=factor * 0.02)
         elif isinstance(module, CLIPVisionEmbeddings):
             factor = self.config.initializer_factor
-            nn.init.normal_(module.class_embedding, mean=0.0, std=module.embed_dim**-0.5 * factor)
+            nn.init.normal_(module.class_embedding, mean=0.0, std=module.embed_dim ** -0.5 * factor)
             nn.init.normal_(module.patch_embedding.weight, std=module.config.initializer_range * factor)
             nn.init.normal_(module.position_embedding.weight, std=module.config.initializer_range * factor)
         elif isinstance(module, CLIPAttention):
             factor = self.config.initializer_factor
-            in_proj_std = (module.embed_dim**-0.5) * ((2 * module.config.num_hidden_layers) ** -0.5) * factor
-            out_proj_std = (module.embed_dim**-0.5) * factor
+            in_proj_std = (module.embed_dim ** -0.5) * ((2 * module.config.num_hidden_layers) ** -0.5) * factor
+            out_proj_std = (module.embed_dim ** -0.5) * factor
             nn.init.normal_(module.q_proj.weight, std=in_proj_std)
             nn.init.normal_(module.k_proj.weight, std=in_proj_std)
             nn.init.normal_(module.v_proj.weight, std=in_proj_std)
@@ -198,29 +198,25 @@ class CLIPPreTrainedModel(PreTrainedModel):
         elif isinstance(module, CLIPMLP):
             factor = self.config.initializer_factor
             in_proj_std = (
-                (module.config.hidden_size**-0.5) * ((2 * module.config.num_hidden_layers) ** -0.5) * factor
+                (module.config.hidden_size ** -0.5) * ((2 * module.config.num_hidden_layers) ** -0.5) * factor
             )
             fc_std = (2 * module.config.hidden_size) ** -0.5 * factor
             nn.init.normal_(module.fc1.weight, std=fc_std)
             nn.init.normal_(module.fc2.weight, std=in_proj_std)
         elif isinstance(module, LanguageBindImage):
             nn.init.normal_(
-                module.text_projection.weight,
-                std=module.text_embed_dim**-0.5 * self.config.initializer_factor,
+                module.text_projection.weight, std=module.text_embed_dim ** -0.5 * self.config.initializer_factor,
             )
             nn.init.normal_(
-                module.visual_projection.weight,
-                std=module.vision_embed_dim**-0.5 * self.config.initializer_factor,
+                module.visual_projection.weight, std=module.vision_embed_dim ** -0.5 * self.config.initializer_factor,
             )
         elif isinstance(module, CLIPVisionModelWithProjection):
             nn.init.normal_(
-                module.visual_projection.weight,
-                std=self.config.hidden_size**-0.5 * self.config.initializer_factor,
+                module.visual_projection.weight, std=self.config.hidden_size ** -0.5 * self.config.initializer_factor,
             )
         elif isinstance(module, CLIPTextModelWithProjection):
             nn.init.normal_(
-                module.text_projection.weight,
-                std=self.config.hidden_size**-0.5 * self.config.initializer_factor,
+                module.text_projection.weight, std=self.config.hidden_size ** -0.5 * self.config.initializer_factor,
             )
 
         if isinstance(module, nn.LayerNorm):
@@ -409,17 +405,11 @@ class CLIPEncoder(nn.Module):
                     return custom_forward
 
                 layer_outputs = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(encoder_layer),
-                    hidden_states,
-                    attention_mask,
-                    causal_attention_mask,
+                    create_custom_forward(encoder_layer), hidden_states, attention_mask, causal_attention_mask,
                 )
             else:
                 layer_outputs = encoder_layer(
-                    hidden_states,
-                    attention_mask,
-                    causal_attention_mask,
-                    output_attentions=output_attentions,
+                    hidden_states, attention_mask, causal_attention_mask, output_attentions=output_attentions,
                 )
 
             hidden_states = layer_outputs[0]
@@ -533,8 +523,7 @@ class CLIPTextTransformer(nn.Module):
 
 
 @add_start_docstrings(
-    """The text model from CLIP without any head or projection on top.""",
-    CLIP_START_DOCSTRING,
+    """The text model from CLIP without any head or projection on top.""", CLIP_START_DOCSTRING,
 )
 class CLIPTextModel(CLIPPreTrainedModel):
     config_class = CLIPTextConfig
@@ -631,7 +620,7 @@ class CLIPVisionTransformer(nn.Module):
             b_new, pair_new, T, bs_new, channel_new, h_new, w_new = pixel_values.shape
             # print(pixel_values.shape)
             B = b_new * pair_new * bs_new
-            pixel_values = pixel_values.reshape(B*T, channel_new, h_new, w_new)
+            pixel_values = pixel_values.reshape(B * T, channel_new, h_new, w_new)
 
         elif len(pixel_values.shape) == 5:
             B, _, T, _, _ = pixel_values.shape
@@ -659,7 +648,7 @@ class CLIPVisionTransformer(nn.Module):
         pooled_output = last_hidden_state[:, 0, :]
         pooled_output = self.post_layernorm(pooled_output)
 
-        pooled_output = pooled_output.reshape(B, T, -1).mean(1) ################################
+        pooled_output = pooled_output.reshape(B, T, -1).mean(1)  ################################
 
         if not return_dict:
             return (last_hidden_state, pooled_output) + encoder_outputs[1:]
@@ -673,8 +662,7 @@ class CLIPVisionTransformer(nn.Module):
 
 
 @add_start_docstrings(
-    """The vision model from CLIP without any head or projection on top.""",
-    CLIP_START_DOCSTRING,
+    """The vision model from CLIP without any head or projection on top.""", CLIP_START_DOCSTRING,
 )
 class CLIPVisionModel(CLIPPreTrainedModel):
     config_class = CLIPVisionConfig
@@ -776,9 +764,14 @@ class LanguageBindImage(CLIPPreTrainedModel):
         if self.lora_r == 0:
             return
         if self.add_time_attn:
-            target_modules = ["temporal_attn.k_proj", "temporal_attn.v_proj",
-                              "temporal_attn.q_proj", "temporal_attn.out_proj",
-                              "temporal_mlp.fc1", "temporal_mlp.fc2"]
+            target_modules = [
+                "temporal_attn.k_proj",
+                "temporal_attn.v_proj",
+                "temporal_attn.q_proj",
+                "temporal_attn.out_proj",
+                "temporal_mlp.fc1",
+                "temporal_mlp.fc2",
+            ]
         else:
             target_modules = ["k_proj", "v_proj", "q_proj", "out_proj"]
         config = LoraConfig(
@@ -794,7 +787,7 @@ class LanguageBindImage(CLIPPreTrainedModel):
 
     def resize_pos(self, m, vision_config):
         # convert embedding
-        if vision_config.num_mel_bins!=0 and vision_config.target_length!=0:
+        if vision_config.num_mel_bins != 0 and vision_config.target_length != 0:
             m.image_size = [vision_config.num_mel_bins, vision_config.target_length]
         m.config.image_size = [m.image_size, m.image_size] if isinstance(m.image_size, int) else m.image_size
         # pos resize
@@ -822,13 +815,7 @@ class LanguageBindImage(CLIPPreTrainedModel):
         # if is_master(args):
         #     logging.info('Resizing position embedding grid-size from %s to %s', old_grid_size, grid_size)
         pos_emb_img = pos_emb_img.reshape(1, old_grid_size[0], old_grid_size[1], -1).permute(0, 3, 1, 2)
-        pos_emb_img = F.interpolate(
-            pos_emb_img,
-            size=grid_size,
-            mode='bicubic',
-            antialias=True,
-            align_corners=False,
-        )
+        pos_emb_img = F.interpolate(pos_emb_img, size=grid_size, mode='bicubic', antialias=True, align_corners=False,)
         pos_emb_img = pos_emb_img.permute(0, 2, 3, 1).reshape(1, grid_size[0] * grid_size[1], -1)[0]
         if pos_emb_tok is not None:
             new_pos_embed = torch.cat([pos_emb_tok, pos_emb_img], dim=0)
