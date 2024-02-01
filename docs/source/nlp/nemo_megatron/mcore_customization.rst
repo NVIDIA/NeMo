@@ -13,14 +13,48 @@ The Mcore spec system requires a “specification” to define the initializatio
 
 Below is example from original spec system MR, we can see the extra parameter needed at initialization for mcore GPTModel (megatron/core/models/gpt/gpt_model.py):
 
+.. image:: mr1.png
+  :alt: 
+  :width: 500px
 
-Where the required transformer_layer_spec (for mcore GPTModel layer) looks like: 
+Where the required transformer_layer_spec (for mcore GPTModel layer) looks like: ::
+
+    gpt_layer_with_transformer_engine_spec = ModuleSpec(
+        module=TransformerLayer,
+        submodules=TransformerLayerSubmodules(
+            self_attention=ModuleSpec(
+                module=SelfAttention,
+                params={"attn_mask_type": AttnMaskType.causal},
+                submodules=SelfAttentionSubmodules(
+                    linear_qkv=TELayerNormColumnParallelLinear,
+                    dot_product_attention=TEDotProductAttention,
+                    linear_proj=TERowParallelLinear,
+                ),
+            ),
+            self_attn_bda=get_bias_dropout_add,
+            mlp=ModuleSpec(
+                module=MLP,
+                submodules=MLPSubmodules(
+                    linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear,
+                ),
+            ),
+            mlp_bda=get_bias_dropout_add,
+        ),
+    )
 
 
 The spec system introduces a new approach to module initialization. Here is a before-and-after comparison of self attention initialization (megatron/core/transformer/transformer_layer.py) as example:
 
+.. image:: mr2.png
+  :alt: 
+  :width: 600px
+
 Instead of hard coding the ``SelfAttention`` class, we are using a ``build_module`` function to build our ``self.self_attention`` inside the layer.
-The initialization of layer has become (megatron/core/transformer/transformer_block.py):
+The initialization of layer has become (megatron/core/transformer/transformer_block.py): ::
+
+    def build_layer(layer_spec, layer_number):
+        return build_module(layer_spec, config=self.config, layer_number=layer_number,)
+
 
 instead of hard coding ``TransformerLayer`` class.
 
