@@ -231,7 +231,6 @@ def nemo_deploy(argv):
         )
         return
 
-
     ptuning_tables_files = []
     if not args.ptuning_nemo_checkpoint is None:
         if args.max_prompt_embedding_table_size is None:
@@ -245,7 +244,9 @@ def nemo_deploy(argv):
             if ptuning_nemo_checkpoint_path.is_file():
                 ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
             elif ptuning_nemo_checkpoint_path.is_dir():
-                ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
+                for file in os.listdir(ptuning_nemo_checkpoint_path):
+                    if file.endswith(".nemo"):
+                        ptuning_tables_files.append(file)
             else:
                 LOGGER.error(
                     "Could not read the prompt tuning tables from {0}".format(args.ptuning_nemo_checkpoint)
