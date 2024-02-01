@@ -368,8 +368,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         return state_list
 
+    @classmethod
     def batch_replace_states_mask(
-        self, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
     ):
         """Replace states in dst_states with states from src_states using the mask"""
         # same as `dst_states[0][mask] = src_states[0][mask]`, but non-blocking
@@ -1045,8 +1046,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         return state_list
 
+    @classmethod
     def batch_replace_states_mask(
-        self,
+        cls,
         src_states: Tuple[torch.Tensor, torch.Tensor],
         dst_states: Tuple[torch.Tensor, torch.Tensor],
         mask: torch.Tensor,
