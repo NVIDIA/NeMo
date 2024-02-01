@@ -67,6 +67,7 @@ class AbstractRNNTJoint(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
+    @torch.jit.export
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
         """
         Compute the joint step of the network.
@@ -98,6 +99,9 @@ class AbstractRNNTJoint(NeuralModule, ABC):
             Logits / log softmaxed tensor of shape (B, T, U, V + 1).
         """
         return self.joint_after_projection(self.project_encoder(f), self.project_prednet(g))
+
+    def get_jit_copy_for_inference(self) -> torch.jit.ScriptModule:
+        raise NotImplementedError()
 
     @property
     def num_classes_with_blank(self):
@@ -276,6 +280,23 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
             (tuple): decoder states for given id
                 ([L x (1, H)], [L x (1, H)])
         """
+        raise NotImplementedError()
+
+    def batch_replace_states(
+        self,
+        src_states: list[torch.Tensor],
+        src_mask_or_indices: torch.Tensor,
+        dst_states: list[torch.Tensor],
+        dst_mask_or_indices: torch.Tensor,
+    ):
+        raise NotImplementedError()
+
+    def batch_replace_states_mask(
+        self, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+    ):
+        raise NotImplementedError()
+
+    def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
         raise NotImplementedError()
 
     def batch_replace_states_mask(

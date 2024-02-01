@@ -15,6 +15,7 @@
 from typing import Any, Optional, Tuple
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import DictConfig
 
@@ -22,7 +23,7 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 
 
-class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
+class GreedyBatchedRNNTLoopLabelsComputer(nn.Module, ConfidenceMethodMixin):
     """
     Loop Labels algorithm implementation. Callable.
     """
@@ -59,7 +60,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
 
-    def __call__(
+    def forward(
         self, x: torch.Tensor, out_len: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """

@@ -161,10 +161,37 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        allow_jit: bool = True,
     ):
         super().__init__()
+        self.allow_jit = allow_jit
+        if self.allow_jit:
+            # try to compile decoder for inference (shared params, object is scripted)
+            try:
+                self.decoder = torch.compile(decoder_model)
+                logging.info("Compiled Decoder for inference")
+            except (OSError, RuntimeError):
+                logging.warning("Failed to compile Decoder, using without TorchScript")
+                self.decoder = decoder_model
+        else:
+            self.decoder = decoder_model
+
         self.decoder = decoder_model
-        self.joint = joint_model
+        if self.allow_jit:
+            # try to compile a copy for inference (shared params, object is scripted)
+            # joint does complex logic with wer/loss (cannot be compiled with torch.jit.script)
+            # we need a copy with reduced functionality for inference
+            try:
+                self.joint = joint_model.get_jit_copy_for_inference()
+                logging.info("Compiled Joint for inference")
+            except NotImplementedError:
+                logging.warning("Joint with TorchScript is not implemented")
+                self.joint = joint_model
+            except (OSError, RuntimeError):
+                logging.warning("Failed to compile Joint, using without TorchScript")
+                self.joint = joint_model
+        else:
+            self.joint = joint_model
 
         self._blank_index = blank_index
         self._SOS = blank_index  # Start of single index
@@ -339,6 +366,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        allow_jit: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -348,6 +376,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
             confidence_method_cfg=confidence_method_cfg,
+            allow_jit=allow_jit,
         )
 
     @typecheck()
@@ -589,6 +618,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = False,
+        allow_jit: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -598,6 +628,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
             confidence_method_cfg=confidence_method_cfg,
+            allow_jit=allow_jit,
         )
 
         # Depending on availability of `blank_as_pad` support
@@ -616,6 +647,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
                 )
+                if allow_jit:
+                    self._decoding_computer = torch.jit.script(self._decoding_computer)
             else:
                 # previous algo: loop over frames
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
@@ -681,6 +714,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         """
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
+
+        assert self._decoding_computer is not None
+        self._decoding_computer.eval()
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
@@ -1599,6 +1635,7 @@ class GreedyMultiblankRNNTInfer(GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        allow_jit: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -1608,6 +1645,7 @@ class GreedyMultiblankRNNTInfer(GreedyRNNTInfer):
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
             confidence_method_cfg=confidence_method_cfg,
+            allow_jit=allow_jit,
         )
         self.big_blank_durations = big_blank_durations
         self._SOS = blank_index - len(big_blank_durations)
@@ -1803,6 +1841,7 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        allow_jit: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -1812,6 +1851,7 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
             confidence_method_cfg=confidence_method_cfg,
+            allow_jit=allow_jit,
         )
         self.big_blank_durations = big_blank_durations
 
@@ -2272,6 +2312,7 @@ class GreedyRNNTInferConfig:
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
+    allow_jit: bool = True
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
@@ -2289,6 +2330,7 @@ class GreedyBatchedRNNTInferConfig:
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     loop_labels: bool = False
+    allow_jit: bool = True
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
@@ -2369,6 +2411,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        allow_jit: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2378,6 +2421,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
             confidence_method_cfg=confidence_method_cfg,
+            allow_jit=allow_jit,
         )
         self.durations = durations
 
@@ -2626,6 +2670,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = True,
+        allow_jit: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2635,6 +2680,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
             confidence_method_cfg=confidence_method_cfg,
+            allow_jit=allow_jit,
         )
         self.durations = durations
 
@@ -2653,6 +2699,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
                 )
+                if allow_jit:
+                    self._decoding_computer = torch.jit.script(self._decoding_computer)
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
             else:
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
@@ -2895,6 +2943,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
         assert self._decoding_computer is not None
+        self._decoding_computer.eval()
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)

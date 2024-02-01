@@ -144,6 +144,10 @@ def max_symbols_setup():
         def joint_after_projection(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
             return f.unsqueeze(dim=2) + g.unsqueeze(dim=1)
 
+        @property
+        def num_extra_outputs(self):
+            return 0
+
     setup = {}
     setup["decoder"] = DummyRNNTDecoder(vocab_size=2, blank_idx=2, blank_as_pad=True)
     setup["decoder_masked"] = DummyRNNTDecoder(vocab_size=2, blank_idx=2, blank_as_pad=False)

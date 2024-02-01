@@ -135,7 +135,7 @@ class HATJoint(rnnt.RNNTJoint):
         return self._return_hat_ilm
 
     @return_hat_ilm.setter
-    def return_hat_ilm(self, hat_subtract_ilm):
+    def return_hat_ilm(self, hat_subtract_ilm: bool):
         self._return_hat_ilm = hat_subtract_ilm
 
     def joint_after_projection(self, f: torch.Tensor, g: torch.Tensor) -> Union[torch.Tensor, HATJointOutput]:
@@ -196,7 +196,7 @@ class HATJoint(rnnt.RNNTJoint):
 
         del g, blank_logprob, label_logprob, label_logit, scale_prob, label_logprob_scaled
 
-        if self.preserve_memory:
+        if not torch.jit.is_scripting() and self.preserve_memory:
             torch.cuda.empty_cache()
 
         return res

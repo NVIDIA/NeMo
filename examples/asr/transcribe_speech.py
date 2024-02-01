@@ -328,26 +328,27 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     with autocast(dtype=amp_dtype):
         with torch.no_grad():
-            if partial_audio:
-                transcriptions = transcribe_partial_audio(
-                    asr_model=asr_model,
-                    path2manifest=cfg.dataset_manifest,
-                    batch_size=cfg.batch_size,
-                    num_workers=cfg.num_workers,
-                    return_hypotheses=cfg.return_hypotheses,
-                    channel_selector=cfg.channel_selector,
-                    augmentor=augmentor,
-                    decoder_type=cfg.decoder_type,
-                )
-            else:
-                transcriptions = asr_model.transcribe(
-                    paths2audio_files=filepaths,
-                    batch_size=cfg.batch_size,
-                    num_workers=cfg.num_workers,
-                    return_hypotheses=cfg.return_hypotheses,
-                    channel_selector=cfg.channel_selector,
-                    augmentor=augmentor,
-                )
+            for _ in range(2):
+                if partial_audio:
+                    transcriptions = transcribe_partial_audio(
+                        asr_model=asr_model,
+                        path2manifest=cfg.dataset_manifest,
+                        batch_size=cfg.batch_size,
+                        num_workers=cfg.num_workers,
+                        return_hypotheses=cfg.return_hypotheses,
+                        channel_selector=cfg.channel_selector,
+                        augmentor=augmentor,
+                        decoder_type=cfg.decoder_type,
+                    )
+                else:
+                    transcriptions = asr_model.transcribe(
+                        paths2audio_files=filepaths,
+                        batch_size=cfg.batch_size,
+                        num_workers=cfg.num_workers,
+                        return_hypotheses=cfg.return_hypotheses,
+                        channel_selector=cfg.channel_selector,
+                        augmentor=augmentor,
+                    )
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")

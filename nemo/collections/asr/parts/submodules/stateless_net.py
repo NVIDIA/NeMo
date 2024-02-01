@@ -65,7 +65,7 @@ class StatelessNet(torch.nn.Module):
         self.blank_idx = blank_idx
 
     def forward(
-        self, y: Optional[torch.Tensor] = None, state: Optional[List[torch.Tensor]] = None,
+        self, y: torch.Tensor, state: Optional[List[torch.Tensor]] = None,
     ):
         """
         Although this is a *stateless* net, we use the "state" parameter to
@@ -82,10 +82,11 @@ class StatelessNet(torch.nn.Module):
         """
         outs = []
 
-        [B, U] = y.shape
+        # y cannod be None, since the following line will fail; thus I remove Optional for y
+        B, U = y.shape
         appended_y = y
-        if state != None:
-            appended_y = torch.concat([state[0], y], axis=1)
+        if state is not None:
+            appended_y = torch.concat([state[0], y], dim=1)
             context_size = appended_y.shape[1]
 
             if context_size < self.context_size:
@@ -102,12 +103,12 @@ class StatelessNet(torch.nn.Module):
                 # Context has just the right size. Copy directly.
                 padded_state = appended_y
 
-            for i in range(self.context_size):
-                out = self.embeds[i](padded_state[:, self.context_size - 1 - i : self.context_size - i])
+            for i, current_submodule in enumerate(self.embeds):
+                out = current_submodule(padded_state[:, self.context_size - 1 - i : self.context_size - i])
                 outs.append(out)
         else:
-            for i in range(self.context_size):
-                out = self.embeds[i](y)
+            for i, current_submodule in enumerate(self.embeds):
+                out = current_submodule(y)
 
                 if i != 0:
                     out[:, i:, :] = out[
@@ -116,10 +117,11 @@ class StatelessNet(torch.nn.Module):
                     out[:, :i, :] *= 0.0
                 outs.append(out)
 
-        out = self.dropout(torch.concat(outs, axis=-1))
+        out = self.dropout(torch.concat(outs, dim=-1))
         out = self.norm(out)
 
-        state = None
-        if y is not None:
-            state = [appended_y[:, appended_y.shape[1] - self.context_size + 1 :]]
+        # y cannot be None, see above; if it is None, the code will not work as expected
+        # state = None
+        # if y is not None:
+        state = [appended_y[:, appended_y.shape[1] - self.context_size + 1 :]]
         return out, state

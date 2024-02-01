@@ -274,14 +274,20 @@ class Exportable(ABC):
 
     @property
     def input_names(self):
+        # TODO: fix jit compatibility
+        if torch.jit.is_scripting():
+            return []
         return get_io_names(self.input_module.input_types_for_export, self.disabled_deployment_input_names)
 
     @property
     def output_names(self):
+        # TODO: fix jit compatibility
+        if torch.jit.is_scripting():
+            return []
         return get_io_names(self.output_module.output_types_for_export, self.disabled_deployment_output_names)
 
     @property
-    def input_types_for_export(self) -> Optional[Dict[str, NeuralType]]:
+    def input_types_for_export(self):
         return self.input_types
 
     @property
