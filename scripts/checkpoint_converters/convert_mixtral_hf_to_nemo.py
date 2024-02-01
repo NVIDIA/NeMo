@@ -13,26 +13,25 @@
 # limitations under the License.
 
 r"""
-Conversion script to convert HuggingFace Mistral-7B checkpoints into nemo checkpoint.
+Conversion script to convert Huggingface Mixtral checkpoints into NeMo checkpoint.
   Example to run this conversion script:
-    python convert_hf_mistral_7b_to_nemo.py \
-     --in-file <path_to_mistral_checkpoints_folder> \
-     --out-file <path_to_output_nemo_file> \
-     [--fast-swiglu\
+    python3 convert_mixtral_hf_to_nemo.py \
+     --input-name-or-path <path_to_mixtral_checkpoints_folder> \
+     --output-path <path_to_output_nemo_file> 
 """
-
 
 import json
 import os
 from argparse import ArgumentParser
 from collections import OrderedDict
 
+import megatron.core.parallel_state as parallel_state
 import torch
 import torch.nn
 from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
-from sentencepiece import SentencePieceProcessor
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -48,9 +47,9 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file", type=str, default=None, required=True, help="Path to Huggingface Mistral-7b checkpoints",
+        "--input-name-or-path", type=str, default=None, required=True, help="Path to Huggingface Mixtral checkpoints",
     )
-    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--output-path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
     args = parser.parse_args()
     return args
@@ -92,67 +91,63 @@ def load_model(cls, checkpoint, strict, **kwargs):
     return model
 
 
-def load_config(mistral_config, tokenizer_path):
+def load_config(mixtral_config, tokenizer_path):
     nemo_config = OmegaConf.load(
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
-    # akoumparouli: verify this.
-    nemo_config.encoder_seq_length = mistral_config['sliding_window']
-    nemo_config.num_layers = int(mistral_config['num_hidden_layers'])
-    nemo_config.hidden_size = mistral_config['hidden_size']
-    nemo_config.ffn_hidden_size = mistral_config['intermediate_size']
-    nemo_config.num_attention_heads = mistral_config['num_attention_heads']
-    nemo_config.max_position_embeddings = mistral_config['max_position_embeddings']
-    nemo_config.window_size = [mistral_config['sliding_window'], 0]
-    nemo_config.init_method_std = mistral_config['initializer_range']
+    nemo_config.encoder_seq_length = mixtral_config['max_position_embeddings']
+    nemo_config.num_layers = int(mixtral_config['num_hidden_layers'])
+    nemo_config.hidden_size = mixtral_config['hidden_size']
+    nemo_config.ffn_hidden_size = mixtral_config['intermediate_size']
+    nemo_config.num_attention_heads = mixtral_config['num_attention_heads']
+    nemo_config.max_position_embeddings = mixtral_config['max_position_embeddings']
+    nemo_config.init_method_std = mixtral_config['initializer_range']
     # RMSNorm's epsilon.
-    nemo_config.layernorm_epsilon = mistral_config['rms_norm_eps']
+    nemo_config.layernorm_epsilon = mixtral_config['rms_norm_eps']
     nemo_config.normalization = 'rmsnorm'
 
-    if 'num_key_value_heads' in mistral_config:
-        nemo_config.num_query_groups = mistral_config['num_key_value_heads']
+    if 'num_key_value_heads' in mixtral_config:
+        nemo_config.num_query_groups = mixtral_config['num_key_value_heads']
+
+    nemo_config.num_experts = int(mixtral_config['num_local_experts'])
+    assert nemo_config.num_experts > 0, "num_experts must be greater than zero."
+    nemo_config.moe_router_topk = int(mixtral_config['num_experts_per_tok'])
+    assert nemo_config.moe_router_topk > 0, "moe_router_topk must be greater than zero."
     nemo_config.use_cpu_initialization = True
-    # Mistral uses SiLU, but it is the same as swish with beta = 1.
+    # Mixtral uses SiLU, but it is the same as swish with beta = 1.
     nemo_config.activation = 'fast-swiglu'
 
     nemo_config.tokenizer.model = tokenizer_path
     # TODO(@akoumparouli): rope_scaling.
-    nemo_config['rotary_base'] = mistral_config['rope_theta']
+    nemo_config['rotary_base'] = mixtral_config['rope_theta']
 
     base = 128
-    while mistral_config['vocab_size'] % base != 0:
+    while mixtral_config['vocab_size'] % base != 0:
         base //= 2
     nemo_config.make_vocab_size_divisible_by = base
 
     return nemo_config
 
 
-def load_mistral_ckpt(dir):
-    params_file = os.path.join(dir, 'config.json')
+def load_mixtral_ckpt(in_dir):
+    params_file = os.path.join(in_dir, 'config.json')
     assert os.path.exists(params_file)
     with open(params_file, 'r') as fp:
         model_args = json.load(fp)
 
-    ckpt = OrderedDict()
-    ckpt['state_dict'] = OrderedDict()
-    for i in range(2):
-        ckpt_file = f'pytorch_model-0000{i+1}-of-00002.bin'
-        ckpt_path = os.path.join(dir, ckpt_file)
-        assert os.path.exists(ckpt_path)
-        ckpt.update(torch.load(ckpt_path))
-    tokenizer_file = os.path.join(dir, 'tokenizer.model')
-    assert os.path.exists(tokenizer_file)
-    tokenizer = SentencePieceProcessor(model_file=tokenizer_file)
-    assert tokenizer.get_piece_size() == model_args['vocab_size']
+    model = AutoModelForCausalLM.from_pretrained(in_dir)
+    ckpt = model.state_dict()
+
+    tokenizer = AutoTokenizer.from_pretrained(in_dir)
+    assert tokenizer.vocab_size == model_args['vocab_size']
     return model_args, ckpt, tokenizer
 
 
 def convert(args):
-    logging.info(f"loading checkpoint {args.in_file}")
+    logging.info(f"loading checkpoint {args.input_name_or_path}")
 
-    model_args, ckpt, tokenizer = load_mistral_ckpt(args.in_file)
-    nemo_config = load_config(model_args, os.path.join(args.in_file, 'tokenizer.model'))
-    logging.info(f"loaded checkpoint {args.in_file}")
+    model_args, ckpt, tokenizer = load_mixtral_ckpt(args.input_name_or_path)
+    nemo_config = load_config(model_args, tokenizer.vocab_file)
 
     if args.precision in ["32", "16"]:
         precision = int(float(args.precision))
@@ -194,7 +189,7 @@ def convert(args):
         dtype = torch.float32  # fallback
 
     nemo_config.precision = precision
-    logging.info(f"nemo_config: {nemo_config}")
+    print(f"nemo_config: {nemo_config}")
 
     trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision, strategy=NLPDDPStrategy())
 
@@ -239,9 +234,6 @@ def convert(args):
         k = ckpt[f'model.layers.{l}.self_attn.k_proj.weight'].view(*new_kv_tensor_shape)
         v = ckpt[f'model.layers.{l}.self_attn.v_proj.weight'].view(*new_kv_tensor_shape)
 
-        # Note: we assume wq & wk have been appropriately transposed to work with
-        # NeMo/Megatron's rotary embedding. The reference checkpoint/implementation
-        # will not work OotB without transposing wq/wk matrices.
         heads_per_group = head_num // num_query_groups
         qkv_weights_l = []
         for i in range(num_query_groups):
@@ -249,10 +241,6 @@ def convert(args):
             qkv_weights_l.append(k[i : i + 1, :, :])
             qkv_weights_l.append(v[i : i + 1, :, :])
         qkv_weights = torch.cat(qkv_weights_l)
-        assert qkv_weights.ndim == 3, qkv_weights.shape
-        assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
-        assert qkv_weights.shape[1] == head_size, qkv_weights.shape
-        assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
         qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
         if mcore_gpt:
             qkv_weights_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.weight'
@@ -268,25 +256,35 @@ def convert(args):
             o_weight_base_name = f'model.language_model.encoder.layers.{l}.self_attention.dense.weight'
         checkpoint['state_dict'][o_weight_base_name] = param_to_weights(o_weight)
 
-        # MLP
-        mlp_down_weight = ckpt[f'model.layers.{l}.mlp.gate_proj.weight']
-        mlp_gate_weight = ckpt[f'model.layers.{l}.mlp.up_proj.weight']
+        # # MLP
+        # Handle gate
+        moe_gate = ckpt[f'model.layers.{l}.block_sparse_moe.gate.weight']
         if mcore_gpt:
-            mlp_down_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.weight'
+            moe_gate_name = f'model.decoder.layers.{l}.mlp.router.weight'
         else:
-            mlp_down_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h.weight'
-        mlp_down_weight = torch.cat((mlp_down_weight, mlp_gate_weight), axis=0)
-        checkpoint['state_dict'][mlp_down_base_name] = param_to_weights(mlp_down_weight)
+            raise Exception("not implemented")
+        checkpoint['state_dict'][moe_gate_name] = param_to_weights(moe_gate)
+        # Handle experts
+        for i in range(nemo_config.num_experts):
+            gate_proj = ckpt[f'model.layers.{l}.block_sparse_moe.experts.{i}.w1.weight']
+            up_proj = ckpt[f'model.layers.{l}.block_sparse_moe.experts.{i}.w3.weight']
+            if mcore_gpt:
+                mlp_down_base_name = f'model.decoder.layers.{l}.mlp.experts.local_experts.{i}.linear_fc1.weight'
+            else:
+                raise Exception("not implemented")
+            mlp_down_weight = torch.cat((gate_proj, up_proj), axis=0)
+            checkpoint['state_dict'][mlp_down_base_name] = param_to_weights(mlp_down_weight)
 
-        mlp_up_weight = ckpt[f'model.layers.{l}.mlp.down_proj.weight']
-        if mcore_gpt:
-            mlp_up_base_name = f'model.decoder.layers.{l}.mlp.linear_fc2.weight'
-        else:
-            mlp_up_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_4h_to_h.weight'
-        checkpoint['state_dict'][mlp_up_base_name] = param_to_weights(mlp_up_weight)
+            mlp_up_weight = ckpt[f'model.layers.{l}.block_sparse_moe.experts.{i}.w2.weight']
+            if mcore_gpt:
+                mlp_up_base_name = f'model.decoder.layers.{l}.mlp.experts.local_experts.{i}.linear_fc2.weight'
+            else:
+                raise Exception("not implemented")
+            checkpoint['state_dict'][mlp_up_base_name] = param_to_weights(mlp_up_weight)
 
         # LayerNorm
         input_ln_weight = ckpt[f'model.layers.{l}.input_layernorm.weight']
+
         if mcore_gpt:
             input_ln_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight'
         else:
@@ -295,7 +293,9 @@ def convert(args):
 
         post_attn_ln_weight = ckpt[f'model.layers.{l}.post_attention_layernorm.weight']
         if mcore_gpt:
-            post_attn_ln_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight'
+            # @akoumparouli: switch to the following once TE supports MoE.
+            # post_attn_ln_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight'
+            post_attn_ln_base_name = f'model.decoder.layers.{l}.pre_mlp_layernorm.weight'
         else:
             post_attn_ln_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.weight'
         checkpoint['state_dict'][post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
@@ -317,6 +317,7 @@ def convert(args):
     checkpoint['state_dict'][output_layer_base_name] = param_to_weights(output_layer_weight)
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
+
     del ckpt
 
     if nemo_config.get('megatron_amp_O2', False):
@@ -332,10 +333,11 @@ def convert(args):
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
 
-    model.save_to(args.out_file)
-    logging.info(f'NeMo model saved to: {args.out_file}')
+    model.save_to(args.output_path)
+    logging.info(f'NeMo model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':
     args = get_args()
+    parallel_state.set_expert_model_parallel_world_size(1)
     convert(args)
