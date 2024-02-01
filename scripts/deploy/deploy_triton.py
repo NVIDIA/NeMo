@@ -47,7 +47,7 @@ def get_args(argv):
         type=str,
         help="Source .nemo file for prompt embeddings table"
     )
-     parser.add_argument(
+    parser.add_argument(
         '-ti',
         '--task_ids',
         nargs='+',
