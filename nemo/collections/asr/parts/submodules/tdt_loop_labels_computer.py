@@ -154,11 +154,14 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                 .squeeze(1)
                 .squeeze(1)
             )
-            scores, labels = logits.max(-1)
+            scores, labels = logits[:, :-duration_lengths].max(dim=-1)
+            jump_durations_indices = logits[:, -duration_lengths:].argmax(dim=-1)
+            durations = all_durations[jump_durations_indices]
 
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
             blank_mask = labels == self._blank_index
+            durations.masked_fill_(torch.logical_and(durations == 0, blank_mask), 1)
             time_indices_current_labels.copy_(time_indices, non_blocking=True)
             if use_alignments:
                 if self.preserve_frame_confidence:
@@ -173,11 +176,10 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
 
             # advance_mask is a mask for current batch for searching non-blank labels;
             # each element is True if non-blank symbol is not yet found AND we can increase the time index
-            time_indices += blank_mask
+            time_indices += durations
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             torch.less(time_indices, out_len, out=active_mask)
             torch.logical_and(active_mask, blank_mask, out=advance_mask)
-
             # inner loop: find next non-blank labels (if exist)
             while advance_mask.any():
                 # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask], but non-blocking
@@ -192,11 +194,13 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                 )
                 # get labels (greedy) and scores from current logits, replace labels/scores with new
                 # labels[advance_mask] are blank, and we are looking for non-blank labels
-                more_scores, more_labels = logits.max(-1)
+                more_scores, more_labels = logits[:, :-duration_lengths].max(dim=-1)
                 # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
                 torch.where(advance_mask, more_labels, labels, out=labels)
                 # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking
                 torch.where(advance_mask, more_scores, scores, out=scores)
+                jump_durations_indices = logits[:, -duration_lengths:].argmax(dim=-1)
+                durations = all_durations[jump_durations_indices]
 
                 if use_alignments:
                     if self.preserve_frame_confidence:
@@ -210,7 +214,9 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                     )
 
                 blank_mask = labels == self._blank_index
-                time_indices += blank_mask
+                durations.masked_fill_(torch.logical_and(durations == 0, blank_mask), 1)
+                # same as time_indices[advance_mask] += durations[advance_mask], but non-blocking
+                torch.where(advance_mask, time_indices + durations, time_indices, out=time_indices)
                 torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
                 torch.less(time_indices, out_len, out=active_mask)
                 torch.logical_and(active_mask, blank_mask, out=advance_mask)
