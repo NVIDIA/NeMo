@@ -32,6 +32,14 @@ exp_manager:
   wandb_logger_kwargs:
     project: null
     name: null
+  create_neptune_logger: false
+  neptune_logger_kwargs:
+    project: null
+    name: null
+    prefix: train
+    log_model_checkpoints: false
+    tags: null # can specify as an array of strings in yaml array format
+    description: null
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   resume_from_checkpoint: ${model.resume_from_checkpoint}
@@ -193,6 +201,12 @@ model:
 
   ## Flash Attention
   use_flash_attention: False # Use flash attention in self-attention module, this config does nothing when transformer_engine=True
+
+  ##Offloading Activations/Weights to CPU
+  cpu_offloading: False
+  cpu_offloading_num_layers: 11 #This value should be between [1,num_layers-1] as we don't want to offload the final layer's activations and expose any offloading duration for the final layer
+  cpu_offloading_activations: True
+  cpu_offloading_weights: True
 
   ## Network
   sharp: False # Enable the use of SHARP for NCCL data-parallel communications. This is going to be ignored if the network doesn't support SHARP.
