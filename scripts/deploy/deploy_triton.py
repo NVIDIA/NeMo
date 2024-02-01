@@ -267,7 +267,7 @@ def nemo_deploy(argv):
                         "Number of task ids and prompt embedding tables have to match. "
                         "There are {0} tables and {1} task ids.".format(len(ptuning_tables_files), len(args.task_ids))
                     )
-                return
+                    return
         else:
             LOGGER.error(
                 "File or directory {0} does not exist.".format(args.ptuning_nemo_checkpoint)
