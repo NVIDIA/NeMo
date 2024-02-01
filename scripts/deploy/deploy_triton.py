@@ -246,7 +246,7 @@ def nemo_deploy(argv):
             elif ptuning_nemo_checkpoint_path.is_dir():
                 for file in os.listdir(ptuning_nemo_checkpoint_path):
                     if file.endswith(".nemo"):
-                        ptuning_tables_files.append(ptuning_nemo_checkpoint_path / file)
+                        ptuning_tables_files.append(str(ptuning_nemo_checkpoint_path / file))
             else:
                 LOGGER.error(
                     "Could not read the prompt tuning tables from {0}".format(args.ptuning_nemo_checkpoint)
