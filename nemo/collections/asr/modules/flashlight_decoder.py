@@ -19,10 +19,11 @@ from typing import Iterable, List, Optional, Tuple, Union
 import numpy as np
 import torch
 
-from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
+
+DEFAULT_TOKEN_OFFSET = 100
 
 
 class _TokensWrapper:
