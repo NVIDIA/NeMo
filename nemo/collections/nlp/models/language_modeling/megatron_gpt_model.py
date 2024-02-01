@@ -278,10 +278,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         data_parallel_world_size = trainer.world_size // mp_size
         grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
 
-        # Convert the global-batch-based profile index to micro-batch index
-        if hasattr(self, '_nsys_profile_enabled'):
-            self._nsys_profile_steps = list([grad_accum_steps * step for step in self._nsys_profile_steps])
-
         self._microbatch_to_global_batch = grad_accum_steps
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
