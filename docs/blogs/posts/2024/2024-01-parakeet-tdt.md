@@ -110,7 +110,7 @@ to noisy speech and token repetitions in the text compared to traditional
 Transducer models. Note, this blog post simplies certain aspects of Transducer models
 in order to better illustrate the design differences between
 Transducers and TDT, and we would refer interested readers to our
-[paper](https://arxiv.org/abs/2309.09950) for technical details. 
+[paper](https://arxiv.org/abs/2304.06795) for technical details.
 
 
 ## Additional Resources
