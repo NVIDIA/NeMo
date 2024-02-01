@@ -52,15 +52,15 @@ model:
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 16 # limited by GPU memory
-  global_batch_size: 256 # will use more micro batches to reach global batch size                                               # would be overriden by RETRO pre-processing args
+  global_batch_size: 256     # will be overrided by value from RETRO preprocessed workdir
   rampup_batch_size: null # Should be a list of 3 values: [<start_batch_size>, <batch_size_increment>, <rampup_samples>]
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
   # model architecture
-  encoder_seq_length: 512
-  max_position_embeddings: ${.encoder_seq_length}
+  encoder_seq_length: 512     # will be overrided by value from RETRO preprocessed workdir
+  max_position_embeddings: ${.encoder_seq_length}     # will be overrided by value from RETRO preprocessed workdir
   num_layers: 12
   hidden_size: 768
   ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
@@ -105,22 +105,12 @@ model:
 
   tokenizer:
     library: 'megatron'
-    type: 'GPT2BPETokenizer'
-    model: null
-    vocab_file: null
-    merge_file: null 
+    type: null      # will be overrided by value from RETRO preprocessed workdir 
+    model: null     # will be overrided by value from RETRO preprocessed workdir 
+    vocab_file: null     # will be overrided by value from RETRO preprocessed workdir 
+    merge_file: null      # will be overrided by value from RETRO preprocessed workdir 
     delimiter: null # only used for tabular tokenizer
     sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
-
-  # tokenizer:
-  #   library: 'megatron'
-  #   type: 'GPTSentencePieceTokenizer'
-  #   model: /lustre/fsw/coreai_dlalgo_genai/huvu/data/retro/pretrain_data/wiki-core/tokenizer/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model
-  #   vocab_file: null
-  #   merge_file: null 
-  #   delimiter: null # only used for tabular tokenizer
-  #   sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
-
 
   # Mixed precision
   native_amp_init_scale: 4294967296 # 2 ** 32
@@ -141,9 +131,8 @@ model:
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
   get_attention_mask_from_fusion: False # When using fused softmax it will create the attention mask so we won't copy it to the pipeline stages.
 
-
   # Miscellaneous
-  seed: 1234
+  seed: 1234     # will be overrided by value from RETRO preprocessed workdir 
   resume_from_checkpoint: null # manually set the checkpoint file to load from
   use_cpu_initialization: False # Init weights on the CPU (slow for large models)
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
@@ -219,11 +208,11 @@ model:
     # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
-    data_prefix: ???
+    data_prefix: ???     # will be overrided by value from RETRO preprocessed workdir 
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
-    splits_string: 900,50,50
-    seq_length: ${model.encoder_seq_length}
+    splits_string: 900,50,50     # will be overrided by value from RETRO preprocessed workdir 
+    seq_length: ${model.encoder_seq_length}     # will be overrided by value from RETRO preprocessed workdir 
     skip_warmup: True
     num_workers: 2
     dataloader_type: single # cyclic
