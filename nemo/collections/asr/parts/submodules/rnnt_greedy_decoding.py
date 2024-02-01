@@ -647,6 +647,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
                 )
+                if allow_jit:
+                    self._decoding_computer = torch.jit.script(self._decoding_computer)
             else:
                 # previous algo: loop over frames
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
@@ -712,6 +714,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         """
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
+
+        assert self._decoding_computer is not None
+        self._decoding_computer.eval()
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
@@ -2694,6 +2699,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
                 )
+                if allow_jit:
+                    self._decoding_computer = torch.jit.script(self._decoding_computer)
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
             else:
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
@@ -2936,6 +2943,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
         assert self._decoding_computer is not None
+        self._decoding_computer.eval()
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
