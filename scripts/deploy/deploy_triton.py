@@ -260,6 +260,14 @@ def nemo_deploy(argv):
                     "Could not read the prompt tuning tables from {0}".format(args.ptuning_nemo_checkpoint)
                 )
                 return
+            
+            if args.task_ids is not None:
+                if len(ptuning_tables_files) != len(args.task_ids):
+                    LOGGER.error(
+                        "Number of task ids and prompt embedding tables have to match. "
+                        "There are {0} tables and {1} task ids.".format(len(ptuning_tables_files), len(args.task_ids))
+                    )
+                return
         else:
             LOGGER.error(
                 "File or directory {0} does not exist.".format(args.ptuning_nemo_checkpoint)
@@ -292,9 +300,14 @@ def nemo_deploy(argv):
 
     try:
         for task, prompt_embeddings_checkpoint_path in enumerate(ptuning_tables_files):
-            LOGGER.info("Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task))
+            if args.task_ids is not None:
+                task_id = args.task_ids[task]
+            else:
+                task_id = task
+
+            LOGGER.info("Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task_id))
             trt_llm_exporter.add_prompt_table(
-                task_name=str(task),
+                task_name=str(task_id),
                 prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
     except Exception as error:
