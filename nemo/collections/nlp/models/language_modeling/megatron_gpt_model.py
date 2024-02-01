@@ -365,6 +365,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 neft=self.cfg.get('neft', False),
                 neft_alpha=self.cfg.get('neft_alpha', 5.0),
                 noise_positonal_embedding=self.cfg.get('noise_positonal_embedding', False),
+                adversarial_training=self.cfg.get('adversarial_training', False),
+                adversarial_training_epsilon=self.cfg.get('adversarial_training_epsilon', 0.01),
             )
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
@@ -440,6 +442,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 neft=self.cfg.get('neft', False),
                 neft_alpha=self.cfg.get('neft_alpha', 5.0),
                 noise_positonal_embedding=self.cfg.get('noise_positonal_embedding', False),
+                adversarial_training=self.cfg.get('adversarial_training', False),
+                adversarial_training_epsilon=self.cfg.get('adversarial_training_epsilon', 0.01),
             )
         return model
 

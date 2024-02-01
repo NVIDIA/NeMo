@@ -134,6 +134,8 @@ def get_language_model(
     neft=False,
     neft_alpha=5.0,
     noise_positonal_embedding=False,
+    adversarial_training=False,
+    adversarial_training_epsilon=0.01
 ):
     """Build language model and return along with the key to save."""
 
@@ -217,6 +219,8 @@ def get_language_model(
         neft=neft,
         neft_alpha=neft_alpha,
         noise_positonal_embedding=noise_positonal_embedding,
+        adversarial_training=adversarial_training,
+        adversarial_training_epsilon=adversarial_training_epsilon
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -312,9 +316,6 @@ class Embedding(MegatronModule):
         self.neft = neft
         self.neft_alpha = neft_alpha
         self.noise_positonal_embedding = noise_positonal_embedding
-
-        print(f"Embedding noise: {self.embedding_noise}")
-        print(f"NEFT: {self.neft}")
 
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
