@@ -137,7 +137,7 @@ class TestBatchedHyps:
         labels = torch.tensor([5, 1], device=device)
         # check there are no blocking operations
         with avoid_sync_operations(device=device):
-            hyps.add_results_masked_(
+            hyps.add_results_masked_no_checks_(
                 active_mask=active_mask, labels=labels, time_indices=time_indices, scores=scores,
             )
         assert hyps.current_lengths.tolist() == [1, 0]
