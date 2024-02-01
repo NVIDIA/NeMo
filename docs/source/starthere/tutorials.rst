@@ -48,10 +48,10 @@ To run a tutorial:
      - `Offline ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR.ipynb>`_
    * - ASR
      - Online ASR inference with Microphone (Cache-Aware Streaming)
-     - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo_Cache_Aware_Streaming.ipynb>`_
+     - `Online ASR Microphone Cache Aware Streaming <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo_Cache_Aware_Streaming.ipynb>`_
    * - ASR
      - Online ASR inference with Microphone (Buffered Streaming)
-     - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo_Buffered_Streaming.ipynb>`_
+     - `Online ASR Microphone Buffered Streaming <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo_Buffered_Streaming.ipynb>`_
    * - ASR
      - Fine-tuning CTC Models on New Languages
      - `ASR CTC Language Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_
