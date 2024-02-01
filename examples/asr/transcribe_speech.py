@@ -167,7 +167,7 @@ class TranscriptionConfig:
     model_change: ModelChangeConfig = ModelChangeConfig()
 
     # Config for word / character error rate calculation
-    calculate_wer: bool = True
+    calculate_wer: bool = False
     clean_groundtruth_text: bool = False
     langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
     use_cer: bool = False
