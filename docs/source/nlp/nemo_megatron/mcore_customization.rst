@@ -105,7 +105,7 @@ ModuleSpec is the basic configurable building block of the spec system which all
                 module class itself e.g. `ModuleClass` (which is already imported
                 using `from module.location import ModuleClass`).
             params (dict): A dictionary of params that need to be passed while init.
-        submodules (type): A dataclass that contains the names of submodules that comprise the module (specified by this `ModuleSpec`) and their corresponding `ModuleSpec`s.
+            submodules (type): A dataclass that contains the names of submodules that comprise the module (specified by this `ModuleSpec`) and their corresponding `ModuleSpec`s.
 
         """
 
@@ -113,8 +113,30 @@ ModuleSpec is the basic configurable building block of the spec system which all
         params: dict = field(default_factory=lambda: {})
         submodules: type = None
 
-Remember how we create the mcore GPTModel layer spec from the spec MR:
+Remember how we create the mcore GPTModel layer spec from the spec MR: ::
 
+    gpt_layer_with_transformer_engine_spec = ModuleSpec(
+        module=TransformerLayer,
+        submodules=TransformerLayerSubmodules(
+            self_attention=ModuleSpec(
+                module=SelfAttention,
+                params={"attn_mask_type": AttnMaskType.causal},
+                submodules=SelfAttentionSubmodules(
+                    linear_qkv=TELayerNormColumnParallelLinear,
+                    dot_product_attention=TEDotProductAttention,
+                    linear_proj=TERowParallelLinear,
+                ),
+            ),
+            self_attn_bda=get_bias_dropout_add,
+            mlp=ModuleSpec(
+                module=MLP,
+                submodules=MLPSubmodules(
+                    linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear,
+                ),
+            ),
+            mlp_bda=get_bias_dropout_add,
+        ),
+    )
 
 We are
 
@@ -122,6 +144,7 @@ We are
 - initializing the ``TransformerLayerSubmodules`` with desired submodules overwriting the IdentityOp/IdentityFuncOps (whatever not specified here will remain IdentityOp/IdentifyFuncOp)
 
 Notice that the ``self_attention`` contains submodules itself, so just like layer spec we create a ``ModuleSpec``.
+
 Next step, build the modules.
 
 
@@ -138,9 +161,7 @@ Let’s take layer initialization as an example. GPTModel passes the layer spec 
 
 Customization Examples
 ^^^^^^^^^^^^^^^^^^^^^^
-We can customize model initialization and also model forward.
-
-
+Using Mcore Spec, we can customize model initialization and model forward.
 
 Let’s take Falcon as an example to see how to create its layer using mcore GPTModel with spec. There are several differences between a Falcon transformer layer and a conventional GPTModel transformer layer. Customizing these Falcon model variants would be difficult to achieve without mcore spec.
 
@@ -149,12 +170,10 @@ Let’s take Falcon as an example to see how to create its layer using mcore GPT
 - Some Falcon variants have one ``input_layernorm`` before attn and another ``mlp_layernorm`` before MLP
 - Some Falcon variants have extra ``post_self_attn_layernorm`` submodule
   
-We need customized at two levels: model initialization and model forward.
-
 
 Customize model initialization
 """"""""""""""""""""""""""""""
-Below shows how modules can be customized at initialization using spec:
+Here we show how modules can be customized at initialization using spec:
 
 .. image:: customization_module.png
   :alt: Customize model initialization
@@ -189,7 +208,7 @@ For the Falcon example, we instantiate the ``TransformerLayerSubmodule`` data cl
 Customize model forward
 """""""""""""""""""""""
 
-Here is a diagram showing the default GPTModel v.s. Customized forward (Falcon). 
+Here is a diagram showing the conventional Mcore GPTModel forward v.s. Customized forward (Falcon). 
 
 .. image:: customization_forward.png
   :alt: Customize model initialization
@@ -201,6 +220,7 @@ To achieve that, we create ``FalconTransformerLayer``, subclass it from mcore ``
 - forward to reconfigure the computation graph
 
 It is necessary to subclass your own transformer layer from mcore ``TransformerLayer`` class.
+
 Full implementation from NeMo repo: ::
 
     class FalconTransformerLayer(TransformerLayer):
