@@ -1,7 +1,7 @@
 trainer:
   devices: 1
   num_nodes: 1
-  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  precision: bf16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   accelerator: gpu
 
 model_file: ???
@@ -15,4 +15,4 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0
 sampling_method: beam-search
-beam_size: 5
+beam_size: 5 
