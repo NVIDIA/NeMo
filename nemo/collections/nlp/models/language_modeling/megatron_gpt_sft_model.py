@@ -327,8 +327,10 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
-        batch, batch_idx, dataloader_idx = next(dataloader_iter)
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
+        # return only batch as the (batch, batch_idx, dataloader_idx) are returned in the
+        # inference step
+        batch = next(dataloader_iter)
 
         log_token_counts = self.cfg.get('log_token_counts', False)
         if log_token_counts:
