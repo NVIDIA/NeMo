@@ -47,7 +47,11 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input-name-or-path", type=str, default=None, required=True, help="Path to Huggingface Mistral-7b checkpoints",
+        "--input-name-or-path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to Huggingface Mistral-7b checkpoints",
     )
     parser.add_argument("--output-path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--precision", type=str, default="32", help="Model precision")

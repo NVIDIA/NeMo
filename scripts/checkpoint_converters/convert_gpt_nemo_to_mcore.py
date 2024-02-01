@@ -55,7 +55,11 @@ def get_args():
         help="Path to extracted, TP1 PP1 NeMo GPT checkpoint.",
     )
     parser.add_argument(
-        "--output-path", type=str, default=None, required=True, help="Path to output mcore weights file (ends in .nemo)."
+        "--output-path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to output mcore weights file (ends in .nemo).",
     )
     parser.add_argument(
         "--cpu-only",

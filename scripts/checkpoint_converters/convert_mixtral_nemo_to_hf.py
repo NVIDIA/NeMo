@@ -36,7 +36,9 @@ from nemo.utils import logging
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--input-name-or-path", type=str, default=None, required=True, help="Path to NeMo Mixtral checkpoint")
+    parser.add_argument(
+        "--input-name-or-path", type=str, default=None, required=True, help="Path to NeMo Mixtral checkpoint"
+    )
     parser.add_argument("--output-path", type=str, default=None, required=True, help="Path to output HF checkpoint.")
     parser.add_argument(
         '--hf-model-name', type=str, default="mistralai/Mixtral-8x7B-v0.1", help="Name of HF checkpoint"
