@@ -68,7 +68,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
         to prediction network (with maximum possible batch size),
         which makes it especially useful for scaling the prediction network.
-        As a result, all current hypotheses have the same lengths (except those whose end is found)
+        During decoding all active hypotheses ("texts") have the same lengths.
 
         Args:
             x: output from the encoder
