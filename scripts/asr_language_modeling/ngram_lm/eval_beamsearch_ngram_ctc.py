@@ -104,11 +104,11 @@ class EvalBeamSearchNGramConfig:
 
     # Beam Search hyperparameters
     ctc_decoding: CTCDecodingConfig = field(default_factory=lambda: CTCDecodingConfig(
-        strategy="beam",
+        strategy="beam", # gready flashlight
         beam = ctc_beam_decoding.BeamCTCInferConfigList(
             beam_size=[4],
             beam_alpha=[0.5], # LM weight
-            beam_beta=[0.5], # AM weight
+            beam_beta=[0.5], # length weight
             return_best_hypothesis = False,
             flashlight_cfg=ctc_beam_decoding.FlashlightConfig(lexicon_path = None)
             ),
@@ -129,8 +129,8 @@ def beam_search_eval(
     target_transcripts: List[str],
     preds_output_file: str = None,
     lm_path: str = None,
-    beam_alpha: float = 0.5, # LM weight
-    beam_beta: float = 0.5, # AM weight
+    beam_alpha: float = 1.0,
+    beam_beta: float = 0.0,
     beam_size: int = 4,
     beam_batch_size: int = 1,
     progress_bar: bool = True,
@@ -269,7 +269,7 @@ def beam_search_eval(
 
 @hydra_runner(config_path=None, config_name='EvalBeamSearchNGramConfig', schema=EvalBeamSearchNGramConfig)
 def main(cfg: EvalBeamSearchNGramConfig):
-    assert cfg.beam_batch_size==1 # TODO fix bug for Flashlight beansearch with beam_batch_size>1
+    assert cfg.beam_batch_size==1 # TODO fix bug for Flashlight beamsearch with beam_batch_size>1 and remove this assert
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)  # type: EvalBeamSearchNGramConfig

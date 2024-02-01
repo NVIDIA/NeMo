@@ -299,13 +299,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
                 # If computing timestamps
                 if self.compute_timestamps is True:
-                    # greedy decoding, can get high-level confidence scores
-                    if return_hypotheses and (self.preserve_word_confidence or self.preserve_token_confidence):
-                        hypotheses = self.compute_confidence(hypotheses)
-                    else:
-                        # remove unused token_repetitions from Hypothesis.text
-                        for hyp in hypotheses:
-                            hyp.text = hyp.text[:2]
                     timestamp_type = self.cfg.get('ctc_timestamp_type', 'all')
                     for hyp_idx in range(len(decoded_hyps)):
                         decoded_hyps[hyp_idx] = self.compute_ctc_timestamps(decoded_hyps[hyp_idx], timestamp_type)
@@ -1130,7 +1123,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
 @dataclass
 class CTCDecodingConfig:
-    strategy: str = "greedy"  # greedy or beam
+    strategy: str = "greedy"  # greedy or beam = flashlight
 
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None

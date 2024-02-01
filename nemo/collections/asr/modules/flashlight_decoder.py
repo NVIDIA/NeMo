@@ -19,6 +19,7 @@ from typing import Iterable, List, Optional, Tuple, Union
 import numpy as np
 import torch
 
+from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
@@ -74,6 +75,15 @@ class _TokensWrapper:
             return self.tokenizer.text_to_tokens(text)
         else:
             return list(text)
+
+
+def create_lexicon(tokenizer):
+    lexicon = {'<unk>': []}
+    for id in range(tokenizer.vocab_size):
+        word = chr(id + DEFAULT_TOKEN_OFFSET)
+        token = tokenizer.ids_to_tokens([id])
+        lexicon[word] = [token]
+    return lexicon
 
 
 class FlashLightKenLMBeamSearchDecoder(NeuralModule):
@@ -133,9 +143,11 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         self.vocab_size = self.tokenizer_wrapper.vocab_size
         self.blank = self.tokenizer_wrapper.blank
         self.silence = self.tokenizer_wrapper.unk_id
-
         if lexicon_path is not None:
-            self.lexicon = load_words(lexicon_path)
+            if lexicon_path == "DEFAULT_TOKEN_OFFSET":
+                self.lexicon = create_lexicon(tokenizer)
+            else:
+                self.lexicon = load_words(lexicon_path)
             self.word_dict = create_word_dict(self.lexicon)
             self.unk_word = self.word_dict.get_index("<unk>")
 
