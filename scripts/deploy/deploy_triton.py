@@ -48,6 +48,14 @@ def get_args(argv):
         help="Source .nemo file for prompt embeddings table"
     )
     parser.add_argument(
+        '-ti',
+        '--task_ids',
+        nargs='+',
+        type=str,
+        required=False,
+        help='Unique task names for the prompt embedding.'
+    )
+    parser.add_argument(
         "-mt",
         "--model_type",
         type=str,
@@ -231,7 +239,6 @@ def nemo_deploy(argv):
         )
         return
 
-
     ptuning_tables_files = []
     if not args.ptuning_nemo_checkpoint is None:
         if args.max_prompt_embedding_table_size is None:
@@ -245,12 +252,22 @@ def nemo_deploy(argv):
             if ptuning_nemo_checkpoint_path.is_file():
                 ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
             elif ptuning_nemo_checkpoint_path.is_dir():
-                ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
+                for file in os.listdir(ptuning_nemo_checkpoint_path):
+                    if file.endswith(".nemo"):
+                        ptuning_tables_files.append(str(ptuning_nemo_checkpoint_path / file))
             else:
                 LOGGER.error(
                     "Could not read the prompt tuning tables from {0}".format(args.ptuning_nemo_checkpoint)
                 )
                 return
+            
+            if args.task_ids is not None:
+                if len(ptuning_tables_files) != len(args.task_ids):
+                    LOGGER.error(
+                        "Number of task ids and prompt embedding tables have to match. "
+                        "There are {0} tables and {1} task ids.".format(len(ptuning_tables_files), len(args.task_ids))
+                    )
+                    return
         else:
             LOGGER.error(
                 "File or directory {0} does not exist.".format(args.ptuning_nemo_checkpoint)
@@ -283,9 +300,14 @@ def nemo_deploy(argv):
 
     try:
         for task, prompt_embeddings_checkpoint_path in enumerate(ptuning_tables_files):
-            LOGGER.info("Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task))
+            if args.task_ids is not None:
+                task_id = args.task_ids[task]
+            else:
+                task_id = task
+
+            LOGGER.info("Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task_id))
             trt_llm_exporter.add_prompt_table(
-                task_name=str(task),
+                task_name=str(task_id),
                 prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
     except Exception as error:
