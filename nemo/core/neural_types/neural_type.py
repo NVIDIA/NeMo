@@ -51,8 +51,16 @@ class NeuralType:
         else:
             return f"axes: None; elements_type: {self.elements_type.__class__.__name__}"
 
+    def __init__(self, axes: Optional[Any] = None, elements_type: Optional[Any] = None, optional: bool = False):
+        if not torch.jit.is_scripting():
+            self._init_internal(axes=axes, elements_type=elements_type, optional=optional)
+        if elements_type is not None:
+            assert isinstance(elements_type, ElementType)
+
     @torch.jit.unused
-    def __init__(self, axes: Optional[Any] = None, elements_type: Optional[ElementType] = None, optional=False):
+    def _init_internal(
+        self, axes: Optional[Any] = None, elements_type: Optional[ElementType] = None, optional: bool = False
+    ):
         if elements_type is None:
             elements_type = VoidType()
         if not isinstance(elements_type, ElementType):
