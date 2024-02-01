@@ -71,8 +71,6 @@ class RETRODataset(Dataset):
         self.retro_config = retro_config
         self.mcore_retro_dataset = mcore_retro_dataset
         self.number_samples_with_neighbors = number_samples_with_neighbors  # quick fix for problems of mismatch in processed/indexed retro data, # of GPT samples is different from # of samples with neighbors retrieved
-
-        # DEBUGGING
         self.tokenizer = tokenizer
 
         return
@@ -120,25 +118,6 @@ class RETRODataset(Dataset):
             self.eod_mask_loss)
         neighbor_attention_mask = torch.zeros([1, 1])  # just a dummy values, since the batch neighbor_attention_mask will be set to None in megatron_retro_model.py following Lawrence's implementation
 
-        # # DEBUGGING
-        # if torch.distributed.get_rank() == 0:
-        #     print("retro_dataset.__getitem__() method:")
-        #     print("GPT sample: " + str(self.tokenizer.ids_to_text(tokens)).replace("\n", ""))
-        #     one_gpt_sample = tokens
-        #     one_gpt_neighbors = neighbor_tokens
-        #     one_gpt_neighbors = one_gpt_neighbors.reshape(-1, self.retro_config.retro_num_neighbors, self.retro_config.retro_retrieved_length)
-        #     [l, k, r] = one_gpt_neighbors.shape # check here
-        #     print("[l, k, r]: " + str([l, k, r]))
-        #     print("------------")
-        #     for i in range(l): # iterating through the chunks within one GPT sample
-        #         one_gpt_sample_chunk = one_gpt_sample[i*64:i*64+64]
-        #         one_gpt_neighbors_chunks = one_gpt_neighbors[i]
-        #         print("GPT sample chunk: " + str(self.tokenizer.ids_to_text(one_gpt_sample_chunk)).replace("\n", "") + "\n")
-        #         for j in range(k):
-        #             print("GPT sample neighbor chunk: " + str(self.tokenizer.ids_to_text(one_gpt_neighbors_chunks[j][:64])).replace("\n", "") + "\n")
-        #         print("------------")
-        #     print("========================================================== \n\n\n")
-        #     # exit()
 
 
 
@@ -168,19 +147,6 @@ def build_train_valid_test_datasets(
         valid=(valid_ds, train_valid_test_num_samples[1]),
         test=(test_ds, train_valid_test_num_samples[2]),
     )
-
-    # DEBUGGING
-    # if torch.distributed.get_rank() == 0:
-    #     print("======================")
-    #     print("Note that number of GPT samples is different from number of samples having neighbors retrieved.")
-    #     print("gpt_datasets: ")
-    #     print(gpt_datasets)
-    #     print("train_ds: {}".format(str(len(train_ds)) if train_ds else None))
-    #     print("valid_ds: {}".format(str(len(valid_ds)) if valid_ds else None))
-    #     print("test_ds: {}".format(str(len(test_ds)) if test_ds else None))
-    #     print("train_valid_test_num_samples: " + str(train_valid_test_num_samples))
-    #     print("======================")
-    #     print(stop_here)
 
     retro_train_ds, retro_valid_ds, retro_test_ds = get_retro_datasets(
         config=retro_config,

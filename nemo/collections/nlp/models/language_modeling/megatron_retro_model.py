@@ -151,10 +151,6 @@ class MegatronRetroModel(MegatronGPTModel):
             cfg.data.seq_length = retro_preprocess_config.retro_gpt_seq_length
             cfg.max_position_embeddings = retro_preprocess_config.retro_gpt_seq_length           
             cfg.data.splits_string = retro_preprocess_config.retro_gpt_split
-            # cfg.data.data_cache_path = retro_preprocess_config.retro_gpt_data_cache_path        # no corresponding arg in Nemo
-            # cfg.data.eval_interval = retro_preprocess_config.retro_gpt_eval_interval            # no corresponding arg in Nemo
-            # cfg.data.eval_iters = retro_preprocess_config.retro_gpt_eval_iters                  # no corresponding arg in Nemo, but still add
-            # cfg.data.train_samples = retro_preprocess_config.retro_gpt_train_samples            # no corresponding arg in Nemo, but still add
             cfg.tokenizer.model = retro_preprocess_config.retro_gpt_tokenizer_model
             cfg.tokenizer.type = retro_preprocess_config.retro_gpt_tokenizer_type
             cfg.tokenizer.vocab_file = retro_preprocess_config.retro_gpt_vocab_file
@@ -424,11 +420,6 @@ class MegatronRetroModel(MegatronGPTModel):
             self.cfg.retro_valid_samples_with_neighbors,
             0,
         ]
-
-        # DEBUGGING
-        # compile helpers for megatron
-        from megatron.core.datasets.utils import compile_helpers
-        compile_helpers()
 
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
             train_valid_test_num_samples[

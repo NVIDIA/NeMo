@@ -201,7 +201,6 @@ def get_nmt_tokenizer(
         return RegExTokenizer().load_tokenizer(regex_file=tokenizer_model, vocab_file=vocab_file)
     elif library == 'megatron':
 
-        # DEBUGGING
         if model_name == 'GPTSentencePieceTokenizer':
             print("tokenizer_model: ")
             print(tokenizer_model)
