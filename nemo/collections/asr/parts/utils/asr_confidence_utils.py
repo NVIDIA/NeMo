@@ -325,12 +325,12 @@ class ConfidenceMethodMixin(ABC):
 
         self._confidence_measure = measure
 
-    @torch.jit.ignore
-    def _get_confidence(self, x: torch.Tensor):
+    def _get_confidence(self, x: torch.Tensor) -> list[float]:
+        """Compute confidence, return list of confidence items for each item in batch"""
         return self._get_confidence_tensor(x).tolist()
 
-    @torch.jit.ignore
-    def _get_confidence_tensor(self, x: torch.Tensor):
+    def _get_confidence_tensor(self, x: torch.Tensor) -> torch.Tensor:
+        """Compute confidence, return tensor"""
         return self._confidence_measure(torch.nan_to_num(x))
 
 

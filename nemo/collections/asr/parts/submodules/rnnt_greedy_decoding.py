@@ -34,7 +34,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.submodules.rnnt_greedy_computer import GreedyBatchedRNNTLoopLabelsComputer
+from nemo.collections.asr.parts.submodules.rnnt_loop_labels_computer import GreedyBatchedRNNTLoopLabelsComputer
+from nemo.collections.asr.parts.submodules.tdt_loop_labels_computer import GreedyBatchedTDTLoopLabelsComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.collections.common.parts.rnn import label_collate
@@ -646,13 +647,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
                 )
-                if self.allow_jit and not self.preserve_frame_confidence:
-                    # try:
-                    self._decoding_computer = torch.jit.script(self._decoding_computer)
-                    self._decoding_computer.eval()
-                    #     logging.info("Using greedy decoding with torch.jit.script")
-                    # except (OSError, RuntimeError):
-                    #     logging.warning("torch.jit.script failed to compile, using greedy decoding without jit")
             else:
                 # previous algo: loop over frames
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
@@ -719,12 +713,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
-        assert self._decoding_computer is not None
-
-        self._decoding_computer.eval().to(x.device)
-        batched_hyps, alignments, last_decoder_state = self._decoding_computer.forward_const_batch_size(
-            x=x, out_len=out_len
-        )
+        batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
@@ -2675,6 +2664,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        loop_labels: bool = True,
         allow_jit: bool = True,
     ):
         super().__init__(
@@ -2691,8 +2681,22 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
+        self._decoding_computer = None
         if self.decoder.blank_as_pad:
-            self._greedy_decode = self._greedy_decode_blank_as_pad
+            if loop_labels:
+                self._decoding_computer = GreedyBatchedTDTLoopLabelsComputer(
+                    decoder=self.decoder,
+                    joint=self.joint,
+                    blank_index=self._blank_index,
+                    durations=self.durations,
+                    max_symbols_per_step=self.max_symbols,
+                    preserve_alignments=preserve_alignments,
+                    preserve_frame_confidence=preserve_frame_confidence,
+                    confidence_method_cfg=confidence_method_cfg,
+                )
+                self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
+            else:
+                self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
         else:
             self._greedy_decode = self._greedy_decode_masked
 
@@ -2738,7 +2742,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
 
         return (packed_result,)
 
-    def _greedy_decode_blank_as_pad(
+    def _greedy_decode_blank_as_pad_loop_frames(
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
@@ -2914,3 +2918,27 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
         raise NotImplementedError("masked greedy-batched decode is not supported for TDT models.")
+
+    @torch.inference_mode()
+    def _greedy_decode_blank_as_pad_loop_labels(
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        device: torch.device,
+        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
+    ) -> list[rnnt_utils.Hypothesis]:
+        """
+        Optimized batched greedy decoding.
+        The main idea: search for next labels for the whole batch (evaluating Joint)
+        and thus always evaluate prediction network with maximum possible batch size
+        """
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not implemented")
+
+        assert self._decoding_computer is not None
+
+        batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
+        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
+        for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
+            hyp.dec_state = state
+        return hyps

@@ -376,25 +376,18 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         return state_list
 
-    def batch_replace_states(
-        self,
-        src_states: Optional[List[torch.Tensor]],
-        src_mask_or_indices: torch.Tensor,
-        dst_states: Optional[List[torch.Tensor]],
-        dst_mask_or_indices: torch.Tensor,
-    ):
-        if src_states is None or dst_states is None:
-            # NB: it is important for torch.jit that the state has an optional type consistent with other code
-            # So, we have to check this and always annotate with Optional[List[torch.Tensor]]
-            return  # nothing to replace
-        dst_states[0][dst_mask_or_indices] = src_states[0][src_mask_or_indices]
-
     def batch_replace_states_mask(
         self, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
     ):
+        """Replace states in dst_states with states from src_states using the mask"""
+        # same as `dst_states[0][mask] = src_states[0][mask]`, but non-blocking
         torch.where(mask.unsqueeze(-1), src_states[0], dst_states[0], out=dst_states[0])
 
     def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+        """
+        Split states into a list of states.
+        Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
+        """
         return [sub_state.split(1, dim=0) for sub_state in batch_states]
 
     def batch_copy_states(
@@ -825,13 +818,14 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     def initialize_state(self, y: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Initialize the state of the RNN layers, with same dtype and device as input `y`.
+        Initialize the state of the LSTM layers, with same dtype and device as input `y`.
+        LSTM accepts a tuple of 2 tensors as a state.
 
         Args:
             y: A torch.Tensor whose device the generated states will be placed on.
 
         Returns:
-            List of torch.Tensor, each of shape [L, B, H], where
+            Tuple of 2 tensors, each of shape [L, B, H], where
                 L = Number of RNN layers
                 B = Batch size
                 H = Hidden size of RNN.
@@ -1063,26 +1057,15 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         return state_list
 
-    def batch_replace_states(
-        self,
-        src_states: Tuple[torch.Tensor, torch.Tensor],
-        src_mask_or_indices: torch.Tensor,
-        dst_states: Tuple[torch.Tensor, torch.Tensor],
-        dst_mask_or_indices: torch.Tensor,
-    ):
-        # TODO: why do we need to cast?
-        #  with bfloat16 the initialize_state returns bfloat16, but lstm returns float16
-        dst_states[0][:, dst_mask_or_indices] = src_states[0][:, src_mask_or_indices].to(dst_states[0].dtype)
-        dst_states[1][:, dst_mask_or_indices] = src_states[1][:, src_mask_or_indices].to(dst_states[1].dtype)
-
     def batch_replace_states_mask(
         self,
         src_states: Tuple[torch.Tensor, torch.Tensor],
         dst_states: Tuple[torch.Tensor, torch.Tensor],
         mask: torch.Tensor,
     ):
-        # TODO: why do we need to cast?
-        #  with bfloat16 the initialize_state returns bfloat16, but lstm returns float16
+        """Replace states in dst_states with states from src_states using the mask"""
+        # same as `dst_states[i][mask] = src_states[i][mask]`, but non-blocking
+        # we need to cast, since LSTM is calculated in fp16 even if autocast to bfloat16 is enabled
         dtype = dst_states[0].dtype
         torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), dst_states[0], out=dst_states[0])
         torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), dst_states[1], out=dst_states[1])
@@ -1090,6 +1073,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
     def batch_split_states(
         self, batch_states: Tuple[torch.Tensor, torch.Tensor]
     ) -> list[Tuple[torch.Tensor, torch.Tensor]]:
+        """
+        Split states into a list of states.
+        Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
+        """
         return list(zip(batch_states[0].split(1, dim=1), batch_states[1].split(1, dim=1)))
 
     def batch_copy_states(

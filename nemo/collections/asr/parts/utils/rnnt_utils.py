@@ -284,7 +284,6 @@ class BatchedHyps:
             time_indices: tensor of time index for each label
             scores: label scores
         """
-        #
         if active_indices.shape[0] == 0:
             return  # nothing to add
         # if needed - increase storage
@@ -327,6 +326,15 @@ class BatchedHyps:
     def add_results_masked_(
         self, active_mask: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
     ):
+        """
+        Add results (inplace) from a decoding step to the batched hypotheses.
+        We assume that all tensors have the same first dimension, and labels are non-blanks.
+        Args:
+            active_mask: tensor with mask for active hypotheses (of batch_size)
+            labels: non-blank labels to add
+            time_indices: tensor of time index for each label
+            scores: label scores
+        """
         if (self.current_lengths + active_mask).max() >= self._max_length:
             self._allocate_more()
         self.add_results_masked_no_checks_(
@@ -348,13 +356,14 @@ class BatchedHyps:
             scores: label scores
         """
         # accumulate scores
-        # self.scores[active_mask] += scores[active_mask]
+        # same as self.scores[active_mask] += scores[active_mask], but non-blocking
         torch.where(active_mask, self.scores + scores, self.scores, out=self.scores)
 
         # store transcript and timesteps
         self.transcript[self._batch_indices, self.current_lengths] = labels
         self.timesteps[self._batch_indices, self.current_lengths] = time_indices
         # store last observed timestep + number of observation for the current timestep
+        # if last_timestep == time_indices, increase; else set to 1
         torch.where(
             torch.logical_and(active_mask, self.last_timestep == time_indices),
             self.last_timestep_lasts + 1,
@@ -367,7 +376,7 @@ class BatchedHyps:
             self.last_timestep_lasts,
             out=self.last_timestep_lasts,
         )
-        # self.last_timestep[active_mask] = time_indices[active_mask]
+        # same as: self.last_timestep[active_mask] = time_indices[active_mask], but non-blocking
         torch.where(active_mask, time_indices, self.last_timestep, out=self.last_timestep)
         # increase lengths
         self.current_lengths += active_mask
@@ -488,6 +497,16 @@ class BatchedAlignments:
         labels: Optional[torch.Tensor] = None,
         confidence: Optional[torch.Tensor] = None,
     ):
+        """
+        Add results (inplace) from a decoding step to the batched hypotheses.
+        All tensors must use the same fixed batch dimension.
+        Args:
+            active_mask: tensor with indices of active hypotheses (indices should be within the original batch_size)
+            time_indices: tensor of time index for each label
+            logits: tensor with raw network outputs
+            labels: tensor with decoded labels (can contain blank)
+            confidence: optional tensor with confidence for each item in batch
+        """
         if (self.current_lengths + active_mask).max() >= self._max_length:
             self._allocate_more()
         self.add_results_masked_no_checks_(
@@ -505,14 +524,15 @@ class BatchedAlignments:
         """
         Add results (inplace) from a decoding step to the batched hypotheses.
         All tensors must use the same fixed batch dimension.
+        Useful if all the memory is pre-allocated, especially with cuda graphs
+        (otherwise prefer a more safe `add_results_masked_`)
         Args:
             active_mask: tensor with indices of active hypotheses (indices should be within the original batch_size)
+            time_indices: tensor of time index for each label
             logits: tensor with raw network outputs
             labels: tensor with decoded labels (can contain blank)
-            time_indices: tensor of time index for each label
             confidence: optional tensor with confidence for each item in batch
         """
-        # we assume that all tensors have the same first dimension = batch_size
         # store timesteps - same for alignments / confidence
         self.timesteps[self._batch_indices, self.current_lengths] = time_indices
 
