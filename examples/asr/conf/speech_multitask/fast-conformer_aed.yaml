@@ -32,7 +32,7 @@ model:
 
   train_ds:
     use_lhotse: true
-    tarred_audio_filepaths: ???
+    tarred_audio_filepaths: null
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
     shuffle: true
@@ -43,7 +43,7 @@ model:
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/common/data/lhotse/dataloader.py#L36
     batch_size: None
     batch_duration: 360
-    quadratic_duration: 20
+    quadratic_duration: 15
     use_bucketing: True
     num_buckets: 20
     bucket_buffer_size: 20000
