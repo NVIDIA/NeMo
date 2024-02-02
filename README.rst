@@ -38,6 +38,22 @@
 **NVIDIA NeMo**
 ===============
 
+Latest News
+-----------
+
+- 2023/12/06 `New NVIDIA NeMo Framework Features and NVIDIA H200 <https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/>`_
+
+.. image:: https://github.com/sbhavani/TransformerEngine/blob/main/docs/examples/H200-NeMo-performance.png
+  :target: https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility
+  :alt: H200-NeMo-performance
+  :width: 600
+
+NeMo Framework has been updated with state-of-the-art features,
+such as FSDP, Mixture-of-Experts, and RLHF with TensorRT-LLM to provide speedups up to 4.2x for Llama-2 pre-training on H200.
+**All of these features will be available in an upcoming release.**
+
+
+
 Introduction
 ------------
 
@@ -85,7 +101,7 @@ Key Features
             * Hybrid Transducer/CTC
             * NeMo Original `Multi-blank Transducers <https://arxiv.org/abs/2211.03541>`_ and `Token-and-Duration Transducers (TDT) <https://arxiv.org/abs/2304.06795>`_
         * Streaming/Buffered ASR (CTC/Transducer) - `Chunked Inference Examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_chunked_inference>`_
-        * `Cache-aware Streaming Conformer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#cache-aware-streaming-conformer>`_ with multiple lookaheads.
+        * `Cache-aware Streaming Conformer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#cache-aware-streaming-conformer>`_ with multiple lookaheads (including microphone streaming `tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/Online_ASR_Microphone_Demo_Cache_Aware_Streaming.ipynb>`_).
         * Beam Search decoding
         * `Language Modelling for ASR (CTC and RNNT) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html>`_: N-gram LM in fusion with Beam Search decoding, Neural Rescoring with Transformer
         * `Support of long audios for Conformer with memory efficient local attention <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.html#inference-on-long-audio>`_
@@ -108,7 +124,7 @@ Key Features
     * `GLUE benchmark <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/glue_benchmark.html>`_
     * `Information retrieval <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/information_retrieval.html>`_
     * `Entity Linking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/entity_linking.html>`_
-    * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/sgd_qa.html>`_
+    * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/dialogue.html>`_
     * `Prompt Learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/nemo_megatron/prompt_learning.html>`_
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
     * `Synthetic Tabular Data Generation <https://developer.nvidia.com/blog/generating-synthetic-data-with-transformers-a-solution-for-enterprise-data-challenges/>`_
@@ -256,6 +272,37 @@ To install NeMo on Mac with Apple M-Series GPU:
     # clone the repo and install in development mode
     git clone https://github.com/NVIDIA/NeMo
     cd NeMo
+    pip install 'nemo_toolkit[all]'
+
+    # Note that only the ASR toolkit is guaranteed to work on MacBook - so for MacBook use pip install 'nemo_toolkit[asr]'
+
+Windows Computers
+~~~~~~~~~~~~~~~~~
+
+One of the options is using Windows Subsystem for Linux (WSL).
+
+To install WSL:
+
+- In PowerShell, run the following code:
+
+.. code-block:: shell
+
+    wsl --install
+    # [note] If you run wsl --install and see the WSL help text, it means WSL is already installed.
+
+Learn more about installing WSL at `Microsoft's official documentation <https://learn.microsoft.com/en-us/windows/wsl/install>`_.
+
+After Installing your Linux distribution with WSL:
+  - **Option 1:** Open the distribution (Ubuntu by default) from the Start menu and follow the instructions.
+  - **Option 2:** Launch the Terminal application. Download it from `Microsoft's Windows Terminal page <https://learn.microsoft.com/en-us/windows/terminal>`_ if not installed.
+
+Next, follow the instructions for Linux systems, as provided above. For example:
+
+.. code-block:: bash
+
+    apt-get update && apt-get install -y libsndfile1 ffmpeg
+    git clone https://github.com/NVIDIA/NeMo
+    cd NeMo
     ./reinstall.sh
 
 RNNT
@@ -279,8 +326,8 @@ To install Apex, run
 
     git clone https://github.com/NVIDIA/apex.git
     cd apex
-    git checkout 52e18c894223800cb611682dce27d88050edf1de
-    pip install install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
+    git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227
+    pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Apex or any other dependencies.
 
@@ -319,7 +366,7 @@ Transformer Engine requires PyTorch to be built with CUDA 11.8.
 
 Flash Attention
 ~~~~~~~~~~~~~~~~~~~~
-Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models, please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_. If you want to use Flash Attention with attention bias (introduced from position encoding, e.g. Alibi), please also install triton pinned version following the `implementation <https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3>`_. 
+Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models, please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_. If you want to use Flash Attention with attention bias (introduced from position encoding, e.g. Alibi), please also install triton pinned version following the `implementation <https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3>`_.
 
 .. code-block:: bash
 
@@ -340,13 +387,13 @@ NeMo Text Processing, specifically (Inverse) Text Normalization, is now a separa
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
-We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.21.0`` comes with container ``nemo:23.08``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
+We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.22.0`` comes with container ``nemo:23.10``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
 
 To use built container, please run
 
 .. code-block:: bash
 
-    docker pull nvcr.io/nvidia/nemo:23.08
+    docker pull nvcr.io/nvidia/nemo:23.10
 
 To build a nemo container with Dockerfile from a branch, please run
 
@@ -355,13 +402,13 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you choose to work with the main branch, we recommend using NVIDIA's PyTorch container version 23.08-py3 and then installing from GitHub.
+If you choose to work with the main branch, we recommend using NVIDIA's PyTorch container version 23.10-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.08-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.10-py3
 
 Examples
 --------
