@@ -239,13 +239,14 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
         state_dict = self.state_dict(prefix='', keep_vars=True)
         sharded_state_dict = make_sharded_tensors_for_checkpoint(state_dict, prefix, TENSOR_PARALLEL_LAYERS_AXIS_MAP, sharded_offsets)
 
-        prefixed_map = {
-            f'{prefix}{k}': f'{prefix}{v}'
-            for k, v in self.config.sharded_state_dict_keys_map.items()
-        }
+        # TODO: we need to add sharded_state_dict_keys_map to the config. Like in TransformerLayer submodules config
+        #prefixed_map = {
+        #    f'{prefix}{k}': f'{prefix}{v}'
+        #    for k, v in self.config.sharded_state_dict_keys_map.items()
+        #}
 
-        if prefixed_map:
-            apply_prefix_mapping(sharded_state_dict, prefixed_map)
+        #if prefixed_map:
+        #    apply_prefix_mapping(sharded_state_dict, prefixed_map)
 
         return sharded_state_dict
 
