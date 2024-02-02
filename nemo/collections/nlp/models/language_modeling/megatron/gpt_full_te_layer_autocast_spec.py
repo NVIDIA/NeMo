@@ -22,6 +22,7 @@ try:
     from megatron.core.transformer.transformer_block import TransformerBlockSubmodules
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
+    from megatron.core.dist_checkpointing.utils import apply_prefix_mapping
 
     HAVE_MEGATRON_CORE = True
 
@@ -226,21 +227,6 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
         return offset
 
     def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = ()):
-        TE_LAYERS_MAP = {
-            "self_attention.layernorm_qkv.layer_norm_weight": "input_layernorm.weight",
-            "self_attention.layernorm_qkv.layer_norm_bias": "input_layernorm.bias",
-            "layernorm_mlp.layer_norm_weight": "post_attention_layernorm.weight",
-            "layernorm_mlp.layer_norm_bias": "post_attention_layernorm.bias",
-            "layernorm_mlp.fc1_weight": "mlp.dense_h_to_4h.weight",
-            "layernorm_mlp.fc1_bias": "mlp.dense_h_to_4h.bias",
-            "layernorm_mlp.fc2_weight": "mlp.dense_4h_to_h.weight",
-            "layernorm_mlp.fc2_bias": "mlp.dense_4h_to_h.bias",
-            "self_attention.layernorm_qkv.weight": "self_attention.query_key_value.weight",
-            "self_attention.layernorm_qkv.bias": "self_attention.query_key_value.bias",
-            "self_attention.proj.weight": "self_attention.dense.weight",
-            "self_attention.proj.bias": "self_attention.dense.bias",
-        }
-
         TENSOR_PARALLEL_LAYERS_AXIS_MAP = {
             'self_attention.layernorm_qkv.weight': 0,
             'self_attention.layernorm_qkv.bias': 0,
@@ -253,11 +239,13 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
         state_dict = self.state_dict(prefix='', keep_vars=True)
         sharded_state_dict = make_sharded_tensors_for_checkpoint(state_dict, prefix, TENSOR_PARALLEL_LAYERS_AXIS_MAP, sharded_offsets)
 
-        prefixed_map = {f'{prefix}{k}': f'{prefix}{v}' for k, v in TE_LAYERS_MAP.items()}
+        prefixed_map = {
+            f'{prefix}{k}': f'{prefix}{v}'
+            for k, v in self.config.sharded_state_dict_keys_map.items()
+        }
 
-        for k, v in sharded_state_dict.items():
-            if not v.key.endswith('_extra_state'):
-                v.key = prefixed_map[v.key]
+        if prefixed_map:
+            apply_prefix_mapping(sharded_state_dict, prefixed_map)
 
         return sharded_state_dict
 
