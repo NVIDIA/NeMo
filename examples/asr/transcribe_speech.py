@@ -267,6 +267,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
         if isinstance(asr_model.decoding, MultiTaskDecoding):
+            cfg.multitask_decoding.compute_langs = cfg.compute_langs
+            cfg.multitask_decoding.preserve_alignments = cfg.preserve_alignment
             asr_model.change_decoding_strategy(cfg.multitask_decoding)
         elif cfg.decoder_type is not None:
             # TODO: Support compute_langs in CTC eventually
