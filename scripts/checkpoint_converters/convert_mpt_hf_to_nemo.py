@@ -72,7 +72,7 @@ if __name__ == '__main__':
     )
     parser.add_argument("--output-path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument(
-        "--hparams_file",
+        "--hparams-file",
         type=str,
         default=os.path.join(
             os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_gpt_config.yaml'
