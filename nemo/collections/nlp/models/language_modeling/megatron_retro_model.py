@@ -269,6 +269,9 @@ class MegatronRetroModel(MegatronGPTModel):
             batch['context_input_ids'] = context_input_ids
             batch['context_position_ids'] = context_position_ids
 
+            # slice batch along sequence dimension for context parallelism
+            batch = self.get_batch_on_this_context_parallel_rank(batch)
+
             # Model forward pass
             forward_args = {
                 'input_ids': batch['tokens'],
@@ -292,7 +295,7 @@ class MegatronRetroModel(MegatronGPTModel):
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(batch['loss_mask'], output_tensor)
+                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['loss_mask'].sum()
                     if loss_for_ub.isnan():
