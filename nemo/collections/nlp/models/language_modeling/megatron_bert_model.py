@@ -347,7 +347,7 @@ class MegatronBertModel(MegatronBaseModel):
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=self._make_data_iterator_list(dataloader_iter),
-            model=[self.model],
+            model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=False,
             seq_length=seq_length,
@@ -518,7 +518,7 @@ class MegatronBertModel(MegatronBaseModel):
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=self._make_data_iterator_list(dataloader_iter),
-            model=[self.model],
+            model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=True,
             seq_length=seq_length,
