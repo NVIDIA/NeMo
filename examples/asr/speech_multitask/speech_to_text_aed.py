@@ -17,25 +17,32 @@
 ```sh
 python speech_to_text_aed.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
-    model.train_ds.audio.tarred_audio_filepaths=<path to tar files with audio> \
-    model.train_ds.audio_manifest_filepath=<path to audio data manifest> \
+    model.train_ds.tarred_audio_filepaths=<path to tar files with audio> \
+    model.train_ds.manifest_filepath=<path to audio data manifest> \
+    model.train_ds.batch_duration=360 \
+    model.train_ds.num_buckets=30 \
+    model.train_ds.bucket_duration_bins=<optional list of precomputed float bins for bucket durations, speeds up init> \
     model.validation_ds.manifest_filepath=<path to validation manifest> \
     model.test_ds.manifest_filepath=<path to test manifest> \
-    model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
-    model.tokenizer.model_path=<path to speech tokenizer model> \
-    model.tokenizer.type=<either bpe, wpe, or yttm> \
+    model.model_defaults.asr_enc_hidden=1024 \
+    model.model_defaults.lm_enc_hidden=512 \
+    model.model_defaults.lm_dec_hidden=1024 \
+    model.tokenizer.langs.spl_tokens.dir=<path to the directory of prompt special tokens tokenizer> \
+    model.tokenizer.langs.spl_tokens.type=bpe \
+    model.tokenizer.langs.en.dir=<path to the directory of en language tokenizer (add new langs the same way)> \
+    model.tokenizer.langs.en.type=bpe \
     model.prompt_format="canary" \
     trainer.devices=-1 \
     trainer.accelerator="ddp" \
     trainer.max_steps=100000 \
     +trainer.limit_train_batches=20000 \
     trainer.val_check_interval=5000 \
-    +trainer.use_distributed_sampler=false
+    +trainer.use_distributed_sampler=false \
     model.optim.name="adamw" \
     model.optim.lr=0.001 \
     model.optim.betas=[0.9,0.999] \
     model.optim.weight_decay=0.0001 \
-    model.optim.sched.warmup_steps=2000
+    model.optim.sched.warmup_steps=2000 \
     exp_manager.create_wandb_logger=True \
     exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
     exp_manager.wandb_logger_kwargs.project="<Name of project>"

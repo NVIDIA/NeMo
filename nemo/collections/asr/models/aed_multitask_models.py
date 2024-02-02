@@ -99,12 +99,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             raise ValueError("`cfg.model_defaults` must have `asr_enc_hidden` key !")
         if "lm_enc_hidden" not in self.cfg.model_defaults:
             raise ValueError("`cfg.model_defaults` must have `lm_enc_hidden` key !")
-        if "dec_hidden" not in self.cfg.model_defaults:
-            raise ValueError("`cfg.model_defaults` must have `dec_hidden` key !")
+        if "lm_dec_hidden" not in self.cfg.model_defaults:
+            raise ValueError("`cfg.model_defaults` must have `lm_dec_hidden` key !")
 
         # Add projection layer if encoder and decoder differ in hidden size
         asr_enc_hidden_size = self.cfg.model_defaults.asr_enc_hidden
-        decoder_hidden_size = self.cfg.model_defaults.dec_hidden
+        decoder_hidden_size = self.cfg.model_defaults.lm_dec_hidden
         if asr_enc_hidden_size != decoder_hidden_size:
             self.encoder_decoder_proj = torch.nn.Linear(asr_enc_hidden_size, decoder_hidden_size)
         else:
@@ -146,7 +146,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
 
         # Initialize weights
-        std_init_range = 1 / self.cfg.model_defaults.dec_hidden ** 0.5
+        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden ** 0.5
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 

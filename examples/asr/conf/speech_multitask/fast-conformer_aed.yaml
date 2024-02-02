@@ -9,11 +9,9 @@
 
 name: "FastConformer-Transformer-MultiTask"
 
-# Initialize model encoder with pre-trained ASR FastConformer encoder for faster convergence and improved accuracy
-init_from_nemo_model:
-  model0:
-    path: ???
-    include: ["preprocessor", "encoder"]
+# Note: for larger models (1B+ params) initializing from a pretrained encoder
+#  may help (or even be required to) stabilize the training.
+init_from_nemo_model: null
 
 model:
   _target_: nemo.collections.asr.models.EncDecMultiTaskModel
@@ -28,7 +26,7 @@ model:
   model_defaults:
     asr_enc_hidden: 1024
     lm_enc_hidden: 512
-    dec_hidden: 1024
+    lm_dec_hidden: 1024
 
   train_ds:
     use_lhotse: true
@@ -180,8 +178,8 @@ model:
       num_token_types: 0
       embedding_dropout: 0.1
       learn_positional_encodings: false
-      hidden_size: ${model.model_defaults.dec_hidden}
-      inner_size: ${multiply:${model.model_defaults.dec_hidden}, 4}
+      hidden_size: ${model.model_defaults.lm_dec_hidden}
+      inner_size: ${multiply:${model.model_defaults.lm_dec_hidden}, 4}
       num_layers: 24
       num_attention_heads: 8
       ffn_dropout: 0.1
