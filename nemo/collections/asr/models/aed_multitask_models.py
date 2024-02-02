@@ -166,7 +166,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             tokenizer=self.tokenizer,
         )
 
-        # TO DO: remove this hardcoded context size for AR decoding
         self.context_len_for_AR_decoding = self.cfg.get("context_len_for_AR_decoding", 5)
 
         # Define autoregressive CE loss
