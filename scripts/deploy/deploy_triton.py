@@ -44,7 +44,9 @@ def get_args(argv):
     parser.add_argument(
         "-pnc",
         "--ptuning_nemo_checkpoint",
+        nargs='+',
         type=str,
+        required=False,
         help="Source .nemo file for prompt embeddings table"
     )
     parser.add_argument(
