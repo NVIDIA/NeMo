@@ -84,7 +84,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-    from megatron.core.datasets.gpt_dataset import GPTDataset, MockGPTDataset, GPTDatasetConfig
+    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
