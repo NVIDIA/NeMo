@@ -867,7 +867,6 @@ class MTDataPreproc:
                             output_dir=dir_name,
                             bos=True,
                             eos=True,
-                            
                             pad=True,
                             control_symbols=spt_symbols,
                             user_defined_symbols=decoder_special_tokens,
