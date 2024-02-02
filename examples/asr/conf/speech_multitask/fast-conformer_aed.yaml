@@ -1,11 +1,11 @@
-# It contains the default values for training an autoregressive FastConformer-Transformer ST model with sub-word encoding.
+# It contains the default values for training an autoregressive FastConformer-Transformer AED model with sub-word encoding.
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
 # batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 # Here are the recommended configs for different variants of FastConformer-Transformer, other parameters are the same as in this config file.
 # One extra (linear projection) layer is added between FastConformer encoder and Transformer decoder if they have different hidden sizes
-# It is recommended to initialize FastConformer with ASR pre-trained encoder for better accuracy and faster convergence
+# It is recommended to initialize FastConformer with ASR/SSL pre-trained encoder for better accuracy and faster convergence
 
 name: "FastConformer-Transformer-MultiTask"
 
@@ -32,7 +32,7 @@ model:
 
   train_ds:
     use_lhotse: true
-    tarred_audio_filepaths: ???
+    tarred_audio_filepaths: null
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
     shuffle: true
@@ -43,7 +43,7 @@ model:
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/common/data/lhotse/dataloader.py#L36
     batch_size: None
     batch_duration: 360
-    quadratic_duration: 20
+    quadratic_duration: 15
     use_bucketing: True
     num_buckets: 20
     bucket_buffer_size: 20000
@@ -80,7 +80,7 @@ model:
       spl_tokens: # special tokens model
         dir: ???
         type: bpe
-      en: # English tokenizer (example, replace with whichever language you would like)
+      en: # English tokenizer (example, replace with whichever language you would like or add tokenizers to add tokenizer for additional languages) 
         dir: ???
         type: bpe
 
@@ -113,7 +113,7 @@ model:
     freq_width: 27
     time_width: 0.05
 
-  # ASR Encoder
+  # FastConformer Encoder
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}
@@ -231,7 +231,6 @@ model:
     # scheduler setup
     sched:
       name: InverseSquareRootAnnealing
-      #d_model: ${model.encoder.d_model}
       # scheduler config override
       warmup_steps: 2500
       warmup_ratio: null

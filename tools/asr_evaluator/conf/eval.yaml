@@ -40,7 +40,7 @@ engine:
     transcribe_params:
         # Put additional overrides for params in TranscriptionConfig used by transcribe_speech.py here
         # Don't put the following fields here: 'calculate_wer', 'model_path', 'pretrained_name', 'dataset_manifest', 'output_filename', 'batch_size', 'num_workers', 'random_seed', 'eval_config_yaml', 'decoder_type'
-        use_model_transcribe: True
+        allow_partial_transcribe: False
 
 analyst:
     metric_calculator:

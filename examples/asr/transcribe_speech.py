@@ -21,7 +21,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecMultiTaskModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
@@ -167,7 +167,7 @@ class TranscriptionConfig:
     model_change: ModelChangeConfig = ModelChangeConfig()
 
     # Config for word / character error rate calculation
-    calculate_wer: bool = False
+    calculate_wer: bool = True
     clean_groundtruth_text: bool = False
     langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
     use_cer: bool = False
@@ -182,10 +182,10 @@ class TranscriptionConfig:
     # key for groundtruth text in manifest
     gt_text_attr_name: str = "text"
 
-    # Use model's transcribe() function instead of transcribe_partial_audio()
+    # Use model's transcribe() function instead of transcribe_partial_audio() by default
     # Only use transcribe_partial_audio() when the audio is too long to fit in memory
-    # and your model's transcribe() function does not support processing manifests with audio offsets
-    use_model_transcribe: bool = False
+    # Your manifest input should have `offset` field to use transcribe_partial_audio()
+    allow_partial_transcribe: bool = False
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -309,14 +309,18 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         else:
             cfg.decoding = cfg.rnnt_decoding
 
-    if cfg.use_model_transcribe:
-        # use model's transcribe function
+    if isinstance(asr_model, EncDecMultiTaskModel):
+        # Special case for EncDecMultiTaskModel, where the input manifest is directly passed into the model's transcribe() function
         partial_audio = False
         filepaths = cfg.dataset_manifest
         assert cfg.dataset_manifest is not None
     else:
         # prepare audio filepaths and decide wether it's partial audio
         filepaths, partial_audio = prepare_audio_data(cfg)
+
+    if not cfg.allow_partial_transcribe:
+        # by defatul, use model's transcribe() function, unless partial audio is required
+        partial_audio = False
 
     # setup AMP (optional)
     if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
