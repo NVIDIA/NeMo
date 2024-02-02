@@ -172,16 +172,16 @@ def adjust_nemo_config(model_config, ref_config):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--input_name_or_path", type=str)
+    parser.add_argument("--input-name-or-path", type=str)
     parser.add_argument(
-        "--hparams_file",
+        "--hparams-file",
         type=str,
         default=os.path.join(os.path.dirname(__file__),
                              '../../examples/nlp/language_modeling/conf/megatron_taurus_config.yaml'),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--output_path", type=str, default=None, help="Path to output .nemo file.")
+    parser.add_argument("--output-path", type=str, default=None, help="Path to output .nemo file.")
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weight saved"
     )
@@ -294,11 +294,10 @@ def convert(args):
     )
     nemo_outputs = model(tokens=input_token_ids_tensor, text_position_ids=input_positions_tensor,
                          attention_mask=curr_mask_tensor, labels=None)
-    # print(nemo_outputs[:, -1] / (nemo_config.model["hidden_size"] ** 0.5) / pyt_outputs)
     assert torch.argmax(nemo_outputs[0, -1], dim=-1) == pyt_outputs, "Predicted next token not match."
-    torch.save(model.state_dict(), "/home/yuya/Projects/deepmind/models/taurus_nv/code/taurus/save_2b_pyt.pt")
-    # model.save_to(args.output_path)
-    # logging.info(f'NeMo model saved to: {args.output_path}')
+
+    model.save_to(args.output_path)
+    logging.info(f'NeMo model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':
