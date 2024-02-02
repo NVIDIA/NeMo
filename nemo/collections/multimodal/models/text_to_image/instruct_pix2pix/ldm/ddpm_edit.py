@@ -40,9 +40,8 @@ except (ImportError, ModuleNotFoundError):
 
 
 class LatentDiffusionEdit(LatentDiffusion):
-    def init_from_ckpt(
-        self, path, ignore_keys=list(), only_model=False, load_vae=True, load_unet=True, load_encoder=True,
-    ):
+    def init_from_ckpt(self, path, ignore_keys=list(), only_model=False, load_vae=True, load_unet=True,
+                       load_encoder=True, ):
         pl_sd = torch.load(path, map_location="cpu")
         if "state_dict" in list(pl_sd.keys()):
             pl_sd = pl_sd["state_dict"]
@@ -94,15 +93,15 @@ class LatentDiffusionEdit(LatentDiffusion):
 
     @torch.no_grad()
     def get_input(
-        self,
-        batch,
-        k,
-        return_first_stage_outputs=False,
-        force_c_encode=False,
-        cond_key=None,
-        return_original_cond=False,
-        bs=None,
-        uncond=0.05,
+            self,
+            batch,
+            k,
+            return_first_stage_outputs=False,
+            force_c_encode=False,
+            cond_key=None,
+            return_original_cond=False,
+            bs=None,
+            uncond=0.05,
     ):
         x = batch[k]
         if bs is not None:

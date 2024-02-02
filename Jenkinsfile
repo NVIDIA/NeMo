@@ -144,7 +144,7 @@ pipeline {
         trainer.devices=1 \
         ++exp_manager.max_time_per_run=00:00:03:00 \
         trainer.max_steps=20 \
-        model.embed_dim=64 \
+        model.conditioning.embed_dim=64 \
         model.micro_batch_size=1 \
         model.global_batch_size=1 \
         model.data.synthetic_data=True \
