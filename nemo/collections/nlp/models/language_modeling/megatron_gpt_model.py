@@ -282,12 +282,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if HAVE_TE and self.cfg.get('fp8', False) and self.cfg.get('fp8_params', False):
                 build_model_context = transformer_engine.pytorch.fp8_model_init
             with build_model_context():
-                enable_fp8_model_init = self.cfg.get('fp8_init_experimental', False)  
-                with transformer_engine.pytorch.fp8_model_init(enabled=enable_fp8_model_init):  
+                enable_fp8_model_init = self.cfg.get('fp8_init_experimental', False)
+                with transformer_engine.pytorch.fp8_model_init(enabled=enable_fp8_model_init):
                     self.model = build_model(
                         model_provider_func=self.model_provider_func,
                         wrap_with_ddp=False,
-                        virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                        virtual_pipeline_model_parallel_size=self.cfg.get(
+                            'virtual_pipeline_model_parallel_size', None
+                        ),
                         on_cpu=cfg.get('fsdp', False) and cfg.get('use_cpu_initialization', False),
                     )
 
