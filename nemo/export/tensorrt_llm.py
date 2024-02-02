@@ -273,6 +273,7 @@ class TensorRTLLM(ITritonDeployable):
                         for i in range(len(input_texts)):
                             assert task_ids[i] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(task_ids[i])
                             input_task_ids.append(self.task_ids[task_ids[i]])
+
             if not streaming:
                 return generate(
                     input_texts=input_texts,
@@ -289,7 +290,6 @@ class TensorRTLLM(ITritonDeployable):
                     no_repeat_ngram_size=no_repeat_ngram_size,
                     **sampling_kwargs,
                 )
-
             else:
                 return generate_streaming(
                     input_texts=input_texts,
@@ -410,9 +410,9 @@ class TensorRTLLM(ITritonDeployable):
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
             return {"outputs": output}
+
     @batch
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
-        # TODO: code is duplicated with triton_infer_fn, need cleanup
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_token" in inputs:
@@ -488,7 +488,22 @@ class TensorRTLLM(ITritonDeployable):
                                             "Please check the nemo checkpoint format for the prompt "
                                             "embedding table.".format(mw_path))
             weights = torch.load(mw_path)
-            weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
+
+            weights_found = True
+            if "model.embedding.adapter_layer.ptuning_adapter.inference_table" in weights:
+                weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
+            elif "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight" in weights:
+                weights = weights["model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight"]
+            elif 'prompt_table' in weights:
+                if "prompt_table.taskname.prompt_embeddings.weight" in weights['prompt_table']:
+                    weights = weights['prompt_table']["prompt_table.taskname.prompt_embeddings.weight"]
+                else:
+                    weights_found = False
+            else:
+                weights_found = False
+
+            if not weights_found:
+                raise Exception("Could not find the embedding table in the {0}. Please check the nemo file format".format(prompt_embeddings_checkpoint_path))
 
             return weights.cpu().detach()
         return None
