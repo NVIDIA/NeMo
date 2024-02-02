@@ -84,7 +84,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
+    from megatron.core.datasets.gpt_dataset import GPTDataset, MockGPTDataset, GPTDatasetConfig
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
@@ -1200,6 +1200,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 1
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
+        mock_dataset = self.cfg.data.get("mock_dataset", False)
         kwargs = {
             "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
@@ -1211,6 +1212,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             "reset_position_ids": self.reset_position_ids,
             "reset_attention_mask": self.reset_attention_mask,
             "eod_mask_loss": self.eod_mask_loss,
+            "mock": mock_dataset,
         }
 
         if self.cfg.data.get('add_fim', False):
@@ -1221,9 +1223,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ).build()
         else:
             dataset_config = GPTDatasetConfig(**kwargs)
+            dataset_type = MockGPTDataset if mock_dataset else GPTDataset
 
             self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                GPTDataset, train_valid_test_num_samples, dataset_config,
+                dataset_type, train_valid_test_num_samples, dataset_config,
             ).build()
 
         if self._train_ds is not None:
