@@ -141,6 +141,8 @@ model:
       attn_layer_dropout: 0.1
       ffn_dropout: 0.1
       hidden_act: "relu"
+      pre_ln: true
+      pre_ln_final_layer_norm: true
 
     multi_layer_feat:
       layer_idx_list: [0,16]

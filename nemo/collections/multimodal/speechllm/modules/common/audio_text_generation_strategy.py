@@ -219,12 +219,11 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
         if self.model.perception.cfg.get('combine_return', True):
             encoder_input, self.attention_mask, context_tokens, _, (speech_encoded, speech_encoded_len, extra_outputs), _ = self.model.prepare_llm_input(batch)
             self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
-            self.input_embeds_hidden = extra_outputs.get('input_embeds_hidden', None)
+            self.extra_outputs = extra_outputs
             return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), torch.zeros_like(context_lengths)
         else:
             encoder_input, self.attention_mask, context_tokens, _, (speech_encoded, speech_encoded_len, llm_encoded_len, extra_outputs), _ = self.model.prepare_llm_input(batch)
             self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
-            self.input_embeds_hidden = extra_outputs.get('input_embeds_hidden', None)
             return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), llm_encoded_len
 
     def prepare_batch_at_step(
@@ -239,6 +238,7 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
         compute_attention_mask: bool,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         # types2use = None
+        self.input_embeds_hidden = self.extra_outputs.get('input_embeds_hidden', None)
         input_embeddings, speech_encoded, speech_encoded_len = input_embeddings
         if step == 0:
             # Allocate memory for the entire context.
@@ -256,8 +256,11 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
             # for seq started, first get embeddings2use, and then run cross attend, after that replace embeddings2use with the cross attended embed
             # use speech_encoded; rerun cross attend
             # [1, b, d]
-            embeddings2use, extra_outputs = self.model.perception_cross_attn(speech_encoded, speech_encoded_len, embeddings2use, input_embeds_hidden = self.input_embeds_hidden)
-            self.input_embeds_hidden = extra_outputs.get('input_embeds_hidden', None)
+            decoder_mems_list = self.extra_outputs.get('decoder_mems_list', None)
+            if decoder_mems_list is not None:
+                decoder_mems_list = decoder_mems_list[:,:,:curr_context_length-1]
+            embeddings2use, self.extra_outputs = self.model.perception_cross_attn(speech_encoded, speech_encoded_len, embeddings2use, input_embeds_hidden = self.input_embeds_hidden, decoder_mems_list=decoder_mems_list, input_lengths=tokens2use.squeeze(-1) != self.model.tokenizer.eos_id, return_mems=True)
+            self.input_embeds_hidden = self.extra_outputs.get('input_embeds_hidden', None)
             embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use.transpose(0, 1), started)
 
         """Prepare batch for each of the inference steps"""
