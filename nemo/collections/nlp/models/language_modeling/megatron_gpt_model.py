@@ -18,12 +18,14 @@ import queue
 import warnings
 from contextlib import nullcontext
 from dataclasses import fields
-from functools import partial
+from functools import cache, partial
+from importlib.metadata import version
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
+from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -31,7 +33,11 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import (
+    GPTFIMDataset,
+    GPTFIMDatasetConfig,
+    is_dataset_built_on_rank,
+)
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -76,7 +82,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import InferenceParams, parallel_state
+    from megatron.core import InferenceParams, parallel_state, tensor_parallel
+    from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
+    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
@@ -105,11 +113,30 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 
-def get_specs(spec_name):
-    name_spec_dict = {"": get_gpt_layer_with_transformer_engine_spec(), "megatron_falcon_gpt": get_falcon_layer_spec()}
-    if spec_name not in name_spec_dict:
+@cache
+def mcore_supports_moe() -> bool:
+    global HAVE_MEGATRON_CORE
+    if not HAVE_MEGATRON_CORE:
+        return False
+    try:
+        from megatron.core.transformer.moe.router import TopKRouter
+
+        return True
+    except ImportError:
+        return False
+
+
+def get_specs(spec_name, num_experts=None):
+    if spec_name == '':
+        if num_experts is not None:
+            assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
+            return get_gpt_layer_with_transformer_engine_spec(num_experts)
+        else:
+            return get_gpt_layer_with_transformer_engine_spec()
+    elif spec_name == 'megatron_falcon_gpt':
+        return get_falcon_layer_spec()
+    else:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
-    return name_spec_dict[spec_name]
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -225,12 +252,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
         self.spec_name = cfg.get('name', '')
+        if cfg.get('fp8', False):
+            self.prev_step_training = True
 
         self.rampup_batch_size = self.cfg.get('rampup_batch_size', None)
         if self.rampup_batch_size:
             self.prev_consumed_samples = 0
             self.if_first_step = 0
             self.prev_global_batch_size = None
+
+        if cfg.get('data', None) is not None:
+            self.reset_position_ids = cfg.data.get('reset_position_ids', False)
+            self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
+            self.eod_mask_loss = cfg.data.get('eod_mask_loss', False)
 
         if not self.megatron_amp_O2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
@@ -315,7 +349,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec=get_specs(self.spec_name),
+                transformer_layer_spec=get_specs(self.spec_name, self.transformer_config.num_moe_experts),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
@@ -498,7 +532,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -528,6 +562,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             forward_only=forward_only,
             seq_length=self.cfg.encoder_seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
+            first_val_step=first_val_step,
         )
 
         # only the last stages of the pipeline return losses
@@ -621,6 +656,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         param.data_ptr()
 
         loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+
+        if self.cfg.get('fp8', False):
+            self.prev_step_training = self.training
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -850,6 +888,29 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # TODO @tmoon: Use once available in Megatron-LM
         # return DataIteratorList(iters)
 
+    def get_batch(self, data_iterator, tuning):
+        """Generate a batch."""
+
+        # Broadcast data.
+        if data_iterator is not None:
+            data = next(data_iterator)
+        else:
+            data = None
+
+        # return batch for GPT SFT
+        if tuning:
+            return data
+
+        batch = {
+            'tokens': data["tokens"],
+            'labels': data["labels"],
+            'loss_mask': data["loss_mask"],
+            'attention_mask': data["attention_mask"],
+            'position_ids': data["position_ids"],
+        }
+
+        return batch
+
     def get_batch_on_this_context_parallel_rank(self, batch):
         cp_size = self.cfg.get('context_parallel_size', 1)
         num_valid_tokens_in_ub = None
@@ -876,25 +937,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return batch
 
-    def get_forward_output_and_loss_func(self, validation_step=False):
+    def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
-            batch = next(dataloader_iter)
+            batch = self.get_batch(dataloader_iter, tuning)
 
             # Transfer needed data to GPU
             required_keys = set()
-            max_seqlen, cu_seqlens_argmin = None, None
+            max_seqlen = batch.pop('max_seqlen').squeeze() if 'max_seqlen' in batch else None
+            cu_seqlens_argmin = batch.pop('cu_seqlens_argmin') if 'cu_seqlens_argmin' in batch else None
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
                 required_keys.add('attention_mask')
                 if 'cu_seqlens' in batch:
                     required_keys.add('cu_seqlens')
-                    if 'max_seqlen' in batch:
-                        max_seqlen = batch['max_seqlen'].squeeze()
-                    if 'cu_seqlens_argmin' in batch:
-                        cu_seqlens_argmin = batch['cu_seqlens_argmin']
                 if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
@@ -903,6 +961,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
+            # slice batch along sequence dimension for context parallelism
             batch = self.get_batch_on_this_context_parallel_rank(batch)
 
             # Model forward pass
@@ -930,12 +989,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
                     else:
                         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
-                    forward_args['cu_seqlens_q'] = cu_seqlens
-                    forward_args['cu_seqlens_kv'] = cu_seqlens
-                    if max_seqlen is not None:
-                        forward_args['max_seqlen_q'] = max_seqlen
-                        forward_args['max_seqlen_kv'] = max_seqlen
-                    forward_args['qkv_format'] = 'thd'
+
+                    try:
+                        from megatron.core.packed_seq_params import PackedSeqParams
+                    except (ImportError, ModuleNotFoundError) as e:
+                        mcore_version = packaging.version.Version(version('megatron-core'))
+                        logging.error(
+                            f"megatron-core v{mcore_version} does not support training with packed sequence. "
+                            "Please use megatron-core >= 0.5.0, or set model.data.train_ds.packed_sequence=False"
+                        )
+                        raise e
+
+                    forward_args['packed_seq_params'] = PackedSeqParams(
+                        cu_seqlens_q=cu_seqlens,
+                        cu_seqlens_kv=cu_seqlens,
+                        max_seqlen_q=max_seqlen,
+                        max_seqlen_kv=max_seqlen,
+                        qkv_format='thd',
+                    )
 
             output_tensor = model(**forward_args)
 
@@ -1038,7 +1109,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for model_module in self.model:
                 model_module.eval()
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        if self.cfg.get('fp8', False):
+            first_val_step = self.prev_step_training and not self.training
+            self.prev_step_training = self.training
+        else:
+            first_val_step = None
+
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True, first_val_step)
 
         if isinstance(self.model, list):
             for model_module in self.model:
@@ -1108,6 +1185,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
 
+        # Add extra FIM tokens to tokenizer
+        if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
+            fim_tokens = self.cfg.data.fim.extra_tokens
+            fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
+            self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
+
         train_valid_test_num_samples = [
             max_train_steps * global_batch_size,
             eval_iters * global_batch_size,
@@ -1119,18 +1202,32 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 1
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
-        self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-            cfg=self.cfg,
-            trainer=self.trainer,
-            data_prefix=self.cfg.data.data_prefix,
-            data_impl=self.cfg.data.data_impl,
-            splits_string=self.cfg.data.splits_string,
-            train_valid_test_num_samples=train_valid_test_num_samples,
-            seq_length=self.cfg.data.seq_length,
-            seed=self.cfg.seed,
-            skip_warmup=self.cfg.data.get('skip_warmup', True),
-            tokenizer=self.tokenizer,
-        )
+        kwargs = {
+            "is_built_on_rank": is_dataset_built_on_rank,
+            "random_seed": self.cfg.seed,
+            "sequence_length": self.cfg.data.seq_length,
+            "blend": self.cfg.data.data_prefix,
+            "split": self.cfg.data.splits_string,
+            "path_to_cache": self.cfg.data.index_mapping_dir,
+            "reset_position_ids": self.reset_position_ids,
+            "reset_attention_mask": self.reset_attention_mask,
+            "eod_mask_loss": self.eod_mask_loss,
+            "eod_id": self.tokenizer.eos_id,
+        }
+
+        if self.cfg.data.get('add_fim', False):
+            dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
+
+            self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
+                GPTFIMDataset, train_valid_test_num_samples, dataset_config,
+            ).build()
+        else:
+            dataset_config = GPTDatasetConfig(**kwargs)
+
+            self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
+                GPTDataset, train_valid_test_num_samples, dataset_config,
+            ).build()
+
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
         if self._validation_ds is not None:
@@ -1575,7 +1672,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
 
-        normalization = self.cfg.get('normalization', 'layernorm')
+        normalization = self.cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
         if normalization == 'layernorm':
             normalization = 'LayerNorm'
@@ -1606,8 +1703,27 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'normalization': normalization,
             'fp8': fp8,
-            'ub_tp_comm_overlap': ub_tp_comm_overlap,
+            'tp_comm_overlap': ub_tp_comm_overlap,
+            # MoE related
+            'num_experts': self.cfg.get('num_experts', None),
+            'moe_router_load_balancing_type': self.cfg.get('moe_router_load_balancing_type', 'aux_loss'),
+            'moe_router_topk': self.cfg.get('moe_router_topk', 2),
+            'moe_grouped_gemm': self.cfg.get('moe_grouped_gemm', False),
+            'moe_aux_loss_coeff': self.cfg.get(
+                'moe_aux_loss_coeff', 0
+            ),  # 1e-2 would be a good start value for load balance loss.
+            'moe_z_loss_coeff': self.cfg.get('moe_z_loss_coeff', None),  # 1e-3 would be a good start value for z-loss
+            'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
+            'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
         }
+        if model_specific_configs['num_experts'] is not None:
+            assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
+        elif not mcore_supports_moe():
+            if 'num_experts' in model_specific_configs:
+                del model_specific_configs['num_experts']
+            moe_keys = list(filter(lambda x: x.startswith('moe_'), model_specific_configs.keys()))
+            for k in moe_keys:
+                del model_specific_configs[k]
 
         transformer_config = super().build_transformer_config()
 
