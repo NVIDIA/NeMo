@@ -64,7 +64,7 @@ def main():
     args = parse_args()
     config = OmegaConf.merge(
         OmegaConf.structured(LhotseDataLoadingConfig),
-        OmegaConf.create({"manifest_filepath": args.input, "dummy_mode": True}),
+        OmegaConf.create({"manifest_filepath": args.input, "missing_sampling_rate_ok": True}),
     )
     cuts, _ = read_cutset_from_config(config)
     min_dur, max_dur = args.min_duration, args.max_duration

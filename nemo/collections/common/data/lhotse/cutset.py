@@ -107,7 +107,10 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
         "text_field": config.text_field,
         "lang_field": config.lang_field,
     }
-    notar_kwargs = {"dummy_mode": config.dummy_mode}
+    # The option below is to allow a special case of NeMo manifest iteration as Lhotse CutSet
+    # without performing any I/O. NeMo manifests typically don't have sampling_rate information required by Lhotse.
+    # This is useful for utility scripts that iterate metadata and estimate optimal batching settings.
+    notar_kwargs = {"missing_sampling_rate_ok": config.missing_sampling_rate_ok}
     if isinstance(config.manifest_filepath, (str, Path)):
         logging.info(f"Initializing Lhotse CutSet from a single NeMo manifest (tarred): '{config.manifest_filepath}'")
         if is_tarred:
@@ -182,6 +185,11 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
 
 
 def mux(*cutsets: CutSet, weights: list[int | float], max_open_streams: int | None = None) -> CutSet:
+    """
+    Helper function to call the right multiplexing method flavour in lhotse.
+    The result is always an infinitely iterable ``CutSet``, but depending on whether ``max_open_streams`` is set,
+    it will select a more appropriate multiplexing strategy.
+    """
     if max_open_streams is not None:
         cuts = CutSet.infinite_mux(*cutsets, weights=weights, seed="trng", max_open_streams=max_open_streams)
     else:

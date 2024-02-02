@@ -47,7 +47,7 @@ class LazyNeMoIterator(ImitatesDict):
 
     .. caution:: We will perform some I/O (as much as required by soundfile.info) to discover the sampling rate
         of the audio file. If this is not acceptable, convert the manifest to Lhotse format which contains
-        sampling rate info. For pure metadata iteration purposes we also provide a ``dummy_mode`` flag that
+        sampling rate info. For pure metadata iteration purposes we also provide a ``missing_sampling_rate_ok`` flag that
         will create only partially valid Lhotse objects (with metadata related to sampling rate / num samples missing).
 
     Example::
@@ -56,12 +56,16 @@ class LazyNeMoIterator(ImitatesDict):
     """
 
     def __init__(
-        self, path: str | Path, text_field: str = "text", lang_field: str = "lang", dummy_mode: bool = False
+        self,
+        path: str | Path,
+        text_field: str = "text",
+        lang_field: str = "lang",
+        missing_sampling_rate_ok: bool = False,
     ) -> None:
         self.source = LazyJsonlIterator(path)
         self.text_field = text_field
         self.lang_field = lang_field
-        self.dummy_mode = dummy_mode
+        self.missing_sampling_rate_ok = missing_sampling_rate_ok
 
     @property
     def path(self) -> str | Path:
@@ -109,7 +113,7 @@ class LazyNeMoIterator(ImitatesDict):
                 duration=duration,
                 channel_ids=[0],
             )
-        elif self.dummy_mode:
+        elif self.missing_sampling_rate_ok:
             return Recording(
                 id=audio_path,
                 sources=[AudioSource(type="file", channels=[0], source=audio_path)],
