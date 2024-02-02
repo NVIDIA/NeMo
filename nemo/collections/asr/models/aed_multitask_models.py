@@ -526,10 +526,22 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         return transf_log_probs, encoded_len, enc_states, enc_mask
 
-    def compute_loss(self, batch):
+    def compute_loss(
+        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor] | None
+    ) -> torch.Tensor:
+        """
+        Run forward pass through the model and compute the loss.
+
+        Args:
+            batch: a tuple of 4 tensors (signal, signal_len, tokens, tokens_len) as returned
+                by :class:`~nemo.collections.asr.data.audio_to_text_lhotse_prompted.PromptedAudioToTextLhotseDataset`.
+                When batch is ``None``, we'll return a zero tensor.
+        Returns:
+            The computed loss value as a single-element tensor.
+        """
 
         if batch is None:
-            return 0
+            return torch.tensor([0.0])
 
         signal, signal_len, transcript, transcript_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
