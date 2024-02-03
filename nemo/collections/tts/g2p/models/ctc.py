@@ -127,8 +127,13 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
 
             if cfg.tokenizer_grapheme.vocab_file:
                 vocab_file = cfg.tokenizer_grapheme.vocab_file
-            else:
-                vocab_file = "/tmp/char_vocab.txt"
+                chars = ""
+                with open(vocab_file, "w") as f:
+                    for line in f.readLine():
+                        chars += line.strip("\"")
+                    
+            
+            vocab_file = "/tmp/char_vocab.txt"
 
             with open(vocab_file, "w") as f:
                 [f.write(f'"{ch}"\n') for ch in chars]
