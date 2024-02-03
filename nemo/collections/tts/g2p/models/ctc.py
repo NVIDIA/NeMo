@@ -131,8 +131,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
                 with open(vocab_file, "w") as f:
                     for line in f.readLine():
                         chars += line.strip("\"")
-                    
-            
+
             vocab_file = "/tmp/char_vocab.txt"
 
             with open(vocab_file, "w") as f:
