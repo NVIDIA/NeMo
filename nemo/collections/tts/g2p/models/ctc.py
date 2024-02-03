@@ -130,9 +130,9 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
             else:
                 vocab_file = "/tmp/char_vocab.txt"
 
-                with open(vocab_file, "w") as f:
-                    [f.write(f'"{ch}"\n') for ch in chars]
-                    f.write('"\\""\n')  # add " to the vocab
+            with open(vocab_file, "w") as f:
+                [f.write(f'"{ch}"\n') for ch in chars]
+                f.write('"\\""\n')  # add " to the vocab
 
             self.register_artifact("tokenizer_grapheme.vocab_file", vocab_file)
             grapheme_tokenizer = instantiate(cfg.tokenizer_grapheme.dataset, vocab_file=vocab_file)
