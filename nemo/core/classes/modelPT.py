@@ -1655,8 +1655,7 @@ class ModelPT(LightningModule, Model):
         if self.device.type == 'cuda' and hasattr(self, '_nsys_profile_enabled') and self._nsys_profile_enabled:
             if global_batch_idx in self._nsys_profile_steps and get_rank() in self._nsys_profile_ranks:
                 if not self._nsys_profile_active:
-                    logging.info("Batch %d in %s, starting profiling", global_batch_idx, self._nsys_profile_steps)
-                    logging.info(f"====== Start nsys profiling for rank {get_rank()} ======")
+                    logging.info("====== Start nsys profiling for rank %d batch %d ======", get_rank(), global_batch_idx)
                     self._nsys_profile_active = True
                     torch.cuda.cudart().cudaProfilerStart()
                 if self._nsys_profile_gen_shape:
@@ -1698,16 +1697,13 @@ class ModelPT(LightningModule, Model):
 
         if self.device.type == 'cuda' and hasattr(self, '_nsys_profile_enabled'):
             if self._nsys_profile_enabled and self._nsys_profile_active:
-                # if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
                 next_batch = global_batch_idx + 1
                 if next_batch not in self._nsys_profile_steps:
-                    logging.info("Batch %d not in %s, ending profiling", next_batch, self._nsys_profile_steps)
-                    logging.info("====== End nsys profiling ======")
+                    logging.info("====== End nsys profiling for rank %d batch %d ======", get_rank(), global_batch_idx)
                     torch.cuda.cudart().cudaProfilerStop()
                     self._nsys_profile_active = False
                 else:
-                    logging.info("Batch %d in %s, continuing profiling", next_batch, self._nsys_profile_steps)
-                    logging.info("====== Continuing nsys profiling ======")
+                    logging.info("====== Continuing nsys profiling for rank %d batch %d ======", get_rank(), global_batch_idx)
 
     def on_train_end(self):
         """ PyTorch Lightning hook:
