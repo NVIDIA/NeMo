@@ -14,6 +14,7 @@
 
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
+from pytorch_lightning.loggers import WandbLogger
 
 from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import MegatronGPTEmbeddingModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
@@ -22,9 +23,21 @@ from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+from collections.abc import MutableMapping
+
 
 mp.set_start_method("spawn", force=True)
 
+
+def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> MutableMapping:
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, MutableMapping):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_embedder_tuning_config")
 def main(cfg) -> None:
@@ -35,6 +48,10 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model_cfg = MegatronGPTEmbeddingModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+    for logger in trainer.loggers:
+        if isinstance(logger, WandbLogger):
+            fd = flatten_dict(dict(model_cfg), sep="/")
+            logger.experiment.config.update(fd)
     model = MegatronGPTEmbeddingModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
 
